@@ -35,14 +35,14 @@ export function shapeToGeometry(
   const positions: number[] = []
   const normals: number[] = []
 
-  const faceEnumValue = oc.TopAbs_ShapeEnum.TopAbs_FACE
-  const faceEnum =
-    typeof faceEnumValue === 'number'
-      ? faceEnumValue
-      : (faceEnumValue as { value: number }).value
+  // Pass embind enum objects directly — unwrapping to a plain number silently
+  // makes Init() match zero faces.
+  const faceEnum = oc.TopAbs_ShapeEnum.TopAbs_FACE
+  const shapeEnum = (oc.TopAbs_ShapeEnum as unknown as Record<string, unknown>)
+    .TopAbs_SHAPE
 
   const explorer = new oc.TopExp_Explorer_1()
-  explorer.Init(shape, faceEnum)
+  explorer.Init(shape, faceEnum, shapeEnum)
   while (explorer.More()) {
     const face = oc.TopoDS.Face_1(explorer.Current())
     const location = new oc.TopLoc_Location_1()

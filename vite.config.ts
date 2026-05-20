@@ -18,5 +18,7 @@ export default defineConfig({
     fs: {
       allow: ['..'],
     },
+    // Permit dockerized browsers (Playwright via MCP) to hit the dev server.
+    allowedHosts: ['localhost', '127.0.0.1', 'host.docker.internal'],
   },
 })

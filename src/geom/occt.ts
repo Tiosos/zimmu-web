@@ -19,7 +19,7 @@ export function makeBox(
   dy: number,
   dz: number,
 ): TopoDS_Shape {
-  const builder = new oc.BRepPrimAPI_MakeBox_2(dx, dy, dz)
+  const builder = new oc.BRepPrimAPI_MakeBox_1(dx, dy, dz)
   const shape = builder.Shape()
   builder.delete()
   return shape

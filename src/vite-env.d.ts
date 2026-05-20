@@ -4,7 +4,7 @@
 // Wider typing lives in v0.2 once joint definitions reach beyond box+mesh.
 declare module 'opencascade.js' {
   export interface OpenCascadeInstance {
-    BRepPrimAPI_MakeBox_2: new (
+    BRepPrimAPI_MakeBox_1: new (
       dx: number,
       dy: number,
       dz: number,
