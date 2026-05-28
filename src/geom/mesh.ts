@@ -1,20 +1,26 @@
 import * as THREE from 'three'
 import type { OpenCascadeInstance, TopoDS_Shape } from 'opencascade.js'
 
-interface ShapeToGeometryOptions {
+interface MeshOptions {
   linearDeflection?: number
   angularDeflection?: number
 }
 
-// Convert an OCCT TopoDS_Shape into a Three.js BufferGeometry by walking every
-// face, asking OCCT to triangulate it, and copying the result into a non-indexed
-// position+normal buffer. Flat-shaded normals per triangle for v0.1 — fine for a
-// hard-edged box; smooth shading arrives when we have curves.
-export function shapeToGeometry(
+export interface MeshData {
+  positions: Float32Array
+  normals: Float32Array
+}
+
+// Convert an OCCT TopoDS_Shape into raw typed arrays by walking every face,
+// asking OCCT to triangulate it, and computing flat normals per triangle.
+// Returns plain Float32Arrays so the result is Transferable across workers.
+// Flat-shaded normals per triangle for v0.1 — fine for a hard-edged box;
+// smooth shading arrives when we have curves.
+export function shapeToMeshData(
   oc: OpenCascadeInstance,
   shape: TopoDS_Shape,
-  options: ShapeToGeometryOptions = {},
-): THREE.BufferGeometry {
+  options: MeshOptions = {},
+): MeshData {
   const linearDeflection = options.linearDeflection ?? 0.1
   const angularDeflection = options.angularDeflection ?? 0.5
 
@@ -114,14 +120,20 @@ export function shapeToGeometry(
   }
   explorer.delete()
 
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+  }
+}
+
+export function shapeToGeometry(
+  oc: OpenCascadeInstance,
+  shape: TopoDS_Shape,
+  options: MeshOptions = {},
+): THREE.BufferGeometry {
+  const { positions, normals } = shapeToMeshData(oc, shape, options)
   const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute(
-    'position',
-    new THREE.Float32BufferAttribute(positions, 3),
-  )
-  geometry.setAttribute(
-    'normal',
-    new THREE.Float32BufferAttribute(normals, 3),
-  )
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
   return geometry
 }
