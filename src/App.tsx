@@ -1,10 +1,17 @@
+import { useState, useRef, useEffect } from 'react'
 import { useScene } from './scene/useScene'
+import { useFile } from './scene/useFile'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
+import { FileMenu } from './ui/FileMenu'
+import type { CameraState } from './scene/types'
+
+const supported = 'showOpenFilePicker' in window
 
 function App() {
   const {
     scene,
+    replaceScene,
     geometries,
     errors,
     pendingIds,
@@ -18,55 +25,114 @@ function App() {
     onSelect,
   } = useScene()
 
+  const cameraStateRef = useRef<CameraState>({
+    position: { x: 250, y: -200, z: 150 },
+    target: { x: 0, y: 0, z: 0 },
+  })
+  const [loadedCamera, setLoadedCamera] = useState<CameraState | null>(null)
+
+  const {
+    fileReady,
+    fileName,
+    projectName,
+    isDirty,
+    fileError,
+    newFile,
+    openFile,
+    saveFile,
+    saveAsFile,
+    setProjectName,
+  } = useFile({
+    scene,
+    getCameraState: () => cameraStateRef.current,
+    onFileLoaded: (envelope) => {
+      replaceScene(envelope.scene)
+      cameraStateRef.current = envelope.camera
+      setLoadedCamera(envelope.camera)
+    },
+  })
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && !e.shiftKey && e.key === 's') {
+        e.preventDefault()
+        void saveFile()
+      }
+      if (mod && e.shiftKey && e.key === 's') {
+        e.preventDefault()
+        void saveAsFile()
+      }
+      if (mod && !e.shiftKey && e.key === 'o') {
+        e.preventDefault()
+        void openFile()
+      }
+      if (mod && !e.shiftKey && e.key === 'n') {
+        e.preventDefault()
+        void newFile()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [saveFile, saveAsFile, openFile, newFile])
+
+  if (!fileReady) return null
+
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      <div style={{ flex: 1, position: 'relative' }}>
-        <header
-          style={{
-            position: 'absolute',
-            top: 12,
-            left: 16,
-            zIndex: 10,
-            fontSize: 13,
-            letterSpacing: 0.4,
-            textTransform: 'uppercase',
-            opacity: 0.75,
-          }}
-        >
-          Zimmu · v0.1 · weekend 2
-        </header>
-        <div
-          style={{
-            position: 'absolute',
-            top: 12,
-            right: 16,
-            zIndex: 10,
-            fontSize: 12,
-            opacity: 0.65,
-          }}
-        >
-          {scene.parts.length} {scene.parts.length === 1 ? 'part' : 'parts'}
-        </div>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100vw',
+        height: '100vh',
+        overflow: 'hidden',
+      }}
+    >
+      <FileMenu
+        fileName={fileName}
+        projectName={projectName}
+        isDirty={isDirty}
+        fileError={fileError}
+        partsCount={scene.parts.length}
+        supported={supported}
+        onNew={() => {
+          void newFile()
+        }}
+        onOpen={() => {
+          void openFile()
+        }}
+        onSave={() => {
+          void saveFile()
+        }}
+        onSaveAs={() => {
+          void saveAsFile()
+        }}
+        onProjectNameChange={setProjectName}
+      />
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Viewport
           parts={scene.parts}
           geometries={geometries}
           selectedId={selectedId}
           onPartClick={onSelect}
+          cameraStateRef={cameraStateRef}
+          loadedCamera={loadedCamera}
+        />
+        <Sidebar
+          scene={scene}
+          occtReady={occtReady}
+          errors={errors}
+          pendingIds={pendingIds}
+          nextLabel={nextLabel}
+          onAdd={onAdd}
+          onRemove={onRemove}
+          onDuplicate={onDuplicate}
+          onUpdate={onUpdate}
+          selectedId={selectedId}
+          onSelect={onSelect}
         />
       </div>
-      <Sidebar
-        scene={scene}
-        occtReady={occtReady}
-        errors={errors}
-        pendingIds={pendingIds}
-        nextLabel={nextLabel}
-        onAdd={onAdd}
-        onRemove={onRemove}
-        onDuplicate={onDuplicate}
-        onUpdate={onUpdate}
-        selectedId={selectedId}
-        onSelect={onSelect}
-      />
     </div>
   )
 }
