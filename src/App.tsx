@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react'
 import * as THREE from 'three'
-import { initOCCT, makeBox } from './geom/occt'
-import { shapeToGeometry } from './geom/mesh'
+import { wrap } from 'comlink'
+import type { OcctWorkerApi } from './geom/occt.worker'
 import { Viewport } from './render/viewport'
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'ready'; geometry: THREE.BufferGeometry }
   | { status: 'error'; message: string }
+
+// Worker is a module-level singleton — OCCT WASM initialises once and stays alive.
+const occtWorker = new Worker(new URL('./geom/occt.worker.ts', import.meta.url), {
+  type: 'module',
+})
+const occt = wrap<OcctWorkerApi>(occtWorker)
 
 function App() {
   const [state, setState] = useState<LoadState>({ status: 'loading' })
@@ -17,24 +23,15 @@ function App() {
 
     async function load() {
       try {
-        const oc = await initOCCT()
+        const { positions, normals } = await occt.buildBox(100, 100, 50)
         if (cancelled) return
-        const shape = makeBox(oc, 100, 100, 50)
-        const geometry = shapeToGeometry(oc, shape, {
-          linearDeflection: 0.1,
-          angularDeflection: 0.5,
-        })
-        shape.delete()
-        if (cancelled) {
-          geometry.dispose()
-          return
-        }
+        const geometry = new THREE.BufferGeometry()
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+        geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
         setState({ status: 'ready', geometry })
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error'
-        if (!cancelled) {
-          setState({ status: 'error', message })
-        }
+        if (!cancelled) setState({ status: 'error', message })
       }
     }
 
@@ -74,9 +71,7 @@ function App() {
         {state.status === 'ready' && 'OCCT box · 100 × 100 × 50 mm'}
         {state.status === 'error' && `Error: ${state.message}`}
       </div>
-      <Viewport
-        geometry={state.status === 'ready' ? state.geometry : null}
-      />
+      <Viewport geometry={state.status === 'ready' ? state.geometry : null} />
     </div>
   )
 }
