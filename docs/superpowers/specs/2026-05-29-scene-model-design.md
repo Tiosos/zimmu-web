@@ -71,14 +71,17 @@ Dispatches on `part.kind`. For `'board'`, calls `makeBox(oc, part.length, part.w
 
 `buildBox` is left in place (removing it is unrelated cleanup).
 
+The worker imports `Part` from `src/scene/types.ts`. This is the only cross-boundary import from `scene/` into `geom/` — acceptable since `types.ts` has no logic or side-effects.
+
 ### Shape key
 
-A pure function used by App.tsx to detect dimension changes:
+A pure function in `src/scene/utils.ts` used by App.tsx to detect dimension changes. Exhaustively handles all Part kinds so TypeScript catches unhandled cases at compile time:
 
 ```typescript
-function shapeKey(part: Part): string {
+export function shapeKey(part: Part): string {
   if (part.kind === 'board') return `board:${part.length}:${part.width}:${part.thickness}`
-  // future kinds here
+  const _: never = part
+  throw new Error(`unknown kind: ${(_ as Part).kind}`)
 }
 ```
 
@@ -93,21 +96,36 @@ const [scene, setScene] = useState<Scene>({ parts: [] })
 const [geometries, setGeometries] = useState<Map<PartId, THREE.BufferGeometry>>(new Map())
 const [selectedId, setSelectedId] = useState<PartId | null>(null)
 const prevShapeKeys = useRef<Map<PartId, string>>(new Map())
+const buildSeq = useRef<Map<PartId, number>>(new Map())  // race condition guard
+const labelCounter = useRef(0)   // monotonically increasing; never resets on delete
+const colorIndex = useRef(0)     // monotonically increasing; never resets on delete
 ```
 
 ### Geometry effect
 
-A `useEffect` watching `scene` rebuilds geometry only for parts whose shape key changed:
+A `useEffect` watching `scene` rebuilds geometry only for parts whose shape key changed.
+
+**Map mutation rule:** `setGeometries` must always produce a new Map — never mutate the existing one. Use `setGeometries(prev => new Map(prev).set(id, geo))` or spread into a new Map. React uses reference equality to detect state changes.
+
+**Race condition guard:** rapid dimension edits can put multiple `buildPart` calls in-flight for the same part. Use a per-part sequence number — only apply the result if it matches the current sequence:
 
 ```
 on scene change:
   for each part in scene.parts:
     if shapeKey(part) !== prevShapeKeys.current.get(part.id):
-      call occt.buildPart(part) → update geometries map for this part
-      update prevShapeKeys.current
+      seq = (buildSeq.current.get(part.id) ?? 0) + 1
+      buildSeq.current.set(part.id, seq)
+      occt.buildPart(part).then(data => {
+        if (buildSeq.current.get(part.id) !== seq) return  // stale result, discard
+        geo = buildGeometry(data)
+        setGeometries(prev => new Map(prev).set(part.id, geo))
+      })
+      prevShapeKeys.current.set(part.id, shapeKey(part))
   for each id in geometries not in scene.parts:
-    dispose geometry, remove from geometries map
-    remove from prevShapeKeys.current
+    geometries.get(id).dispose()   // caller disposes before removing
+    setGeometries(prev => { const m = new Map(prev); m.delete(id); return m })
+    prevShapeKeys.current.delete(id)
+    buildSeq.current.delete(id)
 ```
 
 Position and rotation changes do **not** trigger this effect — Three.js applies them directly to the mesh transform, so no worker round-trip occurs.
@@ -116,10 +134,12 @@ Position and rotation changes do **not** trigger this effect — Three.js applie
 
 | Callback | Behaviour |
 |---|---|
-| `onAdd` | Append new `BoardPart` with defaults `200 × 100 × 25 mm`, origin, zero rotation, next palette color, generated label (`Board N`), auto-set `selectedId` |
-| `onRemove(id)` | Filter part from `scene.parts`, clear `selectedId` if it matched |
-| `onDuplicate(id)` | Clone part with new `id` and `crypto.randomUUID()`, offset position by `+10 mm` on X, next palette color, append after original |
+| `onAdd` | Increment `labelCounter` and `colorIndex` refs; append new `BoardPart` with defaults `200 × 100 × 25 mm`, origin, zero rotation, `PART_COLORS[colorIndex % 8]`, label `Board ${labelCounter}`; auto-set `selectedId` to new part's id |
+| `onRemove(id)` | Filter part from `scene.parts`; dispose `geometries.get(id)` then remove from map; clear `selectedId` if it matched |
+| `onDuplicate(id)` | Increment `colorIndex`; clone part with new `crypto.randomUUID()` id, `PART_COLORS[colorIndex % 8]`, position offset `+part.length + 10 mm` on X so duplicate sits adjacent with a small gap; append after original |
 | `onUpdate(part)` | Replace matching part in `scene.parts` |
+
+**Geometry disposal ownership:** App.tsx disposes `BufferGeometry` objects (calls `geo.dispose()`) before removing them from the geometries map — on part removal and on unmount. The viewport disposes materials and edge geometries it creates; it does not dispose the `BufferGeometry` passed in via props.
 
 ---
 
@@ -140,19 +160,21 @@ interface ViewportProps {
 
 A `meshes: Map<PartId, THREE.Mesh>` ref. A `useEffect` watching `parts` and `geometries` syncs the Three.js scene:
 
-- **New part + geometry ready** → create `MeshStandardMaterial` using `part.color`, create `Mesh`, add `LineSegments` edges child (threshold 15°), add to scene
-- **Geometry updated** (dimension change) → swap `mesh.geometry`, rebuild edges child
+- **New part + geometry ready** → create `MeshStandardMaterial` using `part.color`, create `Mesh`, add `LineSegments` edges child (threshold 15°, default edge color `0x1a1a1d`), add to scene
+- **Geometry updated** (dimension change) → swap `mesh.geometry`, remove old edges child and dispose its geometry, add new `LineSegments` child
 - **Position/rotation changed** → set `mesh.position` from `part.position`, set `mesh.rotation` from `part.rotation` (degrees × π/180, Euler XYZ)
-- **Part removed** → remove mesh from scene, dispose geometry + material + edge geometry + edge material
+- **Part removed** → remove mesh from scene, dispose material + edge geometry + edge material (BufferGeometry disposed by App.tsx, not here)
+- **Selection changed** → update edges color: selected part gets `0x4fc3f7` (highlight blue), all others get `0x1a1a1d`
 
 ### Raycasting
 
-On canvas `click` event, cast a ray against all meshes in `meshes`. On hit, call `onPartClick(id)`. On miss (click on empty space), call `onPartClick` with `null` to deselect.
+On canvas `mousedown` event, record the pointer position. On canvas `click` event, if the pointer moved more than 4px since mousedown (orbit drag), skip raycasting entirely. Otherwise cast a ray against all meshes in `meshes`. On hit, call `onPartClick(id)`. On miss, call `onPartClick(null)` to deselect.
 
 ### Scene setup changes
 
-- `controls.target` changes from hardcoded `(50, 50, 25)` to `(0, 0, 0)`
-- Everything else in the scene-setup `useEffect` (camera, lights, grid, renderer) is untouched
+- `camera.position.set(250, -200, 150)` — good framing for boards placed near origin with +Z-up
+- `controls.target` changes from `(50, 50, 25)` to `(0, 0, 0)`
+- Everything else in the scene-setup `useEffect` (lights, grid, renderer, OrbitControls) is untouched
 
 ---
 
@@ -176,14 +198,18 @@ interface SidebarProps {
 
 ### Layout
 
-Fixed 240px right panel. Viewport fills remaining width. Sidebar has two regions:
+Fixed 240px right panel. Viewport fills remaining width. Sidebar is a flex column (`height: 100%`, `flexDirection: 'column'`) with three regions stacked vertically:
 
-**List region** (scrollable, grows to fill available height):
+1. **List region** — `flex: 1`, `overflowY: 'auto'` — scrolls independently
+2. **Edit panel** — `flexShrink: 0` — fixed height below list, only rendered when `selectedId` is set
+3. **"Add board" button** — `flexShrink: 0` — always visible at the bottom
+
+**List region:**
 - Each row: `[color swatch 12px] [label] [duplicate icon] [delete icon]`
 - Selected row: lighter background (`#2a2a2d`)
 - Empty state (no parts): centered text — `"No parts — add a board to start"`
 
-**Edit panel** (fixed below list, visible only when `selectedId` is set):
+**Edit panel:**
 
 | Group | Fields |
 |---|---|
@@ -192,12 +218,11 @@ Fixed 240px right panel. Viewport fills remaining width. Sidebar has two regions
 | Position | x `mm`, y `mm`, z `mm` |
 | Rotation | rx `°`, ry `°`, rz `°` |
 
-**"Add board" button** — always visible at the bottom of the sidebar.
-
 ### Input behaviour
 
-- **Dimension inputs** (length/width/thickness): debounced 150ms before calling `onUpdate`. Clamped to min 1mm on blur (silent, no error).
+- **Dimension inputs** (length/width/thickness): debounced 150ms before calling `onUpdate`. Clamped to min 1mm on blur (silent, no error). Allow fractional values (`step="any"`) — e.g. 25.4mm for 1 inch is valid in joinery.
 - **Position/rotation inputs**: call `onUpdate` immediately on `onChange` — no debounce, no worker round-trip.
+- **Label input**: auto-focused when part is first added. On blur, if empty, silently reset to the auto-generated label (`Board ${labelCounter.current}`).
 - **Auto-focus**: when a new part is added via `onAdd`, the label input is focused automatically.
 - **Units**: `mm` or `°` displayed as a non-interactive suffix label beside each input.
 
@@ -208,7 +233,8 @@ Fixed 240px right panel. Viewport fills remaining width. Sidebar has two regions
 ```
 src/
 ├── scene/
-│   └── types.ts          Part, Scene, PartId, Vec3
+│   ├── types.ts          Part, Scene, PartId, Vec3
+│   └── utils.ts          shapeKey (pure, no deps)
 ├── geom/
 │   ├── occt.ts           (unchanged)
 │   ├── occt.worker.ts    + buildPart(part: Part) → MeshData
@@ -245,3 +271,4 @@ OCCT geometry correctness is verified visually in the browser.
 - shadcn/ui (Weekend 4)
 - Free-rotation gizmo in viewport
 - Board presets (1×4, 2×4 lumber sizes)
+- Keyboard shortcuts (Delete to remove selected, Escape to deselect, Cmd+D to duplicate)
