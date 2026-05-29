@@ -2,19 +2,29 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import Stats from 'stats.js'
-import type { Part, PartId } from '../scene/types'
+import type { Part, PartId, CameraState } from '../scene/types'
 
 interface ViewportProps {
   parts: Part[]
   geometries: Map<PartId, THREE.BufferGeometry>
   selectedId: PartId | null
   onPartClick: (id: PartId | null) => void
+  cameraStateRef: { current: CameraState }
+  loadedCamera: CameraState | null
 }
 
-export function Viewport({ parts, geometries, selectedId, onPartClick }: ViewportProps) {
+export function Viewport({
+  parts,
+  geometries,
+  selectedId,
+  onPartClick,
+  cameraStateRef,
+  loadedCamera,
+}: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+  const controlsRef = useRef<OrbitControls | null>(null)
   const meshes = useRef<Map<PartId, THREE.Mesh>>(new Map())
   const edgeLines = useRef<Map<PartId, THREE.LineSegments>>(new Map())
   const raycaster = useRef(new THREE.Raycaster())
@@ -50,6 +60,7 @@ export function Viewport({ parts, geometries, selectedId, onPartClick }: Viewpor
     mount.appendChild(renderer.domElement)
 
     const controls = new OrbitControls(camera, renderer.domElement)
+    controlsRef.current = controls
     controls.enableDamping = true
     controls.dampingFactor = 0.08
     controls.target.set(0, 0, 0)
@@ -81,6 +92,10 @@ export function Viewport({ parts, geometries, selectedId, onPartClick }: Viewpor
       stats?.begin()
       controls.update()
       renderer.render(scene, camera)
+      cameraStateRef.current = {
+        position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+        target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
+      }
       stats?.end()
       frame = requestAnimationFrame(animate)
     }
@@ -132,8 +147,23 @@ export function Viewport({ parts, geometries, selectedId, onPartClick }: Viewpor
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement)
       sceneRef.current = null
       cameraRef.current = null
+      controlsRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Camera restore — applies loadedCamera when it changes
+  useEffect(() => {
+    if (!loadedCamera || !controlsRef.current) return
+    const ctrl = controlsRef.current
+    ctrl.object.position.set(
+      loadedCamera.position.x,
+      loadedCamera.position.y,
+      loadedCamera.position.z,
+    )
+    ctrl.target.set(loadedCamera.target.x, loadedCamera.target.y, loadedCamera.target.z)
+    ctrl.update()
+  }, [loadedCamera])
 
   // Mesh management — syncs Three.js scene to parts + geometries + selectedId
   useEffect(() => {
