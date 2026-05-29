@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_APP_VERSION: string
+}
+
 // opencascade.js@1.x ships no TS types. Declare the surface weekend 1 touches.
 // Wider typing lives in v0.2 once joint definitions reach beyond box+mesh.
 declare module 'opencascade.js' {
@@ -31,10 +35,7 @@ declare module 'opencascade.js' {
       Face_1: (shape: TopoDS_Shape) => TopoDS_Face
     }
     BRep_Tool: {
-      Triangulation: (
-        face: TopoDS_Face,
-        location: TopLoc_Location,
-      ) => OcHandle<Poly_Triangulation>
+      Triangulation: (face: TopoDS_Face, location: TopLoc_Location) => OcHandle<Poly_Triangulation>
     }
     TopLoc_Location_1: new () => TopLoc_Location
     [key: string]: unknown

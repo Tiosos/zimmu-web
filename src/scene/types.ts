@@ -24,3 +24,19 @@ export type Part = BoardPart
 export interface Scene {
   parts: Part[]
 }
+
+export interface CameraState {
+  position: Vec3
+  target: Vec3
+}
+
+export interface ZimmuFile {
+  version: number
+  name: string
+  appVersion: string
+  units: 'mm'
+  createdAt: string
+  updatedAt: string
+  camera: CameraState
+  scene: Scene
+}
