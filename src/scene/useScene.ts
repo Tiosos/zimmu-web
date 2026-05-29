@@ -62,7 +62,7 @@ export interface UseSceneResult {
   onAdd: () => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
-  onUpdate: (part: Part) => void
+  onUpdate: (id: PartId, updater: (p: Part) => Part) => void
   onSelect: (id: PartId | null) => void
 }
 
@@ -110,6 +110,7 @@ export function useScene(): UseSceneResult {
           if (!isMounted.current) return
           if (buildSeq.current.get(part.id) !== seq) return
           const geo = buildGeometry(data)
+          geometriesRef.current.get(part.id)?.dispose()
           geometriesRef.current.set(part.id, geo)
           if (!occtReadyRef.current) {
             occtReadyRef.current = true
@@ -204,8 +205,8 @@ export function useScene(): UseSceneResult {
     })
   }, [])
 
-  const onUpdate = useCallback((part: Part) => {
-    setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === part.id ? part : p)) }))
+  const onUpdate = useCallback((id: PartId, updater: (p: Part) => Part) => {
+    setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === id ? updater(p) : p)) }))
   }, [])
 
   const onSelect = useCallback((id: PartId | null) => {

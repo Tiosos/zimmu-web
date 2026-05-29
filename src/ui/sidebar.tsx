@@ -11,7 +11,7 @@ interface SidebarProps {
   onAdd: () => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
-  onUpdate: (part: Part) => void
+  onUpdate: (id: PartId, updater: (p: Part) => Part) => void
   selectedId: PartId | null
   onSelect: (id: PartId | null) => void
 }
@@ -127,7 +127,7 @@ function EditPanel({
   nextLabel,
 }: {
   part: Part
-  onUpdate: (p: Part) => void
+  onUpdate: (id: PartId, updater: (p: Part) => Part) => void
   nextLabel: string
 }) {
   const [shapeOpen, setShapeOpen] = useState(true)
@@ -143,11 +143,14 @@ function EditPanel({
           autoFocus
           style={{ ...s.input, flex: 1 }}
           defaultValue={part.label}
-          onChange={(e) => onUpdate({ ...part, label: e.target.value })}
+          onChange={(e) => {
+            const label = e.target.value
+            onUpdate(part.id, (p) => ({ ...p, label }))
+          }}
           onBlur={(e) => {
             if (!e.target.value.trim()) {
               e.target.value = nextLabel
-              onUpdate({ ...part, label: nextLabel })
+              onUpdate(part.id, (p) => ({ ...p, label: nextLabel }))
             }
           }}
         />
@@ -160,17 +163,17 @@ function EditPanel({
           <DimInput
             value={part.length}
             suffix="mm"
-            onCommit={(v) => onUpdate({ ...part, length: v })}
+            onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, length: v }))}
           />
           <DimInput
             value={part.width}
             suffix="mm"
-            onCommit={(v) => onUpdate({ ...part, width: v })}
+            onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, width: v }))}
           />
           <DimInput
             value={part.thickness}
             suffix="mm"
-            onCommit={(v) => onUpdate({ ...part, thickness: v })}
+            onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, thickness: v }))}
           />
         </>
       )}
@@ -182,17 +185,23 @@ function EditPanel({
           <NumInput
             value={part.position.x}
             suffix="mm"
-            onChange={(v) => onUpdate({ ...part, position: { ...part.position, x: v } })}
+            onChange={(v) =>
+              onUpdate(part.id, (p) => ({ ...p, position: { ...p.position, x: v } }))
+            }
           />
           <NumInput
             value={part.position.y}
             suffix="mm"
-            onChange={(v) => onUpdate({ ...part, position: { ...part.position, y: v } })}
+            onChange={(v) =>
+              onUpdate(part.id, (p) => ({ ...p, position: { ...p.position, y: v } }))
+            }
           />
           <NumInput
             value={part.position.z}
             suffix="mm"
-            onChange={(v) => onUpdate({ ...part, position: { ...part.position, z: v } })}
+            onChange={(v) =>
+              onUpdate(part.id, (p) => ({ ...p, position: { ...p.position, z: v } }))
+            }
           />
         </>
       )}
@@ -204,17 +213,23 @@ function EditPanel({
           <NumInput
             value={part.rotation.x}
             suffix="°"
-            onChange={(v) => onUpdate({ ...part, rotation: { ...part.rotation, x: v } })}
+            onChange={(v) =>
+              onUpdate(part.id, (p) => ({ ...p, rotation: { ...p.rotation, x: v } }))
+            }
           />
           <NumInput
             value={part.rotation.y}
             suffix="°"
-            onChange={(v) => onUpdate({ ...part, rotation: { ...part.rotation, y: v } })}
+            onChange={(v) =>
+              onUpdate(part.id, (p) => ({ ...p, rotation: { ...p.rotation, y: v } }))
+            }
           />
           <NumInput
             value={part.rotation.z}
             suffix="°"
-            onChange={(v) => onUpdate({ ...part, rotation: { ...part.rotation, z: v } })}
+            onChange={(v) =>
+              onUpdate(part.id, (p) => ({ ...p, rotation: { ...p.rotation, z: v } }))
+            }
           />
         </>
       )}

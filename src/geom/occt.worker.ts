@@ -3,14 +3,6 @@ import { initOCCT, makeBox } from './occt'
 import { shapeToMeshData } from './mesh'
 
 const api = {
-  async buildBox(dx: number, dy: number, dz: number) {
-    const oc = await initOCCT()
-    const shape = makeBox(oc, dx, dy, dz)
-    const data = shapeToMeshData(oc, shape, { linearDeflection: 0.1, angularDeflection: 0.5 })
-    shape.delete()
-    return transfer(data, [data.positions.buffer, data.normals.buffer])
-  },
-
   async buildPart(kind: 'board', dims: { length: number; width: number; thickness: number }) {
     const oc = await initOCCT()
     if (kind === 'board') {

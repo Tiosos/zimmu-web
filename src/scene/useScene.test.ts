@@ -88,7 +88,7 @@ describe('useScene', () => {
     const { result } = renderHook(() => useScene())
     const original = result.current.scene.parts[0]
     act(() => {
-      result.current.onUpdate({ ...original, label: 'Updated' })
+      result.current.onUpdate(original.id, (p) => ({ ...p, label: 'Updated' }))
     })
     expect(result.current.scene.parts[0].label).toBe('Updated')
   })
@@ -109,7 +109,7 @@ describe('useScene', () => {
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     const original = result.current.scene.parts[0]
     act(() => {
-      result.current.onUpdate({ ...original, rotation: { x: 45, y: 0, z: 0 } })
+      result.current.onUpdate(original.id, (p) => ({ ...p, rotation: { x: 45, y: 0, z: 0 } }))
     })
     act(() => {
       result.current.onDuplicate(original.id)
