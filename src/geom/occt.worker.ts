@@ -8,8 +8,19 @@ const api = {
     const shape = makeBox(oc, dx, dy, dz)
     const data = shapeToMeshData(oc, shape, { linearDeflection: 0.1, angularDeflection: 0.5 })
     shape.delete()
-    // Transfer the underlying ArrayBuffers — zero-copy hand-off to the main thread.
     return transfer(data, [data.positions.buffer, data.normals.buffer])
+  },
+
+  async buildPart(kind: 'board', dims: { length: number; width: number; thickness: number }) {
+    const oc = await initOCCT()
+    if (kind === 'board') {
+      const shape = makeBox(oc, dims.length, dims.width, dims.thickness)
+      const data = shapeToMeshData(oc, shape, { linearDeflection: 0.1, angularDeflection: 0.5 })
+      shape.delete()
+      return transfer(data, [data.positions.buffer, data.normals.buffer])
+    }
+    const _: never = kind
+    throw new Error(`unknown kind: ${_}`)
   },
 }
 

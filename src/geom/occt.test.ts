@@ -22,4 +22,9 @@ describe('geom/occt', () => {
     expect(typeof initOCCT).toBe('function')
     expect(typeof makeBox).toBe('function')
   })
+
+  it.skip('buildPart: board produces mesh data (browser-only)', () => {
+    // Full integration verified manually: pnpm dev → add a board → geometry renders
+    // Playwright E2E arrives in weekend 11.
+  })
 })
