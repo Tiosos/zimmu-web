@@ -70,7 +70,7 @@ useFile({
 {
   fileReady:    boolean        // true once startup load attempt completes
   fileName:     string | null  // handle.name; null = new/unsaved
-  projectName:  string         // envelope "name", editable in title bar
+  projectName:  string         // envelope "name"; initialises to "Untitled"
   isDirty:      boolean        // scene changed since last save
   fileError:    string | null  // user-facing error message; clears after 5 s or next success
 
@@ -102,24 +102,36 @@ export interface ZimmuFile {
 }
 ```
 
+### Version constant
+
+Define in `src/scene/useFile.ts`:
+
+```typescript
+export const FILE_FORMAT_VERSION = 1
+```
+
+Used in forward-compat check on open (`version > FILE_FORMAT_VERSION`) and written to every saved file.
+
 ### Dirty tracking
 
 A `lastSavedSceneRef` stores the scene snapshot at last save (as a JSON string). A `useEffect` watching `scene` sets `isDirty = true` when the snapshot diverges. On any successful save the ref is updated and `isDirty` resets to false. New files start clean; the initial scene — whether loaded from disk or the default board — is the baseline.
+
+**Critical:** When a file is loaded, set `lastSavedSceneRef.current = JSON.stringify(envelope.scene)` *before* calling `onFileLoaded`. This ensures the snapshot matches the incoming scene before React re-renders, preventing a false-dirty state immediately after open.
 
 `createdAt` is captured in a ref on the first save and never overwritten on subsequent saves.
 
 ### Startup sequence
 
 1. Read a `FileSystemFileHandle` from IndexedDB key `zimmu-last-file` via `idb.readHandle()`.
-2. Call `handle.queryPermission({ mode: 'readwrite' })`. If `'prompt'`, call `handle.requestPermission`. If `'denied'`, skip to step 5.
+2. Call `handle.queryPermission({ mode: 'readwrite' })`. Only proceed if result is `'granted'`. If `'prompt'` or `'denied'`, skip to step 5 — `requestPermission` cannot be called without a user gesture and will be ignored from a mount effect.
 3. Call `handle.getFile()` and `JSON.parse` the text.
-4. On success: call `onFileLoaded(envelope)`. Set `fileName`, `projectName`, `createdAt`.
-5. On any failure (file moved, permission denied, parse error): fall back silently — no error state.
+4. On success: set `lastSavedSceneRef.current = JSON.stringify(envelope.scene)`, then call `onFileLoaded(envelope)`. Set `fileName`, `projectName`, `createdAt`.
+5. On any failure (file moved, permission not granted, parse error): fall back silently — no error state.
 6. Set `fileReady = true`.
 
 ### Unsaved-changes guard
 
-Both `newFile` and `openFile` call `window.confirm("You have unsaved changes. Continue?")` when `isDirty` is true. If the user cancels, the operation is a no-op.
+Both `newFile` and `openFile` call `window.confirm("You have unsaved changes. Continue?")` when `isDirty` is true. If the user cancels, the operation is a no-op. `newFile` also calls `idb.clearHandle()` after proceeding so the next startup starts fresh rather than reopening the previous file.
 
 ### IDB module
 
@@ -132,6 +144,37 @@ export async function clearHandle():                   Promise<void>
 ```
 
 Database name: `zimmu`, store name: `handles`, key: `last-file`.
+
+### File write sequence
+
+The File System Access API requires three steps to write:
+
+```typescript
+const writable = await handle.createWritable()
+await writable.write(content)
+await writable.close()  // flushes to disk — must complete before IDB is updated
+```
+
+`idb.writeHandle(handle)` is called **only after `writable.close()` resolves**. If `close()` throws (disk full, permission revoked), the handle is not stored and `fileError` is set. `fileName` and `isDirty` are only updated after a successful close.
+
+Both `showSaveFilePicker` and `showOpenFilePicker` must specify file type options to filter and suggest `.zimmu` files:
+
+```typescript
+{ types: [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }] }
+```
+
+### `appVersion` Vite wiring
+
+`appVersion` is written on every save from `import.meta.env.VITE_APP_VERSION`. This requires two changes:
+
+In `vite.config.ts`:
+```typescript
+import pkg from './package.json'
+// inside defineConfig:
+define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version) }
+```
+
+In `tsconfig.json` (or `tsconfig.app.json`): add `"resolveJsonModule": true`.
 
 ---
 
@@ -159,7 +202,7 @@ interface FileMenuProps {
 
 ### Layout
 
-Full-width bar across the top of the app (replaces the current floating header):
+Full-width bar across the top of the app (replaces the current floating header). Fixed height: `40px`.
 
 ```
 [ Zimmu ]  [ File ▾ ]    ● Garden Shelf  ·  garden-shelf.zimmu    2 parts
@@ -181,7 +224,7 @@ Full-width bar across the top of the app (replaces the current floating header):
 └─────────────────────────┘
 ```
 
-Implemented with a boolean `isOpen` state + `useEffect` that closes on `mousedown` outside a menu ref. No third-party dropdown library.
+Implemented with a boolean `isOpen` state + `useEffect` that closes on `mousedown` outside a menu ref or on `Escape` keydown. No third-party dropdown library.
 
 Save is greyed out (pointer-events none, reduced opacity) when `!isDirty && fileName !== null`.  
 All items are disabled when `!supported`.
@@ -213,22 +256,29 @@ function App() {
   // 1. Scene — always starts with default board
   const { scene, replaceScene, ...sceneApi } = useScene()
 
-  // 2. Camera ref — owned here, shared with Viewport and useFile
-  const cameraRef = useRef<CameraState>({
+  // 2a. Camera state ref — written by Viewport's animation loop each frame;
+  //     read by useFile at save time (avoids stale closure, no re-renders)
+  const cameraStateRef = useRef<CameraState>({
     position: { x: 250, y: -200, z: 150 },
     target:   { x: 0,   y: 0,    z: 0   },
   })
+  // 2b. Loaded camera state — React state so Viewport's useEffect detects the change
+  const [loadedCamera, setLoadedCamera] = useState<CameraState | null>(null)
 
   // 3. Browser support check
   const supported = 'showOpenFilePicker' in window
 
-  // 4. File state
-  const { fileReady, fileName, projectName, isDirty, fileError, ...fileOps } = useFile({
+  // 4. File state — destructure operations directly for stable keyboard shortcut deps
+  const {
+    fileReady, fileName, projectName, isDirty, fileError,
+    newFile, openFile, saveFile, saveAsFile, setProjectName,
+  } = useFile({
     scene,
-    getCameraState: () => cameraRef.current,
+    getCameraState: () => cameraStateRef.current,
     onFileLoaded:   (envelope) => {
       replaceScene(envelope.scene)
-      cameraRef.current = envelope.camera
+      cameraStateRef.current = envelope.camera  // immediate read
+      setLoadedCamera(envelope.camera)           // triggers Viewport restore
     },
   })
 
@@ -244,14 +294,14 @@ function App() {
         fileError={fileError}
         partsCount={scene.parts.length}
         supported={supported}
-        onNew={fileOps.newFile}
-        onOpen={fileOps.openFile}
-        onSave={fileOps.saveFile}
-        onSaveAs={fileOps.saveAsFile}
-        onProjectNameChange={fileOps.setProjectName}
+        onNew={newFile}
+        onOpen={openFile}
+        onSave={saveFile}
+        onSaveAs={saveAsFile}
+        onProjectNameChange={setProjectName}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Viewport ... cameraRef={cameraRef} />
+        <Viewport ... cameraStateRef={cameraStateRef} loadedCamera={loadedCamera} />
         <Sidebar ... />
       </div>
     </div>
@@ -273,7 +323,13 @@ New file → `replaceScene({ parts: [] })` (blank canvas, not a default board).
 
 ### Camera integration
 
-`Viewport` gains a `cameraRef` prop. A `useEffect` in `Viewport` watches the ref value and imperatively sets `controls.object.position` and `controls.target` when a file loads. The animation loop writes the current camera position and target back to `cameraRef` on every frame so `getCameraState()` is always current at save time.
+`Viewport` gains two new props:
+- `cameraStateRef: React.RefObject<CameraState>` — the animation loop writes to this every frame so `getCameraState()` in `useFile` always reads the current position without triggering re-renders.
+- `loadedCamera: CameraState | null` — React state owned by App.tsx, set to a non-null value when a file is opened. Because it is state (not a ref), React re-renders Viewport when it changes, and a `useEffect([loadedCamera])` inside Viewport fires and imperatively restores the camera.
+
+Internally, Viewport adds `const controlsRef = useRef<OrbitControls | null>(null)` and assigns `controlsRef.current = controls` during setup. The camera-restore effect uses `controlsRef.current` to call `controls.object.position.set(...)` and `controls.target.set(...)`.
+
+The existing internal `cameraRef` in Viewport (`useRef<THREE.PerspectiveCamera | null>`) is unaffected — the new `cameraStateRef` prop has a distinct name to avoid collision.
 
 ### Keyboard shortcuts
 
@@ -284,17 +340,21 @@ useEffect(() => {
   const handler = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
     const mod = e.metaKey || e.ctrlKey
-    if (mod && !e.shiftKey && e.key === 's') { e.preventDefault(); fileOps.saveFile() }
-    if (mod &&  e.shiftKey && e.key === 's') { e.preventDefault(); fileOps.saveAsFile() }
-    if (mod && !e.shiftKey && e.key === 'o') { e.preventDefault(); fileOps.openFile() }
-    if (mod && !e.shiftKey && e.key === 'n') { e.preventDefault(); fileOps.newFile() }
+    if (mod && !e.shiftKey && e.key === 's') { e.preventDefault(); saveFile() }
+    if (mod &&  e.shiftKey && e.key === 's') { e.preventDefault(); saveAsFile() }
+    if (mod && !e.shiftKey && e.key === 'o') { e.preventDefault(); openFile() }
+    if (mod && !e.shiftKey && e.key === 'n') { e.preventDefault(); newFile() }
   }
   document.addEventListener('keydown', handler)
   return () => document.removeEventListener('keydown', handler)
-}, [fileOps.saveFile, fileOps.saveAsFile, fileOps.openFile, fileOps.newFile])
+}, [saveFile, saveAsFile, openFile, newFile])
 ```
 
 `newFile`, `openFile`, `saveFile`, `saveAsFile` are wrapped in `useCallback` inside `useFile` so this dependency array is stable.
+
+### First-launch vs New consistency
+
+On first launch (no stored handle), `fileReady` becomes `true` with `useScene`'s default board already in place — the user sees a single board without any file action. File > New then produces a **blank** canvas (`replaceScene({ parts: [] })`). This is an intentional distinction: first launch gives something to look at; New is an explicit restart. The two paths are different by design and do not need to be unified.
 
 ---
 
@@ -314,17 +374,23 @@ useEffect(() => {
 
 ### Test setup
 
-Create `vitest.setup.ts` at the project root:
+Two separate test surfaces with different setups:
 
+**`useFile.test.ts`** — mock `idb.ts` entirely:
 ```typescript
-import 'fake-indexeddb/auto'
+vi.mock('../scene/idb', () => ({
+  readHandle:  vi.fn(),
+  writeHandle: vi.fn(),
+  clearHandle: vi.fn(),
+}))
 ```
+No real IndexedDB needed. `onFileLoaded` is a `vi.fn()` spy passed as a prop.
 
-Add `setupFiles: ['./vitest.setup.ts']` to the `test` block in `vite.config.ts`.
-
-Add `fake-indexeddb` as a dev dependency.
-
-Mock `idb.ts` per test with `vi.mock('../scene/idb')` so tests don't touch IndexedDB directly.
+**`idb.test.ts`** — test the IndexedDB module directly using a real in-memory IDB:
+```typescript
+import 'fake-indexeddb/auto'  // top of idb.test.ts, or in vitest.setup.ts
+```
+Create `vitest.setup.ts` at the project root with `import 'fake-indexeddb/auto'` and add `setupFiles: ['./vitest.setup.ts']` to the `test` block in `vite.config.ts`. Add `fake-indexeddb` as a dev dependency.
 
 ### `useFile` test cases
 
@@ -342,12 +408,18 @@ Mock `idb.ts` per test with `vi.mock('../scene/idb')` so tests don't touch Index
 | 10 | `version > CURRENT_VERSION` | `console.warn` called, parse succeeds |
 | 11 | Unknown part `kind` | Filtered, rest of scene passed to `onFileLoaded` |
 | 12 | `setProjectName` | Sets `isDirty` true |
+| 13 | `newFile` when dirty + confirmed | `fileName` null, `isDirty` false, `clearHandle` called |
+| 14 | `openFile` `AbortError` on picker | No `fileError`, `isDirty` unchanged, `fileName` unchanged |
+| 15 | `saveFile` — `close()` throws | `fileError` set, `idb.writeHandle` NOT called, `isDirty` unchanged |
+| 16 | `fileError` auto-clears | Set `fileError`, advance fake timers by 5 s, assert `fileError` null |
+| 17 | Serialization — float precision | Scene with `position.x: 100.1234567` serializes to `100.123457` (6 dp) |
 
-### `replaceScene` test case (added to `useScene.test.ts`)
+### `replaceScene` test cases (added to `useScene.test.ts`)
 
 | # | Scenario | Assert |
 |---|---|---|
-| 13 | `replaceScene` called | `selectedId` null, new parts present, `labelCounter` reset |
+| 18 | `replaceScene` with parts | `selectedId` null, new parts present, `labelCounter` reset from labels |
+| 19 | `replaceScene({ parts: [] })` | Scene empty, `labelCounter` resets to 1, `nextLabel` = "Board 1" |
 
 ---
 
@@ -356,8 +428,10 @@ Mock `idb.ts` per test with `vi.mock('../scene/idb')` so tests don't touch Index
 | Path | Purpose |
 |---|---|
 | `src/scene/idb.ts` | IndexedDB read/write/clear for `FileSystemFileHandle` |
-| `src/scene/useFile.ts` | File lifecycle hook |
+| `src/scene/useFile.ts` | File lifecycle hook; exports `FILE_FORMAT_VERSION` |
+| `src/scene/idb.test.ts` | Unit tests for the IDB module (uses `fake-indexeddb`) |
 | `src/ui/FileMenu.tsx` | Title bar + File dropdown component |
+| `vitest.setup.ts` | Global test setup: `import 'fake-indexeddb/auto'` |
 
 ## Modified files
 
@@ -365,8 +439,9 @@ Mock `idb.ts` per test with `vi.mock('../scene/idb')` so tests don't touch Index
 |---|---|
 | `src/scene/types.ts` | Add `CameraState`, `ZimmuFile` types |
 | `src/scene/useScene.ts` | Add `replaceScene` operation |
-| `src/scene/useScene.test.ts` | Add `replaceScene` test |
-| `src/render/viewport.tsx` | Add `cameraRef` prop; write camera to ref each frame; restore on ref change |
-| `src/App.tsx` | Wire `useFile`, `FileMenu`, keyboard shortcuts; restructure layout |
-| `vitest.setup.ts` | Add `fake-indexeddb/auto` import |
+| `src/scene/useScene.test.ts` | Add `replaceScene` tests (×2) |
+| `src/render/viewport.tsx` | Add `cameraStateRef` + `loadedCamera` props; add `controlsRef`; write camera state to ref each frame; restore on `loadedCamera` change |
+| `src/App.tsx` | Wire `useFile`, `FileMenu`, keyboard shortcuts; add `cameraStateRef` + `loadedCamera` state; restructure layout to flex column |
+| `vite.config.ts` | Add `define: { 'import.meta.env.VITE_APP_VERSION': ... }`; add `setupFiles` to test block |
+| `tsconfig.json` | Add `"resolveJsonModule": true` |
 | `package.json` | Add `fake-indexeddb` dev dependency |
