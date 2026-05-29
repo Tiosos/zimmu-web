@@ -126,4 +126,49 @@ describe('useScene', () => {
     })
     expect(result.current.nextLabel).toBe('Board 3')
   })
+
+  it('replaceScene replaces parts, clears selectedId, resets labelCounter', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    act(() => {
+      result.current.onAdd()
+    })
+    act(() => {
+      result.current.onSelect(result.current.scene.parts[1].id)
+    })
+
+    const replacement = {
+      parts: [
+        {
+          kind: 'board' as const,
+          id: 'board_test',
+          label: 'Board 5',
+          length: 300,
+          width: 150,
+          thickness: 30,
+          color: '#d4a373',
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ' as const,
+        },
+      ],
+    }
+    act(() => {
+      result.current.replaceScene(replacement)
+    })
+
+    expect(result.current.scene.parts).toHaveLength(1)
+    expect(result.current.scene.parts[0].id).toBe('board_test')
+    expect(result.current.selectedId).toBeNull()
+    expect(result.current.nextLabel).toBe('Board 6')
+  })
+
+  it('replaceScene with empty parts resets labelCounter to 1', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => {
+      result.current.replaceScene({ parts: [] })
+    })
+    expect(result.current.scene.parts).toHaveLength(0)
+    expect(result.current.nextLabel).toBe('Board 1')
+  })
 })

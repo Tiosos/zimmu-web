@@ -64,6 +64,7 @@ export interface UseSceneResult {
   onDuplicate: (id: PartId) => void
   onUpdate: (id: PartId, updater: (p: Part) => Part) => void
   onSelect: (id: PartId | null) => void
+  replaceScene: (next: Scene) => void
 }
 
 export function useScene(): UseSceneResult {
@@ -213,6 +214,24 @@ export function useScene(): UseSceneResult {
     setSelectedId(id)
   }, [])
 
+  const replaceScene = useCallback((next: Scene) => {
+    for (const [id, geo] of geometriesRef.current) {
+      if (!next.parts.find((p) => p.id === id)) geo.dispose()
+    }
+    geometriesRef.current.clear()
+    prevShapeKeys.current.clear()
+    buildSeq.current.clear()
+    const max = next.parts.reduce((m, p) => {
+      const match = /Board (\d+)/.exec(p.label)
+      return match ? Math.max(m, parseInt(match[1], 10)) : m
+    }, 0)
+    setLabelCounter(max > 0 ? max : next.parts.length)
+    setScene(next)
+    setSelectedId(null)
+    setPendingIds(new Set())
+    setGeometries(new Map())
+  }, [])
+
   return {
     scene,
     geometries,
@@ -226,5 +245,6 @@ export function useScene(): UseSceneResult {
     onDuplicate,
     onUpdate,
     onSelect,
+    replaceScene,
   }
 }
