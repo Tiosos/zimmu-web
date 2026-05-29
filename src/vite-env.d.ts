@@ -4,6 +4,25 @@ interface ImportMetaEnv {
   readonly VITE_APP_VERSION: string
 }
 
+// File System Access API — not yet in lib.dom.d.ts for all targets
+interface FileSystemFileHandle {
+  queryPermission(descriptor: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
+  requestPermission(descriptor: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
+  createWritable(): Promise<FileSystemWritableFileStream>
+}
+interface FileSystemWritableFileStream {
+  write(data: string | BufferSource | Blob): Promise<void>
+  close(): Promise<void>
+}
+interface Window {
+  showSaveFilePicker(options?: {
+    types?: Array<{ description: string; accept: Record<string, string[]> }>
+  }): Promise<FileSystemFileHandle>
+  showOpenFilePicker(options?: {
+    types?: Array<{ description: string; accept: Record<string, string[]> }>
+  }): Promise<FileSystemFileHandle[]>
+}
+
 // opencascade.js@1.x ships no TS types. Declare the surface weekend 1 touches.
 // Wider typing lives in v0.2 once joint definitions reach beyond box+mesh.
 declare module 'opencascade.js' {
