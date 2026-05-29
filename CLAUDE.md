@@ -131,6 +131,17 @@ src/
 - OCCT unit tests must skip when `typeof window === 'undefined'` or the WASM file is unavailable.
 - Aim for tests on the geom seam (inputs → outputs) rather than Three.js internals.
 
+## Documentation
+
+### Implementation Notes
+
+Every spec or implementation plan must be accompanied by a living implementation notes file.
+
+- **Location:** `docs/superpowers/notes/YYYY-MM-DD-<topic>-notes.md`
+- **Purpose:** Record decisions that don't belong in the spec — why an approach was rejected, unexpected constraints discovered during implementation, workarounds, deferred ideas, and anything that would surprise a future reader of the code.
+- **When to update:** Any time a decision deviates from the spec, or something non-obvious is discovered during implementation.
+- **Format:** Freeform. Date-stamped bullet entries are fine. The audience is a future developer (or AI) who needs to understand *why*, not just *what*.
+
 ## Git
 
 - Development branch: `claude/vigilant-goldberg-PhwjF`
