@@ -73,6 +73,24 @@ describe('useFile', () => {
     expect(result.current.isDirty).toBe(false)
   })
 
+  it('stored handle with permission prompt: falls back silently, does not call requestPermission', async () => {
+    const mockHandle = {
+      name: 'shelf.zimmu',
+      queryPermission: vi.fn().mockResolvedValue('prompt'),
+    } as unknown as FileSystemFileHandle
+    vi.mocked(idb.readHandle).mockResolvedValue(mockHandle)
+    const onFileLoaded = vi.fn()
+
+    const { result } = renderHook(() => useFile(makeInput({ onFileLoaded })))
+    await waitFor(() => expect(result.current.fileReady).toBe(true))
+
+    expect(onFileLoaded).not.toHaveBeenCalled()
+    expect(result.current.fileName).toBeNull()
+    expect(
+      (mockHandle as unknown as { requestPermission?: () => void }).requestPermission,
+    ).toBeUndefined()
+  })
+
   it('stale handle (getFile throws): falls back, fileReady true, no fileError', async () => {
     const mockHandle = {
       name: 'shelf.zimmu',

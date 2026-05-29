@@ -215,9 +215,7 @@ export function useScene(): UseSceneResult {
   }, [])
 
   const replaceScene = useCallback((next: Scene) => {
-    for (const [id, geo] of geometriesRef.current) {
-      if (!next.parts.find((p) => p.id === id)) geo.dispose()
-    }
+    for (const geo of geometriesRef.current.values()) geo.dispose()
     geometriesRef.current.clear()
     prevShapeKeys.current.clear()
     buildSeq.current.clear()
