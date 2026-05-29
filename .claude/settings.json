@@ -29,14 +29,44 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit *)",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-commit-typecheck.sh",
+            "statusMessage": "Typechecking before commit...",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty') && [[ \"$f\" =~ \\.(ts|tsx|js|jsx|css)$ ]] && pnpm exec prettier --write \"$f\" 2>/dev/null || true",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty') && printf '%s' \"$f\" | grep -qE '\\.(ts|tsx|js|jsx|css)$' && pnpm exec prettier --write \"$f\" 2>/dev/null || true",
             "statusMessage": "Formatting..."
+          },
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty') && printf '%s' \"$f\" | grep -qE '\\.test\\.(ts|tsx)$' && pnpm vitest run \"$f\" 2>&1 | tail -20 || true",
+            "statusMessage": "Running tests...",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && if git diff --name-only 2>/dev/null | grep -qE '\\.(ts|tsx)$'; then printf '{\"systemMessage\":\"Uncommitted TypeScript changes — run: pnpm typecheck && pnpm lint && pnpm test\"}\\n'; fi"
           }
         ]
       }
