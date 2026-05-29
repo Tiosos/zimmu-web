@@ -1,4 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(git *)",
+      "Bash(node *)",
+      "Bash(npx *)",
+      "Bash(tsc *)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -16,6 +25,18 @@
           {
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty') && [[ \"$f\" =~ \\.(ts|tsx|js|jsx|css)$ ]] && pnpm exec prettier --write \"$f\" 2>/dev/null || true",
+            "statusMessage": "Formatting..."
           }
         ]
       }
