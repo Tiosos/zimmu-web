@@ -71,7 +71,7 @@ function App() {
         {state.status === 'ready' && 'OCCT box · 100 × 100 × 50 mm'}
         {state.status === 'error' && `Error: ${state.message}`}
       </div>
-      <Viewport geometry={state.status === 'ready' ? state.geometry : null} />
+      <Viewport parts={[]} geometries={new Map()} selectedId={null} onPartClick={() => {}} />
     </div>
   )
 }
