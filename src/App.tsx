@@ -23,6 +23,12 @@ function App() {
     onDuplicate,
     onUpdate,
     onSelect,
+    canUndo,
+    canRedo,
+    undoLabel,
+    redoLabel,
+    undo,
+    redo,
   } = useScene()
 
   const cameraStateRef = useRef<CameraState>({
@@ -56,26 +62,36 @@ function App() {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const mod = e.metaKey || e.ctrlKey
-      if (mod && !e.shiftKey && e.key === 's') {
+      if (!mod) return
+      const k = e.key.toLowerCase()
+      if (!e.shiftKey && k === 's') {
         e.preventDefault()
         void saveFile()
       }
-      if (mod && e.shiftKey && e.key === 's') {
+      if (e.shiftKey && k === 's') {
         e.preventDefault()
         void saveAsFile()
       }
-      if (mod && !e.shiftKey && e.key === 'o') {
+      if (!e.shiftKey && k === 'o') {
         e.preventDefault()
         void openFile()
       }
-      if (mod && !e.shiftKey && e.key === 'n') {
+      if (!e.shiftKey && k === 'n') {
         e.preventDefault()
         void newFile()
       }
+      if (!e.shiftKey && k === 'z') {
+        e.preventDefault()
+        undo()
+      }
+      if ((e.shiftKey && k === 'z') || k === 'y') {
+        e.preventDefault()
+        redo()
+      }
     }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [saveFile, saveAsFile, openFile, newFile])
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [saveFile, saveAsFile, openFile, newFile, undo, redo])
 
   if (!fileReady) return null
 
@@ -96,6 +112,12 @@ function App() {
         fileError={fileError}
         partsCount={scene.parts.length}
         supported={supported}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        undoLabel={undoLabel}
+        redoLabel={redoLabel}
+        onUndo={undo}
+        onRedo={redo}
         onNew={() => {
           void newFile()
         }}
@@ -109,12 +131,6 @@ function App() {
           void saveAsFile()
         }}
         onProjectNameChange={setProjectName}
-        canUndo={false}
-        canRedo={false}
-        undoLabel={null}
-        redoLabel={null}
-        onUndo={() => {}}
-        onRedo={() => {}}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Viewport
