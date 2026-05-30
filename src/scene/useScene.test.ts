@@ -229,6 +229,7 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
+      expect(result.current.scene.parts).toHaveLength(1)
       act(() => {
         result.current.redo()
       })
@@ -287,6 +288,7 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
+      expect(result.current.scene.parts).toHaveLength(1)
       act(() => {
         result.current.redo()
       })
@@ -329,6 +331,7 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
+      expect(result.current.scene.parts).toHaveLength(1)
       act(() => {
         result.current.redo()
       })
@@ -362,12 +365,14 @@ describe('useScene', () => {
     it('redo after update-undo re-applies the update', () => {
       const { result } = renderHook(() => useScene())
       const id = result.current.scene.parts[0].id
+      const originalLength = result.current.scene.parts[0].length
       act(() => {
         result.current.onUpdate(id, (p) => ({ ...p, length: 300 }))
       })
       act(() => {
         result.current.undo()
       })
+      expect(result.current.scene.parts[0].length).toBe(originalLength)
       act(() => {
         result.current.redo()
       })
@@ -383,6 +388,7 @@ describe('useScene', () => {
       act(() => {
         result.current.onUpdate(id, (p) => ({ ...p, length: 400 }))
       })
+      expect(result.current.canUndo).toBe(true)
       act(() => {
         result.current.undo()
       })
