@@ -109,6 +109,12 @@ function App() {
           void saveAsFile()
         }}
         onProjectNameChange={setProjectName}
+        canUndo={false}
+        canRedo={false}
+        undoLabel={null}
+        redoLabel={null}
+        onUndo={() => {}}
+        onRedo={() => {}}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Viewport

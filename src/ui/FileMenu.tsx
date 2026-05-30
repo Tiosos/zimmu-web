@@ -12,6 +12,12 @@ export interface FileMenuProps {
   onProjectNameChange: (name: string) => void
   partsCount: number
   supported: boolean
+  canUndo: boolean
+  canRedo: boolean
+  undoLabel: string | null
+  redoLabel: string | null
+  onUndo: () => void
+  onRedo: () => void
 }
 
 export function FileMenu({
@@ -26,6 +32,12 @@ export function FileMenu({
   onProjectNameChange,
   partsCount,
   supported,
+  canUndo,
+  canRedo,
+  undoLabel,
+  redoLabel,
+  onUndo,
+  onRedo,
 }: FileMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -66,12 +78,16 @@ export function FileMenu({
 
   const menuItem = (label: string, shortcut: string, onClick: () => void, disabled: boolean) => (
     <button
-      onClick={() => {
-        if (!disabled) {
-          onClick()
-          setIsOpen(false)
-        }
-      }}
+      onClick={
+        disabled
+          ? undefined
+          : () => {
+              onClick()
+              setIsOpen(false)
+            }
+      }
+      disabled={disabled}
+      aria-disabled={disabled}
       style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -143,6 +159,9 @@ export function FileMenu({
               padding: '4px 0',
             }}
           >
+            {menuItem(undoLabel ? `Undo "${undoLabel}"` : 'Undo', '⌘Z', onUndo, !canUndo)}
+            {menuItem(redoLabel ? `Redo "${redoLabel}"` : 'Redo', '⌘⇧Z', onRedo, !canRedo)}
+            <div style={{ height: 1, background: '#2a2a2d', margin: '4px 0' }} />
             {menuItem('New', '⌘N', onNew, !supported)}
             {menuItem('Open…', '⌘O', onOpen, !supported)}
             <div style={{ height: 1, background: '#2a2a2d', margin: '4px 0' }} />
