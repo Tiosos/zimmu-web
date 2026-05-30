@@ -187,9 +187,9 @@ function EditPanel({
           onFocus={() => {
             labelFocused.current = true
           }}
-          onBlur={() => {
+          onBlur={(e) => {
             labelFocused.current = false
-            if (!labelValue.trim()) {
+            if (!e.target.value.trim()) {
               setLabelValue(nextLabel)
               onUpdate(part.id, (p) => ({ ...p, label: nextLabel }))
             }
