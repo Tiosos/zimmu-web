@@ -1,9 +1,18 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
 import { wrap } from 'comlink'
 import type { OcctWorkerApi } from '../geom/occt.worker'
 import type { BoardPart, Part, PartId, Scene } from './types'
 import { shapeKey } from './utils'
+
+interface HistoryEntry {
+  label: string
+  undo: () => void
+  redo: () => void
+  coalesceKey?: string
+}
+
+const MAX_HISTORY = 50
 
 const PART_COLORS = [
   '#d4a373',
@@ -86,8 +95,27 @@ export function useScene(): UseSceneResult {
   const geometriesRef = useRef<Map<PartId, THREE.BufferGeometry>>(new Map())
   const isMounted = useRef(true)
   const occtReadyRef = useRef(false)
-  const [labelCounter, setLabelCounter] = useState(1)
+  const labelCounter = useMemo(() => {
+    const max = scene.parts.reduce((m, p) => {
+      const match = /Board (\d+)/.exec(p.label)
+      return match ? Math.max(m, parseInt(match[1], 10)) : m
+    }, 0)
+    return max > 0 ? max : scene.parts.length
+  }, [scene])
   const colorIndex = useRef(0)
+
+  const pastRef = useRef<HistoryEntry[]>([])
+  const futureRef = useRef<HistoryEntry[]>([])
+  const [undoState, setUndoState] = useState({
+    canUndo: false,
+    canRedo: false,
+    undoLabel: null as string | null,
+    redoLabel: null as string | null,
+  })
+  const sceneRef = useRef<Scene>(scene)
+  useLayoutEffect(() => {
+    sceneRef.current = scene
+  }, [scene])
 
   useEffect(() => {
     isMounted.current = true
@@ -161,15 +189,63 @@ export function useScene(): UseSceneResult {
     if (removed.length > 0) setGeometries(new Map(geometriesRef.current))
   }, [scene])
 
+  const push = useCallback((entry: HistoryEntry) => {
+    const last = pastRef.current.at(-1)
+    const coalescing = entry.coalesceKey !== undefined && last?.coalesceKey === entry.coalesceKey
+    if (coalescing) {
+      pastRef.current = [
+        ...pastRef.current.slice(0, -1),
+        { ...last!, redo: entry.redo, label: entry.label },
+      ]
+    } else {
+      pastRef.current = [...pastRef.current.slice(-(MAX_HISTORY - 1)), entry]
+    }
+    futureRef.current = []
+    setUndoState({
+      canUndo: true,
+      canRedo: false,
+      undoLabel: entry.label,
+      redoLabel: null,
+    })
+  }, [])
+
+  const undo = useCallback(() => {
+    const entry = pastRef.current.at(-1)
+    if (!entry) return
+    pastRef.current = pastRef.current.slice(0, -1)
+    futureRef.current = [...futureRef.current, entry]
+    entry.undo()
+    setUndoState({
+      canUndo: pastRef.current.length > 0,
+      canRedo: true,
+      undoLabel: pastRef.current.at(-1)?.label ?? null,
+      redoLabel: entry.label,
+    })
+  }, [])
+
+  const redo = useCallback(() => {
+    const entry = futureRef.current.at(-1)
+    if (!entry) return
+    futureRef.current = futureRef.current.slice(0, -1)
+    pastRef.current = [...pastRef.current, entry]
+    entry.redo()
+    setUndoState({
+      canUndo: true,
+      canRedo: futureRef.current.length > 0,
+      undoLabel: entry.label,
+      redoLabel: futureRef.current.at(-1)?.label ?? null,
+    })
+  }, [])
+
   const onAdd = useCallback(() => {
     if (!occtReady) return
-    const newCount = labelCounter + 1
+    const label = `Board ${labelCounter + 1}`
     colorIndex.current += 1
     const id: PartId = `board_${crypto.randomUUID()}`
     const part: BoardPart = {
       kind: 'board',
       id,
-      label: `Board ${newCount}`,
+      label,
       length: 200,
       width: 100,
       thickness: 25,
@@ -179,42 +255,104 @@ export function useScene(): UseSceneResult {
       rotationOrder: 'XYZ',
     }
     setScene((prev) => ({ parts: [...prev.parts, part] }))
-    setSelectedId(id)
-    setLabelCounter(newCount)
-  }, [occtReady, labelCounter])
+    setSelectedId(part.id)
+    push({
+      label: `Add ${part.label}`,
+      undo: () => {
+        setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== part.id) }))
+        setSelectedId((prev) => (prev === part.id ? null : prev))
+      },
+      redo: () => {
+        setScene((prev) => ({ parts: [...prev.parts, part] }))
+        setSelectedId(part.id)
+      },
+    })
+  }, [occtReady, labelCounter, push])
 
-  const onRemove = useCallback((id: PartId) => {
-    geometriesRef.current.get(id)?.dispose()
-    geometriesRef.current.delete(id)
-    prevShapeKeys.current.delete(id)
-    buildSeq.current.delete(id)
-    setGeometries(new Map(geometriesRef.current))
-    setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== id) }))
-    setSelectedId((prev) => (prev === id ? null : prev))
-  }, [])
+  const onRemove = useCallback(
+    (id: PartId) => {
+      const part = sceneRef.current.parts.find((p) => p.id === id)
+      if (!part) return
+      const index = sceneRef.current.parts.findIndex((p) => p.id === id)
+      geometriesRef.current.get(id)?.dispose()
+      geometriesRef.current.delete(id)
+      prevShapeKeys.current.delete(id)
+      buildSeq.current.delete(id)
+      setGeometries(new Map(geometriesRef.current))
+      setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== id) }))
+      setSelectedId((prev) => (prev === id ? null : prev))
+      push({
+        label: `Remove ${part.label}`,
+        undo: () =>
+          setScene((prev) => {
+            const parts = [...prev.parts]
+            parts.splice(index, 0, part)
+            return { parts }
+          }),
+        redo: () => {
+          setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== id) }))
+          setSelectedId((prev) => (prev === id ? null : prev))
+        },
+      })
+    },
+    [push],
+  )
 
-  const onDuplicate = useCallback((id: PartId) => {
-    setScene((prev) => {
-      const idx = prev.parts.findIndex((p) => p.id === id)
-      if (idx === -1) return prev
-      const orig = prev.parts[idx] as BoardPart
+  const onDuplicate = useCallback(
+    (id: PartId) => {
+      const orig = sceneRef.current.parts.find((p) => p.id === id) as BoardPart | undefined
+      if (!orig) return
       colorIndex.current += 1
       const clone: BoardPart = {
         ...orig,
-        id: `board_${crypto.randomUUID()}`,
+        id: `board_${crypto.randomUUID()}` as PartId,
         color: PART_COLORS[colorIndex.current % PART_COLORS.length],
         position: { ...orig.position, x: orig.position.x + orig.length + 10 },
         rotation: { x: 0, y: 0, z: 0 },
       }
-      const parts = [...prev.parts]
-      parts.splice(idx + 1, 0, clone)
-      return { parts }
-    })
-  }, [])
+      setScene((prev) => {
+        const idx = prev.parts.findIndex((p) => p.id === id)
+        if (idx === -1) return prev
+        const parts = [...prev.parts]
+        parts.splice(idx + 1, 0, clone)
+        return { parts }
+      })
+      push({
+        label: `Duplicate ${orig.label}`,
+        undo: () => {
+          setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== clone.id) }))
+          setSelectedId((prev) => (prev === clone.id ? null : prev))
+        },
+        redo: () =>
+          setScene((prev) => {
+            const idx = prev.parts.findIndex((p) => p.id === id)
+            if (idx === -1) return prev
+            const parts = [...prev.parts]
+            parts.splice(idx + 1, 0, clone)
+            return { parts }
+          }),
+      })
+    },
+    [push],
+  )
 
-  const onUpdate = useCallback((id: PartId, updater: (p: Part) => Part) => {
-    setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === id ? updater(p) : p)) }))
-  }, [])
+  const onUpdate = useCallback(
+    (id: PartId, updater: (p: Part) => Part) => {
+      const before = sceneRef.current.parts.find((p) => p.id === id)
+      if (!before) return
+      const after = updater(before)
+      setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === id ? after : p)) }))
+      push({
+        label: `Update ${after.label}`,
+        coalesceKey: `update-${id}`,
+        undo: () =>
+          setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === id ? before : p)) })),
+        redo: () =>
+          setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === id ? after : p)) })),
+      })
+    },
+    [push],
+  )
 
   const onSelect = useCallback((id: PartId | null) => {
     setSelectedId(id)
@@ -225,11 +363,9 @@ export function useScene(): UseSceneResult {
     geometriesRef.current.clear()
     prevShapeKeys.current.clear()
     buildSeq.current.clear()
-    const max = next.parts.reduce((m, p) => {
-      const match = /Board (\d+)/.exec(p.label)
-      return match ? Math.max(m, parseInt(match[1], 10)) : m
-    }, 0)
-    setLabelCounter(max > 0 ? max : next.parts.length)
+    pastRef.current = []
+    futureRef.current = []
+    setUndoState({ canUndo: false, canRedo: false, undoLabel: null, redoLabel: null })
     setScene(next)
     setSelectedId(null)
     setPendingIds(new Set())
@@ -250,11 +386,11 @@ export function useScene(): UseSceneResult {
     onUpdate,
     onSelect,
     replaceScene,
-    canUndo: false,
-    canRedo: false,
-    undoLabel: null,
-    redoLabel: null,
-    undo: () => {},
-    redo: () => {},
+    canUndo: undoState.canUndo,
+    canRedo: undoState.canRedo,
+    undoLabel: undoState.undoLabel,
+    redoLabel: undoState.redoLabel,
+    undo,
+    redo,
   }
 }
