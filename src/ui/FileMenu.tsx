@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-interface FileMenuProps {
+export interface FileMenuProps {
   fileName: string | null
   projectName: string
   isDirty: boolean
