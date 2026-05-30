@@ -1,10 +1,10 @@
-# CLAUDE.md — Zimmu Web
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 Zimmu is an open-core 3D joinery design app. React 19 + TypeScript + Vite frontend, Three.js viewport, OpenCASCADE.js (WASM) geometry kernel, Comlink-bridged Web Worker.
 
 ## Behavioral Guidelines
-
-Behavioral guidelines to reduce common LLM coding mistakes.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
@@ -77,7 +77,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ```bash
 pnpm dev          # dev server at http://localhost:5173
-pnpm test         # vitest run (unit tests, no browser)
+pnpm test         # vitest run (all unit tests, no browser)
 pnpm test:watch   # vitest in watch mode
 pnpm typecheck    # tsc -b --noEmit
 pnpm lint         # eslint .
@@ -85,30 +85,73 @@ pnpm build        # tsc + vite build (output: dist/)
 pnpm coverage     # vitest coverage report
 ```
 
-Run `pnpm typecheck && pnpm lint && pnpm test` before every commit.
+Run a single test file:
+
+```bash
+pnpm vitest run src/scene/useScene.test.ts
+```
+
+Run `pnpm typecheck && pnpm lint && pnpm test` before every commit. A pre-commit hook enforces typecheck automatically.
+
+## Automated Hooks
+
+The project has Claude Code hooks configured in `.claude/settings.json`:
+
+- **Write/Edit any `.ts/.tsx/.js/.jsx/.css`** → Prettier auto-formats the file.
+- **Write/Edit any `*.test.ts/*.test.tsx`** → The affected test file runs automatically.
+- **`git commit`** → Typecheck runs before the commit proceeds.
+- **Session stop with uncommitted `.ts`/`.tsx` changes** → A reminder is printed to run the full check suite.
 
 ## Architecture
 
 ```
 src/
 ├── geom/
-│   ├── occt.ts          OCCT bootstrap + shape primitives
-│   ├── occt.worker.ts   Comlink Web Worker wrapping the OCCT kernel
-│   ├── mesh.ts          TopoDS_Shape → THREE.BufferGeometry conversion
-│   └── occt.test.ts     Vitest smoke tests (OCCT skipped in Node)
+│   ├── occt.ts          OCCT bootstrap (lazy singleton) + makeBox primitive
+│   ├── occt.worker.ts   Comlink Web Worker — exposes buildPart()
+│   ├── mesh.ts          TopoDS_Shape → MeshData (Float32Arrays) + BufferGeometry
+│   └── occt.test.ts     Smoke tests (live OCCT skipped in Node)
+├── scene/
+│   ├── types.ts         Canonical types: ZimmuFile, Scene, Part, BoardPart, CameraState
+│   ├── useScene.ts      Scene state + geometry lifecycle + undo/redo
+│   ├── useFile.ts       File System Access API save/open/new + IDB auto-reopen
+│   ├── idb.ts           IndexedDB wrapper — stores the last FileSystemFileHandle
+│   └── utils.ts         shapeKey() — geometry cache key from Part dimensions
 ├── render/
-│   └── viewport.tsx     React-wrapped Three.js canvas + OrbitControls
-├── App.tsx
+│   └── viewport.tsx     React-wrapped Three.js canvas + OrbitControls + raycaster
+├── ui/
+│   ├── FileMenu.tsx     Top menu bar (File menu, project name, undo/redo)
+│   ├── sidebar.tsx      Parts list + EditPanel (label, shape, position, rotation)
+│   └── useDebouncedCallback.ts  Debounce hook used in dimension inputs
+├── App.tsx              Composes useScene + useFile + Viewport + Sidebar + FileMenu
 ├── main.tsx
 └── vite-env.d.ts        Ambient declarations for opencascade.js
 ```
 
-- **OCCT is browser-only.** Never call live OCCT APIs in tests — guard with environment checks or mock the module. The existing smoke test shows the pattern.
-- **Geometry lives in `src/geom/`**, rendering in `src/render/`. Keep the seam clean; viewport code must not import OCCT directly.
-- **Workers use Comlink.** Expose the OCCT API via `Comlink.expose()` in the worker and consume it with `Comlink.wrap()` in the main thread.
-- **Three.js coordinate system:** +Z up (CAD convention), not Three.js default +Y up. Don't change this.
+### Data Flow
 
-## Code conventions
+`useScene` is the single source of truth for scene state. It manages:
+
+1. **Geometry lifecycle** — watches `scene.parts` for changes; calls `occt.worker.buildPart()` for any part whose `shapeKey()` changed. Geometry results are kept in a ref (`geometriesRef`) and mirrored to state. Only shape dimensions (length/width/thickness) trigger a rebuild; position/rotation changes are applied directly in the Viewport.
+2. **Undo/redo** — a 50-entry history stored in refs (`pastRef`/`futureRef`). History entries carry explicit `undo`/`redo` functions (closures over the before/after state). Consecutive `onUpdate` calls to the same part coalesce into one entry via `coalesceKey`.
+
+`useFile` manages file persistence independently:
+- **Save/Open/New** — uses the File System Access API (`showSaveFilePicker`, `showOpenFilePicker`). Only works in Chrome/Edge; `supported` flag is checked in `App.tsx`.
+- **Auto-reopen** — on startup, `useFile` reads the last `FileSystemFileHandle` from IndexedDB (`src/scene/idb.ts`) and reopens the file if permission is already granted.
+- **Dirty tracking** — `isDirty` is computed by comparing `JSON.stringify(scene)` against the last-saved snapshot.
+
+`Viewport` receives `parts`, `geometries`, and `selectedId` as props. It manages Three.js objects directly in refs (no React reconciliation over meshes). Each part gets a `THREE.Mesh` + `THREE.LineSegments` for edge lines. Selection is highlighted by emissive color on the mesh and edge line color.
+
+### Key Invariants
+
+- **OCCT is browser-only.** Never call live OCCT APIs in tests — guard with `typeof window === 'undefined'` or mock the module.
+- **Geometry lives in `src/geom/`**, rendering in `src/render/`. The viewport must not import OCCT directly.
+- **Workers use Comlink.** `expose()` in the worker, `wrap()` in `useScene` (lazy singleton so `vi.stubGlobal('Worker', ...)` works in tests).
+- **Three.js coordinate system:** +Z up (CAD convention). Don't change `camera.up.set(0, 0, 1)`.
+- **`shapeKey()` is the geometry cache key.** It encodes only the dimensions that change the OCCT shape. Adding a new shape type requires adding a branch to `shapeKey()` in `src/scene/utils.ts`.
+- **`ZimmuFile` serialization** rounds floats to 6 decimal places. The file format version is `FILE_FORMAT_VERSION = 1` in `useFile.ts`.
+
+## Code Conventions
 
 - TypeScript strict mode — `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax` are on.
 - No `any`. Prefer explicit types over inference when the type is non-trivial.
@@ -122,13 +165,26 @@ src/
 - **Package manager:** pnpm (never npm/yarn).
 - `opencascade.js` is excluded from Vite's pre-bundler (`optimizeDeps.exclude`). Do not change this.
 - WASM assets are included via `assetsInclude: ['**/*.wasm']` and `vite-plugin-wasm`. Any new WASM dependency follows the same pattern.
-- `stats.js` is available for performance overlays in the viewport.
+- `stats.js` renders an FPS overlay in dev mode only (`import.meta.env.DEV`).
 
 ## Testing
 
 - Framework: Vitest + happy-dom + @testing-library/react.
 - Tests live next to the code they test (`*.test.ts` / `*.test.tsx`).
-- OCCT unit tests must skip when `typeof window === 'undefined'` or the WASM file is unavailable.
+- `vitest.setup.ts` imports `fake-indexeddb/auto` (polyfills IndexedDB for IDB tests) and aliases `globalThis.jest = vi` so `waitFor()` works with fake timers.
+- **Mocking the OCCT worker in tests:** mock `comlink` and stub `Worker` *before* importing `useScene`:
+
+  ```ts
+  vi.mock('comlink', () => ({
+    wrap: () => ({ buildPart: mockBuildPart }),
+    expose: vi.fn(),
+    transfer: vi.fn((data) => data),
+  }))
+  vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
+  import { useScene } from './useScene'
+  ```
+
+- OCCT unit tests must skip when the WASM file is unavailable (`it.skip(...)`).
 - Aim for tests on the geom seam (inputs → outputs) rather than Three.js internals.
 
 ## Documentation
@@ -144,7 +200,7 @@ Every spec or implementation plan must be accompanied by a living implementation
 
 ## Git
 
-- Development branch: `claude/vigilant-goldberg-PhwjF`
+- Development branch: `claude/claude-md-docs-7kL1L`
 - Commit messages: short imperative summary, no ticket references needed yet.
 - Do not push to `main` directly.
 
