@@ -69,6 +69,17 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+### 5. Plans at Maximum Detail (L99)
+
+**When writing a plan, give all suggestions at L99 — maximum depth and completeness.**
+
+- Every step must be specific enough to execute without follow-up questions.
+- Include all alternatives considered, not just the chosen path.
+- Surface every risk, edge case, and dependency upfront.
+- Do not omit steps because they seem obvious.
+
+L99 = the level a senior engineer would write for a team they will not be present to guide.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
