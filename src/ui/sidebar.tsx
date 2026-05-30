@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Part, PartId, Scene } from '../scene/types'
 import { useDebouncedCallback } from './useDebouncedCallback'
 
@@ -73,23 +73,37 @@ function DimInput({
   suffix: string
   min?: number
 }) {
+  const [localValue, setLocalValue] = useState(String(value))
+  const isFocused = useRef(false)
   const debounced = useDebouncedCallback(onCommit, 150)
+
+  useEffect(() => {
+    if (!isFocused.current) setLocalValue(String(value))
+  }, [value])
+
   return (
     <div style={s.inputRow}>
       <input
         type="number"
         step="any"
         style={s.input}
-        defaultValue={value}
+        value={localValue}
         onChange={(e) => {
+          setLocalValue(e.target.value)
           const v = parseFloat(e.target.value)
           if (isFinite(v) && v >= min) debounced(v)
         }}
+        onFocus={() => {
+          isFocused.current = true
+        }}
         onBlur={(e) => {
+          isFocused.current = false
           const v = parseFloat(e.target.value)
           if (!isFinite(v) || v < min) {
-            e.target.value = String(min)
+            setLocalValue(String(min))
             onCommit(min)
+          } else {
+            setLocalValue(String(v))
           }
         }}
       />
@@ -107,14 +121,30 @@ function NumInput({
   onChange: (v: number) => void
   suffix: string
 }) {
+  const [localValue, setLocalValue] = useState(String(value))
+  const isFocused = useRef(false)
+
+  useEffect(() => {
+    if (!isFocused.current) setLocalValue(String(value))
+  }, [value])
+
   return (
     <div style={s.inputRow}>
       <input
         type="number"
         step="any"
         style={s.input}
-        defaultValue={value}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        value={localValue}
+        onChange={(e) => {
+          setLocalValue(e.target.value)
+          onChange(parseFloat(e.target.value) || 0)
+        }}
+        onFocus={() => {
+          isFocused.current = true
+        }}
+        onBlur={() => {
+          isFocused.current = false
+        }}
       />
       <span style={s.suffix}>{suffix}</span>
     </div>
@@ -133,6 +163,13 @@ function EditPanel({
   const [shapeOpen, setShapeOpen] = useState(true)
   const [posOpen, setPosOpen] = useState(true)
   const [rotOpen, setRotOpen] = useState(true)
+  const [labelValue, setLabelValue] = useState(part.label)
+  const labelFocused = useRef(false)
+
+  useEffect(() => {
+    if (!labelFocused.current) setLabelValue(part.label)
+  }, [part.label])
+
   if (part.kind !== 'board') return null
   // `autoFocus` fires on mount. EditPanel is keyed by part.id in Sidebar,
   // so it remounts on every selection change — focusing the label each time.
@@ -142,14 +179,18 @@ function EditPanel({
         <input
           autoFocus
           style={{ ...s.input, flex: 1 }}
-          defaultValue={part.label}
+          value={labelValue}
           onChange={(e) => {
-            const label = e.target.value
-            onUpdate(part.id, (p) => ({ ...p, label }))
+            setLabelValue(e.target.value)
+            onUpdate(part.id, (p) => ({ ...p, label: e.target.value }))
           }}
-          onBlur={(e) => {
-            if (!e.target.value.trim()) {
-              e.target.value = nextLabel
+          onFocus={() => {
+            labelFocused.current = true
+          }}
+          onBlur={() => {
+            labelFocused.current = false
+            if (!labelValue.trim()) {
+              setLabelValue(nextLabel)
               onUpdate(part.id, (p) => ({ ...p, label: nextLabel }))
             }
           }}
