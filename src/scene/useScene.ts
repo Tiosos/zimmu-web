@@ -65,6 +65,12 @@ export interface UseSceneResult {
   onUpdate: (id: PartId, updater: (p: Part) => Part) => void
   onSelect: (id: PartId | null) => void
   replaceScene: (next: Scene) => void
+  canUndo: boolean
+  canRedo: boolean
+  undoLabel: string | null
+  redoLabel: string | null
+  undo: () => void
+  redo: () => void
 }
 
 export function useScene(): UseSceneResult {
@@ -244,5 +250,11 @@ export function useScene(): UseSceneResult {
     onUpdate,
     onSelect,
     replaceScene,
+    canUndo: false,
+    canRedo: false,
+    undoLabel: null,
+    redoLabel: null,
+    undo: () => {},
+    redo: () => {},
   }
 }
