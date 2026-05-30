@@ -84,7 +84,7 @@ function App() {
         e.preventDefault()
         undo()
       }
-      if ((e.shiftKey && k === 'z') || k === 'y') {
+      if ((e.shiftKey && k === 'z') || (k === 'y' && !e.shiftKey)) {
         e.preventDefault()
         redo()
       }

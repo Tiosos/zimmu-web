@@ -283,12 +283,14 @@ export function useScene(): UseSceneResult {
       setSelectedId((prev) => (prev === id ? null : prev))
       push({
         label: `Remove ${part.label}`,
-        undo: () =>
+        undo: () => {
           setScene((prev) => {
             const parts = [...prev.parts]
             parts.splice(index, 0, part)
             return { parts }
-          }),
+          })
+          setSelectedId(id)
+        },
         redo: () => {
           setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== id) }))
           setSelectedId((prev) => (prev === id ? null : prev))
