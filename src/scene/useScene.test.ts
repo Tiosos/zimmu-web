@@ -482,6 +482,41 @@ describe('useScene', () => {
       expect(result.current.scene.parts).toHaveLength(0)
     })
 
+    it('onUpdate with historyLabel suppresses coalescing — two undos required', () => {
+      const { result } = renderHook(() => useScene())
+      const id = result.current.scene.parts[0].id
+      const pos0 = result.current.scene.parts[0].position.z
+
+      act(() => {
+        result.current.onUpdate(
+          id,
+          (p) => ({ ...p, position: { ...p.position, z: 50 } }),
+          'Snap A to B',
+        )
+      })
+      const pos1 = result.current.scene.parts[0].position.z // 50
+
+      act(() => {
+        result.current.onUpdate(
+          id,
+          (p) => ({ ...p, position: { ...p.position, z: 100 } }),
+          'Snap A to B',
+        )
+      })
+
+      // Without historyLabel these two would coalesce into one undo step.
+      // With historyLabel each is a discrete entry.
+      act(() => {
+        result.current.undo()
+      })
+      expect(result.current.scene.parts[0].position.z).toBe(pos1) // intermediate
+
+      act(() => {
+        result.current.undo()
+      })
+      expect(result.current.scene.parts[0].position.z).toBe(pos0) // original (0)
+    })
+
     it('after onAdd then undo, next onAdd creates Board 2 not Board 3', async () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))

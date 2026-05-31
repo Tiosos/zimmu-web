@@ -71,7 +71,7 @@ export interface UseSceneResult {
   onAdd: () => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
-  onUpdate: (id: PartId, updater: (p: Part) => Part) => void
+  onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
   onSelect: (id: PartId | null) => void
   replaceScene: (next: Scene) => void
   canUndo: boolean
@@ -339,14 +339,14 @@ export function useScene(): UseSceneResult {
   )
 
   const onUpdate = useCallback(
-    (id: PartId, updater: (p: Part) => Part) => {
+    (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => {
       const before = sceneRef.current.parts.find((p) => p.id === id)
       if (!before) return
       const after = updater(before)
       setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === id ? after : p)) }))
       push({
-        label: `Update ${after.label}`,
-        coalesceKey: `update-${id}`,
+        label: historyLabel ?? `Update ${after.label}`,
+        coalesceKey: historyLabel !== undefined ? undefined : `update-${id}`,
         undo: () =>
           setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === id ? before : p)) })),
         redo: () =>
