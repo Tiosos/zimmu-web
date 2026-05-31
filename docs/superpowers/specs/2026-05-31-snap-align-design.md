@@ -1,7 +1,7 @@
 # Snap & Align — Design Spec
 
 **Date:** 2026-05-31
-**Status:** Approved — v1 (post L99 review, all suggestions incorporated)
+**Status:** Approved — v2 (post full-spec L99 review, all suggestions incorporated)
 **Scope:** Face-to-face flush snap — translate only, two-click flow, chained snaps
 
 ---
@@ -18,7 +18,7 @@ Let the user snap two boards flush face-to-face in a single gesture: click a sou
 
 | File | Role |
 |---|---|
-| `src/scene/snapMath.ts` | Named exports: `computeSnapDelta`, `computeFaceCorners`. Pure functions, no React, no Three.js side effects. |
+| `src/scene/snapMath.ts` | Named exports: `computeSnapDelta`, `computeFaceCorners`. Pure math functions. Uses Three.js math types (Vector3, Matrix4, Euler) for transforms but has no scene mutations, no GPU state, no React. |
 | `src/scene/useSnap.ts` | Hook: owns the snap state machine, guards, and history integration. Imports from `snapMath.ts`. |
 | `src/scene/useSnap.test.ts` | State machine tests via `renderHook`. |
 | `src/scene/snapMath.test.ts` | Pure math tests — no mocks. |
@@ -98,7 +98,9 @@ delta = dot(targetFace.faceCenter − sourceFace.faceCenter, targetFace.faceNorm
 
 **Parallel-normal guard (in `useSnap.onFaceClick`):**
 
-Before computing the delta, check whether the source and target normals are parallel (same direction rather than facing each other). If `dot(sourceFace.faceNormal, targetFace.faceNormal) > 0`, the faces point the same direction and cannot flush-snap meaningfully. Return without calling `onUpdate`. No error is shown; the cursor provides the only feedback (hover highlight simply does not appear for parallel faces — see §6).
+Before computing the delta, check whether the source and target normals point in the same direction. If `dot(sourceFace.faceNormal, targetFace.faceNormal) > 0`, both faces face the same way and flush-snap is meaningless. Return without calling `onUpdate`. No error is shown; the hover highlight simply does not appear for parallel faces (see §6).
+
+The threshold is strictly `> 0`, not `>= 0`. Perpendicular faces (`dot = 0`) are explicitly **allowed**: snapping a board's side face to another board's end face is geometrically valid and produces a correct L-joint or T-joint. `computeSnapDelta` handles perpendicular normals correctly — the projection onto `nTarget` yields the exact gap along the target axis regardless of `nSource` direction.
 
 ### `computeFaceCorners`
 
@@ -120,7 +122,22 @@ if (part.kind !== 'board')
 
 **Derivation:**
 
-1. Determine two perpendicular axes spanning the face plane from `face.localFaceNormal`:
+`computeFaceCorners` uses only `face.localFaceNormal` and `part` dimensions — it does **not** use `face.faceCenter`. The local face center is derived analytically (OCCT places the box corner at the local origin, so the face centres are deterministic):
+
+```
+localFaceNormal = ( 1, 0, 0) → local center = (length,      width/2,     thickness/2)
+localFaceNormal = (-1, 0, 0) → local center = (0,           width/2,     thickness/2)
+localFaceNormal = ( 0, 1, 0) → local center = (length/2,    width,       thickness/2)
+localFaceNormal = ( 0,-1, 0) → local center = (length/2,    0,           thickness/2)
+localFaceNormal = ( 0, 0, 1) → local center = (length/2,    width/2,     thickness)
+localFaceNormal = ( 0, 0,-1) → local center = (length/2,    width/2,     0)
+```
+
+This avoids `matrixWorld.invert()` entirely (which mutates the matrix in place unless cloned, a common source of bugs).
+
+1. Look up the local face center from the table above.
+
+2. Determine two perpendicular axes spanning the face plane:
 
 ```
 const n = face.localFaceNormal  // e.g. (0, 0, 1)
@@ -129,29 +146,27 @@ const u = normalize(cross(n, fallback))   // tangent
 const v = cross(n, u)                     // bitangent
 ```
 
-2. Compute the local-space half-extents for the two axes from part dimensions:
+3. Compute half-extents for `u` and `v`:
 
 ```
-// face.localFaceNormal tells us which face:
-//   (±1,0,0) → face in YZ plane → halfU = width/2,     halfV = thickness/2
-//   (0,±1,0) → face in XZ plane → halfU = length/2,    halfV = thickness/2
-//   (0,0,±1) → face in XY plane → halfU = length/2,    halfV = width/2
+// localFaceNormal tells us which two dimensions span the face:
+//   (±1,0,0) → halfU = width/2,     halfV = thickness/2
+//   (0,±1,0) → halfU = length/2,    halfV = thickness/2
+//   (0,0,±1) → halfU = length/2,    halfV = width/2
 ```
 
-3. Compute 4 local-space corners relative to face centre:
+4. Compute 4 local-space corners:
 
 ```
 corners = [
-  center + halfU*u + halfV*v,
-  center - halfU*u + halfV*v,
-  center - halfU*u - halfV*v,
-  center + halfU*u - halfV*v,
+  localCenter + halfU*u + halfV*v,
+  localCenter - halfU*u + halfV*v,
+  localCenter - halfU*u - halfV*v,
+  localCenter + halfU*u - halfV*v,
 ]
 ```
 
-where `center` is `face.faceCenter` expressed in local space (inverse of matrixWorld applied to world center).
-
-4. Apply `matrixWorld` to each corner to produce world-space points.
+5. Build `matrixWorld` from `part.position` and `part.rotation` (Three.js `Euler` XYZ + `Matrix4.compose`). Apply it to each corner to produce world-space points.
 
 **Winding order invariant:** For each of the 6 canonical normals, the cross product `(corners[1] − corners[0]) × (corners[2] − corners[0])` must point in the same direction as `face.faceNormal`. This is verified in `snapMath.test.ts`.
 
@@ -195,6 +210,8 @@ ACTIVE-SOURCE-PICKED ──onFaceClick(hit, valid target)──► ACTIVE-IDLE (
 ```
 
 Snap **stays active** after a successful snap (does not return to fully inactive). This enables chained snaps: the user can immediately click another source face without reactivating. The only exits from the active states are explicit cancel (Escape, button click, or toggle).
+
+**Invariant:** `sourceFace !== null` if and only if `snapPhase === 'source-picked'`. Any code path that sets `sourceFace = null` must also set `snapPhase = 'idle'`, and vice versa. This invariant is what makes the `sourceFace!` non-null assertions in the guards safe to write without a runtime null-check.
 
 ### Guards in `onFaceClick`
 
@@ -265,6 +282,28 @@ When `historyLabel` is not provided:
 
 ## 6. Visual Feedback
 
+### Updated `ViewportProps`
+
+```typescript
+interface ViewportProps {
+  parts: Part[]
+  geometries: Map<PartId, THREE.BufferGeometry>
+  selectedId: PartId | null
+  onPartClick: (id: PartId | null) => void
+  // snap additions:
+  snapActive: boolean
+  snapPhase: 'idle' | 'source-picked'
+  sourceFace: FaceHit | null
+  hoveredFace: FaceHit | null
+  onFaceClick: (hit: FaceHit) => void
+  onFaceHover: (hit: FaceHit | null) => void
+}
+```
+
+**Click routing:** in the click handler, if `snapActive`, call `onFaceClick` with the hit face (or ignore the click if no face was hit). If `!snapActive`, call `onPartClick` with the hit part id (or `null` on miss). The two callbacks are mutually exclusive on any single click — never call both.
+
+**Hover routing:** the rAF callback only fires `onFaceHover` when `snapActive`. When `!snapActive`, `lastMouseRef` is still updated but the rAF callback returns early via `snapActiveRef.current`, so no unnecessary raycasts occur.
+
 ### Face hit detection in Viewport
 
 On each raycast hit:
@@ -272,7 +311,7 @@ On each raycast hit:
 1. Get `intersect.face.normal` — Three.js local-space normal from the geometry.
 2. Snap to nearest axis in local space: find the component with largest absolute value, round to ±1, zero the rest. This is `localFaceNormal`.
 3. Transform to world space: create a `THREE.Vector3` from `localFaceNormal`, apply `mesh.matrixWorld` as a direction (use `transformDirection`, not `applyMatrix4` — direction, not position), snap result to nearest axis in world space. This is `faceNormal`.
-4. Compute `faceCenter`: construct a box from the face vertices, take its centre, apply `matrixWorld`.
+4. Compute `faceCenter`: derive the local face center analytically from `localFaceNormal` and part dimensions using the same table as `computeFaceCorners` (OCCT box corner at local origin). Apply `mesh.matrixWorld` as a position (`applyMatrix4`) to get the world-space center. Do **not** iterate geometry vertices — the OCCT tessellation layout is not stable enough to rely on.
 
 ### LineLoop highlights
 
@@ -307,22 +346,16 @@ Yellow distinguishes the source highlight from the existing selection highlight 
 
 ```typescript
 useEffect(() => {
-  if (!snapActive) {
-    clearHighlight(sourceHighlight.current)
-    clearHighlight(hoverHighlight.current)
-    return
-  }
-
-  updateHighlight(sourceHighlight.current, sourceFace, parts, 0xfbbf24)
-  updateHighlight(hoverHighlight.current, hoveredFace, parts, 0x60a5fa)
+  updateHighlight(sourceHighlight.current, snapActive ? sourceFace : null, parts, 0xfbbf24)
+  updateHighlight(hoverHighlight.current, snapActive ? hoveredFace : null, parts, 0x60a5fa)
 }, [snapActive, sourceFace, hoveredFace, parts])
 ```
 
 `updateHighlight(loop, face, parts, color)`:
-- If `face === null`: set `loop.visible = false`; no geometry change.
+- If `face === null`: set `loop.visible = false`; **no geometry change** (geometry is reused on the next selection; disposing on every hide adds unnecessary allocation churn).
 - If `face !== null`: find the part by `face.partId` in `parts`; call `computeFaceCorners`; build new `BufferGeometry` from 4 offset corners; **call `loop.geometry.dispose()` before assignment**; assign new geometry; set `loop.material.color.setHex(color)`; set `loop.visible = true`.
 
-`clearHighlight(loop)`: `loop.visible = false`. No geometry disposal — the geometry is reused on the next face selection; disposing it every cancel adds unnecessary allocation churn.
+There is no separate `clearHighlight` function — `updateHighlight(loop, null, ...)` is the single hide path. This keeps the "visible=false" logic in one place.
 
 On Viewport unmount: call `loop.geometry.dispose()` for both LineLoops.
 
@@ -352,7 +385,14 @@ function onMouseMove(e: MouseEvent) {
 }
 ```
 
-`snapActiveRef` is a ref synced to `snapActive` prop (same `useLayoutEffect` pattern as `partsRef`) to avoid stale closure inside the rAF callback.
+`snapActiveRef` is a ref synced to `snapActive` prop via `useLayoutEffect` — the same pattern as `partsRef` — to avoid a stale closure inside the rAF callback:
+
+```typescript
+const snapActiveRef = useRef(snapActive)
+useLayoutEffect(() => { snapActiveRef.current = snapActive }, [snapActive])
+```
+
+Without this ref, `snapActive` captured inside the rAF closure would be stale (always the value from the render that registered the listener). Adding `snapActive` to the event-listener effect's dep array would re-register the listener on every toggle, which is also wrong.
 
 Cleanup in the event-listener useEffect:
 
@@ -419,13 +459,16 @@ src/
 
 **`computeSnapDelta`**
 
+Note: `computeSnapDelta` is a pure math function and does not apply the parallel-normal guard — that guard lives in `useSnap.onFaceClick`. The test cases below use realistic (anti-parallel) normals for the primary case, then document the raw formula behaviour for other inputs.
+
 | Scenario | sourceFace | targetFace | Expected delta |
 |---|---|---|---|
-| Coaxial, 100mm apart | center `(0,0,0)`, normal `(0,0,1)` | center `(0,0,100)`, normal `(0,0,1)` | `(0,0,100)` |
-| Already flush | centers equal | — | `(0,0,0)` |
-| Past flush (overlap) | center `(0,0,10)` | center `(0,0,0)`, normal `(0,0,1)` | `(0,0,-10)` |
-| Lateral offset (ignored) | center `(50,30,0)` | center `(0,0,100)`, normal `(0,0,1)` | `(0,0,100)` |
-| X-axis faces | centers 75mm apart in X | nTarget `(1,0,0)` | `(75,0,0)` |
+| Anti-parallel, 100mm apart (realistic) | center `(0,0,0)`, nSource `(0,0,1)` | center `(0,0,100)`, nTarget `(0,0,-1)` | `(0,0,-100)` — source moves 100mm in −Z so its top face meets the target's bottom face |
+| Already flush | centers equal, any anti-parallel normals | — | `(0,0,0)` |
+| Past flush (overlap) | center `(0,0,10)` | center `(0,0,0)`, nTarget `(0,0,1)` | `(0,0,-10)` |
+| Lateral offset (ignored) | center `(50,30,0)` | center `(0,0,100)`, nTarget `(0,0,-1)` | `(0,0,-100)` — lateral components drop out |
+| X-axis faces | centers 75mm apart in X | nTarget `(-1,0,0)` | `(75,0,0)` |
+| Parallel normals (raw math, no guard) | center `(0,0,0)`, nSource `(0,0,1)` | center `(0,0,100)`, nTarget `(0,0,1)` | `(0,0,100)` — formula works but guard in `onFaceClick` prevents this path in production |
 
 **`computeFaceCorners`**
 
@@ -499,19 +542,28 @@ expect(result.current.hoveredFace).toBeNull()
 expect(result.current.snapPhase).toBe('idle')
 ```
 
-### `src/scene/useScene.test.ts` — history label and coalesceKey suppression
+### `src/scene/useScene.test.ts` — coalesceKey suppression
 
-Add a new test block: "snap history label and coalesceKey suppression."
+Add a new test block: "snap onUpdate suppresses coalescing."
 
-Test coalescing is suppressed: perform two `onUpdate` calls with identical `historyLabel`. Then call `undo()` twice. Assert the part's position after the first undo is the intermediate value (between the two snaps), and after the second undo is the original value. If coalescing had occurred, the first undo would skip straight to the original.
+`useScene` does not expose a `history` array publicly — label content is already verified in `useSnap.test.ts` (via `vi.mocked(onUpdate).mock.calls[0][2]`). The `useScene` test verifies only the observable behaviour: two `onUpdate` calls with `historyLabel` create two distinct history entries rather than one coalesced entry.
 
-Test label content:
 ```typescript
-act(() => onUpdate('part-b', updater, 'Snap Board B to Board A'))
-expect(history[history.length - 1].label).toBe('Snap Board B to Board A')
+// Perform two updates with a historyLabel
+const pos0 = result.current.scene.parts[0].position
+act(() => result.current.onUpdate('part-a', p => ({ ...p, position: { ...p.position, z: 50 } }), 'Snap A to B'))
+const pos1 = result.current.scene.parts[0].position  // { z: 50 }
+act(() => result.current.onUpdate('part-a', p => ({ ...p, position: { ...p.position, z: 100 } }), 'Snap A to B'))
+
+// Two undos required — no coalescing
+act(() => result.current.undo())
+expect(result.current.scene.parts[0].position.z).toBe(pos1.z)  // intermediate
+
+act(() => result.current.undo())
+expect(result.current.scene.parts[0].position.z).toBe(pos0.z)  // original
 ```
 
-Access `history` through the public hook API (whatever `useScene` exposes for undo state), not through internal refs.
+If coalescing had occurred, the first `undo()` would jump straight to `pos0`, skipping `pos1`.
 
 ### `snapMath.ts` module contract
 
