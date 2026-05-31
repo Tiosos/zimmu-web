@@ -3,6 +3,8 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import Stats from 'stats.js'
 import type { Part, PartId, CameraState } from '../scene/types'
+import type { FaceHit } from '../scene/types'
+import { computeFaceCorners, computeLocalFaceCenter } from '../scene/snapMath'
 
 interface ViewportProps {
   parts: Part[]
@@ -11,6 +13,12 @@ interface ViewportProps {
   onPartClick: (id: PartId | null) => void
   cameraStateRef: { current: CameraState }
   loadedCamera: CameraState | null
+  snapActive: boolean
+  snapPhase: 'idle' | 'source-picked'
+  sourceFace: FaceHit | null
+  hoveredFace: FaceHit | null
+  onFaceClick: (hit: FaceHit) => void
+  onFaceHover: (hit: FaceHit | null) => void
 }
 
 export function Viewport({
@@ -20,6 +28,12 @@ export function Viewport({
   onPartClick,
   cameraStateRef,
   loadedCamera,
+  snapActive,
+  snapPhase: _snapPhase,
+  sourceFace,
+  hoveredFace,
+  onFaceClick,
+  onFaceHover,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -30,10 +44,74 @@ export function Viewport({
   const raycaster = useRef(new THREE.Raycaster())
   const mouseDown = useRef<{ x: number; y: number } | null>(null)
   const onClickRef = useRef(onPartClick)
+  const partsRef = useRef<Part[]>(parts)
+  const snapActiveRef = useRef(snapActive)
+  const onFaceClickRef = useRef(onFaceClick)
+  const onFaceHoverRef = useRef(onFaceHover)
+  const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
+  const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
+  const rafIdRef = useRef<number>(0)
+  const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
 
   useLayoutEffect(() => {
     onClickRef.current = onPartClick
+    partsRef.current = parts
+    snapActiveRef.current = snapActive
+    onFaceClickRef.current = onFaceClick
+    onFaceHoverRef.current = onFaceHover
   })
+
+  function buildFaceHit(
+    intersection: THREE.Intersection,
+    meshMap: Map<PartId, THREE.Mesh>,
+    currentParts: Part[],
+  ): FaceHit | null {
+    const mesh = intersection.object as THREE.Mesh
+    let partId: PartId | null = null
+    for (const [id, m] of meshMap) {
+      if (m === mesh) {
+        partId = id
+        break
+      }
+    }
+    if (!partId || !intersection.face) return null
+
+    const part = currentParts.find((p) => p.id === partId)
+    if (!part || part.kind !== 'board') return null
+
+    // Snap hit normal to nearest axis in local space
+    const ln = intersection.face.normal
+    const ax = Math.abs(ln.x),
+      ay = Math.abs(ln.y),
+      az = Math.abs(ln.z)
+    let lx = 0,
+      ly = 0,
+      lz = 0
+    if (ax >= ay && ax >= az) lx = Math.sign(ln.x)
+    else if (ay >= ax && ay >= az) ly = Math.sign(ln.y)
+    else lz = Math.sign(ln.z)
+    const localFaceNormal = { x: lx, y: ly, z: lz }
+
+    // Transform local normal to world space and snap again
+    const wn = new THREE.Vector3(lx, ly, lz).transformDirection(mesh.matrixWorld)
+    const wx = Math.abs(wn.x),
+      wy = Math.abs(wn.y),
+      wz = Math.abs(wn.z)
+    let fnx = 0,
+      fny = 0,
+      fnz = 0
+    if (wx >= wy && wx >= wz) fnx = Math.sign(wn.x)
+    else if (wy >= wx && wy >= wz) fny = Math.sign(wn.y)
+    else fnz = Math.sign(wn.z)
+    const faceNormal = { x: fnx, y: fny, z: fnz }
+
+    // Analytic face centre (no geometry vertex iteration)
+    const lc = computeLocalFaceCenter(localFaceNormal, part)
+    const wc = new THREE.Vector3(lc.x, lc.y, lc.z).applyMatrix4(mesh.matrixWorld)
+    const faceCenter = { x: wc.x, y: wc.y, z: wc.z }
+
+    return { partId, faceNormal, faceCenter, localFaceNormal }
+  }
 
   // Scene setup — runs once
   useEffect(() => {
@@ -78,6 +156,25 @@ export function Viewport({
     grid.rotation.x = Math.PI / 2
     scene.add(grid)
 
+    // Snap face highlight LineLoops
+    const snapMat = (color: number) =>
+      new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true, linewidth: 1 })
+    const emptyGeo = () => {
+      const g = new THREE.BufferGeometry()
+      g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(0), 3))
+      return g
+    }
+    const sourceLoop = new THREE.LineLoop(emptyGeo(), snapMat(0xfbbf24))
+    const hoverLoop = new THREE.LineLoop(emptyGeo(), snapMat(0x60a5fa))
+    sourceLoop.renderOrder = 1
+    hoverLoop.renderOrder = 1
+    sourceLoop.visible = false
+    hoverLoop.visible = false
+    scene.add(sourceLoop)
+    scene.add(hoverLoop)
+    sourceHighlightRef.current = sourceLoop
+    hoverHighlightRef.current = hoverLoop
+
     let stats: Stats | undefined
     if (import.meta.env.DEV) {
       stats = new Stats()
@@ -121,26 +218,65 @@ export function Viewport({
       const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1
       raycaster.current.setFromCamera(new THREE.Vector2(nx, ny), camera)
       const hits = raycaster.current.intersectObjects(Array.from(meshes.current.values()), false)
-      if (hits.length > 0) {
-        const hit = hits[0].object as THREE.Mesh
-        for (const [id, m] of meshes.current) {
-          if (m === hit) {
-            onClickRef.current(id)
-            return
+
+      if (snapActiveRef.current) {
+        // Snap mode: route to onFaceClick; ignore miss (don't deselect)
+        if (hits.length > 0) {
+          const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
+          if (faceHit) onFaceClickRef.current(faceHit)
+        }
+      } else {
+        // Normal mode: route to onPartClick
+        if (hits.length > 0) {
+          const hit = hits[0].object as THREE.Mesh
+          for (const [id, m] of meshes.current) {
+            if (m === hit) {
+              onClickRef.current(id)
+              return
+            }
           }
         }
+        onClickRef.current(null)
       }
-      onClickRef.current(null)
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      lastMouseRef.current = { x: e.clientX, y: e.clientY }
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (!snapActiveRef.current) return
+        const { x, y } = lastMouseRef.current
+        const rect = renderer.domElement.getBoundingClientRect()
+        const nx = ((x - rect.left) / rect.width) * 2 - 1
+        const ny = -((y - rect.top) / rect.height) * 2 + 1
+        raycaster.current.setFromCamera(new THREE.Vector2(nx, ny), camera)
+        const hits = raycaster.current.intersectObjects(Array.from(meshes.current.values()), false)
+        if (hits.length > 0) {
+          const hit = buildFaceHit(hits[0], meshes.current, partsRef.current)
+          onFaceHoverRef.current(hit)
+        } else {
+          onFaceHoverRef.current(null)
+        }
+      })
     }
 
     renderer.domElement.addEventListener('mousedown', handleMouseDown)
     renderer.domElement.addEventListener('click', handleClick)
+    renderer.domElement.addEventListener('mousemove', handleMouseMove)
 
     return () => {
       cancelAnimationFrame(frame)
+      cancelAnimationFrame(rafIdRef.current)
       window.removeEventListener('resize', handleResize)
       renderer.domElement.removeEventListener('mousedown', handleMouseDown)
       renderer.domElement.removeEventListener('click', handleClick)
+      renderer.domElement.removeEventListener('mousemove', handleMouseMove)
+      sourceHighlightRef.current?.geometry.dispose()
+      hoverHighlightRef.current?.geometry.dispose()
+      scene.remove(sourceLoop)
+      scene.remove(hoverLoop)
+      sourceLoop.material.dispose()
+      hoverLoop.material.dispose()
       controls.dispose()
       renderer.dispose()
       if (stats && mount.contains(stats.dom)) mount.removeChild(stats.dom)
@@ -246,6 +382,48 @@ export function Viewport({
       )
     }
   }, [parts, geometries, selectedId])
+
+  // Snap highlight update — rebuilds LineLoop geometry when faces change
+  useEffect(() => {
+    function updateHighlight(loop: THREE.LineLoop | null, face: FaceHit | null, color: number) {
+      if (!loop) return
+      if (face === null) {
+        loop.visible = false
+        return
+      }
+      const part = parts.find((p) => p.id === face.partId)
+      if (!part || part.kind !== 'board') {
+        loop.visible = false
+        return
+      }
+      const corners = computeFaceCorners(face, part)
+      const OFFSET = 1.0
+      const pos = new Float32Array(4 * 3)
+      corners.forEach((c, i) => {
+        pos[i * 3] = c.x + face.faceNormal.x * OFFSET
+        pos[i * 3 + 1] = c.y + face.faceNormal.y * OFFSET
+        pos[i * 3 + 2] = c.z + face.faceNormal.z * OFFSET
+      })
+      loop.geometry.dispose()
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+      loop.geometry = geo
+      ;(loop.material as THREE.LineBasicMaterial).color.setHex(color)
+      loop.visible = true
+    }
+
+    updateHighlight(sourceHighlightRef.current, snapActive ? sourceFace : null, 0xfbbf24)
+    updateHighlight(hoverHighlightRef.current, snapActive ? hoveredFace : null, 0x60a5fa)
+  }, [snapActive, sourceFace, hoveredFace, parts])
+
+  useEffect(() => {
+    const mount = mountRef.current
+    if (!mount) return
+    mount.style.cursor = snapActive ? 'crosshair' : ''
+    return () => {
+      mount.style.cursor = ''
+    }
+  }, [snapActive])
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 }

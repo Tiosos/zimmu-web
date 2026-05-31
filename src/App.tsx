@@ -140,6 +140,12 @@ function App() {
           onPartClick={onSelect}
           cameraStateRef={cameraStateRef}
           loadedCamera={loadedCamera}
+          snapActive={false}
+          snapPhase="idle"
+          sourceFace={null}
+          hoveredFace={null}
+          onFaceClick={() => {}}
+          onFaceHover={() => {}}
         />
         <Sidebar
           scene={scene}
