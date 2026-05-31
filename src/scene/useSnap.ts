@@ -51,6 +51,7 @@ export function useSnap(params: {
   // Cancel if source part is deleted while snap is in progress
   useEffect(() => {
     if (sourceFace && !parts.find((p) => p.id === sourceFace.partId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       cancelSnap()
     }
   }, [parts, sourceFace, cancelSnap])

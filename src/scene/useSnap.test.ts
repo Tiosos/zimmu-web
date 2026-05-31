@@ -4,7 +4,7 @@ import type { FaceHit, Part, PartId } from './types'
 
 // Mock snapMath so tests don't depend on Three.js math correctness
 vi.mock('./snapMath', () => ({
-  computeSnapDelta: (_src: FaceHit, _tgt: FaceHit) => ({ x: 0, y: 0, z: 100 }),
+  computeSnapDelta: () => ({ x: 0, y: 0, z: 100 }),
   computeFaceCorners: vi.fn(),
   computeLocalFaceCenter: vi.fn(),
 }))

@@ -29,7 +29,6 @@ export function Viewport({
   cameraStateRef,
   loadedCamera,
   snapActive,
-  snapPhase: _snapPhase,
   sourceFace,
   hoveredFace,
   onFaceClick,
