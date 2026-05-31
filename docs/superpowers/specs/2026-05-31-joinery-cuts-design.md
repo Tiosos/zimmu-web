@@ -34,8 +34,8 @@ Let the user cut rectangular voids into boards using OCCT Boolean subtraction. C
 | `src/geom/occt.ts` | Add `makeCut` primitive. |
 | `src/geom/occt.worker.ts` | Extend `buildPart` dims with `cuts`; chain Boolean subtracts. |
 | `src/render/viewport.tsx` | Extend `buildFaceHit` with `localHitPoint`; add cut mode routing. |
-| `src/ui/sidebar.tsx` | Add Cuts section to `EditPanel`; Add Cut button. |
-| `src/App.tsx` | Compose `useAddCut`; wire `C`/Escape shortcuts; mutual exclusion with snap. |
+| `src/ui/sidebar.tsx` | Add Cuts section to `EditPanel`; Add Cut button. Widen `SidebarProps.onUpdate` and `EditPanelProps.onUpdate` to accept the optional third `historyLabel?: string` argument (currently typed as two-parameter — calling `onUpdate(id, updater, 'Edit cut')` from the cut editing rows will be a TypeScript error without this change). Also add `onRemoveCut`, `onUpdateCut`, `lastPlacedCutId`, and `scene` props. Update the `props()` helper in `sidebar.test.tsx` with default values for all new props. |
+| `src/App.tsx` | Compose `useAddCut`; wire `C`/Escape shortcuts; mutual exclusion with snap. Replace the existing `onSnapToggle={activateSnap}` prop with `onSnapToggle={handleActivateSnap}` (the wrapper that calls `cancelCut()` first — see mutual exclusion section). |
 | `src/scene/useFile.ts` | Default `cuts: []` when loading files without cut data. |
 
 ### Dependency direction
@@ -179,7 +179,7 @@ export function makeCut(
   op.Build(new oc.Message_ProgressRange_1())
   const result = op.Shape()
 
-  // Do NOT delete op before result is consumed — result may reference op's memory.
+  // TopoDS_Shape is reference-counted; op.delete() is safe here (same pattern as makeBox).
   xform.delete()
   toolShape.delete()
   op.delete()
@@ -193,17 +193,25 @@ export function makeCut(
 
 **Non-intersecting cut:** if the tool doesn't intersect the board, OCCT returns the original topology. The caller must not assume `result` is a distinct heap object from `shape` — a smoke test must verify this case and use `new oc.TopoDS_Shape(result)` to copy before deleting the input if the binding requires it.
 
-**`op.Shape()` lifetime:** do not call `op.delete()` until the result has been passed to the next operation or consumed. The deletion order above (xform → toolShape → op → movedTool) ensures this.
-
 ---
 
 ### `buildPart` in `occt.worker.ts`
 
-`dims` gains:
+`buildPart` currently takes two arguments: `buildPart(kind: 'board', dims: { length, width, thickness })`. `dims` gains a `cuts` field; `kind` is unchanged:
 
 ```typescript
+// Updated dims type — face and label stripped by useScene before calling the worker
 cuts: Array<{ id: string; position: Vec3; size: Vec3 }>
-// face/label stripped by caller (useScene) before sending to worker
+```
+
+Updated call site in `useScene.ts`:
+```typescript
+buildPart(part.kind, {
+  length: part.length,
+  width: part.width,
+  thickness: part.thickness,
+  cuts: part.cuts.map(({ id, position, size }) => ({ id, position, size })),
+})
 ```
 
 Execution — same sort order as `shapeKey` (by `id`):
@@ -264,12 +272,12 @@ export interface AddCutState {
 
 **`onFaceClick`:**
 1. Derives `face` from `hit.localFaceNormal`: the axis with the largest absolute component determines depth (`x`→`±X`, `y`→`±Y`, `z`→`±Z`); the sign of that component determines `+` vs `−`. Since board faces are axis-aligned, exactly one component is ±1. Example: `localFaceNormal = {x:0, y:0, z:1}` → `'+Z'`.
-2. Computes `position`, `size` from `hit.localHitPoint` using the table below
-2. Creates a new `CutDef` with a UUID, label `"Cut N"` (N = `part.cuts.length + 1`)
-3. Calls `onUpdate(hit.partId, p => ({...p, cuts: [...p.cuts, newCut]}), 'Add cut')`
-4. Calls `onSelect(hit.partId)` — ensures the board is selected so `EditPanel` opens
-5. Sets `lastPlacedCutId = newCut.id`
-6. `cutActive` stays `true` for chaining
+2. Computes `position`, `size` from `hit.localHitPoint` using the table below.
+3. Creates a new `CutDef` with a UUID, label `"Cut N"` (N = `part.cuts.length + 1`).
+4. Calls `onUpdate(hit.partId, p => ({...p, cuts: [...p.cuts, newCut]}), 'Add cut')`
+5. Calls `onSelect(hit.partId)` — ensures the board is selected so `EditPanel` opens.
+6. Sets `lastPlacedCutId = newCut.id`.
+7. `cutActive` stays `true` for chaining.
 
 `lastPlacedCutId` resets to `null` on `cancelCut()`. Empty-space click (`hits.length === 0`): no-op. No Three.js imports — all geometry is pre-computed in `localHitPoint`.
 
@@ -292,6 +300,8 @@ All `hit.*` references below are `hit.localHitPoint.*` (board-local space, from 
 
 `−10` offsets are half the default 20mm U/V size — centres the cut on the click. These offsets must stay in sync with `defaultCutSize` values.
 
+**v1 limitation — edge clicks:** no clamping is applied. Clicking within 10mm of a board edge yields a negative U or V corner (e.g., `pos.y = 3 − 10 = −7`). OCCT computes the Boolean correctly but the visible void is clipped to the board boundary — smaller than 20×20mm. This is accepted v1 behaviour; the user can adjust dimensions in the sidebar.
+
 ---
 
 ### Viewport routing and rAF guard
@@ -313,6 +323,8 @@ Prevents both modes writing to `hoverHighlightRef` in the same frame. Click hand
 const handleActivateCut  = () => { cancelSnap(); activateCut() }
 const handleActivateSnap = () => { cancelCut();  activateSnap() }
 ```
+
+**Critical:** replace the existing `onSnapToggle={activateSnap}` JSX prop with `onSnapToggle={handleActivateSnap}`. Without this change, the sidebar Snap button bypasses `cancelCut()` and both modes can be active simultaneously.
 
 Independent hooks; App.tsx owns the mutual exclusion. Silent cancel on mode switch — consistent with pressing Escape.
 
@@ -353,7 +365,7 @@ Each row has a delete button (calls `onRemoveCut`).
 onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
 ```
 
-Added to `UseSceneResult`. History label: `"Edit cut"`.
+Added to `UseSceneResult`. History label: `"Edit cut"`. CoalesceKey: `'cut-${partId}-${cutId}'` — consecutive edits to the same cut coalesce into one undo entry (matching the feel of board dimension inputs). For paired updates (where both boards are written), use `coalesceKey: 'cut-${partIdA}-${cutIdA}'`; the paired board is always bundled into the same entry.
 
 **Paired propagation — unconditional.** Whenever `pairedCutId` is set, `size[axes(A).u]` and `size[axes(A).v]` are always copied to `size[axes(B).u]` and `size[axes(B).v]` — regardless of which field the user actually changed. No change-detection needed. Each cut's own `faceAxes` mapping determines which Vec3 component is u and which is v.
 
@@ -391,7 +403,46 @@ When the cut has no pair, only `partIdA` is updated (standard single-part undo c
 onRemoveCut: (partId: PartId, cutId: CutId) => void
 ```
 
-Added to `UseSceneResult`. Atomically removes the cut and clears stale paired references across all parts — single `push()` entry, single undo. Scans using `ref.split(':')[1] === cutId` (safe because `CutId` is globally unique and `:` never appears in UUIDs).
+Added to `UseSceneResult`. Atomically removes the cut and clears stale `pairedCutId` references on all other parts — single `push()` entry, single undo. **Unlinks only — does not cascade-delete the mating cut.** Scans using `ref.split(':')[1] === cutId` (safe because `CutId` is globally unique and `:` never appears in UUIDs).
+
+**Undo closure** — snapshot before the operation, restore both the deleted cut and all cleared paired references:
+
+```typescript
+// Snapshot
+const removedCut = part.cuts.find(c => c.id === cutId)!
+const affectedPairs: Array<{ partId: PartId; cutId: CutId }> = []
+for (const p of scene.parts) {
+  for (const c of p.cuts) {
+    if (c.pairedCutId?.split(':')[1] === cutId) {
+      affectedPairs.push({ partId: p.id, cutId: c.id })
+    }
+  }
+}
+
+push({
+  label: 'Remove cut',
+  undo: () => setScene(prev => ({
+    parts: prev.parts.map(p => {
+      // Restore the deleted cut
+      if (p.id === partId) return { ...p, cuts: [...p.cuts, removedCut] }
+      // Restore cleared pairedCutId on affected parts
+      const pair = affectedPairs.find(ap => ap.partId === p.id)
+      if (pair) return { ...p, cuts: p.cuts.map(c => c.id === pair.cutId
+        ? { ...c, pairedCutId: `${partId}:${cutId}` }
+        : c) }
+      return p
+    }),
+  })),
+  redo: () => setScene(prev => ({
+    parts: prev.parts.map(p => {
+      if (p.id === partId) return { ...p, cuts: p.cuts.filter(c => c.id !== cutId) }
+      return { ...p, cuts: p.cuts.map(c =>
+        c.pairedCutId?.split(':')[1] === cutId ? { ...c, pairedCutId: undefined } : c
+      )}
+    }),
+  })),
+})
+```
 
 ---
 
@@ -402,16 +453,24 @@ Each cut row footer:
 - **Paired:** `"↔ Board B › Cut label"` chip + "Unlink" button
 - **Stale:** `"Pair lost"` chip (muted red) + "Unlink" button
 
-**Stale detection** — at render time in sidebar:
+**Stale detection** — build a lookup map once per scene change with `useMemo`, then do O(1) lookup per cut row:
 
 ```typescript
-const pairedEntry = cut.pairedCutId
-  ? scene.parts
-      .flatMap(p => p.cuts.map(c => ({ partId: p.id, cut: c })))
-      .find(({ partId: pid, cut: c }) => `${pid}:${c.id}` === cut.pairedCutId)
-  : null
+// At the top of EditPanel (or the component containing the cuts list):
+const cutLookup = useMemo(() => {
+  const map = new Map<string, { partId: PartId; cut: CutDef }>()
+  for (const p of scene.parts) {
+    for (const c of p.cuts) map.set(`${p.id}:${c.id}`, { partId: p.id, cut: c })
+  }
+  return map
+}, [scene.parts])
+
+// Per cut row:
+const pairedEntry = cut.pairedCutId ? cutLookup.get(cut.pairedCutId) ?? null : null
 const pairLost = !!cut.pairedCutId && !pairedEntry
 ```
+
+The `flatMap+find` pattern (O(parts × cuts) per cut per render) must not be used inline — it degrades badly with many parts.
 
 **"Link to cut…" dropdown** — lists all cuts on all other boards as `"Board label › Cut label"` (display) with `"{partId}:{cutId}"` as the value. On selection:
 1. Sets `pairedCutId` on both cuts (bidirectional) — one history entry labelled `'Link cuts'`
