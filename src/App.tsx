@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
+import { useSnap } from './scene/useSnap'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
@@ -30,6 +31,17 @@ function App() {
     undo,
     redo,
   } = useScene()
+
+  const {
+    snapActive,
+    snapPhase,
+    sourceFace,
+    hoveredFace,
+    activateSnap,
+    cancelSnap,
+    onFaceClick,
+    onFaceHover,
+  } = useSnap({ parts: scene.parts, onUpdate })
 
   const cameraStateRef = useRef<CameraState>({
     position: { x: 250, y: -200, z: 150 },
@@ -62,7 +74,23 @@ function App() {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const mod = e.metaKey || e.ctrlKey
-      if (!mod) return
+
+      // Non-modifier shortcuts
+      if (!mod) {
+        if (e.key.toLowerCase() === 'f') {
+          e.preventDefault()
+          activateSnap()
+          return
+        }
+        if (e.key === 'Escape' && snapActive) {
+          e.preventDefault()
+          cancelSnap()
+          return
+        }
+        return
+      }
+
+      // Modifier shortcuts
       const k = e.key.toLowerCase()
       if (!e.shiftKey && k === 's') {
         e.preventDefault()
@@ -91,7 +119,7 @@ function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [saveFile, saveAsFile, openFile, newFile, undo, redo])
+  }, [saveFile, saveAsFile, openFile, newFile, undo, redo, activateSnap, cancelSnap, snapActive])
 
   if (!fileReady) return null
 
@@ -140,12 +168,12 @@ function App() {
           onPartClick={onSelect}
           cameraStateRef={cameraStateRef}
           loadedCamera={loadedCamera}
-          snapActive={false}
-          snapPhase="idle"
-          sourceFace={null}
-          hoveredFace={null}
-          onFaceClick={() => {}}
-          onFaceHover={() => {}}
+          snapActive={snapActive}
+          snapPhase={snapPhase}
+          sourceFace={sourceFace}
+          hoveredFace={hoveredFace}
+          onFaceClick={onFaceClick}
+          onFaceHover={onFaceHover}
         />
         <Sidebar
           scene={scene}
@@ -159,6 +187,9 @@ function App() {
           onUpdate={onUpdate}
           selectedId={selectedId}
           onSelect={onSelect}
+          snapActive={snapActive}
+          snapPhase={snapPhase}
+          onSnapToggle={activateSnap}
         />
       </div>
     </div>

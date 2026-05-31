@@ -32,6 +32,9 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     onUpdate: vi.fn(),
     selectedId: null,
     onSelect: vi.fn(),
+    snapActive: false,
+    snapPhase: 'idle' as const,
+    onSnapToggle: vi.fn(),
     ...overrides,
   }
 }

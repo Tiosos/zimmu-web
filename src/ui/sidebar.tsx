@@ -14,6 +14,9 @@ interface SidebarProps {
   onUpdate: (id: PartId, updater: (p: Part) => Part) => void
   selectedId: PartId | null
   onSelect: (id: PartId | null) => void
+  snapActive: boolean
+  snapPhase: 'idle' | 'source-picked'
+  onSnapToggle: () => void
 }
 
 const s = {
@@ -290,6 +293,9 @@ export function Sidebar({
   onUpdate,
   selectedId,
   onSelect,
+  snapActive,
+  snapPhase,
+  onSnapToggle,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -316,6 +322,35 @@ export function Sidebar({
         flexShrink: 0,
       }}
     >
+      <div style={{ padding: '8px 8px 0' }}>
+        <button
+          onClick={onSnapToggle}
+          style={{
+            width: '100%',
+            padding: '7px 0',
+            background: snapActive ? '#2a4a2a' : '#222',
+            color: snapActive ? '#6bcb6b' : '#888',
+            border: `1px solid ${snapActive ? '#3a6a3a' : '#333'}`,
+            borderRadius: 3,
+            cursor: 'pointer',
+            fontSize: 12,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 2,
+            lineHeight: 1.3,
+          }}
+        >
+          <span>{snapActive ? 'Snapping' : 'Snap faces'}</span>
+          {snapActive && (
+            <span style={{ fontSize: 10, color: '#aaa' }}>
+              {snapPhase === 'idle'
+                ? 'Click a face · Esc to cancel'
+                : 'Click target face · Esc to cancel'}
+            </span>
+          )}
+        </button>
+      </div>
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {scene.parts.length === 0 ? (
           <div style={{ padding: 16, color: '#555', fontSize: 12, textAlign: 'center' }}>
