@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { computeSnapDelta } from './snapMath'
-import type { FaceHit } from './types'
+import { computeSnapDelta, computeFaceCorners, computeLocalFaceCenter } from './snapMath'
+import type { BoardPart, FaceHit, Vec3 } from './types'
 
 function face(
   partId: string,
@@ -17,6 +17,51 @@ function face(
     faceNormal: { x: nx, y: ny, z: nz },
     localFaceNormal: { x: nx, y: ny, z: nz },
   }
+}
+
+// Board 100mm × 50mm × 25mm at identity (position 0,0,0, rotation 0,0,0, corner at local origin)
+const BOARD: BoardPart = {
+  kind: 'board',
+  id: 'b1',
+  label: 'Board 1',
+  length: 100,
+  width: 50,
+  thickness: 25,
+  color: '#d4a373',
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  rotationOrder: 'XYZ',
+}
+
+function makeFace(nx: number, ny: number, nz: number): FaceHit {
+  // faceCenter is irrelevant for computeFaceCorners — uses analytic derivation
+  return {
+    partId: 'b1',
+    faceNormal: { x: nx, y: ny, z: nz },
+    faceCenter: { x: 0, y: 0, z: 0 },
+    localFaceNormal: { x: nx, y: ny, z: nz },
+  }
+}
+
+function expectVec3(actual: Vec3, x: number, y: number, z: number) {
+  expect(actual.x).toBeCloseTo(x, 5)
+  expect(actual.y).toBeCloseTo(y, 5)
+  expect(actual.z).toBeCloseTo(z, 5)
+}
+
+// Cross product helper for winding-order tests (no Three.js import needed)
+function cross(a: Vec3, b: Vec3): Vec3 {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  }
+}
+function subV(a: Vec3, b: Vec3): Vec3 {
+  return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }
+}
+function dotV(a: Vec3, b: Vec3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z
 }
 
 describe('computeSnapDelta', () => {
@@ -71,5 +116,156 @@ describe('computeSnapDelta', () => {
     const tgt = face('b', 0, 0, 100, 0, 0, 1)
     const d = computeSnapDelta(src, tgt)
     expect(d.z).toBeCloseTo(100)
+  })
+})
+
+describe('computeLocalFaceCenter', () => {
+  it('face +X returns (length, width/2, thickness/2)', () => {
+    const c = computeLocalFaceCenter({ x: 1, y: 0, z: 0 }, BOARD)
+    expectVec3(c, 100, 25, 12.5)
+  })
+  it('face -X returns (0, width/2, thickness/2)', () => {
+    const c = computeLocalFaceCenter({ x: -1, y: 0, z: 0 }, BOARD)
+    expectVec3(c, 0, 25, 12.5)
+  })
+  it('face +Y returns (length/2, width, thickness/2)', () => {
+    const c = computeLocalFaceCenter({ x: 0, y: 1, z: 0 }, BOARD)
+    expectVec3(c, 50, 50, 12.5)
+  })
+  it('face -Y returns (length/2, 0, thickness/2)', () => {
+    const c = computeLocalFaceCenter({ x: 0, y: -1, z: 0 }, BOARD)
+    expectVec3(c, 50, 0, 12.5)
+  })
+  it('face +Z returns (length/2, width/2, thickness)', () => {
+    const c = computeLocalFaceCenter({ x: 0, y: 0, z: 1 }, BOARD)
+    expectVec3(c, 50, 25, 25)
+  })
+  it('face -Z returns (length/2, width/2, 0)', () => {
+    const c = computeLocalFaceCenter({ x: 0, y: 0, z: -1 }, BOARD)
+    expectVec3(c, 50, 25, 0)
+  })
+})
+
+describe('computeFaceCorners', () => {
+  it('throws for unsupported part kind', () => {
+    const badPart = { ...BOARD, kind: 'cylinder' as never }
+    expect(() => computeFaceCorners(makeFace(0, 0, 1), badPart)).toThrow(
+      "computeFaceCorners: unsupported kind 'cylinder'",
+    )
+  })
+
+  it('face +Z: returns 4 corners at Z=25 spanning full XY face', () => {
+    const [c0, c1, c2, c3] = computeFaceCorners(makeFace(0, 0, 1), BOARD)
+    // All corners at Z = 25
+    expect(c0.z).toBeCloseTo(25)
+    expect(c1.z).toBeCloseTo(25)
+    expect(c2.z).toBeCloseTo(25)
+    expect(c3.z).toBeCloseTo(25)
+    // Corners span X=[0,100] and Y=[0,50]
+    const xs = [c0.x, c1.x, c2.x, c3.x].sort((a, b) => a - b)
+    const ys = [c0.y, c1.y, c2.y, c3.y].sort((a, b) => a - b)
+    expect(xs[0]).toBeCloseTo(0)
+    expect(xs[3]).toBeCloseTo(100)
+    expect(ys[0]).toBeCloseTo(0)
+    expect(ys[3]).toBeCloseTo(50)
+  })
+
+  it('face +X: returns 4 corners at X=100 spanning full YZ face', () => {
+    const [c0, c1, c2, c3] = computeFaceCorners(makeFace(1, 0, 0), BOARD)
+    expect(c0.x).toBeCloseTo(100)
+    expect(c1.x).toBeCloseTo(100)
+    expect(c2.x).toBeCloseTo(100)
+    expect(c3.x).toBeCloseTo(100)
+    const ys = [c0.y, c1.y, c2.y, c3.y].sort((a, b) => a - b)
+    const zs = [c0.z, c1.z, c2.z, c3.z].sort((a, b) => a - b)
+    expect(ys[0]).toBeCloseTo(0)
+    expect(ys[3]).toBeCloseTo(50)
+    expect(zs[0]).toBeCloseTo(0)
+    expect(zs[3]).toBeCloseTo(25)
+  })
+
+  it('all 4 corners lie in the face plane (dot to normal ≈ 0)', () => {
+    const normals: [number, number, number][] = [
+      [1, 0, 0],
+      [-1, 0, 0],
+      [0, 1, 0],
+      [0, -1, 0],
+      [0, 0, 1],
+      [0, 0, -1],
+    ]
+    for (const [nx, ny, nz] of normals) {
+      const fn = { x: nx, y: ny, z: nz }
+      const corners = computeFaceCorners(
+        { partId: 'b1', faceNormal: fn, faceCenter: fn, localFaceNormal: fn },
+        BOARD,
+      )
+      const center = computeLocalFaceCenter(fn, BOARD)
+      for (const corner of corners) {
+        const d = dotV(subV(corner, center), fn)
+        expect(Math.abs(d)).toBeLessThan(1e-4)
+      }
+    }
+  })
+
+  it('CCW winding: cross(c1-c0, c2-c0) points in same direction as faceNormal', () => {
+    const normals: [number, number, number][] = [
+      [1, 0, 0],
+      [-1, 0, 0],
+      [0, 1, 0],
+      [0, -1, 0],
+      [0, 0, 1],
+      [0, 0, -1],
+    ]
+    for (const [nx, ny, nz] of normals) {
+      const fn = { x: nx, y: ny, z: nz }
+      const [c0, c1, c2] = computeFaceCorners(
+        { partId: 'b1', faceNormal: fn, faceCenter: fn, localFaceNormal: fn },
+        BOARD,
+      )
+      const winding = cross(subV(c1, c0), subV(c2, c0))
+      expect(dotV(winding, fn)).toBeGreaterThan(0)
+    }
+  })
+
+  it('no bowtie: all 4 corners are distinct', () => {
+    const normals: [number, number, number][] = [
+      [1, 0, 0],
+      [-1, 0, 0],
+      [0, 1, 0],
+      [0, -1, 0],
+      [0, 0, 1],
+      [0, 0, -1],
+    ]
+    for (const [nx, ny, nz] of normals) {
+      const fn = { x: nx, y: ny, z: nz }
+      const corners = computeFaceCorners(
+        { partId: 'b1', faceNormal: fn, faceCenter: fn, localFaceNormal: fn },
+        BOARD,
+      )
+      for (let i = 0; i < 4; i++) {
+        for (let j = i + 1; j < 4; j++) {
+          const d = Math.hypot(
+            corners[i].x - corners[j].x,
+            corners[i].y - corners[j].y,
+            corners[i].z - corners[j].z,
+          )
+          expect(d).toBeGreaterThan(0.01)
+        }
+      }
+    }
+  })
+
+  it('non-zero position (10,20,30) shifts all corners by (10,20,30)', () => {
+    const translated: BoardPart = {
+      ...BOARD,
+      position: { x: 10, y: 20, z: 30 },
+    }
+    const base = computeFaceCorners(makeFace(0, 0, 1), BOARD)
+    const moved = computeFaceCorners(makeFace(0, 0, 1), translated)
+    for (let i = 0; i < 4; i++) {
+      expect(moved[i].x).toBeCloseTo(base[i].x + 10, 4)
+      expect(moved[i].y).toBeCloseTo(base[i].y + 20, 4)
+      expect(moved[i].z).toBeCloseTo(base[i].z + 30, 4)
+    }
   })
 })
