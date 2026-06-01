@@ -61,6 +61,11 @@ describe('buildCsv', () => {
     const csv = buildCsv([makePart({ label: 'Left, Side' })])
     expect(csv.split('\n')[1]).toMatch(/^"Left, Side",/)
   })
+
+  it('escapes embedded double-quotes as "" per RFC 4180', () => {
+    const csv = buildCsv([makePart({ label: '5" shelf' })])
+    expect(csv.split('\n')[1]).toMatch(/^"5"" shelf",/)
+  })
 })
 
 describe('CuttingList', () => {

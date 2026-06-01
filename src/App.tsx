@@ -64,6 +64,7 @@ function App() {
   })
   const [loadedCamera, setLoadedCamera] = useState<CameraState | null>(null)
   const [cuttingListOpen, setCuttingListOpen] = useState(false)
+  const closeCuttingList = useCallback(() => setCuttingListOpen(false), [])
 
   const {
     fileReady,
@@ -251,11 +252,7 @@ function App() {
         />
       </div>
       {cuttingListOpen && (
-        <CuttingList
-          parts={scene.parts}
-          projectName={projectName}
-          onClose={() => setCuttingListOpen(false)}
-        />
+        <CuttingList parts={scene.parts} projectName={projectName} onClose={closeCuttingList} />
       )}
     </div>
   )
