@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
-import { buildCsv, CuttingList } from './CuttingList'
+import { buildCsv } from './buildCsv'
+import { CuttingList } from './CuttingList'
 import type { Part } from '../scene/types'
 
 function makePart(overrides: Partial<Part> = {}): Part {
