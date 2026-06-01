@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
 import { useSnap } from './scene/useSnap'
+import { useAddCut } from './scene/useAddCut'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
@@ -23,6 +24,10 @@ function App() {
     onRemove,
     onDuplicate,
     onUpdate,
+    onUpdateCut,
+    onRemoveCut,
+    onLinkCuts,
+    onUnlinkCuts,
     onSelect,
     canUndo,
     canRedo,
@@ -42,6 +47,15 @@ function App() {
     onFaceClick,
     onFaceHover,
   } = useSnap({ parts: scene.parts, onUpdate })
+
+  const {
+    cutActive,
+    lastPlacedCutId,
+    activateCut,
+    cancelCut,
+    onFaceClick: onFaceClickCut,
+    onFaceHover: onFaceHoverCut,
+  } = useAddCut({ parts: scene.parts, onUpdate, onSelect })
 
   const cameraStateRef = useRef<CameraState>({
     position: { x: 250, y: -200, z: 150 },
@@ -70,6 +84,15 @@ function App() {
     },
   })
 
+  const handleActivateCut = useCallback(() => {
+    cancelSnap()
+    activateCut()
+  }, [cancelSnap, activateCut])
+  const handleActivateSnap = useCallback(() => {
+    cancelCut()
+    activateSnap()
+  }, [cancelCut, activateSnap])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
@@ -79,12 +102,17 @@ function App() {
       if (!mod) {
         if (e.key.toLowerCase() === 'f') {
           e.preventDefault()
-          activateSnap()
+          handleActivateSnap()
           return
         }
-        if (e.key === 'Escape' && snapActive) {
+        if (e.key.toLowerCase() === 'c') {
           e.preventDefault()
-          cancelSnap()
+          handleActivateCut()
+          return
+        }
+        if (e.key === 'Escape') {
+          if (cutActive) cancelCut()
+          if (snapActive) cancelSnap()
           return
         }
         return
@@ -119,7 +147,20 @@ function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [saveFile, saveAsFile, openFile, newFile, undo, redo, activateSnap, cancelSnap, snapActive])
+  }, [
+    saveFile,
+    saveAsFile,
+    openFile,
+    newFile,
+    undo,
+    redo,
+    handleActivateCut,
+    handleActivateSnap,
+    cancelCut,
+    cutActive,
+    cancelSnap,
+    snapActive,
+  ])
 
   if (!fileReady) return null
 
@@ -174,9 +215,9 @@ function App() {
           hoveredFace={hoveredFace}
           onFaceClick={onFaceClick}
           onFaceHover={onFaceHover}
-          cutActive={false}
-          onFaceClickCut={() => {}}
-          onFaceHoverCut={() => {}}
+          cutActive={cutActive}
+          onFaceClickCut={onFaceClickCut}
+          onFaceHoverCut={onFaceHoverCut}
         />
         <Sidebar
           scene={scene}
@@ -188,18 +229,18 @@ function App() {
           onRemove={onRemove}
           onDuplicate={onDuplicate}
           onUpdate={onUpdate}
-          onUpdateCut={() => {}}
-          onRemoveCut={() => {}}
-          onLinkCuts={() => {}}
-          onUnlinkCuts={() => {}}
-          lastPlacedCutId={null}
+          onUpdateCut={onUpdateCut}
+          onRemoveCut={onRemoveCut}
+          onLinkCuts={onLinkCuts}
+          onUnlinkCuts={onUnlinkCuts}
+          lastPlacedCutId={lastPlacedCutId}
           selectedId={selectedId}
           onSelect={onSelect}
           snapActive={snapActive}
           snapPhase={snapPhase}
-          onSnapToggle={activateSnap}
-          cutActive={false}
-          onCutToggle={() => {}}
+          onSnapToggle={handleActivateSnap}
+          cutActive={cutActive}
+          onCutToggle={handleActivateCut}
         />
       </div>
     </div>
