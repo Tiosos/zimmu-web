@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { buildCsv } from './CuttingList'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { buildCsv, CuttingList } from './CuttingList'
 import type { Part } from '../scene/types'
 
 function makePart(overrides: Partial<Part> = {}): Part {
@@ -58,5 +59,125 @@ describe('buildCsv', () => {
   it('wraps label in double quotes when it contains a comma', () => {
     const csv = buildCsv([makePart({ label: 'Left, Side' })])
     expect(csv.split('\n')[1]).toMatch(/^"Left, Side",/)
+  })
+})
+
+describe('CuttingList', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('renders a row for each part', () => {
+    const parts = [makePart(), makePart({ id: 'p2', label: 'Right Side' })]
+    render(<CuttingList parts={parts} projectName="Test" onClose={vi.fn()} />)
+    expect(screen.getByText('Left Side')).toBeTruthy()
+    expect(screen.getByText('Right Side')).toBeTruthy()
+  })
+
+  it('renders table column headers', () => {
+    render(<CuttingList parts={[]} projectName="Test" onClose={vi.fn()} />)
+    expect(screen.getByText('Label')).toBeTruthy()
+    expect(screen.getByText('Length (mm)')).toBeTruthy()
+    expect(screen.getByText('Width (mm)')).toBeTruthy()
+    expect(screen.getByText('Thickness (mm)')).toBeTruthy()
+    expect(screen.getByText('Cuts')).toBeTruthy()
+  })
+
+  it('renders correct field values in data row', () => {
+    const cuts = [
+      {
+        id: 'c1',
+        label: 'C1',
+        face: '+X' as const,
+        position: { x: 0, y: 0, z: 0 },
+        size: { x: 10, y: 20, z: 20 },
+      },
+    ]
+    render(
+      <CuttingList
+        parts={[makePart({ length: 600, width: 300, thickness: 18, cuts })]}
+        projectName="Test"
+        onClose={vi.fn()}
+      />,
+    )
+    const rows = screen.getAllByRole('row')
+    // rows[0] = header, rows[1] = first data row
+    expect(rows[1].textContent).toContain('Left Side')
+    expect(rows[1].textContent).toContain('600')
+    expect(rows[1].textContent).toContain('300')
+    expect(rows[1].textContent).toContain('18')
+    expect(rows[1].textContent).toContain('1')
+  })
+
+  it('shows "No parts" when parts array is empty', () => {
+    render(<CuttingList parts={[]} projectName="Test" onClose={vi.fn()} />)
+    expect(screen.getByText('No parts')).toBeTruthy()
+  })
+
+  it('calls onClose when the overlay is clicked', () => {
+    const onClose = vi.fn()
+    render(<CuttingList parts={[]} projectName="Test" onClose={onClose} />)
+    fireEvent.click(screen.getByTestId('cl-overlay'))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('does NOT call onClose when the panel itself is clicked', () => {
+    const onClose = vi.fn()
+    render(<CuttingList parts={[]} projectName="Test" onClose={onClose} />)
+    fireEvent.click(screen.getByTestId('cl-panel'))
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('calls onClose when Escape is pressed', () => {
+    const onClose = vi.fn()
+    render(<CuttingList parts={[]} projectName="Test" onClose={onClose} />)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('calls onClose when the close button is clicked', () => {
+    const onClose = vi.fn()
+    render(<CuttingList parts={[]} projectName="Test" onClose={onClose} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('Download .csv button triggers file download with projectName as filename', () => {
+    const createObjectURL = vi.fn(() => 'blob:fake')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL })
+
+    render(<CuttingList parts={[makePart()]} projectName="My Project" onClose={vi.fn()} />)
+
+    // Mock AFTER render so React's own createElement calls during render don't consume it
+    const clickSpy = vi.fn()
+    const mockAnchor = { href: '', download: '', click: clickSpy }
+    vi.spyOn(document, 'createElement').mockReturnValueOnce(
+      mockAnchor as unknown as HTMLAnchorElement,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Download \.csv/ }))
+
+    expect(createObjectURL).toHaveBeenCalledOnce()
+    expect(mockAnchor.download).toBe('My Project.csv')
+    expect(clickSpy).toHaveBeenCalledOnce()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake')
+  })
+
+  it('Copy CSV button writes CSV content to clipboard', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+
+    render(<CuttingList parts={[makePart()]} projectName="Test" onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Copy CSV/ }))
+
+    expect(writeText).toHaveBeenCalledOnce()
+    const csvArg = writeText.mock.calls[0][0] as string
+    expect(csvArg.split('\n')[0]).toBe('Label,Length (mm),Width (mm),Thickness (mm),Cuts')
+    expect(csvArg).toContain('Left Side,600,300,18,0')
   })
 })
