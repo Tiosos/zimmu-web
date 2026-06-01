@@ -2,8 +2,9 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import * as THREE from 'three'
 import { wrap } from 'comlink'
 import type { OcctWorkerApi } from '../geom/occt.worker'
-import type { BoardPart, Part, PartId, Scene } from './types'
+import type { BoardPart, Part, PartId, Scene, CutDef, CutId } from './types'
 import { shapeKey } from './utils'
+import { faceAxes } from './snapMath'
 
 interface HistoryEntry {
   label: string
@@ -73,6 +74,7 @@ export interface UseSceneResult {
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
+  onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
   onSelect: (id: PartId | null) => void
   replaceScene: (next: Scene) => void
   canUndo: boolean
@@ -363,6 +365,104 @@ export function useScene(): UseSceneResult {
     [push],
   )
 
+  const onUpdateCut = useCallback(
+    (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => {
+      const part = sceneRef.current.parts.find((p) => p.id === partId)
+      if (!part) return
+      const beforeA = part.cuts.find((c) => c.id === cutId)
+      if (!beforeA) return
+      const afterA = updater(beforeA)
+
+      if (afterA.pairedCutId) {
+        const colonIdx = afterA.pairedCutId.indexOf(':')
+        const pairedPartId = afterA.pairedCutId.slice(0, colonIdx) as PartId
+        const pairedCutIdStr = afterA.pairedCutId.slice(colonIdx + 1) as CutId
+        const pairedPart = sceneRef.current.parts.find((p) => p.id === pairedPartId)
+        const beforeB = pairedPart?.cuts.find((c) => c.id === pairedCutIdStr)
+
+        if (pairedPart && beforeB) {
+          const axesA = faceAxes(afterA.face)
+          const axesB = faceAxes(beforeB.face)
+          const afterB: CutDef = {
+            ...beforeB,
+            size: {
+              ...beforeB.size,
+              [axesB.u]: afterA.size[axesA.u],
+              [axesB.v]: afterA.size[axesA.v],
+            },
+          }
+
+          setScene((prev) => ({
+            parts: prev.parts.map((p) => {
+              if (p.id === partId)
+                return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) }
+              if (p.id === pairedPartId)
+                return { ...p, cuts: p.cuts.map((c) => (c.id === pairedCutIdStr ? afterB : c)) }
+              return p
+            }),
+          }))
+
+          push({
+            label: 'Edit cut',
+            coalesceKey: `cut-${partId}-${cutId}`,
+            undo: () =>
+              setScene((prev) => ({
+                parts: prev.parts.map((p) => {
+                  if (p.id === partId)
+                    return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? beforeA : c)) }
+                  if (p.id === pairedPartId)
+                    return {
+                      ...p,
+                      cuts: p.cuts.map((c) => (c.id === pairedCutIdStr ? beforeB : c)),
+                    }
+                  return p
+                }),
+              })),
+            redo: () =>
+              setScene((prev) => ({
+                parts: prev.parts.map((p) => {
+                  if (p.id === partId)
+                    return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) }
+                  if (p.id === pairedPartId)
+                    return { ...p, cuts: p.cuts.map((c) => (c.id === pairedCutIdStr ? afterB : c)) }
+                  return p
+                }),
+              })),
+          })
+          return
+        }
+      }
+
+      // No paired cut — single-part update
+      setScene((prev) => ({
+        parts: prev.parts.map((p) =>
+          p.id === partId ? { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) } : p,
+        ),
+      }))
+      push({
+        label: 'Edit cut',
+        coalesceKey: `cut-${partId}-${cutId}`,
+        undo: () =>
+          setScene((prev) => ({
+            parts: prev.parts.map((p) =>
+              p.id === partId
+                ? { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? beforeA : c)) }
+                : p,
+            ),
+          })),
+        redo: () =>
+          setScene((prev) => ({
+            parts: prev.parts.map((p) =>
+              p.id === partId
+                ? { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) }
+                : p,
+            ),
+          })),
+      })
+    },
+    [push],
+  )
+
   const onSelect = useCallback((id: PartId | null) => {
     setSelectedId(id)
   }, [])
@@ -393,6 +493,7 @@ export function useScene(): UseSceneResult {
     onRemove,
     onDuplicate,
     onUpdate,
+    onUpdateCut,
     onSelect,
     replaceScene,
     canUndo: undoState.canUndo,
