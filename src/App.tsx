@@ -6,6 +6,7 @@ import { useAddCut } from './scene/useAddCut'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
+import { CuttingList } from './ui/CuttingList'
 import type { CameraState } from './scene/types'
 
 const supported = 'showOpenFilePicker' in window
@@ -62,6 +63,7 @@ function App() {
     target: { x: 0, y: 0, z: 0 },
   })
   const [loadedCamera, setLoadedCamera] = useState<CameraState | null>(null)
+  const [cuttingListOpen, setCuttingListOpen] = useState(false)
 
   const {
     fileReady,
@@ -92,9 +94,6 @@ function App() {
     cancelCut()
     activateSnap()
   }, [cancelCut, activateSnap])
-  const handleShowCuttingList = useCallback(() => {
-    // TODO: Show cutting list modal (Task 4)
-  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -149,7 +148,7 @@ function App() {
       }
       if (e.shiftKey && k === 'e') {
         e.preventDefault()
-        handleShowCuttingList()
+        setCuttingListOpen(true)
       }
     }
     window.addEventListener('keydown', handler)
@@ -163,7 +162,6 @@ function App() {
     redo,
     handleActivateCut,
     handleActivateSnap,
-    handleShowCuttingList,
     cancelCut,
     cutActive,
     cancelSnap,
@@ -208,7 +206,7 @@ function App() {
           void saveAsFile()
         }}
         onProjectNameChange={setProjectName}
-        onCuttingList={handleShowCuttingList}
+        onCuttingList={() => setCuttingListOpen(true)}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Viewport
@@ -252,6 +250,13 @@ function App() {
           onCutToggle={handleActivateCut}
         />
       </div>
+      {cuttingListOpen && (
+        <CuttingList
+          parts={scene.parts}
+          projectName={projectName}
+          onClose={() => setCuttingListOpen(false)}
+        />
+      )}
     </div>
   )
 }
