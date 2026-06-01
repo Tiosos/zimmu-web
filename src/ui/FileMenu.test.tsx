@@ -21,6 +21,7 @@ const baseProps: FileMenuProps = {
   onSave: vi.fn(),
   onSaveAs: vi.fn(),
   onProjectNameChange: vi.fn(),
+  onCuttingList: vi.fn(),
 }
 
 function openMenu() {
@@ -99,5 +100,21 @@ describe('FileMenu', () => {
     expect(undoIdx).toBeGreaterThanOrEqual(0)
     expect(newIdx).toBeGreaterThanOrEqual(0)
     expect(undoIdx).toBeLessThan(newIdx)
+  })
+
+  it('renders Cutting List menu item in the dropdown', () => {
+    render(<FileMenu {...baseProps} />)
+    openMenu()
+    expect(screen.getByRole('button', { name: /Cutting List/ })).toBeTruthy()
+  })
+
+  it('clicking Cutting List calls onCuttingList and closes the menu', () => {
+    const onCuttingList = vi.fn()
+    render(<FileMenu {...baseProps} onCuttingList={onCuttingList} />)
+    openMenu()
+    fireEvent.click(screen.getByRole('button', { name: /Cutting List/ }))
+    expect(onCuttingList).toHaveBeenCalledOnce()
+    // menu closes — New button is no longer visible
+    expect(screen.queryByRole('button', { name: /^New/ })).toBeNull()
   })
 })

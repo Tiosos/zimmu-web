@@ -10,6 +10,7 @@ export interface FileMenuProps {
   onSave: () => void
   onSaveAs: () => void
   onProjectNameChange: (name: string) => void
+  onCuttingList: () => void
   partsCount: number
   supported: boolean
   canUndo: boolean
@@ -30,6 +31,7 @@ export function FileMenu({
   onSave,
   onSaveAs,
   onProjectNameChange,
+  onCuttingList,
   partsCount,
   supported,
   canUndo,
@@ -167,6 +169,8 @@ export function FileMenu({
             <div style={{ height: 1, background: '#2a2a2d', margin: '4px 0' }} />
             {menuItem('Save', '⌘S', onSave, isSaveDisabled)}
             {menuItem('Save As…', '⌘⇧S', onSaveAs, !supported)}
+            <div style={{ height: 1, background: '#2a2a2d', margin: '4px 0' }} />
+            {menuItem('Cutting List…', '⌘⇧E', onCuttingList, false)}
           </div>
         )}
       </div>

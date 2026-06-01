@@ -92,6 +92,9 @@ function App() {
     cancelCut()
     activateSnap()
   }, [cancelCut, activateSnap])
+  const handleShowCuttingList = useCallback(() => {
+    // TODO: Show cutting list modal (Task 4)
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -144,6 +147,10 @@ function App() {
         e.preventDefault()
         redo()
       }
+      if (e.shiftKey && k === 'e') {
+        e.preventDefault()
+        handleShowCuttingList()
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -156,6 +163,7 @@ function App() {
     redo,
     handleActivateCut,
     handleActivateSnap,
+    handleShowCuttingList,
     cancelCut,
     cutActive,
     cancelSnap,
@@ -200,6 +208,7 @@ function App() {
           void saveAsFile()
         }}
         onProjectNameChange={setProjectName}
+        onCuttingList={handleShowCuttingList}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Viewport
