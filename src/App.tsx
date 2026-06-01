@@ -174,6 +174,9 @@ function App() {
           hoveredFace={hoveredFace}
           onFaceClick={onFaceClick}
           onFaceHover={onFaceHover}
+          cutActive={false}
+          onFaceClickCut={() => {}}
+          onFaceHoverCut={() => {}}
         />
         <Sidebar
           scene={scene}

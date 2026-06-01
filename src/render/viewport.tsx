@@ -19,6 +19,9 @@ interface ViewportProps {
   hoveredFace: FaceHit | null
   onFaceClick: (hit: FaceHit) => void
   onFaceHover: (hit: FaceHit | null) => void
+  cutActive: boolean
+  onFaceClickCut: (hit: FaceHit) => void
+  onFaceHoverCut: (hit: FaceHit | null) => void
 }
 
 export function Viewport({
@@ -33,6 +36,9 @@ export function Viewport({
   hoveredFace,
   onFaceClick,
   onFaceHover,
+  cutActive,
+  onFaceClickCut,
+  onFaceHoverCut,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -47,6 +53,9 @@ export function Viewport({
   const snapActiveRef = useRef(snapActive)
   const onFaceClickRef = useRef(onFaceClick)
   const onFaceHoverRef = useRef(onFaceHover)
+  const cutActiveRef = useRef(cutActive)
+  const onFaceClickCutRef = useRef(onFaceClickCut)
+  const onFaceHoverCutRef = useRef(onFaceHoverCut)
   const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
   const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
   const rafIdRef = useRef<number>(0)
@@ -58,6 +67,9 @@ export function Viewport({
     snapActiveRef.current = snapActive
     onFaceClickRef.current = onFaceClick
     onFaceHoverRef.current = onFaceHover
+    cutActiveRef.current = cutActive
+    onFaceClickCutRef.current = onFaceClickCut
+    onFaceHoverCutRef.current = onFaceHoverCut
   })
 
   function buildFaceHit(
@@ -220,7 +232,12 @@ export function Viewport({
       raycaster.current.setFromCamera(new THREE.Vector2(nx, ny), camera)
       const hits = raycaster.current.intersectObjects(Array.from(meshes.current.values()), false)
 
-      if (snapActiveRef.current) {
+      if (cutActiveRef.current) {
+        if (hits.length > 0) {
+          const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
+          if (faceHit) onFaceClickCutRef.current(faceHit)
+        }
+      } else if (snapActiveRef.current) {
         // Snap mode: route to onFaceClick; ignore miss (don't deselect)
         if (hits.length > 0) {
           const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
@@ -245,7 +262,7 @@ export function Viewport({
       lastMouseRef.current = { x: e.clientX, y: e.clientY }
       cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = requestAnimationFrame(() => {
-        if (!snapActiveRef.current) return
+        if (!snapActiveRef.current && !cutActiveRef.current) return
         const { x, y } = lastMouseRef.current
         const rect = renderer.domElement.getBoundingClientRect()
         const nx = ((x - rect.left) / rect.width) * 2 - 1
@@ -254,9 +271,11 @@ export function Viewport({
         const hits = raycaster.current.intersectObjects(Array.from(meshes.current.values()), false)
         if (hits.length > 0) {
           const hit = buildFaceHit(hits[0], meshes.current, partsRef.current)
-          onFaceHoverRef.current(hit)
+          if (cutActiveRef.current) onFaceHoverCutRef.current(hit)
+          else onFaceHoverRef.current(hit)
         } else {
-          onFaceHoverRef.current(null)
+          if (cutActiveRef.current) onFaceHoverCutRef.current(null)
+          else onFaceHoverRef.current(null)
         }
       })
     }
@@ -414,17 +433,21 @@ export function Viewport({
     }
 
     updateHighlight(sourceHighlightRef.current, snapActive ? sourceFace : null, 0xfbbf24)
-    updateHighlight(hoverHighlightRef.current, snapActive ? hoveredFace : null, 0x60a5fa)
-  }, [snapActive, sourceFace, hoveredFace, parts])
+    updateHighlight(
+      hoverHighlightRef.current,
+      snapActive || cutActive ? hoveredFace : null,
+      0x60a5fa,
+    )
+  }, [snapActive, cutActive, sourceFace, hoveredFace, parts])
 
   useEffect(() => {
     const mount = mountRef.current
     if (!mount) return
-    mount.style.cursor = snapActive ? 'crosshair' : ''
+    mount.style.cursor = snapActive || cutActive ? 'crosshair' : ''
     return () => {
       mount.style.cursor = ''
     }
-  }, [snapActive])
+  }, [snapActive, cutActive])
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 }
