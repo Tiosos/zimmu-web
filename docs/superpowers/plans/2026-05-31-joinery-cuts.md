@@ -724,12 +724,19 @@ export function makeCut(
   builder.delete()
 
   const trsf = new oc.gp_Trsf_1()
-  trsf.SetTranslation_1(new oc.gp_Vec_4(position.x, position.y, position.z))
+  const vec = new oc.gp_Vec_4(position.x, position.y, position.z)
+  trsf.SetTranslation_1(vec)
+  vec.delete()
   const xform = new oc.BRepBuilderAPI_Transform_2(toolShape, trsf, false)
+  trsf.delete()
   const movedTool = xform.Shape()
 
-  const op = new oc.BRepAlgoAPI_Cut_3(shape, movedTool, new oc.Message_ProgressRange_1())
-  op.Build(new oc.Message_ProgressRange_1())
+  const pr1 = new oc.Message_ProgressRange_1()
+  const op = new oc.BRepAlgoAPI_Cut_3(shape, movedTool, pr1)
+  pr1.delete()
+  const pr2 = new oc.Message_ProgressRange_1()
+  op.Build(pr2)
+  pr2.delete()
 
   if (!op.IsDone()) {
     console.warn('makeCut: BRepAlgoAPI_Cut did not complete — returning input shape')
@@ -741,7 +748,6 @@ export function makeCut(
   }
 
   const result = op.Shape()
-  // TopoDS_Shape is reference-counted; op.delete() is safe here (same pattern as makeBox).
   op.delete()
   xform.delete()
   movedTool.delete()
@@ -845,7 +851,7 @@ const api = {
         if (cut.size.x <= 0.1 || cut.size.y <= 0.1 || cut.size.z <= 0.1) continue
         const prev = current
         current = makeCut(oc, current, cut.position, cut.size)
-        prev.delete()
+        if (prev !== current) prev.delete()
       }
 
       const data = shapeToMeshData(oc, current, { linearDeflection: 0.1, angularDeflection: 0.5 })
@@ -1009,20 +1015,14 @@ Expected: FAIL — `result.current.onUpdateCut is not a function`.
 
 - [ ] **Step 3: Add `faceAxes` import and `onUpdateCut` to `src/scene/useScene.ts`**
 
-Add to the imports at the top:
-
-```typescript
-import { shapeKey, faceAxes } from './snapMath'
-```
-
-Wait — `shapeKey` is currently imported from `./utils` and `faceAxes` comes from `./snapMath`. The existing import should stay; just add the `faceAxes` import:
+Add to the imports at the top (`shapeKey` stays imported from `./utils` — do not move it):
 
 ```typescript
 import { faceAxes } from './snapMath'
 import type { CutDef, CutId } from './types'
 ```
 
-(Add to the existing `import type { BoardPart, Part, PartId, Scene } from './types'` line, or keep separate.)
+(Add `CutDef, CutId` to the existing `import type { BoardPart, Part, PartId, Scene } from './types'` line, or keep separate.)
 
 Add `onUpdateCut` to the `UseSceneResult` interface:
 
@@ -1042,7 +1042,9 @@ const onUpdateCut = useCallback(
     const afterA = updater(beforeA)
 
     if (afterA.pairedCutId) {
-      const [pairedPartId, pairedCutIdStr] = afterA.pairedCutId.split(':') as [PartId, CutId]
+      const colonIdx = afterA.pairedCutId.indexOf(':')
+      const pairedPartId = afterA.pairedCutId.slice(0, colonIdx) as PartId
+      const pairedCutIdStr = afterA.pairedCutId.slice(colonIdx + 1) as CutId
       const pairedPart = sceneRef.current.parts.find((p) => p.id === pairedPartId)
       const beforeB = pairedPart?.cuts.find((c) => c.id === pairedCutIdStr)
 
@@ -1322,7 +1324,7 @@ const onRemoveCut = useCallback(
     const affectedPairs: Array<{ partId: PartId; cutId: CutId }> = []
     for (const p of sceneRef.current.parts) {
       for (const c of p.cuts) {
-        if (c.pairedCutId?.split(':')[1] === cutId) {
+        if (c.pairedCutId === `${partId}:${cutId}`) {
           affectedPairs.push({ partId: p.id, cutId: c.id })
         }
       }
@@ -1361,12 +1363,11 @@ const onRemoveCut = useCallback(
         setScene((prev) => ({
           parts: prev.parts.map((p) => {
             if (p.id === partId) return { ...p, cuts: p.cuts.filter((c) => c.id !== cutId) }
-            return {
-              ...p,
-              cuts: p.cuts.map((c) =>
-                c.pairedCutId?.split(':')[1] === cutId ? { ...c, pairedCutId: undefined } : c,
-              ),
+            const pair = affectedPairs.find((ap) => ap.partId === p.id)
+            if (pair) {
+              return { ...p, cuts: p.cuts.map((c) => (c.id === pair.cutId ? { ...c, pairedCutId: undefined } : c)) }
             }
+            return p
           }),
         })),
     })
@@ -1439,7 +1440,9 @@ const onUnlinkCuts = useCallback(
     const cut = part.cuts.find((c) => c.id === cutId)
     if (!cut?.pairedCutId) return
 
-    const [matingPartId, matingCutId] = cut.pairedCutId.split(':') as [PartId, CutId]
+    const sep = cut.pairedCutId.indexOf(':')
+    const matingPartId = cut.pairedCutId.slice(0, sep) as PartId
+    const matingCutId = cut.pairedCutId.slice(sep + 1) as CutId
     const matingPart = sceneRef.current.parts.find((p) => p.id === matingPartId)
     const matingCut = matingPart?.cuts.find((c) => c.id === matingCutId)
 
@@ -1494,11 +1497,54 @@ pnpm vitest run src/scene/useScene.test.ts
 
 Expected: All tests PASS.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 8: Fix `onDuplicate` to remap cut IDs in `src/scene/useScene.ts`**
+
+The existing `onDuplicate` spreads the original part, copying its `cuts` array with identical IDs and `pairedCutId` references. After this task introduces linked cuts, a duplicated board sharing cut IDs with the original would cause `onRemoveCut` and `onLinkCuts` to affect both boards.
+
+Find the `clone` object in `onDuplicate` (around line 308) and extend it:
+
+```typescript
+// old
+const clone: BoardPart = {
+  ...orig,
+  id: `board_${crypto.randomUUID()}` as PartId,
+  color: PART_COLORS[colorIndex.current % PART_COLORS.length],
+  position: { ...orig.position, x: orig.position.x + orig.length + 10 },
+  rotation: { x: 0, y: 0, z: 0 },
+}
+```
+
+```typescript
+// new
+const clone: BoardPart = {
+  ...orig,
+  id: `board_${crypto.randomUUID()}` as PartId,
+  color: PART_COLORS[colorIndex.current % PART_COLORS.length],
+  position: { ...orig.position, x: orig.position.x + orig.length + 10 },
+  rotation: { x: 0, y: 0, z: 0 },
+  cuts: orig.cuts.map((c) => ({
+    ...c,
+    id: `cut_${crypto.randomUUID()}` as CutId,
+    pairedCutId: undefined,
+  })),
+}
+```
+
+Add `CutId` to the imports at the top of `useScene.ts` if not already present from Task 6.
+
+Run typecheck:
+
+```bash
+pnpm typecheck
+```
+
+Expected: clean.
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add src/scene/useScene.ts src/scene/useScene.test.ts
-git commit -m "feat: add onRemoveCut, onLinkCuts, onUnlinkCuts to useScene"
+git commit -m "feat: add onRemoveCut, onLinkCuts, onUnlinkCuts to useScene; remap cut IDs on duplicate"
 ```
 
 ---
@@ -2036,18 +2082,64 @@ rafIdRef.current = requestAnimationFrame(() => {
 })
 ```
 
-- [ ] **Step 7: Run typecheck**
+- [ ] **Step 7: Update the face-highlight `useLayoutEffect` for cut mode**
+
+In `src/render/viewport.tsx`, find the `useLayoutEffect` that calls `updateHighlight` (currently lines 414–416). The hover ring is gated on `snapActive` — extend the guard to also fire when cut mode is active:
+
+```typescript
+// old
+updateHighlight(sourceHighlightRef.current, snapActive ? sourceFace : null, 0xfbbf24)
+updateHighlight(hoverHighlightRef.current, snapActive ? hoveredFace : null, 0x60a5fa)
+}, [snapActive, sourceFace, hoveredFace, parts])
+```
+
+```typescript
+// new
+updateHighlight(sourceHighlightRef.current, snapActive ? sourceFace : null, 0xfbbf24)
+updateHighlight(hoverHighlightRef.current, (snapActive || cutActive) ? hoveredFace : null, 0x60a5fa)
+}, [snapActive, cutActive, sourceFace, hoveredFace, parts])
+```
+
+Also update the cursor `useEffect` (lines 421–425):
+
+```typescript
+// old
+mount.style.cursor = snapActive ? 'crosshair' : ''
+...
+}, [snapActive])
+```
+
+```typescript
+// new
+mount.style.cursor = (snapActive || cutActive) ? 'crosshair' : ''
+...
+}, [snapActive, cutActive])
+```
+
+- [ ] **Step 8: Add stub props to App.tsx to unblock the pre-commit typecheck**
+
+Task 10 adds three required props to `ViewportProps`. App.tsx does not pass them yet, so the pre-commit hook fails. Add stubs now (they will be replaced by real values in Task 12 Step 5):
+
+In `src/App.tsx`, in the `<Viewport ...>` JSX, add:
+
+```typescript
+cutActive={false}
+onFaceClickCut={() => {}}
+onFaceHoverCut={() => {}}
+```
+
+- [ ] **Step 9: Run typecheck**
 
 ```bash
 pnpm typecheck
 ```
 
-Expected: clean (App.tsx will error until Task 12 wires the new props — fix by passing stub values temporarily if needed, or proceed to Task 12 immediately).
+Expected: clean.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add src/render/viewport.tsx
+git add src/render/viewport.tsx src/App.tsx
 git commit -m "feat: add cut mode routing to Viewport"
 ```
 
@@ -2469,18 +2561,34 @@ pnpm vitest run src/ui/sidebar.test.tsx
 
 Expected: All tests PASS.
 
-- [ ] **Step 9: Run full suite**
+- [ ] **Step 9: Add stub props to App.tsx to unblock the pre-commit typecheck**
+
+Task 11 adds seven required props to `SidebarProps`. App.tsx does not pass them yet. Add stubs now (replaced in Task 12 Steps 5–6):
+
+In `src/App.tsx`, in the `<Sidebar ...>` JSX, add:
+
+```typescript
+onUpdateCut={() => {}}
+onRemoveCut={() => {}}
+onLinkCuts={() => {}}
+onUnlinkCuts={() => {}}
+lastPlacedCutId={null}
+cutActive={false}
+onCutToggle={() => {}}
+```
+
+- [ ] **Step 10: Run full suite**
 
 ```bash
 pnpm typecheck && pnpm test
 ```
 
-Expected: clean (App.tsx will error on missing props until Task 12).
+Expected: clean.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
-git add src/ui/sidebar.tsx src/ui/sidebar.test.tsx
+git add src/ui/sidebar.tsx src/ui/sidebar.test.tsx src/App.tsx
 git commit -m "feat: add Cuts section to EditPanel sidebar"
 ```
 
@@ -2514,18 +2622,36 @@ const {
 } = useAddCut({ parts: scene.parts, onUpdate, onSelect })
 ```
 
-- [ ] **Step 2: Add mutual exclusion wrappers**
+- [ ] **Step 1b: Extend the `useScene()` destructure to include the four cut-mutation functions**
+
+Find the existing `useScene()` destructure block in `src/App.tsx` and add the four new handlers:
+
+```typescript
+const {
+  // ... existing fields ...
+  onUpdateCut,
+  onRemoveCut,
+  onLinkCuts,
+  onUnlinkCuts,
+} = useScene()
+```
+
+Without this step, Steps 6 and 7 will fail with `onUpdateCut is not defined`.
+
+- [ ] **Step 2: Add mutual exclusion wrappers with `useCallback`**
 
 After the `useAddCut` call, add:
 
 ```typescript
-const handleActivateCut = () => { cancelSnap(); activateCut() }
-const handleActivateSnap = () => { cancelCut(); activateSnap() }
+const handleActivateCut = useCallback(() => { cancelSnap(); activateCut() }, [cancelSnap, activateCut])
+const handleActivateSnap = useCallback(() => { cancelCut(); activateSnap() }, [cancelCut, activateSnap])
 ```
 
-- [ ] **Step 3: Add `C` key handler to the keyboard effect**
+These must be `useCallback`-wrapped — plain arrow functions would be recreated every render and cause the keyboard effect to re-register its listener on every render.
 
-Inside the `if (!mod)` block, after the `f` key handler, add:
+- [ ] **Step 3: Add `C` key handler and Escape handler for cut mode to the keyboard effect**
+
+Inside the `if (!mod)` block, after the `f` key handler, add the `C` key branch:
 
 ```typescript
 if (e.key.toLowerCase() === 'c') {
@@ -2535,7 +2661,26 @@ if (e.key.toLowerCase() === 'c') {
 }
 ```
 
-Add `handleActivateCut`, `handleActivateSnap`, `cancelCut`, `cancelSnap` to the effect's dependency array. Ensure `cancelSnap` and `cancelCut` are stable useCallback functions (they already are from their respective hooks).
+In the same effect, update the Escape branch to also cancel cut mode:
+
+```typescript
+// old
+if (e.key === 'Escape' && snapActive) {
+  cancelSnap()
+  return
+}
+```
+
+```typescript
+// new
+if (e.key === 'Escape') {
+  if (cutActive) cancelCut()
+  if (snapActive) cancelSnap()
+  return
+}
+```
+
+Update the effect's dependency array to include `handleActivateCut`, `handleActivateSnap`, `cancelCut`, `cutActive`.
 
 - [ ] **Step 4: Fix the critical `onSnapToggle` prop**
 
