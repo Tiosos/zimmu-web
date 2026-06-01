@@ -188,11 +188,18 @@ function App() {
           onRemove={onRemove}
           onDuplicate={onDuplicate}
           onUpdate={onUpdate}
+          onUpdateCut={() => {}}
+          onRemoveCut={() => {}}
+          onLinkCuts={() => {}}
+          onUnlinkCuts={() => {}}
+          lastPlacedCutId={null}
           selectedId={selectedId}
           onSelect={onSelect}
           snapActive={snapActive}
           snapPhase={snapPhase}
           onSnapToggle={activateSnap}
+          cutActive={false}
+          onCutToggle={() => {}}
         />
       </div>
     </div>

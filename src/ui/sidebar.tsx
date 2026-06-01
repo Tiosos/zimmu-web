@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
-import type { Part, PartId, Scene } from '../scene/types'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import type { CutDef, CutId, Part, PartId, Scene } from '../scene/types'
 import { useDebouncedCallback } from './useDebouncedCallback'
+import { faceAxes } from '../scene/snapMath'
 
 interface SidebarProps {
   scene: Scene
@@ -11,12 +12,19 @@ interface SidebarProps {
   onAdd: () => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
-  onUpdate: (id: PartId, updater: (p: Part) => Part) => void
+  onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
+  onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
+  onRemoveCut: (partId: PartId, cutId: CutId) => void
+  onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
+  onUnlinkCuts: (partId: PartId, cutId: CutId) => void
+  lastPlacedCutId: CutId | null
   selectedId: PartId | null
   onSelect: (id: PartId | null) => void
   snapActive: boolean
   snapPhase: 'idle' | 'source-picked'
   onSnapToggle: () => void
+  cutActive: boolean
+  onCutToggle: () => void
 }
 
 const s = {
@@ -154,13 +162,188 @@ function NumInput({
   )
 }
 
+function CutRow({
+  cut,
+  partId,
+  scene,
+  onUpdateCut,
+  onRemoveCut,
+  onLinkCuts,
+  onUnlinkCuts,
+  defaultOpen,
+}: {
+  cut: CutDef
+  partId: PartId
+  scene: Scene
+  onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
+  onRemoveCut: (partId: PartId, cutId: CutId) => void
+  onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
+  onUnlinkCuts: (partId: PartId, cutId: CutId) => void
+  defaultOpen: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  // Build cut lookup once for pairing display
+  const cutLookup = useMemo(() => {
+    const map = new Map<string, { partId: PartId; cut: CutDef; partLabel: string }>()
+    for (const p of scene.parts) {
+      for (const c of p.cuts) {
+        map.set(`${p.id}:${c.id}`, { partId: p.id, cut: c, partLabel: p.label })
+      }
+    }
+    return map
+  }, [scene.parts])
+
+  const pairedEntry = cut.pairedCutId ? (cutLookup.get(cut.pairedCutId) ?? null) : null
+  const pairLost = !!cut.pairedCutId && !pairedEntry
+
+  // All cuts on other boards for the link dropdown
+  const linkOptions = useMemo(() => {
+    const opts: Array<{ value: string; label: string }> = []
+    for (const p of scene.parts) {
+      if (p.id === partId) continue
+      for (const c of p.cuts) {
+        opts.push({ value: `${p.id}:${c.id}`, label: `${p.label} › ${c.label}` })
+      }
+    }
+    return opts
+  }, [scene.parts, partId])
+
+  return (
+    <div style={{ borderTop: '1px solid #2a2a2a', paddingTop: 2 }}>
+      <div
+        style={{ ...s.groupHdr, display: 'flex', alignItems: 'center', gap: 4 }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{open ? '▾' : '▸'}</span>
+        <span style={{ flex: 1 }}>{cut.label}</span>
+        <span style={{ fontSize: 10, color: '#555', fontFamily: 'monospace' }}>{cut.face}</span>
+        <button
+          title="Delete cut"
+          style={{ ...s.iconBtn, color: '#c0392b' }}
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemoveCut(partId, cut.id)
+          }}
+        >
+          ✕
+        </button>
+      </div>
+      {open && (
+        <div style={{ paddingLeft: 8 }}>
+          <div style={{ ...s.groupHdr, cursor: 'default' }}>Size</div>
+          <DimInput
+            value={cut.size[faceAxes(cut.face).depth]}
+            suffix="mm depth"
+            min={0.1}
+            onCommit={(v) =>
+              onUpdateCut(partId, cut.id, (c) => ({
+                ...c,
+                size: { ...c.size, [faceAxes(c.face).depth]: v },
+              }))
+            }
+          />
+          <DimInput
+            value={cut.size[faceAxes(cut.face).u]}
+            suffix="mm width"
+            min={0.1}
+            onCommit={(v) =>
+              onUpdateCut(partId, cut.id, (c) => ({
+                ...c,
+                size: { ...c.size, [faceAxes(c.face).u]: v },
+              }))
+            }
+          />
+          <DimInput
+            value={cut.size[faceAxes(cut.face).v]}
+            suffix="mm height"
+            min={0.1}
+            onCommit={(v) =>
+              onUpdateCut(partId, cut.id, (c) => ({
+                ...c,
+                size: { ...c.size, [faceAxes(c.face).v]: v },
+              }))
+            }
+          />
+          <div style={{ ...s.groupHdr, cursor: 'default' }}>Offset</div>
+          <NumInput
+            value={cut.position[faceAxes(cut.face).u]}
+            suffix="mm U"
+            onChange={(v) =>
+              onUpdateCut(partId, cut.id, (c) => ({
+                ...c,
+                position: { ...c.position, [faceAxes(c.face).u]: v },
+              }))
+            }
+          />
+          <NumInput
+            value={cut.position[faceAxes(cut.face).v]}
+            suffix="mm V"
+            onChange={(v) =>
+              onUpdateCut(partId, cut.id, (c) => ({
+                ...c,
+                position: { ...c.position, [faceAxes(c.face).v]: v },
+              }))
+            }
+          />
+          <div style={{ marginTop: 4, fontSize: 11, color: '#666' }}>
+            {pairLost ? (
+              <span style={{ color: '#c0392b' }}>
+                Pair lost{' '}
+                <button style={s.iconBtn} onClick={() => onUnlinkCuts(partId, cut.id)}>
+                  Unlink
+                </button>
+              </span>
+            ) : pairedEntry ? (
+              <span>
+                ↔ {pairedEntry.partLabel} › {pairedEntry.cut.label}{' '}
+                <button style={s.iconBtn} onClick={() => onUnlinkCuts(partId, cut.id)}>
+                  Unlink
+                </button>
+              </span>
+            ) : linkOptions.length > 0 ? (
+              <select
+                style={{ ...s.input, fontSize: 11 }}
+                value=""
+                onChange={(e) => {
+                  const [pId, cId] = e.target.value.split(':') as [PartId, CutId]
+                  onLinkCuts(partId, cut.id, pId, cId)
+                }}
+              >
+                <option value="">Link to cut…</option>
+                {linkOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EditPanel({
   part,
   onUpdate,
+  onUpdateCut,
+  onRemoveCut,
+  onLinkCuts,
+  onUnlinkCuts,
+  lastPlacedCutId,
+  scene,
   nextLabel,
 }: {
   part: Part
-  onUpdate: (id: PartId, updater: (p: Part) => Part) => void
+  onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
+  onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
+  onRemoveCut: (partId: PartId, cutId: CutId) => void
+  onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
+  onUnlinkCuts: (partId: PartId, cutId: CutId) => void
+  lastPlacedCutId: CutId | null
+  scene: Scene
   nextLabel: string
 }) {
   const [shapeOpen, setShapeOpen] = useState(true)
@@ -277,6 +460,24 @@ function EditPanel({
           />
         </>
       )}
+      <div style={s.groupHdr}>▾ Cuts</div>
+      {part.cuts.length === 0 ? (
+        <div style={{ fontSize: 11, color: '#555', padding: '2px 0 4px' }}>No cuts</div>
+      ) : (
+        part.cuts.map((cut) => (
+          <CutRow
+            key={cut.id}
+            cut={cut}
+            partId={part.id}
+            scene={scene}
+            onUpdateCut={onUpdateCut}
+            onRemoveCut={onRemoveCut}
+            onLinkCuts={onLinkCuts}
+            onUnlinkCuts={onUnlinkCuts}
+            defaultOpen={cut.id === lastPlacedCutId}
+          />
+        ))
+      )}
     </div>
   )
 }
@@ -291,11 +492,18 @@ export function Sidebar({
   onRemove,
   onDuplicate,
   onUpdate,
+  onUpdateCut,
+  onRemoveCut,
+  onLinkCuts,
+  onUnlinkCuts,
+  lastPlacedCutId,
   selectedId,
   onSelect,
   snapActive,
   snapPhase,
   onSnapToggle,
+  cutActive,
+  onCutToggle,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -323,6 +531,22 @@ export function Sidebar({
       }}
     >
       <div style={{ padding: '8px 8px 0' }}>
+        <button
+          onClick={onCutToggle}
+          style={{
+            width: '100%',
+            padding: '7px 0',
+            background: cutActive ? '#2a3a4a' : '#222',
+            color: cutActive ? '#6bb3cb' : '#888',
+            border: `1px solid ${cutActive ? '#3a5a6a' : '#333'}`,
+            borderRadius: 3,
+            cursor: 'pointer',
+            fontSize: 12,
+            marginBottom: 4,
+          }}
+        >
+          {cutActive ? 'Adding Cut' : 'Add Cut'}
+        </button>
         <button
           onClick={onSnapToggle}
           style={{
@@ -435,6 +659,12 @@ export function Sidebar({
           key={selectedPart.id}
           part={selectedPart}
           onUpdate={onUpdate}
+          onUpdateCut={onUpdateCut}
+          onRemoveCut={onRemoveCut}
+          onLinkCuts={onLinkCuts}
+          onUnlinkCuts={onUnlinkCuts}
+          lastPlacedCutId={lastPlacedCutId}
+          scene={scene}
           nextLabel={nextLabel}
         />
       )}

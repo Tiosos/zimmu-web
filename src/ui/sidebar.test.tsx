@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { Sidebar } from './sidebar'
-import type { Part, PartId, Scene } from '../scene/types'
+import type { CutDef, CutId, Part, PartId, Scene } from '../scene/types'
 
 function makeBoard(overrides: Partial<Part> = {}): Part {
   return {
@@ -31,11 +31,18 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     onRemove: vi.fn(),
     onDuplicate: vi.fn(),
     onUpdate: vi.fn(),
+    onUpdateCut: vi.fn(),
+    onRemoveCut: vi.fn(),
+    onLinkCuts: vi.fn(),
+    onUnlinkCuts: vi.fn(),
+    lastPlacedCutId: null as CutId | null,
     selectedId: null,
     onSelect: vi.fn(),
     snapActive: false,
     snapPhase: 'idle' as const,
     onSnapToggle: vi.fn(),
+    cutActive: false,
+    onCutToggle: vi.fn(),
     ...overrides,
   }
 }
@@ -110,5 +117,43 @@ describe('Sidebar', () => {
   it('shows error indicator for failed parts', () => {
     render(<Sidebar {...props({ errors: new Map([['board_t1', 'OCCT failed']]) })} />)
     expect(screen.getByText('⚠')).toBeTruthy()
+  })
+
+  it('shows Cuts section header when a part is selected', () => {
+    render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+    expect(screen.getByText(/▾ Cuts/)).toBeTruthy()
+  })
+
+  it('shows "No cuts" placeholder when part has zero cuts', () => {
+    render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+    expect(screen.getByText(/No cuts/i)).toBeTruthy()
+  })
+
+  it('renders a cut row when part has one cut', () => {
+    const cut: CutDef = {
+      id: 'cut_1',
+      label: 'Dado',
+      face: '+Z',
+      position: { x: 90, y: 40, z: 15 },
+      size: { x: 20, y: 20, z: 10 },
+    }
+    const scene = { parts: [makeBoard({ cuts: [cut] })] }
+    render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
+    expect(screen.getByText('Dado')).toBeTruthy()
+  })
+
+  it('delete button on cut row calls onRemoveCut', () => {
+    const onRemoveCut = vi.fn()
+    const cut: CutDef = {
+      id: 'cut_1',
+      label: 'Dado',
+      face: '+Z',
+      position: { x: 90, y: 40, z: 15 },
+      size: { x: 20, y: 20, z: 10 },
+    }
+    const scene = { parts: [makeBoard({ cuts: [cut] })] }
+    render(<Sidebar {...props({ scene, selectedId: 'board_t1', onRemoveCut })} />)
+    fireEvent.click(screen.getByTitle('Delete cut'))
+    expect(onRemoveCut).toHaveBeenCalledWith('board_t1', 'cut_1')
   })
 })
