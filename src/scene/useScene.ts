@@ -141,7 +141,12 @@ export function useScene(): UseSceneResult {
       setPendingIds((prev) => new Set(prev).add(part.id))
 
       getOcct()
-        .buildPart(part.kind, { length: part.length, width: part.width, thickness: part.thickness })
+        .buildPart(part.kind, {
+          length: part.length,
+          width: part.width,
+          thickness: part.thickness,
+          cuts: part.cuts.map(({ id, position, size }) => ({ id, position, size })),
+        })
         .then((data) => {
           if (!isMounted.current) return
           if (buildSeq.current.get(part.id) !== seq) return

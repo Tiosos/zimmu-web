@@ -534,4 +534,35 @@ describe('useScene', () => {
       expect(result.current.scene.parts[1].label).toBe('Board 2')
     })
   })
+
+  it('passes cuts array to buildPart when geometry is triggered', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    mockBuildPart.mockClear()
+
+    const id = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onUpdate(id, (p) => ({
+        ...p,
+        cuts: [
+          {
+            id: 'cut_1',
+            label: 'Cut 1',
+            face: '+Z' as const,
+            position: { x: 90, y: 40, z: 15 },
+            size: { x: 20, y: 20, z: 10 },
+          },
+        ],
+      }))
+    })
+
+    await waitFor(() =>
+      expect(mockBuildPart).toHaveBeenCalledWith(
+        'board',
+        expect.objectContaining({
+          cuts: [{ id: 'cut_1', position: { x: 90, y: 40, z: 15 }, size: { x: 20, y: 20, z: 10 } }],
+        }),
+      ),
+    )
+  })
 })
