@@ -75,6 +75,9 @@ export interface UseSceneResult {
   onDuplicate: (id: PartId) => void
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
   onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
+  onRemoveCut: (partId: PartId, cutId: CutId) => void
+  onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
+  onUnlinkCuts: (partId: PartId, cutId: CutId) => void
   onSelect: (id: PartId | null) => void
   replaceScene: (next: Scene) => void
   canUndo: boolean
@@ -320,6 +323,11 @@ export function useScene(): UseSceneResult {
         color: PART_COLORS[colorIndex.current % PART_COLORS.length],
         position: { ...orig.position, x: orig.position.x + orig.length + 10 },
         rotation: { x: 0, y: 0, z: 0 },
+        cuts: orig.cuts.map((c) => ({
+          ...c,
+          id: `cut_${crypto.randomUUID()}` as CutId,
+          pairedCutId: undefined,
+        })),
       }
       setScene((prev) => {
         const idx = prev.parts.findIndex((p) => p.id === id)
@@ -463,6 +471,190 @@ export function useScene(): UseSceneResult {
     [push],
   )
 
+  const onRemoveCut = useCallback(
+    (partId: PartId, cutId: CutId) => {
+      const part = sceneRef.current.parts.find((p) => p.id === partId)
+      if (!part) return
+      const removedCut = part.cuts.find((c) => c.id === cutId)
+      if (!removedCut) return
+
+      const affectedPairs: Array<{ partId: PartId; cutId: CutId }> = []
+      for (const p of sceneRef.current.parts) {
+        for (const c of p.cuts) {
+          if (c.pairedCutId === `${partId}:${cutId}`) {
+            affectedPairs.push({ partId: p.id, cutId: c.id })
+          }
+        }
+      }
+
+      setScene((prev) => ({
+        parts: prev.parts.map((p) => {
+          if (p.id === partId) return { ...p, cuts: p.cuts.filter((c) => c.id !== cutId) }
+          const pair = affectedPairs.find((ap) => ap.partId === p.id)
+          if (pair) {
+            return {
+              ...p,
+              cuts: p.cuts.map((c) => (c.id === pair.cutId ? { ...c, pairedCutId: undefined } : c)),
+            }
+          }
+          return p
+        }),
+      }))
+
+      push({
+        label: 'Remove cut',
+        undo: () =>
+          setScene((prev) => ({
+            parts: prev.parts.map((p) => {
+              if (p.id === partId) return { ...p, cuts: [...p.cuts, removedCut] }
+              const pair = affectedPairs.find((ap) => ap.partId === p.id)
+              if (pair) {
+                return {
+                  ...p,
+                  cuts: p.cuts.map((c) =>
+                    c.id === pair.cutId ? { ...c, pairedCutId: `${partId}:${cutId}` } : c,
+                  ),
+                }
+              }
+              return p
+            }),
+          })),
+        redo: () =>
+          setScene((prev) => ({
+            parts: prev.parts.map((p) => {
+              if (p.id === partId) return { ...p, cuts: p.cuts.filter((c) => c.id !== cutId) }
+              const pair = affectedPairs.find((ap) => ap.partId === p.id)
+              if (pair) {
+                return {
+                  ...p,
+                  cuts: p.cuts.map((c) =>
+                    c.id === pair.cutId ? { ...c, pairedCutId: undefined } : c,
+                  ),
+                }
+              }
+              return p
+            }),
+          })),
+      })
+    },
+    [push],
+  )
+
+  const onLinkCuts = useCallback(
+    (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => {
+      const partA = sceneRef.current.parts.find((p) => p.id === partIdA)
+      const partB = sceneRef.current.parts.find((p) => p.id === partIdB)
+      if (!partA || !partB) return
+      const cutA = partA.cuts.find((c) => c.id === cutIdA)
+      const cutB = partB.cuts.find((c) => c.id === cutIdB)
+      if (!cutA || !cutB) return
+
+      const axesA = faceAxes(cutA.face)
+      const axesB = faceAxes(cutB.face)
+
+      const linkedA: CutDef = { ...cutA, pairedCutId: `${partIdB}:${cutIdB}` }
+      const linkedB: CutDef = {
+        ...cutB,
+        pairedCutId: `${partIdA}:${cutIdA}`,
+        size: { ...cutB.size, [axesB.u]: cutA.size[axesA.u], [axesB.v]: cutA.size[axesA.v] },
+      }
+
+      setScene((prev) => ({
+        parts: prev.parts.map((p) => {
+          if (p.id === partIdA)
+            return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdA ? linkedA : c)) }
+          if (p.id === partIdB)
+            return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdB ? linkedB : c)) }
+          return p
+        }),
+      }))
+
+      push({
+        label: 'Link cuts',
+        undo: () =>
+          setScene((prev) => ({
+            parts: prev.parts.map((p) => {
+              if (p.id === partIdA)
+                return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdA ? cutA : c)) }
+              if (p.id === partIdB)
+                return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdB ? cutB : c)) }
+              return p
+            }),
+          })),
+        redo: () =>
+          setScene((prev) => ({
+            parts: prev.parts.map((p) => {
+              if (p.id === partIdA)
+                return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdA ? linkedA : c)) }
+              if (p.id === partIdB)
+                return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdB ? linkedB : c)) }
+              return p
+            }),
+          })),
+      })
+    },
+    [push],
+  )
+
+  const onUnlinkCuts = useCallback(
+    (partId: PartId, cutId: CutId) => {
+      const part = sceneRef.current.parts.find((p) => p.id === partId)
+      if (!part) return
+      const cut = part.cuts.find((c) => c.id === cutId)
+      if (!cut?.pairedCutId) return
+
+      const sep = cut.pairedCutId.indexOf(':')
+      const matingPartId = cut.pairedCutId.slice(0, sep) as PartId
+      const matingCutId = cut.pairedCutId.slice(sep + 1) as CutId
+      const matingPart = sceneRef.current.parts.find((p) => p.id === matingPartId)
+      const matingCut = matingPart?.cuts.find((c) => c.id === matingCutId)
+
+      const unlinked = { ...cut, pairedCutId: undefined }
+      const unlinkedMating = matingCut ? { ...matingCut, pairedCutId: undefined } : null
+
+      setScene((prev) => ({
+        parts: prev.parts.map((p) => {
+          if (p.id === partId)
+            return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? unlinked : c)) }
+          if (p.id === matingPartId && unlinkedMating) {
+            return { ...p, cuts: p.cuts.map((c) => (c.id === matingCutId ? unlinkedMating : c)) }
+          }
+          return p
+        }),
+      }))
+
+      push({
+        label: 'Unlink cuts',
+        undo: () =>
+          setScene((prev) => ({
+            parts: prev.parts.map((p) => {
+              if (p.id === partId)
+                return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? cut : c)) }
+              if (p.id === matingPartId && matingCut) {
+                return { ...p, cuts: p.cuts.map((c) => (c.id === matingCutId ? matingCut : c)) }
+              }
+              return p
+            }),
+          })),
+        redo: () =>
+          setScene((prev) => ({
+            parts: prev.parts.map((p) => {
+              if (p.id === partId)
+                return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? unlinked : c)) }
+              if (p.id === matingPartId && unlinkedMating) {
+                return {
+                  ...p,
+                  cuts: p.cuts.map((c) => (c.id === matingCutId ? unlinkedMating : c)),
+                }
+              }
+              return p
+            }),
+          })),
+      })
+    },
+    [push],
+  )
+
   const onSelect = useCallback((id: PartId | null) => {
     setSelectedId(id)
   }, [])
@@ -494,6 +686,9 @@ export function useScene(): UseSceneResult {
     onDuplicate,
     onUpdate,
     onUpdateCut,
+    onRemoveCut,
+    onLinkCuts,
+    onUnlinkCuts,
     onSelect,
     replaceScene,
     canUndo: undoState.canUndo,

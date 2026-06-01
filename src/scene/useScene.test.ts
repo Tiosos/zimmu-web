@@ -653,4 +653,309 @@ describe('useScene', () => {
       expect(result.current.scene.parts[1].cuts[0].size.x).toBe(30)
     })
   })
+
+  describe('onRemoveCut', () => {
+    it('removes cut from the part', () => {
+      const { result } = renderHook(() => useScene())
+      const partId = result.current.scene.parts[0].id
+      act(() => {
+        result.current.onUpdate(partId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_1',
+              label: 'Cut 1',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 0 },
+              size: { x: 20, y: 20, z: 10 },
+            },
+          ],
+        }))
+      })
+      act(() => {
+        result.current.onRemoveCut(partId, 'cut_1')
+      })
+      expect(result.current.scene.parts[0].cuts).toHaveLength(0)
+    })
+
+    it('clears stale pairedCutId references on other parts', async () => {
+      const { result } = renderHook(() => useScene())
+      await waitFor(() => expect(result.current.occtReady).toBe(true))
+      act(() => {
+        result.current.onAdd()
+      })
+
+      const partAId = result.current.scene.parts[0].id
+      const partBId = result.current.scene.parts[1].id
+
+      act(() => {
+        result.current.onUpdate(partAId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_a',
+              label: 'A',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 20, y: 20, z: 10 },
+            },
+          ],
+        }))
+        result.current.onUpdate(partBId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_b',
+              label: 'B',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 20, y: 20, z: 10 },
+              pairedCutId: `${partAId}:cut_a`,
+            },
+          ],
+        }))
+      })
+
+      act(() => {
+        result.current.onRemoveCut(partAId, 'cut_a')
+      })
+
+      expect(result.current.scene.parts[0].cuts).toHaveLength(0)
+      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBeUndefined()
+    })
+
+    it('undo restores cut and paired references in one step', async () => {
+      const { result } = renderHook(() => useScene())
+      await waitFor(() => expect(result.current.occtReady).toBe(true))
+      act(() => {
+        result.current.onAdd()
+      })
+
+      const partAId = result.current.scene.parts[0].id
+      const partBId = result.current.scene.parts[1].id
+
+      act(() => {
+        result.current.onUpdate(partAId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_a',
+              label: 'A',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 20, y: 20, z: 10 },
+            },
+          ],
+        }))
+        result.current.onUpdate(partBId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_b',
+              label: 'B',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 20, y: 20, z: 10 },
+              pairedCutId: `${partAId}:cut_a`,
+            },
+          ],
+        }))
+      })
+
+      act(() => {
+        result.current.onRemoveCut(partAId, 'cut_a')
+      })
+      act(() => {
+        result.current.undo()
+      })
+
+      expect(result.current.scene.parts[0].cuts).toHaveLength(1)
+      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
+    })
+  })
+
+  describe('onLinkCuts', () => {
+    it('sets pairedCutId bidirectionally', async () => {
+      const { result } = renderHook(() => useScene())
+      await waitFor(() => expect(result.current.occtReady).toBe(true))
+      act(() => {
+        result.current.onAdd()
+      })
+
+      const partAId = result.current.scene.parts[0].id
+      const partBId = result.current.scene.parts[1].id
+
+      act(() => {
+        result.current.onUpdate(partAId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_a',
+              label: 'A',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 30, y: 40, z: 10 },
+            },
+          ],
+        }))
+        result.current.onUpdate(partBId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_b',
+              label: 'B',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 10, y: 10, z: 10 },
+            },
+          ],
+        }))
+      })
+
+      act(() => {
+        result.current.onLinkCuts(partAId, 'cut_a', partBId, 'cut_b')
+      })
+
+      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBe(`${partBId}:cut_b`)
+      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
+      // u/v sizes from A (+Z: u=x, v=y) propagated to B
+      expect(result.current.scene.parts[1].cuts[0].size.x).toBe(30)
+      expect(result.current.scene.parts[1].cuts[0].size.y).toBe(40)
+    })
+
+    it('undo clears both pairedCutIds', async () => {
+      const { result } = renderHook(() => useScene())
+      await waitFor(() => expect(result.current.occtReady).toBe(true))
+      act(() => {
+        result.current.onAdd()
+      })
+      const partAId = result.current.scene.parts[0].id
+      const partBId = result.current.scene.parts[1].id
+      act(() => {
+        result.current.onUpdate(partAId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_a',
+              label: 'A',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 30, y: 40, z: 10 },
+            },
+          ],
+        }))
+        result.current.onUpdate(partBId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_b',
+              label: 'B',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 10, y: 10, z: 10 },
+            },
+          ],
+        }))
+      })
+      act(() => {
+        result.current.onLinkCuts(partAId, 'cut_a', partBId, 'cut_b')
+      })
+      act(() => {
+        result.current.undo()
+      })
+      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBeUndefined()
+      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBeUndefined()
+    })
+  })
+
+  describe('onUnlinkCuts', () => {
+    it('clears pairedCutId on both sides', async () => {
+      const { result } = renderHook(() => useScene())
+      await waitFor(() => expect(result.current.occtReady).toBe(true))
+      act(() => {
+        result.current.onAdd()
+      })
+      const partAId = result.current.scene.parts[0].id
+      const partBId = result.current.scene.parts[1].id
+      act(() => {
+        result.current.onUpdate(partAId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_a',
+              label: 'A',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 20, y: 20, z: 10 },
+              pairedCutId: `${partBId}:cut_b`,
+            },
+          ],
+        }))
+        result.current.onUpdate(partBId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_b',
+              label: 'B',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 20, y: 20, z: 10 },
+              pairedCutId: `${partAId}:cut_a`,
+            },
+          ],
+        }))
+      })
+      act(() => {
+        result.current.onUnlinkCuts(partAId, 'cut_a')
+      })
+      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBeUndefined()
+      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBeUndefined()
+    })
+
+    it('undo restores both pairedCutIds', async () => {
+      const { result } = renderHook(() => useScene())
+      await waitFor(() => expect(result.current.occtReady).toBe(true))
+      act(() => {
+        result.current.onAdd()
+      })
+      const partAId = result.current.scene.parts[0].id
+      const partBId = result.current.scene.parts[1].id
+      act(() => {
+        result.current.onUpdate(partAId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_a',
+              label: 'A',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 20, y: 20, z: 10 },
+              pairedCutId: `${partBId}:cut_b`,
+            },
+          ],
+        }))
+        result.current.onUpdate(partBId, (p) => ({
+          ...p,
+          cuts: [
+            {
+              id: 'cut_b',
+              label: 'B',
+              face: '+Z' as const,
+              position: { x: 0, y: 0, z: 15 },
+              size: { x: 20, y: 20, z: 10 },
+              pairedCutId: `${partAId}:cut_a`,
+            },
+          ],
+        }))
+      })
+      act(() => {
+        result.current.onUnlinkCuts(partAId, 'cut_a')
+      })
+      act(() => {
+        result.current.undo()
+      })
+      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBe(`${partBId}:cut_b`)
+      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
+    })
+  })
 })
