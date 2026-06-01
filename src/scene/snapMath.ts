@@ -1,8 +1,22 @@
 // Three.js math types run in Node/happy-dom without browser mocks needed.
 import * as THREE from 'three'
-import type { BoardPart, FaceHit, Part, Vec3 } from './types'
+import type { BoardPart, CutDef, FaceHit, Part, Vec3 } from './types'
 
 const DEG2RAD = Math.PI / 180
+
+type FaceAxis = 'x' | 'y' | 'z'
+
+export function faceAxes(face: CutDef['face']): { depth: FaceAxis; u: FaceAxis; v: FaceAxis } {
+  if (face === '+X' || face === '-X') return { depth: 'x', u: 'y', v: 'z' }
+  if (face === '+Y' || face === '-Y') return { depth: 'y', u: 'x', v: 'z' }
+  return { depth: 'z', u: 'x', v: 'y' }
+}
+
+export function defaultCutSize(face: CutDef['face']): Vec3 {
+  if (face === '+X' || face === '-X') return { x: 10, y: 20, z: 20 }
+  if (face === '+Y' || face === '-Y') return { x: 20, y: 10, z: 20 }
+  return { x: 20, y: 20, z: 10 }
+}
 
 function dot(a: Vec3, b: Vec3): number {
   return a.x * b.x + a.y * b.y + a.z * b.z

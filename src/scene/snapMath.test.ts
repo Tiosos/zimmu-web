@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { computeSnapDelta, computeFaceCorners, computeLocalFaceCenter } from './snapMath'
-import type { BoardPart, FaceHit, Vec3 } from './types'
+import {
+  computeSnapDelta,
+  computeFaceCorners,
+  computeLocalFaceCenter,
+  faceAxes,
+  defaultCutSize,
+} from './snapMath'
+import type { BoardPart, CutDef, FaceHit, Vec3 } from './types'
 
 function face(
   partId: string,
@@ -287,6 +293,79 @@ describe('computeFaceCorners', () => {
       expect(moved[i].x).toBeCloseTo(base[i].x + 10, 4)
       expect(moved[i].y).toBeCloseTo(base[i].y + 20, 4)
       expect(moved[i].z).toBeCloseTo(base[i].z + 30, 4)
+    }
+  })
+})
+
+describe('faceAxes', () => {
+  it('+X: depth=x, u=y, v=z', () => {
+    const a = faceAxes('+X')
+    expect(a.depth).toBe('x')
+    expect(a.u).toBe('y')
+    expect(a.v).toBe('z')
+  })
+  it('-X: depth=x, u=y, v=z', () => {
+    const a = faceAxes('-X')
+    expect(a.depth).toBe('x')
+    expect(a.u).toBe('y')
+    expect(a.v).toBe('z')
+  })
+  it('+Y: depth=y, u=x, v=z', () => {
+    const a = faceAxes('+Y')
+    expect(a.depth).toBe('y')
+    expect(a.u).toBe('x')
+    expect(a.v).toBe('z')
+  })
+  it('-Y: depth=y, u=x, v=z', () => {
+    const a = faceAxes('-Y')
+    expect(a.depth).toBe('y')
+    expect(a.u).toBe('x')
+    expect(a.v).toBe('z')
+  })
+  it('+Z: depth=z, u=x, v=y', () => {
+    const a = faceAxes('+Z')
+    expect(a.depth).toBe('z')
+    expect(a.u).toBe('x')
+    expect(a.v).toBe('y')
+  })
+  it('-Z: depth=z, u=x, v=y', () => {
+    const a = faceAxes('-Z')
+    expect(a.depth).toBe('z')
+    expect(a.u).toBe('x')
+    expect(a.v).toBe('y')
+  })
+})
+
+describe('defaultCutSize', () => {
+  it('+X/-X: depth axis (x) = 10, u/v = 20', () => {
+    const s = defaultCutSize('+X')
+    expect(s.x).toBe(10)
+    expect(s.y).toBe(20)
+    expect(s.z).toBe(20)
+    expect(defaultCutSize('-X')).toEqual(s)
+  })
+  it('+Y/-Y: depth axis (y) = 10, u/v = 20', () => {
+    const s = defaultCutSize('+Y')
+    expect(s.x).toBe(20)
+    expect(s.y).toBe(10)
+    expect(s.z).toBe(20)
+    expect(defaultCutSize('-Y')).toEqual(s)
+  })
+  it('+Z/-Z: depth axis (z) = 10, u/v = 20', () => {
+    const s = defaultCutSize('+Z')
+    expect(s.x).toBe(20)
+    expect(s.y).toBe(20)
+    expect(s.z).toBe(10)
+    expect(defaultCutSize('-Z')).toEqual(s)
+  })
+  it('depth axis matches faceAxes().depth for all faces', () => {
+    const faces: CutDef['face'][] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
+    for (const f of faces) {
+      const axes = faceAxes(f)
+      const size = defaultCutSize(f)
+      expect(size[axes.depth]).toBe(10)
+      expect(size[axes.u]).toBe(20)
+      expect(size[axes.v]).toBe(20)
     }
   })
 })
