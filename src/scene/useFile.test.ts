@@ -9,7 +9,7 @@ vi.mock('./idb', () => ({
 
 import { useFile } from './useFile'
 import * as idb from './idb'
-import type { ZimmuFile, Scene } from './types'
+import type { ZimmuFile, Scene, Part } from './types'
 
 const CAMERA = { position: { x: 250, y: -200, z: 150 }, target: { x: 0, y: 0, z: 0 } }
 
@@ -435,5 +435,44 @@ describe('useFile', () => {
     expect(result.current.isDirty).toBe(false)
     expect(idb.clearHandle).toHaveBeenCalled()
     expect(onFileLoaded).toHaveBeenCalledTimes(2) // once on startup, once on newFile
+  })
+
+  it('defaults cuts to [] when loading a file without cut data', async () => {
+    const fixtureNoCuts: ZimmuFile = {
+      ...FIXTURE,
+      scene: {
+        parts: [
+          {
+            kind: 'board' as const,
+            id: 'board_old',
+            label: 'Board 1',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            color: '#d4a373',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ' as const,
+            // no cuts field — simulates a pre-cuts file
+          } as unknown as Part,
+        ],
+      },
+    }
+
+    const mockHandle = {
+      name: 'old.zimmu',
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockResolvedValue({
+        text: vi.fn().mockResolvedValue(JSON.stringify(fixtureNoCuts)),
+      }),
+    } as unknown as FileSystemFileHandle
+    vi.mocked(idb.readHandle).mockResolvedValue(mockHandle)
+
+    const onFileLoaded = vi.fn()
+    const { result } = renderHook(() => useFile(makeInput({ onFileLoaded })))
+    await waitFor(() => expect(result.current.fileReady).toBe(true))
+
+    const envelope = onFileLoaded.mock.calls[0][0] as ZimmuFile
+    expect(envelope.scene.parts[0].cuts).toEqual([])
   })
 })
