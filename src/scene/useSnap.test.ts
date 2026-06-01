@@ -22,6 +22,7 @@ const partA: Part = {
   position: { x: 0, y: 0, z: 0 },
   rotation: { x: 0, y: 0, z: 0 },
   rotationOrder: 'XYZ',
+  cuts: [],
 }
 const partB: Part = {
   kind: 'board',
@@ -34,6 +35,7 @@ const partB: Part = {
   position: { x: 0, y: 0, z: 200 },
   rotation: { x: 0, y: 0, z: 0 },
   rotationOrder: 'XYZ',
+  cuts: [],
 }
 
 // Source face on A pointing +Z, target face on B pointing -Z (anti-parallel)
@@ -42,12 +44,14 @@ const faceOnA: FaceHit = {
   faceNormal: { x: 0, y: 0, z: 1 },
   faceCenter: { x: 50, y: 25, z: 25 },
   localFaceNormal: { x: 0, y: 0, z: 1 },
+  localHitPoint: { x: 0, y: 0, z: 0 },
 }
 const faceOnB: FaceHit = {
   partId: 'b',
   faceNormal: { x: 0, y: 0, z: -1 },
   faceCenter: { x: 50, y: 25, z: 200 },
   localFaceNormal: { x: 0, y: 0, z: -1 },
+  localHitPoint: { x: 0, y: 0, z: 0 },
 }
 // Parallel-normal face on B (same direction as faceOnA)
 const faceOnBParallel: FaceHit = {
@@ -55,6 +59,7 @@ const faceOnBParallel: FaceHit = {
   faceNormal: { x: 0, y: 0, z: 1 },
   faceCenter: { x: 50, y: 25, z: 225 },
   localFaceNormal: { x: 0, y: 0, z: 1 },
+  localHitPoint: { x: 0, y: 0, z: 0 },
 }
 
 describe('useSnap', () => {

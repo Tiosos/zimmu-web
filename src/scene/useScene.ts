@@ -57,6 +57,7 @@ function makeDefaultBoard(): BoardPart {
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     rotationOrder: 'XYZ',
+    cuts: [],
   }
 }
 
@@ -253,6 +254,7 @@ export function useScene(): UseSceneResult {
       position: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       rotationOrder: 'XYZ',
+      cuts: [],
     }
     setScene((prev) => ({ parts: [...prev.parts, part] }))
     setSelectedId(part.id)

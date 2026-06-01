@@ -1,9 +1,19 @@
 export type PartId = string
+export type CutId = string
 
 export interface Vec3 {
   x: number
   y: number
   z: number
+}
+
+export interface CutDef {
+  id: CutId
+  label: string
+  face: '+X' | '-X' | '+Y' | '-Y' | '+Z' | '-Z'
+  position: Vec3
+  size: Vec3
+  pairedCutId?: string // "{partId}:{cutId}"
 }
 
 export interface BoardPart {
@@ -14,9 +24,10 @@ export interface BoardPart {
   width: number
   thickness: number
   color: string
-  position: Vec3 // corner at board's local origin, not centroid
+  position: Vec3
   rotation: Vec3
   rotationOrder: 'XYZ'
+  cuts: CutDef[]
 }
 
 export type Part = BoardPart
@@ -27,9 +38,10 @@ export interface Scene {
 
 export interface FaceHit {
   partId: PartId
-  faceNormal: Vec3 // world-space unit normal, snapped to nearest axis
-  faceCenter: Vec3 // world-space face centre — used by computeSnapDelta
-  localFaceNormal: Vec3 // canonical local-space normal; exactly one ±1 component, rest 0
+  faceNormal: Vec3
+  faceCenter: Vec3
+  localFaceNormal: Vec3
+  localHitPoint: Vec3
 }
 
 export interface CameraState {

@@ -16,6 +16,7 @@ function face(
     faceCenter: { x: cx, y: cy, z: cz },
     faceNormal: { x: nx, y: ny, z: nz },
     localFaceNormal: { x: nx, y: ny, z: nz },
+    localHitPoint: { x: 0, y: 0, z: 0 },
   }
 }
 
@@ -31,6 +32,7 @@ const BOARD: BoardPart = {
   position: { x: 0, y: 0, z: 0 },
   rotation: { x: 0, y: 0, z: 0 },
   rotationOrder: 'XYZ',
+  cuts: [],
 }
 
 function makeFace(nx: number, ny: number, nz: number): FaceHit {
@@ -40,6 +42,7 @@ function makeFace(nx: number, ny: number, nz: number): FaceHit {
     faceNormal: { x: nx, y: ny, z: nz },
     faceCenter: { x: 0, y: 0, z: 0 },
     localFaceNormal: { x: nx, y: ny, z: nz },
+    localHitPoint: { x: 0, y: 0, z: 0 },
   }
 }
 
@@ -196,7 +199,13 @@ describe('computeFaceCorners', () => {
     for (const [nx, ny, nz] of normals) {
       const fn = { x: nx, y: ny, z: nz }
       const corners = computeFaceCorners(
-        { partId: 'b1', faceNormal: fn, faceCenter: fn, localFaceNormal: fn },
+        {
+          partId: 'b1',
+          faceNormal: fn,
+          faceCenter: fn,
+          localFaceNormal: fn,
+          localHitPoint: { x: 0, y: 0, z: 0 },
+        },
         BOARD,
       )
       const center = computeLocalFaceCenter(fn, BOARD)
@@ -219,7 +228,13 @@ describe('computeFaceCorners', () => {
     for (const [nx, ny, nz] of normals) {
       const fn = { x: nx, y: ny, z: nz }
       const [c0, c1, c2] = computeFaceCorners(
-        { partId: 'b1', faceNormal: fn, faceCenter: fn, localFaceNormal: fn },
+        {
+          partId: 'b1',
+          faceNormal: fn,
+          faceCenter: fn,
+          localFaceNormal: fn,
+          localHitPoint: { x: 0, y: 0, z: 0 },
+        },
         BOARD,
       )
       const winding = cross(subV(c1, c0), subV(c2, c0))
@@ -239,7 +254,13 @@ describe('computeFaceCorners', () => {
     for (const [nx, ny, nz] of normals) {
       const fn = { x: nx, y: ny, z: nz }
       const corners = computeFaceCorners(
-        { partId: 'b1', faceNormal: fn, faceCenter: fn, localFaceNormal: fn },
+        {
+          partId: 'b1',
+          faceNormal: fn,
+          faceCenter: fn,
+          localFaceNormal: fn,
+          localHitPoint: { x: 0, y: 0, z: 0 },
+        },
         BOARD,
       )
       for (let i = 0; i < 4; i++) {

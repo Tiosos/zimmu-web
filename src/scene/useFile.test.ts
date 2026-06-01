@@ -174,6 +174,7 @@ describe('useFile', () => {
       position: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       rotationOrder: 'XYZ' as const,
+      cuts: [],
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
@@ -215,6 +216,7 @@ describe('useFile', () => {
       position: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       rotationOrder: 'XYZ' as const,
+      cuts: [],
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
@@ -326,6 +328,7 @@ describe('useFile', () => {
       position: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       rotationOrder: 'XYZ' as const,
+      cuts: [],
     }
     const { result } = renderHook(() => useFile(makeInput({ scene: { parts: [part] } })))
     await waitFor(() => expect(result.current.fileReady).toBe(true))

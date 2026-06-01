@@ -109,7 +109,9 @@ export function Viewport({
     const wc = new THREE.Vector3(lc.x, lc.y, lc.z).applyMatrix4(mesh.matrixWorld)
     const faceCenter = { x: wc.x, y: wc.y, z: wc.z }
 
-    return { partId, faceNormal, faceCenter, localFaceNormal }
+    const lhp = intersection.point.clone().applyMatrix4(mesh.matrixWorld.clone().invert())
+    const localHitPoint = { x: lhp.x, y: lhp.y, z: lhp.z }
+    return { partId, faceNormal, faceCenter, localFaceNormal, localHitPoint }
   }
 
   // Scene setup — runs once
