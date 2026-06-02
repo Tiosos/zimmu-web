@@ -363,6 +363,7 @@ describe('useScene', () => {
       })
       expect(result.current.scene.parts).toHaveLength(2)
       expect(result.current.scene.parts[1].id).toBe(cloneId)
+      expect(result.current.selectedId).toBe(cloneId)
     })
 
     it('after onUpdate: canUndo true, undoLabel "Update Board 1"', () => {
