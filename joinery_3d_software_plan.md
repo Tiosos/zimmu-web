@@ -15,7 +15,9 @@ The product is best understood as **"SketchUp's ease + Plasticity's polish + a p
 
 It is **open core under MPL 2.0**: the modeller, basic joint library, drawings, and standard exports are free and open source; premium joint libraries (traditional and Japanese joinery, decorative profiles), cloud sync, advanced BIM (full IFC import + Revit live-link), CNC/CAM export, and SLA support are paid.
 
-**Technical foundation:** OpenCASCADE Technology (OCCT) as the geometry kernel; Tauri (Rust + webview) as the application shell; Three.js + WebGPU for the 3D viewport; TypeScript/React for UI; a custom `.zmu` project file format.
+**Technical foundation (production target):** OpenCASCADE Technology (OCCT) as the geometry kernel; Tauri (Rust + webview) as the application shell; Three.js + WebGPU for the 3D viewport; TypeScript/React for UI; a custom `.zmu` project file format.
+
+**Technical foundation (v0.1 web prototype — current):** OCCT compiled to WebAssembly (`opencascade.js`) running in a Comlink-bridged Web Worker; Vite + React 19 + TypeScript; Three.js (WebGL) for the 3D viewport; File System Access API for file I/O; a `.zimmu` flat-JSON project file. The prototype validates the geometry seam and UX before committing to the full Rust/Tauri infrastructure (see §6).
 
 **Timeline:** quality-driven, not date-driven. Realistic expectation with a small contracted senior team (2–3 engineers + part-time designer + part-time domain consultant) is **~12 months to internal beta, 18–30 months to a strong public v1.**
 
@@ -207,6 +209,22 @@ These three workflows are the spine of v1 — every feature must serve one of th
 
 ## 6. System Architecture
 
+### Prototype vs. production target
+
+The five-layer architecture below describes the **production target**. The v0.1 browser prototype implements a subset with different technology at each layer. The mapping is intentional: the prototype validates the geometry seam and UX contracts so the production layer boundaries are well-understood before committing to the full Rust/Tauri build.
+
+| Layer | Production target | v0.1 prototype (current) |
+|-------|------------------|--------------------------|
+| 1 — Geometry kernel | OCCT via Rust crate (`zimmu-geom`) | `opencascade.js` WASM, loaded lazily in-browser |
+| 2 — Parametric core | Pure Rust, feature graph + constraint solver | Not yet built; dimensions are plain React state |
+| 3 — Application core | Rust; command pattern undo/redo; `.zmu` file format | TypeScript `useScene` hook; 50-entry closure-based undo; `.zimmu` flat JSON |
+| 4 — UI | Tauri webview; Three.js + WebGPU; shadcn/ui | Vite dev server / browser; Three.js + WebGL; plain HTML controls |
+| 5 — Plugin surface | TypeScript API; signed marketplace | Not yet started |
+
+The Comlink-bridged Web Worker (prototype Layer 1) intentionally mirrors the Tauri IPC contract (production Layer 3 → Layer 1), so the worker boundary can be replaced by Tauri `invoke()` calls with minimal UI changes.
+
+---
+
 The application is organised in five layers, bottom-up:
 
 ### Layer 1 — Geometry Kernel (Rust ↔ OCCT)
@@ -271,6 +289,8 @@ User action (UI)
 ## 7. Data Model
 
 The project is a tree of typed objects, all addressable by stable UUIDs. Below are the core types.
+
+> **v0.1 prototype data model:** The browser prototype implements a simplified subset. A `ZimmuFile` has `version: number`, `name: string`, and `scene: { parts: BoardPart[] }`. A `BoardPart` has `kind: 'board'`, a UUID-based `id`, `label`, `length`/`width`/`thickness` (mm), `color` (hex), `position`/`rotation` (3-axis floats), `visible: boolean`, and `cuts: CutDef[]`. There is no assembly tree, no components, no materials, and no hardware — just a flat array of parts. The stable UUID scheme (prefixed `board_<uuid>`) is intentional and maps directly to the production address model described below.
 
 ### Project
 
@@ -687,33 +707,72 @@ project.zmu/
 - Forward-compatible reader (older readers refuse newer major versions cleanly)
 - Migration utilities for major version bumps
 
+### v0.1 prototype file format: `.zimmu`
+
+While the production `.zmu` format is being designed, the browser prototype uses a simpler flat-JSON format with the `.zimmu` extension.
+
+**Structure:** A single UTF-8 JSON file with this top-level shape:
+
+```json
+{
+  "version": 1,
+  "name": "My Project",
+  "scene": {
+    "parts": [
+      {
+        "kind": "board",
+        "id": "board_<uuid>",
+        "label": "Board 1",
+        "length": 400,
+        "width": 100,
+        "thickness": 18,
+        "color": "#a0522d",
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "visible": true,
+        "cuts": []
+      }
+    ]
+  }
+}
+```
+
+**Key decisions:**
+- All numeric fields are stored as floats rounded to 6 decimal places.
+- `FILE_FORMAT_VERSION = 1` is checked on load; unknown versions are rejected.
+- `visible` defaults to `true` on load for backward compatibility with pre-visibility saves (`p.visible ?? true`).
+- No binary geometry is stored — geometry is recomputed from parameters on open.
+- The `.zimmu` format will be migrated to `.zmu` at or before v0.5 (see §17 Phase 0.5).
+
 ---
 
 ## 15. Tech Stack — Detailed
 
-| Layer | Choice | Reason |
-|---|---|---|
-| Geometry kernel | OpenCASCADE Technology (OCCT) | Mature, LGPL, B-Rep, STEP/IGES native |
-| Kernel bindings | Custom Rust bindings via cxx | Type-safe Rust ↔ C++ interop |
-| Application core | Rust | Performance, safety, single binary |
-| Application shell | Tauri (Rust + system webview) | Lightweight, native feel, smaller installer than Electron |
-| UI framework | TypeScript + React 18 | Largest talent pool, mature ecosystem |
-| UI components | shadcn/ui + Radix primitives | Modern, accessible, themable |
-| 3D viewport | Three.js + WebGPU (WebGL2 fallback) | De-facto standard for web 3D |
-| Final render | three-gpu-pathtracer + Open Image Denoise | Free, fast, GPU-accelerated |
-| Visual node editor | React Flow | MIT, mature, extensible |
-| Drawing engine | OCCT HLR → custom SVG layer → PDF via pdf-lib | Robust HLR, web-native SVG, mature PDF library |
-| DWG/DXF | LibreDXF for read; ODA Teigha for write (paid) | LibreDXF good enough for read; ODA required for write quality |
-| IFC | IfcOpenShell (LGPL) | The standard, used by Revit, ArchiCAD, Blender BIM |
-| State management | Zustand + Immer | Simple, mature; avoid Redux complexity |
-| IPC | Tauri commands (typed via specta or ts-rs) | Type-safe Rust ↔ TS |
-| Plugin runtime | QuickJS in a sandboxed thread | Lightweight, sandboxable, JS-native |
-| Testing | Vitest (UI), cargo test (Rust), Playwright (E2E) | Standard |
-| CI | GitHub Actions | Standard |
-| Packaging | Tauri's built-in (MSI, DMG, AppImage) | Built into the framework |
-| Auto-update | Tauri updater | Built into the framework |
-| Telemetry (opt-in) | PostHog self-hosted | Open source, privacy-respecting |
-| Crash reporting | Sentry self-hosted | Open source self-hosting option |
+| Layer | Production target | v0.1 prototype (current) | Reason |
+|---|---|---|---|
+| Geometry kernel | OpenCASCADE Technology (OCCT) via Rust crate | `opencascade.js` WASM (lazy singleton) | Mature, LGPL, B-Rep, STEP/IGES native; WASM build validates seam cheaply |
+| Kernel bindings | Custom Rust bindings via `cxx` | Comlink-bridged Web Worker | Type-safe Rust ↔ C++ interop; Worker mirrors future Tauri IPC boundary |
+| Application core | Rust | TypeScript `useScene` hook | Performance, safety; hook validates undo/redo architecture |
+| Application shell | Tauri (Rust + system webview) | Vite dev server / browser tab | Lightweight, native feel; browser eliminates installer for early testing |
+| UI framework | TypeScript + React 19 | TypeScript + React 19 | ✅ Same — largest talent pool, mature ecosystem |
+| UI components | shadcn/ui + Radix primitives | Plain HTML + inline styles | Modern, accessible — shadcn deferred to Phase 1 |
+| 3D viewport | Three.js + WebGPU (WebGL2 fallback) | Three.js r184 (WebGL) | De-facto standard; WebGPU deferred until baseline stable |
+| File format | `.zmu` zip container (OCFL-style) | `.zimmu` flat JSON | Production format designed for streaming/VCS; flat JSON sufficient for prototype |
+| File I/O | Tauri file dialog + Rust fs | File System Access API (Chrome/Edge only) | Native dialogs via Tauri; FSAPI validates UX, works in browser |
+| Final render | three-gpu-pathtracer + Open Image Denoise | — | Deferred post-v1 |
+| Visual node editor | React Flow | — | Deferred to parametric core milestone |
+| Drawing engine | OCCT HLR → custom SVG → PDF via pdf-lib | — | Deferred to drawing milestone |
+| DWG/DXF | LibreDXF (read) + ODA Teigha (write) | — | Deferred; ODA license cost revisited at v1 |
+| IFC | IfcOpenShell (LGPL) | — | Deferred to export milestone |
+| State management | Zustand + Immer | React `useState` + closure-based undo | Simple hooks sufficient for prototype scale |
+| IPC | Tauri commands (typed via specta or ts-rs) | Comlink + `postMessage` | Type-safe Rust ↔ TS; Comlink validates message-passing pattern |
+| Plugin runtime | QuickJS in a sandboxed thread | — | Deferred post-v1 |
+| Testing | Vitest (UI), cargo test (Rust), Playwright (E2E) | Vitest + happy-dom + @testing-library/react | ✅ Vitest in use; Rust and E2E deferred |
+| CI | GitHub Actions | GitHub Actions | ✅ Same |
+| Packaging | Tauri's built-in (MSI, DMG, AppImage) | — | Deferred until Tauri shell adopted |
+| Auto-update | Tauri updater | — | Deferred |
+| Telemetry (opt-in) | PostHog self-hosted | — | Deferred |
+| Crash reporting | Sentry self-hosted | — | Deferred |
 
 ### Honest risks in this stack
 
@@ -723,6 +782,8 @@ project.zmu/
 - **WebGPU adoption.** WebGPU is well-supported on modern Chromium/Safari/Firefox; in Tauri we control the WebView. WebGL2 fallback covers older hardware. No real risk.
 - **DWG write quality.** Open-source writers are weak. Mitigation: budget for ODA membership in year 1 (~USD $1,000/yr).
 - **IFC fidelity.** IfcOpenShell is excellent but IFC is famously inconsistent across importers. Mitigation: extensive round-trip testing with Revit, ArchiCAD, and BIM Vision.
+- **Prototype-to-production migration.** The v0.1 prototype validates the geometry seam and UX in the browser, but the production Rust/Tauri app is a near-complete rewrite of Layers 1–3. Risk: UX patterns proven in the prototype may not translate cleanly to the Rust IPC model; `.zimmu` file format will need migration to `.zmu`. Mitigation: design the Comlink worker boundary to mirror Tauri IPC contracts now; write a `.zimmu` → `.zmu` migration utility before v0.5 ships.
+- **File System Access API browser lock-in.** The prototype's file I/O relies on the File System Access API, which is Chromium-only. Safari support is partial; Firefox has no support. Mitigation: FSAPI is intentionally a prototype-only dependency; production file I/O goes through Tauri's native file dialog. Document FSAPI requirement clearly in the prototype UI.
 
 ---
 
@@ -756,21 +817,63 @@ Open core revenue should not be assumed for the first 18 months. Pre-revenue fun
 
 The roadmap is organised in five phases. Phase exit criteria are explicit.
 
-### Phase 0 — Foundation (months 0–3)
+### Phase 0 — Foundation ✅ COMPLETE (browser prototype, June 2026)
 
 **Goal:** prove the kernel-to-UI seam works; nothing user-facing.
 
-- Set up monorepo, CI, packaging
-- Rust bindings for OCCT (a subset: solids, booleans, STEP I/O)
-- Tauri app shell with React + Three.js viewport
-- Render a Rust-computed OCCT shape in the viewport
-- Smoke-test IPC, hot reload, packaging on Win/Mac
+**Status:** Complete as a browser prototype. The production Rust/Tauri version of this phase has not yet started; see Phase 0.5 below.
 
-**Exit criterion:** create a box in Rust, see it in Three.js, save and load via STEP.
+**What was built (v0.1 web prototype):**
+
+- Vite + React 19 + TypeScript scaffold with strict mode, ESLint, Prettier
+- `opencascade.js` (full WASM build, ~65 MB) bootstrapped via lazy dynamic import in a Comlink-bridged Web Worker
+- Three.js r184 viewport with OrbitControls, +Z-up CAD camera, axes + grid helpers
+- OCCT `TopoDS_Shape` → Three.js `BufferGeometry` conversion via `BRepMesh_IncrementalMesh`
+- Multiple board parts with per-part label, dimensions, color, position, rotation, visibility
+- Undo/redo (50-entry history, closure-based, coalesced consecutive dimension edits)
+- Part visibility toggle (eye button in sidebar, `H` keyboard shortcut, viewport raycaster guard)
+- Part duplication (`Ctrl+D`), selection, snap/align mode (`F`), cut mode (`C`)
+- File save/open/new via File System Access API, `.zimmu` flat-JSON format (`FILE_FORMAT_VERSION = 1`)
+- Auto-reopen last file on startup via IndexedDB handle persistence
+- Vitest + @testing-library/react test suite (scene, file, keyboard shortcuts, UI)
+- GitHub Actions CI
+
+**What was NOT built in Phase 0 (production targets, deferred):**
+
+- Rust/Tauri application shell, monorepo, native packaging
+- Rust bindings for OCCT; STEP/IGES I/O
+- Win/Mac packaging and auto-update
+
+**Original exit criterion:** create a box in Rust, see it in Three.js, save and load via STEP.
+**Achieved equivalent:** create boards in-browser via OCCT WASM, see them in Three.js, save and load via `.zimmu` JSON.
+
+---
+
+### Phase 0.5 — Browser Prototype Hardening (in progress, June 2026)
+
+**Goal:** harden the browser prototype into a usable daily-driver tool that validates the full v0.1 product loop before starting the Rust/Tauri production build. This phase was not in the original plan; it was added after Phase 0 demonstrated that the browser-based approach can carry more of the product surface than initially expected.
+
+**Deliverables:**
+
+- **Joint engine (prototype):** snap/align and boolean cut modes in the browser; validates the joint UX workflow (Workflow A) before investing in the Rust implementation
+- **Cutting list / BOM:** live cutting list panel driven by scene parts; validates the data model for the full documentation phase
+- **File format migration utility:** `.zimmu` → future `.zmu` importer so no user data is stranded at the prototype-to-production boundary
+- **WASM performance baseline:** measure and document geometry build times, raycasting frame budget, and WASM memory usage on target hardware (MacBook Pro M-series, Windows 11 mid-range)
+- **FSAPI fallback:** detect Chrome/Edge; show graceful degradation message and in-memory fallback for unsupported browsers (Firefox, Safari)
+- **shadcn/ui integration:** replace prototype HTML controls with accessible, themable components; establishes the design system before the Tauri shell
+- **Test coverage to 80 %+:** integration tests for the full save/load/undo/redo loop; Playwright smoke tests for the viewport
+
+**Exit criterion:** a real woodworker can design a simple cabinet (4 boards, 2 dados, 1 rabbet), export a cutting list as PDF or CSV, save the project, close the browser, reopen it the next day, and continue editing — with no data loss and no confusing UX.
+
+**Relationship to Phase 1:** Phase 0.5 is a parallel track, not a prerequisite. The Rust/Tauri Phase 1 build can begin in parallel once the geometry Rust engineer is hired (see §16). Phase 0.5 outputs feed directly into Phase 1 requirements (joint UX validation, file format spec, performance budgets).
+
+---
 
 ### Phase 1 — Core Modeller (months 3–9)
 
 **Goal:** a usable direct-modelling tool with the parametric foundation in place.
+
+**Status: partial** — Some Phase 1 goals have been prototyped in the browser (see Phase 0.5), but the production Rust/Tauri implementation has not started. The browser prototype covers: board parts with dimensions, save/load, undo/redo, and basic cut operations. Feature graph, topology naming, fillet/chamfer, materials, and `.zmu` format remain unbuilt.
 
 - Feature graph + topology naming system
 - Direct modelling: extrude, cut, fillet, chamfer
@@ -1071,6 +1174,8 @@ These are the questions still to resolve, in priority order:
 6. **Hosting and infrastructure choices** for cloud sync (post-v1, but inform the data model now)
 7. **Community management strategy** — when do we open the Discord, GitHub Discussions, Loomio, etc.?
 8. **Public messaging and launch positioning** — strict open-source-first announcement, or stealth until beta?
+9. **Browser prototype vs. Tauri transition timing** — should Phase 0.5 (browser hardening) reach full beta quality before the Rust/Tauri build starts, or should both tracks run in parallel? The parallel approach is faster but risks UX drift between the prototype and the production app. The sequential approach gives cleaner user research data but delays the production build by ~3 months.
+10. **File extension finalisation** — the prototype uses `.zimmu`; the production plan uses `.zmu`. Should `.zimmu` be locked in as the permanent extension (simpler, more descriptive) or should we migrate to `.zmu` at v0.5 as originally planned? Decision needed before Phase 0.5 exits.
 
 ---
 
@@ -1095,6 +1200,27 @@ Next 90 days:
 9. Onboard geometry engineer
 10. Complete Phase 0 (foundation seam working end-to-end)
 11. Begin Phase 1 (core modeller)
+
+### Technical — June 2026 (browser prototype)
+
+The browser prototype (Phase 0.5) is active. Immediate technical priorities, in order:
+
+**This week:**
+
+1. **Cutting list panel** — live BOM driven by `scene.parts`; columns: label, quantity, length × width × thickness, material. Validates the data model before the documentation engine is built in Phase 3.
+2. **shadcn/ui integration** — replace the sidebar's plain HTML inputs and buttons with shadcn/ui + Radix primitives. Establishes the design system; makes the prototype presentable for early user research.
+
+**Next 2 weeks:**
+
+3. **Joint engine (snap/align hardening)** — complete the snap/align and boolean cut modes; end-to-end test of Workflow A (60-second dado + rabbet cabinet) in the browser prototype.
+4. **WASM performance baseline** — instrument geometry build times (`performance.mark`), raycasting frame budget, and WASM memory (`performance.measureUserAgentSpecificMemory`). Document on target hardware. Set budget thresholds that the Phase 1 Rust kernel must beat.
+5. **FSAPI fallback** — detect browser support; show a clear message + in-memory fallback for Firefox/Safari users.
+
+**Next 30 days:**
+
+6. **Test coverage to 80 %+** — add integration tests for the full save/load/undo/redo loop; add a Playwright smoke test for the viewport (board appears, raycaster hits it, toggle visibility works).
+7. **`.zimmu` → `.zmu` migration utility** — write and test the importer before the file format decision (Open Question 10) is made; ensures no user data is stranded regardless of which extension wins.
+8. **Resolve Open Question 9** (sequential vs. parallel prototype/production tracks) and **Open Question 10** (`.zimmu` vs. `.zmu`) — both needed before Phase 0.5 can exit.
 
 ---
 
