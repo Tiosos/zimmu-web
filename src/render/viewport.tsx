@@ -230,7 +230,10 @@ export function Viewport({
       const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1
       const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1
       raycaster.current.setFromCamera(new THREE.Vector2(nx, ny), camera)
-      const hits = raycaster.current.intersectObjects(Array.from(meshes.current.values()), false)
+      const hits = raycaster.current.intersectObjects(
+        Array.from(meshes.current.values()).filter((m) => m.visible),
+        false,
+      )
 
       if (cutActiveRef.current) {
         if (hits.length > 0) {
@@ -268,7 +271,10 @@ export function Viewport({
         const nx = ((x - rect.left) / rect.width) * 2 - 1
         const ny = -((y - rect.top) / rect.height) * 2 + 1
         raycaster.current.setFromCamera(new THREE.Vector2(nx, ny), camera)
-        const hits = raycaster.current.intersectObjects(Array.from(meshes.current.values()), false)
+        const hits = raycaster.current.intersectObjects(
+          Array.from(meshes.current.values()).filter((m) => m.visible),
+          false,
+        )
         if (hits.length > 0) {
           const hit = buildFaceHit(hits[0], meshes.current, partsRef.current)
           if (cutActiveRef.current) onFaceHoverCutRef.current(hit)

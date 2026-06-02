@@ -326,6 +326,7 @@ export function useScene(): UseSceneResult {
         color: PART_COLORS[colorIndex.current % PART_COLORS.length],
         position: { ...orig.position, x: orig.position.x + orig.length + 10 },
         rotation: { x: 0, y: 0, z: 0 },
+        visible: true,
         cuts: orig.cuts.map((c) => ({
           ...c,
           id: `cut_${crypto.randomUUID()}` as CutId,
