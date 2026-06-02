@@ -30,6 +30,7 @@ function App() {
     onLinkCuts,
     onUnlinkCuts,
     onSelect,
+    onToggleVisible,
     canUndo,
     canRedo,
     undoLabel,
@@ -252,6 +253,7 @@ function App() {
           lastPlacedCutId={lastPlacedCutId}
           selectedId={selectedId}
           onSelect={onSelect}
+          onToggleVisible={onToggleVisible}
           snapActive={snapActive}
           snapPhase={snapPhase}
           onSnapToggle={handleActivateSnap}
