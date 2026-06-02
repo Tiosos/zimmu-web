@@ -366,8 +366,9 @@ export function useScene(): UseSceneResult {
       const part = sceneRef.current.parts.find((p) => p.id === id)
       if (!part) return
       const wasVisible = part.visible
+      const nowVisible = !wasVisible
       setScene((prev) => ({
-        parts: prev.parts.map((p) => (p.id === id ? { ...p, visible: !wasVisible } : p)),
+        parts: prev.parts.map((p) => (p.id === id ? { ...p, visible: nowVisible } : p)),
       }))
       push({
         label: wasVisible ? `Hide ${part.label}` : `Show ${part.label}`,
@@ -377,7 +378,7 @@ export function useScene(): UseSceneResult {
           })),
         redo: () =>
           setScene((prev) => ({
-            parts: prev.parts.map((p) => (p.id === id ? { ...p, visible: !wasVisible } : p)),
+            parts: prev.parts.map((p) => (p.id === id ? { ...p, visible: nowVisible } : p)),
           })),
       })
     },

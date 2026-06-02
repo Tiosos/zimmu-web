@@ -179,6 +179,23 @@ describe('useScene', () => {
     expect(result.current.scene.parts[0].visible).toBe(true)
   })
 
+  it('redo after onToggleVisible re-hides the part', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const id = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onToggleVisible(id)
+    })
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.scene.parts[0].visible).toBe(true)
+    act(() => {
+      result.current.redo()
+    })
+    expect(result.current.scene.parts[0].visible).toBe(false)
+  })
+
   it('nextLabel increments with each add', async () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
