@@ -4,6 +4,7 @@ import App from './App'
 
 const mockUndo = vi.fn()
 const mockRedo = vi.fn()
+const mockOnDuplicate = vi.fn()
 
 vi.mock('./scene/useScene', () => ({
   useScene: () => ({
@@ -11,12 +12,12 @@ vi.mock('./scene/useScene', () => ({
     geometries: new Map(),
     errors: new Map(),
     pendingIds: new Set(),
-    selectedId: null,
+    selectedId: 'board_test',
     occtReady: true,
     nextLabel: 'Board 1',
     onAdd: vi.fn(),
     onRemove: vi.fn(),
-    onDuplicate: vi.fn(),
+    onDuplicate: mockOnDuplicate,
     onUpdate: vi.fn(),
     onSelect: vi.fn(),
     replaceScene: vi.fn(),
@@ -70,5 +71,14 @@ describe('App keyboard shortcuts', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'y', ctrlKey: true, bubbles: true }))
     })
     expect(mockRedo).toHaveBeenCalledOnce()
+  })
+
+  it('Ctrl+D calls onDuplicate with the selected part id', async () => {
+    render(<App />)
+    await act(async () => {})
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, bubbles: true }))
+    })
+    expect(mockOnDuplicate).toHaveBeenCalledWith('board_test')
   })
 })

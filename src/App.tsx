@@ -151,6 +151,12 @@ function App() {
         e.preventDefault()
         setCuttingListOpen(true)
       }
+      if (!e.shiftKey && k === 'd') {
+        if (selectedId) {
+          e.preventDefault()
+          onDuplicate(selectedId)
+        }
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -161,6 +167,8 @@ function App() {
     newFile,
     undo,
     redo,
+    onDuplicate,
+    selectedId,
     handleActivateCut,
     handleActivateSnap,
     cancelCut,
