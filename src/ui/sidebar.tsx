@@ -25,6 +25,7 @@ interface SidebarProps {
   onSnapToggle: () => void
   cutActive: boolean
   onCutToggle: () => void
+  onToggleVisible: (id: PartId) => void
 }
 
 const s = {
@@ -504,6 +505,7 @@ export function Sidebar({
   onSnapToggle,
   cutActive,
   onCutToggle,
+  onToggleVisible,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -624,11 +626,21 @@ export function Sidebar({
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                     fontSize: 12,
-                    color: '#ccc',
+                    color: part.visible ? '#ccc' : '#555',
                   }}
                 >
                   {part.label}
                 </span>
+                <button
+                  style={s.iconBtn}
+                  title={part.visible ? 'Hide' : 'Show'}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onToggleVisible(part.id)
+                  }}
+                >
+                  {part.visible ? '●' : '○'}
+                </button>
                 <button
                   style={s.iconBtn}
                   title="Duplicate"
