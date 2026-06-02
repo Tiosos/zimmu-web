@@ -14,6 +14,7 @@ const board: BoardPart = {
   rotation: { x: 0, y: 0, z: 0 },
   rotationOrder: 'XYZ',
   cuts: [],
+  visible: true,
 }
 
 describe('shapeKey', () => {

@@ -47,7 +47,10 @@ function parseFile(text: string): ZimmuFile {
     }
     return true
   })
-  return { ...raw, scene: { parts: parts.map((p) => ({ ...p, cuts: p.cuts ?? [] })) } }
+  return {
+    ...raw,
+    scene: { parts: parts.map((p) => ({ ...p, cuts: p.cuts ?? [], visible: p.visible ?? true })) },
+  }
 }
 
 export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): UseFileResult {

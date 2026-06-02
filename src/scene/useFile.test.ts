@@ -175,6 +175,7 @@ describe('useFile', () => {
       rotation: { x: 0, y: 0, z: 0 },
       rotationOrder: 'XYZ' as const,
       cuts: [],
+      visible: true,
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
@@ -217,6 +218,7 @@ describe('useFile', () => {
       rotation: { x: 0, y: 0, z: 0 },
       rotationOrder: 'XYZ' as const,
       cuts: [],
+      visible: true,
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
@@ -329,6 +331,7 @@ describe('useFile', () => {
       rotation: { x: 0, y: 0, z: 0 },
       rotationOrder: 'XYZ' as const,
       cuts: [],
+      visible: true,
     }
     const { result } = renderHook(() => useFile(makeInput({ scene: { parts: [part] } })))
     await waitFor(() => expect(result.current.fileReady).toBe(true))
@@ -474,5 +477,45 @@ describe('useFile', () => {
 
     const envelope = onFileLoaded.mock.calls[0][0] as ZimmuFile
     expect(envelope.scene.parts[0].cuts).toEqual([])
+  })
+
+  it('defaults visible to true when loading a file without visible data', async () => {
+    const fixtureNoVisible: ZimmuFile = {
+      ...FIXTURE,
+      scene: {
+        parts: [
+          {
+            kind: 'board' as const,
+            id: 'board_old',
+            label: 'Board 1',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            color: '#d4a373',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ' as const,
+            cuts: [],
+            // no visible field — simulates a pre-visible file
+          } as unknown as Part,
+        ],
+      },
+    }
+
+    const mockHandle = {
+      name: 'old.zimmu',
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockResolvedValue({
+        text: vi.fn().mockResolvedValue(JSON.stringify(fixtureNoVisible)),
+      }),
+    } as unknown as FileSystemFileHandle
+    vi.mocked(idb.readHandle).mockResolvedValue(mockHandle)
+    const onFileLoaded = vi.fn()
+
+    const { result } = renderHook(() => useFile(makeInput({ onFileLoaded })))
+    await waitFor(() => expect(result.current.fileReady).toBe(true))
+
+    const loaded = vi.mocked(onFileLoaded).mock.calls[0][0] as ZimmuFile
+    expect(loaded.scene.parts[0].visible).toBe(true)
   })
 })

@@ -28,6 +28,7 @@ export interface BoardPart {
   rotation: Vec3
   rotationOrder: 'XYZ'
   cuts: CutDef[]
+  visible: boolean
 }
 
 export type Part = BoardPart

@@ -16,6 +16,7 @@ function makeBoard(overrides: Partial<Part> = {}): Part {
     rotation: { x: 0, y: 0, z: 0 },
     rotationOrder: 'XYZ',
     cuts: [],
+    visible: true,
     ...overrides,
   }
 }
