@@ -7,6 +7,33 @@ const mockRedo = vi.fn()
 const mockOnDuplicate = vi.fn()
 const mockOnToggleVisible = vi.fn()
 
+let mockSnapActive = false
+let mockCutActive = false
+
+vi.mock('./scene/useSnap', () => ({
+  useSnap: () => ({
+    snapActive: mockSnapActive,
+    snapPhase: 'idle' as const,
+    sourceFace: null,
+    hoveredFace: null,
+    activateSnap: vi.fn(),
+    cancelSnap: vi.fn(),
+    onFaceClick: vi.fn(),
+    onFaceHover: vi.fn(),
+  }),
+}))
+
+vi.mock('./scene/useAddCut', () => ({
+  useAddCut: () => ({
+    cutActive: mockCutActive,
+    lastPlacedCutId: null,
+    activateCut: vi.fn(),
+    cancelCut: vi.fn(),
+    onFaceClick: vi.fn(),
+    onFaceHover: vi.fn(),
+  }),
+}))
+
 vi.mock('./scene/useScene', () => ({
   useScene: () => ({
     scene: { parts: [] },
@@ -55,6 +82,8 @@ describe('App keyboard shortcuts', () => {
   beforeEach(() => {
     cleanup()
     vi.clearAllMocks()
+    mockSnapActive = false
+    mockCutActive = false
   })
 
   it('Ctrl+Z calls undo()', async () => {
@@ -91,5 +120,25 @@ describe('App keyboard shortcuts', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', bubbles: true }))
     })
     expect(mockOnToggleVisible).toHaveBeenCalledWith('board_test')
+  })
+
+  it('H does not call onToggleVisible when snap mode is active', async () => {
+    mockSnapActive = true
+    render(<App />)
+    await act(async () => {})
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', bubbles: true }))
+    })
+    expect(mockOnToggleVisible).not.toHaveBeenCalled()
+  })
+
+  it('H does not call onToggleVisible when cut mode is active', async () => {
+    mockCutActive = true
+    render(<App />)
+    await act(async () => {})
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', bubbles: true }))
+    })
+    expect(mockOnToggleVisible).not.toHaveBeenCalled()
   })
 })

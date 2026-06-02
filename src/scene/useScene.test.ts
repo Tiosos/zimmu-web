@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import type { CutDef } from './types'
+import type { CutDef, PartId } from './types'
 
 const mockBuildPart = vi.fn()
 
@@ -194,6 +194,16 @@ describe('useScene', () => {
       result.current.redo()
     })
     expect(result.current.scene.parts[0].visible).toBe(false)
+  })
+
+  it('onToggleVisible with unknown id is a no-op', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const before = result.current.scene.parts[0].visible
+    act(() => {
+      result.current.onToggleVisible('nonexistent_id' as PartId)
+    })
+    expect(result.current.scene.parts[0].visible).toBe(before)
   })
 
   it('nextLabel increments with each add', async () => {

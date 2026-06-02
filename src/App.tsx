@@ -120,7 +120,7 @@ function App() {
           return
         }
         if (e.key.toLowerCase() === 'h') {
-          if (selectedId) {
+          if (selectedId && !snapActive && !cutActive) {
             e.preventDefault()
             onToggleVisible(selectedId)
           }
