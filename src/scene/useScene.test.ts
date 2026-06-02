@@ -118,6 +118,30 @@ describe('useScene', () => {
     expect(result.current.scene.parts[1].rotation).toEqual({ x: 0, y: 0, z: 0 })
   })
 
+  it('onDuplicate selects the clone', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const origId = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onDuplicate(origId)
+    })
+    const cloneId = result.current.scene.parts[1].id
+    expect(result.current.selectedId).toBe(cloneId)
+  })
+
+  it('undo after onDuplicate restores selection to original', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const origId = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onDuplicate(origId)
+    })
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.selectedId).toBe(origId)
+  })
+
   it('nextLabel increments with each add', async () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))

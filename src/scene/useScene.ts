@@ -336,20 +336,23 @@ export function useScene(): UseSceneResult {
         parts.splice(idx + 1, 0, clone)
         return { parts }
       })
+      setSelectedId(clone.id)
       push({
         label: `Duplicate ${orig.label}`,
         undo: () => {
           setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== clone.id) }))
-          setSelectedId((prev) => (prev === clone.id ? null : prev))
+          setSelectedId((prev) => (prev === clone.id ? id : prev))
         },
-        redo: () =>
+        redo: () => {
           setScene((prev) => {
             const idx = prev.parts.findIndex((p) => p.id === id)
             if (idx === -1) return prev
             const parts = [...prev.parts]
             parts.splice(idx + 1, 0, clone)
             return { parts }
-          }),
+          })
+          setSelectedId(clone.id)
+        },
       })
     },
     [push],
