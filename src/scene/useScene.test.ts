@@ -142,6 +142,43 @@ describe('useScene', () => {
     expect(result.current.selectedId).toBe(origId)
   })
 
+  it('onToggleVisible hides a visible part', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const id = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onToggleVisible(id)
+    })
+    expect(result.current.scene.parts[0].visible).toBe(false)
+  })
+
+  it('onToggleVisible twice restores visibility', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const id = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onToggleVisible(id)
+    })
+    act(() => {
+      result.current.onToggleVisible(id)
+    })
+    expect(result.current.scene.parts[0].visible).toBe(true)
+  })
+
+  it('undo after onToggleVisible restores original visibility', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const id = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onToggleVisible(id)
+    })
+    expect(result.current.scene.parts[0].visible).toBe(false)
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.scene.parts[0].visible).toBe(true)
+  })
+
   it('nextLabel increments with each add', async () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))

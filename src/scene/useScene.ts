@@ -74,6 +74,7 @@ export interface UseSceneResult {
   onAdd: () => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
+  onToggleVisible: (id: PartId) => void
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
   onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
   onRemoveCut: (partId: PartId, cutId: CutId) => void
@@ -355,6 +356,29 @@ export function useScene(): UseSceneResult {
           })
           setSelectedId(clone.id)
         },
+      })
+    },
+    [push],
+  )
+
+  const onToggleVisible = useCallback(
+    (id: PartId) => {
+      const part = sceneRef.current.parts.find((p) => p.id === id)
+      if (!part) return
+      const wasVisible = part.visible
+      setScene((prev) => ({
+        parts: prev.parts.map((p) => (p.id === id ? { ...p, visible: !wasVisible } : p)),
+      }))
+      push({
+        label: wasVisible ? `Hide ${part.label}` : `Show ${part.label}`,
+        undo: () =>
+          setScene((prev) => ({
+            parts: prev.parts.map((p) => (p.id === id ? { ...p, visible: wasVisible } : p)),
+          })),
+        redo: () =>
+          setScene((prev) => ({
+            parts: prev.parts.map((p) => (p.id === id ? { ...p, visible: !wasVisible } : p)),
+          })),
       })
     },
     [push],
@@ -689,6 +713,7 @@ export function useScene(): UseSceneResult {
     onAdd,
     onRemove,
     onDuplicate,
+    onToggleVisible,
     onUpdate,
     onUpdateCut,
     onRemoveCut,
