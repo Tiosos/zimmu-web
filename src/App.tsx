@@ -119,6 +119,13 @@ function App() {
           if (snapActive) cancelSnap()
           return
         }
+        if (e.key.toLowerCase() === 'h') {
+          if (selectedId) {
+            e.preventDefault()
+            onToggleVisible(selectedId)
+          }
+          return
+        }
         return
       }
 
@@ -169,6 +176,7 @@ function App() {
     undo,
     redo,
     onDuplicate,
+    onToggleVisible,
     selectedId,
     handleActivateCut,
     handleActivateSnap,

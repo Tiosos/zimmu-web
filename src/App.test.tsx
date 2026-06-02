@@ -5,6 +5,7 @@ import App from './App'
 const mockUndo = vi.fn()
 const mockRedo = vi.fn()
 const mockOnDuplicate = vi.fn()
+const mockOnToggleVisible = vi.fn()
 
 vi.mock('./scene/useScene', () => ({
   useScene: () => ({
@@ -18,6 +19,7 @@ vi.mock('./scene/useScene', () => ({
     onAdd: vi.fn(),
     onRemove: vi.fn(),
     onDuplicate: mockOnDuplicate,
+    onToggleVisible: mockOnToggleVisible,
     onUpdate: vi.fn(),
     onSelect: vi.fn(),
     replaceScene: vi.fn(),
@@ -80,5 +82,14 @@ describe('App keyboard shortcuts', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, bubbles: true }))
     })
     expect(mockOnDuplicate).toHaveBeenCalledWith('board_test')
+  })
+
+  it('H calls onToggleVisible with the selected part id', async () => {
+    render(<App />)
+    await act(async () => {})
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', bubbles: true }))
+    })
+    expect(mockOnToggleVisible).toHaveBeenCalledWith('board_test')
   })
 })
