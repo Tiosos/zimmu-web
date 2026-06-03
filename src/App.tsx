@@ -6,6 +6,7 @@ import { useAddCut } from './scene/useAddCut'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
+import { CuttingList } from './ui/CuttingList'
 import type { CameraState } from './scene/types'
 
 const supported = 'showOpenFilePicker' in window
@@ -29,6 +30,7 @@ function App() {
     onLinkCuts,
     onUnlinkCuts,
     onSelect,
+    onToggleVisible,
     canUndo,
     canRedo,
     undoLabel,
@@ -62,6 +64,8 @@ function App() {
     target: { x: 0, y: 0, z: 0 },
   })
   const [loadedCamera, setLoadedCamera] = useState<CameraState | null>(null)
+  const [cuttingListOpen, setCuttingListOpen] = useState(false)
+  const closeCuttingList = useCallback(() => setCuttingListOpen(false), [])
 
   const {
     fileReady,
@@ -115,6 +119,13 @@ function App() {
           if (snapActive) cancelSnap()
           return
         }
+        if (e.key.toLowerCase() === 'h') {
+          if (selectedId && !snapActive && !cutActive) {
+            e.preventDefault()
+            onToggleVisible(selectedId)
+          }
+          return
+        }
         return
       }
 
@@ -144,6 +155,16 @@ function App() {
         e.preventDefault()
         redo()
       }
+      if (e.shiftKey && k === 'e') {
+        e.preventDefault()
+        setCuttingListOpen(true)
+      }
+      if (!e.shiftKey && k === 'd') {
+        if (selectedId) {
+          e.preventDefault()
+          onDuplicate(selectedId)
+        }
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -154,6 +175,9 @@ function App() {
     newFile,
     undo,
     redo,
+    onDuplicate,
+    onToggleVisible,
+    selectedId,
     handleActivateCut,
     handleActivateSnap,
     cancelCut,
@@ -200,6 +224,7 @@ function App() {
           void saveAsFile()
         }}
         onProjectNameChange={setProjectName}
+        onCuttingList={() => setCuttingListOpen(true)}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Viewport
@@ -236,6 +261,7 @@ function App() {
           lastPlacedCutId={lastPlacedCutId}
           selectedId={selectedId}
           onSelect={onSelect}
+          onToggleVisible={onToggleVisible}
           snapActive={snapActive}
           snapPhase={snapPhase}
           onSnapToggle={handleActivateSnap}
@@ -243,6 +269,9 @@ function App() {
           onCutToggle={handleActivateCut}
         />
       </div>
+      {cuttingListOpen && (
+        <CuttingList parts={scene.parts} projectName={projectName} onClose={closeCuttingList} />
+      )}
     </div>
   )
 }

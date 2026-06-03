@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import wasm from 'vite-plugin-wasm'
 import checker from 'vite-plugin-checker'
 import { visualizer } from 'rollup-plugin-visualizer'
+import tailwindcss from '@tailwindcss/vite'
 
 const { version } = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf-8'),
@@ -11,6 +13,7 @@ const { version } = JSON.parse(
 
 export default defineConfig({
   plugins: [
+    tailwindcss(),
     wasm(),
     react(),
     checker({ typescript: true }),
@@ -21,6 +24,11 @@ export default defineConfig({
       gzipSize: true,
     }),
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   // opencascade.js ships its WASM as a side-loaded asset and uses Emscripten's
   // UMD entry. Vite's pre-bundler can't handle either cleanly, so we exclude it
   // and let it resolve the .wasm URL through Vite's normal asset pipeline.

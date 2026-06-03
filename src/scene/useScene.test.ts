@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import type { CutDef } from './types'
+import type { CutDef, PartId } from './types'
 
 const mockBuildPart = vi.fn()
 
@@ -116,6 +116,94 @@ describe('useScene', () => {
       result.current.onDuplicate(original.id)
     })
     expect(result.current.scene.parts[1].rotation).toEqual({ x: 0, y: 0, z: 0 })
+  })
+
+  it('onDuplicate selects the clone', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const origId = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onDuplicate(origId)
+    })
+    const cloneId = result.current.scene.parts[1].id
+    expect(result.current.selectedId).toBe(cloneId)
+  })
+
+  it('undo after onDuplicate restores selection to original', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const origId = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onDuplicate(origId)
+    })
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.selectedId).toBe(origId)
+  })
+
+  it('onToggleVisible hides a visible part', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const id = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onToggleVisible(id)
+    })
+    expect(result.current.scene.parts[0].visible).toBe(false)
+  })
+
+  it('onToggleVisible twice restores visibility', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const id = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onToggleVisible(id)
+    })
+    act(() => {
+      result.current.onToggleVisible(id)
+    })
+    expect(result.current.scene.parts[0].visible).toBe(true)
+  })
+
+  it('undo after onToggleVisible restores original visibility', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const id = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onToggleVisible(id)
+    })
+    expect(result.current.scene.parts[0].visible).toBe(false)
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.scene.parts[0].visible).toBe(true)
+  })
+
+  it('redo after onToggleVisible re-hides the part', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const id = result.current.scene.parts[0].id
+    act(() => {
+      result.current.onToggleVisible(id)
+    })
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.scene.parts[0].visible).toBe(true)
+    act(() => {
+      result.current.redo()
+    })
+    expect(result.current.scene.parts[0].visible).toBe(false)
+  })
+
+  it('onToggleVisible with unknown id is a no-op', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const before = result.current.scene.parts[0].visible
+    act(() => {
+      result.current.onToggleVisible('nonexistent_id' as PartId)
+    })
+    expect(result.current.scene.parts[0].visible).toBe(before)
   })
 
   it('nextLabel increments with each add', async () => {
@@ -341,6 +429,7 @@ describe('useScene', () => {
       })
       expect(result.current.scene.parts).toHaveLength(2)
       expect(result.current.scene.parts[1].id).toBe(cloneId)
+      expect(result.current.selectedId).toBe(cloneId)
     })
 
     it('after onUpdate: canUndo true, undoLabel "Update Board 1"', () => {

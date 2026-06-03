@@ -45,6 +45,7 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     onSnapToggle: vi.fn(),
     cutActive: false,
     onCutToggle: vi.fn(),
+    onToggleVisible: vi.fn(),
     ...overrides,
   }
 }
@@ -97,6 +98,26 @@ describe('Sidebar', () => {
     render(<Sidebar {...props({ onDuplicate })} />)
     fireEvent.click(screen.getByTitle('Duplicate'))
     expect(onDuplicate).toHaveBeenCalledWith('board_t1')
+  })
+
+  it('calls onToggleVisible when visibility button clicked', () => {
+    const onToggleVisible = vi.fn()
+    render(<Sidebar {...props({ onToggleVisible })} />)
+    fireEvent.click(screen.getByTitle('Hide'))
+    expect(onToggleVisible).toHaveBeenCalledWith('board_t1')
+  })
+
+  it('shows hollow circle and Show title for hidden part', () => {
+    const onToggleVisible = vi.fn()
+    render(
+      <Sidebar
+        {...props({
+          onToggleVisible,
+          scene: { parts: [makeBoard({ visible: false })] },
+        })}
+      />,
+    )
+    expect(screen.getByTitle('Show')).toBeTruthy()
   })
 
   it('shows edit panel when a part is selected', () => {

@@ -230,7 +230,10 @@ export function Viewport({
       const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1
       const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1
       raycaster.current.setFromCamera(new THREE.Vector2(nx, ny), camera)
-      const hits = raycaster.current.intersectObjects(Array.from(meshes.current.values()), false)
+      const hits = raycaster.current.intersectObjects(
+        Array.from(meshes.current.values()).filter((m) => m.visible),
+        false,
+      )
 
       if (cutActiveRef.current) {
         if (hits.length > 0) {
@@ -268,7 +271,10 @@ export function Viewport({
         const nx = ((x - rect.left) / rect.width) * 2 - 1
         const ny = -((y - rect.top) / rect.height) * 2 + 1
         raycaster.current.setFromCamera(new THREE.Vector2(nx, ny), camera)
-        const hits = raycaster.current.intersectObjects(Array.from(meshes.current.values()), false)
+        const hits = raycaster.current.intersectObjects(
+          Array.from(meshes.current.values()).filter((m) => m.visible),
+          false,
+        )
         if (hits.length > 0) {
           const hit = buildFaceHit(hits[0], meshes.current, partsRef.current)
           if (cutActiveRef.current) onFaceHoverCutRef.current(hit)
@@ -368,6 +374,7 @@ export function Viewport({
         mesh.rotation.set(rx, ry, rz, part.rotationOrder)
         scene.add(mesh)
         meshes.current.set(part.id, mesh)
+        mesh.visible = part.visible
 
         const edgeMat = new THREE.LineBasicMaterial({ color: 0x1a1a1d })
         const el = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 15), edgeMat)
@@ -375,6 +382,7 @@ export function Viewport({
         el.rotation.copy(mesh.rotation)
         scene.add(el)
         edgeLines.current.set(part.id, el)
+        el.visible = part.visible
       } else {
         if (existing.geometry !== geo) {
           existing.geometry = geo
@@ -387,6 +395,8 @@ export function Viewport({
         const el = edgeLines.current.get(part.id)!
         el.position.copy(existing.position)
         el.rotation.copy(existing.rotation)
+        existing.visible = part.visible
+        el.visible = part.visible
       }
     }
 

@@ -1,25 +1,55 @@
 # Zimmu — v0.1
 
-Open-core 3D joinery design app. **Weekend 1 milestone.**
+Open-core 3D joinery design app. **Phase 0.5 — browser prototype.**
 
 Strategic plan: [`../joinery_3d_software_plan.md`](../joinery_3d_software_plan.md)
 
-## What's in this commit
+## What's built (Phase 0 + Phase 0.5 in progress)
 
-Phase 0 kernel-to-UI seam from the founding plan, restated for a solo web build:
+The browser prototype validates the geometry seam, UX, and file format before
+the full Rust/Tauri production build begins. See §6 of the plan for the
+prototype-vs-production layer mapping.
 
-1. Vite + React 19 + TypeScript scaffold
-2. opencascade.js (full WASM build, ~65 MB) bootstrapped via lazy dynamic import
-3. Three.js viewport with OrbitControls, +Z-up CAD camera, axes + grid helpers
-4. OCCT `TopoDS_Shape` → Three.js `BufferGeometry` conversion via `BRepMesh_IncrementalMesh`
-5. A hardcoded 100 × 100 × 50 mm box rendered in the viewport
-6. Vitest smoke test on the kernel seam (live OCCT init is browser-only and skipped in Node)
+**Geometry kernel:**
+- `opencascade.js` (full WASM build, ~65 MB) bootstrapped via lazy dynamic import in a Comlink-bridged Web Worker
+- OCCT `TopoDS_Shape` → Three.js `BufferGeometry` via `BRepMesh_IncrementalMesh`
 
-## What's not here
+**Viewport:**
+- Three.js r184 with OrbitControls, +Z-up CAD camera, axes + grid helpers
+- Per-part meshes with edge lines; emissive highlight on selection
+- Raycaster for face-click (snap/cut mode), filtered for hidden parts
 
-Everything past weekend 1 of the v0.1 plan — no UI controls, no joints, no
-project model, no file I/O, no Biome (deferred — config-protection hook
-blocks new lint configs), no shadcn (deferred to weekend 4).
+**Scene / parts:**
+- Multiple board parts (length × width × thickness mm, color, label)
+- Position and rotation (per-axis, in mm / degrees)
+- Part visibility toggle (eye button in sidebar, `H` shortcut)
+- Part duplication (`Ctrl+D`), removal
+
+**Editing modes:**
+- Snap/align mode (`F`) — align faces between two boards
+- Cut mode (`C`) — boolean subtract a cut rectangle from a board face
+
+**Undo/redo:**
+- 50-entry history, closure-based; consecutive dimension edits coalesce into one entry
+- `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`
+
+**File I/O:**
+- Save / Save As / Open / New via File System Access API (Chrome/Edge)
+- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 1`)
+- Auto-reopen last file on startup (IndexedDB handle persistence)
+- Dirty tracking (`isDirty` flag, tab title indicator)
+
+**Testing:**
+- Vitest + happy-dom + @testing-library/react
+- Scene, file, keyboard shortcuts, UI integration tests
+
+## What's not yet built
+
+- shadcn/ui (deferred to Phase 0.5 completion)
+- Cutting list / BOM panel (Phase 0.5)
+- WASM performance baseline instrumentation (Phase 0.5)
+- FSAPI fallback for non-Chromium browsers (Phase 0.5)
+- Rust/Tauri production application shell (Phase 1)
 
 ## Run it
 

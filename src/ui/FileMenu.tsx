@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 
 export interface FileMenuProps {
   fileName: string | null
@@ -10,6 +12,7 @@ export interface FileMenuProps {
   onSave: () => void
   onSaveAs: () => void
   onProjectNameChange: (name: string) => void
+  onCuttingList: () => void
   partsCount: number
   supported: boolean
   canUndo: boolean
@@ -30,6 +33,7 @@ export function FileMenu({
   onSave,
   onSaveAs,
   onProjectNameChange,
+  onCuttingList,
   partsCount,
   supported,
   canUndo,
@@ -77,7 +81,9 @@ export function FileMenu({
   const isSaveDisabled = !supported || (!isDirty && fileName !== null)
 
   const menuItem = (label: string, shortcut: string, onClick: () => void, disabled: boolean) => (
-    <button
+    <Button
+      variant="ghost"
+      size="sm"
       onClick={
         disabled
           ? undefined
@@ -88,101 +94,47 @@ export function FileMenu({
       }
       disabled={disabled}
       aria-disabled={disabled}
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '100%',
-        padding: '6px 12px',
-        background: 'none',
-        border: 'none',
-        color: disabled ? '#555' : '#ccc',
-        cursor: disabled ? 'default' : 'pointer',
-        fontSize: 13,
-        gap: 32,
-        textAlign: 'left',
-        whiteSpace: 'nowrap',
-      }}
+      className="w-full justify-between rounded-none px-3 text-xs font-normal h-8 gap-8"
     >
       <span>{label}</span>
-      <span style={{ opacity: 0.55, fontSize: 11 }}>{shortcut}</span>
-    </button>
+      <span className="opacity-50 text-[11px]">{shortcut}</span>
+    </Button>
   )
 
   return (
-    <div
-      style={{
-        height: 40,
-        display: 'flex',
-        alignItems: 'center',
-        flexShrink: 0,
-        background: '#18181b',
-        borderBottom: '1px solid #2a2a2d',
-        fontSize: 13,
-        color: '#ccc',
-        userSelect: 'none',
-        gap: 4,
-        padding: '0 8px',
-      }}
-    >
-      {/* Left: wordmark + File menu */}
-      <span style={{ fontWeight: 600, letterSpacing: 1, marginRight: 4, opacity: 0.9 }}>Zimmu</span>
+    <div className="h-10 flex items-center flex-shrink-0 bg-[#18181b] border-b border-border text-sm text-foreground select-none gap-1 px-2">
+      {/* Wordmark */}
+      <span className="font-semibold tracking-widest mr-1 opacity-90 text-xs">Zimmu</span>
 
-      <div ref={menuRef} style={{ position: 'relative' }}>
-        <button
+      {/* File dropdown */}
+      <div ref={menuRef} className="relative">
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => setIsOpen((o) => !o)}
-          style={{
-            background: isOpen ? '#2a2a2d' : 'none',
-            border: 'none',
-            color: '#ccc',
-            padding: '4px 8px',
-            borderRadius: 4,
-            cursor: 'pointer',
-            fontSize: 13,
-          }}
+          className={`text-xs h-7 px-2 rounded ${isOpen ? 'bg-accent' : ''}`}
         >
           File ▾
-        </button>
+        </Button>
         {isOpen && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              marginTop: 2,
-              background: '#1e1e21',
-              border: '1px solid #2a2a2d',
-              borderRadius: 6,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-              zIndex: 100,
-              minWidth: 180,
-              padding: '4px 0',
-            }}
-          >
+          <div className="absolute top-full left-0 mt-0.5 bg-card border border-border rounded-md shadow-xl z-50 min-w-[180px] py-1">
             {menuItem(undoLabel ? `Undo "${undoLabel}"` : 'Undo', '⌘Z', onUndo, !canUndo)}
             {menuItem(redoLabel ? `Redo "${redoLabel}"` : 'Redo', '⌘⇧Z', onRedo, !canRedo)}
-            <div style={{ height: 1, background: '#2a2a2d', margin: '4px 0' }} />
+            <Separator className="my-1" />
             {menuItem('New', '⌘N', onNew, !supported)}
             {menuItem('Open…', '⌘O', onOpen, !supported)}
-            <div style={{ height: 1, background: '#2a2a2d', margin: '4px 0' }} />
+            <Separator className="my-1" />
             {menuItem('Save', '⌘S', onSave, isSaveDisabled)}
             {menuItem('Save As…', '⌘⇧S', onSaveAs, !supported)}
+            <Separator className="my-1" />
+            {menuItem('Cutting List…', '⌘⇧E', onCuttingList, false)}
           </div>
         )}
       </div>
 
       {/* Center: dirty indicator + project name + filename */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-          minWidth: 0,
-        }}
-      >
-        {isDirty && <span style={{ color: '#888', fontSize: 10 }}>●</span>}
+      <div className="flex-1 flex items-center justify-center gap-1.5 min-w-0">
+        {isDirty && <span className="text-muted-foreground text-[10px]">●</span>}
         {isEditing ? (
           <input
             ref={inputRef}
@@ -192,42 +144,28 @@ export function FileMenu({
               if (e.key === 'Enter') commitName()
               if (e.key === 'Escape') setIsEditing(false)
             }}
-            style={{
-              background: '#2a2a2d',
-              border: '1px solid #444',
-              borderRadius: 4,
-              color: '#fff',
-              fontSize: 13,
-              padding: '2px 6px',
-              outline: 'none',
-            }}
+            className="bg-secondary border border-border rounded text-foreground text-xs px-1.5 py-0.5 outline-none"
           />
         ) : (
           <span
             onClick={() => setIsEditing(true)}
             title="Click to rename"
-            style={{
-              cursor: 'text',
-              maxWidth: 200,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
+            className="cursor-text max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs"
           >
             {projectName}
           </span>
         )}
         {fileError ? (
-          <span style={{ color: '#f87171', fontSize: 12 }}>{fileError}</span>
+          <span className="text-destructive-foreground text-xs">{fileError}</span>
         ) : fileName ? (
-          <span style={{ color: '#555', fontSize: 12 }}>· {fileName}</span>
+          <span className="text-muted-foreground text-xs">· {fileName}</span>
         ) : !supported ? (
-          <span style={{ color: '#555', fontSize: 12 }}>· Save/Load requires Chrome or Edge</span>
+          <span className="text-muted-foreground text-xs">· Save/Load requires Chrome or Edge</span>
         ) : null}
       </div>
 
       {/* Right: parts count */}
-      <span style={{ opacity: 0.5, fontSize: 12, flexShrink: 0 }}>
+      <span className="opacity-50 text-xs flex-shrink-0">
         {partsCount} {partsCount === 1 ? 'part' : 'parts'}
       </span>
     </div>
