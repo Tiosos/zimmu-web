@@ -40,7 +40,7 @@ export function groupParts(parts: Part[]): GroupedRow[] {
 }
 
 function quoteField(value: string): string {
-  if (value.includes(',') || value.includes('"')) {
+  if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
     return `"${value.replace(/"/g, '""')}"`
   }
   return value
@@ -49,7 +49,7 @@ function quoteField(value: string): string {
 export function buildCsv(parts: Part[]): string {
   const header = 'Qty,Labels,Material,Length (mm),Width (mm),Thickness (mm),Cuts'
   const rows = groupParts(parts).map((row) => {
-    return `${row.qty},${quoteField(row.labels)},${row.material},${row.length},${row.width},${row.thickness},${row.cuts}`
+    return `${row.qty},${quoteField(row.labels)},${quoteField(row.material)},${row.length},${row.width},${row.thickness},${row.cuts}`
   })
   return [header, ...rows].join('\n')
 }

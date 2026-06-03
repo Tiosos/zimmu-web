@@ -71,6 +71,18 @@ describe('buildCsv', () => {
     const csv = buildCsv([makePart({ label: '5" shelf' })])
     expect(csv.split('\n')[1]).toMatch(/^1,"5"" shelf",,/)
   })
+
+  it('wraps material in double quotes when it contains a comma', () => {
+    const csv = buildCsv([makePart({ material: 'Pine, Ply' })])
+    expect(csv.split('\n')[1]).toMatch(/^1,Left Side,"Pine, Ply",/)
+  })
+
+  it('quotes grouped labels field when labels contain a comma after grouping', () => {
+    const parts = [makePart({ id: 'p1', label: 'A' }), makePart({ id: 'p2', label: 'B' })]
+    const csv = buildCsv(parts)
+    // Grouped labels = "A, B" which contains a comma — must be quoted
+    expect(csv.split('\n')[1]).toMatch(/^2,"A, B",,/)
+  })
 })
 
 describe('groupParts', () => {
