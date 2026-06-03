@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { Sidebar } from './sidebar'
 import type { CutDef, CutId, Part, PartId, Scene } from '../scene/types'
+import { PART_COLORS } from '../scene/palette'
 
 function makeCut(overrides: Partial<CutDef> = {}): CutDef {
   return {
@@ -304,6 +305,55 @@ describe('Sidebar', () => {
       )
       fireEvent.click(screen.getByRole('button', { name: 'Unlink' }))
       expect(onUnlinkCuts).toHaveBeenCalledWith('board_t1', 'cut_1')
+    })
+  })
+
+  describe('ColorControl', () => {
+    it('renders the custom color input when a part is selected', () => {
+      render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+      expect(screen.getByLabelText('Custom color')).toBeTruthy()
+    })
+
+    it('does not render the color control when nothing is selected', () => {
+      render(<Sidebar {...props({ selectedId: null })} />)
+      expect(screen.queryByLabelText('Custom color')).toBeNull()
+    })
+
+    it('clicking a preset swatch calls onUpdate with that color', () => {
+      const onUpdate = vi.fn()
+      render(<Sidebar {...props({ selectedId: 'board_t1', onUpdate })} />)
+      fireEvent.click(screen.getByLabelText('Color #8ecae6'))
+      expect(onUpdate).toHaveBeenCalledOnce()
+      const [, updater] = onUpdate.mock.calls[0] as [PartId, (p: Part) => Part]
+      expect(updater(makeBoard()).color).toBe('#8ecae6')
+      // No historyLabel — color edits coalesce in undo history
+      expect(onUpdate.mock.calls[0]).toHaveLength(2)
+    })
+
+    it('changing the native color input calls onUpdate with the new color', () => {
+      const onUpdate = vi.fn()
+      render(<Sidebar {...props({ selectedId: 'board_t1', onUpdate })} />)
+      fireEvent.change(screen.getByLabelText('Custom color'), {
+        target: { value: '#123456' },
+      })
+      expect(onUpdate).toHaveBeenCalledOnce()
+      const [, updater] = onUpdate.mock.calls[0] as [PartId, (p: Part) => Part]
+      expect(updater(makeBoard()).color).toBe('#123456')
+      // No historyLabel — color edits coalesce in undo history
+      expect(onUpdate.mock.calls[0]).toHaveLength(2)
+    })
+
+    it('the swatch matching part.color shows a selected ring', () => {
+      render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+      expect(screen.getByLabelText('Color #d4a373').className).toContain('ring-2')
+    })
+
+    it('no swatch shows a selected ring when the color is custom', () => {
+      const scene = { parts: [makeBoard({ color: '#ff0000' })] }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
+      for (const c of PART_COLORS) {
+        expect(screen.getByLabelText(`Color ${c}`).className).not.toContain('ring-2')
+      }
     })
   })
 })

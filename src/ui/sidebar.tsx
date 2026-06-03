@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import type { CutDef, CutId, Part, PartId, Scene } from '../scene/types'
+import type { BoardPart, CutDef, CutId, Part, PartId, Scene } from '../scene/types'
 import { useDebouncedCallback } from './useDebouncedCallback'
 import { faceAxes } from '../scene/snapMath'
+import { PART_COLORS } from '../scene/palette'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -321,6 +322,43 @@ function CutRow({
   )
 }
 
+function ColorControl({
+  part,
+  onUpdate,
+}: {
+  part: BoardPart
+  onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
+}) {
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1">
+      {PART_COLORS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          title={c}
+          aria-label={`Color ${c}`}
+          onClick={() => onUpdate(part.id, (p) => ({ ...p, color: c }))}
+          className={`h-5 w-5 rounded-sm border border-border ${
+            part.color === c ? 'ring-2 ring-foreground' : ''
+          }`}
+          style={{ background: c }}
+        />
+      ))}
+      <input
+        type="color"
+        aria-label="Custom color"
+        title="Custom color"
+        value={part.color}
+        onChange={(e) => {
+          const color = e.target.value
+          onUpdate(part.id, (p) => ({ ...p, color }))
+        }}
+        className="h-5 w-8 rounded-sm border border-border bg-transparent p-0"
+      />
+    </div>
+  )
+}
+
 function EditPanel({
   part,
   onUpdate,
@@ -398,6 +436,9 @@ function EditPanel({
           <option value="Hardboard" />
         </datalist>
       </div>
+
+      {/* Color picker */}
+      <ColorControl part={part} onUpdate={onUpdate} />
 
       {/* Shape section */}
       <Collapsible open={shapeOpen} onOpenChange={setShapeOpen}>
