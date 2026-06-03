@@ -522,6 +522,47 @@ describe('useFile', () => {
     expect(loaded.scene.parts[0].visible).toBe(true)
   })
 
+  it("defaults material to '' when loading a file without material data", async () => {
+    const fixtureNoMaterial: ZimmuFile = {
+      ...FIXTURE,
+      scene: {
+        parts: [
+          {
+            kind: 'board' as const,
+            id: 'board_old',
+            label: 'Board 1',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            color: '#d4a373',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ' as const,
+            cuts: [],
+            visible: true,
+            // no material field — simulates a pre-material file
+          } as unknown as Part,
+        ],
+      },
+    }
+
+    const mockHandle = {
+      name: 'old.zimmu',
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockResolvedValue({
+        text: vi.fn().mockResolvedValue(JSON.stringify(fixtureNoMaterial)),
+      }),
+    } as unknown as FileSystemFileHandle
+    vi.mocked(idb.readHandle).mockResolvedValue(mockHandle)
+    const onFileLoaded = vi.fn()
+
+    const { result } = renderHook(() => useFile(makeInput({ onFileLoaded })))
+    await waitFor(() => expect(result.current.fileReady).toBe(true))
+
+    const loaded = vi.mocked(onFileLoaded).mock.calls[0][0] as ZimmuFile
+    expect(loaded.scene.parts[0].material).toBe('')
+  })
+
   it('preserves visible: false when loading a file with a hidden part', async () => {
     const fixtureHidden: ZimmuFile = {
       ...FIXTURE,
