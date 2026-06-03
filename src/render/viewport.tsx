@@ -397,6 +397,7 @@ export function Viewport({
         el.rotation.copy(existing.rotation)
         existing.visible = part.visible
         el.visible = part.visible
+        ;(existing.material as THREE.MeshStandardMaterial).color.set(part.color)
       }
     }
 
