@@ -1,6 +1,7 @@
 import type { Part } from '../scene/types'
 
 export interface GroupedRow {
+  key: string
   qty: number
   labels: string
   material: string
@@ -25,6 +26,7 @@ export function groupParts(parts: Part[]): GroupedRow[] {
     } else {
       order.push(key)
       map.set(key, {
+        key,
         qty: 1,
         labels: p.label,
         material: p.material,

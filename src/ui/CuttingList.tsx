@@ -78,8 +78,8 @@ export function CuttingList({ parts, projectName, onClose }: CuttingListProps) {
                 </td>
               </tr>
             ) : (
-              rows.map((row, i) => (
-                <tr key={i} className="border-b border-border/30">
+              rows.map((row) => (
+                <tr key={row.key} className="border-b border-border/30">
                   <td className="py-1.5 pr-2 text-xs">{row.qty}</td>
                   <td className="py-1.5 px-2 text-xs">{row.labels}</td>
                   <td className="py-1.5 px-2 text-xs">{row.material || '—'}</td>
