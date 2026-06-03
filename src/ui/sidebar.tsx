@@ -389,15 +389,15 @@ function EditPanel({
             onUpdate(part.id, (p) => ({ ...p, material }))
           }}
         />
+        <datalist id={MATERIAL_DATALIST_ID}>
+          <option value="Solid timber" />
+          <option value="Plywood" />
+          <option value="MDF" />
+          <option value="OSB" />
+          <option value="LVL" />
+          <option value="Hardboard" />
+        </datalist>
       </div>
-      <datalist id={MATERIAL_DATALIST_ID}>
-        <option value="Solid timber" />
-        <option value="Plywood" />
-        <option value="MDF" />
-        <option value="OSB" />
-        <option value="LVL" />
-        <option value="Hardboard" />
-      </datalist>
 
       {/* Shape section */}
       <Collapsible open={shapeOpen} onOpenChange={setShapeOpen}>
