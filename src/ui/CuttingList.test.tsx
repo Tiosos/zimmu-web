@@ -171,8 +171,11 @@ describe('CuttingList', () => {
     cleanup()
   })
 
-  it('renders a row for each part', () => {
-    const parts = [makePart(), makePart({ id: 'p2', label: 'Right Side' })]
+  it('renders a row for each distinct dimension group', () => {
+    const parts = [
+      makePart({ id: 'p1', label: 'Left Side', length: 600 }),
+      makePart({ id: 'p2', label: 'Right Side', length: 800 }),
+    ]
     render(<CuttingList parts={parts} projectName="Test" onClose={vi.fn()} />)
     expect(screen.getByText('Left Side')).toBeTruthy()
     expect(screen.getByText('Right Side')).toBeTruthy()
@@ -180,11 +183,14 @@ describe('CuttingList', () => {
 
   it('renders table column headers', () => {
     render(<CuttingList parts={[]} projectName="Test" onClose={vi.fn()} />)
-    expect(screen.getByText('Label')).toBeTruthy()
+    expect(screen.getByText('Qty')).toBeTruthy()
+    expect(screen.getByText('Labels')).toBeTruthy()
+    expect(screen.getByText('Material')).toBeTruthy()
     expect(screen.getByText('Length (mm)')).toBeTruthy()
     expect(screen.getByText('Width (mm)')).toBeTruthy()
     expect(screen.getByText('Thickness (mm)')).toBeTruthy()
     expect(screen.getByText('Cuts')).toBeTruthy()
+    expect(screen.queryByText('Label')).toBeNull()
   })
 
   it('renders correct field values in data row', () => {
@@ -206,11 +212,13 @@ describe('CuttingList', () => {
     )
     const rows = screen.getAllByRole('row')
     // rows[0] = header, rows[1] = first data row
-    expect(rows[1].textContent).toContain('Left Side')
+    expect(rows[1].textContent).toContain('1') // qty
+    expect(rows[1].textContent).toContain('Left Side') // labels
+    expect(rows[1].textContent).toContain('—') // material blank → dash
     expect(rows[1].textContent).toContain('600')
     expect(rows[1].textContent).toContain('300')
     expect(rows[1].textContent).toContain('18')
-    expect(rows[1].textContent).toContain('1')
+    expect(rows[1].textContent).toContain('1') // cuts
   })
 
   it('shows "No parts" when parts array is empty', () => {

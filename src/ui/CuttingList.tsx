@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import type { Part } from '../scene/types'
-import { buildCsv } from './buildCsv'
+import { buildCsv, groupParts } from './buildCsv'
 import { Button } from '@/components/ui/button'
 
 interface CuttingListProps {
@@ -19,6 +19,7 @@ export function CuttingList({ parts, projectName, onClose }: CuttingListProps) {
   }, [onClose])
 
   const csv = buildCsv(parts)
+  const rows = groupParts(parts)
 
   const handleDownload = () => {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
@@ -42,7 +43,7 @@ export function CuttingList({ parts, projectName, onClose }: CuttingListProps) {
       <div
         data-testid="cl-panel"
         onClick={(e) => e.stopPropagation()}
-        className="bg-card border border-border rounded-lg p-6 min-w-[480px] max-w-[640px] max-h-[80vh] overflow-auto shadow-2xl text-foreground text-sm"
+        className="bg-card border border-border rounded-lg p-6 min-w-[560px] max-w-[720px] max-h-[80vh] overflow-auto shadow-2xl text-foreground text-sm"
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-foreground/90 m-0">Cutting List</h2>
@@ -60,7 +61,9 @@ export function CuttingList({ parts, projectName, onClose }: CuttingListProps) {
         <table className="w-full border-collapse mb-4">
           <thead>
             <tr className="border-b border-border text-muted-foreground text-left">
-              <th className="pb-2 pr-2 font-medium text-xs">Label</th>
+              <th className="pb-2 pr-2 font-medium text-xs">Qty</th>
+              <th className="pb-2 px-2 font-medium text-xs">Labels</th>
+              <th className="pb-2 px-2 font-medium text-xs">Material</th>
               <th className="pb-2 px-2 font-medium text-xs">Length (mm)</th>
               <th className="pb-2 px-2 font-medium text-xs">Width (mm)</th>
               <th className="pb-2 px-2 font-medium text-xs">Thickness (mm)</th>
@@ -68,20 +71,22 @@ export function CuttingList({ parts, projectName, onClose }: CuttingListProps) {
             </tr>
           </thead>
           <tbody>
-            {parts.length === 0 ? (
+            {rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-3 text-muted-foreground text-center text-xs">
+                <td colSpan={7} className="py-3 text-muted-foreground text-center text-xs">
                   No parts
                 </td>
               </tr>
             ) : (
-              parts.map((p) => (
-                <tr key={p.id} className="border-b border-border/30">
-                  <td className="py-1.5 pr-2 text-xs">{p.label}</td>
-                  <td className="py-1.5 px-2 text-xs">{p.length}</td>
-                  <td className="py-1.5 px-2 text-xs">{p.width}</td>
-                  <td className="py-1.5 px-2 text-xs">{p.thickness}</td>
-                  <td className="py-1.5 px-2 text-xs">{p.cuts.length}</td>
+              rows.map((row, i) => (
+                <tr key={i} className="border-b border-border/30">
+                  <td className="py-1.5 pr-2 text-xs">{row.qty}</td>
+                  <td className="py-1.5 px-2 text-xs">{row.labels}</td>
+                  <td className="py-1.5 px-2 text-xs">{row.material || '—'}</td>
+                  <td className="py-1.5 px-2 text-xs">{row.length}</td>
+                  <td className="py-1.5 px-2 text-xs">{row.width}</td>
+                  <td className="py-1.5 px-2 text-xs">{row.thickness}</td>
+                  <td className="py-1.5 px-2 text-xs">{row.cuts}</td>
                 </tr>
               ))
             )}
