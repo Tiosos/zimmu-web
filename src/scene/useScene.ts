@@ -5,6 +5,7 @@ import type { OcctWorkerApi } from '../geom/occt.worker'
 import type { BoardPart, Part, PartId, Scene, CutDef, CutId } from './types'
 import { shapeKey } from './utils'
 import { faceAxes } from './snapMath'
+import { PART_COLORS } from './palette'
 
 interface HistoryEntry {
   label: string
@@ -14,17 +15,6 @@ interface HistoryEntry {
 }
 
 const MAX_HISTORY = 50
-
-const PART_COLORS = [
-  '#d4a373',
-  '#8ecae6',
-  '#95d5b2',
-  '#ffb703',
-  '#cdb4db',
-  '#a8dadc',
-  '#f4a261',
-  '#b7b7a4',
-]
 
 // Lazy singleton — not instantiated at module load so vi.stubGlobal('Worker') works in tests
 let _occt: ReturnType<typeof wrap<OcctWorkerApi>> | null = null
