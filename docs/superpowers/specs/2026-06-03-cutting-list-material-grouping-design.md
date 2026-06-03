@@ -45,9 +45,67 @@ export interface BoardPart {
 
 `material: ''` is the default. An empty string renders as `—` in the cutting list and is omitted from the grouping key comparison (two boards both with `material: ''` still group together).
 
-### Backward compatibility
+### Backward compatibility — `src/scene/useFile.ts`
 
-`src/scene/useFile.ts` load path normalises missing fields with `material: p.material ?? ''` when deserialising a stored `Part`. No file format version bump — the change is additive and old `.zimmu` files gain a blank material field on load.
+`parseFile()` already normalises optional fields in the `parts.map()` inside the returned scene. Add `material` to that same spread:
+
+```ts
+// existing line in parseFile():
+scene: { parts: parts.map((p) => ({ ...p, cuts: p.cuts ?? [], visible: p.visible ?? true })) }
+
+// after change:
+scene: { parts: parts.map((p) => ({ ...p, cuts: p.cuts ?? [], visible: p.visible ?? true, material: p.material ?? '' })) }
+```
+
+No file format version bump — the change is additive and old `.zimmu` files gain a blank material field on load.
+
+### New parts — `src/scene/useScene.ts`
+
+Two `BoardPart` literal constructions in `useScene.ts` will be TypeScript errors once `material: string` is required. Both need `material: ''` added:
+
+1. **`makeDefaultBoard()`** (the initial board created on app start):
+```ts
+function makeDefaultBoard(): BoardPart {
+  return {
+    kind: 'board',
+    id: `board_${crypto.randomUUID()}`,
+    label: 'Board 1',
+    length: 200,
+    width: 100,
+    thickness: 25,
+    material: '',          // ADD THIS
+    color: PART_COLORS[0],
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+  }
+}
+```
+
+2. **`onAdd()` inline construction** (the board created when the user clicks "+ Add board"):
+```ts
+const part: BoardPart = {
+  kind: 'board',
+  id,
+  label,
+  length: 200,
+  width: 100,
+  thickness: 25,
+  material: '',          // ADD THIS
+  color: PART_COLORS[colorIndex.current % PART_COLORS.length],
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  rotationOrder: 'XYZ',
+  cuts: [],
+  visible: true,
+}
+```
+
+The `duplicate` (`clone`) construction in `useScene.ts` is fine — it does `{ ...orig, ... }` which spreads `material` automatically.
+
+`src/scene/useScene.test.ts` does **not** need changes — its tests access individual properties (`.label`, `.kind`, `.visible`) rather than full object equality, so adding `material: ''` to constructed parts will not break any existing test.
 
 ---
 
@@ -162,7 +220,7 @@ The `buildCsv(parts)` call, `Copy CSV`, and `Download .csv` buttons are unchange
 
 **Update existing `buildCsv` tests:**
 - Header assertion → `'Qty,Labels,Material,Length (mm),Width (mm),Thickness (mm),Cuts'`
-- Row format assertion → `'1,Left Side,,600,300,18,0'` (material blank, no quoting needed)
+- Row format assertion → `'1,Left Side,,600,300,18,0'` (material blank — the two consecutive commas `,,` are correct RFC 4180 for an empty field, not a typo)
 - Cut count test → `'1,Left Side,,600,300,18,2'`
 - Comma-in-label test → `'1,"Left, Side",,600,300,18,0'`
 - Quote-in-label test → `'1,"5"" shelf",,600,300,18,0'`
@@ -185,6 +243,8 @@ The `buildCsv(parts)` call, `Copy CSV`, and `Download .csv` buttons are unchange
 
 **New test:** When a part is selected, a material input is present. Typing a value calls `onUpdate` with the updated `material` field.
 
+Query the input by placeholder: `screen.getByPlaceholderText('Material (optional)')`. Fire a change event and assert that the `onUpdate` mock was called with an updater that sets `material` to the new value.
+
 ---
 
 ## Files Changed
@@ -192,7 +252,8 @@ The `buildCsv(parts)` call, `Copy CSV`, and `Download .csv` buttons are unchange
 | File | Change |
 |------|--------|
 | `src/scene/types.ts` | Add `material: string` to `BoardPart` |
-| `src/scene/useFile.ts` | Add `material: p.material ?? ''` in load normalisation |
+| `src/scene/useFile.ts` | Add `material: p.material ?? ''` in `parseFile()` parts map |
+| `src/scene/useScene.ts` | Add `material: ''` to `makeDefaultBoard()` and `onAdd()` constructions |
 | `src/ui/buildCsv.ts` | Add `GroupedRow`, `groupParts()`; rewrite `buildCsv` to use it |
 | `src/ui/CuttingList.tsx` | Use `groupParts()`; update table columns (5 → 7) |
 | `src/ui/sidebar.tsx` | Add material input in `EditPanel` |
