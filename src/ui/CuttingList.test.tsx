@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
-import { buildCsv } from './buildCsv'
+import { buildCsv, groupParts } from './buildCsv'
 import { CuttingList } from './CuttingList'
 import type { Part } from '../scene/types'
 
@@ -25,17 +25,20 @@ function makePart(overrides: Partial<Part> = {}): Part {
 
 describe('buildCsv', () => {
   it('returns only the header when parts array is empty', () => {
-    expect(buildCsv([])).toBe('Label,Length (mm),Width (mm),Thickness (mm),Cuts')
+    expect(buildCsv([])).toBe('Qty,Labels,Material,Length (mm),Width (mm),Thickness (mm),Cuts')
   })
 
-  it('returns header + one data row per part', () => {
-    const csv = buildCsv([makePart(), makePart({ id: 'p2', label: 'Right Side' })])
-    expect(csv.split('\n')).toHaveLength(3)
+  it('groups two identical parts into one data row', () => {
+    const csv = buildCsv([
+      makePart({ id: 'p1', label: 'Left Side' }),
+      makePart({ id: 'p2', label: 'Right Side' }),
+    ])
+    expect(csv.split('\n')).toHaveLength(2)
   })
 
   it('formats a data row with correct field values', () => {
     const csv = buildCsv([makePart({ length: 600, width: 300, thickness: 18 })])
-    expect(csv.split('\n')[1]).toBe('Left Side,600,300,18,0')
+    expect(csv.split('\n')[1]).toBe('1,Left Side,,600,300,18,0')
   })
 
   it('includes the cut count', () => {
@@ -56,17 +59,94 @@ describe('buildCsv', () => {
       },
     ]
     const csv = buildCsv([makePart({ cuts })])
-    expect(csv.split('\n')[1]).toBe('Left Side,600,300,18,2')
+    expect(csv.split('\n')[1]).toBe('1,Left Side,,600,300,18,2')
   })
 
-  it('wraps label in double quotes when it contains a comma', () => {
+  it('wraps labels in double quotes when they contain a comma', () => {
     const csv = buildCsv([makePart({ label: 'Left, Side' })])
-    expect(csv.split('\n')[1]).toMatch(/^"Left, Side",/)
+    expect(csv.split('\n')[1]).toMatch(/^1,"Left, Side",,/)
   })
 
-  it('escapes embedded double-quotes as "" per RFC 4180', () => {
+  it('escapes embedded double-quotes in labels as "" per RFC 4180', () => {
     const csv = buildCsv([makePart({ label: '5" shelf' })])
-    expect(csv.split('\n')[1]).toMatch(/^"5"" shelf",/)
+    expect(csv.split('\n')[1]).toMatch(/^1,"5"" shelf",,/)
+  })
+})
+
+describe('groupParts', () => {
+  it('returns empty array for empty input', () => {
+    expect(groupParts([])).toEqual([])
+  })
+
+  it('returns one row for a single part', () => {
+    const rows = groupParts([makePart()])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].qty).toBe(1)
+    expect(rows[0].labels).toBe('Left Side')
+    expect(rows[0].material).toBe('')
+    expect(rows[0].length).toBe(600)
+    expect(rows[0].width).toBe(300)
+    expect(rows[0].thickness).toBe(18)
+    expect(rows[0].cuts).toBe(0)
+  })
+
+  it('merges two parts with identical L×W×T and material into one row', () => {
+    const parts = [makePart({ id: 'p1', label: 'A' }), makePart({ id: 'p2', label: 'B' })]
+    const rows = groupParts(parts)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].qty).toBe(2)
+    expect(rows[0].labels).toBe('A, B')
+    expect(rows[0].cuts).toBe(0)
+  })
+
+  it('keeps two rows when same L×W×T but different material', () => {
+    const parts = [
+      makePart({ id: 'p1', label: 'A', material: 'Plywood' }),
+      makePart({ id: 'p2', label: 'B', material: 'MDF' }),
+    ]
+    const rows = groupParts(parts)
+    expect(rows).toHaveLength(2)
+    expect(rows[0].qty).toBe(1)
+    expect(rows[1].qty).toBe(1)
+  })
+
+  it('keeps two rows when same material but different dimensions', () => {
+    const parts = [
+      makePart({ id: 'p1', label: 'A', length: 600 }),
+      makePart({ id: 'p2', label: 'B', length: 800 }),
+    ]
+    const rows = groupParts(parts)
+    expect(rows).toHaveLength(2)
+  })
+
+  it('sums cuts across grouped parts', () => {
+    const cut = {
+      id: 'c1',
+      label: 'C1',
+      face: '+X' as const,
+      position: { x: 0, y: 0, z: 0 },
+      size: { x: 10, y: 20, z: 20 },
+    }
+    const parts = [
+      makePart({ id: 'p1', label: 'A', cuts: [cut] }),
+      makePart({ id: 'p2', label: 'B', cuts: [cut] }),
+    ]
+    const rows = groupParts(parts)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].cuts).toBe(2)
+  })
+
+  it('preserves insertion order (first-seen group key wins)', () => {
+    const parts = [
+      makePart({ id: 'p1', label: 'A', length: 800 }),
+      makePart({ id: 'p2', label: 'B', length: 600 }),
+      makePart({ id: 'p3', label: 'C', length: 800 }),
+    ]
+    const rows = groupParts(parts)
+    expect(rows).toHaveLength(2)
+    expect(rows[0].length).toBe(800)
+    expect(rows[0].labels).toBe('A, C')
+    expect(rows[1].length).toBe(600)
   })
 })
 
@@ -185,7 +265,9 @@ describe('CuttingList', () => {
 
     expect(writeText).toHaveBeenCalledOnce()
     const csvArg = writeText.mock.calls[0][0] as string
-    expect(csvArg.split('\n')[0]).toBe('Label,Length (mm),Width (mm),Thickness (mm),Cuts')
-    expect(csvArg).toContain('Left Side,600,300,18,0')
+    expect(csvArg.split('\n')[0]).toBe(
+      'Qty,Labels,Material,Length (mm),Width (mm),Thickness (mm),Cuts',
+    )
+    expect(csvArg).toContain('1,Left Side,,600,300,18,0')
   })
 })
