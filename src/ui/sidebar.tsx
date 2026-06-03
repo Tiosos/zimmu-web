@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
+const MATERIAL_DATALIST_ID = 'zimmu-material-suggestions'
+
 interface SidebarProps {
   scene: Scene
   occtReady: boolean
@@ -375,6 +377,27 @@ function EditPanel({
           }}
         />
       </div>
+
+      {/* Material input */}
+      <div className="mb-2">
+        <Input
+          list={MATERIAL_DATALIST_ID}
+          placeholder="Material (optional)"
+          value={part.material}
+          onChange={(e) => {
+            const material = e.target.value
+            onUpdate(part.id, (p) => ({ ...p, material }))
+          }}
+        />
+      </div>
+      <datalist id={MATERIAL_DATALIST_ID}>
+        <option value="Solid timber" />
+        <option value="Plywood" />
+        <option value="MDF" />
+        <option value="OSB" />
+        <option value="LVL" />
+        <option value="Hardboard" />
+      </datalist>
 
       {/* Shape section */}
       <Collapsible open={shapeOpen} onOpenChange={setShapeOpen}>

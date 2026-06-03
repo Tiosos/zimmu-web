@@ -127,6 +127,22 @@ describe('Sidebar', () => {
     expect(screen.getByText(/Rotation/i)).toBeTruthy()
   })
 
+  it('renders material input when a part is selected', () => {
+    render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+    expect(screen.getByPlaceholderText('Material (optional)')).toBeTruthy()
+  })
+
+  it('material input change calls onUpdate with updated material', () => {
+    const onUpdate = vi.fn()
+    render(<Sidebar {...props({ selectedId: 'board_t1', onUpdate })} />)
+    const input = screen.getByPlaceholderText('Material (optional)')
+    fireEvent.change(input, { target: { value: 'Plywood' } })
+    expect(onUpdate).toHaveBeenCalledOnce()
+    const [, updater] = onUpdate.mock.calls[0] as [PartId, (p: Part) => Part]
+    const result = updater(makeBoard())
+    expect(result.material).toBe('Plywood')
+  })
+
   it('hides edit panel when nothing is selected', () => {
     render(<Sidebar {...props({ selectedId: null })} />)
     expect(screen.queryByText('▾ Shape')).toBeNull()
