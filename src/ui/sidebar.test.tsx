@@ -3,6 +3,17 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { Sidebar } from './sidebar'
 import type { CutDef, CutId, Part, PartId, Scene } from '../scene/types'
 
+function makeCut(overrides: Partial<CutDef> = {}): CutDef {
+  return {
+    id: 'cut_1',
+    label: 'Dado',
+    face: '+Z' as const,
+    position: { x: 0, y: 0, z: 0 },
+    size: { x: 20, y: 20, z: 10 },
+    ...overrides,
+  }
+}
+
 function makeBoard(overrides: Partial<Part> = {}): Part {
   return {
     kind: 'board',
@@ -194,5 +205,105 @@ describe('Sidebar', () => {
     render(<Sidebar {...props({ scene, selectedId: 'board_t1', onRemoveCut })} />)
     fireEvent.click(screen.getByTitle('Delete cut'))
     expect(onRemoveCut).toHaveBeenCalledWith('board_t1', 'cut_1')
+  })
+
+  describe('CutRow accordion and pairing', () => {
+    it('cut row is closed by default when not the last placed cut', () => {
+      const scene = { parts: [makeBoard({ cuts: [makeCut()] })] }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: null })} />)
+      expect(screen.queryByText('Size')).toBeNull()
+    })
+
+    it('lastPlacedCutId auto-opens the matching cut row', () => {
+      const scene = { parts: [makeBoard({ cuts: [makeCut()] })] }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
+      expect(screen.getByText('Size')).toBeTruthy()
+    })
+
+    it('clicking the cut row header opens it', () => {
+      const scene = { parts: [makeBoard({ cuts: [makeCut()] })] }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: null })} />)
+      fireEvent.click(screen.getByText('Dado'))
+      expect(screen.getByText('Size')).toBeTruthy()
+    })
+
+    it('shows "Link to cut…" when cut is unpaired and other parts have cuts', () => {
+      const other = makeBoard({
+        id: 'board_t2',
+        label: 'Board 2',
+        cuts: [makeCut({ id: 'cut_2', label: 'Shelf End' })],
+      })
+      const scene = { parts: [makeBoard({ cuts: [makeCut()] }), other] }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
+      expect(screen.getByText('Link to cut…')).toBeTruthy()
+    })
+
+    it('shows no link UI when cut is unpaired and no other parts have cuts', () => {
+      const scene = { parts: [makeBoard({ cuts: [makeCut()] })] }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
+      expect(screen.queryByText('Link to cut…')).toBeNull()
+    })
+
+    it('selecting a cut from the dropdown calls onLinkCuts with correct args', () => {
+      const onLinkCuts = vi.fn()
+      const other = makeBoard({
+        id: 'board_t2',
+        label: 'Board 2',
+        cuts: [makeCut({ id: 'cut_2', label: 'Shelf End' })],
+      })
+      const scene = { parts: [makeBoard({ cuts: [makeCut()] }), other] }
+      render(
+        <Sidebar
+          {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1', onLinkCuts })}
+        />,
+      )
+      fireEvent.click(screen.getByText('Link to cut…').closest('button')!)
+      fireEvent.click(screen.getByRole('option', { name: 'Board 2 › Shelf End' }))
+      expect(onLinkCuts).toHaveBeenCalledWith('board_t1', 'cut_1', 'board_t2', 'cut_2')
+    })
+
+    it('shows paired status when cut has a valid pairedCutId', () => {
+      const cut2 = makeCut({ id: 'cut_2', label: 'Shelf End' })
+      const other = makeBoard({ id: 'board_t2', label: 'Board 2', cuts: [cut2] })
+      const cut = makeCut({ pairedCutId: 'board_t2:cut_2' })
+      const scene = { parts: [makeBoard({ cuts: [cut] }), other] }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
+      expect(screen.getByText(/↔ Board 2 › Shelf End/)).toBeTruthy()
+    })
+
+    it('Unlink button calls onUnlinkCuts for a valid pair', () => {
+      const onUnlinkCuts = vi.fn()
+      const cut2 = makeCut({ id: 'cut_2', label: 'Shelf End' })
+      const other = makeBoard({ id: 'board_t2', label: 'Board 2', cuts: [cut2] })
+      const cut = makeCut({ pairedCutId: 'board_t2:cut_2' })
+      const scene = { parts: [makeBoard({ cuts: [cut] }), other] }
+      render(
+        <Sidebar
+          {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1', onUnlinkCuts })}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Unlink' }))
+      expect(onUnlinkCuts).toHaveBeenCalledWith('board_t1', 'cut_1')
+    })
+
+    it('shows "Pair lost" when pairedCutId references a missing cut', () => {
+      const cut = makeCut({ pairedCutId: 'board_missing:cut_missing' })
+      const scene = { parts: [makeBoard({ cuts: [cut] })] }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
+      expect(screen.getByText(/Pair lost/)).toBeTruthy()
+    })
+
+    it('Unlink button in pair-lost state calls onUnlinkCuts', () => {
+      const onUnlinkCuts = vi.fn()
+      const cut = makeCut({ pairedCutId: 'board_missing:cut_missing' })
+      const scene = { parts: [makeBoard({ cuts: [cut] })] }
+      render(
+        <Sidebar
+          {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1', onUnlinkCuts })}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Unlink' }))
+      expect(onUnlinkCuts).toHaveBeenCalledWith('board_t1', 'cut_1')
+    })
   })
 })
