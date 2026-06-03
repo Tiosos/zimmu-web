@@ -2,6 +2,19 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import type { CutDef, CutId, Part, PartId, Scene } from '../scene/types'
 import { useDebouncedCallback } from './useDebouncedCallback'
 import { faceAxes } from '../scene/snapMath'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface SidebarProps {
   scene: Scene
@@ -28,58 +41,14 @@ interface SidebarProps {
   onToggleVisible: (id: PartId) => void
 }
 
-const s = {
-  row: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '5px 8px',
-    cursor: 'pointer',
-    userSelect: 'none',
-  } as React.CSSProperties,
-  iconBtn: {
-    background: 'none',
-    border: 'none',
-    color: '#888',
-    cursor: 'pointer',
-    fontSize: 14,
-    padding: '0 2px',
-    lineHeight: 1,
-  } as React.CSSProperties,
-  inputRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
-  } as React.CSSProperties,
-  input: {
-    flex: 1,
-    background: '#111',
-    border: '1px solid #444',
-    color: '#ccc',
-    padding: '3px 6px',
-    fontSize: 12,
-    borderRadius: 2,
-    minWidth: 0,
-  } as React.CSSProperties,
-  suffix: { fontSize: 11, color: '#666', flexShrink: 0 } as React.CSSProperties,
-  groupHdr: {
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    color: '#888',
-    cursor: 'pointer',
-    padding: '6px 0 2px',
-    userSelect: 'none',
-  } as React.CSSProperties,
-}
-
 function DimInput({
+  label,
   value,
   onCommit,
   suffix,
   min = 1,
 }: {
+  label: string
   value: number
   onCommit: (v: number) => void
   suffix: string
@@ -94,11 +63,11 @@ function DimInput({
   }, [value])
 
   return (
-    <div style={s.inputRow}>
-      <input
+    <div className="flex items-center gap-1.5 mb-1">
+      <Label className="w-4 shrink-0 text-right">{label}</Label>
+      <Input
         type="number"
         step="any"
-        style={s.input}
         value={localValue}
         onChange={(e) => {
           setLocalValue(e.target.value)
@@ -118,17 +87,20 @@ function DimInput({
             setLocalValue(String(v))
           }
         }}
+        className="flex-1 min-w-0"
       />
-      <span style={s.suffix}>{suffix}</span>
+      <span className="text-[11px] text-muted-foreground shrink-0 w-10">{suffix}</span>
     </div>
   )
 }
 
 function NumInput({
+  label,
   value,
   onChange,
   suffix,
 }: {
+  label: string
   value: number
   onChange: (v: number) => void
   suffix: string
@@ -141,11 +113,11 @@ function NumInput({
   }, [value])
 
   return (
-    <div style={s.inputRow}>
-      <input
+    <div className="flex items-center gap-1.5 mb-1">
+      <Label className="w-4 shrink-0 text-right">{label}</Label>
+      <Input
         type="number"
         step="any"
-        style={s.input}
         value={localValue}
         onChange={(e) => {
           setLocalValue(e.target.value)
@@ -157,9 +129,18 @@ function NumInput({
         onBlur={() => {
           isFocused.current = false
         }}
+        className="flex-1 min-w-0"
       />
-      <span style={s.suffix}>{suffix}</span>
+      <span className="text-[11px] text-muted-foreground shrink-0 w-10">{suffix}</span>
     </div>
+  )
+}
+
+function SectionHeader({ open, label }: { open: boolean; label: string }) {
+  return (
+    <CollapsibleTrigger className="w-full flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground py-1.5 cursor-pointer select-none hover:text-foreground transition-colors">
+      {open ? '▾' : '▸'} {label}
+    </CollapsibleTrigger>
   )
 }
 
@@ -184,7 +165,6 @@ function CutRow({
 }) {
   const [open, setOpen] = useState(defaultOpen)
 
-  // Build cut lookup once for pairing display
   const cutLookup = useMemo(() => {
     const map = new Map<string, { partId: PartId; cut: CutDef; partLabel: string }>()
     for (const p of scene.parts) {
@@ -198,7 +178,6 @@ function CutRow({
   const pairedEntry = cut.pairedCutId ? (cutLookup.get(cut.pairedCutId) ?? null) : null
   const pairLost = !!cut.pairedCutId && !pairedEntry
 
-  // All cuts on other boards for the link dropdown
   const linkOptions = useMemo(() => {
     const opts: Array<{ value: string; label: string }> = []
     for (const p of scene.parts) {
@@ -211,29 +190,34 @@ function CutRow({
   }, [scene.parts, partId])
 
   return (
-    <div style={{ borderTop: '1px solid #2a2a2a', paddingTop: 2 }}>
+    <div className="border-t border-border/30 pt-0.5">
       <div
-        style={{ ...s.groupHdr, display: 'flex', alignItems: 'center', gap: 4 }}
+        className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground py-1 cursor-pointer select-none hover:text-foreground transition-colors"
         onClick={() => setOpen((v) => !v)}
       >
         <span>{open ? '▾' : '▸'}</span>
-        <span style={{ flex: 1 }}>{cut.label}</span>
-        <span style={{ fontSize: 10, color: '#555', fontFamily: 'monospace' }}>{cut.face}</span>
-        <button
+        <span className="flex-1">{cut.label}</span>
+        <span className="font-mono text-[10px] text-border">{cut.face}</span>
+        <Button
+          variant="ghost"
+          size="icon"
           title="Delete cut"
-          style={{ ...s.iconBtn, color: '#c0392b' }}
+          className="h-5 w-5 text-destructive hover:text-destructive"
           onClick={(e) => {
             e.stopPropagation()
             onRemoveCut(partId, cut.id)
           }}
         >
           ✕
-        </button>
+        </Button>
       </div>
       {open && (
-        <div style={{ paddingLeft: 8 }}>
-          <div style={{ ...s.groupHdr, cursor: 'default' }}>Size</div>
+        <div className="pl-2">
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground pb-0.5 pt-1">
+            Size
+          </p>
           <DimInput
+            label="D"
             value={cut.size[faceAxes(cut.face).depth]}
             suffix="mm depth"
             min={0.1}
@@ -245,6 +229,7 @@ function CutRow({
             }
           />
           <DimInput
+            label="W"
             value={cut.size[faceAxes(cut.face).u]}
             suffix="mm width"
             min={0.1}
@@ -256,6 +241,7 @@ function CutRow({
             }
           />
           <DimInput
+            label="H"
             value={cut.size[faceAxes(cut.face).v]}
             suffix="mm height"
             min={0.1}
@@ -266,8 +252,11 @@ function CutRow({
               }))
             }
           />
-          <div style={{ ...s.groupHdr, cursor: 'default' }}>Offset</div>
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground pb-0.5 pt-1">
+            Offset
+          </p>
           <NumInput
+            label="U"
             value={cut.position[faceAxes(cut.face).u]}
             suffix="mm U"
             onChange={(v) =>
@@ -278,6 +267,7 @@ function CutRow({
             }
           />
           <NumInput
+            label="V"
             value={cut.position[faceAxes(cut.face).v]}
             suffix="mm V"
             onChange={(v) =>
@@ -287,37 +277,40 @@ function CutRow({
               }))
             }
           />
-          <div style={{ marginTop: 4, fontSize: 11, color: '#666' }}>
+          <div className="mt-1 text-[11px] text-muted-foreground">
             {pairLost ? (
-              <span style={{ color: '#c0392b' }}>
+              <span className="text-destructive-foreground">
                 Pair lost{' '}
-                <button style={s.iconBtn} onClick={() => onUnlinkCuts(partId, cut.id)}>
+                <button className="underline ml-1" onClick={() => onUnlinkCuts(partId, cut.id)}>
                   Unlink
                 </button>
               </span>
             ) : pairedEntry ? (
               <span>
                 ↔ {pairedEntry.partLabel} › {pairedEntry.cut.label}{' '}
-                <button style={s.iconBtn} onClick={() => onUnlinkCuts(partId, cut.id)}>
+                <button className="underline ml-1" onClick={() => onUnlinkCuts(partId, cut.id)}>
                   Unlink
                 </button>
               </span>
             ) : linkOptions.length > 0 ? (
-              <select
-                style={{ ...s.input, fontSize: 11 }}
+              <Select
                 value=""
-                onChange={(e) => {
-                  const [pId, cId] = e.target.value.split(':') as [PartId, CutId]
+                onValueChange={(val) => {
+                  const [pId, cId] = val.split(':') as [PartId, CutId]
                   onLinkCuts(partId, cut.id, pId, cId)
                 }}
               >
-                <option value="">Link to cut…</option>
-                {linkOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="h-7 text-[11px]">
+                  <SelectValue placeholder="Link to cut…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {linkOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : null}
           </div>
         </div>
@@ -358,14 +351,13 @@ function EditPanel({
   }, [part.label])
 
   if (part.kind !== 'board') return null
-  // `autoFocus` fires on mount. EditPanel is keyed by part.id in Sidebar,
-  // so it remounts on every selection change — focusing the label each time.
+
   return (
-    <div style={{ padding: 8, borderTop: '1px solid #333' }}>
-      <div style={s.inputRow}>
-        <input
+    <div className="p-2 border-t border-border">
+      {/* Label input */}
+      <div className="mb-2">
+        <Input
           autoFocus
-          style={{ ...s.input, flex: 1 }}
           value={labelValue}
           onChange={(e) => {
             setLabelValue(e.target.value)
@@ -383,34 +375,38 @@ function EditPanel({
           }}
         />
       </div>
-      <div style={s.groupHdr} onClick={() => setShapeOpen((v) => !v)}>
-        {shapeOpen ? '▾' : '▸'} Shape
-      </div>
-      {shapeOpen && (
-        <>
+
+      {/* Shape section */}
+      <Collapsible open={shapeOpen} onOpenChange={setShapeOpen}>
+        <SectionHeader open={shapeOpen} label="Shape" />
+        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
           <DimInput
+            label="L"
             value={part.length}
             suffix="mm"
             onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, length: v }))}
           />
           <DimInput
+            label="W"
             value={part.width}
             suffix="mm"
             onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, width: v }))}
           />
           <DimInput
+            label="T"
             value={part.thickness}
             suffix="mm"
             onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, thickness: v }))}
           />
-        </>
-      )}
-      <div style={s.groupHdr} onClick={() => setPosOpen((v) => !v)}>
-        {posOpen ? '▾' : '▸'} Position
-      </div>
-      {posOpen && (
-        <>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Position section */}
+      <Collapsible open={posOpen} onOpenChange={setPosOpen}>
+        <SectionHeader open={posOpen} label="Position" />
+        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
           <NumInput
+            label="X"
             value={part.position.x}
             suffix="mm"
             onChange={(v) =>
@@ -418,6 +414,7 @@ function EditPanel({
             }
           />
           <NumInput
+            label="Y"
             value={part.position.y}
             suffix="mm"
             onChange={(v) =>
@@ -425,20 +422,22 @@ function EditPanel({
             }
           />
           <NumInput
+            label="Z"
             value={part.position.z}
             suffix="mm"
             onChange={(v) =>
               onUpdate(part.id, (p) => ({ ...p, position: { ...p.position, z: v } }))
             }
           />
-        </>
-      )}
-      <div style={s.groupHdr} onClick={() => setRotOpen((v) => !v)}>
-        {rotOpen ? '▾' : '▸'} Rotation
-      </div>
-      {rotOpen && (
-        <>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Rotation section */}
+      <Collapsible open={rotOpen} onOpenChange={setRotOpen}>
+        <SectionHeader open={rotOpen} label="Rotation" />
+        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
           <NumInput
+            label="X"
             value={part.rotation.x}
             suffix="°"
             onChange={(v) =>
@@ -446,6 +445,7 @@ function EditPanel({
             }
           />
           <NumInput
+            label="Y"
             value={part.rotation.y}
             suffix="°"
             onChange={(v) =>
@@ -453,17 +453,20 @@ function EditPanel({
             }
           />
           <NumInput
+            label="Z"
             value={part.rotation.z}
             suffix="°"
             onChange={(v) =>
               onUpdate(part.id, (p) => ({ ...p, rotation: { ...p.rotation, z: v } }))
             }
           />
-        </>
-      )}
-      <div style={s.groupHdr}>▾ Cuts</div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Cuts section — not collapsible; always shown */}
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground py-1.5">▾ Cuts</p>
       {part.cuts.length === 0 ? (
-        <div style={{ fontSize: 11, color: '#555', padding: '2px 0 4px' }}>No cuts</div>
+        <p className="text-[11px] text-muted-foreground py-0.5">No cuts</p>
       ) : (
         part.cuts.map((cut) => (
           <CutRow
@@ -509,196 +512,162 @@ export function Sidebar({
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
-  // Inject keyframes for pending spinner animation
-  useEffect(() => {
-    const style = document.createElement('style')
-    style.textContent =
-      '@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }'
-    document.head.appendChild(style)
-    return () => {
-      document.head.removeChild(style)
-    }
-  }, [])
-
   return (
-    <div
-      style={{
-        width: 240,
-        height: '100%',
-        background: '#1a1a1d',
-        borderLeft: '1px solid #333',
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-      }}
-    >
-      <div style={{ padding: '8px 8px 0' }}>
-        <button
-          onClick={onCutToggle}
-          style={{
-            width: '100%',
-            padding: '7px 0',
-            background: cutActive ? '#2a3a4a' : '#222',
-            color: cutActive ? '#6bb3cb' : '#888',
-            border: `1px solid ${cutActive ? '#3a5a6a' : '#333'}`,
-            borderRadius: 3,
-            cursor: 'pointer',
-            fontSize: 12,
-            marginBottom: 4,
-          }}
-        >
-          {cutActive ? 'Adding Cut' : 'Add Cut'}
-        </button>
-        <button
-          onClick={onSnapToggle}
-          style={{
-            width: '100%',
-            padding: '7px 0',
-            background: snapActive ? '#2a4a2a' : '#222',
-            color: snapActive ? '#6bcb6b' : '#888',
-            border: `1px solid ${snapActive ? '#3a6a3a' : '#333'}`,
-            borderRadius: 3,
-            cursor: 'pointer',
-            fontSize: 12,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 2,
-            lineHeight: 1.3,
-          }}
-        >
-          <span>{snapActive ? 'Snapping' : 'Snap faces'}</span>
-          {snapActive && (
-            <span style={{ fontSize: 10, color: '#aaa' }}>
-              {snapPhase === 'idle'
-                ? 'Click a face · Esc to cancel'
-                : 'Click target face · Esc to cancel'}
-            </span>
-          )}
-        </button>
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {scene.parts.length === 0 ? (
-          <div style={{ padding: 16, color: '#555', fontSize: 12, textAlign: 'center' }}>
-            No parts — add a board to start
-          </div>
-        ) : (
-          scene.parts.map((part) => {
-            const isPending = pendingIds.has(part.id)
-            const error = errors.get(part.id)
-            return (
-              <div
-                key={part.id}
-                style={{ ...s.row, background: part.id === selectedId ? '#2a2a2d' : 'transparent' }}
-                onClick={() => onSelect(part.id)}
-              >
-                {error ? (
-                  <span title={error} style={{ fontSize: 12, color: '#e74c3c' }}>
-                    ⚠
-                  </span>
-                ) : isPending ? (
+    <TooltipProvider delayDuration={300}>
+      <div className="w-60 h-full bg-card border-l border-border flex flex-col flex-shrink-0">
+        {/* Mode buttons */}
+        <div className="p-2 pb-0 flex flex-col gap-1">
+          <Button
+            variant={cutActive ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={onCutToggle}
+            className={`w-full text-xs h-8 ${cutActive ? 'border-blue-700/50 text-blue-300' : 'text-muted-foreground'}`}
+          >
+            {cutActive ? 'Adding Cut' : 'Add Cut'}
+          </Button>
+          <Button
+            variant={snapActive ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={onSnapToggle}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${snapActive ? 'border-green-700/50 text-green-300' : 'text-muted-foreground'}`}
+          >
+            <span>{snapActive ? 'Snapping' : 'Snap faces'}</span>
+            {snapActive && (
+              <span className="text-[10px] text-muted-foreground font-normal">
+                {snapPhase === 'idle'
+                  ? 'Click a face · Esc to cancel'
+                  : 'Click target face · Esc to cancel'}
+              </span>
+            )}
+          </Button>
+        </div>
+
+        {/* Parts list */}
+        <ScrollArea className="flex-1">
+          {scene.parts.length === 0 ? (
+            <p className="p-4 text-muted-foreground text-xs text-center">
+              No parts — add a board to start
+            </p>
+          ) : (
+            scene.parts.map((part) => {
+              const isPending = pendingIds.has(part.id)
+              const error = errors.get(part.id)
+              return (
+                <div
+                  key={part.id}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 cursor-pointer select-none ${
+                    part.id === selectedId ? 'bg-secondary' : 'hover:bg-secondary/50'
+                  }`}
+                  onClick={() => onSelect(part.id)}
+                >
+                  {error ? (
+                    <span title={error} className="text-xs text-destructive-foreground">
+                      ⚠
+                    </span>
+                  ) : isPending ? (
+                    <span className="text-xs text-muted-foreground animate-spin inline-block">
+                      ⟳
+                    </span>
+                  ) : (
+                    <div
+                      className="w-3 h-3 rounded-sm flex-shrink-0"
+                      style={{ background: part.color }}
+                    />
+                  )}
                   <span
-                    style={{
-                      fontSize: 12,
-                      color: '#888',
-                      display: 'inline-block',
-                      animation: 'spin 1s linear infinite',
-                    }}
+                    className={`flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-xs ${
+                      part.visible ? 'text-foreground' : 'text-muted-foreground'
+                    }`}
                   >
-                    ⟳
+                    {part.label}
                   </span>
-                ) : (
-                  <div
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 2,
-                      flexShrink: 0,
-                      background: part.color,
-                    }}
-                  />
-                )}
-                <span
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontSize: 12,
-                    color: part.visible ? '#ccc' : '#555',
-                  }}
-                >
-                  {part.label}
-                </span>
-                <button
-                  style={s.iconBtn}
-                  title={part.visible ? 'Hide' : 'Show'}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onToggleVisible(part.id)
-                  }}
-                >
-                  {part.visible ? '●' : '○'}
-                </button>
-                <button
-                  style={s.iconBtn}
-                  title="Duplicate"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDuplicate(part.id)
-                  }}
-                >
-                  ⧉
-                </button>
-                <button
-                  style={s.iconBtn}
-                  title="Delete"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onRemove(part.id)
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            )
-          })
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={part.visible ? 'Hide' : 'Show'}
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onToggleVisible(part.id)
+                        }}
+                      >
+                        {part.visible ? '●' : '○'}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{part.visible ? 'Hide' : 'Show'}</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Duplicate"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDuplicate(part.id)
+                        }}
+                      >
+                        ⧉
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Duplicate</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Delete"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRemove(part.id)
+                        }}
+                      >
+                        ✕
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete</TooltipContent>
+                  </Tooltip>
+                </div>
+              )
+            })
+          )}
+        </ScrollArea>
+
+        {/* Edit panel for selected part */}
+        {selectedPart && (
+          <EditPanel
+            key={selectedPart.id}
+            part={selectedPart}
+            onUpdate={onUpdate}
+            onUpdateCut={onUpdateCut}
+            onRemoveCut={onRemoveCut}
+            onLinkCuts={onLinkCuts}
+            onUnlinkCuts={onUnlinkCuts}
+            lastPlacedCutId={lastPlacedCutId}
+            scene={scene}
+            nextLabel={nextLabel}
+          />
         )}
+
+        {/* Add board footer */}
+        <div className="p-2 border-t border-border">
+          <Button
+            onClick={onAdd}
+            disabled={!occtReady}
+            title={!occtReady ? 'Loading geometry engine…' : undefined}
+            variant="outline"
+            size="sm"
+            className="w-full text-xs"
+          >
+            + Add board
+          </Button>
+        </div>
       </div>
-      {selectedPart && (
-        <EditPanel
-          key={selectedPart.id}
-          part={selectedPart}
-          onUpdate={onUpdate}
-          onUpdateCut={onUpdateCut}
-          onRemoveCut={onRemoveCut}
-          onLinkCuts={onLinkCuts}
-          onUnlinkCuts={onUnlinkCuts}
-          lastPlacedCutId={lastPlacedCutId}
-          scene={scene}
-          nextLabel={nextLabel}
-        />
-      )}
-      <div style={{ padding: 8, borderTop: '1px solid #333' }}>
-        <button
-          onClick={onAdd}
-          disabled={!occtReady}
-          title={!occtReady ? 'Loading geometry engine…' : undefined}
-          style={{
-            width: '100%',
-            padding: '7px 0',
-            background: occtReady ? '#2a2a4a' : '#222',
-            color: occtReady ? '#ccc' : '#555',
-            border: '1px solid #444',
-            borderRadius: 3,
-            cursor: occtReady ? 'pointer' : 'not-allowed',
-            fontSize: 12,
-          }}
-        >
-          + Add board
-        </button>
-      </div>
-    </div>
+    </TooltipProvider>
   )
 }
