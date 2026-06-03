@@ -54,11 +54,13 @@ function makeDefaultBoard(): BoardPart {
     length: 200,
     width: 100,
     thickness: 25,
+    material: '',
     color: PART_COLORS[0],
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     rotationOrder: 'XYZ',
     cuts: [],
+    visible: true,
   }
 }
 
@@ -260,11 +262,13 @@ export function useScene(): UseSceneResult {
       length: 200,
       width: 100,
       thickness: 25,
+      material: '',
       color: PART_COLORS[colorIndex.current % PART_COLORS.length],
       position: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       rotationOrder: 'XYZ',
       cuts: [],
+      visible: true,
     }
     setScene((prev) => ({ parts: [...prev.parts, part] }))
     setSelectedId(part.id)

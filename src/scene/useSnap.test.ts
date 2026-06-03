@@ -18,11 +18,13 @@ const partA: Part = {
   length: 100,
   width: 50,
   thickness: 25,
+  material: '',
   color: '#fff',
   position: { x: 0, y: 0, z: 0 },
   rotation: { x: 0, y: 0, z: 0 },
   rotationOrder: 'XYZ',
   cuts: [],
+  visible: true,
 }
 const partB: Part = {
   kind: 'board',
@@ -31,11 +33,13 @@ const partB: Part = {
   length: 100,
   width: 50,
   thickness: 25,
+  material: '',
   color: '#fff',
   position: { x: 0, y: 0, z: 200 },
   rotation: { x: 0, y: 0, z: 0 },
   rotationOrder: 'XYZ',
   cuts: [],
+  visible: true,
 }
 
 // Source face on A pointing +Z, target face on B pointing -Z (anti-parallel)

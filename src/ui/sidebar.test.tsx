@@ -11,11 +11,13 @@ function makeBoard(overrides: Partial<Part> = {}): Part {
     length: 200,
     width: 100,
     thickness: 25,
+    material: '',
     color: '#d4a373',
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     rotationOrder: 'XYZ',
     cuts: [],
+    visible: true,
     ...overrides,
   }
 }

@@ -147,11 +147,13 @@ describe('useScene', () => {
           length: 300,
           width: 150,
           thickness: 30,
+          material: '',
           color: '#d4a373',
           position: { x: 0, y: 0, z: 0 },
           rotation: { x: 0, y: 0, z: 0 },
           rotationOrder: 'XYZ' as const,
           cuts: [],
+          visible: true,
         },
       ],
     }

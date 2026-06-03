@@ -34,11 +34,13 @@ const BOARD: BoardPart = {
   length: 100,
   width: 50,
   thickness: 25,
+  material: '',
   color: '#d4a373',
   position: { x: 0, y: 0, z: 0 },
   rotation: { x: 0, y: 0, z: 0 },
   rotationOrder: 'XYZ',
   cuts: [],
+  visible: true,
 }
 
 function makeFace(nx: number, ny: number, nz: number): FaceHit {

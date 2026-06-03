@@ -23,11 +23,13 @@ export interface BoardPart {
   length: number
   width: number
   thickness: number
+  material: string // "" means unspecified
   color: string
   position: Vec3
   rotation: Vec3
   rotationOrder: 'XYZ'
   cuts: CutDef[]
+  visible: boolean
 }
 
 export type Part = BoardPart
