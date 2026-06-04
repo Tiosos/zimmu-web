@@ -64,6 +64,7 @@ export function CuttingList({ parts, projectName, onClose }: CuttingListProps) {
               <th className="pb-2 pr-2 font-medium text-xs">Qty</th>
               <th className="pb-2 px-2 font-medium text-xs">Labels</th>
               <th className="pb-2 px-2 font-medium text-xs">Material</th>
+              <th className="pb-2 px-2 font-medium text-xs">Color</th>
               <th className="pb-2 px-2 font-medium text-xs">Length (mm)</th>
               <th className="pb-2 px-2 font-medium text-xs">Width (mm)</th>
               <th className="pb-2 px-2 font-medium text-xs">Thickness (mm)</th>
@@ -73,7 +74,7 @@ export function CuttingList({ parts, projectName, onClose }: CuttingListProps) {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-3 text-muted-foreground text-center text-xs">
+                <td colSpan={8} className="py-3 text-muted-foreground text-center text-xs">
                   No parts
                 </td>
               </tr>
@@ -83,6 +84,15 @@ export function CuttingList({ parts, projectName, onClose }: CuttingListProps) {
                   <td className="py-1.5 pr-2 text-xs">{row.qty}</td>
                   <td className="py-1.5 px-2 text-xs">{row.labels}</td>
                   <td className="py-1.5 px-2 text-xs">{row.material || '—'}</td>
+                  <td className="py-1.5 px-2 text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="w-3 h-3 rounded-sm border border-border flex-shrink-0"
+                        style={{ background: row.color }}
+                      />
+                      {row.color}
+                    </span>
+                  </td>
                   <td className="py-1.5 px-2 text-xs">{row.length}</td>
                   <td className="py-1.5 px-2 text-xs">{row.width}</td>
                   <td className="py-1.5 px-2 text-xs">{row.thickness}</td>

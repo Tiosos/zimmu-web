@@ -210,6 +210,7 @@ describe('CuttingList', () => {
     expect(screen.getByText('Qty')).toBeTruthy()
     expect(screen.getByText('Labels')).toBeTruthy()
     expect(screen.getByText('Material')).toBeTruthy()
+    expect(screen.getByText('Color')).toBeTruthy()
     expect(screen.getByText('Length (mm)')).toBeTruthy()
     expect(screen.getByText('Width (mm)')).toBeTruthy()
     expect(screen.getByText('Thickness (mm)')).toBeTruthy()
@@ -313,5 +314,11 @@ describe('CuttingList', () => {
       'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts',
     )
     expect(csvArg).toContain('1,Left Side,,#8b6914,600,300,18,0')
+  })
+
+  it('renders the Color column header and the hex value for a part', () => {
+    render(<CuttingList parts={[makePart()]} projectName="Test" onClose={vi.fn()} />)
+    expect(screen.getByText('Color')).toBeTruthy()
+    expect(screen.getByText('#8b6914')).toBeTruthy()
   })
 })
