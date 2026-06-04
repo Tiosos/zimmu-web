@@ -77,6 +77,28 @@ with:
     expect(csv.split('\n')[1]).toBe('1,Left Side,,#8b6914,600,300,18,2')
 ```
 
+- [ ] **Make a fourth edit inside the `describe('CuttingList', …)` block, in the
+  `Copy CSV button writes CSV content to clipboard` test (currently lines
+  287–291). This asserts `buildCsv` string output, so it must change in lockstep
+  with the CSV change in this task — otherwise the suite goes red the moment this
+  task's implementation lands. Replace:**
+
+```ts
+    expect(csvArg.split('\n')[0]).toBe(
+      'Qty,Labels,Material,Length (mm),Width (mm),Thickness (mm),Cuts',
+    )
+    expect(csvArg).toContain('1,Left Side,,600,300,18,0')
+```
+
+**with:**
+
+```ts
+    expect(csvArg.split('\n')[0]).toBe(
+      'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts',
+    )
+    expect(csvArg).toContain('1,Left Side,,#8b6914,600,300,18,0')
+```
+
 - [ ] **Add one new test at the end of the `describe('buildCsv', …)` block, right
   before its closing `})` (currently line 86):**
 
@@ -109,19 +131,25 @@ with:
   })
 ```
 
-### Step 2: Run the data-layer tests to confirm they fail
+### Step 2: Run the test file to confirm the data-layer tests fail
 
-- [ ] **Run:**
+- [ ] **Run the whole file (not a filtered subset — the Copy CSV assertion lives
+  in the `CuttingList` describe and must be checked here too):**
 
 ```bash
-pnpm vitest run src/ui/CuttingList.test.tsx -t "buildCsv|groupParts"
+pnpm vitest run src/ui/CuttingList.test.tsx
 ```
 
-Expected: the 3 updated assertions fail (actual CSV lacks the color field), the
-`carries color onto the grouped row` test fails (`row.color` is `undefined`), and
-`splits parts that differ only by color` fails (currently groups into 1 row →
-`toHaveLength(2)` fails). The two `puts different colors` / `splits` line-count
-assertions fail because color is not yet in the key.
+Expected — these fail (CSV/grouping not yet color-aware):
+- `buildCsv > returns only the header…` (header lacks `Color`)
+- `buildCsv > formats a data row…` and `> includes the cut count` (row lacks hex)
+- `buildCsv > puts different colors on separate rows` (1 row, not 2 → 2 lines, not 3)
+- `groupParts > carries color onto the grouped row` (`row.color` is `undefined`)
+- `groupParts > splits parts that differ only by color…` (groups into 1 row)
+- `CuttingList > Copy CSV button…` (header + row lack the color column)
+
+All other tests pass — the DOM `Color` column does not exist yet, but no test
+asserts it until Task 2.
 
 ### Step 3: Add `color` to the `GroupedRow` interface
 
@@ -207,16 +235,18 @@ single color by construction.
 `row.color` is output raw — hex strings never contain a comma, quote, or newline,
 so `quoteField` is unnecessary (matches the unquoted numeric columns).
 
-### Step 7: Run the data-layer tests to confirm they pass
+### Step 7: Run the whole test file to confirm it is fully green
 
 - [ ] **Run:**
 
 ```bash
-pnpm vitest run src/ui/CuttingList.test.tsx -t "buildCsv|groupParts"
+pnpm vitest run src/ui/CuttingList.test.tsx
 ```
 
-Expected: all `buildCsv` and `groupParts` tests pass (updated + 3 new). The
-`CuttingList` DOM tests are not run by this filter and are handled in Task 2.
+Expected: **all** tests in the file pass — the updated CSV/grouping assertions,
+the 3 new data-layer tests, and the updated Copy CSV test. The DOM `Color`
+column is not yet present, but no test asserts it until Task 2, so the suite is
+green. This task therefore commits a green suite.
 
 ### Step 8: Typecheck and commit
 
@@ -243,26 +273,10 @@ git commit -m "feat: add color to cutting list grouping and CSV export"
 - Modify: `src/ui/CuttingList.tsx` (lines 66, 76, 85)
 - Test: `src/ui/CuttingList.test.tsx`
 
-### Step 1: Update the Copy CSV assertions and add the DOM test
+### Step 1: Add the DOM `Color` assertions
 
-- [ ] **In `src/ui/CuttingList.test.tsx`, inside the `Copy CSV button writes CSV
-  content to clipboard` test (currently lines 287–291), replace:**
-
-```ts
-    expect(csvArg.split('\n')[0]).toBe(
-      'Qty,Labels,Material,Length (mm),Width (mm),Thickness (mm),Cuts',
-    )
-    expect(csvArg).toContain('1,Left Side,,600,300,18,0')
-```
-
-**with:**
-
-```ts
-    expect(csvArg.split('\n')[0]).toBe(
-      'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts',
-    )
-    expect(csvArg).toContain('1,Left Side,,#8b6914,600,300,18,0')
-```
+(The Copy CSV string assertion was already updated in Task 1, since it tests
+`buildCsv` output. This task only adds DOM-level assertions for the table column.)
 
 - [ ] **In the `renders table column headers` test (currently lines 184–194), add a
   `Color` assertion after the `Material` line (currently line 188):**
@@ -286,20 +300,20 @@ git commit -m "feat: add color to cutting list grouping and CSV export"
 A single part is rendered on purpose — `getByText('#8b6914')` would throw if two
 rows shared a color and produced two matching nodes.
 
-### Step 2: Run the CuttingList tests to confirm they fail
+### Step 2: Run the test file to confirm the two DOM tests fail
 
 - [ ] **Run:**
 
 ```bash
-pnpm vitest run src/ui/CuttingList.test.tsx -t "CuttingList"
+pnpm vitest run src/ui/CuttingList.test.tsx
 ```
 
-Expected: `renders table column headers` fails (no `Color` header yet), the new
-`renders the Color column header and the hex value` fails (no header / no hex
-cell), and `Copy CSV` fails (header + row still lack the color column — Task 1
-already added color to `buildCsv`, so the Copy CSV assertions should actually
-PASS now; if Task 1 is complete they pass, and only the two header/DOM tests
-fail). Either way, the two DOM tests fail until Step 3.
+Expected: exactly two failures, both because the `Color` `<th>`/`<td>` do not
+exist yet:
+- `CuttingList > renders table column headers` (no `Color` header)
+- `CuttingList > renders the Color column header and the hex value for a part`
+
+Every other test passes (Task 1 made all CSV/grouping assertions green).
 
 ### Step 3: Add the Color header column
 
@@ -381,8 +395,8 @@ git commit -m "feat: add Color column to cutting list table"
 - ✅ Table Color `<td>`: swatch (`w-3 h-3 rounded-sm border`) + hex (Task 2, Step 4)
 - ✅ Empty-state `colSpan` 7→8 (Task 2, Step 5)
 - ✅ No color normalization — `===`/exact-string only (no `.toLowerCase()` anywhere)
-- ✅ All 5 breaking assertions updated (Task 1 Steps 1; Task 2 Step 1)
-- ✅ 4 new tests: 2 `groupParts`, 1 `buildCsv`, 1 `CuttingList` DOM (Task 1 Step 1; Task 2 Step 1)
+- ✅ All 5 breaking assertions updated — 3 `buildCsv` + 2 Copy CSV strings all in Task 1 Step 1 (so Task 1 commits green); only DOM assertions in Task 2
+- ✅ 4 new tests: 2 `groupParts`, 1 `buildCsv` (Task 1 Step 1), 1 `CuttingList` DOM (Task 2 Step 1)
 - ✅ Color header inline-added to `renders table column headers` (Task 2 Step 1)
 - ✅ Single-part render for the hex-text DOM test (Task 2 Step 1)
 - ✅ Regex assertions left untouched (correctly survive — not edited in any step)
@@ -391,4 +405,4 @@ git commit -m "feat: add Color column to cutting list table"
 
 **Type consistency:** `GroupedRow.color: string` (Task 1 Step 3) matches `p.color` (a `BoardPart` hex string) in Steps 4–5; matches `row.color` usage in CSV (Step 6) and the table cell (Task 2 Step 4). `makePart()` already sets `color: '#8b6914'`, so all assertions using that value are consistent.
 
-**Note on Task 2 Step 2 expectation:** Because Task 1 already added color to `buildCsv`, the Copy CSV assertions updated in Task 2 Step 1 may already pass when Step 2 runs. That is fine — the red-phase target for Task 2 is the two DOM tests (`Color` header + hex cell), which fail until Step 3–4.
+**Green-suite-per-task invariant:** All CSV-string assertions (including Copy CSV) are updated in Task 1, in lockstep with the `buildCsv` change, so Task 1 commits a fully green suite. Task 2 adds only DOM assertions, which fail until the `Color` `<th>`/`<td>` exist. No task commits a red suite.
