@@ -87,7 +87,7 @@ export function CuttingList({ parts, projectName, onClose }: CuttingListProps) {
                   <td className="py-1.5 px-2 text-xs">
                     <span className="flex items-center gap-1.5">
                       <span
-                        className="w-3 h-3 rounded-sm border border-border flex-shrink-0"
+                        className="w-3 h-3 rounded-sm flex-shrink-0"
                         style={{ background: row.color }}
                       />
                       {row.color}
