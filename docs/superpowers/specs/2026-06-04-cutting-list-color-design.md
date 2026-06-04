@@ -122,25 +122,29 @@ Five existing test assertions break because the column layout changes. All are i
 
 Regex assertions that match only through the material field (`/^1,"Left, Side",,/`, `/^1,"5"" shelf",,/`, `/^1,Left Side,"Pine, Ply",/`, `/^2,"A, B",,/`) **survive unchanged** — color is appended after material, so these patterns still pass.
 
-## New tests
+## Additional tests
 
-Seven new tests, all in `CuttingList.test.tsx`:
+Four genuinely new tests, all in `CuttingList.test.tsx`. (Header-with-color and basic-row-with-color are **already covered** by the updated assertions in the breaking-assertion table above — they are not repeated here. Same-color grouping is already covered by the existing `groups two identical parts into one data row` test, which passes unchanged because `makePart`'s default color is shared.)
 
-1. **`buildCsv` — header includes Color column.** Assert `buildCsv([])` equals the new 8-column header string. (Replaces the updated empty-header test above — they are the same test, updated in place.)
+1. **`groupParts` — color carried onto the row.** `groupParts([makePart()])[0].color === '#8b6914'`. Covers the new field.
 
-2. **`buildCsv` — row includes the hex value after material.** `buildCsv([makePart()])` → row 1 equals `'1,Left Side,,#8b6914,600,300,18,0'`.
+2. **`groupParts` — different colors split into separate rows, by color.** Two parts identical except `color: '#8b6914'` vs `color: '#ff0000'`. Assert `toHaveLength(2)` **and** that each row carries its own color:
+   ```ts
+   const rows = groupParts([
+     makePart({ id: 'p1', color: '#8b6914' }),
+     makePart({ id: 'p2', color: '#ff0000' }),
+   ])
+   expect(rows).toHaveLength(2)
+   expect(rows[0].color).toBe('#8b6914')
+   expect(rows[1].color).toBe('#ff0000')
+   ```
+   The per-row color assertions prove the split is driven by color, not an incidental difference.
 
-3. **`buildCsv` — different colors produce separate rows.** Two parts identical except `color: '#8b6914'` vs `color: '#ff0000'` → `buildCsv(...)` has 3 lines (header + 2 data).
+3. **`buildCsv` — different colors produce separate rows.** Same two parts as test 2 → `buildCsv(...)` has 3 lines (header + 2 data). Mirrors the existing convention of testing grouping at both the `buildCsv` and `groupParts` layers.
 
-4. **`buildCsv` — same color still groups.** Two identical parts (same default color) → `buildCsv(...)` has 2 lines (header + 1 data row with qty 2).
+4. **`CuttingList` table — renders Color header and hex value.** Render with **one** part; assert `screen.getByText('Color')` is present and `screen.getByText('#8b6914')` is present. Single-part render is required — `getByText` throws if 2+ rows share a color and produce 2+ matching DOM nodes.
 
-5. **`groupParts` — color carried onto the row.** `groupParts([makePart()])[0].color === '#8b6914'`.
-
-6. **`groupParts` — different colors split into separate rows.** Same as test 3 at the `groupParts` layer: assert `toHaveLength(2)`.
-
-7. **`CuttingList` table — renders Color header and hex value.** Render with one part; assert `screen.getByText('Color')` is present and `screen.getByText('#8b6914')` is present. Use a **single-part render only** — `getByText` throws if 2+ rows share a color and produce 2+ matching DOM nodes.
-
-The existing `renders table column headers` test gains `expect(screen.getByText('Color')).toBeTruthy()` (inline update, not a separate test).
+The existing `renders table column headers` test gains `expect(screen.getByText('Color')).toBeTruthy()` (inline update to that test, not a separate test).
 
 ## Data flow
 
