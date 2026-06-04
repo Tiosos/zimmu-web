@@ -25,7 +25,9 @@ function makePart(overrides: Partial<Part> = {}): Part {
 
 describe('buildCsv', () => {
   it('returns only the header when parts array is empty', () => {
-    expect(buildCsv([])).toBe('Qty,Labels,Material,Length (mm),Width (mm),Thickness (mm),Cuts')
+    expect(buildCsv([])).toBe(
+      'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts',
+    )
   })
 
   it('groups two identical parts into one data row', () => {
@@ -38,7 +40,7 @@ describe('buildCsv', () => {
 
   it('formats a data row with correct field values', () => {
     const csv = buildCsv([makePart({ length: 600, width: 300, thickness: 18 })])
-    expect(csv.split('\n')[1]).toBe('1,Left Side,,600,300,18,0')
+    expect(csv.split('\n')[1]).toBe('1,Left Side,,#8b6914,600,300,18,0')
   })
 
   it('includes the cut count', () => {
@@ -59,7 +61,7 @@ describe('buildCsv', () => {
       },
     ]
     const csv = buildCsv([makePart({ cuts })])
-    expect(csv.split('\n')[1]).toBe('1,Left Side,,600,300,18,2')
+    expect(csv.split('\n')[1]).toBe('1,Left Side,,#8b6914,600,300,18,2')
   })
 
   it('wraps labels in double quotes when they contain a comma', () => {
@@ -82,6 +84,14 @@ describe('buildCsv', () => {
     const csv = buildCsv(parts)
     // Grouped labels = "A, B" which contains a comma — must be quoted
     expect(csv.split('\n')[1]).toMatch(/^2,"A, B",,/)
+  })
+
+  it('puts different colors on separate rows', () => {
+    const csv = buildCsv([
+      makePart({ id: 'p1', color: '#8b6914' }),
+      makePart({ id: 'p2', color: '#ff0000' }),
+    ])
+    expect(csv.split('\n')).toHaveLength(3)
   })
 })
 
@@ -159,6 +169,20 @@ describe('groupParts', () => {
     expect(rows[0].length).toBe(800)
     expect(rows[0].labels).toBe('A, C')
     expect(rows[1].length).toBe(600)
+  })
+
+  it('carries color onto the grouped row', () => {
+    expect(groupParts([makePart()])[0].color).toBe('#8b6914')
+  })
+
+  it('splits parts that differ only by color into separate rows', () => {
+    const rows = groupParts([
+      makePart({ id: 'p1', color: '#8b6914' }),
+      makePart({ id: 'p2', color: '#ff0000' }),
+    ])
+    expect(rows).toHaveLength(2)
+    expect(rows[0].color).toBe('#8b6914')
+    expect(rows[1].color).toBe('#ff0000')
   })
 })
 
@@ -286,8 +310,8 @@ describe('CuttingList', () => {
     expect(writeText).toHaveBeenCalledOnce()
     const csvArg = writeText.mock.calls[0][0] as string
     expect(csvArg.split('\n')[0]).toBe(
-      'Qty,Labels,Material,Length (mm),Width (mm),Thickness (mm),Cuts',
+      'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts',
     )
-    expect(csvArg).toContain('1,Left Side,,600,300,18,0')
+    expect(csvArg).toContain('1,Left Side,,#8b6914,600,300,18,0')
   })
 })
