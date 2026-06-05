@@ -3,9 +3,10 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type { CutDef, PartId } from './types'
 
 const mockBuildPart = vi.fn()
+const mockExportStep = vi.fn()
 
 vi.mock('comlink', () => ({
-  wrap: () => ({ buildPart: mockBuildPart, buildBox: vi.fn() }),
+  wrap: () => ({ buildPart: mockBuildPart, buildBox: vi.fn(), exportStep: mockExportStep }),
   expose: vi.fn(),
   transfer: vi.fn((data: unknown) => data),
 }))
@@ -1048,5 +1049,27 @@ describe('useScene', () => {
       expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBe(`${partBId}:cut_b`)
       expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
     })
+  })
+
+  it('exportStep builds one spec per part with a 16-element matrix and returns the worker string', async () => {
+    mockExportStep.mockResolvedValue('ISO-10303-21;\nENDSEC;')
+    const { result } = renderHook(() => useScene())
+    const parts = result.current.scene.parts
+
+    const text = await result.current.exportStep(parts)
+
+    expect(text).toContain('ISO-10303-21')
+    expect(mockExportStep).toHaveBeenCalledTimes(1)
+    const specs = mockExportStep.mock.calls[0][0] as Array<{
+      label: string
+      length: number
+      cuts: unknown[]
+      matrix: number[]
+    }>
+    expect(specs).toHaveLength(parts.length)
+    expect(specs[0].label).toBe(parts[0].label)
+    expect(specs[0].length).toBe(parts[0].length)
+    expect(specs[0].matrix).toHaveLength(16)
+    expect(Array.isArray(specs[0].cuts)).toBe(true)
   })
 })

@@ -6,6 +6,7 @@ import type { BoardPart, Part, PartId, Scene, CutDef, CutId } from './types'
 import { shapeKey } from './utils'
 import { faceAxes } from './snapMath'
 import { PART_COLORS } from './palette'
+import { composeWorldMatrix } from '../geom/transform'
 
 interface HistoryEntry {
   label: string
@@ -73,6 +74,7 @@ export interface UseSceneResult {
   onUnlinkCuts: (partId: PartId, cutId: CutId) => void
   onSelect: (id: PartId | null) => void
   replaceScene: (next: Scene) => void
+  exportStep: (parts: Part[]) => Promise<string>
   canUndo: boolean
   canRedo: boolean
   undoLabel: string | null
@@ -696,6 +698,18 @@ export function useScene(): UseSceneResult {
     setGeometries(new Map())
   }, [])
 
+  const exportStep = useCallback(async (parts: Part[]): Promise<string> => {
+    const specs = parts.map((p) => ({
+      label: p.label,
+      length: p.length,
+      width: p.width,
+      thickness: p.thickness,
+      cuts: p.cuts.map(({ id, position, size }) => ({ id, position, size })),
+      matrix: Array.from(composeWorldMatrix(p)),
+    }))
+    return getOcct().exportStep(specs)
+  }, [])
+
   return {
     scene,
     geometries,
@@ -715,6 +729,7 @@ export function useScene(): UseSceneResult {
     onUnlinkCuts,
     onSelect,
     replaceScene,
+    exportStep,
     canUndo: undoState.canUndo,
     canRedo: undoState.canRedo,
     undoLabel: undoState.undoLabel,

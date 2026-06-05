@@ -1,5 +1,6 @@
 import { expose, transfer } from 'comlink'
-import { initOCCT, makeShape } from './occt'
+import { initOCCT, makeShape, writeStep } from './occt'
+import type { ExportSpec } from './occt'
 import { shapeToMeshData } from './mesh'
 import type { Vec3 } from '../scene/types'
 
@@ -22,6 +23,10 @@ const api = {
     }
     const _: never = kind
     throw new Error(`unknown kind: ${_}`)
+  },
+  async exportStep(specs: ExportSpec[]): Promise<string> {
+    const oc = await initOCCT()
+    return writeStep(oc, specs)
   },
 }
 

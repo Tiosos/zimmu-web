@@ -53,4 +53,22 @@ describe('geom/occt', () => {
     // Full integration verified manually: pnpm dev → add a board → geometry renders
     // Playwright E2E arrives in weekend 11.
   })
+
+  it.skip('writeStep: one named board returns a STEP string (browser-only)', async () => {
+    const oc = await initOCCT()
+    const { writeStep } = await import('./occt')
+    const text = writeStep(oc, [
+      {
+        label: 'Rail',
+        length: 200,
+        width: 100,
+        thickness: 25,
+        cuts: [],
+        matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      },
+    ])
+    expect(text).toContain('ISO-10303-21')
+    expect(text).toContain('END-ISO-10303-21')
+    expect(text).toContain('Rail')
+  })
 })

@@ -100,3 +100,52 @@ export function makeShape(
   }
   return current
 }
+
+function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS_Shape {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const O = oc as any
+  const shape = makeShape(oc, spec)
+  const trsf = new O.gp_Trsf_1()
+  // gp_Trsf.SetValues expects row-major 3x4 (a11..a14, a21..a24, a31..a34).
+  // spec.matrix is column-major: m[col*4 + row].
+  const m = spec.matrix
+  trsf.SetValues(m[0], m[4], m[8], m[12], m[1], m[5], m[9], m[13], m[2], m[6], m[10], m[14])
+  const xform = new O.BRepBuilderAPI_Transform_2(shape, trsf, false)
+  const moved = xform.Shape()
+  shape.delete()
+  trsf.delete()
+  xform.delete()
+  return moved
+}
+
+// Named-solid STEP via XCAF. Symbol overloads (_1/_2) confirmed by a later live spike.
+export function writeStep(oc: OpenCascadeInstance, specs: ExportSpec[]): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const O = oc as any
+  O.Interface_Static.SetCVal('write.step.unit', 'MM')
+
+  const app = O.XCAFApp_Application.GetApplication()
+  const doc = new O.Handle_TDocStd_Document_1()
+  app.NewDocument(new O.TCollection_ExtendedString_2('MDTV-XCAF', true), doc)
+  const shapeTool = O.XCAFDoc_DocumentTool.ShapeTool(doc.get().Main())
+
+  const moved: TopoDS_Shape[] = []
+  for (const spec of specs) {
+    const shape = makeTransformedShape(oc, spec)
+    const lbl = shapeTool.AddShape(shape, false, true)
+    O.TDataStd_Name.Set_2(lbl, new O.TCollection_ExtendedString_2(spec.label, true))
+    moved.push(shape)
+  }
+
+  const writer = new O.STEPCAFControl_Writer_1()
+  const pr = new O.Message_ProgressRange_1()
+  writer.Transfer_1(doc, O.STEPControl_StepModelType.STEPControl_AsIs, '', pr)
+  writer.Write('out.step')
+  pr.delete()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const text: string = (oc as any).FS.readFile('out.step', { encoding: 'utf8' })
+  for (const s of moved) s.delete()
+  writer.delete()
+  return text
+}
