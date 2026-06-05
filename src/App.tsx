@@ -7,6 +7,8 @@ import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
 import { CuttingList } from './ui/CuttingList'
+import { buildBinaryStl } from './geom/stl'
+import { downloadBlob } from './ui/download'
 import type { CameraState } from './scene/types'
 
 const supported = 'showOpenFilePicker' in window
@@ -37,6 +39,7 @@ function App() {
     redoLabel,
     undo,
     redo,
+    exportStep,
   } = useScene()
 
   const {
@@ -87,6 +90,20 @@ function App() {
       setLoadedCamera(envelope.camera)
     },
   })
+
+  const visibleParts = scene.parts.filter((p) => p.visible)
+  const canExport = visibleParts.length > 0
+
+  const handleExportStl = useCallback(() => {
+    downloadBlob(buildBinaryStl(visibleParts, geometries), `${projectName}.stl`, 'model/stl')
+  }, [visibleParts, geometries, projectName])
+
+  const handleExportStep = useCallback(() => {
+    void (async () => {
+      const text = await exportStep(visibleParts)
+      downloadBlob(text, `${projectName}.step`, 'application/step')
+    })()
+  }, [visibleParts, projectName, exportStep])
 
   const handleActivateCut = useCallback(() => {
     cancelSnap()
@@ -225,6 +242,9 @@ function App() {
         }}
         onProjectNameChange={setProjectName}
         onCuttingList={() => setCuttingListOpen(true)}
+        onExportStl={handleExportStl}
+        onExportStep={handleExportStep}
+        canExport={canExport}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Viewport

@@ -22,6 +22,9 @@ const baseProps: FileMenuProps = {
   onSaveAs: vi.fn(),
   onProjectNameChange: vi.fn(),
   onCuttingList: vi.fn(),
+  onExportStl: vi.fn(),
+  onExportStep: vi.fn(),
+  canExport: true,
 }
 
 function openMenu() {
@@ -116,5 +119,39 @@ describe('FileMenu', () => {
     expect(onCuttingList).toHaveBeenCalledOnce()
     // menu closes — New button is no longer visible
     expect(screen.queryByRole('button', { name: /^New/ })).toBeNull()
+  })
+
+  it('renders Export STL and Export STEP items', () => {
+    render(<FileMenu {...baseProps} />)
+    openMenu()
+    expect(screen.getByRole('button', { name: /Export STL/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Export STEP/ })).toBeTruthy()
+  })
+
+  it('export items are disabled when canExport=false', () => {
+    render(<FileMenu {...baseProps} canExport={false} />)
+    openMenu()
+    expect((screen.getByRole('button', { name: /Export STL/ }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
+    expect(
+      (screen.getByRole('button', { name: /Export STEP/ }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+  })
+
+  it('clicking Export STL calls onExportStl', () => {
+    const onExportStl = vi.fn()
+    render(<FileMenu {...baseProps} onExportStl={onExportStl} />)
+    openMenu()
+    fireEvent.click(screen.getByRole('button', { name: /Export STL/ }))
+    expect(onExportStl).toHaveBeenCalledOnce()
+  })
+
+  it('clicking Export STEP calls onExportStep', () => {
+    const onExportStep = vi.fn()
+    render(<FileMenu {...baseProps} onExportStep={onExportStep} />)
+    openMenu()
+    fireEvent.click(screen.getByRole('button', { name: /Export STEP/ }))
+    expect(onExportStep).toHaveBeenCalledOnce()
   })
 })

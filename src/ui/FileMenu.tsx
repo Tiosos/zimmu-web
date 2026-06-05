@@ -13,6 +13,9 @@ export interface FileMenuProps {
   onSaveAs: () => void
   onProjectNameChange: (name: string) => void
   onCuttingList: () => void
+  onExportStl: () => void
+  onExportStep: () => void
+  canExport: boolean
   partsCount: number
   supported: boolean
   canUndo: boolean
@@ -34,6 +37,9 @@ export function FileMenu({
   onSaveAs,
   onProjectNameChange,
   onCuttingList,
+  onExportStl,
+  onExportStep,
+  canExport,
   partsCount,
   supported,
   canUndo,
@@ -128,6 +134,9 @@ export function FileMenu({
             {menuItem('Save As…', '⌘⇧S', onSaveAs, !supported)}
             <Separator className="my-1" />
             {menuItem('Cutting List…', '⌘⇧E', onCuttingList, false)}
+            <Separator className="my-1" />
+            {menuItem('Export STL…', '', onExportStl, !canExport)}
+            {menuItem('Export STEP…', '', onExportStep, !canExport)}
           </div>
         )}
       </div>
