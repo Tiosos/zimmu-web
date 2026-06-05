@@ -71,3 +71,32 @@ export function makeCut(
 
   return result
 }
+
+export interface ExportSpec {
+  label: string
+  length: number
+  width: number
+  thickness: number
+  cuts: Array<{ id: string; position: Vec3; size: Vec3 }>
+  matrix: number[] // column-major 16, from composeWorldMatrix
+}
+
+export function makeShape(
+  oc: OpenCascadeInstance,
+  dims: {
+    length: number
+    width: number
+    thickness: number
+    cuts: Array<{ id: string; position: Vec3; size: Vec3 }>
+  },
+): TopoDS_Shape {
+  const sorted = dims.cuts.slice().sort((a, b) => a.id.localeCompare(b.id))
+  let current = makeBox(oc, dims.length, dims.width, dims.thickness)
+  for (const cut of sorted) {
+    if (cut.size.x <= 0.1 || cut.size.y <= 0.1 || cut.size.z <= 0.1) continue
+    const prev = current
+    current = makeCut(oc, current, cut.position, cut.size)
+    if (prev !== current) prev.delete()
+  }
+  return current
+}
