@@ -118,23 +118,35 @@ The project has Claude Code hooks configured in `.claude/settings.json`:
 ```
 src/
 ├── geom/
-│   ├── occt.ts          OCCT bootstrap (lazy singleton) + makeBox primitive
-│   ├── occt.worker.ts   Comlink Web Worker — exposes buildPart()
+│   ├── occt.ts          OCCT bootstrap (lazy singleton); makeShape (box + cut chain),
+│   │                    makeTransformedShape, writeStep (XCAF named solids), ExportSpec
+│   ├── occt.worker.ts   Comlink Web Worker — exposes buildPart() + exportStep()
 │   ├── mesh.ts          TopoDS_Shape → MeshData (Float32Arrays) + BufferGeometry
+│   ├── transform.ts     composeWorldMatrix(part) — THREE-free world matrix, parity-tested
+│   ├── stl.ts           buildBinaryStl(parts, geometries) — world-space binary STL
 │   └── occt.test.ts     Smoke tests (live OCCT skipped in Node)
 ├── scene/
-│   ├── types.ts         Canonical types: ZimmuFile, Scene, Part, BoardPart, CameraState
-│   ├── useScene.ts      Scene state + geometry lifecycle + undo/redo
+│   ├── types.ts         Canonical types: ZimmuFile, Scene, Part/BoardPart, CutDef, FaceHit, CameraState
+│   ├── useScene.ts      Scene state + geometry lifecycle + undo/redo + exportStep
 │   ├── useFile.ts       File System Access API save/open/new + IDB auto-reopen
 │   ├── idb.ts           IndexedDB wrapper — stores the last FileSystemFileHandle
-│   └── utils.ts         shapeKey() — geometry cache key from Part dimensions
+│   ├── utils.ts         shapeKey() — geometry cache key from Part dimensions + cuts
+│   ├── snapMath.ts      Pure face/cut geometry math (faceAxes, computeSnapDelta) — no React
+│   ├── useSnap.ts       Face-to-face snap-align interaction state machine
+│   ├── useAddCut.ts     Click-a-face-to-add-joinery-cut interaction state machine
+│   └── palette.ts       PART_COLORS preset swatches
 ├── render/
-│   └── viewport.tsx     React-wrapped Three.js canvas + OrbitControls + raycaster
+│   └── viewport.tsx     React-wrapped Three.js canvas + OrbitControls + raycaster (emits FaceHit)
 ├── ui/
-│   ├── FileMenu.tsx     Top menu bar (File menu, project name, undo/redo)
-│   ├── sidebar.tsx      Parts list + EditPanel (label, shape, position, rotation)
+│   ├── FileMenu.tsx     Top menu bar (File menu, project name, undo/redo, cutting list, export)
+│   ├── sidebar.tsx      Parts list + EditPanel (label, material, ColorControl, dims, position, rotation, cuts)
+│   ├── CuttingList.tsx  Grouped cutting-list table (qty/material/color/dims/cuts)
+│   ├── buildCsv.ts      groupParts() + CSV serialization for the cutting list
+│   ├── download.ts      downloadBlob() — Blob + anchor click (browser-agnostic delivery)
 │   └── useDebouncedCallback.ts  Debounce hook used in dimension inputs
-├── App.tsx              Composes useScene + useFile + Viewport + Sidebar + FileMenu
+├── components/ui/       Radix-based shadcn-style primitives (button, select, tooltip, …)
+├── lib/utils.ts         cn() — clsx + tailwind-merge class helper
+├── App.tsx              Composes useScene + useFile + useSnap + useAddCut + Viewport + Sidebar + FileMenu
 ├── main.tsx
 └── vite-env.d.ts        Ambient declarations for opencascade.js
 ```
@@ -143,7 +155,7 @@ src/
 
 `useScene` is the single source of truth for scene state. It manages:
 
-1. **Geometry lifecycle** — watches `scene.parts` for changes; calls `occt.worker.buildPart()` for any part whose `shapeKey()` changed. Geometry results are kept in a ref (`geometriesRef`) and mirrored to state. Only shape dimensions (length/width/thickness) trigger a rebuild; position/rotation changes are applied directly in the Viewport.
+1. **Geometry lifecycle** — watches `scene.parts` for changes; calls `occt.worker.buildPart()` for any part whose `shapeKey()` changed. Geometry results are kept in a ref (`geometriesRef`) and mirrored to state. Only `shapeKey()` changes (dimensions + cuts) trigger a rebuild; position/rotation changes are applied directly in the Viewport.
 2. **Undo/redo** — a 50-entry history stored in refs (`pastRef`/`futureRef`). History entries carry explicit `undo`/`redo` functions (closures over the before/after state). Consecutive `onUpdate` calls to the same part coalesce into one entry via `coalesceKey`.
 
 `useFile` manages file persistence independently:
@@ -151,7 +163,11 @@ src/
 - **Auto-reopen** — on startup, `useFile` reads the last `FileSystemFileHandle` from IndexedDB (`src/scene/idb.ts`) and reopens the file if permission is already granted.
 - **Dirty tracking** — `isDirty` is computed by comparing `JSON.stringify(scene)` against the last-saved snapshot.
 
-`Viewport` receives `parts`, `geometries`, and `selectedId` as props. It manages Three.js objects directly in refs (no React reconciliation over meshes). Each part gets a `THREE.Mesh` + `THREE.LineSegments` for edge lines. Selection is highlighted by emissive color on the mesh and edge line color.
+`Viewport` receives `parts`, `geometries`, and `selectedId` as props. It manages Three.js objects directly in refs (no React reconciliation over meshes). Each part gets a `THREE.Mesh` + `THREE.LineSegments` for edge lines. Selection is highlighted by emissive color on the mesh and edge line color. The raycaster emits `FaceHit` (part id + world/local face normal + hit point) for the snap and cut interactions.
+
+**Face interactions** (`useSnap`, `useAddCut`) are small state machines composed in `App.tsx`, fed `FaceHit`s from the Viewport raycaster. Both apply results through `useScene.onUpdate` (so they participate in undo/redo). All their geometry math lives in `snapMath.ts` as pure, THREE-typed-but-browser-free functions — test it directly, not through the React hooks.
+
+**3D export** (STL + STEP) is hybrid: `composeWorldMatrix(part)` in `transform.ts` is the single source of truth for a part's world placement (THREE-free, element-wise parity-tested against `THREE.Matrix4`). STL is built synchronously on the main thread (`buildBinaryStl`, world-space triangle soup with recomputed facet normals). STEP goes through the worker (`exportStep` → `writeStep`, XCAF named solids in mm; falls back to an unnamed `STEPControl_Writer` if CAF symbols are unavailable). Both export only **visible** parts and deliver via `downloadBlob`. If you add a `rotationOrder` other than `'XYZ'`, `composeWorldMatrix` must be revisited — it hardcodes Euler XYZ.
 
 ### Key Invariants
 
@@ -159,7 +175,7 @@ src/
 - **Geometry lives in `src/geom/`**, rendering in `src/render/`. The viewport must not import OCCT directly.
 - **Workers use Comlink.** `expose()` in the worker, `wrap()` in `useScene` (lazy singleton so `vi.stubGlobal('Worker', ...)` works in tests).
 - **Three.js coordinate system:** +Z up (CAD convention). Don't change `camera.up.set(0, 0, 1)`.
-- **`shapeKey()` is the geometry cache key.** It encodes only the dimensions that change the OCCT shape. Adding a new shape type requires adding a branch to `shapeKey()` in `src/scene/utils.ts`.
+- **`shapeKey()` is the geometry cache key.** It encodes only what changes the OCCT shape — dimensions and cut positions/sizes (not position/rotation, which the Viewport applies directly). Adding a new shape type or a shape-affecting field requires updating `shapeKey()` in `src/scene/utils.ts`.
 - **`ZimmuFile` serialization** rounds floats to 6 decimal places. The file format version is `FILE_FORMAT_VERSION = 1` in `useFile.ts`.
 
 ## Code Conventions
@@ -177,6 +193,7 @@ src/
 - `opencascade.js` is excluded from Vite's pre-bundler (`optimizeDeps.exclude`). Do not change this.
 - WASM assets are included via `assetsInclude: ['**/*.wasm']` and `vite-plugin-wasm`. Any new WASM dependency follows the same pattern.
 - `stats.js` renders an FPS overlay in dev mode only (`import.meta.env.DEV`).
+- **Styling:** Tailwind v4 via `@tailwindcss/vite` (no `tailwind.config.js`). UI primitives in `src/components/ui/` are shadcn-style wrappers over Radix; compose classes with `cn()` from `src/lib/utils.ts`.
 
 ## Testing
 
@@ -211,9 +228,8 @@ Every spec or implementation plan must be accompanied by a living implementation
 
 ## Git
 
-- Development branch: `claude/claude-md-docs-7kL1L`
+- Develop on a feature branch (the session's assigned `claude/*` branch); never commit directly on `main`.
 - Commit messages: short imperative summary, no ticket references needed yet.
-- Do not push to `main` directly.
 
 ## License
 
