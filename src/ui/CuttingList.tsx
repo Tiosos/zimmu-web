@@ -12,6 +12,7 @@ interface MaterialPopoverProps {
 function MaterialPopover({ current, onSave, onClose }: MaterialPopoverProps) {
   const [value, setValue] = useState(current !== undefined ? String(current) : '')
   const inputRef = useRef<HTMLInputElement>(null)
+  const committedRef = useRef(false)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -19,6 +20,8 @@ function MaterialPopover({ current, onSave, onClose }: MaterialPopoverProps) {
   }, [])
 
   const commit = () => {
+    if (committedRef.current) return
+    committedRef.current = true
     const num = parseFloat(value)
     if (!isNaN(num) && num >= 0) onSave({ costPerM2: num })
     else onClose()
@@ -39,7 +42,10 @@ function MaterialPopover({ current, onSave, onClose }: MaterialPopoverProps) {
         onChange={(e) => setValue(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') commit()
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            commit()
+          }
           if (e.key === 'Escape') onClose()
         }}
         className="w-20 bg-background border border-border rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
@@ -137,7 +143,9 @@ export function CuttingList({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation()
-                        setOpenPopover(openPopover === row.material ? null : row.material)
+                        if (onMaterialCostChange) {
+                          setOpenPopover(openPopover === row.material ? null : row.material)
+                        }
                       }}
                       className="underline decoration-dotted cursor-pointer hover:text-foreground text-xs"
                       title="Click to set $/m² rate"

@@ -321,4 +321,95 @@ describe('CuttingList', () => {
     expect(screen.getByText('Color')).toBeTruthy()
     expect(screen.getByText('#8b6914')).toBeTruthy()
   })
+
+  it('renders only cl-panel (no cl-overlay) when hideExportButtons is true', () => {
+    render(<CuttingList parts={[]} projectName="Test" onClose={vi.fn()} hideExportButtons />)
+    expect(screen.queryByTestId('cl-overlay')).toBeNull()
+    expect(screen.getByTestId('cl-panel')).toBeTruthy()
+  })
+
+  it('does not handle Escape when hideExportButtons is true', () => {
+    const onClose = vi.fn()
+    render(<CuttingList parts={[]} projectName="Test" onClose={onClose} hideExportButtons />)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('shows cost columns with values when material rate is set', () => {
+    const part: Part = {
+      kind: 'board',
+      id: 'p1',
+      label: 'Shelf',
+      length: 600,
+      width: 300,
+      thickness: 18,
+      material: 'Plywood',
+      color: '#aabbcc',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      cuts: [],
+      visible: true,
+    }
+    render(
+      <CuttingList
+        parts={[part]}
+        projectName="Test"
+        onClose={vi.fn()}
+        materials={{ Plywood: { costPerM2: 100 } }}
+      />,
+    )
+    // 600×300mm = 0.18 m² × $100 = $18.00 (appears in both cost/unit and total columns)
+    expect(screen.getAllByText('$18.00').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('shows — in cost columns when no material rate is set', () => {
+    const part: Part = {
+      kind: 'board',
+      id: 'p1',
+      label: 'Shelf',
+      length: 600,
+      width: 300,
+      thickness: 18,
+      material: 'Plywood',
+      color: '#aabbcc',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      cuts: [],
+      visible: true,
+    }
+    render(<CuttingList parts={[part]} projectName="Test" onClose={vi.fn()} />)
+    // should show — for both cost columns
+    const dashes = screen.getAllByText('—')
+    // at least 2 dashes for the two cost columns
+    expect(dashes.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('shows board subtotal row when any material rate is set', () => {
+    const part: Part = {
+      kind: 'board',
+      id: 'p1',
+      label: 'Shelf',
+      length: 600,
+      width: 300,
+      thickness: 18,
+      material: 'Plywood',
+      color: '#aabbcc',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      cuts: [],
+      visible: true,
+    }
+    render(
+      <CuttingList
+        parts={[part]}
+        projectName="Test"
+        onClose={vi.fn()}
+        materials={{ Plywood: { costPerM2: 100 } }}
+      />,
+    )
+    expect(screen.getByText('Board total')).toBeTruthy()
+  })
 })
