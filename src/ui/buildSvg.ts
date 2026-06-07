@@ -1,0 +1,248 @@
+import type { DrawingSheet, DrawingView, DimLine, CutLabel, Rect2D } from '../geom/drawing'
+
+const SHEET_H = 210
+const TITLE_H = 25
+const MARGIN = 15
+const TICK = 1.5
+
+function fmt(n: number): string {
+  return n.toFixed(3)
+}
+
+function el(tag: string, attrs: Record<string, string | number>, content?: string): string {
+  const a = Object.entries(attrs)
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(' ')
+  if (content === undefined) return `<${tag} ${a}/>`
+  return `<${tag} ${a}>${content}</${tag}>`
+}
+
+function svgRect(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  style: Record<string, string | number>,
+): string {
+  return el('rect', { x: fmt(x), y: fmt(y), width: fmt(w), height: fmt(h), ...style })
+}
+
+function svgLine(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  style: Record<string, string | number>,
+): string {
+  return el('line', { x1: fmt(x1), y1: fmt(y1), x2: fmt(x2), y2: fmt(y2), ...style })
+}
+
+function svgText(
+  x: number,
+  y: number,
+  content: string,
+  style: Record<string, string | number>,
+): string {
+  return el('text', { x: fmt(x), y: fmt(y), ...style }, content)
+}
+
+function renderDimLine(dim: DimLine, px: number, py: number): string {
+  const lineStyle = { stroke: '#555', 'stroke-width': '0.15' }
+  const textStyle = { 'font-size': '2', fill: '#444', 'font-family': 'sans-serif' }
+
+  if (dim.axis === 'h') {
+    const y = py + dim.offset
+    const midX = px + (dim.start + dim.end) / 2
+    return [
+      svgLine(px + dim.start, y, px + dim.end, y, lineStyle),
+      svgLine(px + dim.start, y - TICK, px + dim.start, y + TICK, lineStyle),
+      svgLine(px + dim.end, y - TICK, px + dim.end, y + TICK, lineStyle),
+      svgText(midX, y - 1, dim.label, { ...textStyle, 'text-anchor': 'middle' }),
+    ].join('')
+  } else {
+    const x = px + dim.offset
+    const midY = py + (dim.start + dim.end) / 2
+    return [
+      svgLine(x, py + dim.start, x, py + dim.end, lineStyle),
+      svgLine(x - TICK, py + dim.start, x + TICK, py + dim.start, lineStyle),
+      svgLine(x - TICK, py + dim.end, x + TICK, py + dim.end, lineStyle),
+      svgText(x + 1.5, midY, dim.label, {
+        ...textStyle,
+        'text-anchor': 'start',
+        'dominant-baseline': 'middle',
+      }),
+    ].join('')
+  }
+}
+
+function renderView(view: DrawingView): string {
+  const {
+    placement: { x: px, y: py },
+    boardRect,
+    cuts,
+    cutLabels,
+    boardDims,
+    cutPosDims,
+  } = view
+  const out: string[] = []
+
+  out.push(
+    svgText(px, py - 2, view.label, {
+      'font-size': '3',
+      fill: '#888',
+      'font-family': 'sans-serif',
+    }),
+  )
+
+  out.push(
+    svgRect(px + boardRect.x, py + boardRect.y, boardRect.w, boardRect.h, {
+      stroke: '#000',
+      fill: 'none',
+      'stroke-width': '0.3',
+    }),
+  )
+
+  cuts.forEach((c: Rect2D, i: number) => {
+    out.push(
+      svgRect(px + c.x, py + c.y, c.w, c.h, {
+        stroke: '#444',
+        fill: 'rgba(0,0,0,0.06)',
+        'stroke-width': '0.2',
+      }),
+    )
+    const cl: CutLabel = cutLabels[i]
+    if (cl) {
+      out.push(
+        svgText(px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, cl.text, {
+          'font-size': '2.5',
+          fill: '#333',
+          'text-anchor': 'middle',
+          'dominant-baseline': 'middle',
+          'font-family': 'sans-serif',
+        }),
+      )
+    }
+  })
+
+  boardDims.forEach((d: DimLine) => out.push(renderDimLine(d, px, py)))
+  cutPosDims.forEach((d: DimLine) => out.push(renderDimLine(d, px, py)))
+
+  return out.join('')
+}
+
+function renderTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): string {
+  const tbY = SHEET_H - MARGIN - TITLE_H
+  const tbX = MARGIN
+  const tbW = 297 - 2 * MARGIN
+
+  return [
+    svgRect(tbX, tbY, tbW, TITLE_H, { stroke: '#000', fill: 'none', 'stroke-width': '0.3' }),
+    svgText(tbX + 4, tbY + 8, sheet.partLabel, {
+      'font-size': '7',
+      'font-weight': 'bold',
+      fill: '#000',
+      'font-family': 'sans-serif',
+    }),
+    svgText(tbX + 4, tbY + 16, sheet.material || '—', {
+      'font-size': '4',
+      fill: '#444',
+      'font-family': 'sans-serif',
+    }),
+    svgText(tbX + 100, tbY + 8, `Scale: ${sheet.scaleLabel}`, {
+      'font-size': '4',
+      fill: '#444',
+      'font-family': 'sans-serif',
+    }),
+    svgText(tbX + 100, tbY + 16, `Date: ${sheet.date}`, {
+      'font-size': '4',
+      fill: '#444',
+      'font-family': 'sans-serif',
+    }),
+    svgRect(tbX + tbW - 20, tbY + 8, 6, 4, {
+      fill: sheet.color,
+      stroke: '#333',
+      'stroke-width': '0.2',
+    }),
+  ].join('')
+}
+
+function renderCoverSheet(sheet: Extract<DrawingSheet, { kind: 'cover' }>): string {
+  const out: string[] = []
+  const cx = MARGIN
+  const cy = MARGIN
+
+  out.push(
+    svgText(cx, cy + 10, sheet.projectName, {
+      'font-size': '12',
+      'font-weight': 'bold',
+      fill: '#000',
+      'font-family': 'sans-serif',
+    }),
+  )
+  out.push(
+    svgText(cx, cy + 18, sheet.date, {
+      'font-size': '5',
+      fill: '#666',
+      'font-family': 'sans-serif',
+    }),
+  )
+
+  const rowH = 8
+  const tableY = cy + 26
+  const cols = [0, 12, 60, 100, 170, 220]
+  const headers = ['#', 'Label', 'Material', 'L × W × T', 'Cuts']
+
+  out.push(svgRect(cx, tableY, 267, rowH, { fill: '#eee', stroke: '#ccc', 'stroke-width': '0.2' }))
+  headers.forEach((h, i) => {
+    out.push(
+      svgText(cx + cols[i] + 1, tableY + 5.5, h, {
+        'font-size': '3.5',
+        'font-weight': 'bold',
+        fill: '#000',
+        'font-family': 'sans-serif',
+      }),
+    )
+  })
+
+  sheet.rows.forEach((row, ri) => {
+    const ry = tableY + rowH * (ri + 1)
+    out.push(svgRect(cx, ry, 267, rowH, { fill: 'none', stroke: '#ccc', 'stroke-width': '0.2' }))
+    const cells = [
+      String(row.index),
+      row.label,
+      row.material || '—',
+      `${row.length}×${row.width}×${row.thickness}`,
+      String(row.cutCount),
+    ]
+    cells.forEach((c, i) => {
+      out.push(
+        svgText(cx + cols[i] + 1, ry + 5.5, c, {
+          'font-size': '3.5',
+          fill: '#000',
+          'font-family': 'sans-serif',
+        }),
+      )
+    })
+  })
+
+  return out.join('')
+}
+
+export function buildSvg(sheet: DrawingSheet): string {
+  const printStyle = `<style>@media print{svg{width:100%;height:auto;page-break-after:always;}}</style>`
+
+  let body: string
+  if (sheet.kind === 'cover') {
+    body = renderCoverSheet(sheet)
+  } else {
+    body = sheet.views.map(renderView).join('') + renderTitleBlock(sheet)
+  }
+
+  return [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" width="297mm" height="210mm">`,
+    printStyle,
+    body,
+    `</svg>`,
+  ].join('\n')
+}
