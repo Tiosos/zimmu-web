@@ -26,7 +26,7 @@ function makePart(overrides: Partial<Part> = {}): Part {
 describe('buildCsv', () => {
   it('returns only the header when parts array is empty', () => {
     expect(buildCsv([])).toBe(
-      'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts',
+      'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts,Cost/unit,Total',
     )
   })
 
@@ -40,7 +40,7 @@ describe('buildCsv', () => {
 
   it('formats a data row with correct field values', () => {
     const csv = buildCsv([makePart({ length: 600, width: 300, thickness: 18 })])
-    expect(csv.split('\n')[1]).toBe('1,Left Side,,#8b6914,600,300,18,0')
+    expect(csv.split('\n')[1]).toBe('1,Left Side,,#8b6914,600,300,18,0,,')
   })
 
   it('includes the cut count', () => {
@@ -61,7 +61,7 @@ describe('buildCsv', () => {
       },
     ]
     const csv = buildCsv([makePart({ cuts })])
-    expect(csv.split('\n')[1]).toBe('1,Left Side,,#8b6914,600,300,18,2')
+    expect(csv.split('\n')[1]).toBe('1,Left Side,,#8b6914,600,300,18,2,,')
   })
 
   it('wraps labels in double quotes when they contain a comma', () => {
@@ -311,9 +311,9 @@ describe('CuttingList', () => {
     expect(writeText).toHaveBeenCalledOnce()
     const csvArg = writeText.mock.calls[0][0] as string
     expect(csvArg.split('\n')[0]).toBe(
-      'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts',
+      'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts,Cost/unit,Total',
     )
-    expect(csvArg).toContain('1,Left Side,,#8b6914,600,300,18,0')
+    expect(csvArg).toContain('1,Left Side,,#8b6914,600,300,18,0,,')
   })
 
   it('renders the Color column header and the hex value for a part', () => {
