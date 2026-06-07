@@ -6,7 +6,7 @@ import { useAddCut } from './scene/useAddCut'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
-import { CuttingList } from './ui/CuttingList'
+import { BomModal } from './ui/BomModal'
 import { buildBinaryStl } from './geom/stl'
 import { downloadBlob } from './ui/download'
 import { buildDrawingSheets } from './geom/drawing'
@@ -43,6 +43,8 @@ function App() {
     undo,
     redo,
     exportStep,
+    onUpdateMaterial,
+    onUpdateHardware,
   } = useScene()
 
   const {
@@ -302,7 +304,15 @@ function App() {
         />
       </div>
       {cuttingListOpen && (
-        <CuttingList parts={scene.parts} projectName={projectName} onClose={closeCuttingList} />
+        <BomModal
+          parts={scene.parts}
+          materials={scene.materials}
+          hardware={scene.hardware}
+          projectName={projectName}
+          onClose={closeCuttingList}
+          onMaterialCostChange={onUpdateMaterial}
+          onUpdateHardware={onUpdateHardware}
+        />
       )}
       <DrawingViewer
         open={drawingsOpen}
