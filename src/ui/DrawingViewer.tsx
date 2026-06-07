@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import type { DrawingSheet } from '../geom/drawing'
 import { buildSvg } from './buildSvg'
@@ -33,8 +33,12 @@ function printSheets(sheetList: DrawingSheet[]): void {
 export function DrawingViewer({ open, onClose, sheets, projectName }: DrawingViewerProps) {
   const [idx, setIdx] = useState(0)
 
+  const prevOpenRef = useRef(open)
   useEffect(() => {
-    if (open) setIdx(0)
+    if (open && !prevOpenRef.current) {
+      setIdx(0)
+    }
+    prevOpenRef.current = open
   }, [open])
 
   const handleKey = useCallback(
