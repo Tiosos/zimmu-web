@@ -1,4 +1,12 @@
-import type { DrawingSheet, DrawingView, DimLine, CutLabel, Rect2D } from '../geom/drawing'
+import type { DrawingSheet, DrawingView, DimLine, Rect2D } from '../geom/drawing'
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
 
 const SHEET_H = 210
 const TITLE_H = 25
@@ -11,10 +19,10 @@ function fmt(n: number): string {
 
 function el(tag: string, attrs: Record<string, string | number>, content?: string): string {
   const a = Object.entries(attrs)
-    .map(([k, v]) => `${k}="${v}"`)
+    .map(([k, v]) => `${k}="${typeof v === 'string' ? escapeXml(v) : v}"`)
     .join(' ')
   if (content === undefined) return `<${tag} ${a}/>`
-  return `<${tag} ${a}>${content}</${tag}>`
+  return `<${tag} ${a}>${escapeXml(content)}</${tag}>`
 }
 
 function svgRect(
@@ -110,7 +118,7 @@ function renderView(view: DrawingView): string {
         'stroke-width': '0.2',
       }),
     )
-    const cl: CutLabel = cutLabels[i]
+    const cl = cutLabels[i]
     if (cl) {
       out.push(
         svgText(px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, cl.text, {

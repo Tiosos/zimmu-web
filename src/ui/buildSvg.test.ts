@@ -83,4 +83,18 @@ describe('buildSvg', () => {
     expect(svgStr).toContain('Top')
     expect(svgStr).toContain('Bottom')
   })
+
+  it('escapes special characters in part label to prevent XSS', () => {
+    const sheets = buildDrawingSheets([makeBoard({ label: '<script>alert(1)</script>' })], 'Test')
+    const svgStr = buildSvg(sheets[1])
+    expect(svgStr).not.toContain('<script>')
+    expect(svgStr).toContain('&lt;script&gt;')
+  })
+
+  it('escapes ampersands in material name', () => {
+    const sheets = buildDrawingSheets([makeBoard({ material: 'Oak & Pine' })], 'Test')
+    const svgStr = buildSvg(sheets[1])
+    expect(svgStr).not.toContain('Oak & Pine')
+    expect(svgStr).toContain('Oak &amp; Pine')
+  })
 })
