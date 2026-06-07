@@ -112,6 +112,7 @@ export function HardwareTab({ hardware, onUpdateHardware }: HardwareTabProps) {
 
       {editingItem && (
         <HardwareEditPanel
+          key={editingItem.id}
           item={editingItem}
           onSave={handleSave}
           onCancel={handleCancel}

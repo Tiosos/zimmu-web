@@ -61,4 +61,39 @@ describe('HardwareTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
     expect(onUpdateHardware).toHaveBeenCalledWith([])
   })
+
+  it('switching between items shows the correct item data in the panel', () => {
+    const items2: HardwareItem[] = [
+      {
+        id: 'h1',
+        name: 'Hinge',
+        qty: 4,
+        unit: 'pcs',
+        supplier: '',
+        partNumber: '',
+        unitCost: 2.5,
+        notes: '',
+        linkedPartIds: [],
+      },
+      {
+        id: 'h2',
+        name: 'Screw',
+        qty: 10,
+        unit: 'pcs',
+        supplier: '',
+        partNumber: '',
+        unitCost: 0.1,
+        notes: '',
+        linkedPartIds: [],
+      },
+    ]
+    render(<HardwareTab hardware={items2} onUpdateHardware={vi.fn()} />)
+    fireEvent.click(screen.getByText('Hinge'))
+    // Panel shows Hinge
+    expect(screen.getByDisplayValue('Hinge')).toBeTruthy()
+    // Click Screw
+    fireEvent.click(screen.getByText('Screw'))
+    // Panel now shows Screw (not Hinge)
+    expect(screen.getByDisplayValue('Screw')).toBeTruthy()
+  })
 })
