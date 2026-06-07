@@ -34,8 +34,26 @@ export interface BoardPart {
 
 export type Part = BoardPart
 
+export interface MaterialDef {
+  costPerM2: number // cost per square metre in user's currency
+}
+
+export interface HardwareItem {
+  id: string // UUID — stable across edits
+  name: string
+  qty: number
+  unit: string // "pcs", "m", "kg", "box", etc.
+  supplier: string
+  partNumber: string
+  unitCost: number // cost per single unit
+  notes: string
+  linkedPartIds: string[] // reserved for future 3D linkage
+}
+
 export interface Scene {
   parts: Part[]
+  materials: Record<string, MaterialDef> // keyed by material name string
+  hardware: HardwareItem[]
 }
 
 export interface FaceHit {
