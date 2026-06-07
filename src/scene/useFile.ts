@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import type { Scene, CameraState, ZimmuFile } from './types'
 import * as idb from './idb'
 
-export const FILE_FORMAT_VERSION = 1
+export const FILE_FORMAT_VERSION = 2
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -33,7 +33,7 @@ function serialize(envelope: ZimmuFile): string {
   )
 }
 
-function parseFile(text: string): ZimmuFile {
+export function parseFile(text: string): ZimmuFile {
   const raw = JSON.parse(text) as ZimmuFile
   if (raw.version > FILE_FORMAT_VERSION) {
     console.warn(
