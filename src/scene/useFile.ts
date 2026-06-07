@@ -56,6 +56,8 @@ function parseFile(text: string): ZimmuFile {
         visible: p.visible ?? true,
         material: p.material ?? '',
       })),
+      materials: (raw.scene.materials as Record<string, { costPerM2: number }> | undefined) ?? {},
+      hardware: raw.scene.hardware ?? [],
     },
   }
 }
@@ -235,12 +237,12 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       createdAt: now,
       updatedAt: now,
       camera: getCameraStateRef.current(),
-      scene: { parts: [] },
+      scene: { parts: [], materials: {}, hardware: [] },
     }
     handleRef.current = null
     createdAtRef.current = null
     projectNameRef.current = 'Untitled'
-    lastSavedSceneRef.current = JSON.stringify({ parts: [] })
+    lastSavedSceneRef.current = JSON.stringify({ parts: [], materials: {}, hardware: [] })
     lastSavedProjectNameRef.current = 'Untitled'
     isDirtyRef.current = false
     setFileName(null)

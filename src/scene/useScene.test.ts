@@ -245,6 +245,8 @@ describe('useScene', () => {
           visible: true,
         },
       ],
+      materials: {},
+      hardware: [],
     }
     act(() => {
       result.current.replaceScene(replacement)
@@ -259,7 +261,7 @@ describe('useScene', () => {
   it('replaceScene with empty parts resets labelCounter to 1', () => {
     const { result } = renderHook(() => useScene())
     act(() => {
-      result.current.replaceScene({ parts: [] })
+      result.current.replaceScene({ parts: [], materials: {}, hardware: [] })
     })
     expect(result.current.scene.parts).toHaveLength(0)
     expect(result.current.nextLabel).toBe('Board 1')
@@ -553,7 +555,7 @@ describe('useScene', () => {
       })
       expect(result.current.canUndo).toBe(true)
       act(() => {
-        result.current.replaceScene({ parts: [] })
+        result.current.replaceScene({ parts: [], materials: {}, hardware: [] })
       })
       expect(result.current.canUndo).toBe(false)
       expect(result.current.canRedo).toBe(false)
@@ -566,7 +568,7 @@ describe('useScene', () => {
         result.current.onAdd()
       })
       act(() => {
-        result.current.replaceScene({ parts: [] })
+        result.current.replaceScene({ parts: [], materials: {}, hardware: [] })
       })
       expect(() => {
         act(() => {
@@ -1071,5 +1073,140 @@ describe('useScene', () => {
     expect(specs[0].length).toBe(parts[0].length)
     expect(specs[0].matrix).toHaveLength(16)
     expect(Array.isArray(specs[0].cuts)).toBe(true)
+  })
+
+  it('starts with materials: {} and hardware: []', () => {
+    const { result } = renderHook(() => useScene())
+    expect(result.current.scene.materials).toEqual({})
+    expect(result.current.scene.hardware).toEqual([])
+  })
+
+  it('onAdd preserves existing materials and hardware', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    act(() => {
+      result.current.onUpdateMaterial('Plywood', { costPerM2: 50 })
+    })
+    act(() => {
+      result.current.onUpdateHardware([
+        {
+          id: '1',
+          name: 'Screw',
+          qty: 10,
+          unit: 'pcs',
+          supplier: '',
+          partNumber: '',
+          unitCost: 0.5,
+          notes: '',
+          linkedPartIds: [],
+        },
+      ])
+    })
+    act(() => {
+      result.current.onAdd()
+    })
+    expect(result.current.scene.materials).toEqual({ Plywood: { costPerM2: 50 } })
+    expect(result.current.scene.hardware).toHaveLength(1)
+  })
+
+  it('onUpdateMaterial sets a material rate on the scene', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    act(() => {
+      result.current.onUpdateMaterial('Plywood', { costPerM2: 40 })
+    })
+    expect(result.current.scene.materials).toEqual({ Plywood: { costPerM2: 40 } })
+  })
+
+  it('onUpdateMaterial undo restores previous materials', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    act(() => {
+      result.current.onUpdateMaterial('Plywood', { costPerM2: 40 })
+    })
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.scene.materials).toEqual({})
+  })
+
+  it('onUpdateMaterial redo reapplies rate after undo', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    act(() => {
+      result.current.onUpdateMaterial('Plywood', { costPerM2: 40 })
+    })
+    act(() => {
+      result.current.undo()
+    })
+    act(() => {
+      result.current.redo()
+    })
+    expect(result.current.scene.materials).toEqual({ Plywood: { costPerM2: 40 } })
+  })
+
+  it('onUpdateMaterial coalesces rapid calls into one undo entry', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    act(() => {
+      result.current.onUpdateMaterial('Plywood', { costPerM2: 10 })
+    })
+    act(() => {
+      result.current.onUpdateMaterial('Plywood', { costPerM2: 20 })
+    })
+    act(() => {
+      result.current.onUpdateMaterial('Plywood', { costPerM2: 30 })
+    })
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.scene.materials).toEqual({})
+  })
+
+  it('onUpdateHardware sets hardware items', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const items = [
+      {
+        id: 'h1',
+        name: 'Hinge',
+        qty: 4,
+        unit: 'pcs',
+        supplier: 'Ace',
+        partNumber: 'H-100',
+        unitCost: 2.5,
+        notes: '',
+        linkedPartIds: [],
+      },
+    ]
+    act(() => {
+      result.current.onUpdateHardware(items)
+    })
+    expect(result.current.scene.hardware).toEqual(items)
+  })
+
+  it('onUpdateHardware undo restores previous hardware', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const items = [
+      {
+        id: 'h1',
+        name: 'Hinge',
+        qty: 4,
+        unit: 'pcs',
+        supplier: '',
+        partNumber: '',
+        unitCost: 2.5,
+        notes: '',
+        linkedPartIds: [],
+      },
+    ]
+    act(() => {
+      result.current.onUpdateHardware(items)
+    })
+    act(() => {
+      result.current.undo()
+    })
+    expect(result.current.scene.hardware).toEqual([])
   })
 })

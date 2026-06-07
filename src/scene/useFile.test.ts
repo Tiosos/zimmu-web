@@ -21,12 +21,12 @@ const FIXTURE: ZimmuFile = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T12:00:00.000Z',
   camera: CAMERA,
-  scene: { parts: [] },
+  scene: { parts: [], materials: {}, hardware: [] },
 }
 
 function makeInput(overrides?: Partial<Parameters<typeof useFile>[0]>) {
   return {
-    scene: { parts: [] },
+    scene: { parts: [], materials: {}, hardware: [] },
     getCameraState: () => CAMERA,
     onFileLoaded: vi.fn(),
     ...overrides,
@@ -180,11 +180,11 @@ describe('useFile', () => {
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
-      { initialProps: { scene: { parts: [] as Scene['parts'] } } },
+      { initialProps: { scene: { parts: [] as Scene['parts'], materials: {}, hardware: [] } } },
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
-    rerender({ scene: { parts: [mockPart] } })
+    rerender({ scene: { parts: [mockPart], materials: {}, hardware: [] } })
     await waitFor(() => expect(result.current.isDirty).toBe(true))
 
     await act(async () => {
@@ -224,11 +224,11 @@ describe('useFile', () => {
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
-      { initialProps: { scene: { parts: [] as Scene['parts'] } } },
+      { initialProps: { scene: { parts: [] as Scene['parts'], materials: {}, hardware: [] } } },
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
-    rerender({ scene: { parts: [mockPart] } })
+    rerender({ scene: { parts: [mockPart], materials: {}, hardware: [] } })
     await waitFor(() => expect(result.current.isDirty).toBe(true))
 
     await act(async () => {
@@ -336,7 +336,9 @@ describe('useFile', () => {
       cuts: [],
       visible: true,
     }
-    const { result } = renderHook(() => useFile(makeInput({ scene: { parts: [part] } })))
+    const { result } = renderHook(() =>
+      useFile(makeInput({ scene: { parts: [part], materials: {}, hardware: [] } })),
+    )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
     await act(async () => {
@@ -462,6 +464,8 @@ describe('useFile', () => {
             // no cuts field — simulates a pre-cuts file
           } as unknown as Part,
         ],
+        materials: {},
+        hardware: [],
       },
     }
 
@@ -502,6 +506,8 @@ describe('useFile', () => {
             // no visible field — simulates a pre-visible file
           } as unknown as Part,
         ],
+        materials: {},
+        hardware: [],
       },
     }
 
@@ -543,6 +549,8 @@ describe('useFile', () => {
             // no material field — simulates a pre-material file
           } as unknown as Part,
         ],
+        materials: {},
+        hardware: [],
       },
     }
 
@@ -584,6 +592,8 @@ describe('useFile', () => {
             visible: false,
           },
         ],
+        materials: {},
+        hardware: [],
       },
     }
 

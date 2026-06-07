@@ -2,7 +2,16 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import * as THREE from 'three'
 import { wrap } from 'comlink'
 import type { OcctWorkerApi } from '../geom/occt.worker'
-import type { BoardPart, Part, PartId, Scene, CutDef, CutId } from './types'
+import type {
+  BoardPart,
+  HardwareItem,
+  MaterialDef,
+  Part,
+  PartId,
+  Scene,
+  CutDef,
+  CutId,
+} from './types'
 import { shapeKey } from './utils'
 import { faceAxes } from './snapMath'
 import { PART_COLORS } from './palette'
@@ -68,6 +77,8 @@ export interface UseSceneResult {
   onDuplicate: (id: PartId) => void
   onToggleVisible: (id: PartId) => void
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
+  onUpdateMaterial: (name: string, def: MaterialDef) => void
+  onUpdateHardware: (items: HardwareItem[]) => void
   onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
   onRemoveCut: (partId: PartId, cutId: CutId) => void
   onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
@@ -84,7 +95,11 @@ export interface UseSceneResult {
 }
 
 export function useScene(): UseSceneResult {
-  const [scene, setScene] = useState<Scene>(() => ({ parts: [makeDefaultBoard()] }))
+  const [scene, setScene] = useState<Scene>(() => ({
+    parts: [makeDefaultBoard()],
+    materials: {},
+    hardware: [],
+  }))
   const [geometries, setGeometries] = useState<Map<PartId, THREE.BufferGeometry>>(new Map())
   const [errors, setErrors] = useState<Map<PartId, string>>(new Map())
   const [pendingIds, setPendingIds] = useState<Set<PartId>>(new Set())
@@ -263,16 +278,16 @@ export function useScene(): UseSceneResult {
       cuts: [],
       visible: true,
     }
-    setScene((prev) => ({ parts: [...prev.parts, part] }))
+    setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
     setSelectedId(part.id)
     push({
       label: `Add ${part.label}`,
       undo: () => {
-        setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== part.id) }))
+        setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== part.id) }))
         setSelectedId((prev) => (prev === part.id ? null : prev))
       },
       redo: () => {
-        setScene((prev) => ({ parts: [...prev.parts, part] }))
+        setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
         setSelectedId(part.id)
       },
     })
@@ -288,7 +303,7 @@ export function useScene(): UseSceneResult {
       prevShapeKeys.current.delete(id)
       buildSeq.current.delete(id)
       setGeometries(new Map(geometriesRef.current))
-      setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== id) }))
+      setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== id) }))
       setSelectedId((prev) => (prev === id ? null : prev))
       push({
         label: `Remove ${part.label}`,
@@ -296,12 +311,12 @@ export function useScene(): UseSceneResult {
           setScene((prev) => {
             const parts = [...prev.parts]
             parts.splice(index, 0, part)
-            return { parts }
+            return { ...prev, parts }
           })
           setSelectedId(id)
         },
         redo: () => {
-          setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== id) }))
+          setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== id) }))
           setSelectedId((prev) => (prev === id ? null : prev))
         },
       })
@@ -332,13 +347,13 @@ export function useScene(): UseSceneResult {
         if (idx === -1) return prev
         const parts = [...prev.parts]
         parts.splice(idx + 1, 0, clone)
-        return { parts }
+        return { ...prev, parts }
       })
       setSelectedId(clone.id)
       push({
         label: `Duplicate ${orig.label}`,
         undo: () => {
-          setScene((prev) => ({ parts: prev.parts.filter((p) => p.id !== clone.id) }))
+          setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== clone.id) }))
           setSelectedId((prev) => (prev === clone.id ? id : prev))
         },
         redo: () => {
@@ -347,7 +362,7 @@ export function useScene(): UseSceneResult {
             if (idx === -1) return prev
             const parts = [...prev.parts]
             parts.splice(idx + 1, 0, clone)
-            return { parts }
+            return { ...prev, parts }
           })
           setSelectedId(clone.id)
         },
@@ -363,16 +378,19 @@ export function useScene(): UseSceneResult {
       const wasVisible = part.visible
       const nowVisible = !wasVisible
       setScene((prev) => ({
+        ...prev,
         parts: prev.parts.map((p) => (p.id === id ? { ...p, visible: nowVisible } : p)),
       }))
       push({
         label: wasVisible ? `Hide ${part.label}` : `Show ${part.label}`,
         undo: () =>
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) => (p.id === id ? { ...p, visible: wasVisible } : p)),
           })),
         redo: () =>
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) => (p.id === id ? { ...p, visible: nowVisible } : p)),
           })),
       })
@@ -385,14 +403,20 @@ export function useScene(): UseSceneResult {
       const before = sceneRef.current.parts.find((p) => p.id === id)
       if (!before) return
       const after = updater(before)
-      setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === id ? after : p)) }))
+      setScene((prev) => ({ ...prev, parts: prev.parts.map((p) => (p.id === id ? after : p)) }))
       push({
         label: historyLabel ?? `Update ${after.label}`,
         coalesceKey: historyLabel !== undefined ? undefined : `update-${id}`,
         undo: () =>
-          setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === id ? before : p)) })),
+          setScene((prev) => ({
+            ...prev,
+            parts: prev.parts.map((p) => (p.id === id ? before : p)),
+          })),
         redo: () =>
-          setScene((prev) => ({ parts: prev.parts.map((p) => (p.id === id ? after : p)) })),
+          setScene((prev) => ({
+            ...prev,
+            parts: prev.parts.map((p) => (p.id === id ? after : p)),
+          })),
       })
     },
     [push],
@@ -426,6 +450,7 @@ export function useScene(): UseSceneResult {
           }
 
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) => {
               if (p.id === partId)
                 return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) }
@@ -440,6 +465,7 @@ export function useScene(): UseSceneResult {
             coalesceKey: `cut-${partId}-${cutId}`,
             undo: () =>
               setScene((prev) => ({
+                ...prev,
                 parts: prev.parts.map((p) => {
                   if (p.id === partId)
                     return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? beforeA : c)) }
@@ -453,6 +479,7 @@ export function useScene(): UseSceneResult {
               })),
             redo: () =>
               setScene((prev) => ({
+                ...prev,
                 parts: prev.parts.map((p) => {
                   if (p.id === partId)
                     return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) }
@@ -468,6 +495,7 @@ export function useScene(): UseSceneResult {
 
       // No paired cut — single-part update
       setScene((prev) => ({
+        ...prev,
         parts: prev.parts.map((p) =>
           p.id === partId ? { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) } : p,
         ),
@@ -477,6 +505,7 @@ export function useScene(): UseSceneResult {
         coalesceKey: `cut-${partId}-${cutId}`,
         undo: () =>
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) =>
               p.id === partId
                 ? { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? beforeA : c)) }
@@ -485,6 +514,7 @@ export function useScene(): UseSceneResult {
           })),
         redo: () =>
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) =>
               p.id === partId
                 ? { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) }
@@ -513,6 +543,7 @@ export function useScene(): UseSceneResult {
       }
 
       setScene((prev) => ({
+        ...prev,
         parts: prev.parts.map((p) => {
           if (p.id === partId) return { ...p, cuts: p.cuts.filter((c) => c.id !== cutId) }
           const pair = affectedPairs.find((ap) => ap.partId === p.id)
@@ -530,6 +561,7 @@ export function useScene(): UseSceneResult {
         label: 'Remove cut',
         undo: () =>
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) => {
               if (p.id === partId) return { ...p, cuts: [...p.cuts, removedCut] }
               const pair = affectedPairs.find((ap) => ap.partId === p.id)
@@ -546,6 +578,7 @@ export function useScene(): UseSceneResult {
           })),
         redo: () =>
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) => {
               if (p.id === partId) return { ...p, cuts: p.cuts.filter((c) => c.id !== cutId) }
               const pair = affectedPairs.find((ap) => ap.partId === p.id)
@@ -585,6 +618,7 @@ export function useScene(): UseSceneResult {
       }
 
       setScene((prev) => ({
+        ...prev,
         parts: prev.parts.map((p) => {
           if (p.id === partIdA)
             return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdA ? linkedA : c)) }
@@ -598,6 +632,7 @@ export function useScene(): UseSceneResult {
         label: 'Link cuts',
         undo: () =>
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) => {
               if (p.id === partIdA)
                 return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdA ? cutA : c)) }
@@ -608,6 +643,7 @@ export function useScene(): UseSceneResult {
           })),
         redo: () =>
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) => {
               if (p.id === partIdA)
                 return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdA ? linkedA : c)) }
@@ -638,6 +674,7 @@ export function useScene(): UseSceneResult {
       const unlinkedMating = matingCut ? { ...matingCut, pairedCutId: undefined } : null
 
       setScene((prev) => ({
+        ...prev,
         parts: prev.parts.map((p) => {
           if (p.id === partId)
             return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? unlinked : c)) }
@@ -652,6 +689,7 @@ export function useScene(): UseSceneResult {
         label: 'Unlink cuts',
         undo: () =>
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) => {
               if (p.id === partId)
                 return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? cut : c)) }
@@ -663,6 +701,7 @@ export function useScene(): UseSceneResult {
           })),
         redo: () =>
           setScene((prev) => ({
+            ...prev,
             parts: prev.parts.map((p) => {
               if (p.id === partId)
                 return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? unlinked : c)) }
@@ -683,6 +722,34 @@ export function useScene(): UseSceneResult {
   const onSelect = useCallback((id: PartId | null) => {
     setSelectedId(id)
   }, [])
+
+  const onUpdateMaterial = useCallback(
+    (name: string, def: MaterialDef) => {
+      const beforeMaterials = sceneRef.current.materials
+      setScene((prev) => ({ ...prev, materials: { ...prev.materials, [name]: def } }))
+      push({
+        label: `Set ${name} cost`,
+        coalesceKey: `material:${name}`,
+        undo: () => setScene((prev) => ({ ...prev, materials: beforeMaterials })),
+        redo: () =>
+          setScene((prev) => ({ ...prev, materials: { ...prev.materials, [name]: def } })),
+      })
+    },
+    [push],
+  )
+
+  const onUpdateHardware = useCallback(
+    (items: HardwareItem[]) => {
+      const beforeHardware = sceneRef.current.hardware
+      setScene((prev) => ({ ...prev, hardware: items }))
+      push({
+        label: 'Edit hardware',
+        undo: () => setScene((prev) => ({ ...prev, hardware: beforeHardware })),
+        redo: () => setScene((prev) => ({ ...prev, hardware: items })),
+      })
+    },
+    [push],
+  )
 
   const replaceScene = useCallback((next: Scene) => {
     for (const geo of geometriesRef.current.values()) geo.dispose()
@@ -723,6 +790,8 @@ export function useScene(): UseSceneResult {
     onDuplicate,
     onToggleVisible,
     onUpdate,
+    onUpdateMaterial,
+    onUpdateHardware,
     onUpdateCut,
     onRemoveCut,
     onLinkCuts,
