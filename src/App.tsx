@@ -9,6 +9,9 @@ import { FileMenu } from './ui/FileMenu'
 import { CuttingList } from './ui/CuttingList'
 import { buildBinaryStl } from './geom/stl'
 import { downloadBlob } from './ui/download'
+import { buildDrawingSheets } from './geom/drawing'
+import type { DrawingSheet } from './geom/drawing'
+import { DrawingViewer } from './ui/DrawingViewer'
 import type { CameraState } from './scene/types'
 
 const supported = 'showOpenFilePicker' in window
@@ -69,6 +72,8 @@ function App() {
   const [loadedCamera, setLoadedCamera] = useState<CameraState | null>(null)
   const [cuttingListOpen, setCuttingListOpen] = useState(false)
   const closeCuttingList = useCallback(() => setCuttingListOpen(false), [])
+  const [drawingsOpen, setDrawingsOpen] = useState(false)
+  const [drawingSheets, setDrawingSheets] = useState<DrawingSheet[]>([])
 
   const {
     fileReady,
@@ -93,6 +98,12 @@ function App() {
 
   const visibleParts = scene.parts.filter((p) => p.visible)
   const canExport = visibleParts.length > 0
+  const closeDrawings = useCallback(() => setDrawingsOpen(false), [])
+
+  const handleOpenDrawings = useCallback(() => {
+    setDrawingSheets(buildDrawingSheets(visibleParts, projectName))
+    setDrawingsOpen(true)
+  }, [visibleParts, projectName])
 
   const handleExportStl = useCallback(() => {
     downloadBlob(buildBinaryStl(visibleParts, geometries), `${projectName}.stl`, 'model/stl')
@@ -244,6 +255,7 @@ function App() {
         onCuttingList={() => setCuttingListOpen(true)}
         onExportStl={handleExportStl}
         onExportStep={handleExportStep}
+        onOpenDrawings={handleOpenDrawings}
         canExport={canExport}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -292,6 +304,12 @@ function App() {
       {cuttingListOpen && (
         <CuttingList parts={scene.parts} projectName={projectName} onClose={closeCuttingList} />
       )}
+      <DrawingViewer
+        open={drawingsOpen}
+        onClose={closeDrawings}
+        sheets={drawingSheets}
+        projectName={projectName}
+      />
     </div>
   )
 }

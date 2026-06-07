@@ -24,6 +24,7 @@ const baseProps: FileMenuProps = {
   onCuttingList: vi.fn(),
   onExportStl: vi.fn(),
   onExportStep: vi.fn(),
+  onOpenDrawings: vi.fn(),
   canExport: true,
 }
 
@@ -153,5 +154,27 @@ describe('FileMenu', () => {
     openMenu()
     fireEvent.click(screen.getByRole('button', { name: /Export STEP/ }))
     expect(onExportStep).toHaveBeenCalledOnce()
+  })
+
+  it('renders a "2D Drawings…" item in the dropdown', () => {
+    render(<FileMenu {...baseProps} />)
+    openMenu()
+    expect(screen.getByRole('button', { name: '2D Drawings…' })).toBeTruthy()
+  })
+
+  it('"2D Drawings…" is disabled when canExport=false', () => {
+    render(<FileMenu {...baseProps} canExport={false} />)
+    openMenu()
+    expect(
+      (screen.getByRole('button', { name: '2D Drawings…' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+  })
+
+  it('"2D Drawings…" calls onOpenDrawings when clicked', () => {
+    const onOpenDrawings = vi.fn()
+    render(<FileMenu {...baseProps} onOpenDrawings={onOpenDrawings} />)
+    openMenu()
+    fireEvent.click(screen.getByRole('button', { name: '2D Drawings…' }))
+    expect(onOpenDrawings).toHaveBeenCalledOnce()
   })
 })

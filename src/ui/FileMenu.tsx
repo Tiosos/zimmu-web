@@ -15,6 +15,7 @@ export interface FileMenuProps {
   onCuttingList: () => void
   onExportStl: () => void
   onExportStep: () => void
+  onOpenDrawings: () => void
   canExport: boolean
   partsCount: number
   supported: boolean
@@ -39,6 +40,7 @@ export function FileMenu({
   onCuttingList,
   onExportStl,
   onExportStep,
+  onOpenDrawings,
   canExport,
   partsCount,
   supported,
@@ -137,6 +139,7 @@ export function FileMenu({
             <Separator className="my-1" />
             {menuItem('Export STL…', '', onExportStl, !canExport)}
             {menuItem('Export STEP…', '', onExportStep, !canExport)}
+            {menuItem('2D Drawings…', '', onOpenDrawings, !canExport)}
           </div>
         )}
       </div>
