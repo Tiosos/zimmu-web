@@ -1209,4 +1209,32 @@ describe('useScene', () => {
     })
     expect(result.current.scene.hardware).toEqual([])
   })
+
+  it('onUpdateHardware redo reapplies items after undo', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const items = [
+      {
+        id: 'h1',
+        name: 'Hinge',
+        qty: 4,
+        unit: 'pcs',
+        supplier: '',
+        partNumber: '',
+        unitCost: 2.5,
+        notes: '',
+        linkedPartIds: [],
+      },
+    ]
+    act(() => {
+      result.current.onUpdateHardware(items)
+    })
+    act(() => {
+      result.current.undo()
+    })
+    act(() => {
+      result.current.redo()
+    })
+    expect(result.current.scene.hardware).toEqual(items)
+  })
 })

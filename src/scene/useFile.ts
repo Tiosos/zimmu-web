@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import type { Scene, CameraState, ZimmuFile } from './types'
+import type { MaterialDef, Scene, CameraState, ZimmuFile } from './types'
 import * as idb from './idb'
 
 export const FILE_FORMAT_VERSION = 2
@@ -56,7 +56,7 @@ export function parseFile(text: string): ZimmuFile {
         visible: p.visible ?? true,
         material: p.material ?? '',
       })),
-      materials: (raw.scene.materials as Record<string, { costPerM2: number }> | undefined) ?? {},
+      materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
       hardware: raw.scene.hardware ?? [],
     },
   }
