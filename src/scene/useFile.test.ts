@@ -7,7 +7,7 @@ vi.mock('./idb', () => ({
   clearHandle: vi.fn(),
 }))
 
-import { useFile } from './useFile'
+import { useFile, parseFile } from './useFile'
 import * as idb from './idb'
 import type { ZimmuFile, Scene, Part } from './types'
 
@@ -569,6 +569,22 @@ describe('useFile', () => {
 
     const loaded = vi.mocked(onFileLoaded).mock.calls[0][0] as ZimmuFile
     expect(loaded.scene.parts[0].material).toBe('')
+  })
+
+  it('defaults materials and hardware for v1 files', () => {
+    const v1Json = JSON.stringify({
+      version: 1,
+      name: 'Test',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: 'x',
+      updatedAt: 'x',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+      scene: { parts: [] },
+    })
+    const result = parseFile(v1Json)
+    expect(result.scene.materials).toEqual({})
+    expect(result.scene.hardware).toEqual([])
   })
 
   it('preserves visible: false when loading a file with a hidden part', async () => {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MaterialDef, Part } from '../scene/types'
 import { buildCsv, groupParts } from './buildCsv'
+import { downloadBlob } from './download'
 import { Button } from '@/components/ui/button'
 
 interface MaterialPopoverProps {
@@ -93,12 +94,7 @@ export function CuttingList({
   const rows = groupParts(parts, materials)
 
   const handleDownload = () => {
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${projectName}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadBlob(csv, `${projectName}.csv`, 'text/csv')
   }
 
   const handleCopy = () => {

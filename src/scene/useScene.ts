@@ -744,7 +744,6 @@ export function useScene(): UseSceneResult {
       setScene((prev) => ({ ...prev, hardware: items }))
       push({
         label: 'Edit hardware',
-        coalesceKey: 'hardware',
         undo: () => setScene((prev) => ({ ...prev, hardware: beforeHardware })),
         redo: () => setScene((prev) => ({ ...prev, hardware: items })),
       })

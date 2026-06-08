@@ -83,7 +83,7 @@ export function BomModal({
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-0 border-b border-border px-6">
+        <div role="tablist" className="flex gap-0 border-b border-border px-6">
           {(['boards', 'hardware'] as const).map((t) => (
             <button
               key={t}
@@ -124,7 +124,12 @@ export function BomModal({
         >
           <div className="flex gap-4 text-xs text-muted-foreground">
             <span>
-              Boards: <span className="text-foreground">${boardSubtotal.toFixed(2)}</span>
+              Boards:{' '}
+              <span className="text-foreground">
+                {boardSubtotal === 0 && !rows.some((r) => r.totalCost !== null)
+                  ? '—'
+                  : `$${boardSubtotal.toFixed(2)}`}
+              </span>
             </span>
             <span className="text-border">|</span>
             <span>

@@ -90,6 +90,6 @@ export function buildHardwareCsv(items: HardwareItem[]): string {
   })
 
   const hardwareTotal = items.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
-  const totalRow = `,,,,Hardware total,${hardwareTotal.toFixed(2)},`
+  const totalRow = `,,,,,Hardware total,${hardwareTotal.toFixed(2)},`
   return [header, ...dataRows, totalRow].join('\n')
 }
