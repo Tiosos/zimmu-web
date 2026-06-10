@@ -124,50 +124,74 @@ src/
 │   ├── mesh.ts          TopoDS_Shape → MeshData (Float32Arrays) + BufferGeometry
 │   ├── transform.ts     composeWorldMatrix(part) — THREE-free world matrix, parity-tested
 │   ├── stl.ts           buildBinaryStl(parts, geometries) — world-space binary STL
+│   ├── drawing.ts       buildDrawingSheet(part) → DrawingView[] (Face/Edge/End orthographic
+│   │                    projections with cut rects, dimension lines, and cut labels)
 │   └── occt.test.ts     Smoke tests (live OCCT skipped in Node)
 ├── scene/
-│   ├── types.ts         Canonical types: ZimmuFile, Scene, Part/BoardPart, CutDef, FaceHit, CameraState
-│   ├── useScene.ts      Scene state + geometry lifecycle + undo/redo + exportStep
+│   ├── types.ts         Canonical types: ZimmuFile, Scene, Part/BoardPart, CutDef,
+│   │                    MaterialDef, HardwareItem, FaceHit, CameraState
+│   ├── useScene.ts      Scene state + geometry lifecycle + undo/redo + exportStep +
+│   │                    cut linking + materials/hardware CRUD
 │   ├── useFile.ts       File System Access API save/open/new + IDB auto-reopen
-│   ├── idb.ts           IndexedDB wrapper — stores the last FileSystemFileHandle
+│   ├── idb.ts           IndexedDB wrapper (v2) — two stores: handles (FileSystemFileHandle)
+│   │                    and library (persistent material cost rates)
 │   ├── utils.ts         shapeKey() — geometry cache key from Part dimensions + cuts
 │   ├── snapMath.ts      Pure face/cut geometry math (faceAxes, computeSnapDelta) — no React
 │   ├── useSnap.ts       Face-to-face snap-align interaction state machine
 │   ├── useAddCut.ts     Click-a-face-to-add-joinery-cut interaction state machine
+│   ├── useMaterialLibrary.ts  Loads/persists material cost rates via idb.ts library store
 │   └── palette.ts       PART_COLORS preset swatches
 ├── render/
 │   └── viewport.tsx     React-wrapped Three.js canvas + OrbitControls + raycaster (emits FaceHit)
 ├── ui/
-│   ├── FileMenu.tsx     Top menu bar (File menu, project name, undo/redo, cutting list, export)
-│   ├── sidebar.tsx      Parts list + EditPanel (label, material, ColorControl, dims, position, rotation, cuts)
-│   ├── CuttingList.tsx  Grouped cutting-list table (qty/material/color/dims/cuts)
-│   ├── buildCsv.ts      groupParts() + CSV serialization for the cutting list
+│   ├── FileMenu.tsx     Top menu bar (File menu, project name, undo/redo, BOM modal, export)
+│   ├── sidebar.tsx      Parts list + EditPanel (label, material, ColorControl, dims,
+│   │                    position, rotation, cuts panel with cut-linking UI)
+│   ├── CuttingList.tsx  Grouped cutting-list table with material cost popover + CSV export
+│   ├── BomModal.tsx     Three-tab modal: Boards (cutting list), Hardware (BOM), Library
+│   │                    (persistent material rates)
+│   ├── HardwareTab.tsx  Hardware BOM table + inline add/edit/delete
+│   ├── HardwareEditPanel.tsx  Reusable hardware item form (name, qty, unit, supplier,
+│   │                    part #, unit cost, notes)
+│   ├── DrawingViewer.tsx  Modal for 2D shop drawings (Face/Edge/End views) with SVG/DXF export
+│   ├── buildCsv.ts      groupParts() + CSV serialization for cutting list + hardware
+│   ├── buildSvg.ts      DrawingSheet → SVG (orthographic views + dimensions + cut labels)
+│   ├── buildDxf.ts      DrawingSheet → DXF (CAD-friendly format)
 │   ├── download.ts      downloadBlob() — Blob + anchor click (browser-agnostic delivery)
 │   └── useDebouncedCallback.ts  Debounce hook used in dimension inputs
-├── components/ui/       Radix-based shadcn-style primitives (button, select, tooltip, …)
+├── components/ui/       Radix-based shadcn-style primitives (button, select, tooltip,
+│                        collapsible, scroll-area, input, label, separator, …)
 ├── lib/utils.ts         cn() — clsx + tailwind-merge class helper
-├── App.tsx              Composes useScene + useFile + useSnap + useAddCut + Viewport + Sidebar + FileMenu
+├── App.tsx              Composes useScene + useFile + useSnap + useAddCut +
+│                        useMaterialLibrary + Viewport + Sidebar + FileMenu +
+│                        BomModal + DrawingViewer
 ├── main.tsx
 └── vite-env.d.ts        Ambient declarations for opencascade.js
 ```
 
 ### Data Flow
 
-`useScene` is the single source of truth for scene state. It manages:
+`useScene` is the single source of truth for scene state (`Scene` = `parts` + `materials` + `hardware`). It manages:
 
 1. **Geometry lifecycle** — watches `scene.parts` for changes; calls `occt.worker.buildPart()` for any part whose `shapeKey()` changed. Geometry results are kept in a ref (`geometriesRef`) and mirrored to state. Only `shapeKey()` changes (dimensions + cuts) trigger a rebuild; position/rotation changes are applied directly in the Viewport.
 2. **Undo/redo** — a 50-entry history stored in refs (`pastRef`/`futureRef`). History entries carry explicit `undo`/`redo` functions (closures over the before/after state). Consecutive `onUpdate` calls to the same part coalesce into one entry via `coalesceKey`.
+3. **Cut linking** — `CutDef.pairedCutId` stores a `"{partId}:{cutId}"` reference to the matching cut on the mating part; the sidebar UI lets users pair/unpair cuts for joinery profiling.
+4. **Materials + hardware** — `scene.materials` (keyed by name, carries `costPerM2`) and `scene.hardware` (array of `HardwareItem`) are managed directly in `useScene`; they serialize to the `.zimmu` file.
 
 `useFile` manages file persistence independently:
 - **Save/Open/New** — uses the File System Access API (`showSaveFilePicker`, `showOpenFilePicker`). Only works in Chrome/Edge; `supported` flag is checked in `App.tsx`.
-- **Auto-reopen** — on startup, `useFile` reads the last `FileSystemFileHandle` from IndexedDB (`src/scene/idb.ts`) and reopens the file if permission is already granted.
+- **Auto-reopen** — on startup, reads the last `FileSystemFileHandle` from IndexedDB (`src/scene/idb.ts`) and reopens if permission is already granted.
 - **Dirty tracking** — `isDirty` is computed by comparing `JSON.stringify(scene)` against the last-saved snapshot.
+
+`useMaterialLibrary` is independent of the file — it persists to the `library` IndexedDB store so cost rates survive across files and sessions. `App.tsx` merges library rates with per-project `scene.materials` when passing `effectiveMaterials` to the BOM modal.
 
 `Viewport` receives `parts`, `geometries`, and `selectedId` as props. It manages Three.js objects directly in refs (no React reconciliation over meshes). Each part gets a `THREE.Mesh` + `THREE.LineSegments` for edge lines. Selection is highlighted by emissive color on the mesh and edge line color. The raycaster emits `FaceHit` (part id + world/local face normal + hit point) for the snap and cut interactions.
 
 **Face interactions** (`useSnap`, `useAddCut`) are small state machines composed in `App.tsx`, fed `FaceHit`s from the Viewport raycaster. Both apply results through `useScene.onUpdate` (so they participate in undo/redo). All their geometry math lives in `snapMath.ts` as pure, THREE-typed-but-browser-free functions — test it directly, not through the React hooks.
 
 **3D export** (STL + STEP) is hybrid: `composeWorldMatrix(part)` in `transform.ts` is the single source of truth for a part's world placement (THREE-free, element-wise parity-tested against `THREE.Matrix4`). STL is built synchronously on the main thread (`buildBinaryStl`, world-space triangle soup with recomputed facet normals). STEP goes through the worker (`exportStep` → `writeStep`, XCAF named solids in mm; falls back to an unnamed `STEPControl_Writer` if CAF symbols are unavailable). Both export only **visible** parts and deliver via `downloadBlob`. If you add a `rotationOrder` other than `'XYZ'`, `composeWorldMatrix` must be revisited — it hardcodes Euler XYZ.
+
+**2D export** (shop drawings): `buildDrawingSheet(part)` in `src/geom/drawing.ts` produces `DrawingView[]` (Face/Edge/End orthographic projections) from a single part. The `DrawingViewer` modal renders these as an SVG preview; `buildSvg.ts` and `buildDxf.ts` serialize them to downloadable formats.
 
 ### Key Invariants
 
@@ -176,7 +200,9 @@ src/
 - **Workers use Comlink.** `expose()` in the worker, `wrap()` in `useScene` (lazy singleton so `vi.stubGlobal('Worker', ...)` works in tests).
 - **Three.js coordinate system:** +Z up (CAD convention). Don't change `camera.up.set(0, 0, 1)`.
 - **`shapeKey()` is the geometry cache key.** It encodes only what changes the OCCT shape — dimensions and cut positions/sizes (not position/rotation, which the Viewport applies directly). Adding a new shape type or a shape-affecting field requires updating `shapeKey()` in `src/scene/utils.ts`.
-- **`ZimmuFile` serialization** rounds floats to 6 decimal places. The file format version is `FILE_FORMAT_VERSION = 1` in `useFile.ts`.
+- **`ZimmuFile` serialization** rounds floats to 6 decimal places. The current file format version is `FILE_FORMAT_VERSION = 2` in `useFile.ts`.
+- **IndexedDB schema is version 2** with two object stores: `handles` (file handle persistence) and `library` (material cost rates). Bumping `DB_VERSION` in `idb.ts` requires adding the new store in `onupgradeneeded`.
+- **Material library vs. project materials** — `scene.materials` is per-file; `library` (IndexedDB) is global. The app merges them at the BOM layer; never conflate the two in `useScene`.
 
 ## Code Conventions
 
