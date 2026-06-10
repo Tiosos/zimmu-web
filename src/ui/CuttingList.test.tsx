@@ -386,6 +386,40 @@ describe('CuttingList', () => {
     expect(dashes.length).toBeGreaterThanOrEqual(2)
   })
 
+  it('does not call onMaterialCostChange when popover closes without changing value', () => {
+    const onMaterialCostChange = vi.fn()
+    const part: Part = {
+      kind: 'board',
+      id: 'p1',
+      label: 'Shelf',
+      length: 600,
+      width: 300,
+      thickness: 18,
+      material: 'Plywood',
+      color: '#aabbcc',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      cuts: [],
+      visible: true,
+    }
+    render(
+      <CuttingList
+        parts={[part]}
+        projectName="Test"
+        onClose={vi.fn()}
+        materials={{ Plywood: { costPerM2: 45 } }}
+        onMaterialCostChange={onMaterialCostChange}
+        hideExportButtons
+      />,
+    )
+    // Click material name to open popover (current = 45)
+    fireEvent.click(screen.getByText('Plywood'))
+    // Blur without changing value — input shows "45", same as current
+    fireEvent.blur(screen.getByRole('spinbutton'))
+    expect(onMaterialCostChange).not.toHaveBeenCalled()
+  })
+
   it('shows board subtotal row when any material rate is set', () => {
     const part: Part = {
       kind: 'board',

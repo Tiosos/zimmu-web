@@ -24,8 +24,12 @@ function MaterialPopover({ current, onSave, onClose }: MaterialPopoverProps) {
     if (committedRef.current) return
     committedRef.current = true
     const num = parseFloat(value)
-    if (!isNaN(num) && num >= 0) onSave({ costPerM2: num })
-    else onClose()
+    if (!isNaN(num) && num >= 0) {
+      if (current === undefined || num !== current) onSave({ costPerM2: num })
+      else onClose()
+    } else {
+      onClose()
+    }
   }
 
   return (
