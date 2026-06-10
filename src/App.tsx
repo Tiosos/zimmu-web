@@ -7,6 +7,7 @@ import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
 import { BomModal } from './ui/BomModal'
+import { useMaterialLibrary } from './scene/useMaterialLibrary'
 import { buildBinaryStl } from './geom/stl'
 import { downloadBlob } from './ui/download'
 import { buildDrawingSheets } from './geom/drawing'
@@ -46,6 +47,8 @@ function App() {
     onUpdateMaterial,
     onUpdateHardware,
   } = useScene()
+
+  const { library, saveRate, deleteEntry } = useMaterialLibrary()
 
   const {
     snapActive,
@@ -312,6 +315,9 @@ function App() {
           onClose={closeCuttingList}
           onMaterialCostChange={onUpdateMaterial}
           onUpdateHardware={onUpdateHardware}
+          library={library}
+          onSaveRate={saveRate}
+          onDeleteLibraryEntry={deleteEntry}
         />
       )}
       <DrawingViewer
