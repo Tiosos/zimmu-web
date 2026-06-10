@@ -6,7 +6,7 @@ import { groupParts, buildCsv, buildHardwareCsv } from './buildCsv'
 import { downloadBlob } from './download'
 import { Button } from '@/components/ui/button'
 
-type Tab = 'boards' | 'hardware'
+type Tab = 'boards' | 'hardware' | 'library'
 
 interface BomModalProps {
   parts: Part[]
@@ -16,6 +16,57 @@ interface BomModalProps {
   onClose: () => void
   onMaterialCostChange: (name: string, def: MaterialDef) => void
   onUpdateHardware: (items: HardwareItem[]) => void
+  library: Record<string, MaterialDef>
+  onSaveRate: (name: string, def: MaterialDef) => void
+  onDeleteLibraryEntry: (name: string) => void
+}
+
+function LibraryTab({
+  library,
+  onDelete,
+}: {
+  library: Record<string, MaterialDef>
+  onDelete: (name: string) => void
+}) {
+  const entries = Object.entries(library).sort(([a], [b]) => a.localeCompare(b))
+
+  if (entries.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground py-4 text-center">
+        No materials saved yet. Set a rate in the Boards tab to build your library.
+      </p>
+    )
+  }
+
+  return (
+    <table className="w-full border-collapse">
+      <thead>
+        <tr className="border-b border-border text-muted-foreground text-left">
+          <th className="pb-2 pr-2 font-medium text-xs">Material</th>
+          <th className="pb-2 px-2 font-medium text-xs">Cost/m²</th>
+          <th className="pb-2 px-2 font-medium text-xs" />
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map(([name, def]) => (
+          <tr key={name} className="border-b border-border/30">
+            <td className="py-1.5 pr-2 text-xs">{name}</td>
+            <td className="py-1.5 px-2 text-xs">${def.costPerM2.toFixed(2)}</td>
+            <td className="py-1.5 px-2 text-xs text-right">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDelete(name)}
+                className="h-5 px-1.5 text-xs text-muted-foreground hover:text-destructive"
+              >
+                Delete
+              </Button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
 }
 
 export function BomModal({
@@ -26,6 +77,9 @@ export function BomModal({
   onClose,
   onMaterialCostChange,
   onUpdateHardware,
+  library,
+  onSaveRate,
+  onDeleteLibraryEntry,
 }: BomModalProps) {
   const [tab, setTab] = useState<Tab>('boards')
 
@@ -37,23 +91,30 @@ export function BomModal({
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  const rows = groupParts(parts, materials)
+  const effectiveMaterials = { ...library, ...materials }
+
+  const rows = groupParts(parts, effectiveMaterials)
   const boardSubtotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
   const hardwareSubtotal = hardware.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
   const grandTotal = boardSubtotal + hardwareSubtotal
 
+  const handleMaterialCostChange = (name: string, def: MaterialDef) => {
+    onMaterialCostChange(name, def)
+    onSaveRate(name, def)
+  }
+
   const handleCopy = () => {
-    const csv = tab === 'boards' ? buildCsv(parts, materials) : buildHardwareCsv(hardware)
+    if (tab === 'library') return
+    const csv = tab === 'boards' ? buildCsv(parts, effectiveMaterials) : buildHardwareCsv(hardware)
     void navigator.clipboard.writeText(csv)
   }
 
   const handleDownload = () => {
+    if (tab === 'library') return
     if (tab === 'boards') {
-      const csv = buildCsv(parts, materials)
-      downloadBlob(csv, `${projectName}-boards.csv`, 'text/csv')
+      downloadBlob(buildCsv(parts, effectiveMaterials), `${projectName}-boards.csv`, 'text/csv')
     } else {
-      const csv = buildHardwareCsv(hardware)
-      downloadBlob(csv, `${projectName}-hardware.csv`, 'text/csv')
+      downloadBlob(buildHardwareCsv(hardware), `${projectName}-hardware.csv`, 'text/csv')
     }
   }
 
@@ -84,7 +145,7 @@ export function BomModal({
 
         {/* Tabs */}
         <div role="tablist" className="flex gap-0 border-b border-border px-6">
-          {(['boards', 'hardware'] as const).map((t) => (
+          {(['boards', 'hardware', 'library'] as const).map((t) => (
             <button
               key={t}
               role="tab"
@@ -96,7 +157,7 @@ export function BomModal({
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              {t === 'boards' ? 'Boards' : 'Hardware'}
+              {t === 'boards' ? 'Boards' : t === 'hardware' ? 'Hardware' : 'Library'}
             </button>
           ))}
         </div>
@@ -108,12 +169,14 @@ export function BomModal({
               parts={parts}
               projectName={projectName}
               onClose={onClose}
-              materials={materials}
-              onMaterialCostChange={onMaterialCostChange}
+              materials={effectiveMaterials}
+              onMaterialCostChange={handleMaterialCostChange}
               hideExportButtons
             />
-          ) : (
+          ) : tab === 'hardware' ? (
             <HardwareTab hardware={hardware} onUpdateHardware={onUpdateHardware} />
+          ) : (
+            <LibraryTab library={library} onDelete={onDeleteLibraryEntry} />
           )}
         </div>
 
@@ -141,10 +204,15 @@ export function BomModal({
             </span>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={handleCopy}>
+            <Button variant="secondary" size="sm" onClick={handleCopy} disabled={tab === 'library'}>
               Copy CSV
             </Button>
-            <Button variant="secondary" size="sm" onClick={handleDownload}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDownload}
+              disabled={tab === 'library'}
+            >
               Download .csv
             </Button>
           </div>
