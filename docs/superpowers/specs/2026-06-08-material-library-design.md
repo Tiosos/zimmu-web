@@ -13,7 +13,7 @@ Persist per-material cost rates across projects using IndexedDB. When the BOM mo
 
 ## Section 1: Architecture
 
-Four files changed, two created.
+Five files changed, two created.
 
 ```
 src/scene/idb.ts              Bump DB to v2; add 'library' store; add
@@ -22,8 +22,12 @@ src/scene/idb.ts              Bump DB to v2; add 'library' store; add
 src/scene/useMaterialLibrary.ts   New hook — loads library from IDB on mount,
                                   exposes saveRate / deleteEntry
 
+src/ui/CuttingList.tsx        Fix MaterialPopover.commit() to skip onSave when
+                              value is unchanged from current
+
 src/ui/BomModal.tsx           Add effectiveMaterials merge; handleMaterialCostChange
-                              wrapper (dual-write); Library tab with inline LibraryTab
+                              wrapper (dual-write); Library tab with inline LibraryTab;
+                              guard handleCopy/handleDownload against 'library' tab
 
 src/App.tsx                   Call useMaterialLibrary; pass 3 new props to BomModal
 ```
@@ -168,7 +172,7 @@ function LibraryTab({
 })
 ```
 
-- Table with columns: Material | Cost/m² | (delete button)
+- Table with columns: Material | Cost/m² | (delete button). Rows sorted alphabetically by material name.
 - Delete button calls `onDelete(name)` immediately — no confirmation prompt. Deletion is low-risk: re-setting a rate in the Boards tab auto-saves it back to the library.
 - Empty state message: *"No materials saved yet. Set a rate in the Boards tab to build your library."*
 - Inline rate editing is not supported — to update a library rate, set the rate in the Boards tab (auto-save fires).
@@ -176,6 +180,27 @@ function LibraryTab({
 ### Footer and CSV buttons
 
 The grand total footer is unchanged in content. When the Library tab is active, the Copy CSV and Download .csv buttons are disabled (the library is not a CSV export target).
+
+`handleCopy` and `handleDownload` in BomModal must also guard against `tab === 'library'` with an early return, in addition to the disabled attribute on the buttons:
+
+```ts
+const handleCopy = () => {
+  if (tab === 'library') return
+  const csv = tab === 'boards' ? buildCsv(parts, effectiveMaterials) : buildHardwareCsv(hardware)
+  void navigator.clipboard.writeText(csv)
+}
+
+const handleDownload = () => {
+  if (tab === 'library') return
+  if (tab === 'boards') {
+    downloadBlob(buildCsv(parts, effectiveMaterials), `${projectName}-boards.csv`, 'text/csv')
+  } else {
+    downloadBlob(buildHardwareCsv(hardware), `${projectName}-hardware.csv`, 'text/csv')
+  }
+}
+```
+
+Note: both functions now use `effectiveMaterials` (not `materials`) so the exported CSV reflects library-seeded rates.
 
 ---
 
@@ -206,7 +231,25 @@ Seeding happens implicitly via `effectiveMaterials = { ...library, ...materials 
 
 **Project rates always win.** If `scene.materials` has `{ 'birch ply': { costPerM2: 40 } }` and the library has `{ 'birch ply': { costPerM2: 45 } }`, the BOM shows `$40`.
 
-**Seeded rates do not dirty the file.** `effectiveMaterials` is a derived value computed in BomModal; it never writes to `scene.materials`. Only explicit user edits in the popover touch the scene.
+**Seeded rates do not dirty the file.** `effectiveMaterials` is a derived value computed in BomModal; it never writes to `scene.materials`. Only explicit user edits in the popover touch the scene. "Explicit" means the user changed the value — opening the popover and dismissing without a change must not fire `onMaterialCostChange`.
+
+This requires a fix to `MaterialPopover.commit()` in `CuttingList.tsx`. The current implementation calls `onSave` on any valid blur/Enter, even when the value matches `current`. With library-seeded rates appearing as `current`, this would dirty the file on a simple inspect-and-close. The fix:
+
+```ts
+const commit = () => {
+  if (committedRef.current) return
+  committedRef.current = true
+  const num = parseFloat(value)
+  if (!isNaN(num) && num >= 0) {
+    if (current === undefined || num !== current) onSave({ costPerM2: num })
+    else onClose()
+  } else {
+    onClose()
+  }
+}
+```
+
+This is also an improvement for the non-library case: re-opening a popover for an already-set rate and pressing Enter without changing the value no longer creates a redundant undo entry.
 
 **Old files with pre-existing rates.** If a project file was saved with rates that were never committed through the popover (e.g., from before this feature existed), those project rates are always used as-is. They are not automatically pushed to the library until the user edits them in the popover (which fires `handleMaterialCostChange` → auto-save).
 
@@ -221,6 +264,27 @@ Seeding happens implicitly via `effectiveMaterials = { ...library, ...materials 
 - `deleteLibraryEntry` removes the entry
 - DB v1 → v2 upgrade preserves existing `handles` store and adds `library` store
 
+The upgrade test requires simulating an existing v1 database. `fake-indexeddb/auto` shares one in-memory IDB per test file, so the v1 database must be torn down between sub-steps. Pattern:
+
+```ts
+it('v1→v2 upgrade preserves handles store and adds library store', async () => {
+  // Step 1: create a v1 database with only 'handles'
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.open('zimmu', 1)
+    req.onupgradeneeded = () => req.result.createObjectStore('handles')
+    req.onsuccess = () => { req.result.close(); resolve() }
+    req.onerror = () => reject(req.error)
+  })
+  // Step 2: call openDb() (which opens at v2); verify both stores exist
+  const db = await openDb()  // exported for testing
+  expect(db.objectStoreNames.contains('handles')).toBe(true)
+  expect(db.objectStoreNames.contains('library')).toBe(true)
+  db.close()
+})
+```
+
+`openDb` must be exported (or the test can call `readLibrary()` and verify it succeeds as a proxy).
+
 ### `src/scene/useMaterialLibrary.test.ts` (new)
 
 - Initial state is `{}`
@@ -230,10 +294,24 @@ Seeding happens implicitly via `effectiveMaterials = { ...library, ...materials 
 
 ### `src/ui/BomModal.test.tsx` (extend)
 
+The existing `baseProps` fixture must be extended with the three new required props:
+
+```ts
+const baseProps = {
+  // existing props...
+  library: {} as Record<string, MaterialDef>,
+  onSaveRate: vi.fn(),
+  onDeleteLibraryEntry: vi.fn(),
+}
+```
+
+New test cases:
+
 - Library-seeded rate appears in cost column when project has no rate for that material
 - Project rate overrides library rate when both exist
 - Committing a rate calls both `onMaterialCostChange` and `onSaveRate`
-- Library tab renders entries from `library` prop
+- Opening popover and dismissing without change does NOT call `onMaterialCostChange`
+- Library tab renders entries from `library` prop sorted alphabetically
 - Delete button in Library tab calls `onDeleteLibraryEntry` with the correct name
 - CSV buttons are disabled when Library tab is active
 
