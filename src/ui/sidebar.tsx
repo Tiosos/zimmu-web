@@ -362,6 +362,7 @@ function ColorControl({
 function EditPanel({
   part,
   onUpdate,
+  onRemove,
   onUpdateCut,
   onRemoveCut,
   onLinkCuts,
@@ -372,6 +373,7 @@ function EditPanel({
 }: {
   part: Part
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
+  onRemove: (id: PartId) => void
   onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
   onRemoveCut: (partId: PartId, cutId: CutId) => void
   onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
@@ -394,8 +396,8 @@ function EditPanel({
 
   return (
     <div className="p-2 border-t border-border">
-      {/* Label input */}
-      <div className="mb-2">
+      {/* Label input + delete */}
+      <div className="mb-2 flex gap-1">
         <Input
           autoFocus
           value={labelValue}
@@ -414,6 +416,20 @@ function EditPanel({
             }
           }}
         />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Delete part"
+              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive-foreground"
+              onClick={() => onRemove(part.id)}
+            >
+              ✕
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Delete</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Material input */}
@@ -708,6 +724,7 @@ export function Sidebar({
             key={selectedPart.id}
             part={selectedPart}
             onUpdate={onUpdate}
+            onRemove={onRemove}
             onUpdateCut={onUpdateCut}
             onRemoveCut={onRemoveCut}
             onLinkCuts={onLinkCuts}

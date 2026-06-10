@@ -159,6 +159,13 @@ function App() {
           }
           return
         }
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (selectedId && !snapActive && !cutActive) {
+            e.preventDefault()
+            onRemove(selectedId)
+          }
+          return
+        }
         return
       }
 
@@ -209,6 +216,7 @@ function App() {
     undo,
     redo,
     onDuplicate,
+    onRemove,
     onToggleVisible,
     selectedId,
     handleActivateCut,

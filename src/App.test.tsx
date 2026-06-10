@@ -6,6 +6,7 @@ const mockUndo = vi.fn()
 const mockRedo = vi.fn()
 const mockOnDuplicate = vi.fn()
 const mockOnToggleVisible = vi.fn()
+const mockOnRemove = vi.fn()
 
 let mockSnapActive = false
 let mockCutActive = false
@@ -44,7 +45,7 @@ vi.mock('./scene/useScene', () => ({
     occtReady: true,
     nextLabel: 'Board 1',
     onAdd: vi.fn(),
-    onRemove: vi.fn(),
+    onRemove: mockOnRemove,
     onDuplicate: mockOnDuplicate,
     onToggleVisible: mockOnToggleVisible,
     onUpdate: vi.fn(),
@@ -84,6 +85,44 @@ describe('App keyboard shortcuts', () => {
     vi.clearAllMocks()
     mockSnapActive = false
     mockCutActive = false
+  })
+
+  it('Delete calls onRemove with the selected part id', async () => {
+    render(<App />)
+    await act(async () => {})
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }))
+    })
+    expect(mockOnRemove).toHaveBeenCalledWith('board_test')
+  })
+
+  it('Backspace calls onRemove with the selected part id', async () => {
+    render(<App />)
+    await act(async () => {})
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }))
+    })
+    expect(mockOnRemove).toHaveBeenCalledWith('board_test')
+  })
+
+  it('Delete does not call onRemove when snap mode is active', async () => {
+    mockSnapActive = true
+    render(<App />)
+    await act(async () => {})
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }))
+    })
+    expect(mockOnRemove).not.toHaveBeenCalled()
+  })
+
+  it('Delete does not call onRemove when cut mode is active', async () => {
+    mockCutActive = true
+    render(<App />)
+    await act(async () => {})
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }))
+    })
+    expect(mockOnRemove).not.toHaveBeenCalled()
   })
 
   it('Ctrl+Z calls undo()', async () => {

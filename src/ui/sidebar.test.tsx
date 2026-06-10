@@ -139,6 +139,13 @@ describe('Sidebar', () => {
     expect(screen.getByText(/Rotation/i)).toBeTruthy()
   })
 
+  it('EditPanel delete button calls onRemove for the selected part', () => {
+    const onRemove = vi.fn()
+    render(<Sidebar {...props({ selectedId: 'board_t1', onRemove })} />)
+    fireEvent.click(screen.getByTitle('Delete part'))
+    expect(onRemove).toHaveBeenCalledWith('board_t1')
+  })
+
   it('renders material input when a part is selected', () => {
     render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
     expect(screen.getByPlaceholderText('Material (optional)')).toBeTruthy()

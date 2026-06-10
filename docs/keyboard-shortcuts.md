@@ -8,6 +8,7 @@
 | `C` | Activate cut mode | |
 | `Escape` | Cancel snap or cut mode | No-op if neither is active |
 | `H` | Toggle visibility of selected part | Suppressed in snap/cut mode |
+| `Delete` / `Backspace` | Remove selected part | Suppressed in snap/cut mode |
 
 ## With Ctrl / Cmd
 
