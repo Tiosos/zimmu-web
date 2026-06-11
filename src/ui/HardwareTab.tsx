@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import type { HardwareItem } from '../scene/types'
+import type { HardwareItem, Part } from '../scene/types'
 import { HardwareEditPanel } from './HardwareEditPanel'
 import { Button } from '@/components/ui/button'
 
 interface HardwareTabProps {
   hardware: HardwareItem[]
+  parts: Part[]
   onUpdateHardware: (items: HardwareItem[]) => void
 }
 
@@ -22,7 +23,7 @@ function makeBlankItem(): HardwareItem {
   }
 }
 
-export function HardwareTab({ hardware, onUpdateHardware }: HardwareTabProps) {
+export function HardwareTab({ hardware, parts, onUpdateHardware }: HardwareTabProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pendingItem, setPendingItem] = useState<HardwareItem | null>(null)
 
@@ -114,6 +115,7 @@ export function HardwareTab({ hardware, onUpdateHardware }: HardwareTabProps) {
         <HardwareEditPanel
           key={editingItem.id}
           item={editingItem}
+          parts={parts}
           onSave={handleSave}
           onCancel={handleCancel}
           onDelete={handleDelete}

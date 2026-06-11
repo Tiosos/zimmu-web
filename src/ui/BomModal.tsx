@@ -174,7 +174,7 @@ export function BomModal({
               hideExportButtons
             />
           ) : tab === 'hardware' ? (
-            <HardwareTab hardware={hardware} onUpdateHardware={onUpdateHardware} />
+            <HardwareTab hardware={hardware} parts={parts} onUpdateHardware={onUpdateHardware} />
           ) : (
             <LibraryTab library={library} onDelete={onDeleteLibraryEntry} />
           )}

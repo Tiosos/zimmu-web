@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { HardwareTab } from './HardwareTab'
-import type { HardwareItem } from '../scene/types'
+import type { HardwareItem, Part } from '../scene/types'
 
 afterEach(cleanup)
 
@@ -19,25 +19,44 @@ const items: HardwareItem[] = [
   },
 ]
 
+function makePart(overrides: Partial<Part> = {}): Part {
+  return {
+    kind: 'board',
+    id: 'part_1',
+    label: 'Side Panel',
+    length: 400,
+    width: 200,
+    thickness: 18,
+    material: '',
+    color: '#d4a373',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+    ...overrides,
+  }
+}
+
 describe('HardwareTab', () => {
   it('shows empty state when no items', () => {
-    render(<HardwareTab hardware={[]} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={[]} parts={[]} onUpdateHardware={vi.fn()} />)
     expect(screen.getByText(/no hardware items yet/i)).toBeTruthy()
   })
 
   it('renders item rows in the table', () => {
-    render(<HardwareTab hardware={items} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={items} parts={[]} onUpdateHardware={vi.fn()} />)
     expect(screen.getByText('Hinge')).toBeTruthy()
   })
 
   it('Add item button creates a blank item and opens the edit panel', () => {
-    render(<HardwareTab hardware={[]} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={[]} parts={[]} onUpdateHardware={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: /add item/i }))
     expect(screen.getByRole('button', { name: /save/i })).toBeTruthy()
   })
 
   it('clicking a row opens the edit panel with that item', () => {
-    render(<HardwareTab hardware={items} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={items} parts={[]} onUpdateHardware={vi.fn()} />)
     fireEvent.click(screen.getByText('Hinge'))
     expect(screen.getByDisplayValue('Hinge')).toBeTruthy()
     expect(screen.getByRole('button', { name: /save/i })).toBeTruthy()
@@ -45,7 +64,7 @@ describe('HardwareTab', () => {
 
   it('saving a new blank item calls onUpdateHardware with one item', () => {
     const onUpdateHardware = vi.fn()
-    render(<HardwareTab hardware={[]} onUpdateHardware={onUpdateHardware} />)
+    render(<HardwareTab hardware={[]} parts={[]} onUpdateHardware={onUpdateHardware} />)
     fireEvent.click(screen.getByRole('button', { name: /add item/i }))
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
     expect(onUpdateHardware).toHaveBeenCalledWith(
@@ -55,7 +74,7 @@ describe('HardwareTab', () => {
 
   it('deleting an item calls onUpdateHardware with empty list', () => {
     const onUpdateHardware = vi.fn()
-    render(<HardwareTab hardware={items} onUpdateHardware={onUpdateHardware} />)
+    render(<HardwareTab hardware={items} parts={[]} onUpdateHardware={onUpdateHardware} />)
     fireEvent.click(screen.getByText('Hinge'))
     fireEvent.click(screen.getByRole('button', { name: /delete/i }))
     fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
@@ -87,13 +106,17 @@ describe('HardwareTab', () => {
         linkedPartIds: [],
       },
     ]
-    render(<HardwareTab hardware={items2} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={items2} parts={[]} onUpdateHardware={vi.fn()} />)
     fireEvent.click(screen.getByText('Hinge'))
-    // Panel shows Hinge
     expect(screen.getByDisplayValue('Hinge')).toBeTruthy()
-    // Click Screw
     fireEvent.click(screen.getByText('Screw'))
-    // Panel now shows Screw (not Hinge)
     expect(screen.getByDisplayValue('Screw')).toBeTruthy()
+  })
+
+  it('renders part labels as checkboxes in the edit panel when a part is in the list', () => {
+    const parts = [makePart({ id: 'p1', label: 'Side Panel' })]
+    render(<HardwareTab hardware={items} parts={parts} onUpdateHardware={vi.fn()} />)
+    fireEvent.click(screen.getByText('Hinge'))
+    expect(screen.getByLabelText('Side Panel')).toBeTruthy()
   })
 })
