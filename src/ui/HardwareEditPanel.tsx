@@ -1,15 +1,22 @@
 import { useState } from 'react'
-import type { HardwareItem } from '../scene/types'
+import type { HardwareItem, Part } from '../scene/types'
 import { Button } from '@/components/ui/button'
 
 interface HardwareEditPanelProps {
   item: HardwareItem
+  parts: Part[]
   onSave: (item: HardwareItem) => void
   onCancel: () => void
   onDelete: (id: string) => void
 }
 
-export function HardwareEditPanel({ item, onSave, onCancel, onDelete }: HardwareEditPanelProps) {
+export function HardwareEditPanel({
+  item,
+  parts,
+  onSave,
+  onCancel,
+  onDelete,
+}: HardwareEditPanelProps) {
   const [draft, setDraft] = useState<HardwareItem>(item)
   const [confirming, setConfirming] = useState(false)
 
@@ -100,6 +107,34 @@ export function HardwareEditPanel({ item, onSave, onCancel, onDelete }: Hardware
           onChange={(e) => field('notes', e.target.value)}
           className="bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring resize-none"
         />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-muted-foreground">Linked boards</label>
+        {parts.length === 0 ? (
+          <span className="text-xs text-muted-foreground italic">No boards in project</span>
+        ) : (
+          <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
+            {parts.map((p) => (
+              <label key={p.id} className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={draft.linkedPartIds.includes(p.id)}
+                  onChange={(e) => {
+                    const ids = new Set(draft.linkedPartIds)
+                    if (e.target.checked) {
+                      ids.add(p.id)
+                    } else {
+                      ids.delete(p.id)
+                    }
+                    field('linkedPartIds', Array.from(ids))
+                  }}
+                />
+                {p.label}
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between pt-1 border-t border-border mt-auto">
