@@ -387,6 +387,7 @@ function EditPanel({
   const [rotOpen, setRotOpen] = useState(true)
   const [labelValue, setLabelValue] = useState(part.label)
   const labelFocused = useRef(false)
+  const linkedHardware = scene.hardware.filter((h) => h.linkedPartIds.includes(part.id))
 
   useEffect(() => {
     if (!labelFocused.current) setLabelValue(part.label)
@@ -563,23 +564,18 @@ function EditPanel({
         ))
       )}
 
-      {/* Hardware section — read-only, only shown when items are linked */}
-      {(() => {
-        const linked = (scene.hardware ?? []).filter((h) => h.linkedPartIds.includes(part.id))
-        if (linked.length === 0) return null
-        return (
-          <>
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground py-1.5">
-              ▾ Hardware
+      {linkedHardware.length > 0 && (
+        <>
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground py-1.5">
+            ▾ Hardware
+          </p>
+          {linkedHardware.map((hw) => (
+            <p key={hw.id} className="text-[11px] text-foreground py-0.5">
+              {hw.name} × {hw.qty} {hw.unit}
             </p>
-            {linked.map((hw) => (
-              <p key={hw.id} className="text-[11px] text-muted-foreground py-0.5">
-                {hw.name} × {hw.qty} {hw.unit}
-              </p>
-            ))}
-          </>
-        )
-      })()}
+          ))}
+        </>
+      )}
     </div>
   )
 }

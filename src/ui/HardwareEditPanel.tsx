@@ -127,7 +127,7 @@ export function HardwareEditPanel({
                     } else {
                       ids.delete(p.id)
                     }
-                    field('linkedPartIds', Array.from(ids))
+                    field('linkedPartIds', [...ids])
                   }}
                 />
                 {p.label}
