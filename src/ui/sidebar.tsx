@@ -562,6 +562,24 @@ function EditPanel({
           />
         ))
       )}
+
+      {/* Hardware section — read-only, only shown when items are linked */}
+      {(() => {
+        const linked = (scene.hardware ?? []).filter((h) => h.linkedPartIds.includes(part.id))
+        if (linked.length === 0) return null
+        return (
+          <>
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground py-1.5">
+              ▾ Hardware
+            </p>
+            {linked.map((hw) => (
+              <p key={hw.id} className="text-[11px] text-muted-foreground py-0.5">
+                {hw.name} × {hw.qty} {hw.unit}
+              </p>
+            ))}
+          </>
+        )
+      })()}
     </div>
   )
 }

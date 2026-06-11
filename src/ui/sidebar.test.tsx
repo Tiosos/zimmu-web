@@ -323,6 +323,87 @@ describe('Sidebar', () => {
     })
   })
 
+  describe('EditPanel hardware section', () => {
+    it('does not render a hardware section when no hardware is linked to the selected part', () => {
+      const scene = {
+        parts: [makeBoard()],
+        materials: {},
+        hardware: [
+          {
+            id: 'hw_1',
+            name: 'Screw M4',
+            qty: 8,
+            unit: 'pcs',
+            supplier: '',
+            partNumber: '',
+            unitCost: 0,
+            notes: '',
+            linkedPartIds: [],
+          },
+        ],
+      }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
+      expect(screen.queryByText(/▾ Hardware/)).toBeNull()
+    })
+
+    it('renders linked hardware items in the EditPanel', () => {
+      const scene = {
+        parts: [makeBoard()],
+        materials: {},
+        hardware: [
+          {
+            id: 'hw_1',
+            name: 'Corner bracket',
+            qty: 4,
+            unit: 'pcs',
+            supplier: '',
+            partNumber: '',
+            unitCost: 1.5,
+            notes: '',
+            linkedPartIds: ['board_t1'],
+          },
+        ],
+      }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
+      expect(screen.getByText(/▾ Hardware/)).toBeTruthy()
+      expect(screen.getByText(/Corner bracket × 4 pcs/)).toBeTruthy()
+    })
+
+    it('renders only hardware linked to the selected part', () => {
+      const scene = {
+        parts: [makeBoard(), makeBoard({ id: 'board_t2', label: 'Board 2' })],
+        materials: {},
+        hardware: [
+          {
+            id: 'hw_1',
+            name: 'Hinge',
+            qty: 2,
+            unit: 'pcs',
+            supplier: '',
+            partNumber: '',
+            unitCost: 0,
+            notes: '',
+            linkedPartIds: ['board_t1'],
+          },
+          {
+            id: 'hw_2',
+            name: 'Dowel',
+            qty: 6,
+            unit: 'pcs',
+            supplier: '',
+            partNumber: '',
+            unitCost: 0,
+            notes: '',
+            linkedPartIds: ['board_t2'],
+          },
+        ],
+      }
+      render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
+      expect(screen.getByText(/Hinge/)).toBeTruthy()
+      expect(screen.queryByText(/Dowel/)).toBeNull()
+    })
+  })
+
   describe('ColorControl', () => {
     it('renders the custom color input when a part is selected', () => {
       render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
