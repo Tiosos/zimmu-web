@@ -420,6 +420,29 @@ describe('CuttingList', () => {
     expect(onMaterialCostChange).not.toHaveBeenCalled()
   })
 
+  it('preserves existing costPerM when saving a new costPerM2 via the popover', () => {
+    const onMaterialCostChange = vi.fn()
+    const part = makePart({ id: 'p1', material: 'Oak' })
+    render(
+      <CuttingList
+        parts={[part]}
+        projectName="Test"
+        onClose={vi.fn()}
+        materials={{ Oak: { costPerM2: 10, costPerM: 3 } }}
+        onMaterialCostChange={onMaterialCostChange}
+        hideExportButtons
+      />,
+    )
+    // Open the material rate popover
+    fireEvent.click(screen.getByText('Oak'))
+    // Change the costPerM2 value
+    const input = screen.getByRole('spinbutton')
+    fireEvent.change(input, { target: { value: '25' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // costPerM2 updated; costPerM preserved from existing def
+    expect(onMaterialCostChange).toHaveBeenCalledWith('Oak', { costPerM2: 25, costPerM: 3 })
+  })
+
   it('shows board subtotal row when any material rate is set', () => {
     const part: Part = {
       kind: 'board',
