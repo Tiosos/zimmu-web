@@ -1,7 +1,23 @@
 import { describe, it, expect } from 'vitest'
-import { groupParts, buildCsv, buildHardwareCsv } from './buildCsv'
-import type { Part } from '../scene/types'
+import { groupParts, buildCsv, buildHardwareCsv, groupDowels, buildDowelCsv } from './buildCsv'
+import type { Part, CylinderPart } from '../scene/types'
 import type { MaterialDef, HardwareItem } from '../scene/types'
+
+function makeDowel(over: Partial<CylinderPart> & { id: string }): Part {
+  return {
+    kind: 'cylinder',
+    label: over.id,
+    diameter: 8,
+    length: 100,
+    material: '',
+    color: '#888888',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    ...over,
+  }
+}
 
 const plywoodPart: Part = {
   kind: 'board',
@@ -145,5 +161,58 @@ describe('buildHardwareCsv', () => {
     const csv = buildHardwareCsv([])
     const lines = csv.split('\n').filter(Boolean)
     expect(lines).toHaveLength(1) // header only, no total row
+  })
+})
+
+describe('groupDowels', () => {
+  it('groupDowels groups by Ø×length×material and costs by costPerM', () => {
+    const dowels: Part[] = [
+      makeDowel({ id: 'd1', diameter: 8, length: 100, material: 'Beech' }),
+      makeDowel({ id: 'd2', diameter: 8, length: 100, material: 'Beech' }),
+      makeDowel({ id: 'd3', diameter: 10, length: 100, material: 'Beech' }),
+    ]
+    const rows = groupDowels(dowels, { Beech: { costPerM: 5 } })
+    expect(rows).toHaveLength(2)
+    expect(rows[0].qty).toBe(2)
+    expect(rows[0].diameter).toBe(8)
+    expect(rows[0].costPerUnit).toBeCloseTo(0.5)
+    expect(rows[0].totalCost).toBeCloseTo(1.0)
+  })
+
+  it('groupDowels yields null cost when no costPerM rate', () => {
+    const rows = groupDowels([makeDowel({ id: 'd1', material: 'Beech' })], {})
+    expect(rows[0].costPerUnit).toBeNull()
+    expect(rows[0].totalCost).toBeNull()
+  })
+
+  it('groupDowels ignores board parts', () => {
+    const board: Part = {
+      kind: 'board',
+      id: 'b1',
+      label: 'B1',
+      length: 200,
+      width: 100,
+      thickness: 25,
+      material: 'Oak',
+      color: '#888888',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      cuts: [],
+      visible: true,
+    }
+    expect(groupDowels([board], {})).toHaveLength(0)
+  })
+})
+
+describe('buildDowelCsv', () => {
+  it('buildDowelCsv emits header, rows, and a Dowel total', () => {
+    const csv = buildDowelCsv(
+      [makeDowel({ id: 'd1', diameter: 8, length: 100, material: 'Beech' })],
+      { Beech: { costPerM: 5 } },
+    )
+    const lines = csv.split('\n')
+    expect(lines[0]).toBe('Qty,Labels,Material,Color,Diameter (mm),Length (mm),Cost/unit,Total')
+    expect(lines[lines.length - 1]).toContain('Dowel total')
   })
 })
