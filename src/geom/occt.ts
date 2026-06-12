@@ -126,8 +126,19 @@ export function makeShape(
 function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS_Shape {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const O = oc as any
-  const shape =
-    spec.kind === 'board' ? makeShape(oc, spec) : makeCylinder(oc, spec.diameter / 2, spec.length)
+  let shape: TopoDS_Shape
+  switch (spec.kind) {
+    case 'board':
+      shape = makeShape(oc, spec)
+      break
+    case 'cylinder':
+      shape = makeCylinder(oc, spec.diameter / 2, spec.length)
+      break
+    default: {
+      const _exhaustive: never = spec
+      throw new Error(`unknown export spec kind: ${(_exhaustive as { kind: string }).kind}`)
+    }
+  }
   const trsf = new O.gp_Trsf_1()
   // gp_Trsf.SetValues expects row-major 3x4 (a11..a14, a21..a24, a31..a34).
   // spec.matrix is column-major: m[col*4 + row].
