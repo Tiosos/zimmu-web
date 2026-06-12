@@ -389,6 +389,7 @@ function EditPanel({
   const [labelValue, setLabelValue] = useState(part.label)
   const labelFocused = useRef(false)
   const linkedHardware = scene.hardware.filter((h) => h.linkedPartIds.includes(part.id))
+  const blankFallbackLabel = part.kind === 'board' ? nextLabel : 'Dowel'
 
   useEffect(() => {
     if (!labelFocused.current) setLabelValue(part.label)
@@ -411,8 +412,8 @@ function EditPanel({
           onBlur={(e) => {
             labelFocused.current = false
             if (!e.target.value.trim()) {
-              setLabelValue(nextLabel)
-              onUpdate(part.id, (p) => ({ ...p, label: nextLabel }))
+              setLabelValue(blankFallbackLabel)
+              onUpdate(part.id, (p) => ({ ...p, label: blankFallbackLabel }))
             }
           }}
         />

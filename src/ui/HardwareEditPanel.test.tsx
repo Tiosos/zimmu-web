@@ -186,9 +186,9 @@ describe('HardwareEditPanel', () => {
       expect(saved.linkedPartIds).not.toContain('p1')
     })
 
-    it('renders "No boards in project" when parts is empty', () => {
+    it('renders "No parts in project" when parts is empty', () => {
       render(<HardwareEditPanel {...baseItem()} parts={[]} />)
-      expect(screen.getByText('No boards in project')).toBeTruthy()
+      expect(screen.getByText('No parts in project')).toBeTruthy()
     })
   })
 })

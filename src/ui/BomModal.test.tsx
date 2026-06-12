@@ -198,6 +198,33 @@ describe('BomModal', () => {
     expect(screen.getByText('Beech')).toBeTruthy()
   })
 
+  it('merges rates field-level so a library costPerM is not shadowed by a scene costPerM2', () => {
+    const dowelPart: Part = {
+      kind: 'cylinder',
+      id: 'c1',
+      label: 'Dowel',
+      diameter: 8,
+      length: 100,
+      material: 'Beech',
+      color: '#888888',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+    }
+    render(
+      <BomModal
+        {...baseProps}
+        parts={[...parts, dowelPart]}
+        materials={{ Beech: { costPerM2: 10 } }}
+        library={{ Beech: { costPerM: 5 } }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Dowels' }))
+    // 100 mm × $5/m = $0.50 — only visible if the library costPerM survived the merge
+    expect(screen.getAllByText('$0.50').length).toBeGreaterThan(0)
+  })
+
   it('CSV buttons are disabled when Library tab is active', () => {
     render(<BomModal {...baseProps} />)
     fireEvent.click(screen.getByRole('tab', { name: /library/i }))

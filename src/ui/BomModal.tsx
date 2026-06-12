@@ -98,7 +98,12 @@ export function BomModal({
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  const effectiveMaterials = { ...library, ...materials }
+  // Field-level merge so a material keeps both rates: a library-only costPerM
+  // (dowel rate) must not be shadowed by a scene entry that has only costPerM2.
+  const effectiveMaterials: Record<string, MaterialDef> = {}
+  for (const name of new Set([...Object.keys(library), ...Object.keys(materials)])) {
+    effectiveMaterials[name] = { ...library[name], ...materials[name] }
+  }
 
   const rows = groupParts(parts, effectiveMaterials)
   const boardSubtotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)

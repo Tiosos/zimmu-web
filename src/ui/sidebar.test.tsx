@@ -426,6 +426,18 @@ describe('Sidebar', () => {
       expect(screen.getByText('Ø')).toBeTruthy()
       expect(screen.queryByText('T')).toBeNull()
     })
+
+    it('blanking a dowel label falls back to "Dowel", not the board nextLabel', () => {
+      const onUpdate = vi.fn()
+      const scene = { parts: [makeCylinder()], materials: {}, hardware: [] }
+      render(<Sidebar {...props({ scene, selectedId: 'cyl_t1', onUpdate })} />)
+      const input = screen.getByDisplayValue('Dowel 1')
+      fireEvent.change(input, { target: { value: '' } })
+      fireEvent.blur(input)
+      const calls = onUpdate.mock.calls
+      const [, updater] = calls[calls.length - 1] as [PartId, (p: Part) => Part]
+      expect(updater(makeCylinder()).label).toBe('Dowel')
+    })
   })
 
   it('footer shows both + Board and + Dowel buttons', () => {
