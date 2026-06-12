@@ -179,6 +179,25 @@ describe('BomModal', () => {
     expect(onDeleteLibraryEntry).toHaveBeenCalledWith('Plywood')
   })
 
+  it('switches to Dowels tab and shows the dowel material', () => {
+    const dowelPart: Part = {
+      kind: 'cylinder',
+      id: 'c1',
+      label: 'Dowel',
+      diameter: 8,
+      length: 100,
+      material: 'Beech',
+      color: '#888888',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+    }
+    render(<BomModal {...baseProps} parts={[...parts, dowelPart]} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Dowels' }))
+    expect(screen.getByText('Beech')).toBeTruthy()
+  })
+
   it('CSV buttons are disabled when Library tab is active', () => {
     render(<BomModal {...baseProps} />)
     fireEvent.click(screen.getByRole('tab', { name: /library/i }))
