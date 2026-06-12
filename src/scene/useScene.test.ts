@@ -1258,6 +1258,24 @@ describe('useScene', () => {
     }
   })
 
+  it('dowel labels do not collide after delete and re-add', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    act(() => result.current.onAdd('cylinder')) // Dowel 1
+    act(() => result.current.onAdd('cylinder')) // Dowel 2
+    act(() => result.current.onAdd('cylinder')) // Dowel 3
+    const first = result.current.scene.parts.find(
+      (p) => p.kind === 'cylinder' && p.label === 'Dowel 1',
+    )!
+    expect(first.label).toBe('Dowel 1')
+    act(() => result.current.onRemove(first.id)) // remove Dowel 1; count now 2
+    act(() => result.current.onAdd('cylinder')) // count-based: "Dowel 3" — COLLISION with existing
+    const labels = result.current.scene.parts
+      .filter((p) => p.kind === 'cylinder')
+      .map((p) => p.label)
+    expect(new Set(labels).size).toBe(labels.length) // all unique
+  })
+
   it('onDuplicate of a dowel clones it with a new id', async () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))

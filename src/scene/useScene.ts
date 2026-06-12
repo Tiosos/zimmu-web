@@ -290,11 +290,14 @@ export function useScene(): UseSceneResult {
           visible: true,
         }
       } else {
-        const dowelCount = sceneRef.current.parts.filter((p) => p.kind === 'cylinder').length
+        const dowelMax = sceneRef.current.parts.reduce((m, p) => {
+          const match = /^Dowel (\d+)$/.exec(p.label)
+          return match ? Math.max(m, parseInt(match[1], 10)) : m
+        }, 0)
         part = {
           kind: 'cylinder',
           id: `dowel_${crypto.randomUUID()}` as PartId,
-          label: `Dowel ${dowelCount + 1}`,
+          label: `Dowel ${dowelMax + 1}`,
           diameter: 8,
           length: 100,
           material: '',
