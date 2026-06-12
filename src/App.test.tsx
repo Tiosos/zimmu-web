@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, act, cleanup, screen, fireEvent } from '@testing-library/react'
+import { render, act, cleanup, screen, fireEvent, within } from '@testing-library/react'
 import App from './App'
 import type { Part } from './scene/types'
 
@@ -277,7 +277,11 @@ describe('App BOM integration', () => {
     // Switch to the Dowels tab
     fireEvent.click(await screen.findByRole('tab', { name: 'Dowels' }))
 
-    // The dowel label appears in the Dowels table (and also in the sidebar part list)
-    expect(screen.getAllByText('Dowel 1').length).toBeGreaterThan(0)
+    // Scope assertions to the BOM panel to prove the Dowels tab actually rendered DowelList
+    const bomPanel = screen.getByTestId('bom-panel')
+    // "Diameter (mm)" is rendered only by DowelList, proving the Dowels tab is active
+    expect(within(bomPanel).getByText('Diameter (mm)')).toBeTruthy()
+    // The dowel itself appears inside the BOM panel (not just the sidebar)
+    expect(within(bomPanel).getByText('Dowel 1')).toBeTruthy()
   })
 })
