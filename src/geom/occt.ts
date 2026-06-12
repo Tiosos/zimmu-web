@@ -21,6 +21,19 @@ export function makeBox(oc: OpenCascadeInstance, dx: number, dy: number, dz: num
   return shape
 }
 
+export function makeCylinder(
+  oc: OpenCascadeInstance,
+  radius: number,
+  height: number,
+): TopoDS_Shape {
+  // BRepPrimAPI_MakeCylinder_2(R, H): default axis +Z, base circle centered at origin.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const builder = new (oc as any).BRepPrimAPI_MakeCylinder_2(radius, height)
+  const shape = builder.Shape()
+  builder.delete()
+  return shape
+}
+
 export function makeCut(
   oc: OpenCascadeInstance,
   shape: TopoDS_Shape,
