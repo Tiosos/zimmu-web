@@ -52,7 +52,7 @@ describe('useScene', () => {
   it('onAdd is a no-op when occtReady is false', () => {
     const { result } = renderHook(() => useScene())
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     expect(result.current.scene.parts).toHaveLength(1)
   })
@@ -61,7 +61,7 @@ describe('useScene', () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     expect(result.current.scene.parts).toHaveLength(2)
     expect(result.current.scene.parts[1].label).toBe('Board 2')
@@ -71,7 +71,7 @@ describe('useScene', () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     const newId = result.current.scene.parts[1].id
     expect(result.current.selectedId).toBe(newId)
@@ -81,7 +81,7 @@ describe('useScene', () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     const id = result.current.scene.parts[1].id
     act(() => {
@@ -217,7 +217,7 @@ describe('useScene', () => {
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     expect(result.current.nextLabel).toBe('Board 2')
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     expect(result.current.nextLabel).toBe('Board 3')
   })
@@ -226,7 +226,7 @@ describe('useScene', () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     act(() => {
       result.current.onSelect(result.current.scene.parts[1].id)
@@ -285,7 +285,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       expect(result.current.canUndo).toBe(true)
       expect(result.current.undoLabel).toBe('Add Board 2')
@@ -296,7 +296,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       expect(result.current.scene.parts).toHaveLength(2)
       act(() => {
@@ -309,7 +309,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const addedId = result.current.scene.parts[1].id
       expect(result.current.selectedId).toBe(addedId)
@@ -323,7 +323,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const addedId = result.current.scene.parts[1].id
       act(() => {
@@ -341,7 +341,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       act(() => {
         result.current.undo()
@@ -365,7 +365,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       }) // adds Board 2 at index 1
       const firstId = result.current.scene.parts[0].id
       act(() => {
@@ -516,7 +516,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const id0 = result.current.scene.parts[0].id
       const id1 = result.current.scene.parts[1].id
@@ -539,7 +539,7 @@ describe('useScene', () => {
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       for (let i = 0; i < 51; i++) {
         act(() => {
-          result.current.onAdd()
+          result.current.onAdd('board')
         })
       }
       for (let i = 0; i < 50; i++) {
@@ -556,7 +556,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       expect(result.current.canUndo).toBe(true)
       act(() => {
@@ -570,7 +570,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       act(() => {
         result.current.replaceScene({ parts: [], materials: {}, hardware: [] })
@@ -622,14 +622,14 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       act(() => {
         result.current.undo()
       })
       expect(result.current.nextLabel).toBe('Board 2')
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       expect(result.current.scene.parts[1].label).toBe('Board 2')
     })
@@ -706,7 +706,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
 
       const partAId = result.current.scene.parts[0].id
@@ -781,7 +781,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
 
       const partAId = result.current.scene.parts[0].id
@@ -827,7 +827,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
 
       const partAId = result.current.scene.parts[0].id
@@ -878,7 +878,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
 
       const partAId = result.current.scene.parts[0].id
@@ -926,7 +926,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const partAId = result.current.scene.parts[0].id
       const partBId = result.current.scene.parts[1].id
@@ -972,7 +972,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const partAId = result.current.scene.parts[0].id
       const partBId = result.current.scene.parts[1].id
@@ -1015,7 +1015,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const partAId = result.current.scene.parts[0].id
       const partBId = result.current.scene.parts[1].id
@@ -1108,7 +1108,7 @@ describe('useScene', () => {
       ])
     })
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     expect(result.current.scene.materials).toEqual({ Plywood: { costPerM2: 50 } })
     expect(result.current.scene.hardware).toHaveLength(1)
@@ -1241,5 +1241,31 @@ describe('useScene', () => {
       result.current.redo()
     })
     expect(result.current.scene.hardware).toEqual(items)
+  })
+
+  it('onAdd("cylinder") adds a dowel with default Ø8 × 100', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const before = result.current.scene.parts.length
+    act(() => result.current.onAdd('cylinder'))
+    const added = result.current.scene.parts[result.current.scene.parts.length - 1]
+    expect(result.current.scene.parts.length).toBe(before + 1)
+    expect(added.kind).toBe('cylinder')
+    if (added.kind === 'cylinder') {
+      expect(added.diameter).toBe(8)
+      expect(added.length).toBe(100)
+      expect(added.label).toBe('Dowel 1')
+    }
+  })
+
+  it('onDuplicate of a dowel clones it with a new id', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    act(() => result.current.onAdd('cylinder'))
+    const orig = result.current.scene.parts[result.current.scene.parts.length - 1]
+    act(() => result.current.onDuplicate(orig.id))
+    const clone = result.current.scene.parts[result.current.scene.parts.length - 1]
+    expect(clone.id).not.toBe(orig.id)
+    expect(clone.kind).toBe('cylinder')
   })
 })

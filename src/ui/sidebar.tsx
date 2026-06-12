@@ -25,7 +25,7 @@ interface SidebarProps {
   errors: Map<PartId, string>
   pendingIds: Set<PartId>
   nextLabel: string
-  onAdd: () => void
+  onAdd: (kind: 'board' | 'cylinder') => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
@@ -753,7 +753,7 @@ export function Sidebar({
         {/* Add board footer */}
         <div className="p-2 border-t border-border">
           <Button
-            onClick={onAdd}
+            onClick={() => onAdd('board')}
             disabled={!occtReady}
             title={!occtReady ? 'Loading geometry engine…' : undefined}
             variant="outline"

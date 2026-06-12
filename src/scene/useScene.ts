@@ -73,7 +73,7 @@ export interface UseSceneResult {
   selectedId: PartId | null
   occtReady: boolean
   nextLabel: string
-  onAdd: () => void
+  onAdd: (kind: 'board' | 'cylinder') => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
   onToggleVisible: (id: PartId) => void
@@ -267,40 +267,60 @@ export function useScene(): UseSceneResult {
     })
   }, [])
 
-  const onAdd = useCallback(() => {
-    if (!occtReady) return
-    const label = `Board ${labelCounter + 1}`
-    colorIndex.current += 1
-    const id: PartId = `board_${crypto.randomUUID()}`
-    const part: BoardPart = {
-      kind: 'board',
-      id,
-      label,
-      length: 200,
-      width: 100,
-      thickness: 25,
-      material: '',
-      color: PART_COLORS[colorIndex.current % PART_COLORS.length],
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      rotationOrder: 'XYZ',
-      cuts: [],
-      visible: true,
-    }
-    setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
-    setSelectedId(part.id)
-    push({
-      label: `Add ${part.label}`,
-      undo: () => {
-        setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== part.id) }))
-        setSelectedId((prev) => (prev === part.id ? null : prev))
-      },
-      redo: () => {
-        setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
-        setSelectedId(part.id)
-      },
-    })
-  }, [occtReady, labelCounter, push])
+  const onAdd = useCallback(
+    (kind: 'board' | 'cylinder') => {
+      if (!occtReady) return
+      colorIndex.current += 1
+      const color = PART_COLORS[colorIndex.current % PART_COLORS.length]
+      let part: Part
+      if (kind === 'board') {
+        part = {
+          kind: 'board',
+          id: `board_${crypto.randomUUID()}` as PartId,
+          label: `Board ${labelCounter + 1}`,
+          length: 200,
+          width: 100,
+          thickness: 25,
+          material: '',
+          color,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          cuts: [],
+          visible: true,
+        }
+      } else {
+        const dowelCount = sceneRef.current.parts.filter((p) => p.kind === 'cylinder').length
+        part = {
+          kind: 'cylinder',
+          id: `dowel_${crypto.randomUUID()}` as PartId,
+          label: `Dowel ${dowelCount + 1}`,
+          diameter: 8,
+          length: 100,
+          material: '',
+          color,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          visible: true,
+        }
+      }
+      setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
+      setSelectedId(part.id)
+      push({
+        label: `Add ${part.label}`,
+        undo: () => {
+          setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== part.id) }))
+          setSelectedId((prev) => (prev === part.id ? null : prev))
+        },
+        redo: () => {
+          setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
+          setSelectedId(part.id)
+        },
+      })
+    },
+    [occtReady, labelCounter, push],
+  )
 
   const onRemove = useCallback(
     (id: PartId) => {
@@ -335,21 +355,34 @@ export function useScene(): UseSceneResult {
 
   const onDuplicate = useCallback(
     (id: PartId) => {
-      const orig = sceneRef.current.parts.find((p) => p.id === id) as BoardPart | undefined
+      const orig = sceneRef.current.parts.find((p) => p.id === id)
       if (!orig) return
       colorIndex.current += 1
-      const clone: BoardPart = {
-        ...orig,
-        id: `board_${crypto.randomUUID()}` as PartId,
-        color: PART_COLORS[colorIndex.current % PART_COLORS.length],
-        position: { ...orig.position, x: orig.position.x + orig.length + 10 },
-        rotation: { x: 0, y: 0, z: 0 },
-        visible: true,
-        cuts: orig.cuts.map((c) => ({
-          ...c,
-          id: `cut_${crypto.randomUUID()}` as CutId,
-          pairedCutId: undefined,
-        })),
+      const color = PART_COLORS[colorIndex.current % PART_COLORS.length]
+      let clone: Part
+      if (orig.kind === 'board') {
+        clone = {
+          ...orig,
+          id: `board_${crypto.randomUUID()}` as PartId,
+          color,
+          position: { ...orig.position, x: orig.position.x + orig.length + 10 },
+          rotation: { x: 0, y: 0, z: 0 },
+          visible: true,
+          cuts: orig.cuts.map((c) => ({
+            ...c,
+            id: `cut_${crypto.randomUUID()}` as CutId,
+            pairedCutId: undefined,
+          })),
+        }
+      } else {
+        clone = {
+          ...orig,
+          id: `dowel_${crypto.randomUUID()}` as PartId,
+          color,
+          position: { ...orig.position, x: orig.position.x + orig.diameter + 10 },
+          rotation: { x: 0, y: 0, z: 0 },
+          visible: true,
+        }
       }
       setScene((prev) => {
         const idx = prev.parts.findIndex((p) => p.id === id)
