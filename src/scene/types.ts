@@ -32,7 +32,21 @@ export interface BoardPart {
   visible: boolean
 }
 
-export type Part = BoardPart
+export interface CylinderPart {
+  kind: 'cylinder'
+  id: PartId
+  label: string
+  diameter: number // mm
+  length: number // mm — extent along local +Z
+  material: string // "" means unspecified
+  color: string
+  position: Vec3 // base-circle center; local origin lies on the axis
+  rotation: Vec3
+  rotationOrder: 'XYZ'
+  visible: boolean
+}
+
+export type Part = BoardPart | CylinderPart
 
 export interface MaterialDef {
   costPerM2?: number // areal rate ($/m²) for sheet/board stock

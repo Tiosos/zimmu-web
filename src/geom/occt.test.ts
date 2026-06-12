@@ -70,6 +70,7 @@ describe('geom/occt', () => {
     const { writeStep } = await import('./occt')
     const text = writeStep(oc, [
       {
+        kind: 'board',
         label: 'Rail',
         length: 200,
         width: 100,

@@ -1,4 +1,4 @@
-import type { CutDef, Part } from '../scene/types'
+import type { BoardPart, CutDef, Part } from '../scene/types'
 import { faceAxes } from '../scene/snapMath'
 
 export interface Point2D {
@@ -167,7 +167,9 @@ function buildView(
 export function buildDrawingSheets(parts: Part[], projectName: string): DrawingSheet[] {
   const date = new Date().toISOString().slice(0, 10)
 
-  const coverRows: CoverRow[] = parts.map((p, i) => ({
+  const boards = parts.filter((p): p is BoardPart => p.kind === 'board')
+
+  const coverRows: CoverRow[] = boards.map((p, i) => ({
     index: i + 1,
     label: p.label,
     material: p.material,
@@ -179,7 +181,7 @@ export function buildDrawingSheets(parts: Part[], projectName: string): DrawingS
 
   const cover: DrawingSheet = { kind: 'cover', projectName, date, rows: coverRows }
 
-  const partSheets: DrawingSheet[] = parts.map((p) => {
+  const partSheets: DrawingSheet[] = boards.map((p) => {
     const { length: L, width: W, thickness: T, cuts } = p
     const scale = selectScale(L, W, T)
 

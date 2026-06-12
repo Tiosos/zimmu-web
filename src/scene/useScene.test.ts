@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import type { CutDef, PartId } from './types'
+import type { BoardPart, CutDef, Part, PartId } from './types'
+
+function asBoard(p: Part): BoardPart {
+  if (p.kind !== 'board') throw new Error('expected board part')
+  return p
+}
 
 const mockBuildPart = vi.fn()
 const mockExportStep = vi.fn()
@@ -653,8 +658,8 @@ describe('useScene', () => {
 
     await waitFor(() =>
       expect(mockBuildPart).toHaveBeenCalledWith(
-        'board',
         expect.objectContaining({
+          kind: 'board',
           cuts: [{ id: 'cut_1', position: { x: 90, y: 40, z: 15 }, size: { x: 20, y: 20, z: 10 } }],
         }),
       ),
@@ -679,7 +684,7 @@ describe('useScene', () => {
       act(() => {
         result.current.onUpdateCut(partId, 'cut_1', (c) => ({ ...c, size: { ...c.size, x: 30 } }))
       })
-      expect(result.current.scene.parts[0].cuts[0].size.x).toBe(30)
+      expect(asBoard(result.current.scene.parts[0]).cuts[0].size.x).toBe(30)
     })
 
     it('creates an undoable entry (single undo restores)', () => {
@@ -694,7 +699,7 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
-      expect(result.current.scene.parts[0].cuts[0].size.x).toBe(20)
+      expect(asBoard(result.current.scene.parts[0]).cuts[0].size.x).toBe(20)
     })
 
     it('propagates u/v sizes to paired cut; single undo restores both', async () => {
@@ -735,16 +740,16 @@ describe('useScene', () => {
       })
 
       // cut A updated
-      expect(result.current.scene.parts[0].cuts[0].size.x).toBe(40)
+      expect(asBoard(result.current.scene.parts[0]).cuts[0].size.x).toBe(40)
       // cut B's u-axis (also x, both are +Z face) updated by propagation
-      expect(result.current.scene.parts[1].cuts[0].size.x).toBe(40)
+      expect(asBoard(result.current.scene.parts[1]).cuts[0].size.x).toBe(40)
 
       // single undo restores both
       act(() => {
         result.current.undo()
       })
-      expect(result.current.scene.parts[0].cuts[0].size.x).toBe(30)
-      expect(result.current.scene.parts[1].cuts[0].size.x).toBe(30)
+      expect(asBoard(result.current.scene.parts[0]).cuts[0].size.x).toBe(30)
+      expect(asBoard(result.current.scene.parts[1]).cuts[0].size.x).toBe(30)
     })
   })
 
@@ -769,7 +774,7 @@ describe('useScene', () => {
       act(() => {
         result.current.onRemoveCut(partId, 'cut_1')
       })
-      expect(result.current.scene.parts[0].cuts).toHaveLength(0)
+      expect(asBoard(result.current.scene.parts[0]).cuts).toHaveLength(0)
     })
 
     it('clears stale pairedCutId references on other parts', async () => {
@@ -814,8 +819,8 @@ describe('useScene', () => {
         result.current.onRemoveCut(partAId, 'cut_a')
       })
 
-      expect(result.current.scene.parts[0].cuts).toHaveLength(0)
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBeUndefined()
+      expect(asBoard(result.current.scene.parts[0]).cuts).toHaveLength(0)
+      expect(asBoard(result.current.scene.parts[1]).cuts[0].pairedCutId).toBeUndefined()
     })
 
     it('undo restores cut and paired references in one step', async () => {
@@ -863,8 +868,8 @@ describe('useScene', () => {
         result.current.undo()
       })
 
-      expect(result.current.scene.parts[0].cuts).toHaveLength(1)
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
+      expect(asBoard(result.current.scene.parts[0]).cuts).toHaveLength(1)
+      expect(asBoard(result.current.scene.parts[1]).cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
     })
   })
 
@@ -910,11 +915,11 @@ describe('useScene', () => {
         result.current.onLinkCuts(partAId, 'cut_a', partBId, 'cut_b')
       })
 
-      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBe(`${partBId}:cut_b`)
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
+      expect(asBoard(result.current.scene.parts[0]).cuts[0].pairedCutId).toBe(`${partBId}:cut_b`)
+      expect(asBoard(result.current.scene.parts[1]).cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
       // u/v sizes from A (+Z: u=x, v=y) propagated to B
-      expect(result.current.scene.parts[1].cuts[0].size.x).toBe(30)
-      expect(result.current.scene.parts[1].cuts[0].size.y).toBe(40)
+      expect(asBoard(result.current.scene.parts[1]).cuts[0].size.x).toBe(30)
+      expect(asBoard(result.current.scene.parts[1]).cuts[0].size.y).toBe(40)
     })
 
     it('undo clears both pairedCutIds', async () => {
@@ -957,8 +962,8 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
-      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBeUndefined()
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBeUndefined()
+      expect(asBoard(result.current.scene.parts[0]).cuts[0].pairedCutId).toBeUndefined()
+      expect(asBoard(result.current.scene.parts[1]).cuts[0].pairedCutId).toBeUndefined()
     })
   })
 
@@ -1002,8 +1007,8 @@ describe('useScene', () => {
       act(() => {
         result.current.onUnlinkCuts(partAId, 'cut_a')
       })
-      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBeUndefined()
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBeUndefined()
+      expect(asBoard(result.current.scene.parts[0]).cuts[0].pairedCutId).toBeUndefined()
+      expect(asBoard(result.current.scene.parts[1]).cuts[0].pairedCutId).toBeUndefined()
     })
 
     it('undo restores both pairedCutIds', async () => {
@@ -1048,8 +1053,8 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
-      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBe(`${partBId}:cut_b`)
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
+      expect(asBoard(result.current.scene.parts[0]).cuts[0].pairedCutId).toBe(`${partBId}:cut_b`)
+      expect(asBoard(result.current.scene.parts[1]).cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
     })
   })
 

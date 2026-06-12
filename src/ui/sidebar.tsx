@@ -171,6 +171,7 @@ function CutRow({
   const cutLookup = useMemo(() => {
     const map = new Map<string, { partId: PartId; cut: CutDef; partLabel: string }>()
     for (const p of scene.parts) {
+      if (p.kind !== 'board') continue
       for (const c of p.cuts) {
         map.set(`${p.id}:${c.id}`, { partId: p.id, cut: c, partLabel: p.label })
       }
@@ -184,7 +185,7 @@ function CutRow({
   const linkOptions = useMemo(() => {
     const opts: Array<{ value: string; label: string }> = []
     for (const p of scene.parts) {
-      if (p.id === partId) continue
+      if (p.id === partId || p.kind !== 'board') continue
       for (const c of p.cuts) {
         opts.push({ value: `${p.id}:${c.id}`, label: `${p.label} › ${c.label}` })
       }

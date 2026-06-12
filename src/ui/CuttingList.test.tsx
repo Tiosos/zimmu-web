@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { buildCsv, groupParts } from './buildCsv'
 import { CuttingList } from './CuttingList'
-import type { Part } from '../scene/types'
+import type { BoardPart, Part } from '../scene/types'
 
-function makePart(overrides: Partial<Part> = {}): Part {
+function makePart(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
     kind: 'board',
     id: 'p1',

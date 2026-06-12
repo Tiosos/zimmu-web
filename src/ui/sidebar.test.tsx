@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { Sidebar } from './sidebar'
-import type { CutDef, CutId, Part, PartId } from '../scene/types'
+import type { BoardPart, CutDef, CutId, Part, PartId } from '../scene/types'
 import { PART_COLORS } from '../scene/palette'
 
 function makeCut(overrides: Partial<CutDef> = {}): CutDef {
@@ -15,7 +15,7 @@ function makeCut(overrides: Partial<CutDef> = {}): CutDef {
   }
 }
 
-function makeBoard(overrides: Partial<Part> = {}): Part {
+function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
     kind: 'board',
     id: 'board_t1',

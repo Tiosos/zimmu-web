@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import type { MaterialDef, Scene, CameraState, ZimmuFile } from './types'
+import type { BoardPart, MaterialDef, Scene, CameraState, ZimmuFile } from './types'
 import * as idb from './idb'
 
 export const FILE_FORMAT_VERSION = 2
@@ -40,7 +40,7 @@ export function parseFile(text: string): ZimmuFile {
       `zimmu: file version ${raw.version} is newer than app version ${FILE_FORMAT_VERSION} — attempting to parse`,
     )
   }
-  const parts = (raw.scene?.parts ?? []).filter((p) => {
+  const parts = (raw.scene?.parts ?? []).filter((p): p is BoardPart => {
     if (p.kind !== 'board') {
       console.warn(`zimmu: unknown part kind "${(p as { kind: string }).kind}" — skipped`)
       return false

@@ -346,7 +346,8 @@ describe('useFile', () => {
     })
 
     const parsed = JSON.parse(writtenContent) as ZimmuFile
-    expect(parsed.scene.parts[0].width).toBe(100.123457)
+    const part0 = parsed.scene.parts[0]
+    expect(part0.kind === 'board' && part0.width).toBe(100.123457)
   })
 
   it('version > FILE_FORMAT_VERSION: warns and parses successfully', async () => {
@@ -483,7 +484,8 @@ describe('useFile', () => {
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
     const envelope = onFileLoaded.mock.calls[0][0] as ZimmuFile
-    expect(envelope.scene.parts[0].cuts).toEqual([])
+    const part0 = envelope.scene.parts[0]
+    expect(part0.kind === 'board' ? part0.cuts : null).toEqual([])
   })
 
   it('defaults visible to true when loading a file without visible data', async () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { HardwareEditPanel } from './HardwareEditPanel'
-import type { HardwareItem, Part } from '../scene/types'
+import type { BoardPart, HardwareItem, Part } from '../scene/types'
 
 const item: HardwareItem = {
   id: 'h1',
@@ -36,7 +36,7 @@ function baseItem(overrides: Partial<HardwareItem> = {}) {
   }
 }
 
-function makePart(overrides: Partial<Part> = {}): Part {
+function makePart(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
     kind: 'board',
     id: 'part_1',

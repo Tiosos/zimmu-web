@@ -1,28 +1,29 @@
 import { expose, transfer } from 'comlink'
-import { initOCCT, makeShape, writeStep } from './occt'
+import { initOCCT, makeShape, makeCylinder, writeStep } from './occt'
 import type { ExportSpec } from './occt'
 import { shapeToMeshData } from './mesh'
 import type { Vec3 } from '../scene/types'
 
-const api = {
-  async buildPart(
-    kind: 'board',
-    dims: {
+export type BuildSpec =
+  | {
+      kind: 'board'
       length: number
       width: number
       thickness: number
       cuts: Array<{ id: string; position: Vec3; size: Vec3 }>
-    },
-  ) {
-    const oc = await initOCCT()
-    if (kind === 'board') {
-      const shape = makeShape(oc, dims)
-      const data = shapeToMeshData(oc, shape, { linearDeflection: 0.1, angularDeflection: 0.5 })
-      shape.delete()
-      return transfer(data, [data.positions.buffer, data.normals.buffer])
     }
-    const _: never = kind
-    throw new Error(`unknown kind: ${_}`)
+  | { kind: 'cylinder'; diameter: number; length: number }
+
+const MESH_OPTS = { linearDeflection: 0.1, angularDeflection: 0.5 }
+
+const api = {
+  async buildPart(spec: BuildSpec) {
+    const oc = await initOCCT()
+    const shape =
+      spec.kind === 'board' ? makeShape(oc, spec) : makeCylinder(oc, spec.diameter / 2, spec.length)
+    const data = shapeToMeshData(oc, shape, MESH_OPTS)
+    shape.delete()
+    return transfer(data, [data.positions.buffer, data.normals.buffer])
   },
   async exportStep(specs: ExportSpec[]): Promise<string> {
     const oc = await initOCCT()

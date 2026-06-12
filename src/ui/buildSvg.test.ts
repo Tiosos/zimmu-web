@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { buildSvg } from './buildSvg'
 import { buildDrawingSheets } from '../geom/drawing'
-import type { Part } from '../scene/types'
+import type { BoardPart } from '../scene/types'
 
-function makeBoard(overrides: Partial<Part> = {}): Part {
+function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
     kind: 'board',
     id: 'p1',

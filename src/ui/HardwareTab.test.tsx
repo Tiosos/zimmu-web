@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { HardwareTab } from './HardwareTab'
-import type { HardwareItem, Part } from '../scene/types'
+import type { BoardPart, HardwareItem } from '../scene/types'
 
 afterEach(cleanup)
 
@@ -19,7 +19,7 @@ const items: HardwareItem[] = [
   },
 ]
 
-function makePart(overrides: Partial<Part> = {}): Part {
+function makePart(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
     kind: 'board',
     id: 'part_1',

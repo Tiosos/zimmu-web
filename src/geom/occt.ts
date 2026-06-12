@@ -85,14 +85,23 @@ export function makeCut(
   return result
 }
 
-export interface ExportSpec {
-  label: string
-  length: number
-  width: number
-  thickness: number
-  cuts: Array<{ id: string; position: Vec3; size: Vec3 }>
-  matrix: number[] // column-major 16, from composeWorldMatrix
-}
+export type ExportSpec =
+  | {
+      kind: 'board'
+      label: string
+      length: number
+      width: number
+      thickness: number
+      cuts: Array<{ id: string; position: Vec3; size: Vec3 }>
+      matrix: number[]
+    }
+  | {
+      kind: 'cylinder'
+      label: string
+      diameter: number
+      length: number
+      matrix: number[]
+    }
 
 export function makeShape(
   oc: OpenCascadeInstance,
@@ -117,7 +126,8 @@ export function makeShape(
 function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS_Shape {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const O = oc as any
-  const shape = makeShape(oc, spec)
+  const shape =
+    spec.kind === 'board' ? makeShape(oc, spec) : makeCylinder(oc, spec.diameter / 2, spec.length)
   const trsf = new O.gp_Trsf_1()
   // gp_Trsf.SetValues expects row-major 3x4 (a11..a14, a21..a24, a31..a34).
   // spec.matrix is column-major: m[col*4 + row].
