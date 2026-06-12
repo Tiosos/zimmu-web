@@ -406,6 +406,47 @@ describe('useFile', () => {
     expect(loaded.scene.parts[0].kind).toBe('board')
   })
 
+  it('parseFile preserves cylinder (dowel) parts', () => {
+    const raw = JSON.stringify({
+      version: 2,
+      name: 'T',
+      appVersion: 'x',
+      units: 'mm',
+      createdAt: '',
+      updatedAt: '',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [
+          {
+            kind: 'cylinder',
+            id: 'd1',
+            label: 'Dowel 1',
+            diameter: 8,
+            length: 100,
+            material: 'Beech',
+            color: '#888888',
+            position: { x: 1, y: 2, z: 3 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            visible: true,
+          },
+        ],
+        materials: {},
+        hardware: [],
+      },
+    })
+    const parsed = parseFile(raw)
+    expect(parsed.scene.parts).toHaveLength(1)
+    const p = parsed.scene.parts[0]
+    expect(p.kind).toBe('cylinder')
+    if (p.kind === 'cylinder') {
+      expect(p.diameter).toBe(8)
+      expect(p.length).toBe(100)
+      expect(p.material).toBe('Beech')
+    }
+    expect('cuts' in p).toBe(false)
+  })
+
   it('setProjectName marks isDirty true and updates projectName', async () => {
     // Stable scene reference prevents the dirty-tracking effect from firing on
     // setProjectName re-renders and overwriting isDirty=true with false.
