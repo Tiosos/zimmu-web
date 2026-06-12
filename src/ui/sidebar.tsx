@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import type { BoardPart, CutDef, CutId, Part, PartId, Scene } from '../scene/types'
+import type { CutDef, CutId, Part, PartId, Scene } from '../scene/types'
 import { useDebouncedCallback } from './useDebouncedCallback'
 import { faceAxes } from '../scene/snapMath'
 import { PART_COLORS } from '../scene/palette'
@@ -327,7 +327,7 @@ function ColorControl({
   part,
   onUpdate,
 }: {
-  part: BoardPart
+  part: Part
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
 }) {
   return (
@@ -393,8 +393,6 @@ function EditPanel({
   useEffect(() => {
     if (!labelFocused.current) setLabelValue(part.label)
   }, [part.label])
-
-  if (part.kind !== 'board') return null
 
   return (
     <div className="p-2 border-t border-border">
@@ -462,24 +460,47 @@ function EditPanel({
       <Collapsible open={shapeOpen} onOpenChange={setShapeOpen}>
         <SectionHeader open={shapeOpen} label="Shape" />
         <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-          <DimInput
-            label="L"
-            value={part.length}
-            suffix="mm"
-            onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, length: v }))}
-          />
-          <DimInput
-            label="W"
-            value={part.width}
-            suffix="mm"
-            onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, width: v }))}
-          />
-          <DimInput
-            label="T"
-            value={part.thickness}
-            suffix="mm"
-            onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, thickness: v }))}
-          />
+          {part.kind === 'board' ? (
+            <>
+              <DimInput
+                label="L"
+                value={part.length}
+                suffix="mm"
+                onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, length: v }))}
+              />
+              <DimInput
+                label="W"
+                value={part.width}
+                suffix="mm"
+                onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, width: v }))}
+              />
+              <DimInput
+                label="T"
+                value={part.thickness}
+                suffix="mm"
+                onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, thickness: v }))}
+              />
+            </>
+          ) : (
+            <>
+              <DimInput
+                label="Ø"
+                value={part.diameter}
+                suffix="mm"
+                onCommit={(v) =>
+                  onUpdate(part.id, (p) => (p.kind === 'cylinder' ? { ...p, diameter: v } : p))
+                }
+              />
+              <DimInput
+                label="L"
+                value={part.length}
+                suffix="mm"
+                onCommit={(v) =>
+                  onUpdate(part.id, (p) => (p.kind === 'cylinder' ? { ...p, length: v } : p))
+                }
+              />
+            </>
+          )}
         </CollapsibleContent>
       </Collapsible>
 
@@ -545,24 +566,30 @@ function EditPanel({
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Cuts section — not collapsible; always shown */}
-      <p className="text-[10px] uppercase tracking-widest text-muted-foreground py-1.5">▾ Cuts</p>
-      {part.cuts.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground py-0.5">No cuts</p>
-      ) : (
-        part.cuts.map((cut) => (
-          <CutRow
-            key={cut.id}
-            cut={cut}
-            partId={part.id}
-            scene={scene}
-            onUpdateCut={onUpdateCut}
-            onRemoveCut={onRemoveCut}
-            onLinkCuts={onLinkCuts}
-            onUnlinkCuts={onUnlinkCuts}
-            defaultOpen={cut.id === lastPlacedCutId}
-          />
-        ))
+      {/* Cuts section — board only */}
+      {part.kind === 'board' && (
+        <>
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground py-1.5">
+            ▾ Cuts
+          </p>
+          {part.cuts.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground py-0.5">No cuts</p>
+          ) : (
+            part.cuts.map((cut) => (
+              <CutRow
+                key={cut.id}
+                cut={cut}
+                partId={part.id}
+                scene={scene}
+                onUpdateCut={onUpdateCut}
+                onRemoveCut={onRemoveCut}
+                onLinkCuts={onLinkCuts}
+                onUnlinkCuts={onUnlinkCuts}
+                defaultOpen={cut.id === lastPlacedCutId}
+              />
+            ))
+          )}
+        </>
       )}
 
       {linkedHardware.length > 0 && (
@@ -641,7 +668,7 @@ export function Sidebar({
         <ScrollArea className="flex-1">
           {scene.parts.length === 0 ? (
             <p className="p-4 text-muted-foreground text-xs text-center">
-              No parts — add a board to start
+              No parts — add a part to start
             </p>
           ) : (
             scene.parts.map((part) => {
@@ -750,17 +777,27 @@ export function Sidebar({
           />
         )}
 
-        {/* Add board footer */}
-        <div className="p-2 border-t border-border">
+        {/* Add part footer */}
+        <div className="p-2 border-t border-border flex gap-1">
           <Button
             onClick={() => onAdd('board')}
             disabled={!occtReady}
             title={!occtReady ? 'Loading geometry engine…' : undefined}
             variant="outline"
             size="sm"
-            className="w-full text-xs"
+            className="flex-1 text-xs"
           >
-            + Add board
+            + Board
+          </Button>
+          <Button
+            onClick={() => onAdd('cylinder')}
+            disabled={!occtReady}
+            title={!occtReady ? 'Loading geometry engine…' : undefined}
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs"
+          >
+            + Dowel
           </Button>
         </div>
       </div>
