@@ -48,6 +48,29 @@ describe('groupParts', () => {
     const rows = groupParts([plywoodPart], { MDF: { costPerM2: 50 } })
     expect(rows[0].costPerUnit).toBeNull()
   })
+
+  it('groupParts yields null cost when material has costPerM but no costPerM2', () => {
+    const parts: Part[] = [
+      {
+        kind: 'board',
+        id: 'b1',
+        label: 'B1',
+        length: 1000,
+        width: 500,
+        thickness: 18,
+        material: 'Beech dowel',
+        color: '#888888',
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        rotationOrder: 'XYZ',
+        cuts: [],
+        visible: true,
+      },
+    ]
+    const rows = groupParts(parts, { 'Beech dowel': { costPerM: 5 } })
+    expect(rows[0].costPerUnit).toBeNull()
+    expect(rows[0].totalCost).toBeNull()
+  })
 })
 
 describe('buildCsv', () => {

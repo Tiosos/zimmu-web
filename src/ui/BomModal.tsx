@@ -51,7 +51,9 @@ function LibraryTab({
         {entries.map(([name, def]) => (
           <tr key={name} className="border-b border-border/30">
             <td className="py-1.5 pr-2 text-xs">{name}</td>
-            <td className="py-1.5 px-2 text-xs">${def.costPerM2.toFixed(2)}</td>
+            <td className="py-1.5 px-2 text-xs">
+              {def.costPerM2 !== undefined ? `$${def.costPerM2.toFixed(2)}` : '—'}
+            </td>
             <td className="py-1.5 px-2 text-xs text-right">
               <Button
                 variant="ghost"

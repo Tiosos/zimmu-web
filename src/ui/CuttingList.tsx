@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button'
 
 interface MaterialPopoverProps {
   current: number | undefined
-  onSave: (def: MaterialDef) => void
+  unitLabel: string
+  onSave: (value: number) => void
   onClose: () => void
 }
 
-function MaterialPopover({ current, onSave, onClose }: MaterialPopoverProps) {
+export function MaterialPopover({ current, unitLabel, onSave, onClose }: MaterialPopoverProps) {
   const [value, setValue] = useState(current !== undefined ? String(current) : '')
   const inputRef = useRef<HTMLInputElement>(null)
   const committedRef = useRef(false)
@@ -25,7 +26,7 @@ function MaterialPopover({ current, onSave, onClose }: MaterialPopoverProps) {
     committedRef.current = true
     const num = parseFloat(value)
     if (!isNaN(num) && num >= 0) {
-      if (current === undefined || num !== current) onSave({ costPerM2: num })
+      if (current === undefined || num !== current) onSave(num)
       else onClose()
     } else {
       onClose()
@@ -37,7 +38,7 @@ function MaterialPopover({ current, onSave, onClose }: MaterialPopoverProps) {
       className="absolute z-10 top-full left-0 mt-1 bg-card border border-border rounded shadow-lg p-2 flex items-center gap-1.5 text-xs"
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <span className="text-muted-foreground whitespace-nowrap">$/m²</span>
+      <span className="text-muted-foreground whitespace-nowrap">{unitLabel}</span>
       <input
         ref={inputRef}
         type="number"
@@ -155,8 +156,12 @@ export function CuttingList({
                     {openPopover === row.material && onMaterialCostChange && (
                       <MaterialPopover
                         current={materials[row.material]?.costPerM2}
-                        onSave={(def) => {
-                          onMaterialCostChange(row.material, def)
+                        unitLabel="$/m²"
+                        onSave={(num) => {
+                          onMaterialCostChange(row.material, {
+                            ...materials[row.material],
+                            costPerM2: num,
+                          })
                           setOpenPopover(null)
                         }}
                         onClose={() => setOpenPopover(null)}

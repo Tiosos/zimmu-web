@@ -35,7 +35,8 @@ export interface BoardPart {
 export type Part = BoardPart
 
 export interface MaterialDef {
-  costPerM2: number // cost per square metre in user's currency
+  costPerM2?: number // areal rate ($/m²) for sheet/board stock
+  costPerM?: number // linear rate ($/m) for round/linear stock (dowels)
 }
 
 export interface HardwareItem {

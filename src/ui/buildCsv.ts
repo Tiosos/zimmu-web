@@ -24,9 +24,8 @@ export function groupParts(
   for (const p of parts) {
     if (p.kind !== 'board') continue
     const key = `${p.length}×${p.width}×${p.thickness}|${p.material}|${p.color}`
-    const rate = materials[p.material]
-    const costPerUnit =
-      rate !== undefined ? ((p.length * p.width) / 1_000_000) * rate.costPerM2 : null
+    const rate = materials[p.material]?.costPerM2
+    const costPerUnit = rate !== undefined ? ((p.length * p.width) / 1_000_000) * rate : null
     const existing = map.get(key)
     if (existing) {
       existing.qty += 1
