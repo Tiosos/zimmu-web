@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import Stats from 'stats.js'
 import type { Part, PartId, CameraState } from '../scene/types'
 import type { FaceHit } from '../scene/types'
-import { computeFaceCorners, computeLocalFaceCenter } from '../scene/snapMath'
+import { computeFaceCorners, computeLocalFaceCenter, computeSnapDelta } from '../scene/snapMath'
 
 interface ViewportProps {
   parts: Part[]
@@ -32,6 +32,7 @@ export function Viewport({
   cameraStateRef,
   loadedCamera,
   snapActive,
+  snapPhase,
   sourceFace,
   hoveredFace,
   onFaceClick,
@@ -58,6 +59,7 @@ export function Viewport({
   const onFaceHoverCutRef = useRef(onFaceHoverCut)
   const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
   const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
+  const ghostMeshRef = useRef<THREE.Mesh | null>(null)
   const rafIdRef = useRef<number>(0)
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
 
@@ -188,6 +190,21 @@ export function Viewport({
     sourceHighlightRef.current = sourceLoop
     hoverHighlightRef.current = hoverLoop
 
+    const ghostPlaceholderGeo = new THREE.BufferGeometry()
+    const ghostMat = new THREE.MeshStandardMaterial({
+      transparent: true,
+      opacity: 0.35,
+      roughness: 0.7,
+      metalness: 0.0,
+      flatShading: true,
+      depthWrite: false,
+    })
+    const ghostMesh = new THREE.Mesh(ghostPlaceholderGeo, ghostMat)
+    ghostMesh.visible = false
+    ghostMesh.renderOrder = 2
+    scene.add(ghostMesh)
+    ghostMeshRef.current = ghostMesh
+
     let stats: Stats | undefined
     if (import.meta.env.DEV) {
       stats = new Stats()
@@ -303,6 +320,9 @@ export function Viewport({
       scene.remove(hoverLoop)
       sourceLoop.material.dispose()
       hoverLoop.material.dispose()
+      ghostPlaceholderGeo.dispose()
+      ghostMesh.material.dispose()
+      scene.remove(ghostMesh)
       controls.dispose()
       renderer.dispose()
       if (stats && mount.contains(stats.dom)) mount.removeChild(stats.dom)
@@ -450,6 +470,38 @@ export function Viewport({
       0x60a5fa,
     )
   }, [snapActive, cutActive, sourceFace, hoveredFace, parts])
+
+  // Ghost mesh — semi-transparent preview of the source part at its snapped destination
+  useEffect(() => {
+    const ghost = ghostMeshRef.current
+    if (!ghost) return
+    if (snapPhase !== 'source-picked' || !sourceFace || !hoveredFace) {
+      ghost.visible = false
+      return
+    }
+    const src = parts.find((p) => p.id === sourceFace.partId)
+    if (!src || src.kind !== 'board') {
+      ghost.visible = false
+      return
+    }
+    const geo = geometries.get(src.id)
+    if (!geo) {
+      ghost.visible = false
+      return
+    }
+    const delta = computeSnapDelta(sourceFace, hoveredFace)
+    const deg2rad = Math.PI / 180
+    ghost.geometry = geo
+    ghost.position.set(src.position.x + delta.x, src.position.y + delta.y, src.position.z + delta.z)
+    ghost.rotation.set(
+      src.rotation.x * deg2rad,
+      src.rotation.y * deg2rad,
+      src.rotation.z * deg2rad,
+      src.rotationOrder,
+    )
+    ;(ghost.material as THREE.MeshStandardMaterial).color.set(src.color)
+    ghost.visible = true
+  }, [snapPhase, sourceFace, hoveredFace, parts, geometries])
 
   useEffect(() => {
     const mount = mountRef.current
