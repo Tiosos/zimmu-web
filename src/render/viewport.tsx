@@ -60,6 +60,7 @@ export function Viewport({
   const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
   const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
   const ghostMeshRef = useRef<THREE.Mesh | null>(null)
+  const snapPhaseRef = useRef(snapPhase)
   const rafIdRef = useRef<number>(0)
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
 
@@ -67,6 +68,7 @@ export function Viewport({
     onClickRef.current = onPartClick
     partsRef.current = parts
     snapActiveRef.current = snapActive
+    snapPhaseRef.current = snapPhase
     onFaceClickRef.current = onFaceClick
     onFaceHoverRef.current = onFaceHover
     cutActiveRef.current = cutActive
@@ -218,6 +220,11 @@ export function Viewport({
     const animate = () => {
       stats?.begin()
       controls.update()
+      const src = sourceHighlightRef.current
+      if (src?.visible) {
+        ;(src.material as THREE.LineBasicMaterial).opacity =
+          0.3 + 0.7 * (Math.sin(Date.now() / 300) * 0.5 + 0.5)
+      }
       renderer.render(scene, camera)
       cameraStateRef.current = {
         position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
