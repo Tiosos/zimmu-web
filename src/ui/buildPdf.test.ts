@@ -23,17 +23,16 @@ function makeBoard(overrides: Partial<Part> = {}): Part {
   }
 }
 
-const sheets = buildDrawingSheets([makeBoard()], 'Test Project')
-
 describe('buildPdf', () => {
   it('returns a Uint8Array starting with %PDF-', async () => {
-    const bytes = await buildPdf(sheets)
+    const bytes = await buildPdf(buildDrawingSheets([makeBoard()], 'Test Project'))
     expect(bytes).toBeInstanceOf(Uint8Array)
     expect(bytes.length).toBeGreaterThan(0)
     expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe('%PDF-')
   })
 
   it('produces one page per sheet', async () => {
+    const sheets = buildDrawingSheets([makeBoard()], 'Test Project')
     const bytes = await buildPdf(sheets)
     const doc = await PDFDocument.load(bytes)
     expect(doc.getPageCount()).toBe(sheets.length)
