@@ -79,7 +79,7 @@ export function useSnap(params: {
         return
       }
 
-      const sourceLabel = parts.find((p) => p.id === srcFace.partId)?.label ?? srcFace.partId
+      const sourceLabel = srcPart.label
       const targetLabel = parts.find((p) => p.id === hit.partId)?.label ?? hit.partId
       onUpdate(
         srcFace.partId,
