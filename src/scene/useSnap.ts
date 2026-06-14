@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { FaceHit, Part, PartId, Vec3 } from './types'
-import { computeSnapDelta } from './snapMath'
+import type { FaceHit, Part, PartId } from './types'
+import { computeSnapTransform } from './snapMath'
 
 export interface SnapState {
   snapActive: boolean
@@ -11,14 +11,6 @@ export interface SnapState {
   cancelSnap: () => void
   onFaceClick: (hit: FaceHit) => void
   onFaceHover: (hit: FaceHit | null) => void
-}
-
-function dot(a: Vec3, b: Vec3): number {
-  return a.x * b.x + a.y * b.y + a.z * b.z
-}
-
-function vecLen(v: Vec3): number {
-  return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
 }
 
 export function useSnap(params: {
@@ -68,30 +60,30 @@ export function useSnap(params: {
 
       // source-picked: apply guards then snap
       if (hit.partId === sourceFace!.partId) return
-      if (dot(sourceFace!.faceNormal, hit.faceNormal) > 0) return
 
-      const delta = computeSnapDelta(sourceFace!, hit)
-      if (vecLen(delta) < 0.001) {
-        // Already flush — reset to idle without a history entry
+      const srcFace = sourceFace!
+      const srcPart = parts.find((p) => p.id === srcFace.partId)
+      if (!srcPart || srcPart.kind !== 'board') return
+      const { position, rotation } = computeSnapTransform(srcFace, hit, srcPart)
+
+      const noMove =
+        Math.abs(position.x - srcPart.position.x) < 0.001 &&
+        Math.abs(position.y - srcPart.position.y) < 0.001 &&
+        Math.abs(position.z - srcPart.position.z) < 0.001 &&
+        Math.abs(rotation.x - srcPart.rotation.x) < 0.001 &&
+        Math.abs(rotation.y - srcPart.rotation.y) < 0.001 &&
+        Math.abs(rotation.z - srcPart.rotation.z) < 0.001
+      if (noMove) {
         setSourceFace(null)
         setSnapPhase('idle')
         return
       }
 
-      const src = sourceFace!
-      const sourceLabel = parts.find((p) => p.id === src.partId)?.label ?? src.partId
+      const sourceLabel = parts.find((p) => p.id === srcFace.partId)?.label ?? srcFace.partId
       const targetLabel = parts.find((p) => p.id === hit.partId)?.label ?? hit.partId
-
       onUpdate(
-        src.partId,
-        (p) => ({
-          ...p,
-          position: {
-            x: p.position.x + delta.x,
-            y: p.position.y + delta.y,
-            z: p.position.z + delta.z,
-          },
-        }),
+        srcFace.partId,
+        (p) => ({ ...p, position, rotation }),
         `Snap ${sourceLabel} to ${targetLabel}`,
       )
 
@@ -113,10 +105,6 @@ export function useSnap(params: {
         return
       }
       if (hit?.partId === sourceFace?.partId) {
-        setHoveredFace(null)
-        return
-      }
-      if (hit && dot(sourceFace!.faceNormal, hit.faceNormal) > 0) {
         setHoveredFace(null)
         return
       }

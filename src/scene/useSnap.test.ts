@@ -4,7 +4,10 @@ import type { FaceHit, Part, PartId } from './types'
 
 // Mock snapMath so tests don't depend on Three.js math correctness
 vi.mock('./snapMath', () => ({
-  computeSnapDelta: () => ({ x: 0, y: 0, z: 100 }),
+  computeSnapTransform: () => ({
+    position: { x: 0, y: 0, z: 100 },
+    rotation: { x: 0, y: 0, z: 0 },
+  }),
   computeFaceCorners: vi.fn(),
   computeLocalFaceCenter: vi.fn(),
 }))
@@ -55,14 +58,6 @@ const faceOnB: FaceHit = {
   faceNormal: { x: 0, y: 0, z: -1 },
   faceCenter: { x: 50, y: 25, z: 200 },
   localFaceNormal: { x: 0, y: 0, z: -1 },
-  localHitPoint: { x: 0, y: 0, z: 0 },
-}
-// Parallel-normal face on B (same direction as faceOnA)
-const faceOnBParallel: FaceHit = {
-  partId: 'b',
-  faceNormal: { x: 0, y: 0, z: 1 },
-  faceCenter: { x: 50, y: 25, z: 225 },
-  localFaceNormal: { x: 0, y: 0, z: 1 },
   localHitPoint: { x: 0, y: 0, z: 0 },
 }
 
@@ -197,7 +192,7 @@ describe('useSnap', () => {
       expect(result.current.snapActive).toBe(true) // stays active for chaining
     })
 
-    it('onUpdate receives correct updater: applies delta to source position', () => {
+    it('onUpdate receives correct updater: applies position and rotation from computeSnapTransform', () => {
       const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
       act(() => {
         result.current.activateSnap()
@@ -215,8 +210,9 @@ describe('useSnap', () => {
         string,
       ]
       const result2 = updater(partA)
-      // mock computeSnapDelta returns { x:0, y:0, z:100 }
+      // mock computeSnapTransform returns { position: { x:0, y:0, z:100 }, rotation: { x:0, y:0, z:0 } }
       expect(result2.position).toEqual({ x: 0, y: 0, z: 100 })
+      expect(result2.rotation).toEqual({ x: 0, y: 0, z: 0 })
     })
 
     it('onUpdate receives history label "Snap Board A to Board B"', () => {
@@ -258,21 +254,6 @@ describe('useSnap', () => {
       expect(onUpdate).not.toHaveBeenCalled()
       expect(result.current.snapPhase).toBe('source-picked')
     })
-
-    it('parallel-normal guard: ignores click when dot(nSource, nTarget) > 0', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
-      act(() => {
-        result.current.activateSnap()
-      })
-      act(() => {
-        result.current.onFaceClick(faceOnA)
-      })
-      act(() => {
-        result.current.onFaceClick(faceOnBParallel)
-      })
-      expect(onUpdate).not.toHaveBeenCalled()
-      expect(result.current.snapPhase).toBe('source-picked')
-    })
   })
 
   describe('onFaceHover in source-picked phase', () => {
@@ -300,20 +281,6 @@ describe('useSnap', () => {
       })
       act(() => {
         result.current.onFaceHover(faceOnA)
-      })
-      expect(result.current.hoveredFace).toBeNull()
-    })
-
-    it('parallel-normal guard: hoveredFace stays null for parallel target', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
-      act(() => {
-        result.current.activateSnap()
-      })
-      act(() => {
-        result.current.onFaceClick(faceOnA)
-      })
-      act(() => {
-        result.current.onFaceHover(faceOnBParallel)
       })
       expect(result.current.hoveredFace).toBeNull()
     })
