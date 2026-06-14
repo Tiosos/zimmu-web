@@ -22,6 +22,7 @@ interface ViewportProps {
   cutActive: boolean
   onFaceClickCut: (hit: FaceHit) => void
   onFaceHoverCut: (hit: FaceHit | null) => void
+  flashTarget?: { id: PartId; seq: number } | null
 }
 
 export function Viewport({
@@ -40,6 +41,7 @@ export function Viewport({
   cutActive,
   onFaceClickCut,
   onFaceHoverCut,
+  flashTarget,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -47,6 +49,7 @@ export function Viewport({
   const controlsRef = useRef<OrbitControls | null>(null)
   const meshes = useRef<Map<PartId, THREE.Mesh>>(new Map())
   const edgeLines = useRef<Map<PartId, THREE.LineSegments>>(new Map())
+  const flashMap = useRef<Map<PartId, number>>(new Map())
   const raycaster = useRef(new THREE.Raycaster())
   const mouseDown = useRef<{ x: number; y: number } | null>(null)
   const onClickRef = useRef(onPartClick)
@@ -75,6 +78,11 @@ export function Viewport({
     onFaceClickCutRef.current = onFaceClickCut
     onFaceHoverCutRef.current = onFaceHoverCut
   })
+
+  useEffect(() => {
+    if (!flashTarget) return
+    flashMap.current.set(flashTarget.id, performance.now())
+  }, [flashTarget])
 
   function buildFaceHit(
     intersection: THREE.Intersection,
@@ -224,6 +232,20 @@ export function Viewport({
       if (src?.visible) {
         ;(src.material as THREE.LineBasicMaterial).opacity =
           0.3 + 0.7 * (Math.sin(Date.now() / 300) * 0.5 + 0.5)
+      }
+      const now = performance.now()
+      for (const [id, startMs] of flashMap.current) {
+        const t = Math.min(1, (now - startMs) / 400)
+        const mesh = meshes.current.get(id)
+        if (mesh) {
+          const intensity = 1 - t
+          ;(mesh.material as THREE.MeshStandardMaterial).emissive.setRGB(
+            (0x60 / 255) * intensity,
+            (0xa5 / 255) * intensity,
+            (0xfa / 255) * intensity,
+          )
+        }
+        if (t >= 1) flashMap.current.delete(id)
       }
       renderer.render(scene, camera)
       cameraStateRef.current = {

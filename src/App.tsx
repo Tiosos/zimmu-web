@@ -13,7 +13,7 @@ import { downloadBlob } from './ui/download'
 import { buildDrawingSheets } from './geom/drawing'
 import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
-import type { CameraState } from './scene/types'
+import type { CameraState, PartId } from './scene/types'
 
 const supported = 'showOpenFilePicker' in window
 
@@ -50,6 +50,12 @@ function App() {
 
   const { library, saveRate, deleteEntry } = useMaterialLibrary()
 
+  const [flashTarget, setFlashTarget] = useState<{ id: PartId; seq: number } | null>(null)
+  const handleRotationSnap = useCallback(
+    (id: PartId) => setFlashTarget({ id, seq: performance.now() }),
+    [],
+  )
+
   const {
     snapActive,
     snapPhase,
@@ -59,7 +65,7 @@ function App() {
     cancelSnap,
     onFaceClick,
     onFaceHover,
-  } = useSnap({ parts: scene.parts, onUpdate })
+  } = useSnap({ parts: scene.parts, onUpdate, onRotationSnap: handleRotationSnap })
 
   const {
     cutActive,
@@ -288,6 +294,7 @@ function App() {
           cutActive={cutActive}
           onFaceClickCut={onFaceClickCut}
           onFaceHoverCut={onFaceHoverCut}
+          flashTarget={flashTarget}
         />
         <Sidebar
           scene={scene}
