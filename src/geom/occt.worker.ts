@@ -16,9 +16,28 @@ const api = {
   ) {
     const oc = await initOCCT()
     if (kind === 'board') {
+      performance.mark('zimmu:shape-start')
       const shape = makeShape(oc, dims)
+      performance.mark('zimmu:shape-end')
+      performance.mark('zimmu:mesh-start')
       const data = shapeToMeshData(oc, shape, { linearDeflection: 0.1, angularDeflection: 0.5 })
+      performance.mark('zimmu:mesh-end')
       shape.delete()
+      if (import.meta.env.DEV) {
+        const { duration: shapeMs } = performance.measure(
+          'zimmu:shape',
+          'zimmu:shape-start',
+          'zimmu:shape-end',
+        )
+        const { duration: meshMs } = performance.measure(
+          'zimmu:mesh',
+          'zimmu:mesh-start',
+          'zimmu:mesh-end',
+        )
+        console.debug(
+          `[occt] shape ${shapeMs.toFixed(0)}ms  mesh ${meshMs.toFixed(0)}ms  (${dims.cuts.length} cut${dims.cuts.length !== 1 ? 's' : ''})`,
+        )
+      }
       return transfer(data, [data.positions.buffer, data.normals.buffer])
     }
     const _: never = kind
