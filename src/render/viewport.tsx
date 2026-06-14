@@ -390,6 +390,7 @@ export function Viewport({
         scene.remove(mesh)
         ;(mesh.material as THREE.Material).dispose()
         meshes.current.delete(id)
+        flashMap.current.delete(id)
       }
     }
     for (const [id, el] of edgeLines.current) {
@@ -457,6 +458,7 @@ export function Viewport({
       )
     }
     for (const [id, mesh] of meshes.current) {
+      if (flashMap.current.has(id)) continue
       ;(mesh.material as THREE.MeshStandardMaterial).emissive.setHex(
         id === selectedId ? 0x222244 : 0x000000,
       )
