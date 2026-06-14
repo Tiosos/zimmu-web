@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import Stats from 'stats.js'
 import type { Part, PartId, CameraState } from '../scene/types'
 import type { FaceHit } from '../scene/types'
-import { computeFaceCorners, computeLocalFaceCenter, computeSnapDelta } from '../scene/snapMath'
+import { computeFaceCorners, computeLocalFaceCenter, computeSnapTransform } from '../scene/snapMath'
 
 interface ViewportProps {
   parts: Part[]
@@ -496,15 +496,16 @@ export function Viewport({
       ghost.visible = false
       return
     }
-    const delta = computeSnapDelta(sourceFace, hoveredFace)
-    const deg2rad = Math.PI / 180
+    const { position, rotation } = computeSnapTransform(sourceFace, hoveredFace, src)
     ghost.geometry = geo
-    ghost.position.set(src.position.x + delta.x, src.position.y + delta.y, src.position.z + delta.z)
-    ghost.rotation.set(
-      src.rotation.x * deg2rad,
-      src.rotation.y * deg2rad,
-      src.rotation.z * deg2rad,
-      src.rotationOrder,
+    ghost.position.set(position.x, position.y, position.z)
+    ghost.setRotationFromEuler(
+      new THREE.Euler(
+        rotation.x * THREE.MathUtils.DEG2RAD,
+        rotation.y * THREE.MathUtils.DEG2RAD,
+        rotation.z * THREE.MathUtils.DEG2RAD,
+        src.rotationOrder,
+      ),
     )
     ;(ghost.material as THREE.MeshStandardMaterial).color.set(src.color)
     ghost.visible = true
