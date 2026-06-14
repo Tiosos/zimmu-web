@@ -66,6 +66,7 @@ export function Viewport({
   const snapPhaseRef = useRef(snapPhase)
   const rafIdRef = useRef<number>(0)
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const selectedIdRef = useRef<PartId | null>(selectedId)
 
   useLayoutEffect(() => {
     onClickRef.current = onPartClick
@@ -77,6 +78,7 @@ export function Viewport({
     cutActiveRef.current = cutActive
     onFaceClickCutRef.current = onFaceClickCut
     onFaceHoverCutRef.current = onFaceHoverCut
+    selectedIdRef.current = selectedId
   })
 
   useEffect(() => {
@@ -245,7 +247,15 @@ export function Viewport({
             (0xfa / 255) * intensity,
           )
         }
-        if (t >= 1) flashMap.current.delete(id)
+        if (t >= 1) {
+          const m = meshes.current.get(id)
+          if (m) {
+            ;(m.material as THREE.MeshStandardMaterial).emissive.setHex(
+              id === selectedIdRef.current ? 0x222244 : 0x000000,
+            )
+          }
+          flashMap.current.delete(id)
+        }
       }
       renderer.render(scene, camera)
       cameraStateRef.current = {
