@@ -403,7 +403,7 @@ describe('computeSnapTransform', () => {
         result.rotation.x * DEG2RAD,
         result.rotation.y * DEG2RAD,
         result.rotation.z * DEG2RAD,
-        'XYZ',
+        sourcePart.rotationOrder,
       ),
     )
     const ln = new THREE.Vector3(
@@ -500,5 +500,39 @@ describe('computeSnapTransform', () => {
     expect(result.position.z).toBeCloseTo(BOARD.position.z + delta.z, 3)
 
     expectSnapped(result, srcFace, tgtFace.faceCenter, tgtFace.faceNormal, BOARD)
+  })
+
+  it('pre-rotated source (90°Z): +Z to target -Z — rotation preserved, position updated', () => {
+    // Exercises Q_current ≠ identity. Source BOARD rotated 90° around Z.
+    // +Z world normal is unaffected by Z-rotation, so normals are already anti-parallel.
+    // World face center of +Z at 90°Z: rotate local (50,25,25) by R_z90 → (-25,50,25).
+    // Q_normal ≈ identity, Q_roll ≈ identity → rotation unchanged at (0,0,90).
+    // newPosition = (0,0,0) + (50,25,100) - (-25,50,25) = (75,-25,75).
+    const BOARD_ROTATED: BoardPart = { ...BOARD, rotation: { x: 0, y: 0, z: 90 } }
+    const srcFace: FaceHit = {
+      partId: 'b1',
+      faceNormal: { x: 0, y: 0, z: 1 },
+      localFaceNormal: { x: 0, y: 0, z: 1 },
+      faceCenter: { x: -25, y: 50, z: 25 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+    }
+    const tgtFace: FaceHit = {
+      partId: 'b2',
+      faceNormal: { x: 0, y: 0, z: -1 },
+      localFaceNormal: { x: 0, y: 0, z: -1 },
+      faceCenter: { x: 50, y: 25, z: 100 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+    }
+    const result = computeSnapTransform(srcFace, tgtFace, BOARD_ROTATED)
+
+    expect(result.rotation.x).toBeCloseTo(0, 3)
+    expect(result.rotation.y).toBeCloseTo(0, 3)
+    expect(result.rotation.z).toBeCloseTo(90, 3)
+
+    expect(result.position.x).toBeCloseTo(75, 3)
+    expect(result.position.y).toBeCloseTo(-25, 3)
+    expect(result.position.z).toBeCloseTo(75, 3)
+
+    expectSnapped(result, srcFace, tgtFace.faceCenter, tgtFace.faceNormal, BOARD_ROTATED)
   })
 })
