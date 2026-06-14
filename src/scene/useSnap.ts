@@ -16,8 +16,9 @@ export interface SnapState {
 export function useSnap(params: {
   parts: Part[]
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel: string) => void
+  onRotationSnap?: (id: PartId) => void
 }): SnapState {
-  const { parts, onUpdate } = params
+  const { parts, onUpdate, onRotationSnap } = params
 
   const [snapActive, setSnapActive] = useState(false)
   const [snapPhase, setSnapPhase] = useState<'idle' | 'source-picked'>('idle')
@@ -86,12 +87,17 @@ export function useSnap(params: {
         (p) => ({ ...p, position, rotation }),
         `Snap ${sourceLabel} to ${targetLabel}`,
       )
+      const rotationChanged =
+        Math.abs(rotation.x - srcPart.rotation.x) > 0.001 ||
+        Math.abs(rotation.y - srcPart.rotation.y) > 0.001 ||
+        Math.abs(rotation.z - srcPart.rotation.z) > 0.001
+      if (rotationChanged) onRotationSnap?.(srcFace.partId)
 
       setSourceFace(null)
       setSnapPhase('idle')
       // snapActive stays true — chained snaps
     },
-    [snapActive, snapPhase, sourceFace, parts, onUpdate],
+    [snapActive, snapPhase, sourceFace, parts, onUpdate, onRotationSnap],
   )
 
   const onFaceHover = useCallback(
