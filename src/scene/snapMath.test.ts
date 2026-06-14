@@ -1,6 +1,8 @@
+import * as THREE from 'three'
 import { describe, it, expect } from 'vitest'
 import {
   computeSnapDelta,
+  computeSnapTransform,
   computeFaceCorners,
   computeLocalFaceCenter,
   faceAxes,
@@ -369,5 +371,134 @@ describe('defaultCutSize', () => {
       expect(size[axes.u]).toBe(20)
       expect(size[axes.v]).toBe(20)
     }
+  })
+})
+
+describe('computeSnapTransform', () => {
+  function expectSnapped(
+    result: { position: Vec3; rotation: Vec3 },
+    sourceFace: FaceHit,
+    targetFaceCenter: Vec3,
+    targetFaceNormal: Vec3,
+    sourcePart: BoardPart,
+  ) {
+    // Invariant 1: source face centre coincides with target face centre after transform
+    const snappedPart: BoardPart = {
+      ...sourcePart,
+      position: result.position,
+      rotation: result.rotation,
+    }
+    const corners = computeFaceCorners(sourceFace, snappedPart)
+    const cx = (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4
+    const cy = (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4
+    const cz = (corners[0].z + corners[1].z + corners[2].z + corners[3].z) / 4
+    expect(cx).toBeCloseTo(targetFaceCenter.x, 3)
+    expect(cy).toBeCloseTo(targetFaceCenter.y, 3)
+    expect(cz).toBeCloseTo(targetFaceCenter.z, 3)
+
+    // Invariant 2: source face normal is anti-parallel to target face normal after transform
+    const DEG2RAD = Math.PI / 180
+    const q = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(
+        result.rotation.x * DEG2RAD,
+        result.rotation.y * DEG2RAD,
+        result.rotation.z * DEG2RAD,
+        'XYZ',
+      ),
+    )
+    const ln = new THREE.Vector3(
+      sourceFace.localFaceNormal.x,
+      sourceFace.localFaceNormal.y,
+      sourceFace.localFaceNormal.z,
+    ).applyQuaternion(q)
+    const dotNormals = ln.dot(
+      new THREE.Vector3(targetFaceNormal.x, targetFaceNormal.y, targetFaceNormal.z),
+    )
+    expect(dotNormals).toBeCloseTo(-1, 3)
+  }
+
+  it('90° alignment: source +X to target +Y — rotates -90° around Z, faces flush', () => {
+    // BOARD at (0,0,0) 100×50×25mm. +X face centre is at (100, 25, 12.5).
+    // Target at (200,0,0), +Y face centre at (250, 50, 12.5).
+    // Q_normal rotates +X → -Y (anti-parallel to +Y), which is -90° around Z.
+    // After rotation the +X local face maps to world: center at (0,0,0)+rotation applied to (100,25,12.5).
+    // At -90° Z: x→y, y→-x. Local centre (100,25,12.5) → world (25,-100,12.5) before translation.
+    // newPosition = (0,0,0) + (250,50,12.5) - (25,-100,12.5) = (225,150,0).
+    const srcFace: FaceHit = {
+      partId: 'b1',
+      faceNormal: { x: 1, y: 0, z: 0 },
+      localFaceNormal: { x: 1, y: 0, z: 0 },
+      faceCenter: { x: 100, y: 25, z: 12.5 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+    }
+    const tgtFace: FaceHit = {
+      partId: 'b2',
+      faceNormal: { x: 0, y: 1, z: 0 },
+      localFaceNormal: { x: 0, y: 1, z: 0 },
+      faceCenter: { x: 250, y: 50, z: 12.5 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+    }
+    const result = computeSnapTransform(srcFace, tgtFace, BOARD)
+
+    expect(result.rotation.x).toBeCloseTo(0, 3)
+    expect(result.rotation.y).toBeCloseTo(0, 3)
+    expect(result.rotation.z).toBeCloseTo(-90, 3)
+
+    expect(result.position.x).toBeCloseTo(225, 3)
+    expect(result.position.y).toBeCloseTo(150, 3)
+    expect(result.position.z).toBeCloseTo(0, 3)
+
+    expectSnapped(result, srcFace, tgtFace.faceCenter, tgtFace.faceNormal, BOARD)
+  })
+
+  it('180° flip: source +Z to target +Z — flips 180°, faces flush', () => {
+    // Euler decomposition for a 180° flip is not unique, so only assert geometric invariants.
+    const srcFace: FaceHit = {
+      partId: 'b1',
+      faceNormal: { x: 0, y: 0, z: 1 },
+      localFaceNormal: { x: 0, y: 0, z: 1 },
+      faceCenter: { x: 50, y: 25, z: 25 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+    }
+    const tgtFace: FaceHit = {
+      partId: 'b2',
+      faceNormal: { x: 0, y: 0, z: 1 },
+      localFaceNormal: { x: 0, y: 0, z: 1 },
+      faceCenter: { x: 50, y: 25, z: 125 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+    }
+    const result = computeSnapTransform(srcFace, tgtFace, BOARD)
+    expectSnapped(result, srcFace, tgtFace.faceCenter, tgtFace.faceNormal, BOARD)
+  })
+
+  it('anti-parallel degenerate: source +Z, target -Z — rotation unchanged, position matches computeSnapDelta', () => {
+    // Already anti-parallel: Q_normal ≈ identity, roll snap rounds to 0°, rotation stays (0,0,0).
+    // Position shifts by the same delta computeSnapDelta returns: (0,0,75).
+    const srcFace: FaceHit = {
+      partId: 'b1',
+      faceNormal: { x: 0, y: 0, z: 1 },
+      localFaceNormal: { x: 0, y: 0, z: 1 },
+      faceCenter: { x: 50, y: 25, z: 25 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+    }
+    const tgtFace: FaceHit = {
+      partId: 'b2',
+      faceNormal: { x: 0, y: 0, z: -1 },
+      localFaceNormal: { x: 0, y: 0, z: -1 },
+      faceCenter: { x: 50, y: 25, z: 100 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+    }
+    const result = computeSnapTransform(srcFace, tgtFace, BOARD)
+
+    expect(result.rotation.x).toBeCloseTo(0, 3)
+    expect(result.rotation.y).toBeCloseTo(0, 3)
+    expect(result.rotation.z).toBeCloseTo(0, 3)
+
+    const delta = computeSnapDelta(srcFace, tgtFace)
+    expect(result.position.x).toBeCloseTo(BOARD.position.x + delta.x, 3)
+    expect(result.position.y).toBeCloseTo(BOARD.position.y + delta.y, 3)
+    expect(result.position.z).toBeCloseTo(BOARD.position.z + delta.z, 3)
+
+    expectSnapped(result, srcFace, tgtFace.faceCenter, tgtFace.faceNormal, BOARD)
   })
 })

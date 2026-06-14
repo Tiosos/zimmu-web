@@ -101,3 +101,99 @@ export function computeFaceCorners(face: FaceHit, part: Part): [Vec3, Vec3, Vec3
   })
   return [c0, c1, c2, c3]
 }
+
+function localNormalToFaceString(n: Vec3): CutDef['face'] {
+  if (n.x > 0.5) return '+X'
+  if (n.x < -0.5) return '-X'
+  if (n.y > 0.5) return '+Y'
+  if (n.y < -0.5) return '-Y'
+  if (n.z > 0.5) return '+Z'
+  return '-Z'
+}
+
+export function computeSnapTransform(
+  sourceFace: FaceHit,
+  targetFace: FaceHit,
+  sourcePart: BoardPart,
+): { position: Vec3; rotation: Vec3 } {
+  // Step 1: current world rotation as quaternion
+  const Q_current = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(
+      sourcePart.rotation.x * DEG2RAD,
+      sourcePart.rotation.y * DEG2RAD,
+      sourcePart.rotation.z * DEG2RAD,
+      sourcePart.rotationOrder,
+    ),
+  )
+
+  // Step 2: minimum rotation to align source normal with -target normal
+  const srcNormal = new THREE.Vector3(
+    sourceFace.faceNormal.x,
+    sourceFace.faceNormal.y,
+    sourceFace.faceNormal.z,
+  )
+  const negTgt = new THREE.Vector3(
+    -targetFace.faceNormal.x,
+    -targetFace.faceNormal.y,
+    -targetFace.faceNormal.z,
+  )
+  const Q_normal = new THREE.Quaternion().setFromUnitVectors(srcNormal, negTgt)
+  // THREE handles degenerate cases:
+  //   srcNormal ≈ negTgt (dot ≈ +1): identity quaternion
+  //   srcNormal ≈ -negTgt (dot ≈ -1): 180° flip around arbitrary perpendicular axis
+
+  // Step 3: snap roll to nearest 90°
+  // 3a. Find the source face u-axis in world space after applying Q_normal × Q_current
+  const { u: uKey } = faceAxes(localNormalToFaceString(sourceFace.localFaceNormal))
+  const localU = new THREE.Vector3()
+  localU[uKey] = 1
+  const worldU = localU
+    .clone()
+    .applyQuaternion(new THREE.Quaternion().copy(Q_normal).multiply(Q_current))
+
+  // 3b. Project worldU onto the target face plane
+  const projected = worldU.clone().addScaledVector(negTgt, -worldU.dot(negTgt))
+  if (projected.lengthSq() < 1e-10) {
+    const fb = Math.abs(negTgt.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)
+    projected.copy(fb).addScaledVector(negTgt, -fb.dot(negTgt))
+  }
+  projected.normalize()
+
+  // 3c. The two canonical axes of the target face plane (always ±X/Y/Z per raycaster)
+  const WORLD = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)]
+  const planePair = WORLD.filter((a) => Math.abs(a.dot(negTgt)) < 0.01)
+  const axis1 = planePair[0] ?? new THREE.Vector3(1, 0, 0)
+  const axis2 = planePair[1] ?? new THREE.Vector3(0, 1, 0)
+
+  // 3d. Measure roll angle and snap to nearest multiple of π/2
+  const angle = Math.atan2(projected.dot(axis2), projected.dot(axis1))
+  const snapped = Math.round(angle / (Math.PI / 2)) * (Math.PI / 2)
+  const Q_roll = new THREE.Quaternion().setFromAxisAngle(negTgt, snapped - angle)
+
+  // 3e. Compose: Q_final = Q_roll × Q_normal × Q_current
+  const Q_final = new THREE.Quaternion().copy(Q_roll).multiply(Q_normal).multiply(Q_current)
+
+  // Step 4: convert to Euler degrees
+  const euler = new THREE.Euler().setFromQuaternion(Q_final, sourcePart.rotationOrder)
+  const newRotation: Vec3 = {
+    x: euler.x / DEG2RAD,
+    y: euler.y / DEG2RAD,
+    z: euler.z / DEG2RAD,
+  }
+
+  // Step 5: find new position — compute where source face centre lands at new rotation,
+  // then translate so it coincides with target face centre
+  const tempPart: BoardPart = { ...sourcePart, rotation: newRotation }
+  const corners = computeFaceCorners(sourceFace, tempPart)
+  const cx = (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4
+  const cy = (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4
+  const cz = (corners[0].z + corners[1].z + corners[2].z + corners[3].z) / 4
+
+  const newPosition: Vec3 = {
+    x: sourcePart.position.x + targetFace.faceCenter.x - cx,
+    y: sourcePart.position.y + targetFace.faceCenter.y - cy,
+    z: sourcePart.position.z + targetFace.faceCenter.z - cz,
+  }
+
+  return { position: newPosition, rotation: newRotation }
+}
