@@ -118,7 +118,9 @@ function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS
   return moved
 }
 
-// Named-solid STEP via XCAF. Symbol overloads (_1/_2) confirmed by a later live spike.
+// Named-solid STEP via XCAF. Symbol overloads (_1/_2) are the design's best reading
+// of the embind API and are UNVERIFIED at runtime — no live browser spike has been run
+// (OCCT is browser-only, untestable in Node). See 2026-06-05-3d-export-notes.md.
 export function writeStep(oc: OpenCascadeInstance, specs: ExportSpec[]): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const O = oc as any

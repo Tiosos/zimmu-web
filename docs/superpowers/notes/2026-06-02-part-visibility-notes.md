@@ -30,4 +30,8 @@ Post-implementation decision: `H` was initially ungated and would toggle visibil
 
 ### CuttingList intentionally shows hidden parts
 
-Visibility is purely visual (a rendering concern). The CuttingList is a materials list and shows all parts regardless of `visible`. This is by design: a hidden part still needs to be cut to length.
+The CuttingList is a materials list and shows all parts regardless of `visible`. This is by design: a hidden part still needs to be cut to length.
+
+### Visibility is NOT purely visual for export (added later)
+
+An earlier framing of this feature called visibility "purely visual." That is no longer accurate. When 3D/2D export was added, the export paths were scoped to **visible parts only**: `App.tsx` computes `visibleParts = scene.parts.filter(p => p.visible)` and feeds it to STL (`buildBinaryStl`), STEP (`exportStep`), and the 2D drawing builder, and `canExport` is derived from it. So `visible` now affects export contents, not just the viewport. The CuttingList remains the deliberate exception (shows all parts).
