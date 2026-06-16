@@ -30,7 +30,9 @@ Plan-time check: all of these classes appear in `node_modules/opencascade.js/dis
 
 **Decision rule for the spike (from the spec):** if the CAF chain throws at runtime, try alternative overload suffixes (consult the `Supported APIs.md` entry per class); if XCAF is genuinely unavailable, switch `writeStep` to the documented **unnamed fallback** (`STEPControl_Writer` + a `TopoDS_Compound`, see spec §5 "Fallback path"). Do not block release on naming — distinct solids satisfy the core need.
 
-**After the spike:** update the `// Named-solid STEP via XCAF. Symbol overloads (_1/_2) confirmed by a later live spike.` comment in `occt.ts` to past tense (or note the fallback was taken), and record the outcome here.
+**After the spike:** update the comment in `occt.ts` to record the outcome (or note the fallback was taken), and record the result here.
+
+**2026-06-15 update — comment corrected, spike still NOT run.** A plan/code cross-check found the `occt.ts` comment had been pre-written in past tense ("…confirmed by a later live spike") even though the spike was never run — overstating the verification status. The comment has been corrected to state the embind overloads are UNVERIFIED at runtime. The live STEP spike (and the manual FreeCAD smoke) **still remain** and require a human with a browser. Until then, STEP export must be treated as unverified — it may throw on first real use if any overload suffix is wrong. The documented `STEPControl_Writer` fallback is also still unimplemented (per the decision rule, it is only to be added if the spike finds CAF unavailable); note that `CLAUDE.md` currently describes that fallback as if it exists.
 
 ## XCAF resource cleanup — intentionally minimal
 

@@ -24,9 +24,9 @@ The camera position/target from the loaded file must trigger Viewport's `useEffe
 
 `React.RefObject<T>` has `readonly current: T | null`. The animation loop writes to `cameraStateRef.current` on every frame, which requires a mutable ref. `useRef<CameraState>(initialValue)` returns `MutableRefObject<CameraState>` whose `current` is writable. The prop is typed as `{ current: CameraState }` (plain mutable object) to be explicit about this.
 
-### setProjectName always marks dirty
+### setProjectName dirty tracking — fixed via lastSavedProjectNameRef
 
-Renaming a project always sets `isDirty = true`, even if the name is changed back to its saved value. The scene-based dirty effect won't correct this since it only watches `scene`. Accepted for v0.1 — low impact and complex to fix correctly without also tracking the last-saved project name.
+Originally `setProjectName` always set `isDirty = true`, even when the name was changed back to its saved value (the scene-based dirty effect only watches `scene`, not the name). This was later fixed: `useFile` now keeps a `lastSavedProjectNameRef` (updated on save/load) and the dirty effect compares the current name against it, so renaming back to the saved value correctly clears the dirty flag.
 
 ### replaceScene disposes all geometries
 
