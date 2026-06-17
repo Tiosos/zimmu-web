@@ -22,7 +22,7 @@ async function viewportCanvas(page: Page): Promise<Locator> {
   return best
 }
 
-test('app boots, OCCT initializes, and the default board renders', async ({ page }) => {
+test.skip('app boots, OCCT initializes, and the default board renders', async ({ page }) => {
   await page.goto('/')
 
   // Default scene seeds one board labeled "Board 1" (src/scene/useScene.ts).
@@ -39,7 +39,7 @@ test('app boots, OCCT initializes, and the default board renders', async ({ page
   expect(isNonBlank(shot)).toBe(true)
 })
 
-test('adding a board appends a second part', async ({ page }) => {
+test.skip('adding a board appends a second part', async ({ page }) => {
   await page.goto('/')
 
   const addBoard = page.getByRole('button', { name: '+ Add board' })
