@@ -10,6 +10,21 @@ Living record of decisions, constraints, and known open questions for the Playwr
 
 Implemented and committed on branch `claude/jolly-tesla-nxqq6q`. CI (`.github/workflows/e2e.yml`) is the first place the smoke tests actually execute against a real browser — the local agent environment could not download the Chromium binary (see below).
 
+## Discovered + fixed: pre-existing OCCT/WASM cold-boot bug
+
+The harness immediately earned its keep: the first real-browser CI runs failed because **OCCT never became ready** ("+ Add board" stayed disabled). A temporary diagnostic spec (console/pageerror capture) pinned the root cause to a build-config bug that had nothing to do with the tests:
+
+- opencascade.js's `index.js` does `import wasmFile from "./dist/opencascade.wasm.wasm"` and passes `wasmFile` to Emscripten's `locateFile` — i.e. it needs that import to resolve to the **asset URL**.
+- `vite-plugin-wasm` was installed and applied to all `.wasm` (main + `worker.plugins`). It ESM-instantiates `.wasm` and exposes the instance's exports, with **no default URL export**. Under the `vite@8` + rolldown toolchain it won over `assetsInclude`, so:
+  - `pnpm dev`: `[vite] Failed to resolve import "a" from ".../opencascade.wasm.wasm"` (Emscripten's `"a"` import namespace) → the worker's `import('opencascade.js')` 500s → `occtReady` never flips.
+  - `pnpm build`: `[MISSING_EXPORT] "default" is not exported by ".../opencascade.wasm.wasm"`.
+
+The unit suite never caught this because it mocks the OCCT worker, and there were no E2E tests exercising the real WASM path.
+
+**Fix:** removed `vite-plugin-wasm` entirely (no `src` file does a direct `.wasm` instantiation import — it was only ever there "for future use") and kept `assetsInclude: ['**/*.wasm']`, so the bare `.wasm` import resolves to a URL string — exactly what opencascade.js expects. Verified locally: `pnpm build` succeeds (emits `opencascade.wasm-*.wasm` as a 65MB asset) and `pnpm dev` serves both `index.js` (200) and `opencascade.wasm.wasm` (200, `application/wasm`). `vite-plugin-wasm` was removed from `package.json`; the `assetsInclude` invariant in `CLAUDE.md` was updated to warn against re-adding it.
+
+**Smoke-test hardening applied alongside the fix** (from the code review): the render assertion now polls `isNonBlank(screenshot)` via `expect.poll` (a frame may not be painted the instant `occtReady` flips), the OCCT-ready wait was bumped to 120s for slow CI runners (per-test `timeout` raised to 180s), and `viewportCanvas` selects the largest canvas in a single `page.evaluate` (post-layout sizes, no per-canvas round-trips).
+
 ## Canvas-capture path used
 
 **Path A — `locator.screenshot()`** was used in `e2e/smoke.spec.ts`. Playwright composites the page and returns a PNG buffer (Node-side); the pure `isNonBlank` helper in `e2e/canvas.ts` decodes that PNG with `pngjs` and checks whether any pixel deviates from a single background color by more than `threshold=10` in any R/G/B channel.

@@ -8,7 +8,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['list']] : 'list',
-  timeout: 90_000,
+  // OCCT WASM boot (~120s budget) + canvas render poll must fit within this.
+  timeout: 180_000,
   expect: { timeout: 60_000 },
   use: {
     baseURL: 'http://localhost:5173',
