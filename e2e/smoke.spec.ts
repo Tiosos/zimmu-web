@@ -38,3 +38,16 @@ test('app boots, OCCT initializes, and the default board renders', async ({ page
   const shot = await canvas.screenshot()
   expect(isNonBlank(shot)).toBe(true)
 })
+
+test('adding a board appends a second part', async ({ page }) => {
+  await page.goto('/')
+
+  const addBoard = page.getByRole('button', { name: '+ Add board' })
+  await expect(addBoard).toBeEnabled({ timeout: 60_000 })
+
+  await addBoard.click()
+
+  // labelCounter derives the next label as "Board 2" (src/scene/useScene.ts);
+  // the new part appears as a row in the sidebar list.
+  await expect(page.getByText('Board 2')).toBeVisible()
+})
