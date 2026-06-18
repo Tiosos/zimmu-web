@@ -25,6 +25,7 @@ Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 - **Snap/align mode** (`F`) — click two faces to align boards
 - **Cut mode** (`C`) — boolean-subtract a cut rectangle from any board face; cuts can be linked (paired) across mating parts
 - 50-entry undo/redo (`Ctrl+Z` / `Ctrl+Shift+Z`); consecutive dimension edits coalesce into one entry
+- Full shortcut reference: [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md)
 
 ### File I/O
 - Save / Save As / Open / New via File System Access API (Chrome/Edge)
