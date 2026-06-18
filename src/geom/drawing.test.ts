@@ -51,6 +51,7 @@ describe('buildDrawingSheets', () => {
     const cut = {
       id: 'c1',
       label: 'Dado',
+      kind: 'box' as const,
       face: '+Z' as const,
       position: { x: 100, y: 150, z: 18 },
       size: { x: 20, y: 300, z: 6 },
@@ -68,6 +69,7 @@ describe('buildDrawingSheets', () => {
     const cut = {
       id: 'c1',
       label: 'Groove',
+      kind: 'box' as const,
       face: '+Y' as const,
       position: { x: 400, y: 300, z: 9 },
       size: { x: 20, y: 10, z: 6 },
@@ -85,6 +87,7 @@ describe('buildDrawingSheets', () => {
     const cut = {
       id: 'c1',
       label: 'Tenon',
+      kind: 'box' as const,
       face: '+X' as const,
       position: { x: 800, y: 150, z: 9 },
       size: { x: 10, y: 20, z: 6 },
@@ -96,6 +99,44 @@ describe('buildDrawingSheets', () => {
     expect(face.cuts).toHaveLength(0)
     expect(edge.cuts).toHaveLength(0)
     expect(end.cuts).toHaveLength(1)
+  })
+
+  it('flat mitre gives the Face view a boardOutline and an angle note; End view stays a rect', () => {
+    const sheets = buildDrawingSheets(
+      [
+        makeBoard({
+          length: 400,
+          width: 200,
+          thickness: 18,
+          cuts: [{ kind: 'mitre', id: 'm1', label: 'Mitre', end: '+X', axis: 'Z', angle: 45 }],
+        }),
+      ],
+      'P',
+    )
+    const sheet = sheets[1]
+    if (sheet.kind !== 'part') throw new Error('expected part')
+    const [face, edge, end] = sheet.views
+    expect(face.boardOutline).toBeDefined()
+    expect(face.boardOutline).toHaveLength(4)
+    expect(face.noteLabels.map((n) => n.text)).toContain('45°')
+    expect(edge.boardOutline).toBeUndefined() // bevel-only view, flat mitre absent
+    expect(end.boardOutline).toBeUndefined()
+  })
+
+  it('bevel mitre affects the Edge view, not the Face view', () => {
+    const sheets = buildDrawingSheets(
+      [
+        makeBoard({
+          cuts: [{ kind: 'mitre', id: 'm1', label: 'Mitre', end: '+X', axis: 'Y', angle: 45 }],
+        }),
+      ],
+      'P',
+    )
+    const sheet = sheets[1]
+    if (sheet.kind !== 'part') throw new Error('expected part')
+    const [face, edge] = sheet.views
+    expect(face.boardOutline).toBeUndefined()
+    expect(edge.boardOutline).toBeDefined()
   })
 
   it('selects scale 1:5 for a 400×200×18 board', () => {

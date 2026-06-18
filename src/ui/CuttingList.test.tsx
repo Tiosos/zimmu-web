@@ -48,6 +48,7 @@ describe('buildCsv', () => {
       {
         id: 'c1',
         label: 'C1',
+        kind: 'box' as const,
         face: '+X' as const,
         position: { x: 0, y: 0, z: 0 },
         size: { x: 10, y: 20, z: 20 },
@@ -55,6 +56,7 @@ describe('buildCsv', () => {
       {
         id: 'c2',
         label: 'C2',
+        kind: 'box' as const,
         face: '-Y' as const,
         position: { x: 0, y: 0, z: 0 },
         size: { x: 20, y: 10, z: 20 },
@@ -145,6 +147,7 @@ describe('groupParts', () => {
     const cut = {
       id: 'c1',
       label: 'C1',
+      kind: 'box' as const,
       face: '+X' as const,
       position: { x: 0, y: 0, z: 0 },
       size: { x: 10, y: 20, z: 20 },
@@ -223,6 +226,7 @@ describe('CuttingList', () => {
       {
         id: 'c1',
         label: 'C1',
+        kind: 'box' as const,
         face: '+X' as const,
         position: { x: 0, y: 0, z: 0 },
         size: { x: 10, y: 20, z: 20 },

@@ -1,18 +1,18 @@
 // Three.js math types run in Node/happy-dom without browser mocks needed.
 import * as THREE from 'three'
-import type { BoardPart, CutDef, FaceHit, Part, Vec3 } from './types'
+import type { BoardPart, Face, FaceHit, Part, Vec3 } from './types'
 
 const DEG2RAD = Math.PI / 180
 
 type FaceAxis = 'x' | 'y' | 'z'
 
-export function faceAxes(face: CutDef['face']): { depth: FaceAxis; u: FaceAxis; v: FaceAxis } {
+export function faceAxes(face: Face): { depth: FaceAxis; u: FaceAxis; v: FaceAxis } {
   if (face === '+X' || face === '-X') return { depth: 'x', u: 'y', v: 'z' }
   if (face === '+Y' || face === '-Y') return { depth: 'y', u: 'x', v: 'z' }
   return { depth: 'z', u: 'x', v: 'y' }
 }
 
-export function defaultCutSize(face: CutDef['face']): Vec3 {
+export function defaultCutSize(face: Face): Vec3 {
   if (face === '+X' || face === '-X') return { x: 10, y: 20, z: 20 }
   if (face === '+Y' || face === '-Y') return { x: 20, y: 10, z: 20 }
   return { x: 20, y: 20, z: 10 }
@@ -102,7 +102,7 @@ export function computeFaceCorners(face: FaceHit, part: Part): [Vec3, Vec3, Vec3
   return [c0, c1, c2, c3]
 }
 
-function localNormalToFaceString(n: Vec3): CutDef['face'] {
+function localNormalToFaceString(n: Vec3): Face {
   if (n.x > 0.5) return '+X'
   if (n.x < -0.5) return '-X'
   if (n.y > 0.5) return '+Y'

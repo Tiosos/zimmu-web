@@ -32,6 +32,7 @@ function App() {
     onDuplicate,
     onUpdate,
     onUpdateCut,
+    onAddMitre,
     onRemoveCut,
     onLinkCuts,
     onUnlinkCuts,
@@ -307,6 +308,7 @@ function App() {
           onDuplicate={onDuplicate}
           onUpdate={onUpdate}
           onUpdateCut={onUpdateCut}
+          onAddMitre={onAddMitre}
           onRemoveCut={onRemoveCut}
           onLinkCuts={onLinkCuts}
           onUnlinkCuts={onUnlinkCuts}
