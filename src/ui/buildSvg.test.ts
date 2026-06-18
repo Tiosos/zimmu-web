@@ -49,6 +49,7 @@ describe('buildSvg', () => {
     const cut = {
       id: 'c1',
       label: 'Dado',
+      kind: 'box' as const,
       face: '+Z' as const,
       position: { x: 100, y: 100, z: 18 },
       size: { x: 20, y: 20, z: 6 },

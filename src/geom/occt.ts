@@ -1,5 +1,6 @@
 import type { OpenCascadeInstance, TopoDS_Shape } from 'opencascade.js'
-import type { Vec3 } from '../scene/types'
+import type { CutDef, MitreCut, Vec3 } from '../scene/types'
+import { computeMitreTool } from './mitre'
 
 // Single OCCT instance per page load. Initialization downloads and instantiates
 // a ~65MB WASM module, so it must only happen once.
@@ -72,12 +73,78 @@ export function makeCut(
   return result
 }
 
+// Subtract an angled half-space (oversized rotated box) to bevel one end of the
+// board. The cutting tool geometry is derived by the pure computeMitreTool so the
+// math is unit-tested; only the OCCT plumbing lives here (browser-only).
+export function makeMitreCut(
+  oc: OpenCascadeInstance,
+  shape: TopoDS_Shape,
+  board: { length: number; width: number; thickness: number },
+  mitre: MitreCut,
+): TopoDS_Shape {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const O = oc as any
+  const tool = computeMitreTool(board, mitre)
+
+  const builder = new O.BRepPrimAPI_MakeBox_1(tool.boxSize.x, tool.boxSize.y, tool.boxSize.z)
+  const boxShape = builder.Shape()
+  builder.delete()
+
+  // Translate the box to its pre-rotation origin.
+  const tTrsf = new O.gp_Trsf_1()
+  const tVec = new O.gp_Vec_4(tool.boxOrigin.x, tool.boxOrigin.y, tool.boxOrigin.z)
+  tTrsf.SetTranslation_1(tVec)
+  tVec.delete()
+  const tXform = new O.BRepBuilderAPI_Transform_2(boxShape, tTrsf, false)
+  tTrsf.delete()
+  const translated = tXform.Shape()
+
+  // Rotate about the pivot edge to tilt the inner face into the board.
+  const rTrsf = new O.gp_Trsf_1()
+  const pnt = new O.gp_Pnt_3(tool.pivot.x, tool.pivot.y, tool.pivot.z)
+  const dir = new O.gp_Dir_4(tool.axisDir.x, tool.axisDir.y, tool.axisDir.z)
+  const ax1 = new O.gp_Ax1_2(pnt, dir)
+  rTrsf.SetRotation_1(ax1, tool.angleRad)
+  pnt.delete()
+  dir.delete()
+  ax1.delete()
+  const rXform = new O.BRepBuilderAPI_Transform_2(translated, rTrsf, false)
+  rTrsf.delete()
+  const movedTool = rXform.Shape()
+
+  const pr1 = new O.Message_ProgressRange_1()
+  const op = new O.BRepAlgoAPI_Cut_3(shape, movedTool, pr1)
+  pr1.delete()
+  const pr2 = new O.Message_ProgressRange_1()
+  op.Build(pr2)
+  pr2.delete()
+
+  const cleanup = () => {
+    op.delete()
+    rXform.delete()
+    movedTool.delete()
+    tXform.delete()
+    translated.delete()
+    boxShape.delete()
+  }
+
+  if (!op.IsDone()) {
+    console.warn('makeMitreCut: BRepAlgoAPI_Cut did not complete — returning input shape')
+    cleanup()
+    return shape
+  }
+
+  const result = op.Shape()
+  cleanup()
+  return result
+}
+
 export interface ExportSpec {
   label: string
   length: number
   width: number
   thickness: number
-  cuts: Array<{ id: string; position: Vec3; size: Vec3 }>
+  cuts: CutDef[]
   matrix: number[] // column-major 16, from composeWorldMatrix
 }
 
@@ -87,15 +154,20 @@ export function makeShape(
     length: number
     width: number
     thickness: number
-    cuts: Array<{ id: string; position: Vec3; size: Vec3 }>
+    cuts: CutDef[]
   },
 ): TopoDS_Shape {
   const sorted = dims.cuts.slice().sort((a, b) => a.id.localeCompare(b.id))
   let current = makeBox(oc, dims.length, dims.width, dims.thickness)
   for (const cut of sorted) {
-    if (cut.size.x <= 0.1 || cut.size.y <= 0.1 || cut.size.z <= 0.1) continue
     const prev = current
-    current = makeCut(oc, current, cut.position, cut.size)
+    if (cut.kind === 'box') {
+      if (cut.size.x <= 0.1 || cut.size.y <= 0.1 || cut.size.z <= 0.1) continue
+      current = makeCut(oc, current, cut.position, cut.size)
+    } else {
+      if (cut.angle <= 0) continue
+      current = makeMitreCut(oc, current, dims, cut)
+    }
     if (prev !== current) prev.delete()
   }
   return current

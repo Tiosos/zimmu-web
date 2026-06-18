@@ -100,15 +100,25 @@ function dxfView(view: DrawingView): string {
   const {
     placement: { x: px, y: py },
     boardRect,
+    boardOutline,
     cuts,
     cutLabels,
+    noteLabels,
     boardDims,
     cutPosDims,
   } = view
   const out: string[] = []
 
   out.push(dxfText('TEXT', px, py - 2, 3, view.label))
-  out.push(dxfRect('OUTLINE', px + boardRect.x, py + boardRect.y, boardRect.w, boardRect.h))
+  if (boardOutline) {
+    for (let i = 0; i < boardOutline.length; i++) {
+      const a = boardOutline[i]
+      const b = boardOutline[(i + 1) % boardOutline.length]
+      out.push(dxfLine('OUTLINE', px + a.x, py + a.y, px + b.x, py + b.y))
+    }
+  } else {
+    out.push(dxfRect('OUTLINE', px + boardRect.x, py + boardRect.y, boardRect.w, boardRect.h))
+  }
 
   cuts.forEach((c: Rect2D, i: number) => {
     out.push(dxfRect('CUTS', px + c.x, py + c.y, c.w, c.h))
@@ -125,6 +135,10 @@ function dxfView(view: DrawingView): string {
       )
     }
   })
+
+  noteLabels.forEach((nl) =>
+    out.push(dxfText('TEXT', px + nl.rect.x, py + nl.rect.y, 2.5, nl.text)),
+  )
 
   boardDims.forEach((d: DimLine) => out.push(dxfDimLine(d, px, py)))
   cutPosDims.forEach((d: DimLine) => out.push(dxfDimLine(d, px, py)))

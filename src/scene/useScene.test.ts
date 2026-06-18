@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import type { CutDef, PartId } from './types'
+import type { BoxCut, CutDef, PartId } from './types'
 
 const mockBuildPart = vi.fn()
 const mockExportStep = vi.fn()
@@ -643,6 +643,7 @@ describe('useScene', () => {
           {
             id: 'cut_1',
             label: 'Cut 1',
+            kind: 'box' as const,
             face: '+Z' as const,
             position: { x: 90, y: 40, z: 15 },
             size: { x: 20, y: 20, z: 10 },
@@ -655,7 +656,16 @@ describe('useScene', () => {
       expect(mockBuildPart).toHaveBeenCalledWith(
         'board',
         expect.objectContaining({
-          cuts: [{ id: 'cut_1', position: { x: 90, y: 40, z: 15 }, size: { x: 20, y: 20, z: 10 } }],
+          cuts: [
+            {
+              id: 'cut_1',
+              label: 'Cut 1',
+              kind: 'box',
+              face: '+Z',
+              position: { x: 90, y: 40, z: 15 },
+              size: { x: 20, y: 20, z: 10 },
+            },
+          ],
         }),
       ),
     )
@@ -665,6 +675,7 @@ describe('useScene', () => {
     const cut1: CutDef = {
       id: 'cut_1',
       label: 'Cut 1',
+      kind: 'box',
       face: '+Z',
       position: { x: 90, y: 40, z: 15 },
       size: { x: 20, y: 20, z: 10 },
@@ -677,9 +688,12 @@ describe('useScene', () => {
         result.current.onUpdate(partId, (p) => ({ ...p, cuts: [cut1] }))
       })
       act(() => {
-        result.current.onUpdateCut(partId, 'cut_1', (c) => ({ ...c, size: { ...c.size, x: 30 } }))
+        result.current.onUpdateCut(partId, 'cut_1', (c) => ({
+          ...(c as BoxCut),
+          size: { ...(c as BoxCut).size, x: 30 },
+        }))
       })
-      expect(result.current.scene.parts[0].cuts[0].size.x).toBe(30)
+      expect((result.current.scene.parts[0].cuts[0] as BoxCut).size.x).toBe(30)
     })
 
     it('creates an undoable entry (single undo restores)', () => {
@@ -689,12 +703,15 @@ describe('useScene', () => {
         result.current.onUpdate(partId, (p) => ({ ...p, cuts: [cut1] }))
       })
       act(() => {
-        result.current.onUpdateCut(partId, 'cut_1', (c) => ({ ...c, size: { ...c.size, x: 30 } }))
+        result.current.onUpdateCut(partId, 'cut_1', (c) => ({
+          ...(c as BoxCut),
+          size: { ...(c as BoxCut).size, x: 30 },
+        }))
       })
       act(() => {
         result.current.undo()
       })
-      expect(result.current.scene.parts[0].cuts[0].size.x).toBe(20)
+      expect((result.current.scene.parts[0].cuts[0] as BoxCut).size.x).toBe(20)
     })
 
     it('propagates u/v sizes to paired cut; single undo restores both', async () => {
@@ -710,6 +727,7 @@ describe('useScene', () => {
       const cutA: CutDef = {
         id: 'cut_a',
         label: 'Mortise',
+        kind: 'box',
         face: '+Z',
         position: { x: 90, y: 40, z: 15 },
         size: { x: 30, y: 50, z: 10 },
@@ -718,6 +736,7 @@ describe('useScene', () => {
       const cutB: CutDef = {
         id: 'cut_b',
         label: 'Tenon',
+        kind: 'box',
         face: '+Z',
         position: { x: 0, y: 0, z: 15 },
         size: { x: 30, y: 50, z: 10 },
@@ -731,20 +750,59 @@ describe('useScene', () => {
 
       // Update cut A's u-axis size (x for +Z face: axes.u='x')
       act(() => {
-        result.current.onUpdateCut(partAId, 'cut_a', (c) => ({ ...c, size: { ...c.size, x: 40 } }))
+        result.current.onUpdateCut(partAId, 'cut_a', (c) => ({
+          ...(c as BoxCut),
+          size: { ...(c as BoxCut).size, x: 40 },
+        }))
       })
 
       // cut A updated
-      expect(result.current.scene.parts[0].cuts[0].size.x).toBe(40)
+      expect((result.current.scene.parts[0].cuts[0] as BoxCut).size.x).toBe(40)
       // cut B's u-axis (also x, both are +Z face) updated by propagation
-      expect(result.current.scene.parts[1].cuts[0].size.x).toBe(40)
+      expect((result.current.scene.parts[1].cuts[0] as BoxCut).size.x).toBe(40)
 
       // single undo restores both
       act(() => {
         result.current.undo()
       })
-      expect(result.current.scene.parts[0].cuts[0].size.x).toBe(30)
-      expect(result.current.scene.parts[1].cuts[0].size.x).toBe(30)
+      expect((result.current.scene.parts[0].cuts[0] as BoxCut).size.x).toBe(30)
+      expect((result.current.scene.parts[1].cuts[0] as BoxCut).size.x).toBe(30)
+    })
+  })
+
+  describe('onAddMitre', () => {
+    it('adds a mitre cut with defaults and undo removes it', () => {
+      const { result } = renderHook(() => useScene())
+      const partId = result.current.scene.parts[0].id
+      act(() => {
+        result.current.onAddMitre(partId)
+      })
+      expect(result.current.scene.parts[0].cuts).toHaveLength(1)
+      const mitre = result.current.scene.parts[0].cuts[0]
+      expect(mitre.kind).toBe('mitre')
+      if (mitre.kind !== 'mitre') throw new Error('expected mitre')
+      expect(mitre).toMatchObject({ end: '+X', axis: 'Z', angle: 45 })
+      act(() => {
+        result.current.undo()
+      })
+      expect(result.current.scene.parts[0].cuts).toHaveLength(0)
+    })
+
+    it('editing the mitre angle via onUpdateCut updates it', () => {
+      const { result } = renderHook(() => useScene())
+      const partId = result.current.scene.parts[0].id
+      act(() => {
+        result.current.onAddMitre(partId)
+      })
+      const mitreId = result.current.scene.parts[0].cuts[0].id
+      act(() => {
+        result.current.onUpdateCut(partId, mitreId, (c) =>
+          c.kind !== 'mitre' ? c : { ...c, angle: 30 },
+        )
+      })
+      const updated = result.current.scene.parts[0].cuts[0]
+      if (updated.kind !== 'mitre') throw new Error('expected mitre')
+      expect(updated.angle).toBe(30)
     })
   })
 
@@ -759,6 +817,7 @@ describe('useScene', () => {
             {
               id: 'cut_1',
               label: 'Cut 1',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 0 },
               size: { x: 20, y: 20, z: 10 },
@@ -789,6 +848,7 @@ describe('useScene', () => {
             {
               id: 'cut_a',
               label: 'A',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 20, y: 20, z: 10 },
@@ -801,6 +861,7 @@ describe('useScene', () => {
             {
               id: 'cut_b',
               label: 'B',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 20, y: 20, z: 10 },
@@ -815,7 +876,7 @@ describe('useScene', () => {
       })
 
       expect(result.current.scene.parts[0].cuts).toHaveLength(0)
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBeUndefined()
+      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBeUndefined()
     })
 
     it('undo restores cut and paired references in one step', async () => {
@@ -835,6 +896,7 @@ describe('useScene', () => {
             {
               id: 'cut_a',
               label: 'A',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 20, y: 20, z: 10 },
@@ -847,6 +909,7 @@ describe('useScene', () => {
             {
               id: 'cut_b',
               label: 'B',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 20, y: 20, z: 10 },
@@ -864,7 +927,7 @@ describe('useScene', () => {
       })
 
       expect(result.current.scene.parts[0].cuts).toHaveLength(1)
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
+      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBe(`${partAId}:cut_a`)
     })
   })
 
@@ -886,6 +949,7 @@ describe('useScene', () => {
             {
               id: 'cut_a',
               label: 'A',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 30, y: 40, z: 10 },
@@ -898,6 +962,7 @@ describe('useScene', () => {
             {
               id: 'cut_b',
               label: 'B',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 10, y: 10, z: 10 },
@@ -910,11 +975,11 @@ describe('useScene', () => {
         result.current.onLinkCuts(partAId, 'cut_a', partBId, 'cut_b')
       })
 
-      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBe(`${partBId}:cut_b`)
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
+      expect((result.current.scene.parts[0].cuts[0] as BoxCut).pairedCutId).toBe(`${partBId}:cut_b`)
+      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBe(`${partAId}:cut_a`)
       // u/v sizes from A (+Z: u=x, v=y) propagated to B
-      expect(result.current.scene.parts[1].cuts[0].size.x).toBe(30)
-      expect(result.current.scene.parts[1].cuts[0].size.y).toBe(40)
+      expect((result.current.scene.parts[1].cuts[0] as BoxCut).size.x).toBe(30)
+      expect((result.current.scene.parts[1].cuts[0] as BoxCut).size.y).toBe(40)
     })
 
     it('undo clears both pairedCutIds', async () => {
@@ -932,6 +997,7 @@ describe('useScene', () => {
             {
               id: 'cut_a',
               label: 'A',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 30, y: 40, z: 10 },
@@ -944,6 +1010,7 @@ describe('useScene', () => {
             {
               id: 'cut_b',
               label: 'B',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 10, y: 10, z: 10 },
@@ -957,8 +1024,8 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
-      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBeUndefined()
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBeUndefined()
+      expect((result.current.scene.parts[0].cuts[0] as BoxCut).pairedCutId).toBeUndefined()
+      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBeUndefined()
     })
   })
 
@@ -978,6 +1045,7 @@ describe('useScene', () => {
             {
               id: 'cut_a',
               label: 'A',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 20, y: 20, z: 10 },
@@ -991,6 +1059,7 @@ describe('useScene', () => {
             {
               id: 'cut_b',
               label: 'B',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 20, y: 20, z: 10 },
@@ -1002,8 +1071,8 @@ describe('useScene', () => {
       act(() => {
         result.current.onUnlinkCuts(partAId, 'cut_a')
       })
-      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBeUndefined()
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBeUndefined()
+      expect((result.current.scene.parts[0].cuts[0] as BoxCut).pairedCutId).toBeUndefined()
+      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBeUndefined()
     })
 
     it('undo restores both pairedCutIds', async () => {
@@ -1021,6 +1090,7 @@ describe('useScene', () => {
             {
               id: 'cut_a',
               label: 'A',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 20, y: 20, z: 10 },
@@ -1034,6 +1104,7 @@ describe('useScene', () => {
             {
               id: 'cut_b',
               label: 'B',
+              kind: 'box' as const,
               face: '+Z' as const,
               position: { x: 0, y: 0, z: 15 },
               size: { x: 20, y: 20, z: 10 },
@@ -1048,8 +1119,8 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
-      expect(result.current.scene.parts[0].cuts[0].pairedCutId).toBe(`${partBId}:cut_b`)
-      expect(result.current.scene.parts[1].cuts[0].pairedCutId).toBe(`${partAId}:cut_a`)
+      expect((result.current.scene.parts[0].cuts[0] as BoxCut).pairedCutId).toBe(`${partBId}:cut_b`)
+      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBe(`${partAId}:cut_a`)
     })
   })
 

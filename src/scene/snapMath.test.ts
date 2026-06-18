@@ -8,7 +8,7 @@ import {
   faceAxes,
   defaultCutSize,
 } from './snapMath'
-import type { BoardPart, CutDef, FaceHit, Vec3 } from './types'
+import type { BoardPart, Face, FaceHit, Vec3 } from './types'
 
 function face(
   partId: string,
@@ -363,7 +363,7 @@ describe('defaultCutSize', () => {
     expect(defaultCutSize('-Z')).toEqual(s)
   })
   it('depth axis matches faceAxes().depth for all faces', () => {
-    const faces: CutDef['face'][] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
+    const faces: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
     for (const f of faces) {
       const axes = faceAxes(f)
       const size = defaultCutSize(f)

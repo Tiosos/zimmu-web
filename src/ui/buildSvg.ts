@@ -87,8 +87,10 @@ function renderView(view: DrawingView): string {
   const {
     placement: { x: px, y: py },
     boardRect,
+    boardOutline,
     cuts,
     cutLabels,
+    noteLabels,
     boardDims,
     cutPosDims,
   } = view
@@ -102,13 +104,18 @@ function renderView(view: DrawingView): string {
     }),
   )
 
-  out.push(
-    svgRect(px + boardRect.x, py + boardRect.y, boardRect.w, boardRect.h, {
-      stroke: '#000',
-      fill: 'none',
-      'stroke-width': '0.3',
-    }),
-  )
+  if (boardOutline) {
+    const points = boardOutline.map((p) => `${fmt(px + p.x)},${fmt(py + p.y)}`).join(' ')
+    out.push(el('polygon', { points, stroke: '#000', fill: 'none', 'stroke-width': '0.3' }))
+  } else {
+    out.push(
+      svgRect(px + boardRect.x, py + boardRect.y, boardRect.w, boardRect.h, {
+        stroke: '#000',
+        fill: 'none',
+        'stroke-width': '0.3',
+      }),
+    )
+  }
 
   cuts.forEach((c: Rect2D, i: number) => {
     out.push(
@@ -131,6 +138,18 @@ function renderView(view: DrawingView): string {
       )
     }
   })
+
+  noteLabels.forEach((nl) =>
+    out.push(
+      svgText(px + nl.rect.x, py + nl.rect.y, nl.text, {
+        'font-size': '2.5',
+        fill: '#0a6',
+        'text-anchor': 'middle',
+        'dominant-baseline': 'middle',
+        'font-family': 'sans-serif',
+      }),
+    ),
+  )
 
   boardDims.forEach((d: DimLine) => out.push(renderDimLine(d, px, py)))
   cutPosDims.forEach((d: DimLine) => out.push(renderDimLine(d, px, py)))

@@ -1,8 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import type { MaterialDef, Scene, CameraState, ZimmuFile } from './types'
+import type { CutDef, MaterialDef, Scene, CameraState, ZimmuFile } from './types'
 import * as idb from './idb'
 
-export const FILE_FORMAT_VERSION = 2
+export const FILE_FORMAT_VERSION = 3
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -52,7 +52,10 @@ export function parseFile(text: string): ZimmuFile {
     scene: {
       parts: parts.map((p) => ({
         ...p,
-        cuts: p.cuts ?? [],
+        // v2→v3: cuts gained a discriminated `kind`; legacy cuts are box cuts.
+        cuts: ((p.cuts ?? []) as unknown as Array<Record<string, unknown>>).map((c) =>
+          'kind' in c ? c : { ...c, kind: 'box' },
+        ) as unknown as CutDef[],
         visible: p.visible ?? true,
         material: p.material ?? '',
       })),

@@ -31,6 +31,35 @@ Living log of decisions that don't belong in the spec. Audience: future dev/AI.
   sidebar inputs; avoids standing up a second face-interaction state machine
   (`useAddMitre`) like `useAddCut`.
 
+## 2026-06-18 — Implementation outcome
+
+- Implemented per spec. `pnpm typecheck`, `pnpm lint`, `pnpm test` all green
+  (398 passed / 6 skipped). New tests: `mitre.test.ts` (tool math + outline),
+  `shapeKey` mitre cases, `useFile` v2→v3 migration + v3 mitre round-trip,
+  `useScene` onAddMitre + mitre edit, `drawing` mitre outline/note per view.
+- The discriminated union forced `kind === 'box'` narrowing across `useScene`
+  (onUpdateCut/onRemoveCut/onLinkCuts/onUnlinkCuts), `sidebar` updaters, and
+  `drawing.ts`. Introduced a shared `Face` type (was `CutDef['face']`, no longer
+  valid on the union) used by snapMath/useAddCut/drawing.
+- Test churn: every legacy box-cut literal needed `kind: 'box'`; reads of
+  `.size`/`.face`/`.pairedCutId` on cuts needed `as BoxCut`. Mechanical.
+- `computeMitreTool` rotation sign verified by test:
+  `sign = (end==='+X'?1:-1) * (axis==='Z'?1:-1)`. Pinned by intersecting the
+  rotated cut plane with the far edge and asserting the short-point x.
+- STL needed no change (re-meshes from worker geometry, which now includes the
+  mitre). STEP/`writeStep` inherits mitres via `makeShape` once `ExportSpec.cuts`
+  became `CutDef[]`.
+- `mesh.ts` unchanged — it walks all faces generically, so the angled face
+  triangulates without special handling.
+
+## STILL TO VERIFY (not done)
+
+- **Manual `pnpm dev` smoke of `makeMitreCut`** — OCCT is browser-only and cannot
+  run in Node, so the actual Boolean cut is UNVERIFIED at runtime (the tool math
+  is unit-tested, but the `gp_Ax1`/`gp_Dir_4`/`gp_Pnt_3`/`SetRotation_1`/
+  `BRepBuilderAPI_Transform_2` embind calls are not). Smoke a 45° flat mitre +
+  a bevel, confirm the viewport, then STL/STEP/SVG/DXF export.
+
 ## Open risks / to verify during implementation
 
 - `makeMitreCut` uses OCCT symbols (`gp_Ax1`, `gp_Dir_4`, `gp_Pnt_3`,

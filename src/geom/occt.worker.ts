@@ -2,7 +2,7 @@ import { expose, transfer } from 'comlink'
 import { initOCCT, makeShape, writeStep } from './occt'
 import type { ExportSpec } from './occt'
 import { shapeToMeshData } from './mesh'
-import type { Vec3 } from '../scene/types'
+import type { CutDef } from '../scene/types'
 
 const api = {
   async buildPart(
@@ -11,7 +11,7 @@ const api = {
       length: number
       width: number
       thickness: number
-      cuts: Array<{ id: string; position: Vec3; size: Vec3 }>
+      cuts: CutDef[]
     },
   ) {
     const oc = await initOCCT()

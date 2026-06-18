@@ -1,5 +1,6 @@
-import type { CutDef, Part } from '../scene/types'
+import type { BoxCut, Face, MitreCut, Part } from '../scene/types'
 import { faceAxes } from '../scene/snapMath'
+import { mitreFaceOutline } from './mitre'
 
 export interface Point2D {
   x: number
@@ -28,8 +29,10 @@ export interface CutLabel {
 export interface DrawingView {
   label: 'Face' | 'Edge' | 'End'
   boardRect: Rect2D
+  boardOutline?: Point2D[] // when a mitre bevels this view, replaces boardRect
   cuts: Rect2D[]
   cutLabels: CutLabel[]
+  noteLabels: CutLabel[] // free-floating annotations (mitre angle)
   cutPosDims: DimLine[]
   boardDims: DimLine[]
   placement: Point2D
@@ -81,7 +84,7 @@ function toScaleLabel(scale: number): string {
 type Axis = 'x' | 'y' | 'z'
 
 function projectCut(
-  c: CutDef,
+  c: BoxCut,
   uAxis: Axis,
   vAxis: Axis,
   boardH: number,
@@ -99,8 +102,11 @@ function projectCut(
 
 function buildView(
   viewLabel: 'Face' | 'Edge' | 'End',
-  facePair: [CutDef['face'], CutDef['face']],
-  cuts: CutDef[],
+  facePair: [Face, Face],
+  cuts: BoxCut[],
+  mitres: MitreCut[],
+  outlineKind: 'Face' | 'Edge' | undefined,
+  board: { length: number; width: number; thickness: number },
   boardW: number,
   boardH: number,
   scale: number,
@@ -109,6 +115,34 @@ function buildView(
 ): Omit<DrawingView, 'placement'> {
   const { u: uAxis, v: vAxis } = faceAxes(facePair[0])
   const boardRect: Rect2D = { x: 0, y: 0, w: boardW * scale, h: boardH * scale }
+
+  const relevantMitres =
+    outlineKind === undefined
+      ? []
+      : mitres.filter((m) => m.axis === (outlineKind === 'Face' ? 'Z' : 'Y'))
+
+  const projectV = (vMm: number): number => (flipV ? (boardH - vMm) * scale : vMm * scale)
+
+  let boardOutline: Point2D[] | undefined
+  const noteLabels: CutLabel[] = []
+  if (relevantMitres.length > 0) {
+    boardOutline = mitreFaceOutline(board, relevantMitres, outlineKind!).map((p) => ({
+      x: p.x * scale,
+      y: projectV(p.y),
+    }))
+    for (const m of relevantMitres) {
+      const vMax = outlineKind === 'Face' ? board.width : board.thickness
+      const drop = vMax * Math.tan((m.angle * Math.PI) / 180)
+      const longU = m.end === '+X' ? board.length : 0
+      const shortU = m.end === '+X' ? board.length - drop : drop
+      const midX = ((longU + shortU) / 2) * scale
+      const midY = projectV(vMax / 2)
+      noteLabels.push({
+        rect: { x: midX, y: midY, w: 0, h: 0 },
+        text: `${m.angle}°`,
+      })
+    }
+  }
 
   const viewCuts = cuts.filter((c) => c.face === facePair[0] || c.face === facePair[1])
 
@@ -161,7 +195,16 @@ function buildView(
     })
   }
 
-  return { label: viewLabel, boardRect, cuts: cutRects, cutLabels, cutPosDims, boardDims }
+  return {
+    label: viewLabel,
+    boardRect,
+    boardOutline,
+    cuts: cutRects,
+    cutLabels,
+    noteLabels,
+    cutPosDims,
+    boardDims,
+  }
 }
 
 export function buildDrawingSheets(parts: Part[], projectName: string): DrawingSheet[] {
@@ -180,15 +223,18 @@ export function buildDrawingSheets(parts: Part[], projectName: string): DrawingS
   const cover: DrawingSheet = { kind: 'cover', projectName, date, rows: coverRows }
 
   const partSheets: DrawingSheet[] = parts.map((p) => {
-    const { length: L, width: W, thickness: T, cuts } = p
+    const { length: L, width: W, thickness: T } = p
     const scale = selectScale(L, W, T)
+    const board = { length: L, width: W, thickness: T }
+    const boxCuts = p.cuts.filter((c): c is BoxCut => c.kind === 'box')
+    const mitres = p.cuts.filter((c): c is MitreCut => c.kind === 'mitre')
 
     const ox = MARGIN
     const oy = MARGIN
 
-    const faceData = buildView('Face', ['+Z', '-Z'], cuts, L, W, scale, false, { h: L, v: W })
-    const edgeData = buildView('Edge', ['+Y', '-Y'], cuts, L, T, scale, true, { v: T })
-    const endData = buildView('End', ['+X', '-X'], cuts, W, T, scale, true, {})
+    const faceData = buildView('Face', ['+Z', '-Z'], boxCuts, mitres, 'Face', board, L, W, scale, false, { h: L, v: W }) // prettier-ignore
+    const edgeData = buildView('Edge', ['+Y', '-Y'], boxCuts, mitres, 'Edge', board, L, T, scale, true, { v: T }) // prettier-ignore
+    const endData = buildView('End', ['+X', '-X'], boxCuts, mitres, undefined, board, W, T, scale, true, {}) // prettier-ignore
 
     const faceView: DrawingView = { ...faceData, placement: { x: ox, y: oy } }
     const endView: DrawingView = {

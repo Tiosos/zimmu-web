@@ -80,6 +80,7 @@ export interface UseSceneResult {
   onUpdateMaterial: (name: string, def: MaterialDef) => void
   onUpdateHardware: (items: HardwareItem[]) => void
   onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
+  onAddMitre: (partId: PartId) => void
   onRemoveCut: (partId: PartId, cutId: CutId) => void
   onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
   onUnlinkCuts: (partId: PartId, cutId: CutId) => void
@@ -160,7 +161,7 @@ export function useScene(): UseSceneResult {
           length: part.length,
           width: part.width,
           thickness: part.thickness,
-          cuts: part.cuts.map(({ id, position, size }) => ({ id, position, size })),
+          cuts: part.cuts,
         })
         .then((data) => {
           if (!isMounted.current) return
@@ -336,11 +337,11 @@ export function useScene(): UseSceneResult {
         position: { ...orig.position, x: orig.position.x + orig.length + 10 },
         rotation: { x: 0, y: 0, z: 0 },
         visible: true,
-        cuts: orig.cuts.map((c) => ({
-          ...c,
-          id: `cut_${crypto.randomUUID()}` as CutId,
-          pairedCutId: undefined,
-        })),
+        cuts: orig.cuts.map((c) =>
+          c.kind === 'box'
+            ? { ...c, id: `cut_${crypto.randomUUID()}` as CutId, pairedCutId: undefined }
+            : { ...c, id: `cut_${crypto.randomUUID()}` as CutId },
+        ),
       }
       setScene((prev) => {
         const idx = prev.parts.findIndex((p) => p.id === id)
@@ -430,14 +431,14 @@ export function useScene(): UseSceneResult {
       if (!beforeA) return
       const afterA = updater(beforeA)
 
-      if (afterA.pairedCutId) {
+      if (afterA.kind === 'box' && afterA.pairedCutId) {
         const colonIdx = afterA.pairedCutId.indexOf(':')
         const pairedPartId = afterA.pairedCutId.slice(0, colonIdx) as PartId
         const pairedCutIdStr = afterA.pairedCutId.slice(colonIdx + 1) as CutId
         const pairedPart = sceneRef.current.parts.find((p) => p.id === pairedPartId)
         const beforeB = pairedPart?.cuts.find((c) => c.id === pairedCutIdStr)
 
-        if (pairedPart && beforeB) {
+        if (pairedPart && beforeB && beforeB.kind === 'box') {
           const axesA = faceAxes(afterA.face)
           const axesB = faceAxes(beforeB.face)
           const afterB: CutDef = {
@@ -526,6 +527,44 @@ export function useScene(): UseSceneResult {
     [push],
   )
 
+  const onAddMitre = useCallback(
+    (partId: PartId) => {
+      const part = sceneRef.current.parts.find((p) => p.id === partId)
+      if (!part) return
+      const mitreCount = part.cuts.filter((c) => c.kind === 'mitre').length
+      const mitre: CutDef = {
+        kind: 'mitre',
+        id: `cut_${crypto.randomUUID()}` as CutId,
+        label: `Mitre ${mitreCount + 1}`,
+        end: '+X',
+        axis: 'Z',
+        angle: 45,
+      }
+      setScene((prev) => ({
+        ...prev,
+        parts: prev.parts.map((p) => (p.id === partId ? { ...p, cuts: [...p.cuts, mitre] } : p)),
+      }))
+      push({
+        label: 'Add mitre',
+        undo: () =>
+          setScene((prev) => ({
+            ...prev,
+            parts: prev.parts.map((p) =>
+              p.id === partId ? { ...p, cuts: p.cuts.filter((c) => c.id !== mitre.id) } : p,
+            ),
+          })),
+        redo: () =>
+          setScene((prev) => ({
+            ...prev,
+            parts: prev.parts.map((p) =>
+              p.id === partId ? { ...p, cuts: [...p.cuts, mitre] } : p,
+            ),
+          })),
+      })
+    },
+    [push],
+  )
+
   const onRemoveCut = useCallback(
     (partId: PartId, cutId: CutId) => {
       const part = sceneRef.current.parts.find((p) => p.id === partId)
@@ -536,7 +575,7 @@ export function useScene(): UseSceneResult {
       const affectedPairs: Array<{ partId: PartId; cutId: CutId }> = []
       for (const p of sceneRef.current.parts) {
         for (const c of p.cuts) {
-          if (c.pairedCutId === `${partId}:${cutId}`) {
+          if (c.kind === 'box' && c.pairedCutId === `${partId}:${cutId}`) {
             affectedPairs.push({ partId: p.id, cutId: c.id })
           }
         }
@@ -606,6 +645,7 @@ export function useScene(): UseSceneResult {
       const cutA = partA.cuts.find((c) => c.id === cutIdA)
       const cutB = partB.cuts.find((c) => c.id === cutIdB)
       if (!cutA || !cutB) return
+      if (cutA.kind !== 'box' || cutB.kind !== 'box') return // linking is box-only
 
       const axesA = faceAxes(cutA.face)
       const axesB = faceAxes(cutB.face)
@@ -662,7 +702,7 @@ export function useScene(): UseSceneResult {
       const part = sceneRef.current.parts.find((p) => p.id === partId)
       if (!part) return
       const cut = part.cuts.find((c) => c.id === cutId)
-      if (!cut?.pairedCutId) return
+      if (!cut || cut.kind !== 'box' || !cut.pairedCutId) return
 
       const sep = cut.pairedCutId.indexOf(':')
       const matingPartId = cut.pairedCutId.slice(0, sep) as PartId
@@ -671,7 +711,8 @@ export function useScene(): UseSceneResult {
       const matingCut = matingPart?.cuts.find((c) => c.id === matingCutId)
 
       const unlinked = { ...cut, pairedCutId: undefined }
-      const unlinkedMating = matingCut ? { ...matingCut, pairedCutId: undefined } : null
+      const unlinkedMating =
+        matingCut && matingCut.kind === 'box' ? { ...matingCut, pairedCutId: undefined } : null
 
       setScene((prev) => ({
         ...prev,
@@ -771,7 +812,7 @@ export function useScene(): UseSceneResult {
       length: p.length,
       width: p.width,
       thickness: p.thickness,
-      cuts: p.cuts.map(({ id, position, size }) => ({ id, position, size })),
+      cuts: p.cuts,
       matrix: Array.from(composeWorldMatrix(p)),
     }))
     return getOcct().exportStep(specs)
@@ -793,6 +834,7 @@ export function useScene(): UseSceneResult {
     onUpdateMaterial,
     onUpdateHardware,
     onUpdateCut,
+    onAddMitre,
     onRemoveCut,
     onLinkCuts,
     onUnlinkCuts,
