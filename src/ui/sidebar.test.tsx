@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { Sidebar } from './sidebar'
-import type { BoxCut, CutId, Part, PartId } from '../scene/types'
+import type { BoardPart, BoxCut, CutId, CylinderPart, Part, PartId } from '../scene/types'
 import { PART_COLORS } from '../scene/palette'
 
 function makeCut(overrides: Partial<BoxCut> = {}): BoxCut {
@@ -16,7 +16,7 @@ function makeCut(overrides: Partial<BoxCut> = {}): BoxCut {
   }
 }
 
-function makeBoard(overrides: Partial<Part> = {}): Part {
+function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
     kind: 'board',
     id: 'board_t1',
@@ -30,6 +30,23 @@ function makeBoard(overrides: Partial<Part> = {}): Part {
     rotation: { x: 0, y: 0, z: 0 },
     rotationOrder: 'XYZ',
     cuts: [],
+    visible: true,
+    ...overrides,
+  }
+}
+
+function makeCylinder(overrides: Partial<CylinderPart> = {}): CylinderPart {
+  return {
+    kind: 'cylinder',
+    id: 'cyl_t1',
+    label: 'Dowel 1',
+    diameter: 8,
+    length: 100,
+    material: '',
+    color: '#d4a373',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
     visible: true,
     ...overrides,
   }
@@ -86,18 +103,16 @@ describe('Sidebar', () => {
     expect(onSelect).toHaveBeenCalledWith('board_t1')
   })
 
-  it('calls onAdd when Add board clicked', () => {
+  it('calls onAdd when + Board clicked', () => {
     const onAdd = vi.fn()
     render(<Sidebar {...props({ onAdd })} />)
-    fireEvent.click(screen.getByText('+ Add board'))
-    expect(onAdd).toHaveBeenCalled()
+    fireEvent.click(screen.getByText('+ Board'))
+    expect(onAdd).toHaveBeenCalledWith('board')
   })
 
-  it('Add board button is disabled when occtReady is false', () => {
+  it('+ Board button is disabled when occtReady is false', () => {
     render(<Sidebar {...props({ occtReady: false })} />)
-    expect((screen.getByText('+ Add board').closest('button') as HTMLButtonElement).disabled).toBe(
-      true,
-    )
+    expect((screen.getByText('+ Board').closest('button') as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('calls onRemove when delete clicked', () => {
@@ -404,8 +419,35 @@ describe('Sidebar', () => {
       }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
       expect(screen.getByText(/Hinge/)).toBeTruthy()
-      expect(screen.queryByText(/Dowel/)).toBeNull()
+      expect(screen.queryByText(/Dowel × 6 pcs/)).toBeNull()
     })
+  })
+
+  describe('CylinderPart editing', () => {
+    it('shows Ø dimension label and not T when a cylinder is selected', () => {
+      const scene = { parts: [makeCylinder()], materials: {}, hardware: [] }
+      render(<Sidebar {...props({ scene, selectedId: 'cyl_t1' })} />)
+      expect(screen.getByText('Ø')).toBeTruthy()
+      expect(screen.queryByText('T')).toBeNull()
+    })
+
+    it('blanking a dowel label falls back to "Dowel", not the board nextLabel', () => {
+      const onUpdate = vi.fn()
+      const scene = { parts: [makeCylinder()], materials: {}, hardware: [] }
+      render(<Sidebar {...props({ scene, selectedId: 'cyl_t1', onUpdate })} />)
+      const input = screen.getByDisplayValue('Dowel 1')
+      fireEvent.change(input, { target: { value: '' } })
+      fireEvent.blur(input)
+      const calls = onUpdate.mock.calls
+      const [, updater] = calls[calls.length - 1] as [PartId, (p: Part) => Part]
+      expect(updater(makeCylinder()).label).toBe('Dowel')
+    })
+  })
+
+  it('footer shows both + Board and + Dowel buttons', () => {
+    render(<Sidebar {...props()} />)
+    expect(screen.getByText('+ Board')).toBeTruthy()
+    expect(screen.getByText('+ Dowel')).toBeTruthy()
   })
 
   describe('ColorControl', () => {

@@ -110,9 +110,9 @@ export function HardwareEditPanel({
       </div>
 
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-muted-foreground">Linked boards</label>
+        <label className="text-xs text-muted-foreground">Linked parts</label>
         {parts.length === 0 ? (
-          <span className="text-xs text-muted-foreground italic">No boards in project</span>
+          <span className="text-xs text-muted-foreground italic">No parts in project</span>
         ) : (
           <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
             {parts.map((p) => (

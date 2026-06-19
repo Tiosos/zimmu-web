@@ -346,7 +346,8 @@ describe('useFile', () => {
     })
 
     const parsed = JSON.parse(writtenContent) as ZimmuFile
-    expect(parsed.scene.parts[0].width).toBe(100.123457)
+    const part0 = parsed.scene.parts[0]
+    expect(part0.kind === 'board' && part0.width).toBe(100.123457)
   })
 
   it('version > FILE_FORMAT_VERSION: warns and parses successfully', async () => {
@@ -403,6 +404,47 @@ describe('useFile', () => {
     const loaded = vi.mocked(onFileLoaded).mock.calls[0][0] as ZimmuFile
     expect(loaded.scene.parts).toHaveLength(1)
     expect(loaded.scene.parts[0].kind).toBe('board')
+  })
+
+  it('parseFile preserves cylinder (dowel) parts', () => {
+    const raw = JSON.stringify({
+      version: 2,
+      name: 'T',
+      appVersion: 'x',
+      units: 'mm',
+      createdAt: '',
+      updatedAt: '',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [
+          {
+            kind: 'cylinder',
+            id: 'd1',
+            label: 'Dowel 1',
+            diameter: 8,
+            length: 100,
+            material: 'Beech',
+            color: '#888888',
+            position: { x: 1, y: 2, z: 3 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            visible: true,
+          },
+        ],
+        materials: {},
+        hardware: [],
+      },
+    })
+    const parsed = parseFile(raw)
+    expect(parsed.scene.parts).toHaveLength(1)
+    const p = parsed.scene.parts[0]
+    expect(p.kind).toBe('cylinder')
+    if (p.kind === 'cylinder') {
+      expect(p.diameter).toBe(8)
+      expect(p.length).toBe(100)
+      expect(p.material).toBe('Beech')
+    }
+    expect('cuts' in p).toBe(false)
   })
 
   it('setProjectName marks isDirty true and updates projectName', async () => {
@@ -483,7 +525,8 @@ describe('useFile', () => {
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
     const envelope = onFileLoaded.mock.calls[0][0] as ZimmuFile
-    expect(envelope.scene.parts[0].cuts).toEqual([])
+    const part0 = envelope.scene.parts[0]
+    expect(part0.kind === 'board' ? part0.cuts : null).toEqual([])
   })
 
   it('defaults visible to true when loading a file without visible data', async () => {
@@ -611,7 +654,9 @@ describe('useFile', () => {
       },
     })
     const result = parseFile(v2Json)
-    expect(result.scene.parts[0].cuts[0].kind).toBe('box')
+    const part = result.scene.parts[0]
+    if (part.kind !== 'board') throw new Error('expected board')
+    expect(part.cuts[0].kind).toBe('box')
   })
 
   it('preserves a mitre cut on load (v3 round-trip)', () => {
@@ -645,7 +690,9 @@ describe('useFile', () => {
         hardware: [],
       },
     })
-    const cut = parseFile(v3Json).scene.parts[0].cuts[0]
+    const part = parseFile(v3Json).scene.parts[0]
+    if (part.kind !== 'board') throw new Error('expected board')
+    const cut = part.cuts[0]
     expect(cut).toMatchObject({ kind: 'mitre', end: '+X', axis: 'Z', angle: 45 })
   })
 

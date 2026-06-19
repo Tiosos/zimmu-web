@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { PDFDocument } from 'pdf-lib'
 import { buildDrawingSheets } from '../geom/drawing'
-import type { Part } from '../scene/types'
+import type { BoardPart } from '../scene/types'
 import { buildPdf } from './buildPdf'
 
-function makeBoard(overrides: Partial<Part> = {}): Part {
+function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
     kind: 'board',
     id: 'p1',

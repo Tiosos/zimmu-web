@@ -67,7 +67,11 @@ export function useAddCut(params: {
         size,
       }
 
-      onUpdate(hit.partId, (p) => ({ ...p, cuts: [...p.cuts, newCut] }), 'Add cut')
+      onUpdate(
+        hit.partId,
+        (p) => (p.kind === 'board' ? { ...p, cuts: [...p.cuts, newCut] } : p),
+        'Add cut',
+      )
       onSelect(hit.partId)
       setLastPlacedCutId(cutId)
     },

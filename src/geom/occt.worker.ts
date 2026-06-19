@@ -1,47 +1,41 @@
 import { expose, transfer } from 'comlink'
-import { initOCCT, makeShape, writeStep } from './occt'
+import { initOCCT, makeShape, makeCylinder, writeStep } from './occt'
 import type { ExportSpec } from './occt'
+import type { TopoDS_Shape } from 'opencascade.js'
 import { shapeToMeshData } from './mesh'
 import type { CutDef } from '../scene/types'
 
-const api = {
-  async buildPart(
-    kind: 'board',
-    dims: {
+export type BuildSpec =
+  | {
+      kind: 'board'
       length: number
       width: number
       thickness: number
       cuts: CutDef[]
-    },
-  ) {
-    const oc = await initOCCT()
-    if (kind === 'board') {
-      performance.mark('zimmu:shape-start')
-      const shape = makeShape(oc, dims)
-      performance.mark('zimmu:shape-end')
-      performance.mark('zimmu:mesh-start')
-      const data = shapeToMeshData(oc, shape, { linearDeflection: 0.1, angularDeflection: 0.5 })
-      performance.mark('zimmu:mesh-end')
-      shape.delete()
-      if (import.meta.env.DEV) {
-        const { duration: shapeMs } = performance.measure(
-          'zimmu:shape',
-          'zimmu:shape-start',
-          'zimmu:shape-end',
-        )
-        const { duration: meshMs } = performance.measure(
-          'zimmu:mesh',
-          'zimmu:mesh-start',
-          'zimmu:mesh-end',
-        )
-        console.debug(
-          `[occt] shape ${shapeMs.toFixed(0)}ms  mesh ${meshMs.toFixed(0)}ms  (${dims.cuts.length} cut${dims.cuts.length !== 1 ? 's' : ''})`,
-        )
-      }
-      return transfer(data, [data.positions.buffer, data.normals.buffer])
     }
-    const _: never = kind
-    throw new Error(`unknown kind: ${_}`)
+  | { kind: 'cylinder'; diameter: number; length: number }
+
+const MESH_OPTS = { linearDeflection: 0.1, angularDeflection: 0.5 }
+
+const api = {
+  async buildPart(spec: BuildSpec) {
+    const oc = await initOCCT()
+    let shape: TopoDS_Shape
+    switch (spec.kind) {
+      case 'board':
+        shape = makeShape(oc, spec)
+        break
+      case 'cylinder':
+        shape = makeCylinder(oc, spec.diameter / 2, spec.length)
+        break
+      default: {
+        const _exhaustive: never = spec
+        throw new Error(`unknown build spec kind: ${(_exhaustive as { kind: string }).kind}`)
+      }
+    }
+    const data = shapeToMeshData(oc, shape, MESH_OPTS)
+    shape.delete()
+    return transfer(data, [data.positions.buffer, data.normals.buffer])
   },
   async exportStep(specs: ExportSpec[]): Promise<string> {
     const oc = await initOCCT()

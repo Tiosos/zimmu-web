@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import type { BoxCut, CutDef, PartId } from './types'
+import type { BoardPart, BoxCut, CutDef, Part, PartId } from './types'
+
+function asBoard(p: Part): BoardPart {
+  if (p.kind !== 'board') throw new Error('expected board part')
+  return p
+}
 
 const mockBuildPart = vi.fn()
 const mockExportStep = vi.fn()
@@ -47,7 +52,7 @@ describe('useScene', () => {
   it('onAdd is a no-op when occtReady is false', () => {
     const { result } = renderHook(() => useScene())
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     expect(result.current.scene.parts).toHaveLength(1)
   })
@@ -56,7 +61,7 @@ describe('useScene', () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     expect(result.current.scene.parts).toHaveLength(2)
     expect(result.current.scene.parts[1].label).toBe('Board 2')
@@ -66,7 +71,7 @@ describe('useScene', () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     const newId = result.current.scene.parts[1].id
     expect(result.current.selectedId).toBe(newId)
@@ -76,7 +81,7 @@ describe('useScene', () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     const id = result.current.scene.parts[1].id
     act(() => {
@@ -212,7 +217,7 @@ describe('useScene', () => {
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     expect(result.current.nextLabel).toBe('Board 2')
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     expect(result.current.nextLabel).toBe('Board 3')
   })
@@ -221,7 +226,7 @@ describe('useScene', () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     act(() => {
       result.current.onSelect(result.current.scene.parts[1].id)
@@ -280,7 +285,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       expect(result.current.canUndo).toBe(true)
       expect(result.current.undoLabel).toBe('Add Board 2')
@@ -291,7 +296,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       expect(result.current.scene.parts).toHaveLength(2)
       act(() => {
@@ -304,7 +309,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const addedId = result.current.scene.parts[1].id
       expect(result.current.selectedId).toBe(addedId)
@@ -318,7 +323,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const addedId = result.current.scene.parts[1].id
       act(() => {
@@ -336,7 +341,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       act(() => {
         result.current.undo()
@@ -360,7 +365,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       }) // adds Board 2 at index 1
       const firstId = result.current.scene.parts[0].id
       act(() => {
@@ -511,7 +516,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const id0 = result.current.scene.parts[0].id
       const id1 = result.current.scene.parts[1].id
@@ -534,7 +539,7 @@ describe('useScene', () => {
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       for (let i = 0; i < 51; i++) {
         act(() => {
-          result.current.onAdd()
+          result.current.onAdd('board')
         })
       }
       for (let i = 0; i < 50; i++) {
@@ -551,7 +556,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       expect(result.current.canUndo).toBe(true)
       act(() => {
@@ -565,7 +570,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       act(() => {
         result.current.replaceScene({ parts: [], materials: {}, hardware: [] })
@@ -617,14 +622,14 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       act(() => {
         result.current.undo()
       })
       expect(result.current.nextLabel).toBe('Board 2')
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       expect(result.current.scene.parts[1].label).toBe('Board 2')
     })
@@ -654,8 +659,8 @@ describe('useScene', () => {
 
     await waitFor(() =>
       expect(mockBuildPart).toHaveBeenCalledWith(
-        'board',
         expect.objectContaining({
+          kind: 'board',
           cuts: [
             {
               id: 'cut_1',
@@ -693,7 +698,7 @@ describe('useScene', () => {
           size: { ...(c as BoxCut).size, x: 30 },
         }))
       })
-      expect((result.current.scene.parts[0].cuts[0] as BoxCut).size.x).toBe(30)
+      expect((asBoard(result.current.scene.parts[0]).cuts[0] as BoxCut).size.x).toBe(30)
     })
 
     it('creates an undoable entry (single undo restores)', () => {
@@ -711,14 +716,14 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
-      expect((result.current.scene.parts[0].cuts[0] as BoxCut).size.x).toBe(20)
+      expect((asBoard(result.current.scene.parts[0]).cuts[0] as BoxCut).size.x).toBe(20)
     })
 
     it('propagates u/v sizes to paired cut; single undo restores both', async () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
 
       const partAId = result.current.scene.parts[0].id
@@ -757,16 +762,16 @@ describe('useScene', () => {
       })
 
       // cut A updated
-      expect((result.current.scene.parts[0].cuts[0] as BoxCut).size.x).toBe(40)
+      expect((asBoard(result.current.scene.parts[0]).cuts[0] as BoxCut).size.x).toBe(40)
       // cut B's u-axis (also x, both are +Z face) updated by propagation
-      expect((result.current.scene.parts[1].cuts[0] as BoxCut).size.x).toBe(40)
+      expect((asBoard(result.current.scene.parts[1]).cuts[0] as BoxCut).size.x).toBe(40)
 
       // single undo restores both
       act(() => {
         result.current.undo()
       })
-      expect((result.current.scene.parts[0].cuts[0] as BoxCut).size.x).toBe(30)
-      expect((result.current.scene.parts[1].cuts[0] as BoxCut).size.x).toBe(30)
+      expect((asBoard(result.current.scene.parts[0]).cuts[0] as BoxCut).size.x).toBe(30)
+      expect((asBoard(result.current.scene.parts[1]).cuts[0] as BoxCut).size.x).toBe(30)
     })
   })
 
@@ -777,15 +782,15 @@ describe('useScene', () => {
       act(() => {
         result.current.onAddMitre(partId)
       })
-      expect(result.current.scene.parts[0].cuts).toHaveLength(1)
-      const mitre = result.current.scene.parts[0].cuts[0]
+      expect(asBoard(result.current.scene.parts[0]).cuts).toHaveLength(1)
+      const mitre = asBoard(result.current.scene.parts[0]).cuts[0]
       expect(mitre.kind).toBe('mitre')
       if (mitre.kind !== 'mitre') throw new Error('expected mitre')
       expect(mitre).toMatchObject({ end: '+X', axis: 'Z', angle: 45 })
       act(() => {
         result.current.undo()
       })
-      expect(result.current.scene.parts[0].cuts).toHaveLength(0)
+      expect(asBoard(result.current.scene.parts[0]).cuts).toHaveLength(0)
     })
 
     it('editing the mitre angle via onUpdateCut updates it', () => {
@@ -794,13 +799,13 @@ describe('useScene', () => {
       act(() => {
         result.current.onAddMitre(partId)
       })
-      const mitreId = result.current.scene.parts[0].cuts[0].id
+      const mitreId = asBoard(result.current.scene.parts[0]).cuts[0].id
       act(() => {
         result.current.onUpdateCut(partId, mitreId, (c) =>
           c.kind !== 'mitre' ? c : { ...c, angle: 30 },
         )
       })
-      const updated = result.current.scene.parts[0].cuts[0]
+      const updated = asBoard(result.current.scene.parts[0]).cuts[0]
       if (updated.kind !== 'mitre') throw new Error('expected mitre')
       expect(updated.angle).toBe(30)
     })
@@ -828,14 +833,14 @@ describe('useScene', () => {
       act(() => {
         result.current.onRemoveCut(partId, 'cut_1')
       })
-      expect(result.current.scene.parts[0].cuts).toHaveLength(0)
+      expect(asBoard(result.current.scene.parts[0]).cuts).toHaveLength(0)
     })
 
     it('clears stale pairedCutId references on other parts', async () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
 
       const partAId = result.current.scene.parts[0].id
@@ -875,15 +880,15 @@ describe('useScene', () => {
         result.current.onRemoveCut(partAId, 'cut_a')
       })
 
-      expect(result.current.scene.parts[0].cuts).toHaveLength(0)
-      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBeUndefined()
+      expect(asBoard(result.current.scene.parts[0]).cuts).toHaveLength(0)
+      expect((asBoard(result.current.scene.parts[1]).cuts[0] as BoxCut).pairedCutId).toBeUndefined()
     })
 
     it('undo restores cut and paired references in one step', async () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
 
       const partAId = result.current.scene.parts[0].id
@@ -926,8 +931,10 @@ describe('useScene', () => {
         result.current.undo()
       })
 
-      expect(result.current.scene.parts[0].cuts).toHaveLength(1)
-      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBe(`${partAId}:cut_a`)
+      expect(asBoard(result.current.scene.parts[0]).cuts).toHaveLength(1)
+      expect((asBoard(result.current.scene.parts[1]).cuts[0] as BoxCut).pairedCutId).toBe(
+        `${partAId}:cut_a`,
+      )
     })
   })
 
@@ -936,7 +943,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
 
       const partAId = result.current.scene.parts[0].id
@@ -975,18 +982,22 @@ describe('useScene', () => {
         result.current.onLinkCuts(partAId, 'cut_a', partBId, 'cut_b')
       })
 
-      expect((result.current.scene.parts[0].cuts[0] as BoxCut).pairedCutId).toBe(`${partBId}:cut_b`)
-      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBe(`${partAId}:cut_a`)
+      expect((asBoard(result.current.scene.parts[0]).cuts[0] as BoxCut).pairedCutId).toBe(
+        `${partBId}:cut_b`,
+      )
+      expect((asBoard(result.current.scene.parts[1]).cuts[0] as BoxCut).pairedCutId).toBe(
+        `${partAId}:cut_a`,
+      )
       // u/v sizes from A (+Z: u=x, v=y) propagated to B
-      expect((result.current.scene.parts[1].cuts[0] as BoxCut).size.x).toBe(30)
-      expect((result.current.scene.parts[1].cuts[0] as BoxCut).size.y).toBe(40)
+      expect((asBoard(result.current.scene.parts[1]).cuts[0] as BoxCut).size.x).toBe(30)
+      expect((asBoard(result.current.scene.parts[1]).cuts[0] as BoxCut).size.y).toBe(40)
     })
 
     it('undo clears both pairedCutIds', async () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const partAId = result.current.scene.parts[0].id
       const partBId = result.current.scene.parts[1].id
@@ -1024,8 +1035,8 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
-      expect((result.current.scene.parts[0].cuts[0] as BoxCut).pairedCutId).toBeUndefined()
-      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBeUndefined()
+      expect((asBoard(result.current.scene.parts[0]).cuts[0] as BoxCut).pairedCutId).toBeUndefined()
+      expect((asBoard(result.current.scene.parts[1]).cuts[0] as BoxCut).pairedCutId).toBeUndefined()
     })
   })
 
@@ -1034,7 +1045,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const partAId = result.current.scene.parts[0].id
       const partBId = result.current.scene.parts[1].id
@@ -1071,15 +1082,15 @@ describe('useScene', () => {
       act(() => {
         result.current.onUnlinkCuts(partAId, 'cut_a')
       })
-      expect((result.current.scene.parts[0].cuts[0] as BoxCut).pairedCutId).toBeUndefined()
-      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBeUndefined()
+      expect((asBoard(result.current.scene.parts[0]).cuts[0] as BoxCut).pairedCutId).toBeUndefined()
+      expect((asBoard(result.current.scene.parts[1]).cuts[0] as BoxCut).pairedCutId).toBeUndefined()
     })
 
     it('undo restores both pairedCutIds', async () => {
       const { result } = renderHook(() => useScene())
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
-        result.current.onAdd()
+        result.current.onAdd('board')
       })
       const partAId = result.current.scene.parts[0].id
       const partBId = result.current.scene.parts[1].id
@@ -1119,8 +1130,12 @@ describe('useScene', () => {
       act(() => {
         result.current.undo()
       })
-      expect((result.current.scene.parts[0].cuts[0] as BoxCut).pairedCutId).toBe(`${partBId}:cut_b`)
-      expect((result.current.scene.parts[1].cuts[0] as BoxCut).pairedCutId).toBe(`${partAId}:cut_a`)
+      expect((asBoard(result.current.scene.parts[0]).cuts[0] as BoxCut).pairedCutId).toBe(
+        `${partBId}:cut_b`,
+      )
+      expect((asBoard(result.current.scene.parts[1]).cuts[0] as BoxCut).pairedCutId).toBe(
+        `${partAId}:cut_a`,
+      )
     })
   })
 
@@ -1174,7 +1189,7 @@ describe('useScene', () => {
       ])
     })
     act(() => {
-      result.current.onAdd()
+      result.current.onAdd('board')
     })
     expect(result.current.scene.materials).toEqual({ Plywood: { costPerM2: 50 } })
     expect(result.current.scene.hardware).toHaveLength(1)
@@ -1307,5 +1322,49 @@ describe('useScene', () => {
       result.current.redo()
     })
     expect(result.current.scene.hardware).toEqual(items)
+  })
+
+  it('onAdd("cylinder") adds a dowel with default Ø8 × 100', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const before = result.current.scene.parts.length
+    act(() => result.current.onAdd('cylinder'))
+    const added = result.current.scene.parts[result.current.scene.parts.length - 1]
+    expect(result.current.scene.parts.length).toBe(before + 1)
+    expect(added.kind).toBe('cylinder')
+    if (added.kind === 'cylinder') {
+      expect(added.diameter).toBe(8)
+      expect(added.length).toBe(100)
+      expect(added.label).toBe('Dowel 1')
+    }
+  })
+
+  it('dowel labels do not collide after delete and re-add', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    act(() => result.current.onAdd('cylinder')) // Dowel 1
+    act(() => result.current.onAdd('cylinder')) // Dowel 2
+    act(() => result.current.onAdd('cylinder')) // Dowel 3
+    const first = result.current.scene.parts.find(
+      (p) => p.kind === 'cylinder' && p.label === 'Dowel 1',
+    )!
+    expect(first.label).toBe('Dowel 1')
+    act(() => result.current.onRemove(first.id)) // remove Dowel 1; count now 2
+    act(() => result.current.onAdd('cylinder')) // count-based: "Dowel 3" — COLLISION with existing
+    const labels = result.current.scene.parts
+      .filter((p) => p.kind === 'cylinder')
+      .map((p) => p.label)
+    expect(new Set(labels).size).toBe(labels.length) // all unique
+  })
+
+  it('onDuplicate of a dowel clones it with a new id', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    act(() => result.current.onAdd('cylinder'))
+    const orig = result.current.scene.parts[result.current.scene.parts.length - 1]
+    act(() => result.current.onDuplicate(orig.id))
+    const clone = result.current.scene.parts[result.current.scene.parts.length - 1]
+    expect(clone.id).not.toBe(orig.id)
+    expect(clone.kind).toBe('cylinder')
   })
 })

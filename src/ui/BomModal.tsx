@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { HardwareItem, MaterialDef, Part } from '../scene/types'
 import { CuttingList } from './CuttingList'
+import { DowelList } from './DowelList'
 import { HardwareTab } from './HardwareTab'
-import { groupParts, buildCsv, buildHardwareCsv } from './buildCsv'
+import { groupParts, buildCsv, buildHardwareCsv, groupDowels, buildDowelCsv } from './buildCsv'
 import { downloadBlob } from './download'
 import { Button } from '@/components/ui/button'
 
-type Tab = 'boards' | 'hardware' | 'library'
+type Tab = 'boards' | 'dowels' | 'hardware' | 'library'
 
 interface BomModalProps {
   parts: Part[]
@@ -44,6 +45,7 @@ function LibraryTab({
         <tr className="border-b border-border text-muted-foreground text-left">
           <th className="pb-2 pr-2 font-medium text-xs">Material</th>
           <th className="pb-2 px-2 font-medium text-xs">Cost/m²</th>
+          <th className="pb-2 px-2 font-medium text-xs">Cost/m</th>
           <th className="pb-2 px-2 font-medium text-xs" />
         </tr>
       </thead>
@@ -51,7 +53,12 @@ function LibraryTab({
         {entries.map(([name, def]) => (
           <tr key={name} className="border-b border-border/30">
             <td className="py-1.5 pr-2 text-xs">{name}</td>
-            <td className="py-1.5 px-2 text-xs">${def.costPerM2.toFixed(2)}</td>
+            <td className="py-1.5 px-2 text-xs">
+              {def.costPerM2 !== undefined ? `$${def.costPerM2.toFixed(2)}` : '—'}
+            </td>
+            <td className="py-1.5 px-2 text-xs">
+              {def.costPerM !== undefined ? `$${def.costPerM.toFixed(2)}` : '—'}
+            </td>
             <td className="py-1.5 px-2 text-xs text-right">
               <Button
                 variant="ghost"
@@ -91,12 +98,19 @@ export function BomModal({
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  const effectiveMaterials = { ...library, ...materials }
+  // Field-level merge so a material keeps both rates: a library-only costPerM
+  // (dowel rate) must not be shadowed by a scene entry that has only costPerM2.
+  const effectiveMaterials: Record<string, MaterialDef> = {}
+  for (const name of new Set([...Object.keys(library), ...Object.keys(materials)])) {
+    effectiveMaterials[name] = { ...library[name], ...materials[name] }
+  }
 
   const rows = groupParts(parts, effectiveMaterials)
   const boardSubtotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
+  const dowelRows = groupDowels(parts, effectiveMaterials)
+  const dowelSubtotal = dowelRows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
   const hardwareSubtotal = hardware.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
-  const grandTotal = boardSubtotal + hardwareSubtotal
+  const grandTotal = boardSubtotal + dowelSubtotal + hardwareSubtotal
 
   const handleMaterialCostChange = (name: string, def: MaterialDef) => {
     onMaterialCostChange(name, def)
@@ -105,7 +119,12 @@ export function BomModal({
 
   const handleCopy = () => {
     if (tab === 'library') return
-    const csv = tab === 'boards' ? buildCsv(parts, effectiveMaterials) : buildHardwareCsv(hardware)
+    const csv =
+      tab === 'boards'
+        ? buildCsv(parts, effectiveMaterials)
+        : tab === 'dowels'
+          ? buildDowelCsv(parts, effectiveMaterials)
+          : buildHardwareCsv(hardware)
     void navigator.clipboard.writeText(csv)
   }
 
@@ -113,6 +132,12 @@ export function BomModal({
     if (tab === 'library') return
     if (tab === 'boards') {
       downloadBlob(buildCsv(parts, effectiveMaterials), `${projectName}-boards.csv`, 'text/csv')
+    } else if (tab === 'dowels') {
+      downloadBlob(
+        buildDowelCsv(parts, effectiveMaterials),
+        `${projectName}-dowels.csv`,
+        'text/csv',
+      )
     } else {
       downloadBlob(buildHardwareCsv(hardware), `${projectName}-hardware.csv`, 'text/csv')
     }
@@ -145,7 +170,7 @@ export function BomModal({
 
         {/* Tabs */}
         <div role="tablist" className="flex gap-0 border-b border-border px-6">
-          {(['boards', 'hardware', 'library'] as const).map((t) => (
+          {(['boards', 'dowels', 'hardware', 'library'] as const).map((t) => (
             <button
               key={t}
               role="tab"
@@ -157,7 +182,13 @@ export function BomModal({
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              {t === 'boards' ? 'Boards' : t === 'hardware' ? 'Hardware' : 'Library'}
+              {t === 'boards'
+                ? 'Boards'
+                : t === 'dowels'
+                  ? 'Dowels'
+                  : t === 'hardware'
+                    ? 'Hardware'
+                    : 'Library'}
             </button>
           ))}
         </div>
@@ -172,6 +203,12 @@ export function BomModal({
               materials={effectiveMaterials}
               onMaterialCostChange={handleMaterialCostChange}
               hideExportButtons
+            />
+          ) : tab === 'dowels' ? (
+            <DowelList
+              parts={parts}
+              materials={effectiveMaterials}
+              onMaterialCostChange={handleMaterialCostChange}
             />
           ) : tab === 'hardware' ? (
             <HardwareTab hardware={hardware} parts={parts} onUpdateHardware={onUpdateHardware} />
@@ -192,6 +229,15 @@ export function BomModal({
                 {boardSubtotal === 0 && !rows.some((r) => r.totalCost !== null)
                   ? '—'
                   : `$${boardSubtotal.toFixed(2)}`}
+              </span>
+            </span>
+            <span className="text-border">|</span>
+            <span>
+              Dowels:{' '}
+              <span className="text-foreground">
+                {dowelSubtotal === 0 && !dowelRows.some((r) => r.totalCost !== null)
+                  ? '—'
+                  : `$${dowelSubtotal.toFixed(2)}`}
               </span>
             </span>
             <span className="text-border">|</span>

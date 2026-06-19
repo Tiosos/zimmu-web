@@ -3,7 +3,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { DrawingViewer } from './DrawingViewer'
 import { buildDrawingSheets } from '../geom/drawing'
 import * as downloadModule from './download'
-import type { Part } from '../scene/types'
+import type { BoardPart } from '../scene/types'
 
 // Mock heavy serializers — component tests focus on UI behaviour, not SVG/DXF output.
 vi.mock('./buildSvg', () => ({
@@ -13,7 +13,7 @@ vi.mock('./buildDxf', () => ({
   buildDxf: () => 'mock-dxf',
 }))
 
-function makeBoard(overrides: Partial<Part> = {}): Part {
+function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
     kind: 'board',
     id: 'p1',

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useAddCut } from './useAddCut'
-import type { BoxCut, FaceHit, Part } from './types'
+import type { BoardPart, BoxCut, FaceHit, Part } from './types'
 
-const mockPart: Part = {
+const mockPart: BoardPart = {
   kind: 'board',
   id: 'board_test',
   label: 'Board 1',
@@ -95,7 +95,7 @@ describe('useAddCut', () => {
       )
     })
     expect(onUpdate).toHaveBeenCalledWith('board_test', expect.any(Function), 'Add cut')
-    const updater = onUpdate.mock.calls[0][1] as (p: Part) => Part
+    const updater = onUpdate.mock.calls[0][1] as (p: BoardPart) => BoardPart
     const updated = updater(mockPart)
     expect(updated.cuts).toHaveLength(1)
     const cut = updated.cuts[0] as BoxCut
@@ -124,7 +124,7 @@ describe('useAddCut', () => {
         }),
       )
     })
-    const updater = onUpdate.mock.calls[0][1] as (p: Part) => Part
+    const updater = onUpdate.mock.calls[0][1] as (p: Part) => BoardPart
     const cut = updater(mockPart).cuts[0] as BoxCut
     expect(cut.face).toBe('-Z')
     expect(cut.position.z).toBe(0)
@@ -146,7 +146,7 @@ describe('useAddCut', () => {
         }),
       )
     })
-    const updater = onUpdate.mock.calls[0][1] as (p: Part) => Part
+    const updater = onUpdate.mock.calls[0][1] as (p: Part) => BoardPart
     expect((updater(mockPart).cuts[0] as BoxCut).face).toBe('+X')
   })
 
@@ -196,7 +196,7 @@ describe('useAddCut', () => {
 
   it('label increments with existing cuts count', () => {
     const onUpdate = vi.fn()
-    const partWithOneCut: Part = {
+    const partWithOneCut: BoardPart = {
       ...mockPart,
       cuts: [
         {
@@ -218,7 +218,7 @@ describe('useAddCut', () => {
     act(() => {
       result.current.onFaceClick(makeHit())
     })
-    const updater = onUpdate.mock.calls[0][1] as (p: Part) => Part
+    const updater = onUpdate.mock.calls[0][1] as (p: BoardPart) => BoardPart
     const cut = updater(partWithOneCut).cuts[1]
     expect(cut.label).toBe('Cut 2')
   })

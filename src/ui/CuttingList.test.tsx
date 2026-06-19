@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { buildCsv, groupParts } from './buildCsv'
 import { CuttingList } from './CuttingList'
-import type { Part } from '../scene/types'
+import type { BoardPart, Part } from '../scene/types'
 
-function makePart(overrides: Partial<Part> = {}): Part {
+function makePart(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
     kind: 'board',
     id: 'p1',
@@ -422,6 +422,29 @@ describe('CuttingList', () => {
     // Blur without changing value — input shows "45", same as current
     fireEvent.blur(screen.getByRole('spinbutton'))
     expect(onMaterialCostChange).not.toHaveBeenCalled()
+  })
+
+  it('preserves existing costPerM when saving a new costPerM2 via the popover', () => {
+    const onMaterialCostChange = vi.fn()
+    const part = makePart({ id: 'p1', material: 'Oak' })
+    render(
+      <CuttingList
+        parts={[part]}
+        projectName="Test"
+        onClose={vi.fn()}
+        materials={{ Oak: { costPerM2: 10, costPerM: 3 } }}
+        onMaterialCostChange={onMaterialCostChange}
+        hideExportButtons
+      />,
+    )
+    // Open the material rate popover
+    fireEvent.click(screen.getByText('Oak'))
+    // Change the costPerM2 value
+    const input = screen.getByRole('spinbutton')
+    fireEvent.change(input, { target: { value: '25' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // costPerM2 updated; costPerM preserved from existing def
+    expect(onMaterialCostChange).toHaveBeenCalledWith('Oak', { costPerM2: 25, costPerM: 3 })
   })
 
   it('shows board subtotal row when any material rate is set', () => {
