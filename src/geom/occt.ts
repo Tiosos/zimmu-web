@@ -3,6 +3,7 @@ import type { CutDef, DowelCut, MitreCut, Vec3 } from '../scene/types'
 import { computeMitreTool } from './mitre'
 import {
   computeEndTool,
+  computeNotchTool,
   computeAxialBoreTool,
   computeTransverseBoreTool,
   type BoxToolDescriptor,
@@ -276,8 +277,9 @@ export function makeDowelShape(
         current = makeBoxCutAt(oc, current, computeEndTool(dowel, cut))
         break
       case 'notch':
-        // Implemented in a later task.
-        continue
+        if (cut.depth <= 0 || cut.width <= 0) continue
+        current = makeBoxCutAt(oc, current, computeNotchTool(dowel, cut))
+        break
       case 'bore-axial':
         if (cut.diameter <= 0 || cut.depth <= 0) continue
         current = makeCylinderCut(oc, current, computeAxialBoreTool(dowel, cut))

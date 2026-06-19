@@ -100,6 +100,19 @@ describe('geom/occt', () => {
     shape.delete()
   })
 
+  it.skip('makeDowelShape applies a notch (needs WASM)', async () => {
+    const oc = await initOCCT()
+    const shape = makeDowelShape(oc, {
+      diameter: 8,
+      length: 100,
+      cuts: [
+        { kind: 'notch', id: 'n', label: 'Notch 1', position: 50, width: 20, depth: 4, azimuth: 0 },
+      ],
+    })
+    expect(shape).toBeTruthy()
+    shape.delete()
+  })
+
   it.skip('writeStep: one named board returns a STEP string (browser-only)', async () => {
     const oc = await initOCCT()
     const { writeStep } = await import('./occt')
