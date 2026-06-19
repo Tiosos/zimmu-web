@@ -1,4 +1,4 @@
-import type { DowelEndCut, Vec3 } from '../scene/types'
+import type { DowelBoreAxial, DowelBoreTransverse, DowelEndCut, Vec3 } from '../scene/types'
 
 const DEG2RAD = Math.PI / 180
 
@@ -53,4 +53,44 @@ export function dowelSurfaceFromNormal(localNormal: Vec3): DowelSurface {
 
 export function azimuthFromHit(localHit: Vec3): number {
   return Math.atan2(localHit.y, localHit.x) / DEG2RAD
+}
+
+export function computeAxialBoreTool(
+  dowel: DowelDims,
+  cut: DowelBoreAxial,
+): CylinderToolDescriptor {
+  const over = dowel.diameter
+  const through = cut.depth >= dowel.length
+  const height = (through ? dowel.length : cut.depth) + over
+  if (cut.end === '+Z') {
+    return {
+      radius: cut.diameter / 2,
+      height,
+      basePoint: { x: 0, y: 0, z: dowel.length + over },
+      dir: { x: 0, y: 0, z: -1 },
+    }
+  }
+  return {
+    radius: cut.diameter / 2,
+    height,
+    basePoint: { x: 0, y: 0, z: -over },
+    dir: { x: 0, y: 0, z: 1 },
+  }
+}
+
+export function computeTransverseBoreTool(
+  dowel: DowelDims,
+  cut: DowelBoreTransverse,
+): CylinderToolDescriptor {
+  const R = dowel.diameter / 2
+  const over = dowel.diameter
+  const az = cut.azimuth * DEG2RAD
+  const through = cut.depth >= dowel.diameter
+  const height = (through ? dowel.diameter : cut.depth) + over
+  return {
+    radius: cut.diameter / 2,
+    height,
+    basePoint: { x: (R + over) * Math.cos(az), y: (R + over) * Math.sin(az), z: cut.position },
+    dir: { x: -Math.cos(az) || 0, y: -Math.sin(az) || 0, z: 0 },
+  }
 }

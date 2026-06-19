@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { computeEndTool, dowelSurfaceFromNormal, azimuthFromHit } from './dowelCut'
-import type { DowelEndCut } from '../scene/types'
+import {
+  computeEndTool,
+  dowelSurfaceFromNormal,
+  azimuthFromHit,
+  computeAxialBoreTool,
+  computeTransverseBoreTool,
+} from './dowelCut'
+import type { DowelEndCut, DowelBoreAxial, DowelBoreTransverse } from '../scene/types'
 
 const dowel = { diameter: 8, length: 100 }
 const RAD = Math.PI / 180
@@ -65,5 +71,53 @@ describe('azimuthFromHit', () => {
   it('returns degrees measured from +X', () => {
     expect(azimuthFromHit({ x: 4, y: 0, z: 50 })).toBeCloseTo(0)
     expect(azimuthFromHit({ x: 0, y: 4, z: 50 })).toBeCloseTo(90)
+  })
+})
+
+describe('computeAxialBoreTool', () => {
+  const base: DowelBoreAxial = {
+    kind: 'bore-axial',
+    id: 'c',
+    label: 'Bore',
+    end: '+Z',
+    diameter: 3,
+    depth: 20,
+  }
+  it('+Z drills downward along -Z, radius = diameter/2, on the axis', () => {
+    const t = computeAxialBoreTool(dowel, base)
+    expect(t.radius).toBeCloseTo(1.5)
+    expect(t.dir).toMatchObject({ x: 0, y: 0, z: -1 })
+    expect(t.basePoint.x).toBeCloseTo(0)
+    expect(t.basePoint.y).toBeCloseTo(0)
+  })
+  it('through hole (depth ≥ length) makes the tool at least as long as the dowel', () => {
+    const t = computeAxialBoreTool(dowel, { ...base, depth: 100 })
+    expect(t.height).toBeGreaterThanOrEqual(dowel.length)
+  })
+  it('-Z drills upward along +Z', () => {
+    const t = computeAxialBoreTool(dowel, { ...base, end: '-Z' })
+    expect(t.dir).toMatchObject({ x: 0, y: 0, z: 1 })
+  })
+})
+
+describe('computeTransverseBoreTool', () => {
+  const base: DowelBoreTransverse = {
+    kind: 'bore-transverse',
+    id: 'c',
+    label: 'Bore',
+    position: 50,
+    azimuth: 0,
+    diameter: 3,
+    depth: 8,
+  }
+  it('enters radially inward from the azimuth side at the given height', () => {
+    const t = computeTransverseBoreTool(dowel, base)
+    expect(t.basePoint.z).toBeCloseTo(50)
+    expect(t.basePoint.x).toBeGreaterThan(dowel.diameter / 2) // outside the surface
+    expect(t.dir).toMatchObject({ x: -1, y: 0, z: 0 })
+  })
+  it('through hole (depth ≥ diameter) spans the full diameter', () => {
+    const t = computeTransverseBoreTool(dowel, { ...base, depth: 8 })
+    expect(t.height).toBeGreaterThanOrEqual(dowel.diameter)
   })
 })
