@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useAddCut } from './useAddCut'
-import type { BoardPart, FaceHit } from './types'
+import type { BoardPart, BoxCut, FaceHit, Part } from './types'
 
 const mockPart: BoardPart = {
   kind: 'board',
@@ -98,7 +98,7 @@ describe('useAddCut', () => {
     const updater = onUpdate.mock.calls[0][1] as (p: BoardPart) => BoardPart
     const updated = updater(mockPart)
     expect(updated.cuts).toHaveLength(1)
-    const cut = updated.cuts[0]
+    const cut = updated.cuts[0] as BoxCut
     expect(cut.face).toBe('+Z')
     expect(cut.label).toBe('Cut 1')
     expect(cut.size).toEqual({ x: 20, y: 20, z: 10 })
@@ -124,8 +124,8 @@ describe('useAddCut', () => {
         }),
       )
     })
-    const updater = onUpdate.mock.calls[0][1] as (p: BoardPart) => BoardPart
-    const cut = updater(mockPart).cuts[0]
+    const updater = onUpdate.mock.calls[0][1] as (p: Part) => BoardPart
+    const cut = updater(mockPart).cuts[0] as BoxCut
     expect(cut.face).toBe('-Z')
     expect(cut.position.z).toBe(0)
   })
@@ -146,8 +146,8 @@ describe('useAddCut', () => {
         }),
       )
     })
-    const updater = onUpdate.mock.calls[0][1] as (p: BoardPart) => BoardPart
-    expect(updater(mockPart).cuts[0].face).toBe('+X')
+    const updater = onUpdate.mock.calls[0][1] as (p: Part) => BoardPart
+    expect((updater(mockPart).cuts[0] as BoxCut).face).toBe('+X')
   })
 
   it('onFaceClick calls onSelect with partId', () => {
@@ -202,6 +202,7 @@ describe('useAddCut', () => {
         {
           id: 'existing',
           label: 'Cut 1',
+          kind: 'box',
           face: '+Z',
           position: { x: 0, y: 0, z: 15 },
           size: { x: 20, y: 20, z: 10 },

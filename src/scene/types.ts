@@ -7,14 +7,28 @@ export interface Vec3 {
   z: number
 }
 
-export interface CutDef {
+export type Face = '+X' | '-X' | '+Y' | '-Y' | '+Z' | '-Z'
+
+export interface BoxCut {
+  kind: 'box'
   id: CutId
   label: string
-  face: '+X' | '-X' | '+Y' | '-Y' | '+Z' | '-Z'
+  face: Face
   position: Vec3
   size: Vec3
   pairedCutId?: string // "{partId}:{cutId}"
 }
+
+export interface MitreCut {
+  kind: 'mitre'
+  id: CutId
+  label: string
+  end: '+X' | '-X' // which end face is bevelled
+  axis: 'Z' | 'Y' // 'Z' = flat mitre (tilt across width), 'Y' = bevel (tilt through thickness)
+  angle: number // degrees from a square cut; 0 = square (no-op), 45 = standard
+}
+
+export type CutDef = BoxCut | MitreCut
 
 export interface BoardPart {
   kind: 'board'

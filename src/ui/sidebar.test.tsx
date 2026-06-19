@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { Sidebar } from './sidebar'
-import type { BoardPart, CutDef, CutId, CylinderPart, Part, PartId } from '../scene/types'
+import type { BoardPart, BoxCut, CutId, CylinderPart, Part, PartId } from '../scene/types'
 import { PART_COLORS } from '../scene/palette'
 
-function makeCut(overrides: Partial<CutDef> = {}): CutDef {
+function makeCut(overrides: Partial<BoxCut> = {}): BoxCut {
   return {
     id: 'cut_1',
     label: 'Dado',
-    face: '+Z' as const,
+    kind: 'box',
+    face: '+Z',
     position: { x: 0, y: 0, z: 0 },
     size: { x: 20, y: 20, z: 10 },
     ...overrides,
@@ -63,6 +64,7 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     onDuplicate: vi.fn(),
     onUpdate: vi.fn(),
     onUpdateCut: vi.fn(),
+    onAddMitre: vi.fn(),
     onRemoveCut: vi.fn(),
     onLinkCuts: vi.fn(),
     onUnlinkCuts: vi.fn(),
@@ -203,9 +205,10 @@ describe('Sidebar', () => {
   })
 
   it('renders a cut row when part has one cut', () => {
-    const cut: CutDef = {
+    const cut: BoxCut = {
       id: 'cut_1',
       label: 'Dado',
+      kind: 'box',
       face: '+Z',
       position: { x: 90, y: 40, z: 15 },
       size: { x: 20, y: 20, z: 10 },
@@ -217,9 +220,10 @@ describe('Sidebar', () => {
 
   it('delete button on cut row calls onRemoveCut', () => {
     const onRemoveCut = vi.fn()
-    const cut: CutDef = {
+    const cut: BoxCut = {
       id: 'cut_1',
       label: 'Dado',
+      kind: 'box',
       face: '+Z',
       position: { x: 90, y: 40, z: 15 },
       size: { x: 20, y: 20, z: 10 },

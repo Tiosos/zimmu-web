@@ -52,6 +52,7 @@ describe('shapeKey', () => {
       ...board,
       cuts: [
         {
+          kind: 'box',
           id: 'cut_a',
           label: 'Cut 1',
           face: '+Z',
@@ -60,11 +61,33 @@ describe('shapeKey', () => {
         },
       ],
     }
-    expect(shapeKey(boardWithCut)).toBe('board|200|100|25|90,40,15|20,20,10')
+    expect(shapeKey(boardWithCut)).toBe('board|200|100|25|b:90,40,15|20,20,10')
+  })
+
+  it('encodes a mitre cut by end, axis, and angle', () => {
+    const m: BoardPart = {
+      ...board,
+      cuts: [{ kind: 'mitre', id: 'm1', label: 'Mitre', end: '+X', axis: 'Z', angle: 45 }],
+    }
+    expect(shapeKey(m)).toBe('board|200|100|25|m:+X|Z|45')
+  })
+
+  it('changes when mitre angle, axis, or end changes', () => {
+    const base: BoardPart = {
+      ...board,
+      cuts: [{ kind: 'mitre', id: 'm1', label: 'Mitre', end: '+X', axis: 'Z', angle: 45 }],
+    }
+    const angle: BoardPart = { ...base, cuts: [{ ...base.cuts[0], angle: 30 } as CutDef] }
+    const axis: BoardPart = { ...base, cuts: [{ ...base.cuts[0], axis: 'Y' } as CutDef] }
+    const end: BoardPart = { ...base, cuts: [{ ...base.cuts[0], end: '-X' } as CutDef] }
+    expect(shapeKey(base)).not.toBe(shapeKey(angle))
+    expect(shapeKey(base)).not.toBe(shapeKey(axis))
+    expect(shapeKey(base)).not.toBe(shapeKey(end))
   })
 
   it('two cuts — sorted by id regardless of insertion order', () => {
     const cutA: CutDef = {
+      kind: 'box',
       id: 'aaa',
       label: 'A',
       face: '+Z',
@@ -72,6 +95,7 @@ describe('shapeKey', () => {
       size: { x: 10, y: 10, z: 10 },
     }
     const cutB: CutDef = {
+      kind: 'box',
       id: 'bbb',
       label: 'B',
       face: '+X',
@@ -85,6 +109,7 @@ describe('shapeKey', () => {
 
   it('excludes face and label — geometry only', () => {
     const cutFaceA: CutDef = {
+      kind: 'box',
       id: 'cut_1',
       label: 'Dado',
       face: '+Z',
@@ -92,6 +117,7 @@ describe('shapeKey', () => {
       size: { x: 20, y: 20, z: 10 },
     }
     const cutFaceB: CutDef = {
+      kind: 'box',
       id: 'cut_1',
       label: 'Other',
       face: '-X',
@@ -106,6 +132,7 @@ describe('shapeKey', () => {
       ...board,
       cuts: [
         {
+          kind: 'box',
           id: 'c1',
           label: 'C',
           face: '+Z',
@@ -118,6 +145,7 @@ describe('shapeKey', () => {
       ...board,
       cuts: [
         {
+          kind: 'box',
           id: 'c1',
           label: 'C',
           face: '+Z',
@@ -134,6 +162,7 @@ describe('shapeKey', () => {
       ...board,
       cuts: [
         {
+          kind: 'box',
           id: 'c1',
           label: 'C',
           face: '+Z',
@@ -146,6 +175,7 @@ describe('shapeKey', () => {
       ...board,
       cuts: [
         {
+          kind: 'box',
           id: 'c1',
           label: 'C',
           face: '+Z',

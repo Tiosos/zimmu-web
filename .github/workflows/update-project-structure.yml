@@ -1,0 +1,48 @@
+name: Update project-structure.html on release
+
+# Every published release regenerates the auto-managed regions of
+# project-structure.html (file trees + test-file count) and stamps the release
+# tag and date, then commits the result back to main. The commit message carries
+# [skip ci] so it can't re-trigger any push-based workflows.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Regenerate project-structure.html
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_DATE: ${{ github.event.release.published_at }}
+        run: node scripts/update-structure-html.mjs
+
+      - name: Commit and push if changed
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- project-structure.html; then
+            echo "No changes to project-structure.html — nothing to commit."
+            exit 0
+          fi
+          git add project-structure.html
+          git commit -m "docs: update project-structure.html for release ${RELEASE_TAG} [skip ci]"
+          git push origin HEAD:main

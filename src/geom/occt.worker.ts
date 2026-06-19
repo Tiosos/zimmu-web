@@ -3,7 +3,7 @@ import { initOCCT, makeShape, makeCylinder, writeStep } from './occt'
 import type { ExportSpec } from './occt'
 import type { TopoDS_Shape } from 'opencascade.js'
 import { shapeToMeshData } from './mesh'
-import type { Vec3 } from '../scene/types'
+import type { CutDef } from '../scene/types'
 
 export type BuildSpec =
   | {
@@ -11,7 +11,7 @@ export type BuildSpec =
       length: number
       width: number
       thickness: number
-      cuts: Array<{ id: string; position: Vec3; size: Vec3 }>
+      cuts: CutDef[]
     }
   | { kind: 'cylinder'; diameter: number; length: number }
 

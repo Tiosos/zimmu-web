@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import type { CutDef, CutId, Part, PartId, Scene } from '../scene/types'
+import type { BoxCut, CutDef, CutId, MitreCut, Part, PartId, Scene } from '../scene/types'
 import { useDebouncedCallback } from './useDebouncedCallback'
 import { faceAxes } from '../scene/snapMath'
 import { PART_COLORS } from '../scene/palette'
@@ -30,6 +30,7 @@ interface SidebarProps {
   onDuplicate: (id: PartId) => void
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
   onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
+  onAddMitre: (partId: PartId) => void
   onRemoveCut: (partId: PartId, cutId: CutId) => void
   onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
   onUnlinkCuts: (partId: PartId, cutId: CutId) => void
@@ -157,7 +158,7 @@ function CutRow({
   onUnlinkCuts,
   defaultOpen,
 }: {
-  cut: CutDef
+  cut: BoxCut
   partId: PartId
   scene: Scene
   onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
@@ -187,6 +188,7 @@ function CutRow({
     for (const p of scene.parts) {
       if (p.id === partId || p.kind !== 'board') continue
       for (const c of p.cuts) {
+        if (c.kind !== 'box') continue
         opts.push({ value: `${p.id}:${c.id}`, label: `${p.label} › ${c.label}` })
       }
     }
@@ -226,10 +228,9 @@ function CutRow({
             suffix="mm depth"
             min={0.1}
             onCommit={(v) =>
-              onUpdateCut(partId, cut.id, (c) => ({
-                ...c,
-                size: { ...c.size, [faceAxes(c.face).depth]: v },
-              }))
+              onUpdateCut(partId, cut.id, (c) =>
+                c.kind !== 'box' ? c : { ...c, size: { ...c.size, [faceAxes(c.face).depth]: v } },
+              )
             }
           />
           <DimInput
@@ -238,10 +239,9 @@ function CutRow({
             suffix="mm width"
             min={0.1}
             onCommit={(v) =>
-              onUpdateCut(partId, cut.id, (c) => ({
-                ...c,
-                size: { ...c.size, [faceAxes(c.face).u]: v },
-              }))
+              onUpdateCut(partId, cut.id, (c) =>
+                c.kind !== 'box' ? c : { ...c, size: { ...c.size, [faceAxes(c.face).u]: v } },
+              )
             }
           />
           <DimInput
@@ -250,10 +250,9 @@ function CutRow({
             suffix="mm height"
             min={0.1}
             onCommit={(v) =>
-              onUpdateCut(partId, cut.id, (c) => ({
-                ...c,
-                size: { ...c.size, [faceAxes(c.face).v]: v },
-              }))
+              onUpdateCut(partId, cut.id, (c) =>
+                c.kind !== 'box' ? c : { ...c, size: { ...c.size, [faceAxes(c.face).v]: v } },
+              )
             }
           />
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground pb-0.5 pt-1">
@@ -264,10 +263,11 @@ function CutRow({
             value={cut.position[faceAxes(cut.face).u]}
             suffix="mm U"
             onChange={(v) =>
-              onUpdateCut(partId, cut.id, (c) => ({
-                ...c,
-                position: { ...c.position, [faceAxes(c.face).u]: v },
-              }))
+              onUpdateCut(partId, cut.id, (c) =>
+                c.kind !== 'box'
+                  ? c
+                  : { ...c, position: { ...c.position, [faceAxes(c.face).u]: v } },
+              )
             }
           />
           <NumInput
@@ -275,10 +275,11 @@ function CutRow({
             value={cut.position[faceAxes(cut.face).v]}
             suffix="mm V"
             onChange={(v) =>
-              onUpdateCut(partId, cut.id, (c) => ({
-                ...c,
-                position: { ...c.position, [faceAxes(c.face).v]: v },
-              }))
+              onUpdateCut(partId, cut.id, (c) =>
+                c.kind !== 'box'
+                  ? c
+                  : { ...c, position: { ...c.position, [faceAxes(c.face).v]: v } },
+              )
             }
           />
           <div className="mt-1 text-[11px] text-muted-foreground">
@@ -317,6 +318,96 @@ function CutRow({
               </Select>
             ) : null}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MitreRow({
+  cut,
+  partId,
+  onUpdateCut,
+  onRemoveCut,
+  defaultOpen,
+}: {
+  cut: MitreCut
+  partId: PartId
+  onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
+  onRemoveCut: (partId: PartId, cutId: CutId) => void
+  defaultOpen: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <div className="border-t border-border/30 pt-0.5">
+      <div
+        className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground py-1 cursor-pointer select-none hover:text-foreground transition-colors"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>{open ? '▾' : '▸'}</span>
+        <span className="flex-1">{cut.label}</span>
+        <span className="font-mono text-[10px] text-border">{cut.end}</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          title="Delete mitre"
+          className="h-5 w-5 text-destructive hover:text-destructive"
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemoveCut(partId, cut.id)
+          }}
+        >
+          ✕
+        </Button>
+      </div>
+      {open && (
+        <div className="pl-2 pb-1">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Label className="w-8 shrink-0 text-right">End</Label>
+            <Select
+              value={cut.end}
+              onValueChange={(v) =>
+                onUpdateCut(partId, cut.id, (c) => ({ ...c, end: v as MitreCut['end'] }))
+              }
+            >
+              <SelectTrigger className="h-7 flex-1 text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="+X">+X end</SelectItem>
+                <SelectItem value="-X">−X end</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Label className="w-8 shrink-0 text-right">Type</Label>
+            <Select
+              value={cut.axis}
+              onValueChange={(v) =>
+                onUpdateCut(partId, cut.id, (c) => ({ ...c, axis: v as MitreCut['axis'] }))
+              }
+            >
+              <SelectTrigger className="h-7 flex-1 text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Z">Flat (across width)</SelectItem>
+                <SelectItem value="Y">Bevel (through thickness)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <NumInput
+            label="A"
+            value={cut.angle}
+            suffix="°"
+            onChange={(v) =>
+              onUpdateCut(partId, cut.id, (c) => ({
+                ...c,
+                angle: Math.max(0, Math.min(89, v)),
+              }))
+            }
+          />
         </div>
       )}
     </div>
@@ -365,6 +456,7 @@ function EditPanel({
   onUpdate,
   onRemove,
   onUpdateCut,
+  onAddMitre,
   onRemoveCut,
   onLinkCuts,
   onUnlinkCuts,
@@ -376,6 +468,7 @@ function EditPanel({
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
   onRemove: (id: PartId) => void
   onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
+  onAddMitre: (partId: PartId) => void
   onRemoveCut: (partId: PartId, cutId: CutId) => void
   onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
   onUnlinkCuts: (partId: PartId, cutId: CutId) => void
@@ -570,25 +663,44 @@ function EditPanel({
       {/* Cuts section — board only */}
       {part.kind === 'board' && (
         <>
-          <p className="text-[10px] uppercase tracking-widest text-muted-foreground py-1.5">
-            ▾ Cuts
-          </p>
+          <div className="flex items-center justify-between py-1.5">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">▾ Cuts</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+              onClick={() => onAddMitre(part.id)}
+            >
+              + Mitre
+            </Button>
+          </div>
           {part.cuts.length === 0 ? (
             <p className="text-[11px] text-muted-foreground py-0.5">No cuts</p>
           ) : (
-            part.cuts.map((cut) => (
-              <CutRow
-                key={cut.id}
-                cut={cut}
-                partId={part.id}
-                scene={scene}
-                onUpdateCut={onUpdateCut}
-                onRemoveCut={onRemoveCut}
-                onLinkCuts={onLinkCuts}
-                onUnlinkCuts={onUnlinkCuts}
-                defaultOpen={cut.id === lastPlacedCutId}
-              />
-            ))
+            part.cuts.map((cut) =>
+              cut.kind === 'mitre' ? (
+                <MitreRow
+                  key={cut.id}
+                  cut={cut}
+                  partId={part.id}
+                  onUpdateCut={onUpdateCut}
+                  onRemoveCut={onRemoveCut}
+                  defaultOpen={cut.id === lastPlacedCutId}
+                />
+              ) : (
+                <CutRow
+                  key={cut.id}
+                  cut={cut}
+                  partId={part.id}
+                  scene={scene}
+                  onUpdateCut={onUpdateCut}
+                  onRemoveCut={onRemoveCut}
+                  onLinkCuts={onLinkCuts}
+                  onUnlinkCuts={onUnlinkCuts}
+                  defaultOpen={cut.id === lastPlacedCutId}
+                />
+              ),
+            )
           )}
         </>
       )}
@@ -620,6 +732,7 @@ export function Sidebar({
   onDuplicate,
   onUpdate,
   onUpdateCut,
+  onAddMitre,
   onRemoveCut,
   onLinkCuts,
   onUnlinkCuts,
@@ -769,6 +882,7 @@ export function Sidebar({
             onUpdate={onUpdate}
             onRemove={onRemove}
             onUpdateCut={onUpdateCut}
+            onAddMitre={onAddMitre}
             onRemoveCut={onRemoveCut}
             onLinkCuts={onLinkCuts}
             onUnlinkCuts={onUnlinkCuts}

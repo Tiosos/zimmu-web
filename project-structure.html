@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zimmu — Project Structure</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #222535;
+      --border: #2e3148;
+      --accent: #6c8cff;
+      --accent2: #a78bfa;
+      --green: #4ade80;
+      --yellow: #facc15;
+      --red: #f87171;
+      --orange: #fb923c;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --code-bg: #12151f;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Layout */
+    .layout { display: flex; min-height: 100vh; }
+    nav {
+      width: 240px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 16px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    main { flex: 1; padding: 40px 48px; max-width: 1000px; }
+
+    /* Nav */
+    nav .logo { font-size: 18px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+    nav .version { font-size: 11px; color: var(--muted); margin-bottom: 24px; }
+    nav ul { list-style: none; }
+    nav li { margin-bottom: 2px; }
+    nav a {
+      display: block;
+      padding: 5px 8px;
+      border-radius: 5px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition: background 0.15s, color 0.15s;
+    }
+    nav a:hover { background: var(--surface2); color: var(--text); }
+    nav .nav-section {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin: 16px 0 6px 8px;
+      font-weight: 600;
+    }
+
+    /* Typography */
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    h2 { font-size: 20px; font-weight: 600; margin: 40px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; color: var(--accent); }
+    h3 { font-size: 15px; font-weight: 600; margin: 24px 0 8px; color: var(--text); }
+    h4 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 16px 0 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    p { margin-bottom: 10px; color: var(--text); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Code */
+    code {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: var(--accent2);
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      margin: 12px 0;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    pre code { background: none; border: none; padding: 0; color: var(--text); }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .badge-green { background: #14532d; color: var(--green); }
+    .badge-yellow { background: #713f12; color: var(--yellow); }
+    .badge-blue { background: #1e3a5f; color: #93c5fd; }
+    .badge-purple { background: #3b1f6e; color: var(--accent2); }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+    th { text-align: left; padding: 8px 12px; border-bottom: 2px solid var(--border); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; }
+    td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+
+    /* File tree */
+    .tree { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.9; }
+    .tree-dir { color: var(--accent); font-weight: 600; }
+    .tree-file { color: var(--text); }
+    .tree-desc { color: var(--muted); font-size: 11px; margin-left: 4px; }
+    .tree-test { color: var(--green); }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 12px 0;
+    }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+    @media (max-width: 700px) { .card-grid { grid-template-columns: 1fr; } }
+
+    /* Flow diagram */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin: 12px 0;
+      font-size: 12px;
+    }
+    .flow-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .flow-arrow {
+      color: var(--muted);
+      padding: 0 6px;
+      font-size: 16px;
+    }
+
+    /* Pill list */
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+    .pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Section separator */
+    section { margin-bottom: 0; }
+
+    .subtitle { color: var(--muted); font-size: 15px; margin-bottom: 20px; }
+    .updated { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar nav -->
+  <nav>
+    <div class="logo">Zimmu</div>
+    <div class="version"><!-- AUTOGEN:version -->v0.1<!-- /AUTOGEN:version --> · web prototype</div>
+    <ul>
+      <li><span class="nav-section">Product</span></li>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#features">Features built</a></li>
+      <li><a href="#roadmap">Roadmap</a></li>
+
+      <li><span class="nav-section">Architecture</span></li>
+      <li><a href="#stack">Tech stack</a></li>
+      <li><a href="#src-tree">Source tree</a></li>
+      <li><a href="#datamodel">Data model</a></li>
+      <li><a href="#dataflow">Data flow</a></li>
+      <li><a href="#invariants">Key invariants</a></li>
+
+      <li><span class="nav-section">Development</span></li>
+      <li><a href="#commands">Commands</a></li>
+      <li><a href="#shortcuts">Keyboard shortcuts</a></li>
+      <li><a href="#testing">Testing</a></li>
+      <li><a href="#hooks">Automated hooks</a></li>
+      <li><a href="#conventions">Code conventions</a></li>
+
+      <li><span class="nav-section">Docs</span></li>
+      <li><a href="#docs-tree">Docs directory</a></li>
+      <li><a href="#fileformat">File format</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main content -->
+  <main>
+
+    <!-- OVERVIEW -->
+    <section id="overview">
+      <h1>Zimmu — Project Structure</h1>
+      <p class="subtitle">Open-core 3D joinery design app · Phase 0 web prototype</p>
+      <p class="updated">Last updated: <!-- AUTOGEN:date -->2026-06-13<!-- /AUTOGEN:date --></p>
+
+      <p style="margin-top:20px">
+        Zimmu is a <strong>parametric 3D joinery design application</strong> for designers and architects
+        who specify built woodwork — cabinetry, frame-and-panel, joinery — and need models that are
+        buildable, dimensioned, and documentable without switching tools.
+      </p>
+      <p>
+        The current codebase is the <strong>browser prototype (Phase 0 / 0.5)</strong>, validating
+        the geometry seam, UX, and file format before a Rust/Tauri production shell is built.
+        It runs entirely in the browser: OCCT geometry via WebAssembly, Comlink-bridged Web Worker,
+        File System Access API for persistence.
+      </p>
+
+      <div class="card-grid">
+        <div class="card">
+          <h4>Production target (Phase 1+)</h4>
+          <p style="color:var(--muted);font-size:13px">
+            OpenCASCADE · Rust/Tauri shell · Three.js + WebGPU · Custom <code>.zmu</code> format
+          </p>
+        </div>
+        <div class="card">
+          <h4>Current prototype</h4>
+          <p style="color:var(--muted);font-size:13px">
+            opencascade.js (WASM) · Vite + React 19 · Three.js (WebGL) · <code>.zimmu</code> flat JSON
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section id="features">
+      <h2>Features built</h2>
+
+      <table>
+        <thead><tr><th>Feature</th><th>Status</th><th>Key files</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>OCCT geometry kernel</strong><br><span style="color:var(--muted);font-size:12px">Box primitive, boolean cuts, BRepMesh tessellation</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>geom/occt.ts</code>, <code>geom/occt.worker.ts</code>, <code>geom/mesh.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Three.js viewport</strong><br><span style="color:var(--muted);font-size:12px">OrbitControls, +Z-up, edge lines, face raycaster, FPS overlay</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>render/viewport.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>Board parts</strong><br><span style="color:var(--muted);font-size:12px">Length × width × thickness, label, material, color, position, rotation</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/useScene.ts</code>, <code>ui/sidebar.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>Snap/align mode</strong><br><span style="color:var(--muted);font-size:12px">Click two faces to align boards; <code>F</code> key toggle</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/useSnap.ts</code>, <code>scene/snapMath.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Joinery cuts</strong><br><span style="color:var(--muted);font-size:12px">Boolean subtract cut rectangles from board faces; cut pairing/linking</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/useAddCut.ts</code>, <code>ui/sidebar.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>Undo / redo</strong><br><span style="color:var(--muted);font-size:12px">50-entry closure history; coalescing for dimension edits</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/useScene.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>File I/O</strong><br><span style="color:var(--muted);font-size:12px">Save / Save As / Open / New via FSAPI; auto-reopen via IDB; dirty tracking</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/useFile.ts</code>, <code>scene/idb.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Part visibility, duplication, removal</strong><br><span style="color:var(--muted);font-size:12px">Eye toggle, Ctrl+D, Delete/Backspace</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/useScene.ts</code>, <code>App.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>3D export — STL &amp; STEP</strong><br><span style="color:var(--muted);font-size:12px">Binary STL (world-space), XCAF STEP (named solids). Visible parts only.</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>geom/stl.ts</code>, <code>geom/occt.ts</code> (<code>writeStep</code>), <code>geom/transform.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>2D shop drawings</strong><br><span style="color:var(--muted);font-size:12px">Face/Edge/End orthographic projections with dimensions + cut labels; SVG + DXF export</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>geom/drawing.ts</code>, <code>ui/DrawingViewer.tsx</code>, <code>ui/buildSvg.ts</code>, <code>ui/buildDxf.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Bill of Materials</strong><br><span style="color:var(--muted);font-size:12px">Three-tab modal: Boards cutting list (with cost), Hardware BOM, Library of material rates</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>ui/BomModal.tsx</code>, <code>ui/CuttingList.tsx</code>, <code>ui/HardwareTab.tsx</code>, <code>ui/buildCsv.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Material library</strong><br><span style="color:var(--muted);font-size:12px">Persistent cost rates in IndexedDB; merged with per-project materials at BOM layer</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/useMaterialLibrary.ts</code>, <code>scene/idb.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Hardware BOM with linked boards</strong><br><span style="color:var(--muted);font-size:12px">Hardware items link to board parts; linked items visible in sidebar EditPanel</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>ui/HardwareEditPanel.tsx</code>, <code>ui/HardwareTab.tsx</code>, <code>ui/sidebar.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>FSAPI fallback for non-Chromium browsers</strong></td>
+            <td><span class="badge badge-yellow">Planned</span></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>Rust/Tauri production shell</strong></td>
+            <td><span class="badge badge-yellow">Phase 1</span></td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ROADMAP -->
+    <section id="roadmap">
+      <h2>Roadmap</h2>
+      <div class="card-grid">
+        <div class="card">
+          <h4>Phase 0 / 0.5 — browser prototype <span class="badge badge-green">Current</span></h4>
+          <ul style="color:var(--muted);font-size:13px;padding-left:18px;line-height:2">
+            <li>OCCT WASM geometry seam</li>
+            <li>Full editing UX (snap, cuts, undo)</li>
+            <li>File I/O + persistence</li>
+            <li>BOM + cutting list + hardware</li>
+            <li>2D shop drawings (SVG + DXF)</li>
+            <li>3D export (STL + STEP)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Phase 1 — Rust/Tauri production <span class="badge badge-yellow">Next</span></h4>
+          <ul style="color:var(--muted);font-size:13px;padding-left:18px;line-height:2">
+            <li>Native OCCT (no WASM overhead)</li>
+            <li>Tauri application shell</li>
+            <li>Smart joint library (parametric)</li>
+            <li>IFC/BIM import and export</li>
+            <li>MPL 2.0 open-source release</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- STACK -->
+    <section id="stack">
+      <h2>Tech stack</h2>
+      <table>
+        <thead><tr><th>Layer</th><th>Technology</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>UI framework</td><td>React 19 + TypeScript (strict)</td><td>Functional components only</td></tr>
+          <tr><td>Build / bundler</td><td>Vite 8 + <code>@vitejs/plugin-react</code></td><td>ES modules, <code>vite-plugin-wasm</code> for WASM</td></tr>
+          <tr><td>Styling</td><td>Tailwind CSS v4 (<code>@tailwindcss/vite</code>)</td><td>No <code>tailwind.config.js</code></td></tr>
+          <tr><td>UI primitives</td><td>Radix UI → shadcn-style wrappers in <code>src/components/ui/</code></td><td><code>cn()</code> from <code>src/lib/utils.ts</code></td></tr>
+          <tr><td>3D rendering</td><td>Three.js r184</td><td>+Z-up CAD convention, <code>OrbitControls</code></td></tr>
+          <tr><td>Geometry kernel</td><td>opencascade.js 1.1 (WASM build of OCCT)</td><td>~65 MB; excluded from Vite pre-bundler</td></tr>
+          <tr><td>Worker bridge</td><td>Comlink 4</td><td><code>expose()</code> in worker, <code>wrap()</code> in <code>useScene</code></td></tr>
+          <tr><td>File persistence</td><td>File System Access API + IndexedDB (v2)</td><td>Chrome/Edge only; IDB polyfilled in tests</td></tr>
+          <tr><td>Package manager</td><td>pnpm (never npm/yarn)</td><td></td></tr>
+          <tr><td>Testing</td><td>Vitest 4 + happy-dom + @testing-library/react</td><td>Tests co-located as <code>*.test.ts(x)</code></td></tr>
+          <tr><td>Type checking</td><td>TypeScript 6 (strict + <code>noUnusedLocals</code> + <code>verbatimModuleSyntax</code>)</td><td>Enforced by pre-commit hook</td></tr>
+          <tr><td>Linting</td><td>ESLint 10 + typescript-eslint + eslint-config-prettier</td><td></td></tr>
+          <tr><td>Formatting</td><td>Prettier 3</td><td>Auto-runs on Save via Claude Code hook</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SOURCE TREE -->
+    <section id="src-tree">
+      <h2>Source tree</h2>
+
+      <h3>Root</h3>
+      <pre><code>zimmu-web/
+├── src/                   Application source (see below)
+├── docs/                  Feature plans, specs, notes (see Docs section)
+├── public/                Static assets
+├── CLAUDE.md              AI assistant codebase guide (authoritative reference)
+├── README.md              Project readme (partially outdated)
+├── joinery_3d_software_plan.md   Founding product &amp; technical plan
+├── project-structure.html This file
+├── package.json
+├── vite.config.ts
+├── tsconfig.json          Project references → tsconfig.app.json + tsconfig.node.json
+├── vitest.setup.ts        fake-indexeddb auto-polyfill + jest alias
+└── .claude/               Claude Code hooks + skills + settings</code></pre>
+
+      <h3>Complete src/ file tree <span style="font-size:11px;color:var(--muted);font-weight:400">(auto-generated on each release)</span></h3>
+      <pre><code><!-- AUTOGEN:src-tree -->src/
+├── App.test.tsx
+├── App.tsx
+├── components/
+│   └── ui/
+│       ├── button.tsx
+│       ├── collapsible.tsx
+│       ├── input.tsx
+│       ├── label.tsx
+│       ├── scroll-area.tsx
+│       ├── select.tsx
+│       ├── separator.tsx
+│       └── tooltip.tsx
+├── geom/
+│   ├── drawing.test.ts
+│   ├── drawing.ts
+│   ├── mesh.ts
+│   ├── occt.test.ts
+│   ├── occt.ts
+│   ├── occt.worker.ts
+│   ├── stl.test.ts
+│   ├── stl.ts
+│   ├── transform.test.ts
+│   └── transform.ts
+├── index.css
+├── lib/
+│   └── utils.ts
+├── main.tsx
+├── render/
+│   └── viewport.tsx
+├── scene/
+│   ├── idb.test.ts
+│   ├── idb.ts
+│   ├── palette.ts
+│   ├── snapMath.test.ts
+│   ├── snapMath.ts
+│   ├── types.ts
+│   ├── useAddCut.test.ts
+│   ├── useAddCut.ts
+│   ├── useFile.test.ts
+│   ├── useFile.ts
+│   ├── useMaterialLibrary.test.ts
+│   ├── useMaterialLibrary.ts
+│   ├── useScene.test.ts
+│   ├── useScene.ts
+│   ├── useSnap.test.ts
+│   ├── useSnap.ts
+│   ├── utils.test.ts
+│   └── utils.ts
+├── ui/
+│   ├── BomModal.test.tsx
+│   ├── BomModal.tsx
+│   ├── buildCsv.test.ts
+│   ├── buildCsv.ts
+│   ├── buildDxf.test.ts
+│   ├── buildDxf.ts
+│   ├── buildSvg.test.ts
+│   ├── buildSvg.ts
+│   ├── CuttingList.test.tsx
+│   ├── CuttingList.tsx
+│   ├── download.test.ts
+│   ├── download.ts
+│   ├── DrawingViewer.test.tsx
+│   ├── DrawingViewer.tsx
+│   ├── FileMenu.test.tsx
+│   ├── FileMenu.tsx
+│   ├── HardwareEditPanel.test.tsx
+│   ├── HardwareEditPanel.tsx
+│   ├── HardwareTab.test.tsx
+│   ├── HardwareTab.tsx
+│   ├── sidebar.test.tsx
+│   ├── sidebar.tsx
+│   ├── useDebouncedCallback.test.ts
+│   └── useDebouncedCallback.ts
+└── vite-env.d.ts<!-- /AUTOGEN:src-tree --></code></pre>
+
+      <h3>src/geom/ — Geometry kernel</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:8px">OCCT bootstrap, tessellation, transforms, 2D drawing, STL/STEP export. No React imports. Browser-only (never call live OCCT in tests).</p>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>occt.ts</code></td><td>Lazy singleton OCCT bootstrap. <code>makeShape()</code> (box + cut chain), <code>makeTransformedShape()</code>, <code>writeStep()</code> (XCAF named solids). Exports <code>ExportSpec</code>.</td></tr>
+          <tr><td><code>occt.worker.ts</code></td><td>Comlink Web Worker — exposes <code>buildPart()</code> and <code>exportStep()</code> to the main thread.</td></tr>
+          <tr><td><code>mesh.ts</code></td><td><code>TopoDS_Shape</code> → <code>MeshData</code> (Float32Arrays) + <code>THREE.BufferGeometry</code> via <code>BRepMesh_IncrementalMesh</code>.</td></tr>
+          <tr><td><code>transform.ts</code></td><td><code>composeWorldMatrix(part)</code> — THREE-free world matrix. Single source of truth for part placement in STL/STEP export.</td></tr>
+          <tr><td><code>stl.ts</code></td><td><code>buildBinaryStl(parts, geometries)</code> — world-space binary STL triangle soup with recomputed facet normals. Visible parts only.</td></tr>
+          <tr><td><code>drawing.ts</code></td><td><code>buildDrawingSheet(part)</code> → <code>DrawingView[]</code>. Face/Edge/End orthographic projections with cut rects, dimension lines, cut labels.</td></tr>
+          <tr><td><code class="tree-test">occt.test.ts</code></td><td>Smoke tests (live OCCT skipped in Node with <code>it.skip</code>).</td></tr>
+          <tr><td><code class="tree-test">transform.test.ts</code></td><td>Element-wise parity tests against <code>THREE.Matrix4</code>.</td></tr>
+          <tr><td><code class="tree-test">stl.test.ts</code></td><td>Binary STL output validation.</td></tr>
+          <tr><td><code class="tree-test">drawing.test.ts</code></td><td>Drawing projection logic.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>src/scene/ — Scene state &amp; hooks</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:8px">Single source of truth for all scene state. No Three.js imports (except snapMath.ts which uses THREE types only for testing convenience).</p>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>types.ts</code></td><td>Canonical types: <code>ZimmuFile</code>, <code>Scene</code>, <code>Part</code>/<code>BoardPart</code>, <code>CutDef</code>, <code>MaterialDef</code>, <code>HardwareItem</code>, <code>FaceHit</code>, <code>CameraState</code>.</td></tr>
+          <tr><td><code>useScene.ts</code></td><td>Scene state + geometry lifecycle + undo/redo + <code>exportStep</code> + cut linking + materials/hardware CRUD. Lazy Comlink worker singleton.</td></tr>
+          <tr><td><code>useFile.ts</code></td><td>File System Access API save/open/new. Auto-reopen last file via IDB. <code>isDirty</code> tracking via JSON snapshot comparison.</td></tr>
+          <tr><td><code>idb.ts</code></td><td>IndexedDB wrapper (schema v2) — two object stores: <code>handles</code> (FileSystemFileHandle) and <code>library</code> (material cost rates).</td></tr>
+          <tr><td><code>utils.ts</code></td><td><code>shapeKey(part)</code> — geometry cache key. Encodes only shape-affecting fields (dimensions + cut positions/sizes).</td></tr>
+          <tr><td><code>snapMath.ts</code></td><td>Pure face/cut geometry math — <code>faceAxes()</code>, <code>computeSnapDelta()</code>. No React. Three-typed but browser-free.</td></tr>
+          <tr><td><code>useSnap.ts</code></td><td>Face-to-face snap-align interaction state machine. Fed <code>FaceHit</code>s from the raycaster.</td></tr>
+          <tr><td><code>useAddCut.ts</code></td><td>Click-a-face-to-add-joinery-cut interaction state machine.</td></tr>
+          <tr><td><code>useMaterialLibrary.ts</code></td><td>Loads/persists material cost rates via the IDB <code>library</code> store.</td></tr>
+          <tr><td><code>palette.ts</code></td><td><code>PART_COLORS</code> preset swatches array.</td></tr>
+          <tr><td><code class="tree-test">useScene.test.ts</code>, <code class="tree-test">useFile.test.ts</code>, etc.</td><td>Co-located unit tests for each module.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>src/render/ — Three.js viewport</h3>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>viewport.tsx</code></td><td>React-wrapped Three.js canvas. Manages meshes in refs (no React reconciliation over meshes). Per-part <code>Mesh</code> + <code>LineSegments</code>. Selection via emissive color. Raycaster emits <code>FaceHit</code> for snap/cut interactions.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>src/ui/ — UI components</h3>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>FileMenu.tsx</code></td><td>Top menu bar: File menu, project name, undo/redo buttons, BOM modal trigger, 3D/2D export buttons.</td></tr>
+          <tr><td><code>sidebar.tsx</code></td><td>Parts list panel + <code>EditPanel</code> (label, material, ColorControl, dimensions, position, rotation, cuts panel with cut-linking UI, linked hardware display).</td></tr>
+          <tr><td><code>BomModal.tsx</code></td><td>Three-tab modal (Boards / Hardware / Library). Footer shows board subtotal, hardware subtotal, grand total. CSV copy/download.</td></tr>
+          <tr><td><code>CuttingList.tsx</code></td><td>Grouped cutting-list table with per-material cost popover. Quantity = instances of same dimensions. CSV export.</td></tr>
+          <tr><td><code>HardwareTab.tsx</code></td><td>Hardware BOM table with add/edit/delete. Clicking a row opens <code>HardwareEditPanel</code>.</td></tr>
+          <tr><td><code>HardwareEditPanel.tsx</code></td><td>Hardware item form: name, qty, unit, supplier, part #, unit cost, notes, linked boards (checkbox list per board part).</td></tr>
+          <tr><td><code>DrawingViewer.tsx</code></td><td>Modal for 2D shop drawings. SVG preview; SVG + DXF download.</td></tr>
+          <tr><td><code>buildCsv.ts</code></td><td><code>groupParts()</code> + CSV serialization for cutting list and hardware BOM.</td></tr>
+          <tr><td><code>buildSvg.ts</code></td><td><code>DrawingSheet</code> → SVG string (orthographic views + dimensions + cut labels).</td></tr>
+          <tr><td><code>buildDxf.ts</code></td><td><code>DrawingSheet</code> → DXF string (CAD-friendly format).</td></tr>
+          <tr><td><code>download.ts</code></td><td><code>downloadBlob()</code> — Blob + anchor click, browser-agnostic delivery.</td></tr>
+          <tr><td><code>useDebouncedCallback.ts</code></td><td>Debounce hook used in dimension inputs to coalesce rapid edits.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>src/components/ui/ — Radix/shadcn primitives</h3>
+      <div class="pills">
+        <span class="pill">button.tsx</span>
+        <span class="pill">collapsible.tsx</span>
+        <span class="pill">input.tsx</span>
+        <span class="pill">label.tsx</span>
+        <span class="pill">scroll-area.tsx</span>
+        <span class="pill">select.tsx</span>
+        <span class="pill">separator.tsx</span>
+        <span class="pill">tooltip.tsx</span>
+      </div>
+      <p style="color:var(--muted);font-size:13px">Thin wrappers over Radix UI primitives. Styled with Tailwind + <code>cn()</code> from <code>src/lib/utils.ts</code>. Do not import Radix directly in feature components — use these wrappers.</p>
+
+      <h3>src/ root files</h3>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>App.tsx</code></td><td>Composition root. Wires <code>useScene</code> + <code>useFile</code> + <code>useSnap</code> + <code>useAddCut</code> + <code>useMaterialLibrary</code> + <code>Viewport</code> + <code>Sidebar</code> + <code>FileMenu</code> + <code>BomModal</code> + <code>DrawingViewer</code>. Owns global keyboard shortcut handler.</td></tr>
+          <tr><td><code>main.tsx</code></td><td>React DOM render entry point.</td></tr>
+          <tr><td><code>index.css</code></td><td>Tailwind base + custom CSS variables for design tokens.</td></tr>
+          <tr><td><code>vite-env.d.ts</code></td><td>Ambient declarations for opencascade.js types.</td></tr>
+          <tr><td><code>lib/utils.ts</code></td><td><code>cn()</code> — <code>clsx</code> + <code>tailwind-merge</code> class helper.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- DATA MODEL -->
+    <section id="datamodel">
+      <h2>Data model</h2>
+      <p>All canonical types live in <code>src/scene/types.ts</code>. The file format serializes a <code>ZimmuFile</code> to <code>.zimmu</code> (flat JSON).</p>
+
+      <pre><code>// File format (FILE_FORMAT_VERSION = 2)
+interface ZimmuFile {
+  version: number       // must equal FILE_FORMAT_VERSION
+  name: string
+  appVersion: string
+  units: 'mm'
+  createdAt: string     // ISO 8601
+  updatedAt: string
+  camera: CameraState   // { position: Vec3, target: Vec3 }
+  scene: Scene
+}
+
+interface Scene {
+  parts: Part[]
+  materials: Record&lt;string, MaterialDef&gt;  // keyed by material name
+  hardware: HardwareItem[]
+}
+
+// The only Part kind in v0.1 (more kinds planned)
+interface BoardPart {
+  kind: 'board'
+  id: PartId            // UUID string
+  label: string
+  length: number; width: number; thickness: number  // millimetres
+  material: string      // "" = unspecified
+  color: string         // hex e.g. "#d4a373"
+  position: Vec3; rotation: Vec3                    // mm / degrees
+  rotationOrder: 'XYZ'
+  cuts: CutDef[]
+  visible: boolean
+}
+
+interface CutDef {
+  id: CutId
+  label: string
+  face: '+X' | '-X' | '+Y' | '-Y' | '+Z' | '-Z'
+  position: Vec3; size: Vec3
+  pairedCutId?: string  // "{partId}:{cutId}" — links to mating cut
+}
+
+interface MaterialDef { costPerM2: number }
+
+interface HardwareItem {
+  id: string            // UUID
+  name: string; qty: number; unit: string
+  supplier: string; partNumber: string; unitCost: number
+  notes: string
+  linkedPartIds: string[]   // board part IDs this item is linked to
+}
+
+interface FaceHit {
+  partId: PartId
+  faceNormal: Vec3; faceCenter: Vec3
+  localFaceNormal: Vec3; localHitPoint: Vec3
+}</code></pre>
+
+      <h3>IndexedDB schema (v2)</h3>
+      <table>
+        <thead><tr><th>Store</th><th>Key</th><th>Value</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>handles</code></td><td><code>"lastHandle"</code></td><td><code>FileSystemFileHandle</code></td><td>Auto-reopen last file on startup</td></tr>
+          <tr><td><code>library</code></td><td>material name string</td><td><code>MaterialDef</code></td><td>Persistent cost rates across sessions/files</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- DATA FLOW -->
+    <section id="dataflow">
+      <h2>Data flow</h2>
+
+      <h3>Scene state</h3>
+      <div class="flow">
+        <div class="flow-box">useScene<br><span style="color:var(--muted);font-size:11px">single source of truth</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">props<br><span style="color:var(--muted);font-size:11px">parts, geometries, selectedId</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Viewport<br><span style="color:var(--muted);font-size:11px">Three.js meshes in refs</span></div>
+      </div>
+      <div class="flow" style="margin-top:8px">
+        <div class="flow-box">useScene</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">props</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Sidebar + BomModal + FileMenu</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">callbacks → onUpdate / onRemove / …</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">useScene (undo entry)</div>
+      </div>
+
+      <h3>Geometry lifecycle</h3>
+      <div class="flow">
+        <div class="flow-box">scene.parts change<br><span style="color:var(--muted);font-size:11px">shapeKey() diff</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">occt.worker<br><span style="color:var(--muted);font-size:11px">buildPart() via Comlink</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">geometriesRef<br><span style="color:var(--muted);font-size:11px">MeshData cache</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Viewport<br><span style="color:var(--muted);font-size:11px">BufferGeometry update</span></div>
+      </div>
+      <p style="color:var(--muted);font-size:13px;margin-top:8px">Position/rotation changes bypass the worker — applied directly in the Viewport via <code>mesh.position</code> / <code>mesh.rotation</code>.</p>
+
+      <h3>Face interactions (snap &amp; cut)</h3>
+      <div class="flow">
+        <div class="flow-box">Viewport raycaster<br><span style="color:var(--muted);font-size:11px">emits FaceHit</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">useSnap / useAddCut<br><span style="color:var(--muted);font-size:11px">state machines in App.tsx</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">snapMath.ts<br><span style="color:var(--muted);font-size:11px">pure geometry math</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">useScene.onUpdate<br><span style="color:var(--muted);font-size:11px">undo entry</span></div>
+      </div>
+
+      <h3>Material rates</h3>
+      <div class="flow">
+        <div class="flow-box">IndexedDB <code>library</code> store</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">useMaterialLibrary<br><span style="color:var(--muted);font-size:11px">global, cross-file</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">App.tsx merges<br><span style="color:var(--muted);font-size:11px">{ ...library, ...scene.materials }</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">BomModal<br><span style="color:var(--muted);font-size:11px">effectiveMaterials</span></div>
+      </div>
+      <p style="color:var(--muted);font-size:13px;margin-top:8px">Per-file <code>scene.materials</code> overrides library rates for the same name. Never conflate the two in <code>useScene</code>.</p>
+    </section>
+
+    <!-- INVARIANTS -->
+    <section id="invariants">
+      <h2>Key invariants</h2>
+      <table>
+        <thead><tr><th>Invariant</th><th>Details</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>OCCT is browser-only</strong></td>
+            <td>Never call live OCCT APIs in tests. Guard with <code>typeof window === 'undefined'</code> or mock the module. Use <code>it.skip</code> for OCCT unit tests in Node.</td>
+          </tr>
+          <tr>
+            <td><strong>Geometry layer boundary</strong></td>
+            <td>Geometry lives in <code>src/geom/</code>, rendering in <code>src/render/</code>. The viewport must not import OCCT directly.</td>
+          </tr>
+          <tr>
+            <td><strong>Workers use Comlink</strong></td>
+            <td><code>expose()</code> in the worker, <code>wrap()</code> in <code>useScene</code>. Lazy singleton so <code>vi.stubGlobal('Worker', …)</code> works in tests.</td>
+          </tr>
+          <tr>
+            <td><strong>+Z up (CAD convention)</strong></td>
+            <td>Do not change <code>camera.up.set(0, 0, 1)</code> in the Viewport. All geometry math assumes +Z up.</td>
+          </tr>
+          <tr>
+            <td><strong>shapeKey is the geometry cache key</strong></td>
+            <td>Encodes only shape-affecting fields: dimensions + cut positions/sizes. Adding a new shape-affecting field requires updating <code>shapeKey()</code> in <code>src/scene/utils.ts</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>ZimmuFile float precision</strong></td>
+            <td>Serialization rounds floats to 6 decimal places. <code>FILE_FORMAT_VERSION = 2</code> in <code>useFile.ts</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>IDB schema bumps</strong></td>
+            <td>Bumping <code>DB_VERSION</code> in <code>idb.ts</code> requires adding the new store in <code>onupgradeneeded</code>. Current: v2 with <code>handles</code> + <code>library</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Library vs. project materials</strong></td>
+            <td><code>scene.materials</code> is per-file; <code>library</code> (IDB) is global. Merge at the BOM layer only. Never conflate in <code>useScene</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>rotationOrder is always 'XYZ'</strong></td>
+            <td><code>composeWorldMatrix</code> in <code>transform.ts</code> hardcodes Euler XYZ. If you add another order, revisit it.</td>
+          </tr>
+          <tr>
+            <td><strong>Visible parts only in exports</strong></td>
+            <td>STL, STEP, and DXF/SVG export skip parts where <code>visible === false</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- COMMANDS -->
+    <section id="commands">
+      <h2>Commands</h2>
+      <pre><code>pnpm dev             # dev server at http://localhost:5173
+pnpm test            # vitest run (all unit tests, no browser)
+pnpm test:watch      # vitest in watch mode
+pnpm typecheck       # tsc -b --noEmit
+pnpm lint            # eslint .
+pnpm build           # tsc + vite build (output: dist/)
+pnpm coverage        # vitest coverage report
+
+# Run a single test file
+pnpm vitest run src/scene/useScene.test.ts
+
+# Run full check suite (required before every commit)
+pnpm typecheck &amp;&amp; pnpm lint &amp;&amp; pnpm test</code></pre>
+    </section>
+
+    <!-- KEYBOARD SHORTCUTS -->
+    <section id="shortcuts">
+      <h2>Keyboard shortcuts</h2>
+      <h3>Non-modifier</h3>
+      <table>
+        <thead><tr><th>Key</th><th>Action</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>F</code></td><td>Activate snap/align mode</td><td></td></tr>
+          <tr><td><code>C</code></td><td>Activate cut mode</td><td></td></tr>
+          <tr><td><code>Escape</code></td><td>Cancel snap or cut mode</td><td>No-op if neither active</td></tr>
+          <tr><td><code>H</code></td><td>Toggle visibility of selected part</td><td>Suppressed in snap/cut mode</td></tr>
+          <tr><td><code>Delete</code> / <code>Backspace</code></td><td>Remove selected part</td><td>Suppressed in snap/cut mode</td></tr>
+        </tbody>
+      </table>
+      <h3>With Ctrl / Cmd</h3>
+      <table>
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><code>Ctrl+Z</code></td><td>Undo</td></tr>
+          <tr><td><code>Ctrl+Shift+Z</code></td><td>Redo</td></tr>
+          <tr><td><code>Ctrl+Y</code></td><td>Redo (Windows/Safari alias)</td></tr>
+          <tr><td><code>Ctrl+S</code></td><td>Save</td></tr>
+          <tr><td><code>Ctrl+Shift+S</code></td><td>Save As</td></tr>
+          <tr><td><code>Ctrl+O</code></td><td>Open</td></tr>
+          <tr><td><code>Ctrl+N</code></td><td>New</td></tr>
+          <tr><td><code>Ctrl+D</code></td><td>Duplicate selected part</td></tr>
+          <tr><td><code>Ctrl+Shift+E</code></td><td>Open cutting list / BOM</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- TESTING -->
+    <section id="testing">
+      <h2>Testing</h2>
+      <div class="card-grid">
+        <div class="card">
+          <h4>Stack</h4>
+          <p style="font-size:13px;color:var(--muted)">Vitest 4 · happy-dom · @testing-library/react · fake-indexeddb (auto-polyfill in <code>vitest.setup.ts</code>)</p>
+        </div>
+        <div class="card">
+          <h4>Convention</h4>
+          <p style="font-size:13px;color:var(--muted)">Tests co-located as <code>*.test.ts</code> / <code>*.test.tsx</code>. Test the geom seam (inputs → outputs), not Three.js internals.</p>
+        </div>
+      </div>
+
+      <h3>Mocking the OCCT worker</h3>
+      <pre><code>// Must appear before importing useScene
+vi.mock('comlink', () => ({
+  wrap: () => ({ buildPart: mockBuildPart }),
+  expose: vi.fn(),
+  transfer: vi.fn((data) => data),
+}))
+vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
+
+import { useScene } from './useScene'</code></pre>
+
+      <h3>Current test suite</h3>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->25<!-- /AUTOGEN:test-file-count --> test files (co-located <code>*.test.ts</code> / <code>*.test.tsx</code>); live-OCCT specs skipped in Node</p>
+    </section>
+
+    <!-- HOOKS -->
+    <section id="hooks">
+      <h2>Automated hooks (.claude/settings.json)</h2>
+      <table>
+        <thead><tr><th>Event</th><th>Trigger</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>PostToolUse (Write/Edit)</td>
+            <td>Any <code>.ts</code> / <code>.tsx</code> / <code>.js</code> / <code>.jsx</code> / <code>.css</code> file</td>
+            <td>Prettier auto-formats the file</td>
+          </tr>
+          <tr>
+            <td>PostToolUse (Write/Edit)</td>
+            <td>Any <code>*.test.ts</code> / <code>*.test.tsx</code> file</td>
+            <td>Runs the affected test file automatically (last 20 lines shown)</td>
+          </tr>
+          <tr>
+            <td>PreToolUse (Bash)</td>
+            <td><code>git commit *</code></td>
+            <td>Runs <code>tsc -b --noEmit</code>; blocks commit if type errors exist</td>
+          </tr>
+          <tr>
+            <td>Stop</td>
+            <td>Session end with uncommitted <code>.ts</code>/<code>.tsx</code> changes</td>
+            <td>Prints reminder: run <code>pnpm typecheck &amp;&amp; pnpm lint &amp;&amp; pnpm test</code></td>
+          </tr>
+          <tr>
+            <td>SessionStart</td>
+            <td>Startup / clear / compact</td>
+            <td>Runs superpowers skill setup script + <code>session-start.sh</code> (git pull, pnpm install)</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- CONVENTIONS -->
+    <section id="conventions">
+      <h2>Code conventions</h2>
+      <div class="card-grid">
+        <div class="card">
+          <h4>TypeScript</h4>
+          <ul style="color:var(--muted);font-size:13px;padding-left:16px;line-height:1.9">
+            <li>Strict mode + <code>noUnusedLocals</code> + <code>noUnusedParameters</code></li>
+            <li><code>verbatimModuleSyntax</code> on — use <code>import type</code></li>
+            <li>No <code>any</code>. Explicit types over inference for non-trivial shapes.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>React</h4>
+          <ul style="color:var(--muted);font-size:13px;padding-left:16px;line-height:1.9">
+            <li>Functional components only — no class components</li>
+            <li>Named exports preferred over default exports</li>
+            <li>No abstractions / error handling for impossible scenarios</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Comments</h4>
+          <ul style="color:var(--muted);font-size:13px;padding-left:16px;line-height:1.9">
+            <li>Default: no comments</li>
+            <li>Only comment the <em>why</em> (hidden constraint, subtle invariant, workaround)</li>
+            <li>No docstrings. No multi-line comment blocks.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Changes</h4>
+          <ul style="color:var(--muted);font-size:13px;padding-left:16px;line-height:1.9">
+            <li>Surgical: touch only what you must</li>
+            <li>No speculative features or "future flexibility"</li>
+            <li>Match existing style even if you'd do it differently</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- DOCS TREE -->
+    <section id="docs-tree">
+      <h2>Docs directory</h2>
+      <pre><code><!-- AUTOGEN:docs-tree -->docs/
+├── keyboard-shortcuts.md
+└── superpowers/
+    ├── notes/
+    │   ├── 2026-05-29-save-load-notes.md
+    │   ├── 2026-05-29-scene-model-notes.md
+    │   ├── 2026-05-30-undo-redo-notes.md
+    │   ├── 2026-06-01-cutting-list-notes.md
+    │   ├── 2026-06-02-part-visibility-notes.md
+    │   ├── 2026-06-05-3d-export-notes.md
+    │   ├── 2026-06-07-2d-shop-drawings-notes.md
+    │   ├── 2026-06-07-enhanced-cutting-list-bom-notes.md
+    │   └── 2026-06-13-project-structure-autoupdate-notes.md
+    ├── plans/
+    │   ├── 2026-05-29-save-load.md
+    │   ├── 2026-05-29-scene-model.md
+    │   ├── 2026-05-30-undo-redo.md
+    │   ├── 2026-05-31-joinery-cuts.md
+    │   ├── 2026-05-31-snap-align.md
+    │   ├── 2026-06-01-cutting-list.md
+    │   ├── 2026-06-02-part-duplication.md
+    │   ├── 2026-06-02-part-visibility.md
+    │   ├── 2026-06-02-shadcn-ui.md
+    │   ├── 2026-06-03-cutting-list-material-grouping.md
+    │   ├── 2026-06-03-part-color-picker.md
+    │   ├── 2026-06-04-cutting-list-color.md
+    │   ├── 2026-06-05-3d-export-stl-step.md
+    │   ├── 2026-06-07-2d-shop-drawings.md
+    │   ├── 2026-06-07-enhanced-cutting-list-bom.md
+    │   ├── 2026-06-08-material-library.md
+    │   └── 2026-06-10-linked-hardware.md
+    └── specs/
+        ├── 2026-05-29-save-load-design.md
+        ├── 2026-05-29-scene-model-design.md
+        ├── 2026-05-29-undo-redo-design.md
+        ├── 2026-05-31-joinery-cuts-design.md
+        ├── 2026-05-31-snap-align-design.md
+        ├── 2026-06-03-cutting-list-material-grouping-design.md
+        ├── 2026-06-03-part-color-picker-design.md
+        ├── 2026-06-04-cutting-list-color-design.md
+        ├── 2026-06-05-3d-export-stl-step-design.md
+        ├── 2026-06-07-2d-shop-drawings-design.md
+        ├── 2026-06-07-enhanced-cutting-list-bom-design.md
+        └── 2026-06-08-material-library-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+    </section>
+
+    <!-- FILE FORMAT -->
+    <section id="fileformat">
+      <h2>File format</h2>
+      <p>Projects are saved as <code>.zimmu</code> files — flat JSON, human-readable, floats rounded to 6 decimal places.</p>
+      <pre><code>{
+  "version": 2,
+  "name": "My Cabinet",
+  "appVersion": "0.0.0",
+  "units": "mm",
+  "createdAt": "2026-06-13T00:00:00.000Z",
+  "updatedAt": "2026-06-13T12:34:56.000Z",
+  "camera": { "position": { "x": 500, "y": -800, "z": 600 }, "target": { "x": 0, "y": 0, "z": 0 } },
+  "scene": {
+    "parts": [ { "kind": "board", "id": "…", "label": "Side Panel", … } ],
+    "materials": { "18mm Birch Ply": { "costPerM2": 42.50 } },
+    "hardware": [ { "id": "…", "name": "Hinge", "qty": 4, "unit": "pcs", … } ]
+  }
+}</code></pre>
+      <p style="color:var(--muted);font-size:13px">
+        <strong>Version history:</strong> v1 (initial) → v2 (added <code>materials</code> and <code>hardware</code> to Scene).
+        Migration logic lives in <code>useFile.ts</code>.
+      </p>
+
+      <p style="margin-top: 40px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 16px;">
+        Generated <!-- AUTOGEN:date -->2026-06-13<!-- /AUTOGEN:date --> · Zimmu <!-- AUTOGEN:version -->v0.1<!-- /AUTOGEN:version --> web prototype ·
+        Source: <code>CLAUDE.md</code> + <code>src/scene/types.ts</code> + codebase scan
+      </p>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

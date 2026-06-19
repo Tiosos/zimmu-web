@@ -108,6 +108,7 @@ Run `pnpm typecheck && pnpm lint && pnpm test` before every commit. A pre-commit
 
 The project has Claude Code hooks configured in `.claude/settings.json`:
 
+- **Session start (remote only)** → `pnpm install` runs automatically so the dev server, tests, and linters are ready.
 - **Write/Edit any `.ts/.tsx/.js/.jsx/.css`** → Prettier auto-formats the file.
 - **Write/Edit any `*.test.ts/*.test.tsx`** → The affected test file runs automatically.
 - **`git commit`** → Typecheck runs before the commit proceeds.
@@ -118,8 +119,8 @@ The project has Claude Code hooks configured in `.claude/settings.json`:
 ```
 src/
 ├── geom/
-│   ├── occt.ts          OCCT bootstrap (lazy singleton); makeShape (box + cut chain),
-│   │                    makeTransformedShape, writeStep (XCAF named solids), ExportSpec
+│   ├── occt.ts          OCCT bootstrap (initOCCT, lazy singleton); makeBox, makeCut,
+│   │                    makeShape (box + cut chain), writeStep (XCAF named solids), ExportSpec
 │   ├── occt.worker.ts   Comlink Web Worker — exposes buildPart() + exportStep()
 │   ├── mesh.ts          TopoDS_Shape → MeshData (Float32Arrays) + BufferGeometry
 │   ├── transform.ts     composeWorldMatrix(part) — THREE-free world matrix, parity-tested
@@ -217,7 +218,7 @@ src/
 
 - **Package manager:** pnpm (never npm/yarn).
 - `opencascade.js` is excluded from Vite's pre-bundler (`optimizeDeps.exclude`). Do not change this.
-- WASM assets are included via `assetsInclude: ['**/*.wasm']` and `vite-plugin-wasm`. Any new WASM dependency follows the same pattern.
+- WASM assets resolve as URLs via `assetsInclude: ['**/*.wasm']` — opencascade.js's `index.js` imports its `.wasm` and passes the URL to Emscripten's `locateFile`. Do **not** add `vite-plugin-wasm`: it ESM-instantiates `.wasm` (no default URL export), which breaks opencascade's URL import in both dev and build (the WASM kernel fails to boot).
 - `stats.js` renders an FPS overlay in dev mode only (`import.meta.env.DEV`).
 - **Styling:** Tailwind v4 via `@tailwindcss/vite` (no `tailwind.config.js`). UI primitives in `src/components/ui/` are shadcn-style wrappers over Radix; compose classes with `cn()` from `src/lib/utils.ts`.
 
@@ -242,6 +243,15 @@ src/
 - Aim for tests on the geom seam (inputs → outputs) rather than Three.js internals.
 
 ## Documentation
+
+### `docs/` directory layout
+
+- **`docs/keyboard-shortcuts.md`** — user-facing keyboard shortcut reference; update whenever a shortcut is added or removed.
+- **`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`** — design specs (what and why) written before implementation starts.
+- **`docs/superpowers/plans/YYYY-MM-DD-<topic>.md`** — step-by-step implementation plans derived from the spec.
+- **`docs/superpowers/notes/YYYY-MM-DD-<topic>-notes.md`** — living implementation notes (decisions, surprises, workarounds); see below.
+
+`project-structure.html` at the repo root is a manually-maintained architecture reference. Update it when the source tree or data-flow diagrams change significantly.
 
 ### Implementation Notes
 

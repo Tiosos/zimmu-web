@@ -25,3 +25,9 @@ dist-ssr
 
 # Visual brainstorming session files
 .superpowers/
+
+# Playwright
+test-results
+playwright-report
+/blob-report
+/playwright/.cache

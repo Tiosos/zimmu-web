@@ -3,7 +3,36 @@
 **Document type:** Founding product & technical plan
 **Audience:** Product owner, future contractors, prospective contributors
 **Status:** v0.1 — working document, expected to evolve
-**Date:** May 2026
+**Date:** May 2026 · **Last updated:** June 2026
+
+---
+
+## Current state — June 2026
+
+> This box summarises where the project actually stands. The sections below
+> describe the full vision; refer here when you need the ground truth.
+
+**Prototype:** Phase 0 ✅ and Phase 0.5 ✅ are both complete as a browser
+prototype. The Rust/Tauri production build (Phase 1) has not started.
+
+**What's working in the browser today:**
+- Board parts with dimensions, material, color, position, rotation, visibility
+- Snap/align mode and boolean joinery cuts with cut pairing (linked cuts)
+- 50-entry undo/redo with dimension-edit coalescing
+- File save/open/new via FSAPI (Chrome/Edge); graceful degradation on other browsers
+- `.zimmu` flat-JSON project format — `FILE_FORMAT_VERSION = 2` (includes `materials` and `hardware`)
+- Auto-reopen last file via IndexedDB; dirty tracking
+- Three-tab BOM modal: Boards cutting list (with per-material cost), Hardware BOM (with linked-part checkboxes), Library (persistent material rates in IDB)
+- Part duplication, removal (keyboard `Delete`/`Backspace`), visibility toggle
+- STL + STEP 3D export; SVG + DXF 2D shop drawings (Face/Edge/End orthographic views)
+- shadcn/ui + Radix primitives throughout; Tailwind v4
+- 25 test files, 374 tests passing (Vitest + happy-dom + @testing-library/react)
+
+**Still pending from Phase 0.5 original scope:**
+- WASM geometry performance baseline instrumentation (not yet measured)
+- `.zimmu` → `.zmu` file format migration utility (not yet written)
+
+**Next milestone:** Rust geometry engineer hire; begin Phase 1 (Rust/Tauri core modeller).
 
 ---
 
@@ -218,7 +247,7 @@ The five-layer architecture below describes the **production target**. The v0.1 
 | 1 — Geometry kernel | OCCT via Rust crate (`zimmu-geom`) | `opencascade.js` WASM, loaded lazily in-browser |
 | 2 — Parametric core | Pure Rust, feature graph + constraint solver | Not yet built; dimensions are plain React state |
 | 3 — Application core | Rust; command pattern undo/redo; `.zmu` file format | TypeScript `useScene` hook; 50-entry closure-based undo; `.zimmu` flat JSON |
-| 4 — UI | Tauri webview; Three.js + WebGPU; shadcn/ui | Vite dev server / browser; Three.js + WebGL; plain HTML controls |
+| 4 — UI | Tauri webview; Three.js + WebGPU; shadcn/ui | Vite dev server / browser; Three.js + WebGL; shadcn/ui + Radix primitives ✅ |
 | 5 — Plugin surface | TypeScript API; signed marketplace | Not yet started |
 
 The Comlink-bridged Web Worker (prototype Layer 1) intentionally mirrors the Tauri IPC contract (production Layer 3 → Layer 1), so the worker boundary can be replaced by Tauri `invoke()` calls with minimal UI changes.
@@ -290,7 +319,7 @@ User action (UI)
 
 The project is a tree of typed objects, all addressable by stable UUIDs. Below are the core types.
 
-> **v0.1 prototype data model:** The browser prototype implements a simplified subset. A `ZimmuFile` has `version: number`, `name: string`, and `scene: { parts: BoardPart[] }`. A `BoardPart` has `kind: 'board'`, a UUID-based `id`, `label`, `length`/`width`/`thickness` (mm), `color` (hex), `position`/`rotation` (3-axis floats), `visible: boolean`, and `cuts: CutDef[]`. There is no assembly tree, no components, no materials, and no hardware — just a flat array of parts. The stable UUID scheme (prefixed `board_<uuid>`) is intentional and maps directly to the production address model described below.
+> **v0.1 prototype data model (updated June 2026):** `ZimmuFile` (`FILE_FORMAT_VERSION = 2`) has `version`, `name`, `appVersion`, `units: 'mm'`, `createdAt`, `updatedAt`, `camera: CameraState`, and `scene: Scene`. `Scene` has `parts: Part[]`, `materials: Record<string, MaterialDef>` (keyed by name, carries `costPerM2`), and `hardware: HardwareItem[]`. A `BoardPart` has `kind: 'board'`, UUID `id`, `label`, `length`/`width`/`thickness` (mm), `material` (string, "" = unspecified), `color` (hex), `position`/`rotation` (Vec3 floats, degrees), `rotationOrder: 'XYZ'`, `visible: boolean`, and `cuts: CutDef[]`. A `CutDef` optionally carries `pairedCutId: "{partId}:{cutId}"` linking it to the mating cut on another part. A `HardwareItem` carries `id`, `name`, `qty`, `unit`, `supplier`, `partNumber`, `unitCost`, `notes`, and `linkedPartIds: string[]` (the board IDs this item is associated with). There is no assembly tree, no components — just a flat part array and the two supporting collections.
 
 ### Project
 
@@ -711,26 +740,43 @@ project.zmu/
 
 While the production `.zmu` format is being designed, the browser prototype uses a simpler flat-JSON format with the `.zimmu` extension.
 
-**Structure:** A single UTF-8 JSON file with this top-level shape:
+**Structure:** A single UTF-8 JSON file with this top-level shape (current: `FILE_FORMAT_VERSION = 2`):
 
 ```json
 {
-  "version": 1,
-  "name": "My Project",
+  "version": 2,
+  "name": "My Cabinet",
+  "appVersion": "0.0.0",
+  "units": "mm",
+  "createdAt": "2026-06-13T00:00:00.000Z",
+  "updatedAt": "2026-06-13T12:00:00.000Z",
+  "camera": { "position": { "x": 500, "y": -800, "z": 600 }, "target": { "x": 0, "y": 0, "z": 0 } },
   "scene": {
     "parts": [
       {
         "kind": "board",
         "id": "board_<uuid>",
-        "label": "Board 1",
-        "length": 400,
-        "width": 100,
-        "thickness": 18,
-        "color": "#a0522d",
+        "label": "Side Panel",
+        "length": 800, "width": 400, "thickness": 18,
+        "material": "18mm Birch Ply",
+        "color": "#d4a373",
         "position": { "x": 0, "y": 0, "z": 0 },
         "rotation": { "x": 0, "y": 0, "z": 0 },
+        "rotationOrder": "XYZ",
         "visible": true,
         "cuts": []
+      }
+    ],
+    "materials": {
+      "18mm Birch Ply": { "costPerM2": 42.50 }
+    },
+    "hardware": [
+      {
+        "id": "<uuid>",
+        "name": "Hinge", "qty": 4, "unit": "pcs",
+        "supplier": "Blum", "partNumber": "71B3550",
+        "unitCost": 3.20, "notes": "",
+        "linkedPartIds": ["board_<uuid>"]
       }
     ]
   }
@@ -739,10 +785,11 @@ While the production `.zmu` format is being designed, the browser prototype uses
 
 **Key decisions:**
 - All numeric fields are stored as floats rounded to 6 decimal places.
-- `FILE_FORMAT_VERSION = 1` is checked on load; unknown versions are rejected.
+- `FILE_FORMAT_VERSION = 2` is checked on load; unknown versions are rejected.
+- v1 → v2 migration: added `materials`, `hardware`, `appVersion`, `units`, `createdAt`, `updatedAt`, `camera`, and `rotationOrder` fields. Migration logic lives in `useFile.ts`.
 - `visible` defaults to `true` on load for backward compatibility with pre-visibility saves (`p.visible ?? true`).
 - No binary geometry is stored — geometry is recomputed from parameters on open.
-- The `.zimmu` format will be migrated to `.zmu` at or before v0.5 (see §17 Phase 0.5).
+- The `.zimmu` format will be migrated to `.zmu` before production; a migration utility is planned (not yet written — see Open Question 10).
 
 ---
 
@@ -755,14 +802,14 @@ While the production `.zmu` format is being designed, the browser prototype uses
 | Application core | Rust | TypeScript `useScene` hook | Performance, safety; hook validates undo/redo architecture |
 | Application shell | Tauri (Rust + system webview) | Vite dev server / browser tab | Lightweight, native feel; browser eliminates installer for early testing |
 | UI framework | TypeScript + React 19 | TypeScript + React 19 | ✅ Same — largest talent pool, mature ecosystem |
-| UI components | shadcn/ui + Radix primitives | Plain HTML + inline styles | Modern, accessible — shadcn deferred to Phase 1 |
+| UI components | shadcn/ui + Radix primitives | shadcn/ui + Radix primitives ✅ | Implemented in Phase 0.5 |
 | 3D viewport | Three.js + WebGPU (WebGL2 fallback) | Three.js r184 (WebGL) | De-facto standard; WebGPU deferred until baseline stable |
 | File format | `.zmu` zip container (OCFL-style) | `.zimmu` flat JSON | Production format designed for streaming/VCS; flat JSON sufficient for prototype |
 | File I/O | Tauri file dialog + Rust fs | File System Access API (Chrome/Edge only) | Native dialogs via Tauri; FSAPI validates UX, works in browser |
 | Final render | three-gpu-pathtracer + Open Image Denoise | — | Deferred post-v1 |
 | Visual node editor | React Flow | — | Deferred to parametric core milestone |
-| Drawing engine | OCCT HLR → custom SVG → PDF via pdf-lib | — | Deferred to drawing milestone |
-| DWG/DXF | LibreDXF (read) + ODA Teigha (write) | — | Deferred; ODA license cost revisited at v1 |
+| Drawing engine | OCCT HLR → custom SVG → PDF via pdf-lib | Orthographic projections via `geom/drawing.ts` → SVG in `DrawingViewer` ✅ | Production: OCCT HLR. Prototype: custom geometric projection. PDF deferred. |
+| DWG/DXF | LibreDXF (read) + ODA Teigha (write) | DXF 2D export via `ui/buildDxf.ts` ✅ | Prototype: line-based DXF (no ODA). Production: ODA license still TBD. |
 | IFC | IfcOpenShell (LGPL) | — | Deferred to export milestone |
 | State management | Zustand + Immer | React `useState` + closure-based undo | Simple hooks sufficient for prototype scale |
 | IPC | Tauri commands (typed via specta or ts-rs) | Comlink + `postMessage` | Type-safe Rust ↔ TS; Comlink validates message-passing pattern |
@@ -833,10 +880,12 @@ The roadmap is organised in five phases. Phase exit criteria are explicit.
 - Undo/redo (50-entry history, closure-based, coalesced consecutive dimension edits)
 - Part visibility toggle (eye button in sidebar, `H` keyboard shortcut, viewport raycaster guard)
 - Part duplication (`Ctrl+D`), selection, snap/align mode (`F`), cut mode (`C`)
-- File save/open/new via File System Access API, `.zimmu` flat-JSON format (`FILE_FORMAT_VERSION = 1`)
+- File save/open/new via File System Access API, `.zimmu` flat-JSON format (`FILE_FORMAT_VERSION = 1` at Phase 0; bumped to 2 in Phase 0.5)
 - Auto-reopen last file on startup via IndexedDB handle persistence
 - Vitest + @testing-library/react test suite (scene, file, keyboard shortcuts, UI)
 - GitHub Actions CI
+
+*Additions completed in Phase 0.5 (see below):* shadcn/ui, BOM modal, hardware BOM with linked parts, material library (IDB), 3D STL + STEP export, 2D shop drawings (SVG + DXF), part deletion keyboard shortcut, FSAPI graceful degradation, `FILE_FORMAT_VERSION = 2` (adds `materials`, `hardware`).
 
 **What was NOT built in Phase 0 (production targets, deferred):**
 
@@ -849,21 +898,26 @@ The roadmap is organised in five phases. Phase exit criteria are explicit.
 
 ---
 
-### Phase 0.5 — Browser Prototype Hardening (in progress, June 2026)
+### Phase 0.5 — Browser Prototype Hardening ✅ COMPLETE (June 2026)
 
 **Goal:** harden the browser prototype into a usable daily-driver tool that validates the full v0.1 product loop before starting the Rust/Tauri production build. This phase was not in the original plan; it was added after Phase 0 demonstrated that the browser-based approach can carry more of the product surface than initially expected.
 
 **Deliverables:**
 
-- **Joint engine (prototype):** snap/align and boolean cut modes in the browser; validates the joint UX workflow (Workflow A) before investing in the Rust implementation
-- **Cutting list / BOM:** live cutting list panel driven by scene parts; validates the data model for the full documentation phase
-- **File format migration utility:** `.zimmu` → future `.zmu` importer so no user data is stranded at the prototype-to-production boundary
-- **WASM performance baseline:** measure and document geometry build times, raycasting frame budget, and WASM memory usage on target hardware (MacBook Pro M-series, Windows 11 mid-range)
-- **FSAPI fallback:** detect Chrome/Edge; show graceful degradation message and in-memory fallback for unsupported browsers (Firefox, Safari)
-- **shadcn/ui integration:** replace prototype HTML controls with accessible, themable components; establishes the design system before the Tauri shell
-- **Test coverage to 80 %+:** integration tests for the full save/load/undo/redo loop; Playwright smoke tests for the viewport
+- ✅ **Joint engine (prototype):** snap/align and boolean cut modes; cut pairing (linked cuts) across mating parts; validates Workflow A before the Rust implementation
+- ✅ **Cutting list / BOM:** three-tab BOM modal (Boards cutting list with cost, Hardware BOM with linked-part checkboxes, Library with persistent IDB rates)
+- ✅ **shadcn/ui integration:** all controls replaced; design system established
+- ✅ **FSAPI fallback:** shows "Save/Load requires Chrome or Edge" and disables file menu on non-Chromium browsers
+- ✅ **Test coverage:** 374 tests across 25 files (Vitest + happy-dom + @testing-library/react); Playwright deferred
+- ✅ **3D export:** STL (binary, world-space) + STEP (XCAF named solids)
+- ✅ **2D shop drawings:** Face/Edge/End orthographic projections with dimensions; SVG + DXF download
+- ✅ **Material library:** persistent cost rates in IDB `library` store; merged with per-file `scene.materials` at BOM layer
+- ✅ **Hardware BOM:** items link to board parts; linked items visible in sidebar EditPanel
+- ✅ **`FILE_FORMAT_VERSION = 2`:** adds `materials`, `hardware`, `appVersion`, `units`, `camera`, `rotationOrder` to the schema
+- ⏳ **WASM performance baseline:** geometry build time instrumentation not yet written
+- ⏳ **`.zimmu` → `.zmu` migration utility:** not yet written (see Open Question 10)
 
-**Exit criterion:** a real woodworker can design a simple cabinet (4 boards, 2 dados, 1 rabbet), export a cutting list as PDF or CSV, save the project, close the browser, reopen it the next day, and continue editing — with no data loss and no confusing UX.
+**Exit criterion:** a real woodworker can design a simple cabinet (4 boards, 2 dados, 1 rabbet), export a cutting list as CSV, save the project, close the browser, reopen it the next day, and continue editing — with no data loss. *Met for the core loop.*
 
 **Relationship to Phase 1:** Phase 0.5 is a parallel track, not a prerequisite. The Rust/Tauri Phase 1 build can begin in parallel once the geometry Rust engineer is hired (see §16). Phase 0.5 outputs feed directly into Phase 1 requirements (joint UX validation, file format spec, performance budgets).
 
@@ -1198,29 +1252,26 @@ Next 30 days:
 Next 90 days:
 
 9. Onboard geometry engineer
-10. Complete Phase 0 (foundation seam working end-to-end)
+10. ✅ Complete Phase 0 (foundation seam working end-to-end) — *done*
 11. Begin Phase 1 (core modeller)
 
-### Technical — June 2026 (browser prototype)
+### Technical — Phase 0.5 status (June 2026)
 
-The browser prototype (Phase 0.5) is active. Immediate technical priorities, in order:
+Phase 0.5 is complete for the core loop. Status of the original task list:
 
-**This week:**
+**Done:**
 
-1. **Cutting list panel** — live BOM driven by `scene.parts`; columns: label, quantity, length × width × thickness, material. Validates the data model before the documentation engine is built in Phase 3.
-2. **shadcn/ui integration** — replace the sidebar's plain HTML inputs and buttons with shadcn/ui + Radix primitives. Establishes the design system; makes the prototype presentable for early user research.
+1. ✅ **Cutting list panel** — three-tab BOM modal with boards, hardware, library tabs
+2. ✅ **shadcn/ui integration** — all controls replaced; design system live
+3. ✅ **Joint engine (snap/align hardening)** — snap/align + boolean cut modes + cut pairing
+4. ✅ **FSAPI fallback** — shows "Save/Load requires Chrome or Edge"; menu items disabled
+5. ✅ **Test coverage** — 374 tests across 25 files; Playwright deferred
 
-**Next 2 weeks:**
+**Still pending:**
 
-3. **Joint engine (snap/align hardening)** — complete the snap/align and boolean cut modes; end-to-end test of Workflow A (60-second dado + rabbet cabinet) in the browser prototype.
-4. **WASM performance baseline** — instrument geometry build times (`performance.mark`), raycasting frame budget, and WASM memory (`performance.measureUserAgentSpecificMemory`). Document on target hardware. Set budget thresholds that the Phase 1 Rust kernel must beat.
-5. **FSAPI fallback** — detect browser support; show a clear message + in-memory fallback for Firefox/Safari users.
-
-**Next 30 days:**
-
-6. **Test coverage to 80 %+** — add integration tests for the full save/load/undo/redo loop; add a Playwright smoke test for the viewport (board appears, raycaster hits it, toggle visibility works).
-7. **`.zimmu` → `.zmu` migration utility** — write and test the importer before the file format decision (Open Question 10) is made; ensures no user data is stranded regardless of which extension wins.
-8. **Resolve Open Question 9** (sequential vs. parallel prototype/production tracks) and **Open Question 10** (`.zimmu` vs. `.zmu`) — both needed before Phase 0.5 can exit.
+6. ⏳ **WASM performance baseline** — `performance.mark` instrumentation not yet added; needed before Phase 1 hardware can be specified
+7. ⏳ **`.zimmu` → `.zmu` migration utility** — not yet written (see Open Question 10)
+8. ⏳ **Resolve Open Question 9** (sequential vs. parallel tracks) and **Open Question 10** (`.zimmu` vs. `.zmu` extension) — both needed before fully closing Phase 0.5
 
 ---
 

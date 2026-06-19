@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import Stats from 'stats.js'
 import type { Part, PartId, CameraState } from '../scene/types'
 import type { FaceHit } from '../scene/types'
-import { computeFaceCorners, computeLocalFaceCenter } from '../scene/snapMath'
+import { computeFaceCorners, computeLocalFaceCenter, computeSnapTransform } from '../scene/snapMath'
 
 interface ViewportProps {
   parts: Part[]
@@ -22,6 +22,7 @@ interface ViewportProps {
   cutActive: boolean
   onFaceClickCut: (hit: FaceHit) => void
   onFaceHoverCut: (hit: FaceHit | null) => void
+  flashTarget?: { id: PartId; seq: number } | null
 }
 
 export function Viewport({
@@ -32,6 +33,7 @@ export function Viewport({
   cameraStateRef,
   loadedCamera,
   snapActive,
+  snapPhase,
   sourceFace,
   hoveredFace,
   onFaceClick,
@@ -39,6 +41,7 @@ export function Viewport({
   cutActive,
   onFaceClickCut,
   onFaceHoverCut,
+  flashTarget,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -46,6 +49,7 @@ export function Viewport({
   const controlsRef = useRef<OrbitControls | null>(null)
   const meshes = useRef<Map<PartId, THREE.Mesh>>(new Map())
   const edgeLines = useRef<Map<PartId, THREE.LineSegments>>(new Map())
+  const flashMap = useRef<Map<PartId, number>>(new Map())
   const raycaster = useRef(new THREE.Raycaster())
   const mouseDown = useRef<{ x: number; y: number } | null>(null)
   const onClickRef = useRef(onPartClick)
@@ -58,19 +62,29 @@ export function Viewport({
   const onFaceHoverCutRef = useRef(onFaceHoverCut)
   const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
   const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
+  const ghostMeshRef = useRef<THREE.Mesh | null>(null)
+  const snapPhaseRef = useRef(snapPhase)
   const rafIdRef = useRef<number>(0)
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const selectedIdRef = useRef<PartId | null>(selectedId)
 
   useLayoutEffect(() => {
     onClickRef.current = onPartClick
     partsRef.current = parts
     snapActiveRef.current = snapActive
+    snapPhaseRef.current = snapPhase
     onFaceClickRef.current = onFaceClick
     onFaceHoverRef.current = onFaceHover
     cutActiveRef.current = cutActive
     onFaceClickCutRef.current = onFaceClickCut
     onFaceHoverCutRef.current = onFaceHoverCut
+    selectedIdRef.current = selectedId
   })
+
+  useEffect(() => {
+    if (!flashTarget) return
+    flashMap.current.set(flashTarget.id, performance.now())
+  }, [flashTarget])
 
   function buildFaceHit(
     intersection: THREE.Intersection,
@@ -188,6 +202,21 @@ export function Viewport({
     sourceHighlightRef.current = sourceLoop
     hoverHighlightRef.current = hoverLoop
 
+    const ghostPlaceholderGeo = new THREE.BufferGeometry()
+    const ghostMat = new THREE.MeshStandardMaterial({
+      transparent: true,
+      opacity: 0.35,
+      roughness: 0.7,
+      metalness: 0.0,
+      flatShading: true,
+      depthWrite: false,
+    })
+    const ghostMesh = new THREE.Mesh(ghostPlaceholderGeo, ghostMat)
+    ghostMesh.visible = false
+    ghostMesh.renderOrder = 2
+    scene.add(ghostMesh)
+    ghostMeshRef.current = ghostMesh
+
     let stats: Stats | undefined
     if (import.meta.env.DEV) {
       stats = new Stats()
@@ -201,6 +230,33 @@ export function Viewport({
     const animate = () => {
       stats?.begin()
       controls.update()
+      const src = sourceHighlightRef.current
+      if (src?.visible) {
+        ;(src.material as THREE.LineBasicMaterial).opacity =
+          0.3 + 0.7 * (Math.sin(Date.now() / 300) * 0.5 + 0.5)
+      }
+      const now = performance.now()
+      for (const [id, startMs] of flashMap.current) {
+        const t = Math.min(1, (now - startMs) / 400)
+        const mesh = meshes.current.get(id)
+        if (mesh) {
+          const intensity = 1 - t
+          ;(mesh.material as THREE.MeshStandardMaterial).emissive.setRGB(
+            (0x60 / 255) * intensity,
+            (0xa5 / 255) * intensity,
+            (0xfa / 255) * intensity,
+          )
+        }
+        if (t >= 1) {
+          const m = meshes.current.get(id)
+          if (m) {
+            ;(m.material as THREE.MeshStandardMaterial).emissive.setHex(
+              id === selectedIdRef.current ? 0x222244 : 0x000000,
+            )
+          }
+          flashMap.current.delete(id)
+        }
+      }
       renderer.render(scene, camera)
       cameraStateRef.current = {
         position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
@@ -303,6 +359,9 @@ export function Viewport({
       scene.remove(hoverLoop)
       sourceLoop.material.dispose()
       hoverLoop.material.dispose()
+      ghostPlaceholderGeo.dispose()
+      ghostMesh.material.dispose()
+      scene.remove(ghostMesh)
       controls.dispose()
       renderer.dispose()
       if (stats && mount.contains(stats.dom)) mount.removeChild(stats.dom)
@@ -341,6 +400,7 @@ export function Viewport({
         scene.remove(mesh)
         ;(mesh.material as THREE.Material).dispose()
         meshes.current.delete(id)
+        flashMap.current.delete(id)
       }
     }
     for (const [id, el] of edgeLines.current) {
@@ -408,6 +468,7 @@ export function Viewport({
       )
     }
     for (const [id, mesh] of meshes.current) {
+      if (flashMap.current.has(id)) continue
       ;(mesh.material as THREE.MeshStandardMaterial).emissive.setHex(
         id === selectedId ? 0x222244 : 0x000000,
       )
@@ -450,6 +511,39 @@ export function Viewport({
       0x60a5fa,
     )
   }, [snapActive, cutActive, sourceFace, hoveredFace, parts])
+
+  // Ghost mesh — semi-transparent preview of the source part at its snapped destination
+  useEffect(() => {
+    const ghost = ghostMeshRef.current
+    if (!ghost) return
+    if (snapPhase !== 'source-picked' || !sourceFace || !hoveredFace) {
+      ghost.visible = false
+      return
+    }
+    const src = parts.find((p) => p.id === sourceFace.partId)
+    if (!src || src.kind !== 'board') {
+      ghost.visible = false
+      return
+    }
+    const geo = geometries.get(src.id)
+    if (!geo) {
+      ghost.visible = false
+      return
+    }
+    const { position, rotation } = computeSnapTransform(sourceFace, hoveredFace, src)
+    ghost.geometry = geo
+    ghost.position.set(position.x, position.y, position.z)
+    ghost.setRotationFromEuler(
+      new THREE.Euler(
+        rotation.x * THREE.MathUtils.DEG2RAD,
+        rotation.y * THREE.MathUtils.DEG2RAD,
+        rotation.z * THREE.MathUtils.DEG2RAD,
+        src.rotationOrder,
+      ),
+    )
+    ;(ghost.material as THREE.MeshStandardMaterial).color.set(src.color)
+    ghost.visible = true
+  }, [snapPhase, sourceFace, hoveredFace, parts, geometries])
 
   useEffect(() => {
     const mount = mountRef.current

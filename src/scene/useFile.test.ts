@@ -614,6 +614,88 @@ describe('useFile', () => {
     expect(loaded.scene.parts[0].material).toBe('')
   })
 
+  it('v2→v3: legacy cuts without a kind default to box', () => {
+    const v2Json = JSON.stringify({
+      version: 2,
+      name: 'Test',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: 'x',
+      updatedAt: 'x',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [
+          {
+            kind: 'board',
+            id: 'b1',
+            label: 'B',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            color: '#d4a373',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            material: '',
+            visible: true,
+            cuts: [
+              {
+                id: 'cut_1',
+                label: 'Dado',
+                face: '+Z',
+                position: { x: 0, y: 0, z: 0 },
+                size: { x: 20, y: 20, z: 10 },
+              },
+            ],
+          },
+        ],
+        materials: {},
+        hardware: [],
+      },
+    })
+    const result = parseFile(v2Json)
+    const part = result.scene.parts[0]
+    if (part.kind !== 'board') throw new Error('expected board')
+    expect(part.cuts[0].kind).toBe('box')
+  })
+
+  it('preserves a mitre cut on load (v3 round-trip)', () => {
+    const v3Json = JSON.stringify({
+      version: 3,
+      name: 'Test',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: 'x',
+      updatedAt: 'x',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [
+          {
+            kind: 'board',
+            id: 'b1',
+            label: 'B',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            color: '#d4a373',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            material: '',
+            visible: true,
+            cuts: [{ kind: 'mitre', id: 'm1', label: 'Mitre', end: '+X', axis: 'Z', angle: 45 }],
+          },
+        ],
+        materials: {},
+        hardware: [],
+      },
+    })
+    const part = parseFile(v3Json).scene.parts[0]
+    if (part.kind !== 'board') throw new Error('expected board')
+    const cut = part.cuts[0]
+    expect(cut).toMatchObject({ kind: 'mitre', end: '+X', axis: 'Z', angle: 45 })
+  })
+
   it('defaults materials and hardware for v1 files', () => {
     const v1Json = JSON.stringify({
       version: 1,

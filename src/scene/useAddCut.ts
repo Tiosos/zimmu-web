@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { CutDef, CutId, FaceHit, Part, PartId } from './types'
+import type { CutDef, CutId, Face, FaceHit, Part, PartId } from './types'
 import { defaultCutSize, faceAxes } from './snapMath'
 
 export interface AddCutState {
@@ -42,7 +42,7 @@ export function useAddCut(params: {
       const ax = Math.abs(lfn.x),
         ay = Math.abs(lfn.y),
         az = Math.abs(lfn.z)
-      let face: CutDef['face']
+      let face: Face
       if (ax >= ay && ax >= az) face = lfn.x > 0 ? '+X' : '-X'
       else if (ay >= ax && ay >= az) face = lfn.y > 0 ? '+Y' : '-Y'
       else face = lfn.z > 0 ? '+Z' : '-Z'
@@ -59,6 +59,7 @@ export function useAddCut(params: {
 
       const cutId = `cut_${crypto.randomUUID()}` as CutId
       const newCut: CutDef = {
+        kind: 'box',
         id: cutId,
         label: `Cut ${part.cuts.length + 1}`,
         face,
