@@ -1,7 +1,13 @@
 import type { OpenCascadeInstance, TopoDS_Shape } from 'opencascade.js'
 import type { CutDef, DowelCut, MitreCut, Vec3 } from '../scene/types'
 import { computeMitreTool } from './mitre'
-import { computeEndTool, type BoxToolDescriptor } from './dowelCut'
+import {
+  computeEndTool,
+  computeAxialBoreTool,
+  computeTransverseBoreTool,
+  type BoxToolDescriptor,
+  type CylinderToolDescriptor,
+} from './dowelCut'
 
 // Single OCCT instance per page load. Initialization downloads and instantiates
 // a ~65MB WASM module, so it must only happen once.
@@ -212,6 +218,47 @@ export function makeBoxCutAt(
   return result
 }
 
+// Build an oriented cylinder tool and subtract it. Serves both bore types.
+// gp_Ax2_3 / BRepPrimAPI_MakeCylinder_3 overloads are this design's best read of
+// the embind API and are UNVERIFIED until the live OCCT spike (browser-only).
+export function makeCylinderCut(
+  oc: OpenCascadeInstance,
+  shape: TopoDS_Shape,
+  tool: CylinderToolDescriptor,
+): TopoDS_Shape {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const O = oc as any
+  const pnt = new O.gp_Pnt_3(tool.basePoint.x, tool.basePoint.y, tool.basePoint.z)
+  const dir = new O.gp_Dir_4(tool.dir.x, tool.dir.y, tool.dir.z)
+  const ax2 = new O.gp_Ax2_3(pnt, dir)
+  const builder = new O.BRepPrimAPI_MakeCylinder_3(ax2, tool.radius, tool.height)
+  const toolShape = builder.Shape()
+  builder.delete()
+  ax2.delete()
+  pnt.delete()
+  dir.delete()
+
+  const pr1 = new O.Message_ProgressRange_1()
+  const op = new O.BRepAlgoAPI_Cut_3(shape, toolShape, pr1)
+  pr1.delete()
+  const pr2 = new O.Message_ProgressRange_1()
+  op.Build(pr2)
+  pr2.delete()
+
+  const cleanup = () => {
+    op.delete()
+    toolShape.delete()
+  }
+  if (!op.IsDone()) {
+    console.warn('makeCylinderCut: BRepAlgoAPI_Cut did not complete — returning input shape')
+    cleanup()
+    return shape
+  }
+  const result = op.Shape()
+  cleanup()
+  return result
+}
+
 // Build a cylinder from a dowel's dims and fold each cut through a subtraction,
 // mirroring makeShape. Bore/notch arms are implemented in later tasks.
 export function makeDowelShape(
@@ -229,10 +276,16 @@ export function makeDowelShape(
         current = makeBoxCutAt(oc, current, computeEndTool(dowel, cut))
         break
       case 'notch':
-      case 'bore-axial':
-      case 'bore-transverse':
-        // Implemented in Phase 2/3.
+        // Implemented in a later task.
         continue
+      case 'bore-axial':
+        if (cut.diameter <= 0 || cut.depth <= 0) continue
+        current = makeCylinderCut(oc, current, computeAxialBoreTool(dowel, cut))
+        break
+      case 'bore-transverse':
+        if (cut.diameter <= 0 || cut.depth <= 0) continue
+        current = makeCylinderCut(oc, current, computeTransverseBoreTool(dowel, cut))
+        break
       default: {
         const _exhaustive: never = cut
         throw new Error(`unknown dowel cut kind: ${(_exhaustive as { kind: string }).kind}`)

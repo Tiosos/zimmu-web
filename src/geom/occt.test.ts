@@ -78,6 +78,28 @@ describe('geom/occt', () => {
     shape.delete()
   })
 
+  it.skip('makeDowelShape applies axial + transverse bores (needs WASM)', async () => {
+    const oc = await initOCCT()
+    const shape = makeDowelShape(oc, {
+      diameter: 8,
+      length: 100,
+      cuts: [
+        { kind: 'bore-axial', id: 'a', label: 'Bore 1', end: '+Z', diameter: 3, depth: 20 },
+        {
+          kind: 'bore-transverse',
+          id: 'b',
+          label: 'Bore 2',
+          position: 50,
+          azimuth: 0,
+          diameter: 3,
+          depth: 8,
+        },
+      ],
+    })
+    expect(shape).toBeTruthy()
+    shape.delete()
+  })
+
   it.skip('writeStep: one named board returns a STEP string (browser-only)', async () => {
     const oc = await initOCCT()
     const { writeStep } = await import('./occt')
