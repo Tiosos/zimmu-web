@@ -75,6 +75,8 @@ function App() {
     cancelCut,
     onFaceClick: onFaceClickCut,
     onFaceHover: onFaceHoverCut,
+    dowelTool,
+    armDowelTool,
   } = useAddCut({ parts: scene.parts, onUpdate, onSelect })
 
   const cameraStateRef = useRef<CameraState>({
@@ -321,6 +323,8 @@ function App() {
           onSnapToggle={handleActivateSnap}
           cutActive={cutActive}
           onCutToggle={handleActivateCut}
+          dowelTool={dowelTool}
+          armDowelTool={armDowelTool}
         />
       </div>
       {cuttingListOpen && (

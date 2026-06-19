@@ -78,6 +78,8 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     cutActive: false,
     onCutToggle: vi.fn(),
     onToggleVisible: vi.fn(),
+    dowelTool: null,
+    armDowelTool: vi.fn(),
     ...overrides,
   }
 }

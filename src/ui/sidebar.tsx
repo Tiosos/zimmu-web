@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import type { BoxCut, CutDef, CutId, MitreCut, Part, PartId, Scene } from '../scene/types'
+import type {
+  BoxCut,
+  CutDef,
+  CutId,
+  CylinderPart,
+  MitreCut,
+  Part,
+  PartId,
+  Scene,
+} from '../scene/types'
+import type { DowelCutTool } from '../scene/useAddCut'
+import { DowelCutsPanel } from './DowelCutsPanel'
 import { useDebouncedCallback } from './useDebouncedCallback'
 import { faceAxes } from '../scene/snapMath'
 import { PART_COLORS } from '../scene/palette'
@@ -43,6 +54,8 @@ interface SidebarProps {
   cutActive: boolean
   onCutToggle: () => void
   onToggleVisible: (id: PartId) => void
+  dowelTool: DowelCutTool | null
+  armDowelTool: (tool: DowelCutTool) => void
 }
 
 function DimInput({
@@ -463,6 +476,8 @@ function EditPanel({
   lastPlacedCutId,
   scene,
   nextLabel,
+  dowelTool,
+  armDowelTool,
 }: {
   part: Part
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
@@ -475,6 +490,8 @@ function EditPanel({
   lastPlacedCutId: CutId | null
   scene: Scene
   nextLabel: string
+  dowelTool: DowelCutTool | null
+  armDowelTool: (tool: DowelCutTool) => void
 }) {
   const [shapeOpen, setShapeOpen] = useState(true)
   const [posOpen, setPosOpen] = useState(true)
@@ -660,6 +677,21 @@ function EditPanel({
         </CollapsibleContent>
       </Collapsible>
 
+      {/* Cuts section — cylinder */}
+      {part.kind === 'cylinder' && (
+        <>
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground py-1.5">
+            ▾ Cuts
+          </p>
+          <DowelCutsPanel
+            part={part as CylinderPart}
+            dowelTool={dowelTool}
+            armDowelTool={armDowelTool}
+            onUpdate={onUpdate}
+          />
+        </>
+      )}
+
       {/* Cuts section — board only */}
       {part.kind === 'board' && (
         <>
@@ -745,6 +777,8 @@ export function Sidebar({
   cutActive,
   onCutToggle,
   onToggleVisible,
+  dowelTool,
+  armDowelTool,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -889,6 +923,8 @@ export function Sidebar({
             lastPlacedCutId={lastPlacedCutId}
             scene={scene}
             nextLabel={nextLabel}
+            dowelTool={dowelTool}
+            armDowelTool={armDowelTool}
           />
         )}
 
