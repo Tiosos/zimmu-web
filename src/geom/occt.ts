@@ -261,7 +261,7 @@ export function makeCylinderCut(
 }
 
 // Build a cylinder from a dowel's dims and fold each cut through a subtraction,
-// mirroring makeShape. Bore/notch arms are implemented in later tasks.
+// mirroring makeShape.
 export function makeDowelShape(
   oc: OpenCascadeInstance,
   dims: { diameter: number; length: number; cuts: DowelCut[] },
