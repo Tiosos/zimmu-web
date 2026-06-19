@@ -96,7 +96,7 @@ export interface UseSceneResult {
   redo: () => void
 }
 
-function buildSpecForPart(part: Part): BuildSpec {
+export function buildSpecForPart(part: Part): BuildSpec {
   if (part.kind === 'board') {
     return {
       kind: 'board',
@@ -106,7 +106,7 @@ function buildSpecForPart(part: Part): BuildSpec {
       cuts: part.cuts,
     }
   }
-  return { kind: 'cylinder', diameter: part.diameter, length: part.length }
+  return { kind: 'cylinder', diameter: part.diameter, length: part.length, cuts: part.cuts }
 }
 
 export function useScene(): UseSceneResult {
@@ -893,6 +893,7 @@ export function useScene(): UseSceneResult {
             label: p.label,
             diameter: p.diameter,
             length: p.length,
+            cuts: p.cuts,
             matrix: Array.from(composeWorldMatrix(p)),
           },
     )

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import type { BoardPart, BoxCut, CutDef, Part, PartId } from './types'
+import type { BoardPart, BoxCut, CutDef, CylinderPart, Part, PartId } from './types'
 
 function asBoard(p: Part): BoardPart {
   if (p.kind !== 'board') throw new Error('expected board part')
@@ -21,7 +21,7 @@ vi.stubGlobal(
   vi.fn(function MockWorker() {}),
 )
 
-import { useScene } from './useScene'
+import { useScene, buildSpecForPart } from './useScene'
 
 describe('useScene', () => {
   beforeEach(() => {
@@ -1422,5 +1422,32 @@ describe('useScene', () => {
     const clone = result.current.scene.parts[result.current.scene.parts.length - 1]
     expect(clone.id).not.toBe(orig.id)
     expect(clone.kind).toBe('cylinder')
+  })
+})
+
+describe('buildSpecForPart — cylinder cuts', () => {
+  it('passes dowel cuts through to the build spec', () => {
+    const part: CylinderPart = {
+      kind: 'cylinder',
+      id: 'd1',
+      label: 'Dowel 1',
+      diameter: 8,
+      length: 100,
+      material: '',
+      color: '#fff',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      cuts: [
+        { kind: 'end', id: 'c1', label: 'End 1', end: '+Z', offset: 0, angle: 45, azimuth: 0 },
+      ],
+      visible: true,
+    }
+    const spec = buildSpecForPart(part)
+    expect(spec.kind).toBe('cylinder')
+    if (spec.kind === 'cylinder') {
+      expect(spec.cuts).toHaveLength(1)
+      expect(spec.cuts[0]).toMatchObject({ kind: 'end', angle: 45 })
+    }
   })
 })

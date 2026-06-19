@@ -258,6 +258,7 @@ export type ExportSpec =
       label: string
       diameter: number
       length: number
+      cuts: DowelCut[]
       matrix: number[]
     }
 
@@ -295,7 +296,7 @@ function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS
       shape = makeShape(oc, spec)
       break
     case 'cylinder':
-      shape = makeCylinder(oc, spec.diameter / 2, spec.length)
+      shape = makeDowelShape(oc, { diameter: spec.diameter, length: spec.length, cuts: spec.cuts })
       break
     default: {
       const _exhaustive: never = spec
