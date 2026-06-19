@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initOCCT, makeBox, makeCut, makeShape, makeCylinder } from './occt'
+import { initOCCT, makeBox, makeCut, makeShape, makeCylinder, makeDowelShape } from './occt'
 
 // Smoke test for the kernel seam. opencascade.js 1.x WASM expects a browser-like
 // global, so the actual init calls are skipped in Node and will be exercised via
@@ -63,6 +63,19 @@ describe('geom/occt', () => {
   it.skip('buildPart: board produces mesh data (browser-only)', () => {
     // Full integration verified manually: pnpm dev → add a board → geometry renders
     // Playwright E2E arrives in weekend 11.
+  })
+
+  it.skip('makeDowelShape applies an end cut without throwing (needs WASM)', async () => {
+    const oc = await initOCCT()
+    const shape = makeDowelShape(oc, {
+      diameter: 8,
+      length: 100,
+      cuts: [
+        { kind: 'end', id: 'c1', label: 'End 1', end: '+Z', offset: 0, angle: 45, azimuth: 0 },
+      ],
+    })
+    expect(shape).toBeTruthy()
+    shape.delete()
   })
 
   it.skip('writeStep: one named board returns a STEP string (browser-only)', async () => {
