@@ -68,18 +68,19 @@ test('adding a dowel renders through the OCCT cylinder kernel path', async ({ pa
   const addDowel = page.getByRole('button', { name: '+ Dowel' })
   await expect(addDowel).toBeEnabled({ timeout: OCCT_READY_TIMEOUT })
 
+  // Hide the default board BEFORE adding the dowel. At boot nothing is selected,
+  // so the EditPanel is closed and the parts-list visibility toggle is clickable.
+  // (Adding the dowel first selects it and opens the EditPanel — whose content
+  // overlaps the toggle and intercepts the click.) The toggle's accessible name
+  // is the "●" glyph, so target the title attribute directly. With the board
+  // hidden, only the dowel can color the viewport — so a non-blank canvas proves
+  // the dowel's live WASM build/mesh path (makeCylinder → BRepPrimAPI_MakeCylinder).
+  await page.locator('button[title="Hide"]').first().click()
+
   await addDowel.click()
 
   // First dowel is labeled "Dowel 1" (src/scene/useScene.ts).
   await expect(page.getByText('Dowel 1')).toBeVisible()
-
-  // Hide the default board (its row is first; the toggle carries title="Hide"
-  // but its accessible name is the "●" glyph, so target the title attribute
-  // directly) so only the dowel can color the viewport. This isolates the
-  // dowel's live WASM build/mesh path (makeCylinder → BRepPrimAPI_MakeCylinder)
-  // — the SP1 render blocker. If that path fails, no dowel mesh paints and the
-  // canvas stays the uniform clear color, failing the poll below.
-  await page.locator('button[title="Hide"]').first().click()
 
   const canvas = await viewportCanvas(page)
   await expect
