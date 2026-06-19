@@ -1,9 +1,9 @@
 import { expose, transfer } from 'comlink'
-import { initOCCT, makeShape, makeCylinder, writeStep } from './occt'
+import { initOCCT, makeShape, makeDowelShape, writeStep } from './occt'
 import type { ExportSpec } from './occt'
 import type { TopoDS_Shape } from 'opencascade.js'
 import { shapeToMeshData } from './mesh'
-import type { CutDef } from '../scene/types'
+import type { CutDef, DowelCut } from '../scene/types'
 
 export type BuildSpec =
   | {
@@ -13,7 +13,7 @@ export type BuildSpec =
       thickness: number
       cuts: CutDef[]
     }
-  | { kind: 'cylinder'; diameter: number; length: number }
+  | { kind: 'cylinder'; diameter: number; length: number; cuts: DowelCut[] }
 
 const MESH_OPTS = { linearDeflection: 0.1, angularDeflection: 0.5 }
 
@@ -26,7 +26,11 @@ const api = {
         shape = makeShape(oc, spec)
         break
       case 'cylinder':
-        shape = makeCylinder(oc, spec.diameter / 2, spec.length)
+        shape = makeDowelShape(oc, {
+          diameter: spec.diameter,
+          length: spec.length,
+          cuts: spec.cuts,
+        })
         break
       default: {
         const _exhaustive: never = spec

@@ -61,7 +61,12 @@ export function parseFile(text: string): ZimmuFile {
               visible: p.visible ?? true,
               material: p.material ?? '',
             }
-          : { ...p, visible: p.visible ?? true, material: p.material ?? '' },
+          : {
+              ...p,
+              cuts: Array.isArray(p.cuts) ? p.cuts : [],
+              visible: p.visible ?? true,
+              material: p.material ?? '',
+            },
       ),
       materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
       hardware: raw.scene.hardware ?? [],

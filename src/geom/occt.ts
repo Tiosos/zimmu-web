@@ -1,6 +1,14 @@
 import type { OpenCascadeInstance, TopoDS_Shape } from 'opencascade.js'
-import type { CutDef, MitreCut, Vec3 } from '../scene/types'
+import type { CutDef, DowelCut, MitreCut, Vec3 } from '../scene/types'
 import { computeMitreTool } from './mitre'
+import {
+  computeEndTool,
+  computeNotchTool,
+  computeAxialBoreTool,
+  computeTransverseBoreTool,
+  type BoxToolDescriptor,
+  type CylinderToolDescriptor,
+} from './dowelCut'
 
 // Single OCCT instance per page load. Initialization downloads and instantiates
 // a ~65MB WASM module, so it must only happen once.
@@ -152,6 +160,144 @@ export function makeMitreCut(
   return result
 }
 
+// Rotate + translate an oversized box and subtract it. Generalizes makeMitreCut's
+// body; serves dowel end cuts and notches. makeMitreCut is left as-is for boards.
+export function makeBoxCutAt(
+  oc: OpenCascadeInstance,
+  shape: TopoDS_Shape,
+  tool: BoxToolDescriptor,
+): TopoDS_Shape {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const O = oc as any
+  const builder = new O.BRepPrimAPI_MakeBox_1(tool.boxSize.x, tool.boxSize.y, tool.boxSize.z)
+  const boxShape = builder.Shape()
+  builder.delete()
+
+  const tTrsf = new O.gp_Trsf_1()
+  const tVec = new O.gp_Vec_4(tool.boxOrigin.x, tool.boxOrigin.y, tool.boxOrigin.z)
+  tTrsf.SetTranslation_1(tVec)
+  tVec.delete()
+  const tXform = new O.BRepBuilderAPI_Transform_2(boxShape, tTrsf, false)
+  tTrsf.delete()
+  const translated = tXform.Shape()
+
+  const rTrsf = new O.gp_Trsf_1()
+  const pnt = new O.gp_Pnt_3(tool.pivot.x, tool.pivot.y, tool.pivot.z)
+  const dir = new O.gp_Dir_4(tool.axisDir.x, tool.axisDir.y, tool.axisDir.z)
+  const ax1 = new O.gp_Ax1_2(pnt, dir)
+  rTrsf.SetRotation_1(ax1, tool.angleRad)
+  pnt.delete()
+  dir.delete()
+  ax1.delete()
+  const rXform = new O.BRepBuilderAPI_Transform_2(translated, rTrsf, false)
+  rTrsf.delete()
+  const movedTool = rXform.Shape()
+
+  const pr1 = new O.Message_ProgressRange_1()
+  const op = new O.BRepAlgoAPI_Cut_3(shape, movedTool, pr1)
+  pr1.delete()
+  const pr2 = new O.Message_ProgressRange_1()
+  op.Build(pr2)
+  pr2.delete()
+
+  const cleanup = () => {
+    op.delete()
+    rXform.delete()
+    movedTool.delete()
+    tXform.delete()
+    translated.delete()
+    boxShape.delete()
+  }
+
+  if (!op.IsDone()) {
+    console.warn('makeBoxCutAt: BRepAlgoAPI_Cut did not complete — returning input shape')
+    cleanup()
+    return shape
+  }
+  const result = op.Shape()
+  cleanup()
+  return result
+}
+
+// Build an oriented cylinder tool and subtract it. Serves both bore types.
+// gp_Ax2_3 / BRepPrimAPI_MakeCylinder_3 overloads are this design's best read of
+// the embind API and are UNVERIFIED until the live OCCT spike (browser-only).
+export function makeCylinderCut(
+  oc: OpenCascadeInstance,
+  shape: TopoDS_Shape,
+  tool: CylinderToolDescriptor,
+): TopoDS_Shape {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const O = oc as any
+  const pnt = new O.gp_Pnt_3(tool.basePoint.x, tool.basePoint.y, tool.basePoint.z)
+  const dir = new O.gp_Dir_4(tool.dir.x, tool.dir.y, tool.dir.z)
+  const ax2 = new O.gp_Ax2_3(pnt, dir)
+  const builder = new O.BRepPrimAPI_MakeCylinder_3(ax2, tool.radius, tool.height)
+  const toolShape = builder.Shape()
+  builder.delete()
+  ax2.delete()
+  pnt.delete()
+  dir.delete()
+
+  const pr1 = new O.Message_ProgressRange_1()
+  const op = new O.BRepAlgoAPI_Cut_3(shape, toolShape, pr1)
+  pr1.delete()
+  const pr2 = new O.Message_ProgressRange_1()
+  op.Build(pr2)
+  pr2.delete()
+
+  const cleanup = () => {
+    op.delete()
+    toolShape.delete()
+  }
+  if (!op.IsDone()) {
+    console.warn('makeCylinderCut: BRepAlgoAPI_Cut did not complete — returning input shape')
+    cleanup()
+    return shape
+  }
+  const result = op.Shape()
+  cleanup()
+  return result
+}
+
+// Build a cylinder from a dowel's dims and fold each cut through a subtraction,
+// mirroring makeShape.
+export function makeDowelShape(
+  oc: OpenCascadeInstance,
+  dims: { diameter: number; length: number; cuts: DowelCut[] },
+): TopoDS_Shape {
+  const sorted = dims.cuts.slice().sort((a, b) => a.id.localeCompare(b.id))
+  let current = makeCylinder(oc, dims.diameter / 2, dims.length)
+  const dowel = { diameter: dims.diameter, length: dims.length }
+  for (const cut of sorted) {
+    const prev = current
+    switch (cut.kind) {
+      case 'end':
+        if (cut.angle <= 0 && cut.offset <= 0) continue
+        current = makeBoxCutAt(oc, current, computeEndTool(dowel, cut))
+        break
+      case 'notch':
+        if (cut.depth <= 0 || cut.width <= 0) continue
+        current = makeBoxCutAt(oc, current, computeNotchTool(dowel, cut))
+        break
+      case 'bore-axial':
+        if (cut.diameter <= 0 || cut.depth <= 0) continue
+        current = makeCylinderCut(oc, current, computeAxialBoreTool(dowel, cut))
+        break
+      case 'bore-transverse':
+        if (cut.diameter <= 0 || cut.depth <= 0) continue
+        current = makeCylinderCut(oc, current, computeTransverseBoreTool(dowel, cut))
+        break
+      default: {
+        const _exhaustive: never = cut
+        throw new Error(`unknown dowel cut kind: ${(_exhaustive as { kind: string }).kind}`)
+      }
+    }
+    if (prev !== current) prev.delete()
+  }
+  return current
+}
+
 export type ExportSpec =
   | {
       kind: 'board'
@@ -167,6 +313,7 @@ export type ExportSpec =
       label: string
       diameter: number
       length: number
+      cuts: DowelCut[]
       matrix: number[]
     }
 
@@ -204,7 +351,7 @@ function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS
       shape = makeShape(oc, spec)
       break
     case 'cylinder':
-      shape = makeCylinder(oc, spec.diameter / 2, spec.length)
+      shape = makeDowelShape(oc, { diameter: spec.diameter, length: spec.length, cuts: spec.cuts })
       break
     default: {
       const _exhaustive: never = spec

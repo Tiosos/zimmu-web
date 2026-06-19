@@ -96,7 +96,7 @@ export interface UseSceneResult {
   redo: () => void
 }
 
-function buildSpecForPart(part: Part): BuildSpec {
+export function buildSpecForPart(part: Part): BuildSpec {
   if (part.kind === 'board') {
     return {
       kind: 'board',
@@ -106,7 +106,7 @@ function buildSpecForPart(part: Part): BuildSpec {
       cuts: part.cuts,
     }
   }
-  return { kind: 'cylinder', diameter: part.diameter, length: part.length }
+  return { kind: 'cylinder', diameter: part.diameter, length: part.length, cuts: part.cuts }
 }
 
 export function useScene(): UseSceneResult {
@@ -306,6 +306,7 @@ export function useScene(): UseSceneResult {
           position: { x: 0, y: 0, z: 0 },
           rotation: { x: 0, y: 0, z: 0 },
           rotationOrder: 'XYZ',
+          cuts: [],
           visible: true,
         }
       }
@@ -386,6 +387,7 @@ export function useScene(): UseSceneResult {
           position: { ...orig.position, x: orig.position.x + orig.diameter + 10 },
           rotation: { x: 0, y: 0, z: 0 },
           visible: true,
+          cuts: orig.cuts.map((c) => ({ ...c, id: `cut_${crypto.randomUUID()}` as CutId })),
         }
       }
       setScene((prev) => {
@@ -891,6 +893,7 @@ export function useScene(): UseSceneResult {
             label: p.label,
             diameter: p.diameter,
             length: p.length,
+            cuts: p.cuts,
             matrix: Array.from(composeWorldMatrix(p)),
           },
     )

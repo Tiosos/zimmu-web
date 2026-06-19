@@ -30,6 +30,47 @@ export interface MitreCut {
 
 export type CutDef = BoxCut | MitreCut
 
+export interface DowelEndCut {
+  kind: 'end'
+  id: CutId
+  label: string
+  end: '+Z' | '-Z' // which cap the cut acts on
+  offset: number // mm inward from that end where the cut plane crosses the axis
+  angle: number // degrees tilt from perpendicular; 0 = square trim
+  azimuth: number // degrees around the axis; direction the tilt faces (used when angle > 0)
+}
+
+export interface DowelNotch {
+  kind: 'notch'
+  id: CutId
+  label: string
+  position: number // mm along axis — notch center
+  width: number // mm extent along axis
+  depth: number // mm radial depth (0..diameter); depth = radius ⇒ half-lap
+  azimuth: number // degrees around axis — which side the notch faces
+}
+
+export interface DowelBoreAxial {
+  kind: 'bore-axial'
+  id: CutId
+  label: string
+  end: '+Z' | '-Z' // which end the hole is drilled from
+  diameter: number // mm
+  depth: number // mm; depth ≥ length ⇒ through
+}
+
+export interface DowelBoreTransverse {
+  kind: 'bore-transverse'
+  id: CutId
+  label: string
+  position: number // mm along axis — hole center
+  azimuth: number // degrees around axis — direction the hole enters
+  diameter: number // mm
+  depth: number // mm; depth ≥ diameter ⇒ through
+}
+
+export type DowelCut = DowelEndCut | DowelNotch | DowelBoreAxial | DowelBoreTransverse
+
 export interface BoardPart {
   kind: 'board'
   id: PartId
@@ -57,6 +98,7 @@ export interface CylinderPart {
   position: Vec3 // base-circle center; local origin lies on the axis
   rotation: Vec3
   rotationOrder: 'XYZ'
+  cuts: DowelCut[]
   visible: boolean
 }
 

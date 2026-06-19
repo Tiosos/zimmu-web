@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initOCCT, makeBox, makeCut, makeShape, makeCylinder } from './occt'
+import { initOCCT, makeBox, makeCut, makeShape, makeCylinder, makeDowelShape } from './occt'
 
 // Smoke test for the kernel seam. opencascade.js 1.x WASM expects a browser-like
 // global, so the actual init calls are skipped in Node and will be exercised via
@@ -63,6 +63,54 @@ describe('geom/occt', () => {
   it.skip('buildPart: board produces mesh data (browser-only)', () => {
     // Full integration verified manually: pnpm dev → add a board → geometry renders
     // Playwright E2E arrives in weekend 11.
+  })
+
+  it.skip('makeDowelShape applies an end cut without throwing (needs WASM)', async () => {
+    const oc = await initOCCT()
+    const shape = makeDowelShape(oc, {
+      diameter: 8,
+      length: 100,
+      cuts: [
+        { kind: 'end', id: 'c1', label: 'End 1', end: '+Z', offset: 0, angle: 45, azimuth: 0 },
+      ],
+    })
+    expect(shape).toBeTruthy()
+    shape.delete()
+  })
+
+  it.skip('makeDowelShape applies axial + transverse bores (needs WASM)', async () => {
+    const oc = await initOCCT()
+    const shape = makeDowelShape(oc, {
+      diameter: 8,
+      length: 100,
+      cuts: [
+        { kind: 'bore-axial', id: 'a', label: 'Bore 1', end: '+Z', diameter: 3, depth: 20 },
+        {
+          kind: 'bore-transverse',
+          id: 'b',
+          label: 'Bore 2',
+          position: 50,
+          azimuth: 0,
+          diameter: 3,
+          depth: 8,
+        },
+      ],
+    })
+    expect(shape).toBeTruthy()
+    shape.delete()
+  })
+
+  it.skip('makeDowelShape applies a notch (needs WASM)', async () => {
+    const oc = await initOCCT()
+    const shape = makeDowelShape(oc, {
+      diameter: 8,
+      length: 100,
+      cuts: [
+        { kind: 'notch', id: 'n', label: 'Notch 1', position: 50, width: 20, depth: 4, azimuth: 0 },
+      ],
+    })
+    expect(shape).toBeTruthy()
+    shape.delete()
   })
 
   it.skip('writeStep: one named board returns a STEP string (browser-only)', async () => {

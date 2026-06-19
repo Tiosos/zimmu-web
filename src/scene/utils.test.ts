@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { BoardPart, CutDef, Part } from './types'
+import type { BoardPart, CutDef, CylinderPart, Part } from './types'
 import { shapeKey } from './utils'
 
 const board: BoardPart = {
@@ -199,8 +199,67 @@ describe('shapeKey', () => {
       position: { x: 5, y: 6, z: 7 },
       rotation: { x: 10, y: 0, z: 0 },
       rotationOrder: 'XYZ',
+      cuts: [],
       visible: true,
     }
-    expect(shapeKey(dowel)).toBe('cylinder|8|100')
+    expect(shapeKey(dowel)).toBe('cylinder|8|100|')
+  })
+})
+
+function dowel(over: Partial<CylinderPart> = {}): CylinderPart {
+  return {
+    kind: 'cylinder',
+    id: 'd1',
+    label: 'Dowel 1',
+    diameter: 8,
+    length: 100,
+    material: '',
+    color: '#fff',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+    ...over,
+  }
+}
+
+describe('shapeKey — cylinder cuts', () => {
+  it('changes when a cut is added', () => {
+    const base = shapeKey(dowel())
+    const withCut = shapeKey(
+      dowel({
+        cuts: [
+          { kind: 'end', id: 'c1', label: 'End 1', end: '+Z', offset: 0, angle: 45, azimuth: 0 },
+        ],
+      }),
+    )
+    expect(withCut).not.toBe(base)
+  })
+
+  it('is stable regardless of cut array order', () => {
+    const a = shapeKey(
+      dowel({
+        cuts: [
+          { kind: 'end', id: 'c1', label: 'End 1', end: '+Z', offset: 0, angle: 45, azimuth: 0 },
+          { kind: 'end', id: 'c2', label: 'End 2', end: '-Z', offset: 0, angle: 30, azimuth: 0 },
+        ],
+      }),
+    )
+    const b = shapeKey(
+      dowel({
+        cuts: [
+          { kind: 'end', id: 'c2', label: 'End 2', end: '-Z', offset: 0, angle: 30, azimuth: 0 },
+          { kind: 'end', id: 'c1', label: 'End 1', end: '+Z', offset: 0, angle: 45, azimuth: 0 },
+        ],
+      }),
+    )
+    expect(a).toBe(b)
+  })
+
+  it('ignores position/rotation', () => {
+    const a = shapeKey(dowel())
+    const b = shapeKey(dowel({ position: { x: 50, y: 0, z: 0 }, rotation: { x: 1, y: 0, z: 0 } }))
+    expect(a).toBe(b)
   })
 })

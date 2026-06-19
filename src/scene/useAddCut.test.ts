@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useAddCut } from './useAddCut'
-import type { BoardPart, BoxCut, FaceHit, Part } from './types'
+import type { BoardPart, BoxCut, CylinderPart, FaceHit, Part } from './types'
 
 const mockPart: BoardPart = {
   kind: 'board',
@@ -221,5 +221,125 @@ describe('useAddCut', () => {
     const updater = onUpdate.mock.calls[0][1] as (p: BoardPart) => BoardPart
     const cut = updater(partWithOneCut).cuts[1]
     expect(cut.label).toBe('Cut 2')
+  })
+})
+
+function dowel(): CylinderPart {
+  return {
+    kind: 'cylinder',
+    id: 'd1',
+    label: 'Dowel 1',
+    diameter: 8,
+    length: 100,
+    material: '',
+    color: '#fff',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+  }
+}
+function capHit(): FaceHit {
+  return {
+    partId: 'd1',
+    faceNormal: { x: 0, y: 0, z: 1 },
+    faceCenter: { x: 0, y: 0, z: 100 },
+    localFaceNormal: { x: 0, y: 0, z: 1 },
+    localHitPoint: { x: 2, y: 0, z: 100 },
+  }
+}
+function lateralHit(): FaceHit {
+  return {
+    partId: 'd1',
+    faceNormal: { x: 1, y: 0, z: 0 },
+    faceCenter: { x: 4, y: 0, z: 50 },
+    localFaceNormal: { x: 1, y: 0, z: 0 },
+    localHitPoint: { x: 4, y: 0, z: 50 },
+  }
+}
+
+describe('useAddCut — dowel end tool', () => {
+  it('adds an end cut when the End tool is armed and a cap is clicked', () => {
+    let parts: Part[] = [dowel()]
+    const onUpdate = vi.fn((id, updater) => {
+      parts = parts.map((p) => (p.id === id ? updater(p) : p))
+    })
+    const { result } = renderHook(() => useAddCut({ parts, onUpdate, onSelect: vi.fn() }))
+    act(() => result.current.armDowelTool('end'))
+    act(() => result.current.onFaceClick(capHit()))
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    const updated = parts[0] as CylinderPart
+    expect(updated.cuts).toHaveLength(1)
+    expect(updated.cuts[0]).toMatchObject({ kind: 'end', end: '+Z' })
+  })
+
+  it('ignores a lateral click when the End tool is armed (surface mismatch)', () => {
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() =>
+      useAddCut({ parts: [dowel()], onUpdate, onSelect: vi.fn() }),
+    )
+    act(() => result.current.armDowelTool('end'))
+    act(() => result.current.onFaceClick(lateralHit()))
+    expect(onUpdate).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when no dowel tool is armed', () => {
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() =>
+      useAddCut({ parts: [dowel()], onUpdate, onSelect: vi.fn() }),
+    )
+    act(() => result.current.onFaceClick(capHit()))
+    expect(onUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('useAddCut — dowel bore tools', () => {
+  it('Axial bore on a cap seeds a bore', () => {
+    let parts: Part[] = [dowel()]
+    const onUpdate = vi.fn((id, updater) => {
+      parts = parts.map((p) => (p.id === id ? updater(p) : p))
+    })
+    const { result } = renderHook(() => useAddCut({ parts, onUpdate, onSelect: vi.fn() }))
+    act(() => result.current.armDowelTool('bore-axial'))
+    act(() => result.current.onFaceClick(capHit()))
+    const cut = (parts[0] as CylinderPart).cuts[0]
+    expect(cut).toMatchObject({ kind: 'bore-axial', end: '+Z' })
+  })
+
+  it('Transverse bore on the lateral surface uses the hit azimuth + height', () => {
+    let parts: Part[] = [dowel()]
+    const onUpdate = vi.fn((id, updater) => {
+      parts = parts.map((p) => (p.id === id ? updater(p) : p))
+    })
+    const { result } = renderHook(() => useAddCut({ parts, onUpdate, onSelect: vi.fn() }))
+    act(() => result.current.armDowelTool('bore-transverse'))
+    act(() => result.current.onFaceClick(lateralHit()))
+    const cut = (parts[0] as CylinderPart).cuts[0]
+    expect(cut).toMatchObject({ kind: 'bore-transverse', position: 50, azimuth: 0 })
+  })
+})
+
+describe('useAddCut — dowel notch tool', () => {
+  it('Notch tool on the lateral surface seeds a notch at the hit', () => {
+    let parts: Part[] = [dowel()]
+    const onUpdate = vi.fn((id, updater) => {
+      parts = parts.map((p) => (p.id === id ? updater(p) : p))
+    })
+    const { result } = renderHook(() => useAddCut({ parts, onUpdate, onSelect: vi.fn() }))
+    act(() => result.current.armDowelTool('notch'))
+    act(() => result.current.onFaceClick(lateralHit()))
+    const cut = (parts[0] as CylinderPart).cuts[0]
+    expect(cut).toMatchObject({ kind: 'notch', position: 50, azimuth: 0, depth: 2, width: 20 })
+  })
+
+  it('Notch tool ignores a cap click', () => {
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() =>
+      useAddCut({ parts: [dowel()], onUpdate, onSelect: vi.fn() }),
+    )
+    act(() => result.current.armDowelTool('notch'))
+    act(() => result.current.onFaceClick(capHit()))
+    expect(onUpdate).not.toHaveBeenCalled()
   })
 })
