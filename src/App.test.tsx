@@ -234,6 +234,7 @@ describe('App BOM integration', () => {
                 position: { x: 0, y: 0, z: 0 },
                 rotation: { x: 0, y: 0, z: 0 },
                 rotationOrder: 'XYZ' as const,
+                cuts: [],
                 visible: true,
               },
             ])

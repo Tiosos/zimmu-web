@@ -444,7 +444,7 @@ describe('useFile', () => {
       expect(p.length).toBe(100)
       expect(p.material).toBe('Beech')
     }
-    expect('cuts' in p).toBe(false)
+    if (p.kind === 'cylinder') expect(p.cuts).toEqual([])
   })
 
   it('setProjectName marks isDirty true and updates projectName', async () => {

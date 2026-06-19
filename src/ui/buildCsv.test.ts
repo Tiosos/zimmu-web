@@ -14,6 +14,7 @@ function makeDowel(over: Partial<CylinderPart> & { id: string }): Part {
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     rotationOrder: 'XYZ',
+    cuts: [],
     visible: true,
     ...over,
   }

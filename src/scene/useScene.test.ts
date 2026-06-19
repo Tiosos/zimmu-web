@@ -642,19 +642,23 @@ describe('useScene', () => {
 
     const id = result.current.scene.parts[0].id
     act(() => {
-      result.current.onUpdate(id, (p) => ({
-        ...p,
-        cuts: [
-          {
-            id: 'cut_1',
-            label: 'Cut 1',
-            kind: 'box' as const,
-            face: '+Z' as const,
-            position: { x: 90, y: 40, z: 15 },
-            size: { x: 20, y: 20, z: 10 },
-          },
-        ],
-      }))
+      result.current.onUpdate(
+        id,
+        (p) =>
+          ({
+            ...p,
+            cuts: [
+              {
+                id: 'cut_1',
+                label: 'Cut 1',
+                kind: 'box' as const,
+                face: '+Z' as const,
+                position: { x: 90, y: 40, z: 15 },
+                size: { x: 20, y: 20, z: 10 },
+              },
+            ],
+          }) as Part,
+      )
     })
 
     await waitFor(() =>
@@ -690,7 +694,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       const partId = result.current.scene.parts[0].id
       act(() => {
-        result.current.onUpdate(partId, (p) => ({ ...p, cuts: [cut1] }))
+        result.current.onUpdate(partId, (p) => ({ ...p, cuts: [cut1] }) as Part)
       })
       act(() => {
         result.current.onUpdateCut(partId, 'cut_1', (c) => ({
@@ -705,7 +709,7 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       const partId = result.current.scene.parts[0].id
       act(() => {
-        result.current.onUpdate(partId, (p) => ({ ...p, cuts: [cut1] }))
+        result.current.onUpdate(partId, (p) => ({ ...p, cuts: [cut1] }) as Part)
       })
       act(() => {
         result.current.onUpdateCut(partId, 'cut_1', (c) => ({
@@ -749,8 +753,8 @@ describe('useScene', () => {
       }
 
       act(() => {
-        result.current.onUpdate(partAId, (p) => ({ ...p, cuts: [cutA] }))
-        result.current.onUpdate(partBId, (p) => ({ ...p, cuts: [cutB] }))
+        result.current.onUpdate(partAId, (p) => ({ ...p, cuts: [cutA] }) as Part)
+        result.current.onUpdate(partBId, (p) => ({ ...p, cuts: [cutB] }) as Part)
       })
 
       // Update cut A's u-axis size (x for +Z face: axes.u='x')
@@ -816,19 +820,23 @@ describe('useScene', () => {
       const { result } = renderHook(() => useScene())
       const partId = result.current.scene.parts[0].id
       act(() => {
-        result.current.onUpdate(partId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_1',
-              label: 'Cut 1',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 0 },
-              size: { x: 20, y: 20, z: 10 },
-            },
-          ],
-        }))
+        result.current.onUpdate(
+          partId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_1',
+                  label: 'Cut 1',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 0 },
+                  size: { x: 20, y: 20, z: 10 },
+                },
+              ],
+            }) as Part,
+        )
       })
       act(() => {
         result.current.onRemoveCut(partId, 'cut_1')
@@ -847,33 +855,41 @@ describe('useScene', () => {
       const partBId = result.current.scene.parts[1].id
 
       act(() => {
-        result.current.onUpdate(partAId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_a',
-              label: 'A',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 20, y: 20, z: 10 },
-            },
-          ],
-        }))
-        result.current.onUpdate(partBId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_b',
-              label: 'B',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 20, y: 20, z: 10 },
-              pairedCutId: `${partAId}:cut_a`,
-            },
-          ],
-        }))
+        result.current.onUpdate(
+          partAId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_a',
+                  label: 'A',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 20, y: 20, z: 10 },
+                },
+              ],
+            }) as Part,
+        )
+        result.current.onUpdate(
+          partBId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_b',
+                  label: 'B',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 20, y: 20, z: 10 },
+                  pairedCutId: `${partAId}:cut_a`,
+                },
+              ],
+            }) as Part,
+        )
       })
 
       act(() => {
@@ -895,33 +911,41 @@ describe('useScene', () => {
       const partBId = result.current.scene.parts[1].id
 
       act(() => {
-        result.current.onUpdate(partAId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_a',
-              label: 'A',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 20, y: 20, z: 10 },
-            },
-          ],
-        }))
-        result.current.onUpdate(partBId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_b',
-              label: 'B',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 20, y: 20, z: 10 },
-              pairedCutId: `${partAId}:cut_a`,
-            },
-          ],
-        }))
+        result.current.onUpdate(
+          partAId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_a',
+                  label: 'A',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 20, y: 20, z: 10 },
+                },
+              ],
+            }) as Part,
+        )
+        result.current.onUpdate(
+          partBId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_b',
+                  label: 'B',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 20, y: 20, z: 10 },
+                  pairedCutId: `${partAId}:cut_a`,
+                },
+              ],
+            }) as Part,
+        )
       })
 
       act(() => {
@@ -950,32 +974,40 @@ describe('useScene', () => {
       const partBId = result.current.scene.parts[1].id
 
       act(() => {
-        result.current.onUpdate(partAId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_a',
-              label: 'A',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 30, y: 40, z: 10 },
-            },
-          ],
-        }))
-        result.current.onUpdate(partBId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_b',
-              label: 'B',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 10, y: 10, z: 10 },
-            },
-          ],
-        }))
+        result.current.onUpdate(
+          partAId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_a',
+                  label: 'A',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 30, y: 40, z: 10 },
+                },
+              ],
+            }) as Part,
+        )
+        result.current.onUpdate(
+          partBId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_b',
+                  label: 'B',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 10, y: 10, z: 10 },
+                },
+              ],
+            }) as Part,
+        )
       })
 
       act(() => {
@@ -1002,32 +1034,40 @@ describe('useScene', () => {
       const partAId = result.current.scene.parts[0].id
       const partBId = result.current.scene.parts[1].id
       act(() => {
-        result.current.onUpdate(partAId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_a',
-              label: 'A',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 30, y: 40, z: 10 },
-            },
-          ],
-        }))
-        result.current.onUpdate(partBId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_b',
-              label: 'B',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 10, y: 10, z: 10 },
-            },
-          ],
-        }))
+        result.current.onUpdate(
+          partAId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_a',
+                  label: 'A',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 30, y: 40, z: 10 },
+                },
+              ],
+            }) as Part,
+        )
+        result.current.onUpdate(
+          partBId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_b',
+                  label: 'B',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 10, y: 10, z: 10 },
+                },
+              ],
+            }) as Part,
+        )
       })
       act(() => {
         result.current.onLinkCuts(partAId, 'cut_a', partBId, 'cut_b')
@@ -1050,34 +1090,42 @@ describe('useScene', () => {
       const partAId = result.current.scene.parts[0].id
       const partBId = result.current.scene.parts[1].id
       act(() => {
-        result.current.onUpdate(partAId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_a',
-              label: 'A',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 20, y: 20, z: 10 },
-              pairedCutId: `${partBId}:cut_b`,
-            },
-          ],
-        }))
-        result.current.onUpdate(partBId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_b',
-              label: 'B',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 20, y: 20, z: 10 },
-              pairedCutId: `${partAId}:cut_a`,
-            },
-          ],
-        }))
+        result.current.onUpdate(
+          partAId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_a',
+                  label: 'A',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 20, y: 20, z: 10 },
+                  pairedCutId: `${partBId}:cut_b`,
+                },
+              ],
+            }) as Part,
+        )
+        result.current.onUpdate(
+          partBId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_b',
+                  label: 'B',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 20, y: 20, z: 10 },
+                  pairedCutId: `${partAId}:cut_a`,
+                },
+              ],
+            }) as Part,
+        )
       })
       act(() => {
         result.current.onUnlinkCuts(partAId, 'cut_a')
@@ -1095,34 +1143,42 @@ describe('useScene', () => {
       const partAId = result.current.scene.parts[0].id
       const partBId = result.current.scene.parts[1].id
       act(() => {
-        result.current.onUpdate(partAId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_a',
-              label: 'A',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 20, y: 20, z: 10 },
-              pairedCutId: `${partBId}:cut_b`,
-            },
-          ],
-        }))
-        result.current.onUpdate(partBId, (p) => ({
-          ...p,
-          cuts: [
-            {
-              id: 'cut_b',
-              label: 'B',
-              kind: 'box' as const,
-              face: '+Z' as const,
-              position: { x: 0, y: 0, z: 15 },
-              size: { x: 20, y: 20, z: 10 },
-              pairedCutId: `${partAId}:cut_a`,
-            },
-          ],
-        }))
+        result.current.onUpdate(
+          partAId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_a',
+                  label: 'A',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 20, y: 20, z: 10 },
+                  pairedCutId: `${partBId}:cut_b`,
+                },
+              ],
+            }) as Part,
+        )
+        result.current.onUpdate(
+          partBId,
+          (p) =>
+            ({
+              ...p,
+              cuts: [
+                {
+                  id: 'cut_b',
+                  label: 'B',
+                  kind: 'box' as const,
+                  face: '+Z' as const,
+                  position: { x: 0, y: 0, z: 15 },
+                  size: { x: 20, y: 20, z: 10 },
+                  pairedCutId: `${partAId}:cut_a`,
+                },
+              ],
+            }) as Part,
+        )
       })
       act(() => {
         result.current.onUnlinkCuts(partAId, 'cut_a')

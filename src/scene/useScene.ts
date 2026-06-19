@@ -306,6 +306,7 @@ export function useScene(): UseSceneResult {
           position: { x: 0, y: 0, z: 0 },
           rotation: { x: 0, y: 0, z: 0 },
           rotationOrder: 'XYZ',
+          cuts: [],
           visible: true,
         }
       }
@@ -386,6 +387,7 @@ export function useScene(): UseSceneResult {
           position: { ...orig.position, x: orig.position.x + orig.diameter + 10 },
           rotation: { x: 0, y: 0, z: 0 },
           visible: true,
+          cuts: orig.cuts.map((c) => ({ ...c, id: `cut_${crypto.randomUUID()}` as CutId })),
         }
       }
       setScene((prev) => {

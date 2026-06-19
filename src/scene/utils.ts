@@ -14,7 +14,12 @@ export function shapeKey(part: Part): string {
     return `board|${part.length}|${part.width}|${part.thickness}|${cutKey}`
   }
   if (part.kind === 'cylinder') {
-    return `cylinder|${part.diameter}|${part.length}`
+    const cutKey = part.cuts
+      .slice()
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((c) => JSON.stringify(c))
+      .join(';')
+    return `cylinder|${part.diameter}|${part.length}|${cutKey}`
   }
   throw new Error(`unknown part kind: ${(part as { kind: string }).kind}`)
 }
