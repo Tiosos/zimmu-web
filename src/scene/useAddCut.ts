@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react'
-import type { CutDef, CutId, Face, FaceHit, Part, PartId } from './types'
+import type { CutDef, CutId, DowelCut, Face, FaceHit, Part, PartId } from './types'
 import { defaultCutSize, faceAxes } from './snapMath'
+import { dowelSurfaceFromNormal, azimuthFromHit } from '../geom/dowelCut'
+
+export type DowelCutTool = 'end' | 'notch' | 'bore-axial' | 'bore-transverse'
 
 export interface AddCutState {
   cutActive: boolean
@@ -10,6 +13,8 @@ export interface AddCutState {
   cancelCut: () => void
   onFaceClick: (hit: FaceHit) => void
   onFaceHover: (hit: FaceHit | null) => void
+  dowelTool: DowelCutTool | null
+  armDowelTool: (tool: DowelCutTool) => void
 }
 
 export function useAddCut(params: {
@@ -21,6 +26,7 @@ export function useAddCut(params: {
   const [cutActive, setCutActive] = useState(false)
   const [lastPlacedCutId, setLastPlacedCutId] = useState<CutId | null>(null)
   const [hoveredFace, setHoveredFace] = useState<FaceHit | null>(null)
+  const [dowelTool, setDowelTool] = useState<DowelCutTool | null>(null)
 
   const activateCut = useCallback(() => {
     setCutActive((v) => !v)
@@ -30,13 +36,85 @@ export function useAddCut(params: {
     setCutActive(false)
     setLastPlacedCutId(null)
     setHoveredFace(null)
+    setDowelTool(null)
+  }, [])
+
+  const armDowelTool = useCallback((tool: DowelCutTool) => {
+    setDowelTool((cur) => (cur === tool ? null : tool))
   }, [])
 
   const onFaceClick = useCallback(
     (hit: FaceHit) => {
-      if (!cutActive) return
       const part = parts.find((p) => p.id === hit.partId)
-      if (!part || part.kind !== 'board') return
+      if (!part) return
+
+      if (part.kind === 'cylinder') {
+        if (!dowelTool) return
+        const surface = dowelSurfaceFromNormal(hit.localFaceNormal)
+        const isCap = surface === 'cap+' || surface === 'cap-'
+        const end = surface === 'cap+' ? '+Z' : '-Z'
+        const h = hit.localHitPoint
+        const r = part.diameter / 2
+        const n = part.cuts.length + 1
+        const id = `cut_${crypto.randomUUID()}` as CutId
+        let newCut: DowelCut | null = null
+        switch (dowelTool) {
+          case 'end':
+            // NOTE: spec §4 said default angle 0; that is a no-op on click, so we
+            // seed 45° (a visible mitre) — recorded in the implementation notes.
+            if (isCap)
+              newCut = { kind: 'end', id, label: `End ${n}`, end, offset: 0, angle: 45, azimuth: 0 }
+            break
+          case 'bore-axial':
+            if (isCap)
+              newCut = {
+                kind: 'bore-axial',
+                id,
+                label: `Bore ${n}`,
+                end,
+                diameter: Math.max(2, part.diameter / 3),
+                depth: part.length,
+              }
+            break
+          case 'notch':
+            if (!isCap)
+              newCut = {
+                kind: 'notch',
+                id,
+                label: `Notch ${n}`,
+                position: h.z,
+                width: 20,
+                depth: r,
+                azimuth: azimuthFromHit(h),
+              }
+            break
+          case 'bore-transverse':
+            if (!isCap)
+              newCut = {
+                kind: 'bore-transverse',
+                id,
+                label: `Bore ${n}`,
+                position: h.z,
+                azimuth: azimuthFromHit(h),
+                diameter: Math.max(2, part.diameter / 3),
+                depth: part.diameter,
+              }
+            break
+        }
+        if (!newCut) return
+        const cut = newCut
+        onUpdate(
+          hit.partId,
+          (p) => (p.kind === 'cylinder' ? { ...p, cuts: [...p.cuts, cut] } : p),
+          'Add cut',
+        )
+        onSelect(hit.partId)
+        setLastPlacedCutId(cut.id)
+        setDowelTool(null)
+        return
+      }
+
+      if (!cutActive || part.kind !== 'board') return
 
       const lfn = hit.localFaceNormal
       const ax = Math.abs(lfn.x),
@@ -75,14 +153,14 @@ export function useAddCut(params: {
       onSelect(hit.partId)
       setLastPlacedCutId(cutId)
     },
-    [cutActive, parts, onUpdate, onSelect],
+    [cutActive, dowelTool, parts, onUpdate, onSelect],
   )
 
   const onFaceHover = useCallback(
     (hit: FaceHit | null) => {
-      setHoveredFace(cutActive ? hit : null)
+      setHoveredFace(cutActive || dowelTool ? hit : null)
     },
-    [cutActive],
+    [cutActive, dowelTool],
   )
 
   return {
@@ -93,5 +171,7 @@ export function useAddCut(params: {
     cancelCut,
     onFaceClick,
     onFaceHover,
+    dowelTool,
+    armDowelTool,
   }
 }
