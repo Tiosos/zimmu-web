@@ -24,9 +24,8 @@ export function groupParts(
   for (const p of parts) {
     if (p.kind !== 'board') continue
     const key = `${p.length}×${p.width}×${p.thickness}|${p.material}|${p.color}`
-    const rate = materials[p.material]
-    const costPerUnit =
-      rate !== undefined ? ((p.length * p.width) / 1_000_000) * rate.costPerM2 : null
+    const rate = materials[p.material]?.costPerM2
+    const costPerUnit = rate !== undefined ? ((p.length * p.width) / 1_000_000) * rate : null
     const existing = map.get(key)
     if (existing) {
       existing.qty += 1
@@ -77,6 +76,72 @@ export function buildCsv(parts: Part[], materials: Record<string, MaterialDef> =
 
   const boardTotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
   const subtotalRow = `,,,,,,,,Board total,${boardTotal.toFixed(2)}`
+  return [header, ...dataRows, subtotalRow].join('\n')
+}
+
+export interface DowelRow {
+  key: string
+  qty: number
+  labels: string
+  material: string
+  color: string
+  diameter: number
+  length: number
+  costPerUnit: number | null // null = no costPerM rate for this material
+  totalCost: number | null
+}
+
+export function groupDowels(
+  parts: Part[],
+  materials: Record<string, MaterialDef> = {},
+): DowelRow[] {
+  const order: string[] = []
+  const map = new Map<string, DowelRow>()
+
+  for (const p of parts) {
+    if (p.kind !== 'cylinder') continue
+    const key = `${p.diameter}×${p.length}|${p.material}|${p.color}`
+    const rate = materials[p.material]?.costPerM
+    const costPerUnit = rate !== undefined ? (p.length / 1000) * rate : null
+    const existing = map.get(key)
+    if (existing) {
+      existing.qty += 1
+      existing.labels += `, ${p.label}`
+      existing.totalCost =
+        existing.costPerUnit !== null ? existing.costPerUnit * existing.qty : null
+    } else {
+      order.push(key)
+      map.set(key, {
+        key,
+        qty: 1,
+        labels: p.label,
+        material: p.material,
+        color: p.color,
+        diameter: p.diameter,
+        length: p.length,
+        costPerUnit,
+        totalCost: costPerUnit,
+      })
+    }
+  }
+
+  return order.map((k) => map.get(k)!)
+}
+
+export function buildDowelCsv(parts: Part[], materials: Record<string, MaterialDef> = {}): string {
+  const header = 'Qty,Labels,Material,Color,Diameter (mm),Length (mm),Cost/unit,Total'
+  const rows = groupDowels(parts, materials)
+  const dataRows = rows.map((row) => {
+    const costStr = row.costPerUnit !== null ? row.costPerUnit.toFixed(2) : ''
+    const totalStr = row.totalCost !== null ? row.totalCost.toFixed(2) : ''
+    return `${row.qty},${quoteField(row.labels)},${quoteField(row.material)},${row.color},${row.diameter},${row.length},${costStr},${totalStr}`
+  })
+
+  const anyHasCost = rows.some((r) => r.totalCost !== null)
+  if (!anyHasCost) return [header, ...dataRows].join('\n')
+
+  const dowelTotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
+  const subtotalRow = `,,,,,,Dowel total,${dowelTotal.toFixed(2)}`
   return [header, ...dataRows, subtotalRow].join('\n')
 }
 

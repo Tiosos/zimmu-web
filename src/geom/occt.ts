@@ -22,6 +22,19 @@ export function makeBox(oc: OpenCascadeInstance, dx: number, dy: number, dz: num
   return shape
 }
 
+export function makeCylinder(
+  oc: OpenCascadeInstance,
+  radius: number,
+  height: number,
+): TopoDS_Shape {
+  // BRepPrimAPI_MakeCylinder_2(R, H): default axis +Z, base circle centered at origin.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const builder = new (oc as any).BRepPrimAPI_MakeCylinder_2(radius, height)
+  const shape = builder.Shape()
+  builder.delete()
+  return shape
+}
+
 export function makeCut(
   oc: OpenCascadeInstance,
   shape: TopoDS_Shape,
@@ -139,14 +152,23 @@ export function makeMitreCut(
   return result
 }
 
-export interface ExportSpec {
-  label: string
-  length: number
-  width: number
-  thickness: number
-  cuts: CutDef[]
-  matrix: number[] // column-major 16, from composeWorldMatrix
-}
+export type ExportSpec =
+  | {
+      kind: 'board'
+      label: string
+      length: number
+      width: number
+      thickness: number
+      cuts: CutDef[]
+      matrix: number[] // column-major 16, from composeWorldMatrix
+    }
+  | {
+      kind: 'cylinder'
+      label: string
+      diameter: number
+      length: number
+      matrix: number[]
+    }
 
 export function makeShape(
   oc: OpenCascadeInstance,
@@ -176,7 +198,19 @@ export function makeShape(
 function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS_Shape {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const O = oc as any
-  const shape = makeShape(oc, spec)
+  let shape: TopoDS_Shape
+  switch (spec.kind) {
+    case 'board':
+      shape = makeShape(oc, spec)
+      break
+    case 'cylinder':
+      shape = makeCylinder(oc, spec.diameter / 2, spec.length)
+      break
+    default: {
+      const _exhaustive: never = spec
+      throw new Error(`unknown export spec kind: ${(_exhaustive as { kind: string }).kind}`)
+    }
+  }
   const trsf = new O.gp_Trsf_1()
   // gp_Trsf.SetValues expects row-major 3x4 (a11..a14, a21..a24, a31..a34).
   // spec.matrix is column-major: m[col*4 + row].

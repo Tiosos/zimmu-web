@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import type { CutDef, MaterialDef, Scene, CameraState, ZimmuFile } from './types'
+import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile } from './types'
 import * as idb from './idb'
 
 export const FILE_FORMAT_VERSION = 3
@@ -40,8 +40,8 @@ export function parseFile(text: string): ZimmuFile {
       `zimmu: file version ${raw.version} is newer than app version ${FILE_FORMAT_VERSION} — attempting to parse`,
     )
   }
-  const parts = (raw.scene?.parts ?? []).filter((p) => {
-    if (p.kind !== 'board') {
+  const parts = (raw.scene?.parts ?? []).filter((p): p is Part => {
+    if (p.kind !== 'board' && p.kind !== 'cylinder') {
       console.warn(`zimmu: unknown part kind "${(p as { kind: string }).kind}" — skipped`)
       return false
     }
@@ -50,15 +50,19 @@ export function parseFile(text: string): ZimmuFile {
   return {
     ...raw,
     scene: {
-      parts: parts.map((p) => ({
-        ...p,
-        // v2→v3: cuts gained a discriminated `kind`; legacy cuts are box cuts.
-        cuts: ((p.cuts ?? []) as unknown as Array<Record<string, unknown>>).map((c) =>
-          'kind' in c ? c : { ...c, kind: 'box' },
-        ) as unknown as CutDef[],
-        visible: p.visible ?? true,
-        material: p.material ?? '',
-      })),
+      parts: parts.map((p) =>
+        p.kind === 'board'
+          ? {
+              ...p,
+              // v2→v3: cuts gained a discriminated `kind`; legacy cuts are box cuts.
+              cuts: ((p.cuts ?? []) as unknown as Array<Record<string, unknown>>).map((c) =>
+                'kind' in c ? c : { ...c, kind: 'box' },
+              ) as unknown as CutDef[],
+              visible: p.visible ?? true,
+              material: p.material ?? '',
+            }
+          : { ...p, visible: p.visible ?? true, material: p.material ?? '' },
+      ),
       materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
       hardware: raw.scene.hardware ?? [],
     },

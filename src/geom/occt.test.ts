@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initOCCT, makeBox, makeCut, makeShape } from './occt'
+import { initOCCT, makeBox, makeCut, makeShape, makeCylinder } from './occt'
 
 // Smoke test for the kernel seam. opencascade.js 1.x WASM expects a browser-like
 // global, so the actual init calls are skipped in Node and will be exercised via
@@ -31,6 +31,17 @@ describe('geom/occt', () => {
     expect(typeof makeShape).toBe('function')
   })
 
+  it('exports makeCylinder', () => {
+    expect(typeof makeCylinder).toBe('function')
+  })
+
+  it.skip('makeCylinder returns a TopoDS_Shape (browser-only)', async () => {
+    const oc = await initOCCT()
+    const shape = makeCylinder(oc, 4, 100)
+    expect(shape).toBeTruthy()
+    shape.delete()
+  })
+
   it.skip('makeCut: board with one cut produces fewer triangles than bare board (browser-only)', async () => {
     const oc = await initOCCT()
     const board = makeBox(oc, 200, 100, 25)
@@ -59,6 +70,7 @@ describe('geom/occt', () => {
     const { writeStep } = await import('./occt')
     const text = writeStep(oc, [
       {
+        kind: 'board',
         label: 'Rail',
         length: 200,
         width: 100,

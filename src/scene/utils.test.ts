@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { BoardPart, CutDef } from './types'
+import type { BoardPart, CutDef, Part } from './types'
 import { shapeKey } from './utils'
 
 const board: BoardPart = {
@@ -185,5 +185,22 @@ describe('shapeKey', () => {
       ],
     }
     expect(shapeKey(base)).not.toBe(shapeKey(resized))
+  })
+
+  it('shapeKey for a cylinder encodes diameter and length only', () => {
+    const dowel: Part = {
+      kind: 'cylinder',
+      id: 'd1',
+      label: 'Dowel 1',
+      diameter: 8,
+      length: 100,
+      material: '',
+      color: '#888888',
+      position: { x: 5, y: 6, z: 7 },
+      rotation: { x: 10, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+    }
+    expect(shapeKey(dowel)).toBe('cylinder|8|100')
   })
 })

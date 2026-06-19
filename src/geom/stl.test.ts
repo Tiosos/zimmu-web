@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { buildBinaryStl } from './stl'
-import type { Part, PartId } from '../scene/types'
+import type { BoardPart, PartId } from '../scene/types'
 
-function part(overrides: Partial<Part> = {}): Part {
+function part(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
     kind: 'board',
     id: 'p1',

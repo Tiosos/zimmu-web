@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, act, cleanup } from '@testing-library/react'
+import { render, act, cleanup, screen, fireEvent, within } from '@testing-library/react'
 import App from './App'
+import type { Part } from './scene/types'
 
 const mockUndo = vi.fn()
 const mockRedo = vi.fn()
@@ -35,9 +37,15 @@ vi.mock('./scene/useAddCut', () => ({
   }),
 }))
 
+const mockUseScene = vi.fn()
+
 vi.mock('./scene/useScene', () => ({
-  useScene: () => ({
-    scene: { parts: [] },
+  useScene: (...args: unknown[]) => mockUseScene(...args),
+}))
+
+function makeDefaultSceneReturn() {
+  return {
+    scene: { parts: [], materials: {}, hardware: [] },
     geometries: new Map(),
     errors: new Map(),
     pendingIds: new Set(),
@@ -49,16 +57,23 @@ vi.mock('./scene/useScene', () => ({
     onDuplicate: mockOnDuplicate,
     onToggleVisible: mockOnToggleVisible,
     onUpdate: vi.fn(),
+    onUpdateCut: vi.fn(),
+    onRemoveCut: vi.fn(),
+    onLinkCuts: vi.fn(),
+    onUnlinkCuts: vi.fn(),
     onSelect: vi.fn(),
     replaceScene: vi.fn(),
+    exportStep: vi.fn(),
+    onUpdateMaterial: vi.fn(),
+    onUpdateHardware: vi.fn(),
     canUndo: true,
     canRedo: false,
     undoLabel: 'Add Board 1',
     redoLabel: null,
     undo: mockUndo,
     redo: mockRedo,
-  }),
-}))
+  }
+}
 
 vi.mock('./render/viewport', () => ({
   Viewport: () => null,
@@ -85,6 +100,7 @@ describe('App keyboard shortcuts', () => {
     vi.clearAllMocks()
     mockSnapActive = false
     mockCutActive = false
+    mockUseScene.mockImplementation(makeDefaultSceneReturn)
   })
 
   it('Delete calls onRemove with the selected part id', async () => {
@@ -179,5 +195,93 @@ describe('App keyboard shortcuts', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', bubbles: true }))
     })
     expect(mockOnToggleVisible).not.toHaveBeenCalled()
+  })
+})
+
+describe('App BOM integration', () => {
+  beforeEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    mockSnapActive = false
+    mockCutActive = false
+  })
+
+  it('adds a dowel and lists it in the Dowels BOM tab', async () => {
+    // Stateful mock: onAdd('cylinder') pushes a dowel into scene.parts so the
+    // BomModal sees it when it opens.
+    mockUseScene.mockImplementation(() => {
+      const [parts, setParts] = useState<Part[]>([])
+      return {
+        scene: { parts, materials: {}, hardware: [] },
+        geometries: new Map(),
+        errors: new Map(),
+        pendingIds: new Set(),
+        selectedId: null,
+        occtReady: true,
+        nextLabel: 'Board 1',
+        onAdd: (kind: 'board' | 'cylinder') => {
+          if (kind === 'cylinder') {
+            setParts((prev) => [
+              ...prev,
+              {
+                kind: 'cylinder' as const,
+                id: 'dowel_test_1',
+                label: 'Dowel 1',
+                diameter: 8,
+                length: 100,
+                material: '',
+                color: '#888888',
+                position: { x: 0, y: 0, z: 0 },
+                rotation: { x: 0, y: 0, z: 0 },
+                rotationOrder: 'XYZ' as const,
+                visible: true,
+              },
+            ])
+          }
+        },
+        onRemove: vi.fn(),
+        onDuplicate: vi.fn(),
+        onToggleVisible: vi.fn(),
+        onUpdate: vi.fn(),
+        onUpdateCut: vi.fn(),
+        onRemoveCut: vi.fn(),
+        onLinkCuts: vi.fn(),
+        onUnlinkCuts: vi.fn(),
+        onSelect: vi.fn(),
+        replaceScene: vi.fn(),
+        exportStep: vi.fn(),
+        onUpdateMaterial: vi.fn(),
+        onUpdateHardware: vi.fn(),
+        canUndo: false,
+        canRedo: false,
+        undoLabel: null,
+        redoLabel: null,
+        undo: vi.fn(),
+        redo: vi.fn(),
+      }
+    })
+
+    render(<App />)
+    await act(async () => {})
+
+    // Add a dowel via the sidebar button
+    fireEvent.click(screen.getByText('+ Dowel'))
+
+    // Open the BOM modal via Ctrl+Shift+E
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'E', shiftKey: true, ctrlKey: true, bubbles: true }),
+      )
+    })
+
+    // Switch to the Dowels tab
+    fireEvent.click(await screen.findByRole('tab', { name: 'Dowels' }))
+
+    // Scope assertions to the BOM panel to prove the Dowels tab actually rendered DowelList
+    const bomPanel = screen.getByTestId('bom-panel')
+    // "Diameter (mm)" is rendered only by DowelList, proving the Dowels tab is active
+    expect(within(bomPanel).getByText('Diameter (mm)')).toBeTruthy()
+    // The dowel itself appears inside the BOM panel (not just the sidebar)
+    expect(within(bomPanel).getByText('Dowel 1')).toBeTruthy()
   })
 })

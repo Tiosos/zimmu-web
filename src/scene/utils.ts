@@ -13,5 +13,8 @@ export function shapeKey(part: Part): string {
       .join(';')
     return `board|${part.length}|${part.width}|${part.thickness}|${cutKey}`
   }
+  if (part.kind === 'cylinder') {
+    return `cylinder|${part.diameter}|${part.length}`
+  }
   throw new Error(`unknown part kind: ${(part as { kind: string }).kind}`)
 }

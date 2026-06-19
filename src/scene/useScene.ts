@@ -1,7 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
 import { wrap } from 'comlink'
-import type { OcctWorkerApi } from '../geom/occt.worker'
+import type { OcctWorkerApi, BuildSpec } from '../geom/occt.worker'
+import type { ExportSpec } from '../geom/occt'
 import type {
   BoardPart,
   HardwareItem,
@@ -72,7 +73,7 @@ export interface UseSceneResult {
   selectedId: PartId | null
   occtReady: boolean
   nextLabel: string
-  onAdd: () => void
+  onAdd: (kind: 'board' | 'cylinder') => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
   onToggleVisible: (id: PartId) => void
@@ -93,6 +94,19 @@ export interface UseSceneResult {
   redoLabel: string | null
   undo: () => void
   redo: () => void
+}
+
+function buildSpecForPart(part: Part): BuildSpec {
+  if (part.kind === 'board') {
+    return {
+      kind: 'board',
+      length: part.length,
+      width: part.width,
+      thickness: part.thickness,
+      cuts: part.cuts,
+    }
+  }
+  return { kind: 'cylinder', diameter: part.diameter, length: part.length }
 }
 
 export function useScene(): UseSceneResult {
@@ -157,12 +171,7 @@ export function useScene(): UseSceneResult {
       setPendingIds((prev) => new Set(prev).add(part.id))
 
       getOcct()
-        .buildPart(part.kind, {
-          length: part.length,
-          width: part.width,
-          thickness: part.thickness,
-          cuts: part.cuts,
-        })
+        .buildPart(buildSpecForPart(part))
         .then((data) => {
           if (!isMounted.current) return
           if (buildSeq.current.get(part.id) !== seq) return
@@ -259,40 +268,63 @@ export function useScene(): UseSceneResult {
     })
   }, [])
 
-  const onAdd = useCallback(() => {
-    if (!occtReady) return
-    const label = `Board ${labelCounter + 1}`
-    colorIndex.current += 1
-    const id: PartId = `board_${crypto.randomUUID()}`
-    const part: BoardPart = {
-      kind: 'board',
-      id,
-      label,
-      length: 200,
-      width: 100,
-      thickness: 25,
-      material: '',
-      color: PART_COLORS[colorIndex.current % PART_COLORS.length],
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      rotationOrder: 'XYZ',
-      cuts: [],
-      visible: true,
-    }
-    setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
-    setSelectedId(part.id)
-    push({
-      label: `Add ${part.label}`,
-      undo: () => {
-        setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== part.id) }))
-        setSelectedId((prev) => (prev === part.id ? null : prev))
-      },
-      redo: () => {
-        setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
-        setSelectedId(part.id)
-      },
-    })
-  }, [occtReady, labelCounter, push])
+  const onAdd = useCallback(
+    (kind: 'board' | 'cylinder') => {
+      if (!occtReady) return
+      colorIndex.current += 1
+      const color = PART_COLORS[colorIndex.current % PART_COLORS.length]
+      let part: Part
+      if (kind === 'board') {
+        part = {
+          kind: 'board',
+          id: `board_${crypto.randomUUID()}` as PartId,
+          label: `Board ${labelCounter + 1}`,
+          length: 200,
+          width: 100,
+          thickness: 25,
+          material: '',
+          color,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          cuts: [],
+          visible: true,
+        }
+      } else {
+        const dowelMax = sceneRef.current.parts.reduce((m, p) => {
+          const match = /^Dowel (\d+)$/.exec(p.label)
+          return match ? Math.max(m, parseInt(match[1], 10)) : m
+        }, 0)
+        part = {
+          kind: 'cylinder',
+          id: `dowel_${crypto.randomUUID()}` as PartId,
+          label: `Dowel ${dowelMax + 1}`,
+          diameter: 8,
+          length: 100,
+          material: '',
+          color,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          visible: true,
+        }
+      }
+      setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
+      setSelectedId(part.id)
+      push({
+        label: `Add ${part.label}`,
+        undo: () => {
+          setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== part.id) }))
+          setSelectedId((prev) => (prev === part.id ? null : prev))
+        },
+        redo: () => {
+          setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
+          setSelectedId(part.id)
+        },
+      })
+    },
+    [occtReady, labelCounter, push],
+  )
 
   const onRemove = useCallback(
     (id: PartId) => {
@@ -327,21 +359,34 @@ export function useScene(): UseSceneResult {
 
   const onDuplicate = useCallback(
     (id: PartId) => {
-      const orig = sceneRef.current.parts.find((p) => p.id === id) as BoardPart | undefined
+      const orig = sceneRef.current.parts.find((p) => p.id === id)
       if (!orig) return
       colorIndex.current += 1
-      const clone: BoardPart = {
-        ...orig,
-        id: `board_${crypto.randomUUID()}` as PartId,
-        color: PART_COLORS[colorIndex.current % PART_COLORS.length],
-        position: { ...orig.position, x: orig.position.x + orig.length + 10 },
-        rotation: { x: 0, y: 0, z: 0 },
-        visible: true,
-        cuts: orig.cuts.map((c) =>
-          c.kind === 'box'
-            ? { ...c, id: `cut_${crypto.randomUUID()}` as CutId, pairedCutId: undefined }
-            : { ...c, id: `cut_${crypto.randomUUID()}` as CutId },
-        ),
+      const color = PART_COLORS[colorIndex.current % PART_COLORS.length]
+      let clone: Part
+      if (orig.kind === 'board') {
+        clone = {
+          ...orig,
+          id: `board_${crypto.randomUUID()}` as PartId,
+          color,
+          position: { ...orig.position, x: orig.position.x + orig.length + 10 },
+          rotation: { x: 0, y: 0, z: 0 },
+          visible: true,
+          cuts: orig.cuts.map((c) =>
+            c.kind === 'box'
+              ? { ...c, id: `cut_${crypto.randomUUID()}` as CutId, pairedCutId: undefined }
+              : { ...c, id: `cut_${crypto.randomUUID()}` as CutId },
+          ),
+        }
+      } else {
+        clone = {
+          ...orig,
+          id: `dowel_${crypto.randomUUID()}` as PartId,
+          color,
+          position: { ...orig.position, x: orig.position.x + orig.diameter + 10 },
+          rotation: { x: 0, y: 0, z: 0 },
+          visible: true,
+        }
       }
       setScene((prev) => {
         const idx = prev.parts.findIndex((p) => p.id === id)
@@ -426,7 +471,7 @@ export function useScene(): UseSceneResult {
   const onUpdateCut = useCallback(
     (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => {
       const part = sceneRef.current.parts.find((p) => p.id === partId)
-      if (!part) return
+      if (part?.kind !== 'board') return
       const beforeA = part.cuts.find((c) => c.id === cutId)
       if (!beforeA) return
       const afterA = updater(beforeA)
@@ -436,7 +481,10 @@ export function useScene(): UseSceneResult {
         const pairedPartId = afterA.pairedCutId.slice(0, colonIdx) as PartId
         const pairedCutIdStr = afterA.pairedCutId.slice(colonIdx + 1) as CutId
         const pairedPart = sceneRef.current.parts.find((p) => p.id === pairedPartId)
-        const beforeB = pairedPart?.cuts.find((c) => c.id === pairedCutIdStr)
+        const beforeB =
+          pairedPart?.kind === 'board'
+            ? pairedPart.cuts.find((c) => c.id === pairedCutIdStr)
+            : undefined
 
         if (pairedPart && beforeB && beforeB.kind === 'box') {
           const axesA = faceAxes(afterA.face)
@@ -453,6 +501,7 @@ export function useScene(): UseSceneResult {
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) => {
+              if (p.kind !== 'board') return p
               if (p.id === partId)
                 return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) }
               if (p.id === pairedPartId)
@@ -468,6 +517,7 @@ export function useScene(): UseSceneResult {
               setScene((prev) => ({
                 ...prev,
                 parts: prev.parts.map((p) => {
+                  if (p.kind !== 'board') return p
                   if (p.id === partId)
                     return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? beforeA : c)) }
                   if (p.id === pairedPartId)
@@ -482,6 +532,7 @@ export function useScene(): UseSceneResult {
               setScene((prev) => ({
                 ...prev,
                 parts: prev.parts.map((p) => {
+                  if (p.kind !== 'board') return p
                   if (p.id === partId)
                     return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) }
                   if (p.id === pairedPartId)
@@ -498,7 +549,9 @@ export function useScene(): UseSceneResult {
       setScene((prev) => ({
         ...prev,
         parts: prev.parts.map((p) =>
-          p.id === partId ? { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) } : p,
+          p.id === partId && p.kind === 'board'
+            ? { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) }
+            : p,
         ),
       }))
       push({
@@ -508,7 +561,7 @@ export function useScene(): UseSceneResult {
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) =>
-              p.id === partId
+              p.id === partId && p.kind === 'board'
                 ? { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? beforeA : c)) }
                 : p,
             ),
@@ -517,7 +570,7 @@ export function useScene(): UseSceneResult {
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) =>
-              p.id === partId
+              p.id === partId && p.kind === 'board'
                 ? { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? afterA : c)) }
                 : p,
             ),
@@ -530,7 +583,7 @@ export function useScene(): UseSceneResult {
   const onAddMitre = useCallback(
     (partId: PartId) => {
       const part = sceneRef.current.parts.find((p) => p.id === partId)
-      if (!part) return
+      if (part?.kind !== 'board') return
       const mitreCount = part.cuts.filter((c) => c.kind === 'mitre').length
       const mitre: CutDef = {
         kind: 'mitre',
@@ -542,7 +595,9 @@ export function useScene(): UseSceneResult {
       }
       setScene((prev) => ({
         ...prev,
-        parts: prev.parts.map((p) => (p.id === partId ? { ...p, cuts: [...p.cuts, mitre] } : p)),
+        parts: prev.parts.map((p) =>
+          p.id === partId && p.kind === 'board' ? { ...p, cuts: [...p.cuts, mitre] } : p,
+        ),
       }))
       push({
         label: 'Add mitre',
@@ -550,14 +605,16 @@ export function useScene(): UseSceneResult {
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) =>
-              p.id === partId ? { ...p, cuts: p.cuts.filter((c) => c.id !== mitre.id) } : p,
+              p.id === partId && p.kind === 'board'
+                ? { ...p, cuts: p.cuts.filter((c) => c.id !== mitre.id) }
+                : p,
             ),
           })),
         redo: () =>
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) =>
-              p.id === partId ? { ...p, cuts: [...p.cuts, mitre] } : p,
+              p.id === partId && p.kind === 'board' ? { ...p, cuts: [...p.cuts, mitre] } : p,
             ),
           })),
       })
@@ -568,12 +625,13 @@ export function useScene(): UseSceneResult {
   const onRemoveCut = useCallback(
     (partId: PartId, cutId: CutId) => {
       const part = sceneRef.current.parts.find((p) => p.id === partId)
-      if (!part) return
+      if (part?.kind !== 'board') return
       const removedCut = part.cuts.find((c) => c.id === cutId)
       if (!removedCut) return
 
       const affectedPairs: Array<{ partId: PartId; cutId: CutId }> = []
       for (const p of sceneRef.current.parts) {
+        if (p.kind !== 'board') continue
         for (const c of p.cuts) {
           if (c.kind === 'box' && c.pairedCutId === `${partId}:${cutId}`) {
             affectedPairs.push({ partId: p.id, cutId: c.id })
@@ -584,6 +642,7 @@ export function useScene(): UseSceneResult {
       setScene((prev) => ({
         ...prev,
         parts: prev.parts.map((p) => {
+          if (p.kind !== 'board') return p
           if (p.id === partId) return { ...p, cuts: p.cuts.filter((c) => c.id !== cutId) }
           const pair = affectedPairs.find((ap) => ap.partId === p.id)
           if (pair) {
@@ -602,6 +661,7 @@ export function useScene(): UseSceneResult {
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) => {
+              if (p.kind !== 'board') return p
               if (p.id === partId) return { ...p, cuts: [...p.cuts, removedCut] }
               const pair = affectedPairs.find((ap) => ap.partId === p.id)
               if (pair) {
@@ -619,6 +679,7 @@ export function useScene(): UseSceneResult {
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) => {
+              if (p.kind !== 'board') return p
               if (p.id === partId) return { ...p, cuts: p.cuts.filter((c) => c.id !== cutId) }
               const pair = affectedPairs.find((ap) => ap.partId === p.id)
               if (pair) {
@@ -641,7 +702,7 @@ export function useScene(): UseSceneResult {
     (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => {
       const partA = sceneRef.current.parts.find((p) => p.id === partIdA)
       const partB = sceneRef.current.parts.find((p) => p.id === partIdB)
-      if (!partA || !partB) return
+      if (partA?.kind !== 'board' || partB?.kind !== 'board') return
       const cutA = partA.cuts.find((c) => c.id === cutIdA)
       const cutB = partB.cuts.find((c) => c.id === cutIdB)
       if (!cutA || !cutB) return
@@ -660,6 +721,7 @@ export function useScene(): UseSceneResult {
       setScene((prev) => ({
         ...prev,
         parts: prev.parts.map((p) => {
+          if (p.kind !== 'board') return p
           if (p.id === partIdA)
             return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdA ? linkedA : c)) }
           if (p.id === partIdB)
@@ -674,6 +736,7 @@ export function useScene(): UseSceneResult {
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) => {
+              if (p.kind !== 'board') return p
               if (p.id === partIdA)
                 return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdA ? cutA : c)) }
               if (p.id === partIdB)
@@ -685,6 +748,7 @@ export function useScene(): UseSceneResult {
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) => {
+              if (p.kind !== 'board') return p
               if (p.id === partIdA)
                 return { ...p, cuts: p.cuts.map((c) => (c.id === cutIdA ? linkedA : c)) }
               if (p.id === partIdB)
@@ -700,7 +764,7 @@ export function useScene(): UseSceneResult {
   const onUnlinkCuts = useCallback(
     (partId: PartId, cutId: CutId) => {
       const part = sceneRef.current.parts.find((p) => p.id === partId)
-      if (!part) return
+      if (part?.kind !== 'board') return
       const cut = part.cuts.find((c) => c.id === cutId)
       if (!cut || cut.kind !== 'box' || !cut.pairedCutId) return
 
@@ -708,7 +772,8 @@ export function useScene(): UseSceneResult {
       const matingPartId = cut.pairedCutId.slice(0, sep) as PartId
       const matingCutId = cut.pairedCutId.slice(sep + 1) as CutId
       const matingPart = sceneRef.current.parts.find((p) => p.id === matingPartId)
-      const matingCut = matingPart?.cuts.find((c) => c.id === matingCutId)
+      const matingCut =
+        matingPart?.kind === 'board' ? matingPart.cuts.find((c) => c.id === matingCutId) : undefined
 
       const unlinked = { ...cut, pairedCutId: undefined }
       const unlinkedMating =
@@ -717,6 +782,7 @@ export function useScene(): UseSceneResult {
       setScene((prev) => ({
         ...prev,
         parts: prev.parts.map((p) => {
+          if (p.kind !== 'board') return p
           if (p.id === partId)
             return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? unlinked : c)) }
           if (p.id === matingPartId && unlinkedMating) {
@@ -732,6 +798,7 @@ export function useScene(): UseSceneResult {
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) => {
+              if (p.kind !== 'board') return p
               if (p.id === partId)
                 return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? cut : c)) }
               if (p.id === matingPartId && matingCut) {
@@ -744,6 +811,7 @@ export function useScene(): UseSceneResult {
           setScene((prev) => ({
             ...prev,
             parts: prev.parts.map((p) => {
+              if (p.kind !== 'board') return p
               if (p.id === partId)
                 return { ...p, cuts: p.cuts.map((c) => (c.id === cutId ? unlinked : c)) }
               if (p.id === matingPartId && unlinkedMating) {
@@ -807,14 +875,25 @@ export function useScene(): UseSceneResult {
   }, [])
 
   const exportStep = useCallback(async (parts: Part[]): Promise<string> => {
-    const specs = parts.map((p) => ({
-      label: p.label,
-      length: p.length,
-      width: p.width,
-      thickness: p.thickness,
-      cuts: p.cuts,
-      matrix: Array.from(composeWorldMatrix(p)),
-    }))
+    const specs: ExportSpec[] = parts.map((p) =>
+      p.kind === 'board'
+        ? {
+            kind: 'board',
+            label: p.label,
+            length: p.length,
+            width: p.width,
+            thickness: p.thickness,
+            cuts: p.cuts,
+            matrix: Array.from(composeWorldMatrix(p)),
+          }
+        : {
+            kind: 'cylinder',
+            label: p.label,
+            diameter: p.diameter,
+            length: p.length,
+            matrix: Array.from(composeWorldMatrix(p)),
+          },
+    )
     return getOcct().exportStep(specs)
   }, [])
 
