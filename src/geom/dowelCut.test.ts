@@ -5,8 +5,9 @@ import {
   azimuthFromHit,
   computeAxialBoreTool,
   computeTransverseBoreTool,
+  computeNotchTool,
 } from './dowelCut'
-import type { DowelEndCut, DowelBoreAxial, DowelBoreTransverse } from '../scene/types'
+import type { DowelEndCut, DowelBoreAxial, DowelBoreTransverse, DowelNotch } from '../scene/types'
 
 const dowel = { diameter: 8, length: 100 }
 const RAD = Math.PI / 180
@@ -119,5 +120,31 @@ describe('computeTransverseBoreTool', () => {
   it('through hole (depth ≥ diameter) spans the full diameter', () => {
     const t = computeTransverseBoreTool(dowel, { ...base, depth: 8 })
     expect(t.height).toBeGreaterThanOrEqual(dowel.diameter)
+  })
+})
+
+describe('computeNotchTool', () => {
+  const base: DowelNotch = {
+    kind: 'notch',
+    id: 'c',
+    label: 'Notch',
+    position: 50,
+    width: 20,
+    depth: 4,
+    azimuth: 0,
+  }
+  it('half-lap (depth = radius) puts the inner face on the axis', () => {
+    const t = computeNotchTool(dowel, base) // R = 4, depth 4
+    expect(t.boxOrigin.x).toBeCloseTo(0) // R - depth = 0
+  })
+  it('box spans `width` along the axis centered at `position`', () => {
+    const t = computeNotchTool(dowel, base)
+    expect(t.boxOrigin.z).toBeCloseTo(40) // position - width/2
+    expect(t.boxSize.z).toBeCloseTo(20)
+  })
+  it('azimuth rotates the box about the dowel axis', () => {
+    const t = computeNotchTool(dowel, { ...base, azimuth: 90 })
+    expect(t.axisDir).toMatchObject({ x: 0, y: 0, z: 1 })
+    expect(t.angleRad).toBeCloseTo((90 * Math.PI) / 180)
   })
 })
