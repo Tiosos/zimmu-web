@@ -319,3 +319,27 @@ describe('useAddCut — dowel bore tools', () => {
     expect(cut).toMatchObject({ kind: 'bore-transverse', position: 50, azimuth: 0 })
   })
 })
+
+describe('useAddCut — dowel notch tool', () => {
+  it('Notch tool on the lateral surface seeds a half-lap at the hit', () => {
+    let parts: Part[] = [dowel()]
+    const onUpdate = vi.fn((id, updater) => {
+      parts = parts.map((p) => (p.id === id ? updater(p) : p))
+    })
+    const { result } = renderHook(() => useAddCut({ parts, onUpdate, onSelect: vi.fn() }))
+    act(() => result.current.armDowelTool('notch'))
+    act(() => result.current.onFaceClick(lateralHit()))
+    const cut = (parts[0] as CylinderPart).cuts[0]
+    expect(cut).toMatchObject({ kind: 'notch', position: 50, azimuth: 0, depth: 4 })
+  })
+
+  it('Notch tool ignores a cap click', () => {
+    const onUpdate = vi.fn()
+    const { result } = renderHook(() =>
+      useAddCut({ parts: [dowel()], onUpdate, onSelect: vi.fn() }),
+    )
+    act(() => result.current.armDowelTool('notch'))
+    act(() => result.current.onFaceClick(capHit()))
+    expect(onUpdate).not.toHaveBeenCalled()
+  })
+})

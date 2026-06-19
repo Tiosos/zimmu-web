@@ -74,4 +74,15 @@ describe('DowelCutsPanel', () => {
       updated.kind === 'cylinder' && updated.cuts[0].kind === 'end' && updated.cuts[0].azimuth,
     ).toBe(-90)
   })
+
+  it('renders notch inputs', () => {
+    const part = dowel()
+    part.cuts = [
+      { kind: 'notch', id: 'n1', label: 'Notch 1', position: 50, width: 20, depth: 4, azimuth: 0 },
+    ]
+    render(
+      <DowelCutsPanel part={part} dowelTool={null} armDowelTool={vi.fn()} onUpdate={vi.fn()} />,
+    )
+    expect(screen.getByLabelText(/width/i)).toBeTruthy()
+  })
 })

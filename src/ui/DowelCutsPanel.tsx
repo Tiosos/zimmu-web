@@ -167,6 +167,42 @@ export function DowelCutsPanel({ part, dowelTool, armDowelTool, onUpdate }: Prop
               />
             </div>
           )}
+
+          {cut.kind === 'notch' && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => patch(cut.id, { depth: part.diameter / 2 })}
+              >
+                Half-lap
+              </Button>
+              <NumberField
+                id={`${cut.id}-position`}
+                label="Position"
+                value={cut.position}
+                onCommit={(v) => patch(cut.id, { position: v })}
+              />
+              <NumberField
+                id={`${cut.id}-width`}
+                label="Width"
+                value={cut.width}
+                onCommit={(v) => patch(cut.id, { width: v })}
+              />
+              <NumberField
+                id={`${cut.id}-depth`}
+                label="Depth"
+                value={cut.depth}
+                onCommit={(v) => patch(cut.id, { depth: v })}
+              />
+              <NumberField
+                id={`${cut.id}-azimuth`}
+                label="Azimuth"
+                value={cut.azimuth}
+                onCommit={(v) => patch(cut.id, { azimuth: v })}
+              />
+            </div>
+          )}
         </div>
       ))}
     </div>
