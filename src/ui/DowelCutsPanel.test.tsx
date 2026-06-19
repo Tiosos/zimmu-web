@@ -35,6 +35,26 @@ describe('DowelCutsPanel', () => {
     expect(screen.getByLabelText(/angle/i)).toBeTruthy()
   })
 
+  it('renders bore-transverse inputs', () => {
+    const part = dowel()
+    part.cuts = [
+      {
+        kind: 'bore-transverse',
+        id: 'b1',
+        label: 'Bore 1',
+        position: 50,
+        azimuth: 0,
+        diameter: 3,
+        depth: 8,
+      },
+    ]
+    render(
+      <DowelCutsPanel part={part} dowelTool={null} armDowelTool={vi.fn()} onUpdate={vi.fn()} />,
+    )
+    expect(screen.getByLabelText(/position/i)).toBeTruthy()
+    expect(screen.getByLabelText(/depth/i)).toBeTruthy()
+  })
+
   it('commits negative azimuth on blur without clamping to 0', () => {
     const onUpdate = vi.fn()
     const part = dowel()

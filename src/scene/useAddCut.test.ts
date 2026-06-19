@@ -293,3 +293,29 @@ describe('useAddCut — dowel end tool', () => {
     expect(onUpdate).not.toHaveBeenCalled()
   })
 })
+
+describe('useAddCut — dowel bore tools', () => {
+  it('Axial bore on a cap seeds a bore', () => {
+    let parts: Part[] = [dowel()]
+    const onUpdate = vi.fn((id, updater) => {
+      parts = parts.map((p) => (p.id === id ? updater(p) : p))
+    })
+    const { result } = renderHook(() => useAddCut({ parts, onUpdate, onSelect: vi.fn() }))
+    act(() => result.current.armDowelTool('bore-axial'))
+    act(() => result.current.onFaceClick(capHit()))
+    const cut = (parts[0] as CylinderPart).cuts[0]
+    expect(cut).toMatchObject({ kind: 'bore-axial', end: '+Z' })
+  })
+
+  it('Transverse bore on the lateral surface uses the hit azimuth + height', () => {
+    let parts: Part[] = [dowel()]
+    const onUpdate = vi.fn((id, updater) => {
+      parts = parts.map((p) => (p.id === id ? updater(p) : p))
+    })
+    const { result } = renderHook(() => useAddCut({ parts, onUpdate, onSelect: vi.fn() }))
+    act(() => result.current.armDowelTool('bore-transverse'))
+    act(() => result.current.onFaceClick(lateralHit()))
+    const cut = (parts[0] as CylinderPart).cuts[0]
+    expect(cut).toMatchObject({ kind: 'bore-transverse', position: 50, azimuth: 0 })
+  })
+})
