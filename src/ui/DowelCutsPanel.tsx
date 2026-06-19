@@ -1,8 +1,7 @@
 import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
-import { Label } from '../components/ui/label'
 import type { CylinderPart, DowelCut, Part, PartId } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
+import { NumberField } from './NumberField'
 
 interface Props {
   part: CylinderPart
@@ -38,20 +37,6 @@ export function DowelCutsPanel({ part, dowelTool, armDowelTool, onUpdate }: Prop
       (p) => (p.kind === 'cylinder' ? { ...p, cuts: p.cuts.filter((c) => c.id !== cutId) } : p),
       'Remove cut',
     )
-
-  const num = (id: string, value: number, onChange: (v: number) => void, label: string) => (
-    <div className="flex flex-col gap-1">
-      <Label htmlFor={id} className="text-xs">
-        {label}
-      </Label>
-      <Input
-        id={id}
-        type="number"
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-      />
-    </div>
-  )
 
   return (
     <div className="flex flex-col gap-3">
@@ -95,14 +80,24 @@ export function DowelCutsPanel({ part, dowelTool, armDowelTool, onUpdate }: Prop
               <Button size="sm" variant="outline" onClick={() => patch(cut.id, { angle: 0 })}>
                 Square
               </Button>
-              {num(`${cut.id}-offset`, cut.offset, (v) => patch(cut.id, { offset: v }), 'Offset')}
-              {num(`${cut.id}-angle`, cut.angle, (v) => patch(cut.id, { angle: v }), 'Angle')}
-              {num(
-                `${cut.id}-azimuth`,
-                cut.azimuth,
-                (v) => patch(cut.id, { azimuth: v }),
-                'Azimuth',
-              )}
+              <NumberField
+                id={`${cut.id}-offset`}
+                label="Offset"
+                value={cut.offset}
+                onCommit={(v) => patch(cut.id, { offset: v })}
+              />
+              <NumberField
+                id={`${cut.id}-angle`}
+                label="Angle"
+                value={cut.angle}
+                onCommit={(v) => patch(cut.id, { angle: v })}
+              />
+              <NumberField
+                id={`${cut.id}-azimuth`}
+                label="Azimuth"
+                value={cut.azimuth}
+                onCommit={(v) => patch(cut.id, { azimuth: v })}
+              />
             </div>
           )}
         </div>

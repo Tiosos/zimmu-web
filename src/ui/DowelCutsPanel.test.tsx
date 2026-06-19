@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { DowelCutsPanel } from './DowelCutsPanel'
-import type { CylinderPart } from '../scene/types'
+import type { CylinderPart, Part } from '../scene/types'
 
 function dowel(): CylinderPart {
   return {
@@ -20,6 +20,8 @@ function dowel(): CylinderPart {
   }
 }
 
+afterEach(() => cleanup())
+
 describe('DowelCutsPanel', () => {
   it('renders an arm button for each tool and the existing cut row', () => {
     render(
@@ -31,5 +33,25 @@ describe('DowelCutsPanel', () => {
     expect(screen.getByText(/End 1/)).toBeTruthy()
     // the end cut exposes an angle input
     expect(screen.getByLabelText(/angle/i)).toBeTruthy()
+  })
+
+  it('commits negative azimuth on blur without clamping to 0', () => {
+    const onUpdate = vi.fn()
+    const part = dowel()
+    render(
+      <DowelCutsPanel part={part} dowelTool={null} armDowelTool={vi.fn()} onUpdate={onUpdate} />,
+    )
+
+    const azimuthInput = screen.getByLabelText(/azimuth/i)
+    fireEvent.change(azimuthInput, { target: { value: '-90' } })
+    fireEvent.blur(azimuthInput)
+
+    // onUpdate should have been called once (on blur) with a valid updater
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    const [, updater] = onUpdate.mock.calls[0] as [string, (p: Part) => Part]
+    const updated = updater(part)
+    expect(
+      updated.kind === 'cylinder' && updated.cuts[0].kind === 'end' && updated.cuts[0].azimuth,
+    ).toBe(-90)
   })
 })
