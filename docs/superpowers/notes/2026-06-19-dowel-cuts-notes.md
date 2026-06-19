@@ -25,6 +25,23 @@ Living notes for the SP2 dowel-cuts work. Audience: a future developer/AI who ne
 - End cuts / notches go through `makeBoxCutAt`, which reuses the **proven** `makeMitreCut` overloads (`BRepPrimAPI_MakeBox_1`, `gp_Trsf_1`, `gp_Vec_4`, `BRepBuilderAPI_Transform_2`, `gp_Pnt_3`, `gp_Dir_4`, `gp_Ax1_2`, `BRepAlgoAPI_Cut_3`) — low risk.
 - Bores (Task 8) use `makeCylinderCut` with `gp_Ax2_3` + `BRepPrimAPI_MakeCylinder_3` (oriented cylinder) — these are this design's best read of the embind API and are **UNVERIFIED at runtime** until the live OCCT spike / e2e. Record the working overload ids here once confirmed.
 
+## Decisions made during implementation
+
+- **Notch seed depth = `radius / 2` (a shallow flat), not `radius` (half-lap).** Originally the click-seed used `depth: radius`, which equals exactly what the "Half-lap" quick-set button sets — so on a freshly placed notch the button was a no-op. Seeding a shallow flat makes the Half-lap button a meaningful one-click action (parallel to "Square" for end cuts and "Through" for bores). See `useAddCut.ts` notch seed.
+- **Quick-set buttons per cut type:** End → "Square" (angle 0); Bores → "Through" (depth = full extent); Notch → "Half-lap" (depth = radius). Consistent affordance across the editor.
+
+## Known debt (pre-existing patterns, flagged by review; not fixed in SP2)
+
+- **`DowelCutsPanel`'s `patch(cutId, fields: Partial<DowelCut>)` is loosely typed.** `Partial<DowelCut>` is a union of partials, so the compiler would accept `patch(id, { end: ... })` on a notch. It can't happen through the UI (every call is guarded by a `cut.kind === 'X'` branch), but the type safety is illusory. A future hardening: make `patch` generic over the narrowed cut kind (pass the cut, not just the id).
+- **No exhaustiveness/`never` check on `cut.kind` in `DowelCutsPanel`.** Four `cut.kind === 'X' && (...)` branches; a 5th `DowelCut` variant would compile and silently render a body-less row. Add a switch/never guard when the union next grows.
+
+## Verification status (sandbox limitations)
+
+- **Unit/typecheck/lint:** fully green. All pure tool-geometry math (`dowelCut.ts`) is exhaustively unit-tested; `shapeKey`, worker build-spec mapping, `useAddCut` seeding (all 4 tools incl. surface-mismatch no-ops), and the `DowelCutsPanel` editor rows have tests.
+- **Live WASM cut-render path: NOT verified in this sandbox.** Node skips the OCCT kernel; Playwright Chromium could not be installed here (no outbound network for the browser download). The SP1 dowel *render* (uncut) is e2e-verified. The new cut operations execute OCCT only in a browser:
+  - End cuts + notches go through `makeBoxCutAt`, which reuses the **proven** `makeMitreCut` overloads — low risk.
+  - **Bores** use `makeCylinderCut` with `gp_Ax2_3` + `BRepPrimAPI_MakeCylinder_3` — **UNVERIFIED overloads**. Confirm via a `pnpm dev` spike (add dowel → arm Axial/Transverse bore → click cap/side → confirm the hole renders and re-meshes) or a future canvas-interaction e2e, and record the working overload ids here.
+
 ## Deferred (out of scope for SP2)
 
 - Dowel cut-linking / `pairedCutId`; snap-align (SP3); 2D drawings for dowels (SP4) — drawings entry stays disabled for cylinders; curved-surface smooth shading; faceted edge lines on the curved surface.
