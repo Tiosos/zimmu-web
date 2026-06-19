@@ -84,7 +84,7 @@ export function useAddCut(params: {
                 label: `Notch ${n}`,
                 position: h.z,
                 width: 20,
-                depth: r,
+                depth: r / 2,
                 azimuth: azimuthFromHit(h),
               }
             break

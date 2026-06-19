@@ -321,7 +321,7 @@ describe('useAddCut — dowel bore tools', () => {
 })
 
 describe('useAddCut — dowel notch tool', () => {
-  it('Notch tool on the lateral surface seeds a half-lap at the hit', () => {
+  it('Notch tool on the lateral surface seeds a notch at the hit', () => {
     let parts: Part[] = [dowel()]
     const onUpdate = vi.fn((id, updater) => {
       parts = parts.map((p) => (p.id === id ? updater(p) : p))
@@ -330,7 +330,7 @@ describe('useAddCut — dowel notch tool', () => {
     act(() => result.current.armDowelTool('notch'))
     act(() => result.current.onFaceClick(lateralHit()))
     const cut = (parts[0] as CylinderPart).cuts[0]
-    expect(cut).toMatchObject({ kind: 'notch', position: 50, azimuth: 0, depth: 4 })
+    expect(cut).toMatchObject({ kind: 'notch', position: 50, azimuth: 0, depth: 2, width: 20 })
   })
 
   it('Notch tool ignores a cap click', () => {
