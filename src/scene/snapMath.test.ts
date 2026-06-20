@@ -5,6 +5,7 @@ import {
   computeSnapTransform,
   computeFaceCorners,
   computeLocalFaceCenter,
+  computeDowelLocalFaceCenter,
   faceAxes,
   defaultCutSize,
   isSnapFace,
@@ -581,5 +582,30 @@ describe('isSnapFace', () => {
   it('dowel: a lateral (radial) face is not snappable', () => {
     expect(isSnapFace(dowel, { x: 1, y: 0, z: 0 })).toBe(false)
     expect(isSnapFace(dowel, { x: 0.707, y: 0.707, z: 0 })).toBe(false)
+  })
+})
+
+describe('computeDowelLocalFaceCenter', () => {
+  const dowel: CylinderPart = {
+    kind: 'cylinder',
+    id: 'd1',
+    label: 'Dowel 1',
+    diameter: 10,
+    length: 100,
+    material: '',
+    color: '#c19a6b',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+  }
+
+  it('+Z cap center is (0, 0, length)', () => {
+    expectVec3(computeDowelLocalFaceCenter({ x: 0, y: 0, z: 1 }, dowel), 0, 0, 100)
+  })
+
+  it('-Z cap center is (0, 0, 0)', () => {
+    expectVec3(computeDowelLocalFaceCenter({ x: 0, y: 0, z: -1 }, dowel), 0, 0, 0)
   })
 })

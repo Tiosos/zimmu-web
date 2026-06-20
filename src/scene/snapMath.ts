@@ -1,6 +1,6 @@
 // Three.js math types run in Node/happy-dom without browser mocks needed.
 import * as THREE from 'three'
-import type { BoardPart, Face, FaceHit, Part, Vec3 } from './types'
+import type { BoardPart, CylinderPart, Face, FaceHit, Part, Vec3 } from './types'
 
 const DEG2RAD = Math.PI / 180
 
@@ -46,6 +46,10 @@ export function computeLocalFaceCenter(localFaceNormal: Vec3, part: BoardPart): 
   if (y === -1) return { x: length / 2, y: 0, z: thickness / 2 }
   if (z === 1) return { x: length / 2, y: width / 2, z: thickness }
   return { x: length / 2, y: width / 2, z: 0 }
+}
+
+export function computeDowelLocalFaceCenter(localFaceNormal: Vec3, dowel: CylinderPart): Vec3 {
+  return localFaceNormal.z > 0 ? { x: 0, y: 0, z: dowel.length } : { x: 0, y: 0, z: 0 }
 }
 
 export function isSnapFace(part: Part, localFaceNormal: Vec3): boolean {
