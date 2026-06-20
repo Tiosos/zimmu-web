@@ -48,6 +48,11 @@ export function computeLocalFaceCenter(localFaceNormal: Vec3, part: BoardPart): 
   return { x: length / 2, y: width / 2, z: 0 }
 }
 
+export function isSnapFace(part: Part, localFaceNormal: Vec3): boolean {
+  if (part.kind === 'board') return true
+  return Math.abs(localFaceNormal.z) > 0.9
+}
+
 // Determine the half-extent of a box along a given local axis.
 function halfExtent(axis: THREE.Vector3, length: number, width: number, thickness: number): number {
   const ax = Math.abs(axis.x),

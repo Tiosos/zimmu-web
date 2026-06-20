@@ -7,8 +7,9 @@ import {
   computeLocalFaceCenter,
   faceAxes,
   defaultCutSize,
+  isSnapFace,
 } from './snapMath'
-import type { BoardPart, Face, FaceHit, Vec3 } from './types'
+import type { BoardPart, CylinderPart, Face, FaceHit, Vec3 } from './types'
 
 function face(
   partId: string,
@@ -547,5 +548,38 @@ describe('computeSnapTransform', () => {
     expect(result.position.z).toBeCloseTo(75, 3)
 
     expectSnapped(result, srcFace, tgtFace.faceCenter, tgtFace.faceNormal, BOARD_ROTATED)
+  })
+})
+
+describe('isSnapFace', () => {
+  const dowel: CylinderPart = {
+    kind: 'cylinder',
+    id: 'd1',
+    label: 'Dowel 1',
+    diameter: 10,
+    length: 100,
+    material: '',
+    color: '#c19a6b',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+  }
+
+  it('board: any axis-aligned face is snappable', () => {
+    expect(isSnapFace(BOARD, { x: 1, y: 0, z: 0 })).toBe(true)
+    expect(isSnapFace(BOARD, { x: 0, y: -1, z: 0 })).toBe(true)
+    expect(isSnapFace(BOARD, { x: 0, y: 0, z: 1 })).toBe(true)
+  })
+
+  it('dowel: a cap (±Z local normal) is snappable', () => {
+    expect(isSnapFace(dowel, { x: 0, y: 0, z: 1 })).toBe(true)
+    expect(isSnapFace(dowel, { x: 0, y: 0, z: -1 })).toBe(true)
+  })
+
+  it('dowel: a lateral (radial) face is not snappable', () => {
+    expect(isSnapFace(dowel, { x: 1, y: 0, z: 0 })).toBe(false)
+    expect(isSnapFace(dowel, { x: 0.707, y: 0.707, z: 0 })).toBe(false)
   })
 })
