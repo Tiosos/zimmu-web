@@ -52,6 +52,7 @@ const faceOnA: FaceHit = {
   faceCenter: { x: 50, y: 25, z: 25 },
   localFaceNormal: { x: 0, y: 0, z: 1 },
   localHitPoint: { x: 0, y: 0, z: 0 },
+  hitPoint: { x: 50, y: 25, z: 25 },
 }
 const faceOnB: FaceHit = {
   partId: 'b',
@@ -59,6 +60,7 @@ const faceOnB: FaceHit = {
   faceCenter: { x: 50, y: 25, z: 200 },
   localFaceNormal: { x: 0, y: 0, z: -1 },
   localHitPoint: { x: 0, y: 0, z: 0 },
+  hitPoint: { x: 50, y: 25, z: 200 },
 }
 
 describe('useSnap', () => {

@@ -133,6 +133,7 @@ export interface FaceHit {
   faceCenter: Vec3
   localFaceNormal: Vec3
   localHitPoint: Vec3
+  hitPoint: Vec3 // world-space ray intersection point
 }
 
 export interface CameraState {

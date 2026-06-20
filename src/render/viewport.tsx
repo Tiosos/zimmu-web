@@ -137,7 +137,8 @@ export function Viewport({
 
     const lhp = intersection.point.clone().applyMatrix4(mesh.matrixWorld.clone().invert())
     const localHitPoint = { x: lhp.x, y: lhp.y, z: lhp.z }
-    return { partId, faceNormal, faceCenter, localFaceNormal, localHitPoint }
+    const hitPoint = { x: intersection.point.x, y: intersection.point.y, z: intersection.point.z }
+    return { partId, faceNormal, faceCenter, localFaceNormal, localHitPoint, hitPoint }
   }
 
   // Scene setup — runs once

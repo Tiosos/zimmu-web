@@ -25,6 +25,7 @@ function face(
     faceNormal: { x: nx, y: ny, z: nz },
     localFaceNormal: { x: nx, y: ny, z: nz },
     localHitPoint: { x: 0, y: 0, z: 0 },
+    hitPoint: { x: cx, y: cy, z: cz },
   }
 }
 
@@ -53,6 +54,7 @@ function makeFace(nx: number, ny: number, nz: number): FaceHit {
     faceCenter: { x: 0, y: 0, z: 0 },
     localFaceNormal: { x: nx, y: ny, z: nz },
     localHitPoint: { x: 0, y: 0, z: 0 },
+    hitPoint: { x: 0, y: 0, z: 0 },
   }
 }
 
@@ -215,6 +217,7 @@ describe('computeFaceCorners', () => {
           faceCenter: fn,
           localFaceNormal: fn,
           localHitPoint: { x: 0, y: 0, z: 0 },
+          hitPoint: { x: 0, y: 0, z: 0 },
         },
         BOARD,
       )
@@ -244,6 +247,7 @@ describe('computeFaceCorners', () => {
           faceCenter: fn,
           localFaceNormal: fn,
           localHitPoint: { x: 0, y: 0, z: 0 },
+          hitPoint: { x: 0, y: 0, z: 0 },
         },
         BOARD,
       )
@@ -270,6 +274,7 @@ describe('computeFaceCorners', () => {
           faceCenter: fn,
           localFaceNormal: fn,
           localHitPoint: { x: 0, y: 0, z: 0 },
+          hitPoint: { x: 0, y: 0, z: 0 },
         },
         BOARD,
       )
@@ -430,6 +435,7 @@ describe('computeSnapTransform', () => {
       localFaceNormal: { x: 1, y: 0, z: 0 },
       faceCenter: { x: 100, y: 25, z: 12.5 },
       localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 100, y: 25, z: 12.5 },
     }
     const tgtFace: FaceHit = {
       partId: 'b2',
@@ -437,6 +443,7 @@ describe('computeSnapTransform', () => {
       localFaceNormal: { x: 0, y: 1, z: 0 },
       faceCenter: { x: 250, y: 50, z: 12.5 },
       localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 250, y: 50, z: 12.5 },
     }
     const result = computeSnapTransform(srcFace, tgtFace, BOARD)
 
@@ -459,6 +466,7 @@ describe('computeSnapTransform', () => {
       localFaceNormal: { x: 0, y: 0, z: 1 },
       faceCenter: { x: 50, y: 25, z: 25 },
       localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 50, y: 25, z: 25 },
     }
     const tgtFace: FaceHit = {
       partId: 'b2',
@@ -466,6 +474,7 @@ describe('computeSnapTransform', () => {
       localFaceNormal: { x: 0, y: 0, z: 1 },
       faceCenter: { x: 50, y: 25, z: 125 },
       localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 50, y: 25, z: 125 },
     }
     const result = computeSnapTransform(srcFace, tgtFace, BOARD)
     expectSnapped(result, srcFace, tgtFace.faceCenter, tgtFace.faceNormal, BOARD)
@@ -480,6 +489,7 @@ describe('computeSnapTransform', () => {
       localFaceNormal: { x: 0, y: 0, z: 1 },
       faceCenter: { x: 50, y: 25, z: 25 },
       localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 50, y: 25, z: 25 },
     }
     const tgtFace: FaceHit = {
       partId: 'b2',
@@ -487,6 +497,7 @@ describe('computeSnapTransform', () => {
       localFaceNormal: { x: 0, y: 0, z: -1 },
       faceCenter: { x: 50, y: 25, z: 100 },
       localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 50, y: 25, z: 100 },
     }
     const result = computeSnapTransform(srcFace, tgtFace, BOARD)
 
@@ -515,6 +526,7 @@ describe('computeSnapTransform', () => {
       localFaceNormal: { x: 0, y: 0, z: 1 },
       faceCenter: { x: -25, y: 50, z: 25 },
       localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: -25, y: 50, z: 25 },
     }
     const tgtFace: FaceHit = {
       partId: 'b2',
@@ -522,6 +534,7 @@ describe('computeSnapTransform', () => {
       localFaceNormal: { x: 0, y: 0, z: -1 },
       faceCenter: { x: 50, y: 25, z: 100 },
       localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 50, y: 25, z: 100 },
     }
     const result = computeSnapTransform(srcFace, tgtFace, BOARD_ROTATED)
 

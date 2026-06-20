@@ -26,6 +26,7 @@ function makeHit(overrides: Partial<FaceHit> = {}): FaceHit {
     faceCenter: { x: 100, y: 50, z: 25 },
     localFaceNormal: { x: 0, y: 0, z: 1 },
     localHitPoint: { x: 100, y: 50, z: 25 },
+    hitPoint: { x: 100, y: 50, z: 25 },
     ...overrides,
   }
 }
@@ -247,6 +248,7 @@ function capHit(): FaceHit {
     faceCenter: { x: 0, y: 0, z: 100 },
     localFaceNormal: { x: 0, y: 0, z: 1 },
     localHitPoint: { x: 2, y: 0, z: 100 },
+    hitPoint: { x: 0, y: 0, z: 100 },
   }
 }
 function lateralHit(): FaceHit {
@@ -256,6 +258,7 @@ function lateralHit(): FaceHit {
     faceCenter: { x: 4, y: 0, z: 50 },
     localFaceNormal: { x: 1, y: 0, z: 0 },
     localHitPoint: { x: 4, y: 0, z: 50 },
+    hitPoint: { x: 4, y: 0, z: 50 },
   }
 }
 
