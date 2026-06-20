@@ -131,7 +131,7 @@ export function Viewport({
       // (isSnapFace rejects lateral faces for snapping; add-cut uses localHitPoint).
       const radial = new THREE.Vector3(ln.x, ln.y, 0).normalize()
       const localFaceNormal = { x: radial.x, y: radial.y, z: 0 }
-      const wn = new THREE.Vector3(ln.x, ln.y, ln.z).transformDirection(mesh.matrixWorld)
+      const wn = new THREE.Vector3(radial.x, radial.y, 0).transformDirection(mesh.matrixWorld)
       const faceNormal = { x: wn.x, y: wn.y, z: wn.z }
       return { partId, faceNormal, faceCenter: hitPoint, localFaceNormal, localHitPoint, hitPoint }
     }
