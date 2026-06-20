@@ -206,3 +206,59 @@ export function computeSnapTransform(
 
   return { position: newPosition, rotation: newRotation }
 }
+
+export function computeDowelSnapTransform(
+  sourceFace: FaceHit,
+  targetFace: FaceHit,
+  sourceDowel: CylinderPart,
+  coaxial: boolean,
+): { position: Vec3; rotation: Vec3 } {
+  // Current world rotation as a quaternion
+  const Q_current = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(
+      sourceDowel.rotation.x * DEG2RAD,
+      sourceDowel.rotation.y * DEG2RAD,
+      sourceDowel.rotation.z * DEG2RAD,
+      sourceDowel.rotationOrder,
+    ),
+  )
+
+  // Recompute the cap's outward world normal from the dowel rotation (do NOT trust
+  // sourceFace.faceNormal, which the raycaster may have axis-rounded).
+  const capSign = Math.sign(sourceFace.localFaceNormal.z) || 1
+  const srcWorldNormal = new THREE.Vector3(0, 0, capSign).applyQuaternion(Q_current)
+
+  // Minimum rotation to make the cap normal oppose the target normal.
+  const negTgt = new THREE.Vector3(
+    -targetFace.faceNormal.x,
+    -targetFace.faceNormal.y,
+    -targetFace.faceNormal.z,
+  )
+  const Q_normal = new THREE.Quaternion().setFromUnitVectors(srcWorldNormal, negTgt)
+
+  // No roll-snap — a cylinder is rotationally symmetric about its axis.
+  const Q_final = new THREE.Quaternion().copy(Q_normal).multiply(Q_current)
+
+  const euler = new THREE.Euler().setFromQuaternion(Q_final, sourceDowel.rotationOrder)
+  const newRotation: Vec3 = {
+    x: euler.x / DEG2RAD,
+    y: euler.y / DEG2RAD,
+    z: euler.z / DEG2RAD,
+  }
+
+  // Cap center in the local frame: +Z cap is at (0,0,length), -Z cap at (0,0,0).
+  const capLocal = computeDowelLocalFaceCenter(sourceFace.localFaceNormal, sourceDowel)
+  const capWorldOffset = new THREE.Vector3(capLocal.x, capLocal.y, capLocal.z).applyQuaternion(
+    Q_final,
+  )
+
+  // Landing point: target face center (coaxial cap-to-cap) or the clicked hit point.
+  const landing = coaxial ? targetFace.faceCenter : targetFace.hitPoint
+  const newPosition: Vec3 = {
+    x: landing.x - capWorldOffset.x,
+    y: landing.y - capWorldOffset.y,
+    z: landing.z - capWorldOffset.z,
+  }
+
+  return { position: newPosition, rotation: newRotation }
+}

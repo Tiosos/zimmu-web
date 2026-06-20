@@ -6,6 +6,7 @@ import {
   computeFaceCorners,
   computeLocalFaceCenter,
   computeDowelLocalFaceCenter,
+  computeDowelSnapTransform,
   faceAxes,
   defaultCutSize,
   isSnapFace,
@@ -607,5 +608,149 @@ describe('computeDowelLocalFaceCenter', () => {
 
   it('-Z cap center is (0, 0, 0)', () => {
     expectVec3(computeDowelLocalFaceCenter({ x: 0, y: 0, z: -1 }, dowel), 0, 0, 0)
+  })
+})
+
+describe('computeDowelSnapTransform', () => {
+  const DOWEL: CylinderPart = {
+    kind: 'cylinder',
+    id: 'd1',
+    label: 'Dowel 1',
+    diameter: 10,
+    length: 100,
+    material: '',
+    color: '#c19a6b',
+    position: { x: 0, y: 0, z: 0 }, // base at origin, +Z cap at (0,0,100)
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+  }
+
+  // helper: build a cap FaceHit for the source dowel
+  function capFace(partId: string, lz: 1 | -1, worldNormal: Vec3): FaceHit {
+    return {
+      partId,
+      faceNormal: worldNormal,
+      faceCenter: { x: 0, y: 0, z: 0 },
+      localFaceNormal: { x: 0, y: 0, z: lz },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 0, y: 0, z: 0 },
+    }
+  }
+
+  it('cap-to-board-face (coaxial=false): +Z cap seats at the clicked hitPoint, opposing target normal', () => {
+    const source = capFace('d1', 1, { x: 0, y: 0, z: 1 })
+    const target: FaceHit = {
+      partId: 'b1',
+      faceNormal: { x: 0, y: 0, z: 1 },
+      faceCenter: { x: 999, y: 999, z: 50 }, // deliberately != hitPoint to prove we use hitPoint
+      localFaceNormal: { x: 0, y: 0, z: 1 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 10, y: 20, z: 50 },
+    }
+    const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, false)
+
+    const q = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(
+        (rotation.x * Math.PI) / 180,
+        (rotation.y * Math.PI) / 180,
+        (rotation.z * Math.PI) / 180,
+        'XYZ',
+      ),
+    )
+    const capNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(q)
+    expect(capNormal.z).toBeCloseTo(-1, 5)
+
+    const capLocal = new THREE.Vector3(0, 0, DOWEL.length).applyQuaternion(q)
+    expectVec3(
+      { x: position.x + capLocal.x, y: position.y + capLocal.y, z: position.z + capLocal.z },
+      10,
+      20,
+      50,
+    )
+  })
+
+  it('cap-to-cap (coaxial=true): cap seats at target faceCenter, not hitPoint', () => {
+    const source = capFace('d1', 1, { x: 0, y: 0, z: 1 })
+    const target: FaceHit = {
+      partId: 'd2',
+      faceNormal: { x: 0, y: 0, z: -1 },
+      faceCenter: { x: 5, y: 6, z: 200 },
+      localFaceNormal: { x: 0, y: 0, z: -1 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 1, y: 2, z: 200 },
+    }
+    const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, true)
+    const q = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(
+        (rotation.x * Math.PI) / 180,
+        (rotation.y * Math.PI) / 180,
+        (rotation.z * Math.PI) / 180,
+        'XYZ',
+      ),
+    )
+    const capLocal = new THREE.Vector3(0, 0, DOWEL.length).applyQuaternion(q)
+    expectVec3(
+      { x: position.x + capLocal.x, y: position.y + capLocal.y, z: position.z + capLocal.z },
+      5,
+      6,
+      200,
+    )
+  })
+
+  it('-Z cap source: seats the (0,0,0) cap at the hitPoint', () => {
+    const source = capFace('d1', -1, { x: 0, y: 0, z: -1 })
+    const target: FaceHit = {
+      partId: 'b1',
+      faceNormal: { x: 0, y: 0, z: 1 },
+      faceCenter: { x: 0, y: 0, z: 0 },
+      localFaceNormal: { x: 0, y: 0, z: 1 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 7, y: 8, z: 30 },
+    }
+    const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, false)
+    const q = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(
+        (rotation.x * Math.PI) / 180,
+        (rotation.y * Math.PI) / 180,
+        (rotation.z * Math.PI) / 180,
+        'XYZ',
+      ),
+    )
+    const capLocal = new THREE.Vector3(0, 0, 0).applyQuaternion(q)
+    expectVec3(
+      { x: position.x + capLocal.x, y: position.y + capLocal.y, z: position.z + capLocal.z },
+      7,
+      8,
+      30,
+    )
+    const capNormal = new THREE.Vector3(0, 0, -1).applyQuaternion(q)
+    expect(capNormal.z).toBeCloseTo(-1, 5)
+  })
+
+  it('pre-rotated source: recomputes the cap normal from the dowel rotation', () => {
+    const rotated: CylinderPart = { ...DOWEL, rotation: { x: 90, y: 0, z: 0 } }
+    // sourceFace.faceNormal is deliberately WRONG to prove it is ignored.
+    const source = capFace('d1', 1, { x: 1, y: 0, z: 0 })
+    const target: FaceHit = {
+      partId: 'b1',
+      faceNormal: { x: 0, y: 1, z: 0 },
+      faceCenter: { x: 0, y: 0, z: 0 },
+      localFaceNormal: { x: 0, y: 1, z: 0 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 0, y: 100, z: 0 },
+    }
+    const { rotation } = computeDowelSnapTransform(source, target, rotated, false)
+    const q = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(
+        (rotation.x * Math.PI) / 180,
+        (rotation.y * Math.PI) / 180,
+        (rotation.z * Math.PI) / 180,
+        'XYZ',
+      ),
+    )
+    const capNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(q)
+    expect(capNormal.y).toBeCloseTo(-1, 5)
   })
 })
