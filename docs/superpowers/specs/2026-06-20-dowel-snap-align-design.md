@@ -97,54 +97,82 @@ export function computeDowelSnapTransform(
   sourceFace: FaceHit,
   targetFace: FaceHit,
   sourceDowel: CylinderPart,
+  coaxial: boolean,
 ): { position: Vec3; rotation: Vec3 }
 ```
 
 1. `Q_current` ← `sourceDowel.rotation` as a quaternion (Euler XYZ, `DEG2RAD`).
-2. `Q_normal = setFromUnitVectors(sourceFace.faceNormal, negTarget)` where
+2. Source cap normal is **recomputed** here, NOT taken from
+   `sourceFace.faceNormal` (which the raycaster may axis-round):
+   `localCap = (0, 0, sign(sourceFace.localFaceNormal.z))`;
+   `srcWorldNormal = localCap.applyQuaternion(Q_current)`. This keeps the
+   transform self-contained and correct for a rotated source dowel.
+3. `Q_normal = setFromUnitVectors(srcWorldNormal, negTarget)` where
    `negTarget = -targetFace.faceNormal`. Rotates the cap's outward world normal
    to oppose the target normal, so the cap seats *into* the target and the dowel
    body extends away. (Same quaternion step the board path uses.)
-3. `Q_final = Q_normal · Q_current` → `newRotation` (Euler degrees, source's
+4. `Q_final = Q_normal · Q_current` → `newRotation` (Euler degrees, source's
    `rotationOrder`). **No roll-snap step** — a cylinder is rotationally symmetric
    about its axis.
-4. Cap center in local frame: `(0, 0, length)` when `sourceFace.localFaceNormal.z
+5. Cap center in local frame: `(0, 0, length)` when `sourceFace.localFaceNormal.z
    > 0` (the `+Z` cap), else `(0, 0, 0)` (the `-Z` cap). The dowel axis passes
    through the local origin with the base at `z = 0` (SP1 convention).
-5. `newPosition = targetFace.hitPoint − (Q_final · capCenterLocal)`. This seats
-   the cap center exactly at the clicked target point. The result is independent
-   of the dowel's current position (absolute placement).
+6. Landing: `landing = coaxial ? targetFace.faceCenter : targetFace.hitPoint`.
+   `coaxial` is true when the target is a dowel cap (seat coaxially at the cap
+   center, for end-to-end joins) and false for a board face (seat at the clicked
+   point). `newPosition = landing − (Q_final · capCenterLocal)` seats the cap
+   center at `landing`. Independent of the dowel's current position (absolute
+   placement).
 
 Degenerate cases are handled by `setFromUnitVectors`: identity when the cap
 already opposes the target; a 180° flip about an arbitrary perpendicular axis
 when antiparallel — both correct for a rotationally symmetric dowel.
 
-### 4. Viewport raycaster — dowel cap `FaceHit` (`src/render/viewport.tsx`)
+### 4. Viewport raycaster — emit `FaceHit`s for dowels (`src/render/viewport.tsx`)
 
-The raycaster already emits `FaceHit`s for dowels (add-cut consumes lateral
-hits). SP3 populates the snap-relevant fields per surface. For
-`part.kind === 'cylinder'`:
+**Current state (corrected during review):** `buildFaceHit` returns `null` for
+any non-board part:
 
-- **Cap hit** (`|localNormal.z| > 0.9`): `localFaceNormal = (0, 0, ±1)`;
-  `faceCenter` = world cap center from the new pure helper
-  `computeDowelLocalFaceCenter(localFaceNormal, dowel)` (`(0,0,length)` or
-  `(0,0,0)`) transformed by the part's world matrix (the same matrix path boards
-  already use); `faceNormal` = the cap axis transformed to world; `hitPoint =
-  intersection.point`.
-- **Lateral hit**: `localFaceNormal` = the radial local normal (unchanged, for
-  add-cut); `faceCenter` = the world hit point (placeholder — `isSnapFace`
-  rejects lateral faces, so it is never used for snapping); `hitPoint =
+```ts
+const part = currentParts.find((p) => p.id === partId)
+if (!part || part.kind !== 'board') return null
+```
+
+So the raycaster emits **no** `FaceHit`s for dowels today. Two consequences:
+SP3 must *extend* `buildFaceHit` to handle cylinders (not merely add `hitPoint`);
+and this retroactively makes **SP2's dowel click-to-seed cuts functional** in the
+live app (today `useAddCut`'s cylinder branch never receives a hit). This change
+is therefore load-bearing for SP2 as well as SP3, and is the must-verify-live
+piece.
+
+Replace the non-board early-return with a `cylinder` branch. The board path
+(axis-rounding the local + world normals via `Math.sign` of the dominant
+component, then `computeLocalFaceCenter`) is **unchanged**. Dowels do NOT
+axis-round — a cap's world normal must stay exact for a rotated dowel, and a
+lateral normal is radial. From the local triangle normal `ln`:
+
+- **Cap** (`|ln.z| > 0.9`): `localFaceNormal = (0, 0, sign(ln.z))`;
+  `faceNormal = new THREE.Vector3(0,0,sign(ln.z)).transformDirection(mesh.matrixWorld)`
+  (exact, normalized — NOT axis-rounded); `faceCenter` =
+  `computeDowelLocalFaceCenter(localFaceNormal, part)` applied by
+  `mesh.matrixWorld`; `localHitPoint`/`hitPoint` as for boards.
+- **Lateral** (otherwise): `localFaceNormal = normalize(ln.x, ln.y, 0)` (the
+  radial direction — used by add-cut's `dowelSurfaceFromNormal`; the cut's
+  azimuth/position come from `localHitPoint`); `faceNormal =
+  ln.transformDirection(mesh.matrixWorld)`; `faceCenter` = the world hit point
+  (placeholder — `isSnapFace` rejects lateral faces for snap); `hitPoint =
   intersection.point`.
 
 ```ts
 export function computeDowelLocalFaceCenter(localFaceNormal: Vec3, dowel: CylinderPart): Vec3
-// localFaceNormal.z > 0 → { x: 0, y: 0, z: dowel.length }
-// else                  → { x: 0, y: 0, z: 0 }
+// localFaceNormal.z > 0 → { x: 0, y: 0, z: dowel.length }   (the +Z cap)
+// else                  → { x: 0, y: 0, z: 0 }              (the -Z cap)
 ```
 
-`computeDowelLocalFaceCenter` is pure and unit-tested; the world-matrix
-transform stays in the Viewport (integration, consistent with the existing
-board path). Boards are unchanged aside from `hitPoint` now being populated.
+`computeDowelLocalFaceCenter` and `isSnapFace` are pure and unit-tested; the
+`buildFaceHit` cylinder branch is integration (THREE + `matrixWorld`), verified
+by the live spike. Boards are unchanged aside from `hitPoint` now being
+populated.
 
 ### 5. Interaction (`src/scene/useSnap.ts`)
 
@@ -152,30 +180,37 @@ board path). Boards are unchanged aside from `hitPoint` now being populated.
 - **Source pick:** set the source only if `isSnapFace(srcPart, hit.localFaceNormal)`.
   Clicking a dowel's curved side during snap is ignored (no source set).
 - **Target pick:** reject if `!isSnapFace(targetPart, hit.localFaceNormal)`.
-- **Route by source kind:** `board` → `computeSnapTransform`; `cylinder` →
-  `computeDowelSnapTransform`. The target may be any flat face. This delivers the
-  bidirectional behavior: a board snapping onto a dowel cap uses the existing
-  board transform with the cap's `faceCenter`; a dowel snapping onto a board face
-  (or another cap) uses the dowel transform.
+- **Route by source kind:** look up the target part (`parts.find(p => p.id ===
+  hit.partId)`). `board` source → `computeSnapTransform`; `cylinder` source →
+  `computeDowelSnapTransform(srcFace, hit, srcPart, coaxial)` where `coaxial =
+  targetPart.kind === 'cylinder'` (a dowel snapping onto a dowel cap seats
+  coaxially; onto a board face it seats at the clicked point). The target may be
+  any flat face. This delivers the bidirectional behavior: a board snapping onto
+  a dowel cap uses the existing board transform with the cap's `faceCenter`; a
+  dowel snapping onto a board face or another cap uses the dowel transform.
 - Unchanged: the no-move guard, chained snaps, `onRotationSnap` flash, the
   `Snap {src} to {tgt}` history label, and undo/redo via `onUpdate`.
 
 ### 6. Testing
 
 - **`snapMath.test.ts`** — `computeDowelSnapTransform`: cap normal ends up
-  opposing the target normal; cap center lands at `targetFace.hitPoint`; `+Z` vs
-  `-Z` cap; a pre-rotated source dowel; an antiparallel/degenerate target.
-  `isSnapFace`: board any-face true, dowel cap true, dowel lateral false.
-  `computeDowelLocalFaceCenter`: `+Z`→`(0,0,length)`, `-Z`→`(0,0,0)`.
-- **`useSnap.test.ts`** — dowel source cap → board face (asserts `onUpdate` with
-  expected position/rotation); dowel lateral rejected as source and as target;
-  **board source → dowel cap** (bidirectional); chained snap; source-deleted
-  cancel.
+  opposing the target normal; with `coaxial=false` the cap center lands at
+  `targetFace.hitPoint`; with `coaxial=true` it lands at `targetFace.faceCenter`;
+  `+Z` vs `-Z` cap; a pre-rotated source dowel (verifies the recomputed normal);
+  an antiparallel/degenerate target. `isSnapFace`: board any-face true, dowel cap
+  true, dowel lateral false. `computeDowelLocalFaceCenter`: `+Z`→`(0,0,length)`,
+  `-Z`→`(0,0,0)`.
+- **`useSnap.test.ts`** — dowel source cap → board face (`coaxial=false`, asserts
+  `onUpdate` with expected position/rotation); dowel source cap → dowel cap
+  (`coaxial=true`, seats at target cap center); dowel lateral rejected as source
+  and as target; **board source → dowel cap** (bidirectional); chained snap;
+  source-deleted cancel.
 - Existing board snap tests stay green (zero regression) plus the mechanical
   `hitPoint` fixture additions.
-- The Viewport world-transform is integration (not unit-tested), matching the
-  existing board path; dowel cap-center math is covered via
-  `computeDowelLocalFaceCenter`.
+- The `buildFaceHit` cylinder branch is integration (THREE + `matrixWorld`, not
+  unit-tested) — matching the existing board path; dowel cap-center math is
+  covered via `computeDowelLocalFaceCenter`. The **live spike must verify both**
+  dowel snapping AND (now-enabled) SP2 dowel click-to-seed cuts.
 
 ### 7. Out of scope (deferred)
 
@@ -191,9 +226,15 @@ board path). Boards are unchanged aside from `hitPoint` now being populated.
 ## Open decisions resolved with the user
 
 - Snap surface: **cap-to-face only** (lateral excluded).
-- Landing point: the dowel cap seats at the **clicked target hit point** (not the
-  target face center); board source keeps face-center behavior.
+- Landing point: a dowel cap onto a **board face** seats at the **clicked hit
+  point**; a dowel cap onto **another dowel cap** seats **coaxially** at the
+  target cap center (end-to-end). Board source keeps face-center behavior.
 - Direction: **bidirectional** (dowel→face and face→dowel-cap).
 - Architecture: **Approach A** — separate `computeDowelSnapTransform` + kind
   routing; board path untouched.
 - No roll-snap for a dowel (rotational symmetry).
+- **Review correction:** the raycaster (`buildFaceHit`) currently returns `null`
+  for non-board parts — it emits no dowel hits at all. SP3 extends it to dowels,
+  which also makes SP2's dowel click-to-seed cuts functional live. The dowel snap
+  transform recomputes the source cap normal from the dowel's rotation rather
+  than trusting the raycaster's axis-rounded `faceNormal`.
