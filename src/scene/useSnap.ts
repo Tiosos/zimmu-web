@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { FaceHit, Part, PartId } from './types'
-import { computeSnapTransform } from './snapMath'
+import { computeSnapTransform, computeDowelSnapTransform, isSnapFace } from './snapMath'
 
 export interface SnapState {
   snapActive: boolean
@@ -54,6 +54,8 @@ export function useSnap(params: {
       if (!snapActive) return
 
       if (snapPhase === 'idle') {
+        const part = parts.find((p) => p.id === hit.partId)
+        if (!part || !isSnapFace(part, hit.localFaceNormal)) return
         setSourceFace(hit)
         setSnapPhase('source-picked')
         return
@@ -64,8 +66,14 @@ export function useSnap(params: {
 
       const srcFace = sourceFace!
       const srcPart = parts.find((p) => p.id === srcFace.partId)
-      if (!srcPart || srcPart.kind !== 'board') return
-      const { position, rotation } = computeSnapTransform(srcFace, hit, srcPart)
+      const targetPart = parts.find((p) => p.id === hit.partId)
+      if (!srcPart || !targetPart) return
+      if (!isSnapFace(targetPart, hit.localFaceNormal)) return
+
+      const { position, rotation } =
+        srcPart.kind === 'cylinder'
+          ? computeDowelSnapTransform(srcFace, hit, srcPart, targetPart.kind === 'cylinder')
+          : computeSnapTransform(srcFace, hit, srcPart)
 
       const noMove =
         Math.abs(position.x - srcPart.position.x) < 0.001 &&

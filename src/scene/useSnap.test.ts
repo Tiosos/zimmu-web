@@ -8,6 +8,12 @@ vi.mock('./snapMath', () => ({
     position: { x: 0, y: 0, z: 100 },
     rotation: { x: 0, y: 0, z: 0 },
   }),
+  computeDowelSnapTransform: vi.fn((_src, _tgt, _dowel, coaxial: boolean) => ({
+    position: { x: coaxial ? 1 : 2, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+  })),
+  isSnapFace: (part: Part, lfn: { z: number }) =>
+    part.kind === 'board' ? true : Math.abs(lfn.z) > 0.9,
   computeFaceCorners: vi.fn(),
   computeLocalFaceCenter: vi.fn(),
 }))
@@ -43,6 +49,39 @@ const partB: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+}
+
+const dowelD: Part = {
+  kind: 'cylinder',
+  id: 'd',
+  label: 'Dowel D',
+  diameter: 10,
+  length: 100,
+  material: '',
+  color: '#c19a6b',
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  rotationOrder: 'XYZ',
+  cuts: [],
+  visible: true,
+}
+
+const capOnD: FaceHit = {
+  partId: 'd',
+  faceNormal: { x: 0, y: 0, z: 1 },
+  faceCenter: { x: 0, y: 0, z: 100 },
+  localFaceNormal: { x: 0, y: 0, z: 1 },
+  localHitPoint: { x: 0, y: 0, z: 0 },
+  hitPoint: { x: 0, y: 0, z: 100 },
+}
+
+const lateralOnD: FaceHit = {
+  partId: 'd',
+  faceNormal: { x: 1, y: 0, z: 0 },
+  faceCenter: { x: 5, y: 0, z: 50 },
+  localFaceNormal: { x: 1, y: 0, z: 0 },
+  localHitPoint: { x: 5, y: 0, z: 50 },
+  hitPoint: { x: 5, y: 0, z: 50 },
 }
 
 // Source face on A pointing +Z, target face on B pointing -Z (anti-parallel)
@@ -324,6 +363,61 @@ describe('useSnap', () => {
       expect(result.current.sourceFace).toBeNull()
       expect(result.current.hoveredFace).toBeNull()
       expect(result.current.snapPhase).toBe('idle')
+    })
+  })
+
+  describe('dowel snap routing', () => {
+    it('dowel source cap → board face: routes to computeDowelSnapTransform with coaxial=false', () => {
+      const { result } = renderHook(() => useSnap({ parts: [dowelD, partB], onUpdate }))
+      act(() => result.current.activateSnap())
+      act(() => result.current.onFaceClick(capOnD)) // source = dowel cap
+      act(() => result.current.onFaceClick(faceOnB)) // target = board face (not a cap)
+      expect(onUpdate).toHaveBeenCalledTimes(1)
+      const updater = (onUpdate as ReturnType<typeof vi.fn>).mock.calls[0][1] as (p: Part) => Part
+      expect(updater(dowelD).position).toEqual({ x: 2, y: 0, z: 0 }) // coaxial=false branch
+    })
+
+    it('dowel source cap → dowel cap: routes with coaxial=true', () => {
+      const dowelE: Part = { ...dowelD, id: 'e', position: { x: 0, y: 0, z: 300 } }
+      const capOnE: FaceHit = {
+        ...capOnD,
+        partId: 'e',
+        faceNormal: { x: 0, y: 0, z: -1 },
+        localFaceNormal: { x: 0, y: 0, z: -1 },
+      }
+      const { result } = renderHook(() => useSnap({ parts: [dowelD, dowelE], onUpdate }))
+      act(() => result.current.activateSnap())
+      act(() => result.current.onFaceClick(capOnD))
+      act(() => result.current.onFaceClick(capOnE))
+      expect(onUpdate).toHaveBeenCalledTimes(1)
+      const updater = (onUpdate as ReturnType<typeof vi.fn>).mock.calls[0][1] as (p: Part) => Part
+      expect(updater(dowelD).position).toEqual({ x: 1, y: 0, z: 0 }) // coaxial=true branch
+    })
+
+    it('board source → dowel cap: bidirectional, uses board transform', () => {
+      const { result } = renderHook(() => useSnap({ parts: [partA, dowelD], onUpdate }))
+      act(() => result.current.activateSnap())
+      act(() => result.current.onFaceClick(faceOnA)) // source = board face
+      act(() => result.current.onFaceClick(capOnD)) // target = dowel cap
+      expect(onUpdate).toHaveBeenCalledTimes(1)
+      const updater = (onUpdate as ReturnType<typeof vi.fn>).mock.calls[0][1] as (p: Part) => Part
+      expect(updater(partA).position).toEqual({ x: 0, y: 0, z: 100 }) // computeSnapTransform mock
+    })
+
+    it('dowel lateral face is rejected as a source (no source set)', () => {
+      const { result } = renderHook(() => useSnap({ parts: [dowelD, partB], onUpdate }))
+      act(() => result.current.activateSnap())
+      act(() => result.current.onFaceClick(lateralOnD)) // lateral → not a snap face
+      expect(result.current.snapPhase).toBe('idle')
+      expect(result.current.sourceFace).toBeNull()
+    })
+
+    it('dowel lateral face is rejected as a target (no snap applied)', () => {
+      const { result } = renderHook(() => useSnap({ parts: [dowelD, partB], onUpdate }))
+      act(() => result.current.activateSnap())
+      act(() => result.current.onFaceClick(faceOnB)) // source = board face (valid)
+      act(() => result.current.onFaceClick(lateralOnD)) // target lateral → rejected
+      expect(onUpdate).not.toHaveBeenCalled()
     })
   })
 })
