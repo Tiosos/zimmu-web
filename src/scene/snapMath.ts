@@ -168,7 +168,8 @@ export function computeSnapTransform(
   }
   projected.normalize()
 
-  // 3c. The two canonical axes of the target face plane (always ±X/Y/Z per raycaster)
+  // 3c. The two canonical axes of the target face plane. Board targets are axis-aligned;
+  //     a dowel-cap target may be off-axis (see SP3 notes) — the fallbacks below handle that.
   const WORLD = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)]
   const planePair = WORLD.filter((a) => Math.abs(a.dot(negTgt)) < 0.01)
   const axis1 = planePair[0] ?? new THREE.Vector3(1, 0, 0)

@@ -730,4 +730,29 @@ describe('computeDowelSnapTransform', () => {
     const capNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(q)
     expect(capNormal.y).toBeCloseTo(-1, 5)
   })
+
+  it('antiparallel/degenerate target: still seats the cap opposing the target', () => {
+    // Source +Z cap points +Z (world). Target normal also +Z, so srcWorldNormal and
+    // negTgt = (0,0,-1) are antiparallel — exercises setFromUnitVectors' 180° flip.
+    const source = capFace('d1', 1, { x: 0, y: 0, z: 1 })
+    const target: FaceHit = {
+      partId: 'b1',
+      faceNormal: { x: 0, y: 0, z: 1 },
+      faceCenter: { x: 0, y: 0, z: 0 },
+      localFaceNormal: { x: 0, y: 0, z: 1 },
+      localHitPoint: { x: 0, y: 0, z: 0 },
+      hitPoint: { x: 3, y: 4, z: 70 },
+    }
+    const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, false)
+    const q = eulerToQuat(rotation)
+    const capNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(q)
+    expect(capNormal.z).toBeCloseTo(-1, 5)
+    const capLocal = new THREE.Vector3(0, 0, DOWEL.length).applyQuaternion(q)
+    expectVec3(
+      { x: position.x + capLocal.x, y: position.y + capLocal.y, z: position.z + capLocal.z },
+      3,
+      4,
+      70,
+    )
+  })
 })

@@ -20,5 +20,12 @@
   a lateral dowel face can be highlighted as a hover target even though clicking it
   is rejected on the target pick. Pre-existing limitation, made more visible now
   that target gating exists. Consider gating hover similarly.
+- Follow-up (not in scope): board → **off-axis** dowel-cap roll. `computeSnapTransform`'s
+  roll-snap assumes an axis-aligned target normal (`// always ±X/Y/Z per raycaster`). A
+  dowel cap is now a valid board-snap target and the viewport emits its exact, non-axis-
+  rounded world normal. For an axis-aligned dowel (0°/90°) this is fine; for an off-axis
+  dowel the roll-snap reference axes fall back to defaults, so the board still seats flush
+  and centered on the cap but at an unspecified in-plane roll. A circular cap has no
+  canonical roll, so this is a cosmetic limitation, not a flush-seating bug.
 - Deferred: lateral/side-lay snapping; snapping by a mitred (cut) end uses the
   nominal square cap; 2D dowel drawings (SP4).
