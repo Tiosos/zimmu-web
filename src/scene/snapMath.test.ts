@@ -627,6 +627,17 @@ describe('computeDowelSnapTransform', () => {
     visible: true,
   }
 
+  function eulerToQuat(rotation: { x: number; y: number; z: number }): THREE.Quaternion {
+    return new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(
+        (rotation.x * Math.PI) / 180,
+        (rotation.y * Math.PI) / 180,
+        (rotation.z * Math.PI) / 180,
+        'XYZ',
+      ),
+    )
+  }
+
   // helper: build a cap FaceHit for the source dowel
   function capFace(partId: string, lz: 1 | -1, worldNormal: Vec3): FaceHit {
     return {
@@ -651,14 +662,7 @@ describe('computeDowelSnapTransform', () => {
     }
     const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, false)
 
-    const q = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(
-        (rotation.x * Math.PI) / 180,
-        (rotation.y * Math.PI) / 180,
-        (rotation.z * Math.PI) / 180,
-        'XYZ',
-      ),
-    )
+    const q = eulerToQuat(rotation)
     const capNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(q)
     expect(capNormal.z).toBeCloseTo(-1, 5)
 
@@ -682,14 +686,7 @@ describe('computeDowelSnapTransform', () => {
       hitPoint: { x: 1, y: 2, z: 200 },
     }
     const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, true)
-    const q = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(
-        (rotation.x * Math.PI) / 180,
-        (rotation.y * Math.PI) / 180,
-        (rotation.z * Math.PI) / 180,
-        'XYZ',
-      ),
-    )
+    const q = eulerToQuat(rotation)
     const capLocal = new THREE.Vector3(0, 0, DOWEL.length).applyQuaternion(q)
     expectVec3(
       { x: position.x + capLocal.x, y: position.y + capLocal.y, z: position.z + capLocal.z },
@@ -710,21 +707,8 @@ describe('computeDowelSnapTransform', () => {
       hitPoint: { x: 7, y: 8, z: 30 },
     }
     const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, false)
-    const q = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(
-        (rotation.x * Math.PI) / 180,
-        (rotation.y * Math.PI) / 180,
-        (rotation.z * Math.PI) / 180,
-        'XYZ',
-      ),
-    )
-    const capLocal = new THREE.Vector3(0, 0, 0).applyQuaternion(q)
-    expectVec3(
-      { x: position.x + capLocal.x, y: position.y + capLocal.y, z: position.z + capLocal.z },
-      7,
-      8,
-      30,
-    )
+    const q = eulerToQuat(rotation)
+    expectVec3(position, 7, 8, 30)
     const capNormal = new THREE.Vector3(0, 0, -1).applyQuaternion(q)
     expect(capNormal.z).toBeCloseTo(-1, 5)
   })
@@ -742,14 +726,7 @@ describe('computeDowelSnapTransform', () => {
       hitPoint: { x: 0, y: 100, z: 0 },
     }
     const { rotation } = computeDowelSnapTransform(source, target, rotated, false)
-    const q = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(
-        (rotation.x * Math.PI) / 180,
-        (rotation.y * Math.PI) / 180,
-        (rotation.z * Math.PI) / 180,
-        'XYZ',
-      ),
-    )
+    const q = eulerToQuat(rotation)
     const capNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(q)
     expect(capNormal.y).toBeCloseTo(-1, 5)
   })
