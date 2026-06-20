@@ -4,7 +4,12 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import Stats from 'stats.js'
 import type { Part, PartId, CameraState } from '../scene/types'
 import type { FaceHit } from '../scene/types'
-import { computeFaceCorners, computeLocalFaceCenter, computeSnapTransform } from '../scene/snapMath'
+import {
+  computeFaceCorners,
+  computeLocalFaceCenter,
+  computeDowelLocalFaceCenter,
+  computeSnapTransform,
+} from '../scene/snapMath'
 
 interface ViewportProps {
   parts: Part[]
@@ -102,7 +107,34 @@ export function Viewport({
     if (!partId || !intersection.face) return null
 
     const part = currentParts.find((p) => p.id === partId)
-    if (!part || part.kind !== 'board') return null
+    if (!part) return null
+
+    if (part.kind === 'cylinder') {
+      const ln = intersection.face.normal
+      const isCap = Math.abs(ln.z) > 0.9
+      const lhp = intersection.point.clone().applyMatrix4(mesh.matrixWorld.clone().invert())
+      const localHitPoint = { x: lhp.x, y: lhp.y, z: lhp.z }
+      const hitPoint = { x: intersection.point.x, y: intersection.point.y, z: intersection.point.z }
+
+      if (isCap) {
+        const sign = Math.sign(ln.z)
+        const localFaceNormal = { x: 0, y: 0, z: sign }
+        const wn = new THREE.Vector3(0, 0, sign).transformDirection(mesh.matrixWorld)
+        const faceNormal = { x: wn.x, y: wn.y, z: wn.z }
+        const lc = computeDowelLocalFaceCenter(localFaceNormal, part)
+        const wc = new THREE.Vector3(lc.x, lc.y, lc.z).applyMatrix4(mesh.matrixWorld)
+        const faceCenter = { x: wc.x, y: wc.y, z: wc.z }
+        return { partId, faceNormal, faceCenter, localFaceNormal, localHitPoint, hitPoint }
+      }
+
+      // Lateral (curved) surface: radial normal; faceCenter is a placeholder
+      // (isSnapFace rejects lateral faces for snapping; add-cut uses localHitPoint).
+      const radial = new THREE.Vector3(ln.x, ln.y, 0).normalize()
+      const localFaceNormal = { x: radial.x, y: radial.y, z: 0 }
+      const wn = new THREE.Vector3(ln.x, ln.y, ln.z).transformDirection(mesh.matrixWorld)
+      const faceNormal = { x: wn.x, y: wn.y, z: wn.z }
+      return { partId, faceNormal, faceCenter: hitPoint, localFaceNormal, localHitPoint, hitPoint }
+    }
 
     // Snap hit normal to nearest axis in local space
     const ln = intersection.face.normal
