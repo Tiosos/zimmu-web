@@ -1,5 +1,5 @@
 import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from 'pdf-lib'
-import type { DrawingSheet, DrawingView, DimLine } from '../geom/drawing'
+import type { DrawingSheet, DrawingView, DowelView, DimLine } from '../geom/drawing'
 
 const MM_TO_PT = 72 / 25.4
 const PAGE_W_PT = 297 * MM_TO_PT // 841.89 pt
@@ -150,6 +150,77 @@ function renderPdfView(page: PDFPage, view: DrawingView, font: PDFFont): void {
   cutPosDims.forEach((d) => renderPdfDimLine(page, d, px, py, font))
 }
 
+const DASH_PT = [pt(1.2), pt(0.8)]
+
+function renderPdfDowelView(page: PDFPage, view: DowelView, font: PDFFont): void {
+  const { placement: { x: px, y: py }, outline, circles, rects, segments, cutLabels, noteLabels, dims } = view // prettier-ignore
+
+  page.drawText(view.label, { x: pt(px), y: yflip(py - 2), size: pt(3), font, color: C_GRAY })
+
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i]
+    const b = outline[(i + 1) % outline.length]
+    page.drawLine({
+      start: { x: pt(px + a.x), y: yflip(py + a.y) },
+      end: { x: pt(px + b.x), y: yflip(py + b.y) },
+      thickness: pt(0.3),
+      color: C_BLACK,
+    })
+  }
+
+  circles.forEach((c) => {
+    page.drawCircle({
+      x: pt(px + c.cx),
+      y: yflip(py + c.cy),
+      size: pt(c.r),
+      borderColor: c.dashed ? C_DARK_GRAY : C_BLACK,
+      borderWidth: pt(c.dashed ? 0.2 : 0.3),
+      borderDashArray: c.dashed ? DASH_PT : undefined,
+    })
+  })
+
+  rects.forEach((r) => {
+    page.drawRectangle({
+      x: pt(px + r.rect.x),
+      y: PAGE_H_PT - pt(py + r.rect.y + r.rect.h),
+      width: pt(r.rect.w),
+      height: pt(r.rect.h),
+      color: C_BLACK,
+      opacity: 0.06,
+      borderColor: C_DARK_GRAY,
+      borderWidth: pt(0.2),
+      borderDashArray: r.dashed ? DASH_PT : undefined,
+    })
+  })
+
+  segments.forEach((s) => {
+    page.drawLine({
+      start: { x: pt(px + s.x1), y: yflip(py + s.y1) },
+      end: { x: pt(px + s.x2), y: yflip(py + s.y2) },
+      thickness: pt(s.dashed ? 0.2 : 0.3),
+      color: s.dashed ? C_DARK_GRAY : C_BLACK,
+      dashArray: s.dashed ? DASH_PT : undefined,
+    })
+  })
+
+  const drawCenteredLabel = (text: string, cx: number, cy: number) => {
+    const fs = pt(2.5)
+    page.drawText(text, {
+      x: pt(cx) - font.widthOfTextAtSize(text, fs) / 2,
+      y: yflip(cy) + font.heightAtSize(fs) / 2,
+      size: fs,
+      font,
+      color: C_DARK_GRAY,
+    })
+  }
+  cutLabels.forEach((cl) =>
+    drawCenteredLabel(cl.text, px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2),
+  )
+  noteLabels.forEach((nl) => drawCenteredLabel(nl.text, px + nl.rect.x, py + nl.rect.y))
+
+  dims.forEach((d) => renderPdfDimLine(page, d, px, py, font))
+}
+
 function renderPdfTitleBlock(
   page: PDFPage,
   sheet: Extract<DrawingSheet, { kind: 'part' }>,
@@ -238,7 +309,7 @@ function renderPdfCoverSheet(
     borderColor: C_LIGHT_GRAY,
     borderWidth: pt(0.2),
   })
-  const headers = ['#', 'Label', 'Material', 'L × W × T', 'Cuts']
+  const headers = ['#', 'Label', 'Material', 'Dimensions', 'Cuts']
   headers.forEach((h, i) => {
     page.drawText(h, {
       x: pt(cx + cols[i] + 1),
@@ -264,7 +335,7 @@ function renderPdfCoverSheet(
       String(row.index),
       row.label,
       row.material || '—',
-      `${row.length}×${row.width}×${row.thickness}`,
+      row.dimensions,
       String(row.cutCount),
     ]
     cells.forEach((c, i) => {
@@ -288,6 +359,9 @@ export async function buildPdf(sheets: DrawingSheet[]): Promise<Uint8Array> {
     const page = doc.addPage([PAGE_W_PT, PAGE_H_PT])
     if (sheet.kind === 'cover') {
       renderPdfCoverSheet(page, sheet, font, fontBold)
+    } else if (sheet.shape === 'dowel') {
+      sheet.views.forEach((v) => renderPdfDowelView(page, v, font))
+      renderPdfTitleBlock(page, sheet, font, fontBold)
     } else {
       sheet.views.forEach((v) => renderPdfView(page, v, font))
       renderPdfTitleBlock(page, sheet, font, fontBold)

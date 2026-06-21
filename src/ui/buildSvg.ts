@@ -1,4 +1,4 @@
-import type { DrawingSheet, DrawingView, DimLine, Rect2D } from '../geom/drawing'
+import type { DrawingSheet, DrawingView, DowelView, DimLine, Rect2D } from '../geom/drawing'
 
 function escapeXml(s: string): string {
   return s
@@ -53,6 +53,17 @@ function svgText(
 ): string {
   return el('text', { x: fmt(x), y: fmt(y), ...style }, content)
 }
+
+function svgCircle(
+  cx: number,
+  cy: number,
+  r: number,
+  style: Record<string, string | number>,
+): string {
+  return el('circle', { cx: fmt(cx), cy: fmt(cy), r: fmt(r), ...style })
+}
+
+const DASH = { 'stroke-dasharray': '1.2,0.8' }
 
 function renderDimLine(dim: DimLine, px: number, py: number): string {
   const lineStyle = { stroke: '#555', 'stroke-width': '0.15' }
@@ -157,6 +168,84 @@ function renderView(view: DrawingView): string {
   return out.join('')
 }
 
+function renderDowelView(view: DowelView): string {
+  const { placement: { x: px, y: py }, outline, circles, rects, segments, cutLabels, noteLabels, dims } = view // prettier-ignore
+  const out: string[] = []
+
+  out.push(
+    svgText(px, py - 2, view.label, {
+      'font-size': '3',
+      fill: '#888',
+      'font-family': 'sans-serif',
+    }),
+  )
+
+  if (outline.length > 0) {
+    const points = outline.map((p) => `${fmt(px + p.x)},${fmt(py + p.y)}`).join(' ')
+    out.push(el('polygon', { points, stroke: '#000', fill: 'none', 'stroke-width': '0.3' }))
+  }
+
+  circles.forEach((c) => {
+    out.push(
+      svgCircle(px + c.cx, py + c.cy, c.r, {
+        stroke: '#000',
+        fill: 'none',
+        'stroke-width': c.dashed ? '0.2' : '0.3',
+        ...(c.dashed ? DASH : {}),
+      }),
+    )
+  })
+
+  rects.forEach((r) => {
+    out.push(
+      svgRect(px + r.rect.x, py + r.rect.y, r.rect.w, r.rect.h, {
+        stroke: '#444',
+        fill: 'rgba(0,0,0,0.06)',
+        'stroke-width': '0.2',
+        ...(r.dashed ? DASH : {}),
+      }),
+    )
+  })
+
+  segments.forEach((s) => {
+    out.push(
+      svgLine(px + s.x1, py + s.y1, px + s.x2, py + s.y2, {
+        stroke: s.dashed ? '#444' : '#000',
+        'stroke-width': s.dashed ? '0.2' : '0.3',
+        ...(s.dashed ? DASH : {}),
+      }),
+    )
+  })
+
+  cutLabels.forEach((cl) =>
+    out.push(
+      svgText(px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, cl.text, {
+        'font-size': '2.5',
+        fill: '#333',
+        'text-anchor': 'middle',
+        'dominant-baseline': 'middle',
+        'font-family': 'sans-serif',
+      }),
+    ),
+  )
+
+  noteLabels.forEach((nl) =>
+    out.push(
+      svgText(px + nl.rect.x, py + nl.rect.y, nl.text, {
+        'font-size': '2.5',
+        fill: '#0a6',
+        'text-anchor': 'middle',
+        'dominant-baseline': 'middle',
+        'font-family': 'sans-serif',
+      }),
+    ),
+  )
+
+  dims.forEach((d) => out.push(renderDimLine(d, px, py)))
+
+  return out.join('')
+}
+
 function renderTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): string {
   const tbY = SHEET_H - MARGIN - TITLE_H
   const tbX = MARGIN
@@ -217,7 +306,7 @@ function renderCoverSheet(sheet: Extract<DrawingSheet, { kind: 'cover' }>): stri
   const rowH = 8
   const tableY = cy + 26
   const cols = [0, 12, 60, 100, 170, 220]
-  const headers = ['#', 'Label', 'Material', 'L × W × T', 'Cuts']
+  const headers = ['#', 'Label', 'Material', 'Dimensions', 'Cuts']
 
   out.push(svgRect(cx, tableY, 267, rowH, { fill: '#eee', stroke: '#ccc', 'stroke-width': '0.2' }))
   headers.forEach((h, i) => {
@@ -238,7 +327,7 @@ function renderCoverSheet(sheet: Extract<DrawingSheet, { kind: 'cover' }>): stri
       String(row.index),
       row.label,
       row.material || '—',
-      `${row.length}×${row.width}×${row.thickness}`,
+      row.dimensions,
       String(row.cutCount),
     ]
     cells.forEach((c, i) => {
@@ -261,6 +350,8 @@ export function buildSvg(sheet: DrawingSheet): string {
   let body: string
   if (sheet.kind === 'cover') {
     body = renderCoverSheet(sheet)
+  } else if (sheet.shape === 'dowel') {
+    body = sheet.views.map(renderDowelView).join('') + renderTitleBlock(sheet)
   } else {
     body = sheet.views.map(renderView).join('') + renderTitleBlock(sheet)
   }
