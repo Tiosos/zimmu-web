@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildDrawingSheets } from './drawing'
-import type { BoardPart } from '../scene/types'
+import type { BoardPart, CylinderPart, DowelCut } from '../scene/types'
 
 function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
@@ -32,7 +32,7 @@ describe('buildDrawingSheets', () => {
   it('part sheet has Face/Edge/End views with board rects matching L×W, L×T, W×T', () => {
     const sheets = buildDrawingSheets([makeBoard({ length: 400, width: 200, thickness: 18 })], 'P')
     const sheet = sheets[1]
-    if (sheet.kind !== 'part') throw new Error('expected part')
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
     // scale 1:5 → factor 0.2
     const s = 0.2
     const [face, edge, end] = sheet.views
@@ -58,7 +58,7 @@ describe('buildDrawingSheets', () => {
     }
     const sheets = buildDrawingSheets([makeBoard({ cuts: [cut] })], 'P')
     const sheet = sheets[1]
-    if (sheet.kind !== 'part') throw new Error('expected part')
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
     const [face, edge, end] = sheet.views
     expect(face.cuts).toHaveLength(1)
     expect(edge.cuts).toHaveLength(0)
@@ -76,7 +76,7 @@ describe('buildDrawingSheets', () => {
     }
     const sheets = buildDrawingSheets([makeBoard({ cuts: [cut] })], 'P')
     const sheet = sheets[1]
-    if (sheet.kind !== 'part') throw new Error('expected part')
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
     const [face, edge, end] = sheet.views
     expect(face.cuts).toHaveLength(0)
     expect(edge.cuts).toHaveLength(1)
@@ -94,7 +94,7 @@ describe('buildDrawingSheets', () => {
     }
     const sheets = buildDrawingSheets([makeBoard({ cuts: [cut] })], 'P')
     const sheet = sheets[1]
-    if (sheet.kind !== 'part') throw new Error('expected part')
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
     const [face, edge, end] = sheet.views
     expect(face.cuts).toHaveLength(0)
     expect(edge.cuts).toHaveLength(0)
@@ -114,7 +114,7 @@ describe('buildDrawingSheets', () => {
       'P',
     )
     const sheet = sheets[1]
-    if (sheet.kind !== 'part') throw new Error('expected part')
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
     const [face, edge, end] = sheet.views
     expect(face.boardOutline).toBeDefined()
     expect(face.boardOutline).toHaveLength(4)
@@ -133,7 +133,7 @@ describe('buildDrawingSheets', () => {
       'P',
     )
     const sheet = sheets[1]
-    if (sheet.kind !== 'part') throw new Error('expected part')
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
     const [face, edge] = sheet.views
     expect(face.boardOutline).toBeUndefined()
     expect(edge.boardOutline).toBeDefined()
@@ -143,7 +143,7 @@ describe('buildDrawingSheets', () => {
     // raw = min((247-15)/(400+200), (135-15)/(200+18)) = min(0.387, 0.550) = 0.387 → 0.2
     const sheets = buildDrawingSheets([makeBoard({ length: 400, width: 200, thickness: 18 })], 'P')
     const sheet = sheets[1]
-    if (sheet.kind !== 'part') throw new Error('expected part')
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
     expect(sheet.scaleLabel).toBe('1:5')
   })
 
@@ -151,7 +151,7 @@ describe('buildDrawingSheets', () => {
     // raw = min((247-15)/1800, (135-15)/620) = min(0.129, 0.194) = 0.129 → 0.1
     const sheets = buildDrawingSheets([makeBoard({ length: 1200, width: 600, thickness: 20 })], 'P')
     const sheet = sheets[1]
-    if (sheet.kind !== 'part') throw new Error('expected part')
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
     expect(sheet.scaleLabel).toBe('1:10')
   })
 
@@ -181,13 +181,175 @@ describe('buildDrawingSheets', () => {
     if (cover.kind !== 'cover') throw new Error('expected cover')
     expect(cover.projectName).toBe('Cabinet')
     expect(cover.rows).toHaveLength(2)
-    expect(cover.rows[0]).toMatchObject({ label: 'Top', material: 'Oak', length: 800 })
-    expect(cover.rows[1]).toMatchObject({ label: 'Side', material: 'Plywood', length: 600 })
+    expect(cover.rows[0]).toMatchObject({ label: 'Top', material: 'Oak', dimensions: '800×400×18' })
+    expect(cover.rows[1]).toMatchObject({
+      label: 'Side',
+      material: 'Plywood',
+      dimensions: '600×300×12',
+    })
   })
 
   it('sheet count = 1 + part count', () => {
     const parts = [makeBoard({ id: 'p1' }), makeBoard({ id: 'p2' }), makeBoard({ id: 'p3' })]
     const sheets = buildDrawingSheets(parts, 'P')
     expect(sheets).toHaveLength(4)
+  })
+})
+
+function makeDowel(overrides: Partial<CylinderPart> = {}): CylinderPart {
+  return {
+    kind: 'cylinder',
+    id: 'd1',
+    label: 'Dowel',
+    diameter: 20,
+    length: 100,
+    material: 'Beech',
+    color: '#c9a',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+    ...overrides,
+  }
+}
+
+// ⌀20×100 fits at scale 1 (raw = min(232/120, 135/20) = 1.93 → 1), so view coords == mm.
+function dowelSheet(cuts: DowelCut[] = [], overrides: Partial<CylinderPart> = {}) {
+  const sheets = buildDrawingSheets([makeDowel({ cuts, ...overrides })], 'P')
+  const sheet = sheets[1]
+  if (sheet.kind !== 'part' || sheet.shape !== 'dowel') throw new Error('expected dowel part')
+  return sheet
+}
+
+function midpoint(s: { x1: number; y1: number; x2: number; y2: number }) {
+  return { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 }
+}
+
+describe('buildDrawingSheets — dowels', () => {
+  it('uncut dowel → Side rectangle + End circle, listed on cover', () => {
+    const sheets = buildDrawingSheets([makeDowel()], 'P')
+    expect(sheets).toHaveLength(2)
+    const sheet = sheets[1]
+    if (sheet.kind !== 'part' || sheet.shape !== 'dowel') throw new Error('expected dowel part')
+    const [side, end] = sheet.views
+    expect(side.label).toBe('Side')
+    expect(end.label).toBe('End')
+    expect(side.outline).toHaveLength(4)
+    expect(side.outline[1]).toEqual({ x: 100, y: 0 })
+    expect(side.outline[2]).toEqual({ x: 100, y: 20 })
+    expect(side.dims.map((d) => d.label)).toEqual(expect.arrayContaining(['100mm', '⌀20mm']))
+    expect(end.outline).toHaveLength(0)
+    expect(end.circles[0].r).toBe(10)
+    expect(end.circles[0].dashed).toBe(false)
+
+    const cover = sheets[0]
+    if (cover.kind !== 'cover') throw new Error('expected cover')
+    expect(cover.rows[0]).toMatchObject({ dimensions: '⌀20×100', cutCount: 0 })
+  })
+
+  it('square end cut shortens the Side outline by offset', () => {
+    const side = dowelSheet([
+      { kind: 'end', id: 'c1', label: 'Trim', end: '+Z', offset: 10, angle: 0, azimuth: 0 },
+    ]).views[0]
+    expect(side.outline[1]).toEqual({ x: 90, y: 0 }) // top-right
+    expect(side.outline[2]).toEqual({ x: 90, y: 20 }) // bottom-right
+    expect(side.noteLabels.map((n) => n.text)).toContain('10mm')
+  })
+
+  it('angled end cut bevels the end and notes the angle', () => {
+    const side = dowelSheet([
+      { kind: 'end', id: 'c1', label: 'Mitre', end: '+Z', offset: 0, angle: 45, azimuth: 0 },
+    ]).views[0]
+    // drop = ⌀·tan(45°) = 20: top stays at 100, bottom recedes to 80
+    expect(side.outline[1].x).toBeCloseTo(100, 3)
+    expect(side.outline[2].x).toBeCloseTo(80, 3)
+    expect(side.noteLabels.map((n) => n.text)).toContain('45°')
+  })
+
+  it('notch → Side slot + axial dim; End chord at radius R−depth', () => {
+    const sheet = dowelSheet([
+      { kind: 'notch', id: 'c1', label: 'Notch', position: 50, width: 20, depth: 5, azimuth: 0 },
+    ])
+    const [side, end] = sheet.views
+    expect(side.rects).toHaveLength(1)
+    expect(side.rects[0].rect).toEqual({ x: 40, y: 0, w: 20, h: 5 })
+    expect(side.rects[0].dashed).toBe(false)
+    expect(side.cutLabels[0].text).toBe('20×5 az0°')
+    expect(side.dims.some((d) => d.label === '40mm')).toBe(true)
+    expect(end.segments).toHaveLength(1)
+    const m = midpoint(end.segments[0])
+    expect(Math.hypot(m.x - 10, m.y - 10)).toBeCloseTo(5, 3) // R−depth = 10−5
+  })
+
+  it('axial blind bore → dashed walls + closing line + concentric dashed circle', () => {
+    const sheet = dowelSheet([
+      { kind: 'bore-axial', id: 'c1', label: 'Bore', end: '+Z', diameter: 6, depth: 30 },
+    ])
+    const [side, end] = sheet.views
+    expect(side.segments).toHaveLength(3) // two walls + one closing (blind)
+    expect(side.segments.every((s) => s.dashed)).toBe(true)
+    expect(side.cutLabels[0].text).toBe('⌀6 30')
+    expect(end.circles).toHaveLength(2)
+    expect(end.circles[1]).toMatchObject({ r: 3, dashed: true })
+  })
+
+  it('axial through bore → no closing line, "through" label', () => {
+    const side = dowelSheet([
+      { kind: 'bore-axial', id: 'c1', label: 'Bore', end: '-Z', diameter: 6, depth: 100 },
+    ]).views[0]
+    expect(side.segments).toHaveLength(2) // walls only
+    expect(side.cutLabels[0].text).toBe('⌀6 through')
+  })
+
+  it('transverse bore → dashed Side walls + axial dim + dashed End slot', () => {
+    const sheet = dowelSheet([
+      {
+        kind: 'bore-transverse',
+        id: 'c1',
+        label: 'Cross',
+        position: 50,
+        azimuth: 0,
+        diameter: 6,
+        depth: 20,
+      },
+    ])
+    const [side, end] = sheet.views
+    expect(side.segments).toHaveLength(2)
+    expect(side.segments.map((s) => s.x1).sort()).toEqual([47, 53])
+    expect(side.segments.every((s) => s.dashed)).toBe(true)
+    expect(side.cutLabels[0].text).toBe('⌀6 az0°')
+    expect(side.dims.some((d) => d.label === '50mm')).toBe(true)
+    expect(end.segments).toHaveLength(2)
+    expect(end.segments.every((s) => s.dashed)).toBe(true)
+  })
+
+  it('degenerate cuts contribute no geometry', () => {
+    const sheet = dowelSheet([
+      { kind: 'notch', id: 'c1', label: 'n', position: 50, width: 20, depth: 0, azimuth: 0 },
+      { kind: 'end', id: 'c2', label: 'e', end: '+Z', offset: 0, angle: 0, azimuth: 0 },
+    ])
+    const [side] = sheet.views
+    expect(side.rects).toHaveLength(0)
+    expect(side.noteLabels).toHaveLength(0)
+    expect(side.outline[1]).toEqual({ x: 100, y: 0 }) // untrimmed
+  })
+
+  it('mixed scene → cover rows per kind; board + dowel sheets', () => {
+    const board = makeBoard({ id: 'p1', label: 'Top', length: 800, width: 400, thickness: 18 })
+    const sheets = buildDrawingSheets([board, makeDowel({ id: 'd1', label: 'Pin' })], 'Mix')
+    expect(sheets).toHaveLength(3)
+    const cover = sheets[0]
+    if (cover.kind !== 'cover') throw new Error('expected cover')
+    expect(cover.rows[0].dimensions).toBe('800×400×18')
+    expect(cover.rows[1].dimensions).toBe('⌀20×100')
+    expect(sheets[1].kind === 'part' && sheets[1].shape).toBe('board')
+    expect(sheets[2].kind === 'part' && sheets[2].shape).toBe('dowel')
+  })
+
+  it('selects a smaller scale for a long thin dowel', () => {
+    // ⌀10×2000: raw = min((247-15)/2010, 135/10) = min(0.115, 13.5) = 0.115 → 0.1
+    const sheet = dowelSheet([], { diameter: 10, length: 2000 })
+    expect(sheet.scaleLabel).toBe('1:10')
   })
 })

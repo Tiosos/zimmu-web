@@ -1,4 +1,4 @@
-import type { DrawingSheet, DrawingView, DimLine, Rect2D } from '../geom/drawing'
+import type { DrawingSheet, DrawingView, DowelView, DimLine, Rect2D } from '../geom/drawing'
 
 const SHEET_H = 210
 
@@ -32,6 +32,24 @@ function dxfLine(layer: string, x1: number, y1: number, x2: number, y2: number):
       '0.000',
     ].join('\n') + '\n'
   )
+}
+
+// LINE on the HIDDEN layer with a per-entity DASHED linetype override.
+function dxfDashedLine(x1: number, y1: number, x2: number, y2: number): string {
+  return (
+    [
+      '0', 'LINE',
+      '8', 'HIDDEN',
+      '6', 'DASHED',
+      '10', fmt(x1), '20', fmt(fy(y1)), '30', '0.000',
+      '11', fmt(x2), '21', fmt(fy(y2)), '31', '0.000',
+    ].join('\n') + '\n'
+  ) // prettier-ignore
+}
+
+function dxfCircle(layer: string, cx: number, cy: number, r: number, dashed: boolean): string {
+  const head = dashed ? ['0', 'CIRCLE', '8', 'HIDDEN', '6', 'DASHED'] : ['0', 'CIRCLE', '8', layer]
+  return [...head, '10', fmt(cx), '20', fmt(fy(cy)), '30', '0.000', '40', fmt(r)].join('\n') + '\n'
 }
 
 // Draws 4 LINE entities forming a closed rectangle.
@@ -146,6 +164,46 @@ function dxfView(view: DrawingView): string {
   return out.join('')
 }
 
+function dxfDowelView(view: DowelView): string {
+  const { placement: { x: px, y: py }, outline, circles, rects, segments, cutLabels, noteLabels, dims } = view // prettier-ignore
+  const out: string[] = []
+
+  out.push(dxfText('TEXT', px, py - 2, 3, view.label))
+
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i]
+    const b = outline[(i + 1) % outline.length]
+    out.push(dxfLine('OUTLINE', px + a.x, py + a.y, px + b.x, py + b.y))
+  }
+
+  circles.forEach((c) =>
+    out.push(dxfCircle(c.dashed ? 'CUTS' : 'OUTLINE', px + c.cx, py + c.cy, c.r, c.dashed)),
+  )
+
+  rects.forEach((r) => out.push(dxfRect('CUTS', px + r.rect.x, py + r.rect.y, r.rect.w, r.rect.h)))
+
+  segments.forEach((s) => {
+    if (s.dashed) {
+      out.push(dxfDashedLine(px + s.x1, py + s.y1, px + s.x2, py + s.y2))
+    } else {
+      out.push(dxfLine('CUTS', px + s.x1, py + s.y1, px + s.x2, py + s.y2))
+    }
+  })
+
+  cutLabels.forEach((cl) =>
+    out.push(
+      dxfText('TEXT', px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, 2.5, cl.text),
+    ),
+  )
+  noteLabels.forEach((nl) =>
+    out.push(dxfText('TEXT', px + nl.rect.x, py + nl.rect.y, 2.5, nl.text)),
+  )
+
+  dims.forEach((d) => out.push(dxfDimLine(d, px, py)))
+
+  return out.join('')
+}
+
 function dxfTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): string {
   const MARGIN = 15
   const tbY = SHEET_H - MARGIN - 25
@@ -175,7 +233,7 @@ function dxfCoverSheet(sheet: Extract<DrawingSheet, { kind: 'cover' }>): string 
   const cols = [0, 12, 60, 100, 170]
 
   out.push(dxfRect('TITLE', cx, tableY, 267, rowH))
-  const headers = ['#', 'Label', 'Material', 'L x W x T', 'Cuts']
+  const headers = ['#', 'Label', 'Material', 'Dimensions', 'Cuts']
   headers.forEach((h, i) => out.push(dxfText('TEXT', cx + cols[i] + 1, tableY + 5.5, 3.5, h)))
 
   sheet.rows.forEach((row, ri) => {
@@ -185,7 +243,7 @@ function dxfCoverSheet(sheet: Extract<DrawingSheet, { kind: 'cover' }>): string 
       String(row.index),
       row.label,
       row.material || '-',
-      `${row.length}x${row.width}x${row.thickness}`,
+      row.dimensions,
       String(row.cutCount),
     ]
     cells.forEach((c, i) => out.push(dxfText('TEXT', cx + cols[i] + 1, ry + 5.5, 3.5, c)))
@@ -195,30 +253,33 @@ function dxfCoverSheet(sheet: Extract<DrawingSheet, { kind: 'cover' }>): string 
 }
 
 function dxfTables(): string {
-  const layers = ['OUTLINE', 'CUTS', 'DIM', 'TEXT', 'TITLE']
+  const ltypes = [
+    ['0', 'LTYPE', '2', 'CONTINUOUS', '70', '0', '3', 'Solid line', '72', '65', '73', '0', '40', '0.0'], // prettier-ignore
+    ['0', 'LTYPE', '2', 'DASHED', '70', '0', '3', 'Dashed', '72', '65', '73', '2', '40', '2.0', '49', '1.2', '49', '-0.8'], // prettier-ignore
+  ]
+  const ltypeDefs = ltypes.map((l) => l.join('\n')).join('\n')
+
+  // CONTINUOUS for solid layers; HIDDEN carries the DASHED linetype.
+  const layers: [string, string][] = [
+    ['OUTLINE', 'CONTINUOUS'],
+    ['CUTS', 'CONTINUOUS'],
+    ['DIM', 'CONTINUOUS'],
+    ['TEXT', 'CONTINUOUS'],
+    ['TITLE', 'CONTINUOUS'],
+    ['HIDDEN', 'DASHED'],
+  ]
   const layerDefs = layers
-    .map((name) => ['0', 'LAYER', '2', name, '70', '0', '62', '7', '6', 'CONTINUOUS'].join('\n'))
+    .map(([name, lt]) => ['0', 'LAYER', '2', name, '70', '0', '62', '7', '6', lt].join('\n'))
     .join('\n')
 
   return (
     [
-      '0',
-      'SECTION',
-      '2',
-      'TABLES',
-      '0',
-      'TABLE',
-      '2',
-      'LAYER',
-      '70',
-      String(layers.length),
-      layerDefs,
-      '0',
-      'ENDTAB',
-      '0',
-      'ENDSEC',
+      '0', 'SECTION', '2', 'TABLES',
+      '0', 'TABLE', '2', 'LTYPE', '70', String(ltypes.length), ltypeDefs, '0', 'ENDTAB',
+      '0', 'TABLE', '2', 'LAYER', '70', String(layers.length), layerDefs, '0', 'ENDTAB',
+      '0', 'ENDSEC',
     ].join('\n') + '\n'
-  )
+  ) // prettier-ignore
 }
 
 export function buildDxf(sheet: DrawingSheet): string {
@@ -255,6 +316,8 @@ export function buildDxf(sheet: DrawingSheet): string {
   let entities: string
   if (sheet.kind === 'cover') {
     entities = dxfCoverSheet(sheet)
+  } else if (sheet.shape === 'dowel') {
+    entities = sheet.views.map(dxfDowelView).join('') + dxfTitleBlock(sheet)
   } else {
     entities = sheet.views.map(dxfView).join('') + dxfTitleBlock(sheet)
   }
