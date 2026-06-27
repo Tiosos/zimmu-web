@@ -35,9 +35,11 @@ export function makeCylinder(
   radius: number,
   height: number,
 ): TopoDS_Shape {
-  // BRepPrimAPI_MakeCylinder_2(R, H): default axis +Z, base circle centered at origin.
+  // BRepPrimAPI_MakeCylinder_1(R, H): default axis +Z, base circle centered at
+  // origin. The _2 overload is (R, H, Angle) — 3 args — and throws at runtime if
+  // called with 2 (confirmed against opencascade.js v1.1.1, 2026-06-27).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const builder = new (oc as any).BRepPrimAPI_MakeCylinder_2(radius, height)
+  const builder = new (oc as any).BRepPrimAPI_MakeCylinder_1(radius, height)
   const shape = builder.Shape()
   builder.delete()
   return shape
@@ -66,15 +68,11 @@ export function makeCut(
   trsf.delete()
   const movedTool = xform.Shape()
 
+  // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor (IsDone/Shape are
+  // valid immediately). The progress-range overloads are unusable: Message_ProgressRange
+  // is absent in opencascade.js v1.1.1 (see 2026-06-05-3d-export-notes.md).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pr1 = new (oc as any).Message_ProgressRange_1()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const op = new (oc as any).BRepAlgoAPI_Cut_3(shape, movedTool, pr1)
-  pr1.delete()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pr2 = new (oc as any).Message_ProgressRange_1()
-  op.Build(pr2)
-  pr2.delete()
+  const op = new (oc as any).BRepAlgoAPI_Cut_3(shape, movedTool)
 
   if (!op.IsDone()) {
     console.warn('makeCut: BRepAlgoAPI_Cut did not complete — returning input shape')
@@ -133,12 +131,9 @@ export function makeMitreCut(
   rTrsf.delete()
   const movedTool = rXform.Shape()
 
-  const pr1 = new O.Message_ProgressRange_1()
-  const op = new O.BRepAlgoAPI_Cut_3(shape, movedTool, pr1)
-  pr1.delete()
-  const pr2 = new O.Message_ProgressRange_1()
-  op.Build(pr2)
-  pr2.delete()
+  // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor; Message_ProgressRange
+  // is absent in opencascade.js v1.1.1, so the progress-range overloads are unusable.
+  const op = new O.BRepAlgoAPI_Cut_3(shape, movedTool)
 
   const cleanup = () => {
     op.delete()
@@ -193,12 +188,9 @@ export function makeBoxCutAt(
   rTrsf.delete()
   const movedTool = rXform.Shape()
 
-  const pr1 = new O.Message_ProgressRange_1()
-  const op = new O.BRepAlgoAPI_Cut_3(shape, movedTool, pr1)
-  pr1.delete()
-  const pr2 = new O.Message_ProgressRange_1()
-  op.Build(pr2)
-  pr2.delete()
+  // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor; Message_ProgressRange
+  // is absent in opencascade.js v1.1.1, so the progress-range overloads are unusable.
+  const op = new O.BRepAlgoAPI_Cut_3(shape, movedTool)
 
   const cleanup = () => {
     op.delete()
@@ -220,8 +212,8 @@ export function makeBoxCutAt(
 }
 
 // Build an oriented cylinder tool and subtract it. Serves both bore types.
-// gp_Ax2_3 / BRepPrimAPI_MakeCylinder_3 overloads are this design's best read of
-// the embind API and are UNVERIFIED until the live OCCT spike (browser-only).
+// gp_Ax2_3 / BRepPrimAPI_MakeCylinder_3(Axes, R, H) verified against the live
+// opencascade.js v1.1.1 kernel (2026-06-27).
 export function makeCylinderCut(
   oc: OpenCascadeInstance,
   shape: TopoDS_Shape,
@@ -239,12 +231,9 @@ export function makeCylinderCut(
   pnt.delete()
   dir.delete()
 
-  const pr1 = new O.Message_ProgressRange_1()
-  const op = new O.BRepAlgoAPI_Cut_3(shape, toolShape, pr1)
-  pr1.delete()
-  const pr2 = new O.Message_ProgressRange_1()
-  op.Build(pr2)
-  pr2.delete()
+  // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor; Message_ProgressRange
+  // is absent in opencascade.js v1.1.1, so the progress-range overloads are unusable.
+  const op = new O.BRepAlgoAPI_Cut_3(shape, toolShape)
 
   const cleanup = () => {
     op.delete()
