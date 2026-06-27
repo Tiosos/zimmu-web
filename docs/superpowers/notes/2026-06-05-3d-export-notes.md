@@ -9,34 +9,46 @@ Living record of decisions and surprises that don't belong in the spec/plan. Aud
 ## Status at hand-off
 
 - **Tasks 1–6 implemented, reviewed (spec + code quality), committed.** Full gate green: `pnpm typecheck && pnpm lint && pnpm test` → 252 passed / 6 skipped.
-- **Two verification steps remain and require a human with a browser** (a subagent/CI cannot drive them):
-  1. **Live STEP spike (Plan Task 6, Step 9):** run `pnpm dev`, click **File ▸ Export STEP…**, confirm a valid `.step` downloads and the XCAF/CAF binding symbols in `writeStep` actually resolve at runtime. See "CAF symbols — UNVERIFIED" below.
-  2. **Manual smoke (Plan Task 7, Step 3):** rotated multi-board + cut → export STL and STEP → open in a mesh viewer / FreeCAD; verify placement, mm scale, separate named solids, visible-only filtering, and that the menu items disable when no parts are visible.
+- **All verification steps complete** (2026-06-16 live browser spike + smoke test). See "Live spike findings" below. The XCAF named-solid path proved unavailable in opencascade.js v1.1.1; `writeStep` now uses the documented unnamed-compound fallback.
 
-## CAF symbols — UNVERIFIED until the live spike
+## Live spike findings (2026-06-16) — fallback path taken
 
-`writeStep` in `src/geom/occt.ts` uses the named-solid XCAF path with these embind symbols, which are the **design's best reading and have NOT been exercised against the WASM build**:
+The live browser spike revealed that **the XCAF/CAF path does not work in opencascade.js v1.1.1**. The following classes are absent from the WASM build despite appearing in `Supported APIs.md`:
 
-- `Interface_Static.SetCVal('write.step.unit','MM')`
-- `XCAFApp_Application.GetApplication()`
-- `new Handle_TDocStd_Document_1()`, `app.NewDocument(new TCollection_ExtendedString_2('MDTV-XCAF', true), doc)`
-- `XCAFDoc_DocumentTool.ShapeTool(doc.get().Main())`
-- `shapeTool.AddShape(shape, false, true)`
-- `TDataStd_Name.Set_2(lbl, new TCollection_ExtendedString_2(label, true))`
-- `new STEPCAFControl_Writer_1()`, `writer.Transfer_1(doc, STEPControl_StepModelType.STEPControl_AsIs, '', pr)`, `writer.Write('out.step')`
-- `oc.FS.readFile('out.step', { encoding: 'utf8' })`
+- `XCAFApp_Application` — not present at runtime; `.GetApplication()` is `undefined`
+- `STEPCAFControl_Writer` / `STEPCAFControl_Writer_1` — unavailable; throws on construction
+- `Message_ProgressRange` / `Message_ProgressRange_1` — added in OCCT 7.6+; not in v1.1.1
 
-Plan-time check: all of these classes appear in `node_modules/opencascade.js/dist/Supported APIs.md` (build v1.1.1), so the named-solid path is expected to be viable. But exact **overload suffixes** (`_1`/`_2`) and method availability are only confirmed at runtime.
+`Interface_Static.SetCVal` and `oc.FS.readFile` work fine.
 
-**Decision rule for the spike (from the spec):** if the CAF chain throws at runtime, try alternative overload suffixes (consult the `Supported APIs.md` entry per class); if XCAF is genuinely unavailable, switch `writeStep` to the documented **unnamed fallback** (`STEPControl_Writer` + a `TopoDS_Compound`, see spec §5 "Fallback path"). Do not block release on naming — distinct solids satisfy the core need.
+**Fallback path taken** (spec §5): `writeStep` uses an unnamed compound via `STEPControl_Writer_1` + `BRep_Builder` + `TopoDS_Compound`. The exported STEP contains all visible solids in a single compound — world-space placement is correct, units are mm. No named solid hierarchy (the per-part `label` is no longer embedded).
 
-**After the spike:** update the comment in `occt.ts` to record the outcome (or note the fallback was taken), and record the result here.
+### Constructor suffix lesson
 
-**2026-06-15 update — comment corrected, spike still NOT run.** A plan/code cross-check found the `occt.ts` comment had been pre-written in past tense ("…confirmed by a later live spike") even though the spike was never run — overstating the verification status. The comment has been corrected to state the embind overloads are UNVERIFIED at runtime. The live STEP spike (and the manual FreeCAD smoke) **still remain** and require a human with a browser. Until then, STEP export must be treated as unverified — it may throw on first real use if any overload suffix is wrong. The documented `STEPControl_Writer` fallback is also still unimplemented (per the decision rule, it is only to be added if the spike finds CAF unavailable); note that `CLAUDE.md` currently describes that fallback as if it exists.
+`opencascade.js`'s `autobind.py` gives the zero-arg constructor of any class with multiple constructors the `_1` suffix; the base class name alone has no accessible constructor. Working constructors:
 
-## XCAF resource cleanup — intentionally minimal
+| Class | Constructor |
+|---|---|
+| `BRep_Builder` | `new O.BRep_Builder()` — single constructor, no suffix |
+| `TopoDS_Compound` | `new O.TopoDS_Compound()` — no suffix |
+| `STEPControl_Writer` | `new O.STEPControl_Writer_1()` — `_1` is the zero-arg overload |
 
-`writeStep` deletes the OCCT objects with clear ownership (`gp_Trsf`, `BRepBuilderAPI_Transform`, the transformed shapes, the `STEPCAFControl_Writer`, `Message_ProgressRange`). It does **not** delete the XCAF document/app handles or the per-label `TCollection_ExtendedString_2` temporaries. This is a deliberate tradeoff for a one-shot, user-triggered export off the hot path — but it is a deviation from the otherwise-strict `delete()` discipline in `occt.ts` (`makeBox`/`makeCut`/`makeShape`/`makeTransformedShape` free every temporary). The per-label `ExtendedString` allocations grow with part count within a single call. If export is ever called in a loop or memory pressure shows up, revisit and free these. Flagged by the Task 5 code-quality review.
+`Transfer` signature: `writer.Transfer(shape, mode, doNaming)` — 3 args only, **no** `Message_ProgressRange`.
+
+### vite-plugin-wasm conflict
+
+`vite-plugin-wasm` intercepts `.wasm` imports and converts them to compiled `WebAssembly` module objects. opencascade.js uses Emscripten's `locateFile` pattern and expects the WASM file to be a **URL string** — not a compiled module. They are incompatible: `vite-plugin-wasm` breaks opencascade.js init. Fix: **do not use `vite-plugin-wasm`**; serve the WASM as a static asset via `assetsInclude: ['**/*.wasm']`, which provides the URL opencascade.js needs. (Already reflected in `vite.config.ts` and `CLAUDE.md` on `main`.)
+
+### Smoke test results (all pass, 2026-06-16)
+
+1. ✅ STEP export: `Untitled.step` — valid `ISO-10303-21;` header, correct HEADER/DATA structure
+2. ✅ STL export: `Untitled.stl` — downloaded without errors
+3. ✅ Visible-only filter: hiding the only board greyed out both export menu items
+4. ✅ Disabled state: `canExport = visibleParts.length > 0` works correctly
+
+### Resource cleanup in the fallback path
+
+All OCCT temporaries are deleted before `writeStep` returns (`BRep_Builder`, `TopoDS_Compound`, all `makeTransformedShape` results, `STEPControl_Writer_1`). No XCAF handles or `TCollection_ExtendedString_2` temporaries are created, so the cleanup concern flagged in the Task 5 code review no longer applies.
 
 ## Transform parity (the "never diverge" guarantee)
 

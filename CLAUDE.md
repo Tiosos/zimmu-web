@@ -120,7 +120,7 @@ The project has Claude Code hooks configured in `.claude/settings.json`:
 src/
 ├── geom/
 │   ├── occt.ts          OCCT bootstrap (initOCCT, lazy singleton); makeBox, makeCut,
-│   │                    makeShape (box + cut chain), writeStep (XCAF named solids), ExportSpec
+│   │                    makeShape (box + cut chain), writeStep (unnamed STEP compound), ExportSpec
 │   ├── occt.worker.ts   Comlink Web Worker — exposes buildPart() + exportStep()
 │   ├── mesh.ts          TopoDS_Shape → MeshData (Float32Arrays) + BufferGeometry
 │   ├── transform.ts     composeWorldMatrix(part) — THREE-free world matrix, parity-tested
@@ -190,7 +190,7 @@ src/
 
 **Face interactions** (`useSnap`, `useAddCut`) are small state machines composed in `App.tsx`, fed `FaceHit`s from the Viewport raycaster. Both apply results through `useScene.onUpdate` (so they participate in undo/redo). All their geometry math lives in `snapMath.ts` as pure, THREE-typed-but-browser-free functions — test it directly, not through the React hooks.
 
-**3D export** (STL + STEP) is hybrid: `composeWorldMatrix(part)` in `transform.ts` is the single source of truth for a part's world placement (THREE-free, element-wise parity-tested against `THREE.Matrix4`). STL is built synchronously on the main thread (`buildBinaryStl`, world-space triangle soup with recomputed facet normals). STEP goes through the worker (`exportStep` → `writeStep`, XCAF named solids in mm; falls back to an unnamed `STEPControl_Writer` if CAF symbols are unavailable). Both export only **visible** parts and deliver via `downloadBlob`. If you add a `rotationOrder` other than `'XYZ'`, `composeWorldMatrix` must be revisited — it hardcodes Euler XYZ.
+**3D export** (STL + STEP) is hybrid: `composeWorldMatrix(part)` in `transform.ts` is the single source of truth for a part's world placement (THREE-free, element-wise parity-tested against `THREE.Matrix4`). STL is built synchronously on the main thread (`buildBinaryStl`, world-space triangle soup with recomputed facet normals). STEP goes through the worker (`exportStep` → `writeStep`, an unnamed `STEPControl_Writer` compound of all solids in mm — the XCAF named-solid path is absent at runtime in opencascade.js v1.1.1, see `docs/superpowers/notes/2026-06-05-3d-export-notes.md`). Both export only **visible** parts and deliver via `downloadBlob`. If you add a `rotationOrder` other than `'XYZ'`, `composeWorldMatrix` must be revisited — it hardcodes Euler XYZ.
 
 **2D export** (shop drawings): `buildDrawingSheet(part)` in `src/geom/drawing.ts` produces `DrawingView[]` (Face/Edge/End orthographic projections) from a single part. The `DrawingViewer` modal renders these as an SVG preview; `buildSvg.ts` and `buildDxf.ts` serialize them to downloadable formats.
 
