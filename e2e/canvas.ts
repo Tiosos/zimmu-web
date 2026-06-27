@@ -18,3 +18,30 @@ export function isNonBlank(pngBuffer: Buffer): boolean {
   }
   return false
 }
+
+// Fraction of sampled pixels whose (high-bit-masked) color differs between two
+// equally-sized screenshots. The high-bit mask suppresses anti-aliasing noise so
+// a steady scene reads ~0; new on-screen geometry produces a clear positive.
+export function changedFraction(a: Buffer, b: Buffer): number {
+  const pa = PNG.sync.read(a)
+  const pb = PNG.sync.read(b)
+  if (pa.width !== pb.width || pa.height !== pb.height) return 1
+  const { width, height } = pa
+  let changed = 0
+  let sampled = 0
+  const step = 4
+  for (let y = 0; y < height; y += step) {
+    for (let x = 0; x < width; x += step) {
+      const o = (y * width + x) << 2
+      sampled++
+      if (
+        (pa.data[o] & 0xe0) !== (pb.data[o] & 0xe0) ||
+        (pa.data[o + 1] & 0xe0) !== (pb.data[o + 1] & 0xe0) ||
+        (pa.data[o + 2] & 0xe0) !== (pb.data[o + 2] & 0xe0)
+      ) {
+        changed++
+      }
+    }
+  }
+  return sampled === 0 ? 0 : changed / sampled
+}
