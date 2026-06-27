@@ -371,36 +371,37 @@ function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS
   return moved
 }
 
-// Named-solid STEP via XCAF. Symbol overloads (_1/_2) are the design's best reading
-// of the embind API and are UNVERIFIED at runtime — no live browser spike has been run
-// (OCCT is browser-only, untestable in Node). See 2026-06-05-3d-export-notes.md.
+// Unnamed-compound STEP. The XCAF/CAF named-solid path is unavailable in
+// opencascade.js v1.1.1 — XCAFApp_Application, STEPCAFControl_Writer, and
+// Message_ProgressRange are all absent at runtime (live browser spike, 2026-06-16),
+// despite appearing in `Supported APIs.md`. We collect every solid into a single
+// TopoDS_Compound and emit it with STEPControl_Writer (3-arg Transfer, no progress
+// range). Solids are not individually named. See 2026-06-05-3d-export-notes.md
+// "Live spike findings".
 export function writeStep(oc: OpenCascadeInstance, specs: ExportSpec[]): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const O = oc as any
   O.Interface_Static.SetCVal('write.step.unit', 'MM')
 
-  const app = O.XCAFApp_Application.GetApplication()
-  const doc = new O.Handle_TDocStd_Document_1()
-  app.NewDocument(new O.TCollection_ExtendedString_2('MDTV-XCAF', true), doc)
-  const shapeTool = O.XCAFDoc_DocumentTool.ShapeTool(doc.get().Main())
-
+  const builder = new O.BRep_Builder()
+  const compound = new O.TopoDS_Compound()
+  builder.MakeCompound(compound)
   const moved: TopoDS_Shape[] = []
   for (const spec of specs) {
     const shape = makeTransformedShape(oc, spec)
-    const lbl = shapeTool.AddShape(shape, false, true)
-    O.TDataStd_Name.Set_2(lbl, new O.TCollection_ExtendedString_2(spec.label, true))
+    builder.Add(compound, shape)
     moved.push(shape)
   }
 
-  const writer = new O.STEPCAFControl_Writer_1()
-  const pr = new O.Message_ProgressRange_1()
-  writer.Transfer_1(doc, O.STEPControl_StepModelType.STEPControl_AsIs, '', pr)
+  const writer = new O.STEPControl_Writer_1()
+  writer.Transfer(compound, O.STEPControl_StepModelType.STEPControl_AsIs, true)
   writer.Write('out.step')
-  pr.delete()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const text: string = (oc as any).FS.readFile('out.step', { encoding: 'utf8' })
   for (const s of moved) s.delete()
+  compound.delete()
+  builder.delete()
   writer.delete()
   return text
 }
