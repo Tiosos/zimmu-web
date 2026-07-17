@@ -12,9 +12,14 @@ import type {
   Scene,
   CutDef,
   CutId,
+  Joint,
+  DadoJoint,
+  FaceHit,
 } from './types'
 import { shapeKey } from './utils'
-import { faceAxes } from './snapMath'
+import { faceAxes, localNormalToFaceString } from './snapMath'
+import { reconcileJoints } from './reconcileJoints'
+import { isValidDadoSeat, computeDadoOffset, defaultDadoDepth } from '../geom/dado'
 import { PART_COLORS } from './palette'
 import { composeWorldMatrix } from '../geom/transform'
 
@@ -85,6 +90,9 @@ export interface UseSceneResult {
   onRemoveCut: (partId: PartId, cutId: CutId) => void
   onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
   onUnlinkCuts: (partId: PartId, cutId: CutId) => void
+  onAddJoint: (housingHit: FaceHit, housedHit: FaceHit) => void
+  onUpdateJoint: (jointId: string, updater: (j: DadoJoint) => DadoJoint) => void
+  onRemoveJoint: (jointId: string) => void
   onSelect: (id: PartId | null) => void
   replaceScene: (next: Scene) => void
   exportStep: (parts: Part[]) => Promise<string>
@@ -241,6 +249,18 @@ export function useScene(): UseSceneResult {
     })
   }, [])
 
+  // Apply a scene mutation, reconcile joint-derived geometry, and record a single
+  // undo entry (whole-scene snapshot). Used by every joint-affecting mutation.
+  const commitReconciled = useCallback(
+    (mutate: (s: Scene) => Scene, label: string, coalesceKey?: string) => {
+      const before = sceneRef.current
+      const after = reconcileJoints(mutate(before))
+      setScene(after)
+      push({ label, coalesceKey, undo: () => setScene(before), redo: () => setScene(after) })
+    },
+    [push],
+  )
+
   const undo = useCallback(() => {
     const entry = pastRef.current.at(-1)
     if (!entry) return
@@ -330,28 +350,29 @@ export function useScene(): UseSceneResult {
 
   const onRemove = useCallback(
     (id: PartId) => {
-      const part = sceneRef.current.parts.find((p) => p.id === id)
+      const before = sceneRef.current
+      const part = before.parts.find((p) => p.id === id)
       if (!part) return
-      const index = sceneRef.current.parts.findIndex((p) => p.id === id)
       geometriesRef.current.get(id)?.dispose()
       geometriesRef.current.delete(id)
       prevShapeKeys.current.delete(id)
       buildSeq.current.delete(id)
       setGeometries(new Map(geometriesRef.current))
-      setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== id) }))
+      const after = reconcileJoints({
+        ...before,
+        parts: before.parts.filter((p) => p.id !== id),
+        joints: before.joints.filter((j) => j.housingPartId !== id && j.housedPartId !== id),
+      })
+      setScene(after)
       setSelectedId((prev) => (prev === id ? null : prev))
       push({
         label: `Remove ${part.label}`,
         undo: () => {
-          setScene((prev) => {
-            const parts = [...prev.parts]
-            parts.splice(index, 0, part)
-            return { ...prev, parts }
-          })
+          setScene(before)
           setSelectedId(id)
         },
         redo: () => {
-          setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== id) }))
+          setScene(after)
           setSelectedId((prev) => (prev === id ? null : prev))
         },
       })
@@ -374,11 +395,13 @@ export function useScene(): UseSceneResult {
           position: { ...orig.position, x: orig.position.x + orig.length + 10 },
           rotation: { x: 0, y: 0, z: 0 },
           visible: true,
-          cuts: orig.cuts.map((c) =>
-            c.kind === 'box'
-              ? { ...c, id: `cut_${crypto.randomUUID()}` as CutId, pairedCutId: undefined }
-              : { ...c, id: `cut_${crypto.randomUUID()}` as CutId },
-          ),
+          cuts: orig.cuts
+            .filter((c) => !(c.kind === 'box' && c.sourceJointId))
+            .map((c) =>
+              c.kind === 'box'
+                ? { ...c, id: `cut_${crypto.randomUUID()}` as CutId, pairedCutId: undefined }
+                : { ...c, id: `cut_${crypto.randomUUID()}` as CutId },
+            ),
         }
       } else {
         clone = {
@@ -449,22 +472,42 @@ export function useScene(): UseSceneResult {
 
   const onUpdate = useCallback(
     (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => {
-      const before = sceneRef.current.parts.find((p) => p.id === id)
-      if (!before) return
-      const after = updater(before)
-      setScene((prev) => ({ ...prev, parts: prev.parts.map((p) => (p.id === id ? after : p)) }))
+      const before = sceneRef.current
+      const beforePart = before.parts.find((p) => p.id === id)
+      if (!beforePart) return
+      const afterPart = updater(beforePart)
+      const label = historyLabel ?? `Update ${afterPart.label}`
+      const coalesceKey = historyLabel !== undefined ? undefined : `update-${id}`
+      const participates = before.joints.some(
+        (j) => j.housingPartId === id || j.housedPartId === id,
+      )
+
+      if (participates) {
+        const after = reconcileJoints({
+          ...before,
+          parts: before.parts.map((p) => (p.id === id ? afterPart : p)),
+        })
+        setScene(after)
+        push({ label, coalesceKey, undo: () => setScene(before), redo: () => setScene(after) })
+        return
+      }
+
+      setScene((prev) => ({
+        ...prev,
+        parts: prev.parts.map((p) => (p.id === id ? afterPart : p)),
+      }))
       push({
-        label: historyLabel ?? `Update ${after.label}`,
-        coalesceKey: historyLabel !== undefined ? undefined : `update-${id}`,
+        label,
+        coalesceKey,
         undo: () =>
           setScene((prev) => ({
             ...prev,
-            parts: prev.parts.map((p) => (p.id === id ? before : p)),
+            parts: prev.parts.map((p) => (p.id === id ? beforePart : p)),
           })),
         redo: () =>
           setScene((prev) => ({
             ...prev,
-            parts: prev.parts.map((p) => (p.id === id ? after : p)),
+            parts: prev.parts.map((p) => (p.id === id ? afterPart : p)),
           })),
       })
     },
@@ -477,6 +520,7 @@ export function useScene(): UseSceneResult {
       if (part?.kind !== 'board') return
       const beforeA = part.cuts.find((c) => c.id === cutId)
       if (!beforeA) return
+      if (beforeA.kind === 'box' && beforeA.sourceJointId) return // derived cut — edit via the joint
       const afterA = updater(beforeA)
 
       if (afterA.kind === 'box' && afterA.pairedCutId) {
@@ -631,6 +675,7 @@ export function useScene(): UseSceneResult {
       if (part?.kind !== 'board') return
       const removedCut = part.cuts.find((c) => c.id === cutId)
       if (!removedCut) return
+      if (removedCut.kind === 'box' && removedCut.sourceJointId) return // derived cut — remove the joint
 
       const affectedPairs: Array<{ partId: PartId; cutId: CutId }> = []
       for (const p of sceneRef.current.parts) {
@@ -710,6 +755,7 @@ export function useScene(): UseSceneResult {
       const cutB = partB.cuts.find((c) => c.id === cutIdB)
       if (!cutA || !cutB) return
       if (cutA.kind !== 'box' || cutB.kind !== 'box') return // linking is box-only
+      if (cutA.sourceJointId || cutB.sourceJointId) return // derived cuts can't be paired
 
       const axesA = faceAxes(cutA.face)
       const axesB = faceAxes(cutB.face)
@@ -831,6 +877,61 @@ export function useScene(): UseSceneResult {
     [push],
   )
 
+  const onAddJoint = useCallback(
+    (housingHit: FaceHit, housedHit: FaceHit) => {
+      const s = sceneRef.current
+      const housing = s.parts.find((p) => p.id === housingHit.partId)
+      const housed = s.parts.find((p) => p.id === housedHit.partId)
+      if (housing?.kind !== 'board' || housed?.kind !== 'board' || housing.id === housed.id) return
+      const housingFace = localNormalToFaceString(housingHit.localFaceNormal)
+      const housedEnd = localNormalToFaceString(housedHit.localFaceNormal)
+      if (!isValidDadoSeat(housing, housingFace, housed, housedEnd)) return
+
+      const n = s.joints.filter((j) => j.kind === 'dado').length + 1
+      const joint: Joint = {
+        kind: 'dado',
+        id: `joint_${crypto.randomUUID()}`,
+        label: `Dado ${n}`,
+        housingPartId: housing.id,
+        housingFace,
+        housedPartId: housed.id,
+        housedEnd,
+        offset: computeDadoOffset(housing, housed, housingFace),
+        depth: defaultDadoDepth(housing, housingFace),
+        clearance: 0,
+      }
+      commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add dado')
+      setSelectedId(housing.id)
+    },
+    [commitReconciled],
+  )
+
+  const onUpdateJoint = useCallback(
+    (jointId: string, updater: (j: DadoJoint) => DadoJoint) => {
+      if (!sceneRef.current.joints.some((j) => j.id === jointId)) return
+      commitReconciled(
+        (prev) => ({
+          ...prev,
+          joints: prev.joints.map((j) => (j.id === jointId ? updater(j) : j)),
+        }),
+        'Edit dado',
+        `joint-${jointId}`,
+      )
+    },
+    [commitReconciled],
+  )
+
+  const onRemoveJoint = useCallback(
+    (jointId: string) => {
+      if (!sceneRef.current.joints.some((j) => j.id === jointId)) return
+      commitReconciled(
+        (prev) => ({ ...prev, joints: prev.joints.filter((j) => j.id !== jointId) }),
+        'Remove dado',
+      )
+    },
+    [commitReconciled],
+  )
+
   const onSelect = useCallback((id: PartId | null) => {
     setSelectedId(id)
   }, [])
@@ -871,7 +972,7 @@ export function useScene(): UseSceneResult {
     pastRef.current = []
     futureRef.current = []
     setUndoState({ canUndo: false, canRedo: false, undoLabel: null, redoLabel: null })
-    setScene(next)
+    setScene(reconcileJoints(next))
     setSelectedId(null)
     setPendingIds(new Set())
     setGeometries(new Map())
@@ -921,6 +1022,9 @@ export function useScene(): UseSceneResult {
     onRemoveCut,
     onLinkCuts,
     onUnlinkCuts,
+    onAddJoint,
+    onUpdateJoint,
+    onRemoveJoint,
     onSelect,
     replaceScene,
     exportStep,

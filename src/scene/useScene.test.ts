@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import type { BoardPart, BoxCut, CutDef, CylinderPart, Part, PartId } from './types'
+import type { BoardPart, BoxCut, CutDef, CylinderPart, FaceHit, Part, PartId } from './types'
 
 function asBoard(p: Part): BoardPart {
   if (p.kind !== 'board') throw new Error('expected board part')
@@ -1450,5 +1450,102 @@ describe('buildSpecForPart — cylinder cuts', () => {
       expect(spec.cuts).toHaveLength(1)
       expect(spec.cuts[0]).toMatchObject({ kind: 'end', angle: 45 })
     }
+  })
+})
+
+describe('useScene — joints', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
+  })
+
+  const hit = (partId: string, ln: { x: number; y: number; z: number }): FaceHit => ({
+    partId,
+    faceNormal: ln,
+    faceCenter: { x: 0, y: 0, z: 0 },
+    localFaceNormal: ln,
+    localHitPoint: { x: 0, y: 0, z: 0 },
+    hitPoint: { x: 0, y: 0, z: 0 },
+  })
+
+  // Add a housing board + a vertically-standing housed board; return their ids.
+  async function twoBoards(result: { current: ReturnType<typeof useScene> }) {
+    await act(async () => {
+      result.current.onAdd('board')
+    })
+    await act(async () => {
+      result.current.onAdd('board')
+    })
+    const [H, D] = result.current.scene.parts
+    await act(async () => {
+      result.current.onUpdate(D.id, (p) => ({ ...p, rotation: { x: 0, y: 90, z: 0 } }), 'rot')
+    })
+    return { Hid: H.id, Did: D.id }
+  }
+
+  it('onAddJoint creates a joint + derived groove in a single undo entry', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const { Hid, Did } = await twoBoards(result)
+
+    await act(async () => {
+      result.current.onAddJoint(hit(Hid, { x: 0, y: 0, z: 1 }), hit(Did, { x: 1, y: 0, z: 0 }))
+    })
+
+    expect(result.current.scene.joints).toHaveLength(1)
+    const H = asBoard(result.current.scene.parts.find((p) => p.id === Hid)!)
+    expect(H.cuts.some((c) => c.kind === 'box' && c.sourceJointId)).toBe(true)
+
+    await act(async () => {
+      result.current.undo()
+    })
+    expect(result.current.scene.joints).toHaveLength(0)
+    const H2 = asBoard(result.current.scene.parts.find((p) => p.id === Hid)!)
+    expect(H2.cuts.length).toBe(0)
+  })
+
+  it('onRemove of a participating part cascades the joint, single undo restores both', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const { Hid, Did } = await twoBoards(result)
+    await act(async () => {
+      result.current.onAddJoint(hit(Hid, { x: 0, y: 0, z: 1 }), hit(Did, { x: 1, y: 0, z: 0 }))
+    })
+
+    await act(async () => {
+      result.current.onRemove(Did)
+    })
+    expect(result.current.scene.joints).toHaveLength(0)
+    const H = asBoard(result.current.scene.parts.find((p) => p.id === Hid)!)
+    expect(H.cuts.length).toBe(0)
+
+    await act(async () => {
+      result.current.undo()
+    })
+    expect(result.current.scene.parts.some((p) => p.id === Did)).toBe(true)
+    expect(result.current.scene.joints).toHaveLength(1)
+  })
+
+  it('resizing the housed board re-derives the groove width', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const { Hid, Did } = await twoBoards(result)
+    await act(async () => {
+      result.current.onAddJoint(hit(Hid, { x: 0, y: 0, z: 1 }), hit(Did, { x: 1, y: 0, z: 0 }))
+    })
+    const grooveWidth = () => {
+      const H = asBoard(result.current.scene.parts.find((p) => p.id === Hid)!)
+      const g = H.cuts.find((c) => c.kind === 'box' && c.sourceJointId)
+      return g && g.kind === 'box' ? g.size.x : -1
+    }
+    const before = grooveWidth()
+    await act(async () => {
+      result.current.onUpdate(Did, (p) => (p.kind === 'board' ? { ...p, thickness: 40 } : p), 'thk')
+    })
+    expect(grooveWidth()).not.toBe(before)
+    expect(grooveWidth()).toBe(40)
   })
 })

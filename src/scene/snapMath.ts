@@ -111,7 +111,7 @@ export function computeFaceCorners(face: FaceHit, part: Part): [Vec3, Vec3, Vec3
   return [c0, c1, c2, c3]
 }
 
-function localNormalToFaceString(n: Vec3): Face {
+export function localNormalToFaceString(n: Vec3): Face {
   if (n.x > 0.5) return '+X'
   if (n.x < -0.5) return '-X'
   if (n.y > 0.5) return '+Y'
