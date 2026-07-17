@@ -422,6 +422,8 @@
 │       ├── separator.tsx
 │       └── tooltip.tsx
 ├── geom/
+│   ├── dado.test.ts
+│   ├── dado.ts
 │   ├── drawing.test.ts
 │   ├── drawing.ts
 │   ├── mesh.ts
@@ -442,11 +444,15 @@
 │   ├── idb.test.ts
 │   ├── idb.ts
 │   ├── palette.ts
+│   ├── reconcileJoints.test.ts
+│   ├── reconcileJoints.ts
 │   ├── snapMath.test.ts
 │   ├── snapMath.ts
 │   ├── types.ts
 │   ├── useAddCut.test.ts
 │   ├── useAddCut.ts
+│   ├── useAddJoint.test.ts
+│   ├── useAddJoint.ts
 │   ├── useFile.test.ts
 │   ├── useFile.ts
 │   ├── useMaterialLibrary.test.ts
@@ -478,6 +484,7 @@
 │   ├── HardwareEditPanel.tsx
 │   ├── HardwareTab.test.tsx
 │   ├── HardwareTab.tsx
+│   ├── JointsPanel.tsx
 │   ├── sidebar.test.tsx
 │   ├── sidebar.tsx
 │   ├── useDebouncedCallback.test.ts
@@ -495,6 +502,7 @@
           <tr><td><code>transform.ts</code></td><td><code>composeWorldMatrix(part)</code> — THREE-free world matrix. Single source of truth for part placement in STL/STEP export.</td></tr>
           <tr><td><code>stl.ts</code></td><td><code>buildBinaryStl(parts, geometries)</code> — world-space binary STL triangle soup with recomputed facet normals. Visible parts only.</td></tr>
           <tr><td><code>drawing.ts</code></td><td><code>buildDrawingSheet(part)</code> → <code>DrawingView[]</code>. Face/Edge/End orthographic projections with cut rects, dimension lines, cut labels.</td></tr>
+          <tr><td><code>dado.ts</code></td><td>Pure dado-joint geometry — <code>isValidDadoSeat</code>, <code>deriveDadoAxes</code>, <code>computeDadoGroove</code> (the derived <code>BoxCut</code>), <code>computeDadoSeat</code> (housed placement). Three-typed but browser-free.</td></tr>
           <tr><td><code class="tree-test">occt.test.ts</code></td><td>Smoke tests (live OCCT skipped in Node with <code>it.skip</code>).</td></tr>
           <tr><td><code class="tree-test">transform.test.ts</code></td><td>Element-wise parity tests against <code>THREE.Matrix4</code>.</td></tr>
           <tr><td><code class="tree-test">stl.test.ts</code></td><td>Binary STL output validation.</td></tr>
@@ -515,6 +523,8 @@
           <tr><td><code>snapMath.ts</code></td><td>Pure face/cut geometry math — <code>faceAxes()</code>, <code>computeSnapDelta()</code>. No React. Three-typed but browser-free.</td></tr>
           <tr><td><code>useSnap.ts</code></td><td>Face-to-face snap-align interaction state machine. Fed <code>FaceHit</code>s from the raycaster.</td></tr>
           <tr><td><code>useAddCut.ts</code></td><td>Click-a-face-to-add-joinery-cut interaction state machine.</td></tr>
+          <tr><td><code>useAddJoint.ts</code></td><td>Two-click dado-joint creation state machine (housing face → housed end). Fed <code>FaceHit</code>s from the raycaster.</td></tr>
+          <tr><td><code>reconcileJoints.ts</code></td><td>Pure, idempotent regeneration of joint-derived groove cuts + seated positions from <code>Scene.joints</code>. Run after every joint-affecting mutation and on file load.</td></tr>
           <tr><td><code>useMaterialLibrary.ts</code></td><td>Loads/persists material cost rates via the IDB <code>library</code> store.</td></tr>
           <tr><td><code>palette.ts</code></td><td><code>PART_COLORS</code> preset swatches array.</td></tr>
           <tr><td><code class="tree-test">useScene.test.ts</code>, <code class="tree-test">useFile.test.ts</code>, etc.</td><td>Co-located unit tests for each module.</td></tr>
@@ -534,7 +544,8 @@
         <thead><tr><th>File</th><th>Role</th></tr></thead>
         <tbody>
           <tr><td><code>FileMenu.tsx</code></td><td>Top menu bar: File menu, project name, undo/redo buttons, BOM modal trigger, 3D/2D export buttons.</td></tr>
-          <tr><td><code>sidebar.tsx</code></td><td>Parts list panel + <code>EditPanel</code> (label, material, ColorControl, dimensions, position, rotation, cuts panel with cut-linking UI, linked hardware display).</td></tr>
+          <tr><td><code>sidebar.tsx</code></td><td>Parts list panel + <code>EditPanel</code> (label, material, ColorControl, dimensions, position, rotation, cuts panel with cut-linking UI, joints panel, read-only derived-cut rows, linked hardware display). Also the Cut / Snap / Add-Dado mode buttons.</td></tr>
+          <tr><td><code>JointsPanel.tsx</code></td><td>Per-part joints subsection in <code>EditPanel</code> — edit depth/clearance/offset (housing side), remove joint, stale banner.</td></tr>
           <tr><td><code>BomModal.tsx</code></td><td>Three-tab modal (Boards / Hardware / Library). Footer shows board subtotal, hardware subtotal, grand total. CSV copy/download.</td></tr>
           <tr><td><code>CuttingList.tsx</code></td><td>Grouped cutting-list table with per-material cost popover. Quantity = instances of same dimensions. CSV export.</td></tr>
           <tr><td><code>HardwareTab.tsx</code></td><td>Hardware BOM table with add/edit/delete. Clicking a row opens <code>HardwareEditPanel</code>.</td></tr>
@@ -565,7 +576,7 @@
       <table>
         <thead><tr><th>File</th><th>Role</th></tr></thead>
         <tbody>
-          <tr><td><code>App.tsx</code></td><td>Composition root. Wires <code>useScene</code> + <code>useFile</code> + <code>useSnap</code> + <code>useAddCut</code> + <code>useMaterialLibrary</code> + <code>Viewport</code> + <code>Sidebar</code> + <code>FileMenu</code> + <code>BomModal</code> + <code>DrawingViewer</code>. Owns global keyboard shortcut handler.</td></tr>
+          <tr><td><code>App.tsx</code></td><td>Composition root. Wires <code>useScene</code> + <code>useFile</code> + <code>useSnap</code> + <code>useAddCut</code> + <code>useAddJoint</code> + <code>useMaterialLibrary</code> + <code>Viewport</code> + <code>Sidebar</code> + <code>FileMenu</code> + <code>BomModal</code> + <code>DrawingViewer</code>. Owns global keyboard shortcut handler.</td></tr>
           <tr><td><code>main.tsx</code></td><td>React DOM render entry point.</td></tr>
           <tr><td><code>index.css</code></td><td>Tailwind base + custom CSS variables for design tokens.</td></tr>
           <tr><td><code>vite-env.d.ts</code></td><td>Ambient declarations for opencascade.js types.</td></tr>
@@ -595,7 +606,23 @@ interface Scene {
   parts: Part[]
   materials: Record&lt;string, MaterialDef&gt;  // keyed by material name
   hardware: HardwareItem[]
+  joints: Joint[]       // first-class parametric joints (dado in v0.1)
 }
+
+// A joint owns the geometry it produces: a derived BoxCut on the housing
+// board (tagged sourceJointId) plus the housed board's seated position.
+// reconcileJoints() regenerates both from these fields.
+interface DadoJoint {
+  kind: 'dado'
+  id: string            // "joint_<uuid>"
+  label: string
+  housingPartId: PartId; housingFace: Face   // board + face carrying the groove
+  housedPartId: PartId; housedEnd: Face      // board + end that seats in
+  offset: number        // groove center along the housing narrow axis (mm)
+  depth: number         // groove depth into the housing (mm)
+  clearance: number     // added to groove width = housedThickness + clearance
+}
+type Joint = DadoJoint
 
 // The only Part kind in v0.1 (more kinds planned)
 interface BoardPart {
@@ -617,6 +644,7 @@ interface CutDef {
   face: '+X' | '-X' | '+Y' | '-Y' | '+Z' | '-Z'
   position: Vec3; size: Vec3
   pairedCutId?: string  // "{partId}:{cutId}" — links to mating cut
+  sourceJointId?: string  // set on derived cuts owned by a Joint (read-only in UI)
 }
 
 interface MaterialDef { costPerM2: number }
