@@ -21,12 +21,12 @@ const FIXTURE: ZimmuFile = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T12:00:00.000Z',
   camera: CAMERA,
-  scene: { parts: [], materials: {}, hardware: [] },
+  scene: { parts: [], materials: {}, hardware: [], joints: [] },
 }
 
 function makeInput(overrides?: Partial<Parameters<typeof useFile>[0]>) {
   return {
-    scene: { parts: [], materials: {}, hardware: [] },
+    scene: { parts: [], materials: {}, hardware: [], joints: [] },
     getCameraState: () => CAMERA,
     onFileLoaded: vi.fn(),
     ...overrides,
@@ -180,11 +180,15 @@ describe('useFile', () => {
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
-      { initialProps: { scene: { parts: [] as Scene['parts'], materials: {}, hardware: [] } } },
+      {
+        initialProps: {
+          scene: { parts: [] as Scene['parts'], materials: {}, hardware: [], joints: [] },
+        },
+      },
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
-    rerender({ scene: { parts: [mockPart], materials: {}, hardware: [] } })
+    rerender({ scene: { parts: [mockPart], materials: {}, hardware: [], joints: [] } })
     await waitFor(() => expect(result.current.isDirty).toBe(true))
 
     await act(async () => {
@@ -224,11 +228,15 @@ describe('useFile', () => {
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
-      { initialProps: { scene: { parts: [] as Scene['parts'], materials: {}, hardware: [] } } },
+      {
+        initialProps: {
+          scene: { parts: [] as Scene['parts'], materials: {}, hardware: [], joints: [] },
+        },
+      },
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
-    rerender({ scene: { parts: [mockPart], materials: {}, hardware: [] } })
+    rerender({ scene: { parts: [mockPart], materials: {}, hardware: [], joints: [] } })
     await waitFor(() => expect(result.current.isDirty).toBe(true))
 
     await act(async () => {
@@ -337,7 +345,7 @@ describe('useFile', () => {
       visible: true,
     }
     const { result } = renderHook(() =>
-      useFile(makeInput({ scene: { parts: [part], materials: {}, hardware: [] } })),
+      useFile(makeInput({ scene: { parts: [part], materials: {}, hardware: [], joints: [] } })),
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
@@ -433,6 +441,7 @@ describe('useFile', () => {
         ],
         materials: {},
         hardware: [],
+        joints: [],
       },
     })
     const parsed = parseFile(raw)
@@ -508,6 +517,7 @@ describe('useFile', () => {
         ],
         materials: {},
         hardware: [],
+        joints: [],
       },
     }
 
@@ -551,6 +561,7 @@ describe('useFile', () => {
         ],
         materials: {},
         hardware: [],
+        joints: [],
       },
     }
 
@@ -594,6 +605,7 @@ describe('useFile', () => {
         ],
         materials: {},
         hardware: [],
+        joints: [],
       },
     }
 
@@ -651,6 +663,7 @@ describe('useFile', () => {
         ],
         materials: {},
         hardware: [],
+        joints: [],
       },
     })
     const result = parseFile(v2Json)
@@ -688,6 +701,7 @@ describe('useFile', () => {
         ],
         materials: {},
         hardware: [],
+        joints: [],
       },
     })
     const part = parseFile(v3Json).scene.parts[0]
@@ -735,6 +749,7 @@ describe('useFile', () => {
         ],
         materials: {},
         hardware: [],
+        joints: [],
       },
     }
 

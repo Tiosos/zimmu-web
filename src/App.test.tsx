@@ -45,7 +45,7 @@ vi.mock('./scene/useScene', () => ({
 
 function makeDefaultSceneReturn() {
   return {
-    scene: { parts: [], materials: {}, hardware: [] },
+    scene: { parts: [], materials: {}, hardware: [], joints: [] },
     geometries: new Map(),
     errors: new Map(),
     pendingIds: new Set(),
@@ -212,7 +212,7 @@ describe('App BOM integration', () => {
     mockUseScene.mockImplementation(() => {
       const [parts, setParts] = useState<Part[]>([])
       return {
-        scene: { parts, materials: {}, hardware: [] },
+        scene: { parts, materials: {}, hardware: [], joints: [] },
         geometries: new Map(),
         errors: new Map(),
         pendingIds: new Set(),

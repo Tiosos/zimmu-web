@@ -252,6 +252,7 @@ describe('useScene', () => {
       ],
       materials: {},
       hardware: [],
+      joints: [],
     }
     act(() => {
       result.current.replaceScene(replacement)
@@ -266,7 +267,7 @@ describe('useScene', () => {
   it('replaceScene with empty parts resets labelCounter to 1', () => {
     const { result } = renderHook(() => useScene())
     act(() => {
-      result.current.replaceScene({ parts: [], materials: {}, hardware: [] })
+      result.current.replaceScene({ parts: [], materials: {}, hardware: [], joints: [] })
     })
     expect(result.current.scene.parts).toHaveLength(0)
     expect(result.current.nextLabel).toBe('Board 1')
@@ -560,7 +561,7 @@ describe('useScene', () => {
       })
       expect(result.current.canUndo).toBe(true)
       act(() => {
-        result.current.replaceScene({ parts: [], materials: {}, hardware: [] })
+        result.current.replaceScene({ parts: [], materials: {}, hardware: [], joints: [] })
       })
       expect(result.current.canUndo).toBe(false)
       expect(result.current.canRedo).toBe(false)
@@ -573,7 +574,7 @@ describe('useScene', () => {
         result.current.onAdd('board')
       })
       act(() => {
-        result.current.replaceScene({ parts: [], materials: {}, hardware: [] })
+        result.current.replaceScene({ parts: [], materials: {}, hardware: [], joints: [] })
       })
       expect(() => {
         act(() => {

@@ -55,7 +55,7 @@ function makeCylinder(overrides: Partial<CylinderPart> = {}): CylinderPart {
 
 function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
   return {
-    scene: { parts: [makeBoard()], materials: {}, hardware: [] },
+    scene: { parts: [makeBoard()], materials: {}, hardware: [], joints: [] },
     occtReady: true,
     errors: new Map<PartId, string>(),
     pendingIds: new Set<PartId>(),
@@ -95,7 +95,9 @@ describe('Sidebar', () => {
   })
 
   it('shows empty state when no parts', () => {
-    render(<Sidebar {...props({ scene: { parts: [], materials: {}, hardware: [] } })} />)
+    render(
+      <Sidebar {...props({ scene: { parts: [], materials: {}, hardware: [], joints: [] } })} />,
+    )
     expect(screen.getByText(/No parts/)).toBeTruthy()
   })
 
@@ -145,7 +147,12 @@ describe('Sidebar', () => {
       <Sidebar
         {...props({
           onToggleVisible,
-          scene: { parts: [makeBoard({ visible: false })], materials: {}, hardware: [] },
+          scene: {
+            parts: [makeBoard({ visible: false })],
+            materials: {},
+            hardware: [],
+            joints: [],
+          },
         })}
       />,
     )
@@ -216,7 +223,7 @@ describe('Sidebar', () => {
       position: { x: 90, y: 40, z: 15 },
       size: { x: 20, y: 20, z: 10 },
     }
-    const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [] }
+    const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [], joints: [] }
     render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
     expect(screen.getByText('Dado')).toBeTruthy()
   })
@@ -231,7 +238,7 @@ describe('Sidebar', () => {
       position: { x: 90, y: 40, z: 15 },
       size: { x: 20, y: 20, z: 10 },
     }
-    const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [] }
+    const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [], joints: [] }
     render(<Sidebar {...props({ scene, selectedId: 'board_t1', onRemoveCut })} />)
     fireEvent.click(screen.getByTitle('Delete cut'))
     expect(onRemoveCut).toHaveBeenCalledWith('board_t1', 'cut_1')
@@ -239,19 +246,34 @@ describe('Sidebar', () => {
 
   describe('CutRow accordion and pairing', () => {
     it('cut row is closed by default when not the last placed cut', () => {
-      const scene = { parts: [makeBoard({ cuts: [makeCut()] })], materials: {}, hardware: [] }
+      const scene = {
+        parts: [makeBoard({ cuts: [makeCut()] })],
+        materials: {},
+        hardware: [],
+        joints: [],
+      }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: null })} />)
       expect(screen.queryByText('Size')).toBeNull()
     })
 
     it('lastPlacedCutId auto-opens the matching cut row', () => {
-      const scene = { parts: [makeBoard({ cuts: [makeCut()] })], materials: {}, hardware: [] }
+      const scene = {
+        parts: [makeBoard({ cuts: [makeCut()] })],
+        materials: {},
+        hardware: [],
+        joints: [],
+      }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
       expect(screen.getByText('Size')).toBeTruthy()
     })
 
     it('clicking the cut row header opens it', () => {
-      const scene = { parts: [makeBoard({ cuts: [makeCut()] })], materials: {}, hardware: [] }
+      const scene = {
+        parts: [makeBoard({ cuts: [makeCut()] })],
+        materials: {},
+        hardware: [],
+        joints: [],
+      }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: null })} />)
       fireEvent.click(screen.getByText('Dado'))
       expect(screen.getByText('Size')).toBeTruthy()
@@ -267,13 +289,19 @@ describe('Sidebar', () => {
         parts: [makeBoard({ cuts: [makeCut()] }), other],
         materials: {},
         hardware: [],
+        joints: [],
       }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
       expect(screen.getByText('Link to cut…')).toBeTruthy()
     })
 
     it('shows no link UI when cut is unpaired and no other parts have cuts', () => {
-      const scene = { parts: [makeBoard({ cuts: [makeCut()] })], materials: {}, hardware: [] }
+      const scene = {
+        parts: [makeBoard({ cuts: [makeCut()] })],
+        materials: {},
+        hardware: [],
+        joints: [],
+      }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
       expect(screen.queryByText('Link to cut…')).toBeNull()
     })
@@ -289,6 +317,7 @@ describe('Sidebar', () => {
         parts: [makeBoard({ cuts: [makeCut()] }), other],
         materials: {},
         hardware: [],
+        joints: [],
       }
       render(
         <Sidebar
@@ -304,7 +333,12 @@ describe('Sidebar', () => {
       const cut2 = makeCut({ id: 'cut_2', label: 'Shelf End' })
       const other = makeBoard({ id: 'board_t2', label: 'Board 2', cuts: [cut2] })
       const cut = makeCut({ pairedCutId: 'board_t2:cut_2' })
-      const scene = { parts: [makeBoard({ cuts: [cut] }), other], materials: {}, hardware: [] }
+      const scene = {
+        parts: [makeBoard({ cuts: [cut] }), other],
+        materials: {},
+        hardware: [],
+        joints: [],
+      }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
       expect(screen.getByText(/↔ Board 2 › Shelf End/)).toBeTruthy()
     })
@@ -314,7 +348,12 @@ describe('Sidebar', () => {
       const cut2 = makeCut({ id: 'cut_2', label: 'Shelf End' })
       const other = makeBoard({ id: 'board_t2', label: 'Board 2', cuts: [cut2] })
       const cut = makeCut({ pairedCutId: 'board_t2:cut_2' })
-      const scene = { parts: [makeBoard({ cuts: [cut] }), other], materials: {}, hardware: [] }
+      const scene = {
+        parts: [makeBoard({ cuts: [cut] }), other],
+        materials: {},
+        hardware: [],
+        joints: [],
+      }
       render(
         <Sidebar
           {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1', onUnlinkCuts })}
@@ -326,7 +365,7 @@ describe('Sidebar', () => {
 
     it('shows "Pair lost" when pairedCutId references a missing cut', () => {
       const cut = makeCut({ pairedCutId: 'board_missing:cut_missing' })
-      const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [] }
+      const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [], joints: [] }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
       expect(screen.getByText(/Pair lost/)).toBeTruthy()
     })
@@ -334,7 +373,7 @@ describe('Sidebar', () => {
     it('Unlink button in pair-lost state calls onUnlinkCuts', () => {
       const onUnlinkCuts = vi.fn()
       const cut = makeCut({ pairedCutId: 'board_missing:cut_missing' })
-      const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [] }
+      const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [], joints: [] }
       render(
         <Sidebar
           {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1', onUnlinkCuts })}
@@ -363,6 +402,7 @@ describe('Sidebar', () => {
             linkedPartIds: [],
           },
         ],
+        joints: [],
       }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
       expect(screen.queryByText(/▾ Hardware/)).toBeNull()
@@ -385,6 +425,7 @@ describe('Sidebar', () => {
             linkedPartIds: ['board_t1'],
           },
         ],
+        joints: [],
       }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
       expect(screen.getByText(/▾ Hardware/)).toBeTruthy()
@@ -419,6 +460,7 @@ describe('Sidebar', () => {
             linkedPartIds: ['board_t2'],
           },
         ],
+        joints: [],
       }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
       expect(screen.getByText(/Hinge/)).toBeTruthy()
@@ -428,7 +470,7 @@ describe('Sidebar', () => {
 
   describe('CylinderPart editing', () => {
     it('shows Ø dimension label and not T when a cylinder is selected', () => {
-      const scene = { parts: [makeCylinder()], materials: {}, hardware: [] }
+      const scene = { parts: [makeCylinder()], materials: {}, hardware: [], joints: [] }
       render(<Sidebar {...props({ scene, selectedId: 'cyl_t1' })} />)
       expect(screen.getByText('Ø')).toBeTruthy()
       expect(screen.queryByText('T')).toBeNull()
@@ -436,7 +478,7 @@ describe('Sidebar', () => {
 
     it('blanking a dowel label falls back to "Dowel", not the board nextLabel', () => {
       const onUpdate = vi.fn()
-      const scene = { parts: [makeCylinder()], materials: {}, hardware: [] }
+      const scene = { parts: [makeCylinder()], materials: {}, hardware: [], joints: [] }
       render(<Sidebar {...props({ scene, selectedId: 'cyl_t1', onUpdate })} />)
       const input = screen.getByDisplayValue('Dowel 1')
       fireEvent.change(input, { target: { value: '' } })
@@ -494,7 +536,12 @@ describe('Sidebar', () => {
     })
 
     it('no swatch shows a selected ring when the color is custom', () => {
-      const scene = { parts: [makeBoard({ color: '#ff0000' })], materials: {}, hardware: [] }
+      const scene = {
+        parts: [makeBoard({ color: '#ff0000' })],
+        materials: {},
+        hardware: [],
+        joints: [],
+      }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
       for (const c of PART_COLORS) {
         expect(screen.getByLabelText(`Color ${c}`).className).not.toContain('ring-2')

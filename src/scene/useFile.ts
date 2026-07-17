@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile } from './types'
 import * as idb from './idb'
 
-export const FILE_FORMAT_VERSION = 3
+export const FILE_FORMAT_VERSION = 4
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -70,6 +70,7 @@ export function parseFile(text: string): ZimmuFile {
       ),
       materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
       hardware: raw.scene.hardware ?? [],
+      joints: raw.scene.joints ?? [],
     },
   }
 }
@@ -249,12 +250,17 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       createdAt: now,
       updatedAt: now,
       camera: getCameraStateRef.current(),
-      scene: { parts: [], materials: {}, hardware: [] },
+      scene: { parts: [], materials: {}, hardware: [], joints: [] },
     }
     handleRef.current = null
     createdAtRef.current = null
     projectNameRef.current = 'Untitled'
-    lastSavedSceneRef.current = JSON.stringify({ parts: [], materials: {}, hardware: [] })
+    lastSavedSceneRef.current = JSON.stringify({
+      parts: [],
+      materials: {},
+      hardware: [],
+      joints: [],
+    })
     lastSavedProjectNameRef.current = 'Untitled'
     isDirtyRef.current = false
     setFileName(null)

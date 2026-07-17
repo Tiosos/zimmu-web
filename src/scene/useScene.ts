@@ -114,6 +114,7 @@ export function useScene(): UseSceneResult {
     parts: [makeDefaultBoard()],
     materials: {},
     hardware: [],
+    joints: [],
   }))
   const [geometries, setGeometries] = useState<Map<PartId, THREE.BufferGeometry>>(new Map())
   const [errors, setErrors] = useState<Map<PartId, string>>(new Map())
