@@ -80,6 +80,11 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     onToggleVisible: vi.fn(),
     dowelTool: null,
     armDowelTool: vi.fn(),
+    onUpdateJoint: vi.fn(),
+    onRemoveJoint: vi.fn(),
+    jointActive: false,
+    onJointToggle: vi.fn(),
+    jointStatus: null,
     ...overrides,
   }
 }
