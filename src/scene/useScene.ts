@@ -899,6 +899,9 @@ export function useScene(): UseSceneResult {
         offset: computeDadoOffset(housing, housed, housingFace),
         depth: defaultDadoDepth(housing, housingFace),
         clearance: 0,
+        profile: 'plain',
+        tongueThickness: Math.round(housed.thickness / 2),
+        rabbetFace: '+Z',
       }
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add dado')
       setSelectedId(housing.id)

@@ -54,6 +54,9 @@ const joint: DadoJoint = {
   offset: 50,
   depth: 8,
   clearance: 0,
+  profile: 'plain',
+  tongueThickness: 8,
+  rabbetFace: '+Z',
 }
 
 test('isValidDadoSeat: perpendicular end opposing the face is valid', () => {

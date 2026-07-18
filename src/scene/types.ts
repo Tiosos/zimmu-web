@@ -133,6 +133,9 @@ export interface DadoJoint {
   offset: number // mm — groove center along the housing face's narrow axis (housing-local)
   depth: number // mm — groove depth into the housing board
   clearance: number // mm — added to groove width (housedThickness + clearance)
+  profile: 'plain' | 'rabbeted'
+  tongueThickness: number // mm — tongue/groove width when rabbeted
+  rabbetFace: '+Z' | '-Z' // housed-board local thickness face the rabbet removes from
 }
 
 export type Joint = DadoJoint

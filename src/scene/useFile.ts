@@ -1,8 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile } from './types'
+import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile, Joint } from './types'
 import * as idb from './idb'
 
-export const FILE_FORMAT_VERSION = 4
+export const FILE_FORMAT_VERSION = 5
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -70,7 +70,16 @@ export function parseFile(text: string): ZimmuFile {
       ),
       materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
       hardware: raw.scene.hardware ?? [],
-      joints: raw.scene.joints ?? [],
+      // v4→v5: joints gained a `profile` field (+ tongueThickness/rabbetFace); legacy joints are plain dados.
+      joints: ((raw.scene.joints ?? []) as unknown as Array<Record<string, unknown>>).map(
+        (j) =>
+          ({
+            profile: 'plain' as const,
+            tongueThickness: 6,
+            rabbetFace: '+Z' as const,
+            ...j,
+          }) as unknown as Joint,
+      ),
     },
   }
 }
