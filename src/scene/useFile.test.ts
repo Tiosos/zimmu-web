@@ -710,6 +710,78 @@ describe('useFile', () => {
     expect(cut).toMatchObject({ kind: 'mitre', end: '+X', axis: 'Z', angle: 45 })
   })
 
+  it('v4→v5: legacy joint without profile fields defaults to plain', () => {
+    const v4Json = JSON.stringify({
+      version: 4,
+      name: 'Test',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: 'x',
+      updatedAt: 'x',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [
+          {
+            kind: 'dado',
+            id: 'j1',
+            label: 'Dado 1',
+            housingPartId: 'H',
+            housingFace: '+Z',
+            housedPartId: 'D',
+            housedEnd: '+X',
+            offset: 50,
+            depth: 8,
+            clearance: 0,
+            // no profile/tongueThickness/rabbetFace — simulates a pre-v5 joint
+          },
+        ],
+      },
+    })
+    const result = parseFile(v4Json)
+    const joint = result.scene.joints[0]
+    expect(joint).toMatchObject({ profile: 'plain', tongueThickness: 6, rabbetFace: '+Z' })
+  })
+
+  it('v5: joint with profile fields already present are preserved (not overwritten)', () => {
+    const v5Json = JSON.stringify({
+      version: 5,
+      name: 'Test',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: 'x',
+      updatedAt: 'x',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [
+          {
+            kind: 'dado',
+            id: 'j1',
+            label: 'Dado 1',
+            housingPartId: 'H',
+            housingFace: '+Z',
+            housedPartId: 'D',
+            housedEnd: '+X',
+            offset: 50,
+            depth: 8,
+            clearance: 0,
+            profile: 'rabbeted',
+            tongueThickness: 10,
+            rabbetFace: '-Z',
+          },
+        ],
+      },
+    })
+    const result = parseFile(v5Json)
+    const joint = result.scene.joints[0]
+    expect(joint).toMatchObject({ profile: 'rabbeted', tongueThickness: 10, rabbetFace: '-Z' })
+  })
+
   it('defaults materials and hardware for v1 files', () => {
     const v1Json = JSON.stringify({
       version: 1,

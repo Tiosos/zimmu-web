@@ -75,6 +75,8 @@ export function parseFile(text: string): ZimmuFile {
         (j) =>
           ({
             profile: 'plain' as const,
+            // Inert placeholder while profile is 'plain'; re-derived to housedThickness/2
+            // when a joint is first flipped to rabbeted (see onAddJoint) — not meant to track that formula here.
             tongueThickness: 6,
             rabbetFace: '+Z' as const,
             ...j,
