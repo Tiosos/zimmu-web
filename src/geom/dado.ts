@@ -117,7 +117,9 @@ export function computeDadoGroove(housing: BoardPart, housed: BoardPart, joint: 
   const dim = boardDims(housing)
   const depth = clamp(joint.depth, 0.1, dim[dAx] - 1)
   const width =
-    (joint.profile === 'rabbeted' ? joint.tongueThickness : housed.thickness) + joint.clearance
+    (hasTongue(joint)
+      ? clamp(joint.tongueThickness, 0.1, housed.thickness - 0.1)
+      : housed.thickness) + joint.clearance
   const size: Vec3 = { x: 0, y: 0, z: 0 }
   size[dAx] = depth
   size[narrowAx] = width

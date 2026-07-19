@@ -155,7 +155,10 @@ export function JointsPanel({
                       onCommit={(v) =>
                         onUpdateJoint(j.id, (jt) => ({
                           ...jt,
-                          tongueThickness: Math.max(0.1, v),
+                          tongueThickness:
+                            housed?.kind === 'board'
+                              ? Math.min(Math.max(0.1, v), housed.thickness - 0.1)
+                              : Math.max(0.1, v),
                         }))
                       }
                     />

@@ -182,3 +182,23 @@ test('deriveJoint: invalid seat returns null (stale)', () => {
   const flat = { ...housed, rotation: { x: 0, y: 0, z: 0 } }
   expect(deriveJoint(rabbeted, [housing, flat])).toBeNull()
 })
+
+test('computeDadoGroove: rabbeted with a thickness-end housedEnd keeps the full-thickness groove (no tongue → no narrowing)', () => {
+  const thicknessEnd = { ...rabbeted, housedEnd: '+Z' as const }
+  // hasTongue is false (housedEnd depth axis is 'z'), so no narrowing.
+  expect(computeDadoGroove(housing, housed, thicknessEnd).size.x).toBe(18)
+})
+
+test('computeDadoGroove: rabbeted groove width clamps tongueThickness to < housed thickness', () => {
+  const wide = { ...rabbeted, tongueThickness: 999 }
+  expect(computeDadoGroove(housing, housed, wide).size.x).toBeCloseTo(18 - 0.1, 6)
+})
+
+test('deriveJoint: rabbeted with a thickness-end housedEnd emits only the groove, full-width', () => {
+  // A housed board seating a thickness face: unrotated, housedEnd '-Z' opposes the +Z housing face (valid seat), but the end is a thickness end.
+  const flatHoused = { ...housed, rotation: { x: 0, y: 0, z: 0 } }
+  const r = deriveJoint({ ...rabbeted, housedEnd: '-Z' as const }, [housing, flatHoused])
+  expect(r).not.toBeNull()
+  expect(r!.cuts).toHaveLength(1) // groove only, no rabbet
+  expect(r!.cuts[0].partId).toBe('H')
+})

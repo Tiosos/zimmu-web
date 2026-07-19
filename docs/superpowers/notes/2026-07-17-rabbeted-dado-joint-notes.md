@@ -68,11 +68,18 @@ future developer (or AI) who needs the *why*.
 - Originally the `profile === 'rabbeted' && faceAxes(...).depth !== 'z'` guard was inlined at
   both call sites (`computeDadoSeat` and `deriveJoint`). Code review flagged the duplication;
   it was extracted to the exported `hasTongue(joint)` predicate in `dado.ts` so the fallback
-  rule has exactly one definition. `computeDadoGroove`'s width branch
-  (`profile === 'rabbeted' ? tongueThickness : housed.thickness`) intentionally does **not**
-  use `hasTongue` — the groove narrows based on `profile` alone regardless of the housedEnd
-  axis (a narrower groove is harmless even when no tongue is cut), so reusing the predicate
-  there would have been incorrect, not just redundant.
+  rule has exactly one definition.
+- **Correction (found in final review):** `computeDadoGroove`'s width branch originally checked
+  raw `profile === 'rabbeted'` instead of `hasTongue(joint)`, on the (wrong) theory that "a
+  narrower groove is harmless even when no tongue is cut." It isn't: when `housedEnd` is a
+  thickness end, `hasTongue` is false, so `deriveJoint` emits no rabbet cut and
+  `computeDadoSeat` doesn't shift the seat — but the un-gated groove branch still narrowed the
+  channel to `tongueThickness`, seating a full-thickness board in a too-narrow slot (silent
+  broken geometry). Fixed to gate on `hasTongue(joint)` like every other rabbet-aware call
+  site. While fixing this, the width branch was also changed to clamp
+  `tongueThickness` to `[0.1, thickness − 0.1]` (matching `computeRabbet`'s clamp) instead of
+  using it raw, so the groove and tongue can't disagree when `tongueThickness` is set above
+  `thickness`. Regression tests in `dado.test.ts`.
 
 ## Housed rabbet cut reuses JP1's read-only cut rendering for free
 
