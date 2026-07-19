@@ -3,6 +3,7 @@ import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
 import { useSnap } from './scene/useSnap'
 import { useAddCut } from './scene/useAddCut'
+import { useAddJoint } from './scene/useAddJoint'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
@@ -36,6 +37,9 @@ function App() {
     onRemoveCut,
     onLinkCuts,
     onUnlinkCuts,
+    onAddJoint,
+    onUpdateJoint,
+    onRemoveJoint,
     onSelect,
     onToggleVisible,
     canUndo,
@@ -78,6 +82,17 @@ function App() {
     dowelTool,
     armDowelTool,
   } = useAddCut({ parts: scene.parts, onUpdate, onSelect })
+
+  const {
+    jointActive,
+    pendingHousing,
+    statusMessage: jointStatus,
+    hoveredFace: jointHoveredFace,
+    activateJoint,
+    cancelJoint,
+    onFaceClick: onFaceClickJoint,
+    onFaceHover: onFaceHoverJoint,
+  } = useAddJoint({ parts: scene.parts, onAddJoint })
 
   const cameraStateRef = useRef<CameraState>({
     position: { x: 250, y: -200, z: 150 },
@@ -132,12 +147,19 @@ function App() {
 
   const handleActivateCut = useCallback(() => {
     cancelSnap()
+    cancelJoint()
     activateCut()
-  }, [cancelSnap, activateCut])
+  }, [cancelSnap, cancelJoint, activateCut])
   const handleActivateSnap = useCallback(() => {
     cancelCut()
+    cancelJoint()
     activateSnap()
-  }, [cancelCut, activateSnap])
+  }, [cancelCut, cancelJoint, activateSnap])
+  const handleActivateJoint = useCallback(() => {
+    cancelCut()
+    cancelSnap()
+    activateJoint()
+  }, [cancelCut, cancelSnap, activateJoint])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -156,20 +178,26 @@ function App() {
           handleActivateCut()
           return
         }
+        if (e.key.toLowerCase() === 'j') {
+          e.preventDefault()
+          handleActivateJoint()
+          return
+        }
         if (e.key === 'Escape') {
           if (cutActive) cancelCut()
           if (snapActive) cancelSnap()
+          if (jointActive) cancelJoint()
           return
         }
         if (e.key.toLowerCase() === 'h') {
-          if (selectedId && !snapActive && !cutActive) {
+          if (selectedId && !snapActive && !cutActive && !jointActive) {
             e.preventDefault()
             onToggleVisible(selectedId)
           }
           return
         }
         if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (selectedId && !snapActive && !cutActive) {
+          if (selectedId && !snapActive && !cutActive && !jointActive) {
             e.preventDefault()
             onRemove(selectedId)
           }
@@ -230,10 +258,13 @@ function App() {
     selectedId,
     handleActivateCut,
     handleActivateSnap,
+    handleActivateJoint,
     cancelCut,
     cutActive,
     cancelSnap,
     snapActive,
+    cancelJoint,
+    jointActive,
   ])
 
   if (!fileReady) return null
@@ -297,6 +328,11 @@ function App() {
           cutActive={cutActive}
           onFaceClickCut={onFaceClickCut}
           onFaceHoverCut={onFaceHoverCut}
+          jointActive={jointActive}
+          onFaceClickJoint={onFaceClickJoint}
+          onFaceHoverJoint={onFaceHoverJoint}
+          jointHousingFace={pendingHousing}
+          jointHoveredFace={jointHoveredFace}
           flashTarget={flashTarget}
         />
         <Sidebar
@@ -325,6 +361,11 @@ function App() {
           onCutToggle={handleActivateCut}
           dowelTool={dowelTool}
           armDowelTool={armDowelTool}
+          onUpdateJoint={onUpdateJoint}
+          onRemoveJoint={onRemoveJoint}
+          jointActive={jointActive}
+          onJointToggle={handleActivateJoint}
+          jointStatus={jointStatus}
         />
       </div>
       {cuttingListOpen && (

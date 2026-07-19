@@ -17,6 +17,7 @@ export interface BoxCut {
   position: Vec3
   size: Vec3
   pairedCutId?: string // "{partId}:{cutId}"
+  sourceJointId?: string // set on cuts generated & owned by a Joint (read-only in UI)
 }
 
 export interface MitreCut {
@@ -121,10 +122,29 @@ export interface HardwareItem {
   linkedPartIds: string[] // reserved for future 3D linkage
 }
 
+export interface DadoJoint {
+  kind: 'dado'
+  id: string // "joint_<uuid>"
+  label: string // "Dado 1"
+  housingPartId: PartId // board that carries the groove
+  housingFace: Face // face the groove is cut into
+  housedPartId: PartId // board that seats into the groove
+  housedEnd: Face // the housed board's end face that seats in
+  offset: number // mm — groove center along the housing face's narrow axis (housing-local)
+  depth: number // mm — groove depth into the housing board
+  clearance: number // mm — added to groove width (housedThickness + clearance)
+  profile: 'plain' | 'rabbeted' // 'plain' = groove only; 'rabbeted' = groove + tongue
+  tongueThickness: number // mm — tongue/groove width when rabbeted
+  rabbetFace: '+Z' | '-Z' // housed-board local thickness face the rabbet removes from
+}
+
+export type Joint = DadoJoint
+
 export interface Scene {
   parts: Part[]
   materials: Record<string, MaterialDef> // keyed by material name string
   hardware: HardwareItem[]
+  joints: Joint[]
 }
 
 export interface FaceHit {

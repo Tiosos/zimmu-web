@@ -4,6 +4,7 @@ import type {
   CutDef,
   CutId,
   CylinderPart,
+  DadoJoint,
   MitreCut,
   Part,
   PartId,
@@ -11,6 +12,7 @@ import type {
 } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
 import { DowelCutsPanel } from './DowelCutsPanel'
+import { JointsPanel } from './JointsPanel'
 import { useDebouncedCallback } from './useDebouncedCallback'
 import { faceAxes } from '../scene/snapMath'
 import { PART_COLORS } from '../scene/palette'
@@ -56,6 +58,11 @@ interface SidebarProps {
   onToggleVisible: (id: PartId) => void
   dowelTool: DowelCutTool | null
   armDowelTool: (tool: DowelCutTool) => void
+  onUpdateJoint: (jointId: string, updater: (j: DadoJoint) => DadoJoint) => void
+  onRemoveJoint: (jointId: string) => void
+  jointActive: boolean
+  onJointToggle: () => void
+  jointStatus: string | null
 }
 
 function DimInput({
@@ -478,6 +485,8 @@ function EditPanel({
   nextLabel,
   dowelTool,
   armDowelTool,
+  onUpdateJoint,
+  onRemoveJoint,
 }: {
   part: Part
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
@@ -492,6 +501,8 @@ function EditPanel({
   nextLabel: string
   dowelTool: DowelCutTool | null
   armDowelTool: (tool: DowelCutTool) => void
+  onUpdateJoint: (jointId: string, updater: (j: DadoJoint) => DadoJoint) => void
+  onRemoveJoint: (jointId: string) => void
 }) {
   const [shapeOpen, setShapeOpen] = useState(true)
   const [posOpen, setPosOpen] = useState(true)
@@ -719,6 +730,14 @@ function EditPanel({
                   onRemoveCut={onRemoveCut}
                   defaultOpen={cut.id === lastPlacedCutId}
                 />
+              ) : cut.sourceJointId ? (
+                <div
+                  key={cut.id}
+                  className="border-t border-border/30 py-1 flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground/70"
+                >
+                  <span className="flex-1">{cut.label} (joint)</span>
+                  <span className="font-mono text-[10px] text-border">{cut.face}</span>
+                </div>
               ) : (
                 <CutRow
                   key={cut.id}
@@ -736,6 +755,13 @@ function EditPanel({
           )}
         </>
       )}
+
+      <JointsPanel
+        part={part}
+        scene={scene}
+        onUpdateJoint={onUpdateJoint}
+        onRemoveJoint={onRemoveJoint}
+      />
 
       {linkedHardware.length > 0 && (
         <>
@@ -779,6 +805,11 @@ export function Sidebar({
   onToggleVisible,
   dowelTool,
   armDowelTool,
+  onUpdateJoint,
+  onRemoveJoint,
+  jointActive,
+  onJointToggle,
+  jointStatus,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -807,6 +838,19 @@ export function Sidebar({
                 {snapPhase === 'idle'
                   ? 'Click a face · Esc to cancel'
                   : 'Click target face · Esc to cancel'}
+              </span>
+            )}
+          </Button>
+          <Button
+            variant={jointActive ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={onJointToggle}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${jointActive ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
+          >
+            <span>{jointActive ? 'Dado joint' : 'Add Dado'}</span>
+            {jointActive && (
+              <span className="text-[10px] text-muted-foreground font-normal">
+                {jointStatus ?? 'Click housing face, then housed end · Esc to cancel'}
               </span>
             )}
           </Button>
@@ -925,6 +969,8 @@ export function Sidebar({
             nextLabel={nextLabel}
             dowelTool={dowelTool}
             armDowelTool={armDowelTool}
+            onUpdateJoint={onUpdateJoint}
+            onRemoveJoint={onRemoveJoint}
           />
         )}
 

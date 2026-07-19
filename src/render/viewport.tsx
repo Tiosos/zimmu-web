@@ -27,6 +27,11 @@ interface ViewportProps {
   cutActive: boolean
   onFaceClickCut: (hit: FaceHit) => void
   onFaceHoverCut: (hit: FaceHit | null) => void
+  jointActive: boolean
+  onFaceClickJoint: (hit: FaceHit) => void
+  onFaceHoverJoint: (hit: FaceHit | null) => void
+  jointHousingFace: FaceHit | null
+  jointHoveredFace: FaceHit | null
   flashTarget?: { id: PartId; seq: number } | null
 }
 
@@ -46,6 +51,11 @@ export function Viewport({
   cutActive,
   onFaceClickCut,
   onFaceHoverCut,
+  jointActive,
+  onFaceClickJoint,
+  onFaceHoverJoint,
+  jointHousingFace,
+  jointHoveredFace,
   flashTarget,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
@@ -65,6 +75,9 @@ export function Viewport({
   const cutActiveRef = useRef(cutActive)
   const onFaceClickCutRef = useRef(onFaceClickCut)
   const onFaceHoverCutRef = useRef(onFaceHoverCut)
+  const jointActiveRef = useRef(jointActive)
+  const onFaceClickJointRef = useRef(onFaceClickJoint)
+  const onFaceHoverJointRef = useRef(onFaceHoverJoint)
   const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
   const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
   const ghostMeshRef = useRef<THREE.Mesh | null>(null)
@@ -83,6 +96,9 @@ export function Viewport({
     cutActiveRef.current = cutActive
     onFaceClickCutRef.current = onFaceClickCut
     onFaceHoverCutRef.current = onFaceHoverCut
+    jointActiveRef.current = jointActive
+    onFaceClickJointRef.current = onFaceClickJoint
+    onFaceHoverJointRef.current = onFaceHoverJoint
     selectedIdRef.current = selectedId
   })
 
@@ -324,7 +340,12 @@ export function Viewport({
         false,
       )
 
-      if (cutActiveRef.current) {
+      if (jointActiveRef.current) {
+        if (hits.length > 0) {
+          const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
+          if (faceHit) onFaceClickJointRef.current(faceHit)
+        }
+      } else if (cutActiveRef.current) {
         if (hits.length > 0) {
           const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
           if (faceHit) onFaceClickCutRef.current(faceHit)
@@ -354,7 +375,7 @@ export function Viewport({
       lastMouseRef.current = { x: e.clientX, y: e.clientY }
       cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = requestAnimationFrame(() => {
-        if (!snapActiveRef.current && !cutActiveRef.current) return
+        if (!snapActiveRef.current && !cutActiveRef.current && !jointActiveRef.current) return
         const { x, y } = lastMouseRef.current
         const rect = renderer.domElement.getBoundingClientRect()
         const nx = ((x - rect.left) / rect.width) * 2 - 1
@@ -366,10 +387,12 @@ export function Viewport({
         )
         if (hits.length > 0) {
           const hit = buildFaceHit(hits[0], meshes.current, partsRef.current)
-          if (cutActiveRef.current) onFaceHoverCutRef.current(hit)
+          if (jointActiveRef.current) onFaceHoverJointRef.current(hit)
+          else if (cutActiveRef.current) onFaceHoverCutRef.current(hit)
           else onFaceHoverRef.current(hit)
         } else {
-          if (cutActiveRef.current) onFaceHoverCutRef.current(null)
+          if (jointActiveRef.current) onFaceHoverJointRef.current(null)
+          else if (cutActiveRef.current) onFaceHoverCutRef.current(null)
           else onFaceHoverRef.current(null)
         }
       })
@@ -537,13 +560,26 @@ export function Viewport({
       loop.visible = true
     }
 
-    updateHighlight(sourceHighlightRef.current, snapActive ? sourceFace : null, 0xfbbf24)
+    updateHighlight(
+      sourceHighlightRef.current,
+      snapActive ? sourceFace : jointActive ? jointHousingFace : null,
+      0xfbbf24,
+    )
     updateHighlight(
       hoverHighlightRef.current,
-      snapActive || cutActive ? hoveredFace : null,
+      jointActive ? jointHoveredFace : snapActive || cutActive ? hoveredFace : null,
       0x60a5fa,
     )
-  }, [snapActive, cutActive, sourceFace, hoveredFace, parts])
+  }, [
+    snapActive,
+    cutActive,
+    jointActive,
+    sourceFace,
+    hoveredFace,
+    jointHousingFace,
+    jointHoveredFace,
+    parts,
+  ])
 
   // Ghost mesh — semi-transparent preview of the source part at its snapped destination
   useEffect(() => {
@@ -581,11 +617,11 @@ export function Viewport({
   useEffect(() => {
     const mount = mountRef.current
     if (!mount) return
-    mount.style.cursor = snapActive || cutActive ? 'crosshair' : ''
+    mount.style.cursor = snapActive || cutActive || jointActive ? 'crosshair' : ''
     return () => {
       mount.style.cursor = ''
     }
-  }, [snapActive, cutActive])
+  }, [snapActive, cutActive, jointActive])
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 }

@@ -127,6 +127,19 @@ describe('shapeKey', () => {
     expect(shapeKey({ ...board, cuts: [cutFaceA] })).toBe(shapeKey({ ...board, cuts: [cutFaceB] }))
   })
 
+  it('ignores sourceJointId — not a geometry field', () => {
+    const plain: CutDef = {
+      kind: 'box',
+      id: 'c1',
+      label: 'Cut',
+      face: '+Z',
+      position: { x: 0, y: 0, z: 10 },
+      size: { x: 20, y: 20, z: 10 },
+    }
+    const tagged: CutDef = { ...plain, sourceJointId: 'joint_x' }
+    expect(shapeKey({ ...board, cuts: [tagged] })).toBe(shapeKey({ ...board, cuts: [plain] }))
+  })
+
   it('changes when cut position changes', () => {
     const base: BoardPart = {
       ...board,

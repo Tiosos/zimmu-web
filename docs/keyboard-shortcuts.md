@@ -6,9 +6,10 @@
 |-----|--------|-------|
 | `F` | Activate snap/align mode | |
 | `C` | Activate cut mode | |
-| `Escape` | Cancel snap or cut mode | No-op if neither is active |
-| `H` | Toggle visibility of selected part | Suppressed in snap/cut mode |
-| `Delete` / `Backspace` | Remove selected part | Suppressed in snap/cut mode |
+| `J` | Activate dado joint mode | Click housing face, then housed board's end |
+| `Escape` | Cancel snap, cut, or joint mode | No-op if none is active |
+| `H` | Toggle visibility of selected part | Suppressed in snap/cut/joint mode |
+| `Delete` / `Backspace` | Remove selected part | Suppressed in snap/cut/joint mode |
 
 ## With Ctrl / Cmd
 

@@ -1,8 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile } from './types'
+import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile, Joint } from './types'
 import * as idb from './idb'
 
-export const FILE_FORMAT_VERSION = 3
+export const FILE_FORMAT_VERSION = 5
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -70,6 +70,18 @@ export function parseFile(text: string): ZimmuFile {
       ),
       materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
       hardware: raw.scene.hardware ?? [],
+      // v4→v5: joints gained a `profile` field (+ tongueThickness/rabbetFace); legacy joints are plain dados.
+      joints: ((raw.scene.joints ?? []) as unknown as Array<Record<string, unknown>>).map(
+        (j) =>
+          ({
+            profile: 'plain' as const,
+            // Inert placeholder while profile is 'plain'; re-derived to housedThickness/2
+            // when a joint is first flipped to rabbeted (see onAddJoint) — not meant to track that formula here.
+            tongueThickness: 6,
+            rabbetFace: '+Z' as const,
+            ...j,
+          }) as unknown as Joint,
+      ),
     },
   }
 }
@@ -249,12 +261,17 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       createdAt: now,
       updatedAt: now,
       camera: getCameraStateRef.current(),
-      scene: { parts: [], materials: {}, hardware: [] },
+      scene: { parts: [], materials: {}, hardware: [], joints: [] },
     }
     handleRef.current = null
     createdAtRef.current = null
     projectNameRef.current = 'Untitled'
-    lastSavedSceneRef.current = JSON.stringify({ parts: [], materials: {}, hardware: [] })
+    lastSavedSceneRef.current = JSON.stringify({
+      parts: [],
+      materials: {},
+      hardware: [],
+      joints: [],
+    })
     lastSavedProjectNameRef.current = 'Untitled'
     isDirtyRef.current = false
     setFileName(null)
