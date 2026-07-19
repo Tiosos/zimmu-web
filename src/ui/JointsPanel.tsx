@@ -112,7 +112,7 @@ export function JointsPanel({
                   <Select
                     value={j.profile}
                     onValueChange={(v) =>
-                      onUpdateJoint(j.id, (jt) => ({ ...jt, profile: v as 'plain' | 'rabbeted' }))
+                      onUpdateJoint(j.id, (jt) => ({ ...jt, profile: v as DadoJoint['profile'] }))
                     }
                   >
                     <SelectTrigger className="h-7 flex-1 text-[11px]">
@@ -164,7 +164,10 @@ export function JointsPanel({
                       <Select
                         value={j.rabbetFace}
                         onValueChange={(v) =>
-                          onUpdateJoint(j.id, (jt) => ({ ...jt, rabbetFace: v as '+Z' | '-Z' }))
+                          onUpdateJoint(j.id, (jt) => ({
+                            ...jt,
+                            rabbetFace: v as DadoJoint['rabbetFace'],
+                          }))
                         }
                       >
                         <SelectTrigger className="h-7 flex-1 text-[11px]">
