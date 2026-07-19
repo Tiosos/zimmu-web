@@ -105,6 +105,12 @@ export function computeDadoOffset(
   return clamp(raw, half, dim[narrowAx] - half)
 }
 
+// True when the joint cuts a tongue on the housed end (rabbeted, and the housed
+// end is a length/width end — a thickness end can't be reduced, so it falls back to plain).
+export function hasTongue(joint: DadoJoint): boolean {
+  return joint.profile === 'rabbeted' && faceAxes(joint.housedEnd).depth !== 'z'
+}
+
 export function computeDadoGroove(housing: BoardPart, housed: BoardPart, joint: DadoJoint): BoxCut {
   const { narrowAx, runAx } = deriveDadoAxes(housing, housed, joint.housingFace)
   const dAx = faceAxes(joint.housingFace).depth
@@ -143,7 +149,7 @@ export function computeDadoSeat(
   const depth = clamp(joint.depth, 0.1, dim[dAx] - 1)
 
   const endLocal = computeLocalFaceCenter(FACE_NORMALS[joint.housedEnd], housed)
-  if (joint.profile === 'rabbeted' && faceAxes(joint.housedEnd).depth !== 'z') {
+  if (hasTongue(joint)) {
     const t = clamp(joint.tongueThickness, 0.1, housed.thickness - 0.1)
     endLocal.z = joint.rabbetFace === '+Z' ? t / 2 : housed.thickness - t / 2
   }
@@ -187,8 +193,7 @@ export function computeDadoSeat(
 export function computeRabbet(_housing: BoardPart, housed: BoardPart, joint: DadoJoint): BoxCut {
   const dim = boardDims(housed)
   const seatAx = faceAxes(joint.housedEnd).depth
-  // Precondition: seatAx ∈ {'x','y'} (housedEnd is a length/width end). deriveJoint filters
-  // thickness-end housedEnds to plain, so the z-axis writes below rely on seatAx ≠ 'z'.
+  // Precondition: hasTongue(joint) is true (seatAx ∈ {'x','y'}); deriveJoint enforces it.
   const widthAx: Axis = seatAx === 'x' ? 'y' : 'x'
   const thickness = housed.thickness
   const t = clamp(joint.tongueThickness, 0.1, thickness - 0.1)
@@ -212,6 +217,8 @@ export function computeRabbet(_housing: BoardPart, housed: BoardPart, joint: Dad
   }
 }
 
+// Returns null when the joint is stale/invalid (missing/non-board parts, or a
+// non-perpendicular seat); the caller preserves last-good geometry.
 export function deriveJoint(joint: Joint, parts: Part[]): DeriveResult | null {
   const housing = parts.find((p) => p.id === joint.housingPartId)
   const housed = parts.find((p) => p.id === joint.housedPartId)
@@ -221,7 +228,7 @@ export function deriveJoint(joint: Joint, parts: Part[]): DeriveResult | null {
   const cuts: DerivedCut[] = [
     { partId: housing.id, cut: computeDadoGroove(housing, housed, joint) },
   ]
-  if (joint.profile === 'rabbeted' && faceAxes(joint.housedEnd).depth !== 'z') {
+  if (hasTongue(joint)) {
     cuts.push({ partId: housed.id, cut: computeRabbet(housing, housed, joint) })
   }
   const seat = { partId: housed.id, position: computeDadoSeat(housing, housed, joint).position }
