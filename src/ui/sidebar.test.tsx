@@ -554,3 +554,44 @@ describe('Sidebar', () => {
     })
   })
 })
+
+describe('Sidebar joints panel — rabbeted', () => {
+  afterEach(() => cleanup())
+
+  const jointScene = (profile: 'plain' | 'rabbeted') => ({
+    parts: [
+      makeBoard(),
+      makeBoard({ id: 'board_t2', label: 'Board 2', rotation: { x: 0, y: 90, z: 0 } }),
+    ],
+    materials: {},
+    hardware: [],
+    joints: [
+      {
+        kind: 'dado' as const,
+        id: 'j1',
+        label: 'Dado 1',
+        housingPartId: 'board_t1',
+        housingFace: '+Z' as const,
+        housedPartId: 'board_t2',
+        housedEnd: '+X' as const,
+        offset: 100,
+        depth: 8,
+        clearance: 0,
+        profile,
+        tongueThickness: 8,
+        rabbetFace: '+Z' as const,
+      },
+    ],
+  })
+
+  it('plain joint hides the tongue controls', () => {
+    render(<Sidebar {...props({ scene: jointScene('plain'), selectedId: 'board_t1' })} />)
+    expect(screen.queryByText('Tongue')).toBeNull()
+  })
+
+  it('rabbeted joint shows the tongue + rabbet-side controls', () => {
+    render(<Sidebar {...props({ scene: jointScene('rabbeted'), selectedId: 'board_t1' })} />)
+    expect(screen.getByText('Tongue')).toBeTruthy()
+    expect(screen.getByText('Rabbet')).toBeTruthy()
+  })
+})

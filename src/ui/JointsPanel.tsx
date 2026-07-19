@@ -3,6 +3,13 @@ import { isValidDadoSeat } from '../geom/dado'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useDebouncedCallback } from './useDebouncedCallback'
 
 function JointNumInput({
@@ -100,6 +107,23 @@ export function JointsPanel({
             )}
             {isHousing ? (
               <>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Label className="w-10 shrink-0 text-right">Profile</Label>
+                  <Select
+                    value={j.profile}
+                    onValueChange={(v) =>
+                      onUpdateJoint(j.id, (jt) => ({ ...jt, profile: v as 'plain' | 'rabbeted' }))
+                    }
+                  >
+                    <SelectTrigger className="h-7 flex-1 text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="plain">Plain</SelectItem>
+                      <SelectItem value="rabbeted">Rabbeted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <JointNumInput
                   label="Depth"
                   value={j.depth}
@@ -122,6 +146,38 @@ export function JointsPanel({
                   suffix="mm"
                   onCommit={(v) => onUpdateJoint(j.id, (jt) => ({ ...jt, offset: v }))}
                 />
+                {j.profile === 'rabbeted' && (
+                  <>
+                    <JointNumInput
+                      label="Tongue"
+                      value={j.tongueThickness}
+                      suffix="mm"
+                      onCommit={(v) =>
+                        onUpdateJoint(j.id, (jt) => ({
+                          ...jt,
+                          tongueThickness: Math.max(0.1, v),
+                        }))
+                      }
+                    />
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Label className="w-10 shrink-0 text-right">Rabbet</Label>
+                      <Select
+                        value={j.rabbetFace}
+                        onValueChange={(v) =>
+                          onUpdateJoint(j.id, (jt) => ({ ...jt, rabbetFace: v as '+Z' | '-Z' }))
+                        }
+                      >
+                        <SelectTrigger className="h-7 flex-1 text-[11px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="+Z">Face +Z</SelectItem>
+                          <SelectItem value="-Z">Face −Z</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <p className="text-[10px] text-muted-foreground pb-0.5">
