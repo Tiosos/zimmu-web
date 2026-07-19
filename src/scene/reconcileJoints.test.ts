@@ -122,3 +122,22 @@ test('non-derived (user) cuts pass through untouched alongside the groove', () =
   expect(H.cuts.some((c) => c.id === 'c_user')).toBe(true)
   expect(H.cuts.some((c) => c.kind === 'box' && c.sourceJointId === 'j1')).toBe(true)
 })
+
+test('rabbeted joint materializes a groove on the housing AND a rabbet on the housed board', () => {
+  const s = scene()
+  s.joints = [{ ...s.joints[0], profile: 'rabbeted', tongueThickness: 8, rabbetFace: '+Z' }]
+  const out = reconcileJoints(s)
+  const H = out.parts.find((p) => p.id === 'H') as BoardPart
+  const D = out.parts.find((p) => p.id === 'D') as BoardPart
+  expect(H.cuts.filter((c) => c.kind === 'box' && c.sourceJointId === 'j1')).toHaveLength(1)
+  expect(D.cuts.filter((c) => c.kind === 'box' && c.sourceJointId === 'j1')).toHaveLength(1)
+})
+
+test('flipping rabbeted → plain removes the housed rabbet cut', () => {
+  const s = scene()
+  s.joints = [{ ...s.joints[0], profile: 'rabbeted', tongueThickness: 8, rabbetFace: '+Z' }]
+  const rab = reconcileJoints(s)
+  const plain = reconcileJoints({ ...rab, joints: [{ ...rab.joints[0], profile: 'plain' }] })
+  const D = plain.parts.find((p) => p.id === 'D') as BoardPart
+  expect(D.cuts.some((c) => c.kind === 'box' && c.sourceJointId === 'j1')).toBe(false)
+})

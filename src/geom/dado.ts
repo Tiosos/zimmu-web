@@ -1,10 +1,23 @@
 import * as THREE from 'three'
-import type { BoardPart, BoxCut, CutId, DadoJoint, Face, Vec3 } from '../scene/types'
+import type {
+  BoardPart,
+  BoxCut,
+  CutId,
+  DadoJoint,
+  Face,
+  Joint,
+  Part,
+  PartId,
+  Vec3,
+} from '../scene/types'
 import { faceAxes, computeLocalFaceCenter } from '../scene/snapMath'
 import { composeWorldMatrix, applyMatrixToPoint } from './transform'
 
 const DEG2RAD = Math.PI / 180
 type Axis = 'x' | 'y' | 'z'
+
+export type DerivedCut = { partId: PartId; cut: BoxCut }
+export type DeriveResult = { cuts: DerivedCut[]; seat: { partId: PartId; position: Vec3 } }
 
 const FACE_NORMALS: Record<Face, Vec3> = {
   '+X': { x: 1, y: 0, z: 0 },
@@ -197,4 +210,20 @@ export function computeRabbet(_housing: BoardPart, housed: BoardPart, joint: Dad
     size,
     sourceJointId: joint.id,
   }
+}
+
+export function deriveJoint(joint: Joint, parts: Part[]): DeriveResult | null {
+  const housing = parts.find((p) => p.id === joint.housingPartId)
+  const housed = parts.find((p) => p.id === joint.housedPartId)
+  if (housing?.kind !== 'board' || housed?.kind !== 'board') return null
+  if (!isValidDadoSeat(housing, joint.housingFace, housed, joint.housedEnd)) return null
+
+  const cuts: DerivedCut[] = [
+    { partId: housing.id, cut: computeDadoGroove(housing, housed, joint) },
+  ]
+  if (joint.profile === 'rabbeted' && faceAxes(joint.housedEnd).depth !== 'z') {
+    cuts.push({ partId: housed.id, cut: computeRabbet(housing, housed, joint) })
+  }
+  const seat = { partId: housed.id, position: computeDadoSeat(housing, housed, joint).position }
+  return { cuts, seat }
 }

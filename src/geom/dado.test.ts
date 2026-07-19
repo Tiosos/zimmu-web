@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import type { BoardPart, DadoJoint } from '../scene/types'
+import type { BoardPart, DadoJoint, Part } from '../scene/types'
 import {
   isValidDadoSeat,
   deriveDadoAxes,
@@ -7,6 +7,7 @@ import {
   computeDadoSeat,
   defaultDadoDepth,
   computeRabbet,
+  deriveJoint,
 } from './dado'
 import { composeWorldMatrix, applyMatrixToPoint } from './transform'
 import { computeLocalFaceCenter } from '../scene/snapMath'
@@ -158,4 +159,26 @@ test('computeDadoSeat: rabbeted with a thickness-end housedEnd falls back to pla
   expect(rab.position.x).toBeCloseTo(plain.position.x, 6)
   expect(rab.position.y).toBeCloseTo(plain.position.y, 6)
   expect(rab.position.z).toBeCloseTo(plain.position.z, 6)
+})
+
+const parts: Part[] = [housing, housed]
+
+test('deriveJoint: plain returns one groove cut on the housing + a seat', () => {
+  const r = deriveJoint({ ...joint, profile: 'plain' }, parts)
+  expect(r).not.toBeNull()
+  expect(r!.cuts).toHaveLength(1)
+  expect(r!.cuts[0].partId).toBe('H')
+  expect(r!.seat.partId).toBe('D')
+})
+
+test('deriveJoint: rabbeted returns groove (housing) + rabbet (housed)', () => {
+  const r = deriveJoint(rabbeted, parts)
+  expect(r!.cuts).toHaveLength(2)
+  expect(r!.cuts.map((c) => c.partId).sort()).toEqual(['D', 'H'])
+  expect(r!.cuts.find((c) => c.partId === 'D')!.cut.id.endsWith('_rabbet')).toBe(true)
+})
+
+test('deriveJoint: invalid seat returns null (stale)', () => {
+  const flat = { ...housed, rotation: { x: 0, y: 0, z: 0 } }
+  expect(deriveJoint(rabbeted, [housing, flat])).toBeNull()
 })
