@@ -1548,4 +1548,32 @@ describe('useScene — joints', () => {
     expect(grooveWidth()).not.toBe(before)
     expect(grooveWidth()).toBe(40)
   })
+
+  it('flipping a joint to rabbeted adds the housed rabbet cut in one undo entry', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const { Hid, Did } = await twoBoards(result)
+    await act(async () => {
+      result.current.onAddJoint(hit(Hid, { x: 0, y: 0, z: 1 }), hit(Did, { x: 1, y: 0, z: 0 }))
+    })
+    const jointId = result.current.scene.joints[0].id
+    const housedRabbets = () => {
+      const D = result.current.scene.parts.find((p) => p.id === Did)!
+      return D.kind === 'board'
+        ? D.cuts.filter((c) => c.kind === 'box' && c.sourceJointId === jointId).length
+        : 0
+    }
+    expect(housedRabbets()).toBe(0) // plain: no rabbet on the housed board
+
+    await act(async () => {
+      result.current.onUpdateJoint(jointId, (j) => ({ ...j, profile: 'rabbeted' }))
+    })
+    expect(housedRabbets()).toBe(1) // rabbeted: one derived cut on the housed board
+
+    await act(async () => {
+      result.current.undo()
+    })
+    expect(housedRabbets()).toBe(0) // single undo restores plain
+    expect(result.current.scene.joints[0].profile).toBe('plain')
+  })
 })
