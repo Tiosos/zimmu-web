@@ -97,7 +97,8 @@ export function computeDadoGroove(housing: BoardPart, housed: BoardPart, joint: 
   const dAx = faceAxes(joint.housingFace).depth
   const dim = boardDims(housing)
   const depth = clamp(joint.depth, 0.1, dim[dAx] - 1)
-  const width = housed.thickness + joint.clearance
+  const width =
+    (joint.profile === 'rabbeted' ? joint.tongueThickness : housed.thickness) + joint.clearance
   const size: Vec3 = { x: 0, y: 0, z: 0 }
   size[dAx] = depth
   size[narrowAx] = width
@@ -129,6 +130,10 @@ export function computeDadoSeat(
   const depth = clamp(joint.depth, 0.1, dim[dAx] - 1)
 
   const endLocal = computeLocalFaceCenter(FACE_NORMALS[joint.housedEnd], housed)
+  if (joint.profile === 'rabbeted' && faceAxes(joint.housedEnd).depth !== 'z') {
+    const t = clamp(joint.tongueThickness, 0.1, housed.thickness - 0.1)
+    endLocal.z = joint.rabbetFace === '+Z' ? t / 2 : housed.thickness - t / 2
+  }
   const [ex, ey, ez] = applyMatrixToPoint(
     composeWorldMatrix(housed),
     endLocal.x,
@@ -163,5 +168,32 @@ export function computeDadoSeat(
       y: housed.position.y + (desired.y - endWorld.y),
       z: housed.position.z + (desired.z - endWorld.z),
     },
+  }
+}
+
+export function computeRabbet(housing: BoardPart, housed: BoardPart, joint: DadoJoint): BoxCut {
+  void housing
+  const dim = boardDims(housed)
+  const seatAx = faceAxes(joint.housedEnd).depth
+  const widthAx: Axis = seatAx === 'x' ? 'y' : 'x'
+  const T = housed.thickness
+  const t = clamp(joint.tongueThickness, 0.1, T - 0.1)
+  const len = clamp(joint.depth, 0.1, dim[seatAx] - 0.1)
+  const size: Vec3 = { x: 0, y: 0, z: 0 }
+  size[seatAx] = len
+  size[widthAx] = dim[widthAx]
+  size.z = T - t
+  const position: Vec3 = { x: 0, y: 0, z: 0 }
+  position[seatAx] = joint.housedEnd.startsWith('+') ? dim[seatAx] - len : 0
+  position[widthAx] = 0
+  position.z = joint.rabbetFace === '+Z' ? t : 0
+  return {
+    kind: 'box',
+    id: `cut_${joint.id}_rabbet` as CutId,
+    label: `${joint.label} tongue`,
+    face: joint.rabbetFace,
+    position,
+    size,
+    sourceJointId: joint.id,
   }
 }

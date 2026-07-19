@@ -6,6 +6,7 @@ import {
   computeDadoGroove,
   computeDadoSeat,
   defaultDadoDepth,
+  computeRabbet,
 } from './dado'
 import { composeWorldMatrix, applyMatrixToPoint } from './transform'
 import { computeLocalFaceCenter } from '../scene/snapMath'
@@ -111,4 +112,40 @@ test('computeDadoSeat is idempotent (re-seating a seated board is a no-op)', () 
   expect(twice.position.x).toBeCloseTo(once.position.x, 6)
   expect(twice.position.y).toBeCloseTo(once.position.y, 6)
   expect(twice.position.z).toBeCloseTo(once.position.z, 6)
+})
+
+const rabbeted = {
+  ...joint,
+  profile: 'rabbeted' as const,
+  tongueThickness: 8,
+  rabbetFace: '+Z' as const,
+}
+
+test('computeDadoGroove: rabbeted groove width = tongueThickness (+clearance), narrower than plain', () => {
+  expect(computeDadoGroove(housing, housed, rabbeted).size.x).toBe(8) // vs 18 for plain
+})
+
+test('computeRabbet: removes T−t from the +Z face over the last `depth` mm, full width', () => {
+  const cut = computeRabbet(housing, housed, rabbeted)
+  expect(cut.id.endsWith('_rabbet')).toBe(true)
+  expect(cut.sourceJointId).toBe('j1')
+  expect(cut.face).toBe('+Z')
+  expect(cut.size).toEqual({ x: 8, y: 100, z: 10 }) // len=depth, full width, T−t=18−8
+  expect(cut.position).toEqual({ x: 120 - 8, y: 0, z: 8 }) // flush at +X end, remove z∈[8,18]
+})
+
+test('computeRabbet: rabbetFace −Z removes the low face instead', () => {
+  const cut = computeRabbet(housing, housed, { ...rabbeted, rabbetFace: '-Z' })
+  expect(cut.position.z).toBe(0)
+  expect(cut.size.z).toBe(10) // removes z∈[0,10], tongue at z∈[10,18]
+})
+
+test('computeDadoSeat: rabbeted centers the tongue (not the board) on the groove; seating depth unchanged', () => {
+  const plainSeat = computeDadoSeat(housing, housed, { ...joint, profile: 'plain' })
+  const rabSeat = computeDadoSeat(housing, housed, rabbeted)
+  // narrow axis is world X here; shift = (T−t)/2 = (18−8)/2 = 5
+  expect(Math.abs(rabSeat.position.x - plainSeat.position.x)).toBeCloseTo(5, 6)
+  // face-normal (world Z) and run (world Y) components unchanged
+  expect(rabSeat.position.z).toBeCloseTo(plainSeat.position.z, 6)
+  expect(rabSeat.position.y).toBeCloseTo(plainSeat.position.y, 6)
 })
