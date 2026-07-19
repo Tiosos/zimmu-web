@@ -149,3 +149,13 @@ test('computeDadoSeat: rabbeted centers the tongue (not the board) on the groove
   expect(rabSeat.position.z).toBeCloseTo(plainSeat.position.z, 6)
   expect(rabSeat.position.y).toBeCloseTo(plainSeat.position.y, 6)
 })
+
+test('computeDadoSeat: rabbeted with a thickness-end housedEnd falls back to plain (no tongue shift)', () => {
+  const thicknessEnd = { ...rabbeted, housedEnd: '+Z' as const }
+  const plainEnd = { ...joint, profile: 'plain' as const, housedEnd: '+Z' as const }
+  const rab = computeDadoSeat(housing, housed, thicknessEnd)
+  const plain = computeDadoSeat(housing, housed, plainEnd)
+  expect(rab.position.x).toBeCloseTo(plain.position.x, 6)
+  expect(rab.position.y).toBeCloseTo(plain.position.y, 6)
+  expect(rab.position.z).toBeCloseTo(plain.position.z, 6)
+})

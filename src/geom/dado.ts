@@ -171,18 +171,19 @@ export function computeDadoSeat(
   }
 }
 
-export function computeRabbet(housing: BoardPart, housed: BoardPart, joint: DadoJoint): BoxCut {
-  void housing
+export function computeRabbet(_housing: BoardPart, housed: BoardPart, joint: DadoJoint): BoxCut {
   const dim = boardDims(housed)
   const seatAx = faceAxes(joint.housedEnd).depth
+  // Precondition: seatAx ∈ {'x','y'} (housedEnd is a length/width end). deriveJoint filters
+  // thickness-end housedEnds to plain, so the z-axis writes below rely on seatAx ≠ 'z'.
   const widthAx: Axis = seatAx === 'x' ? 'y' : 'x'
-  const T = housed.thickness
-  const t = clamp(joint.tongueThickness, 0.1, T - 0.1)
+  const thickness = housed.thickness
+  const t = clamp(joint.tongueThickness, 0.1, thickness - 0.1)
   const len = clamp(joint.depth, 0.1, dim[seatAx] - 0.1)
   const size: Vec3 = { x: 0, y: 0, z: 0 }
   size[seatAx] = len
   size[widthAx] = dim[widthAx]
-  size.z = T - t
+  size.z = thickness - t
   const position: Vec3 = { x: 0, y: 0, z: 0 }
   position[seatAx] = joint.housedEnd.startsWith('+') ? dim[seatAx] - len : 0
   position[widthAx] = 0
