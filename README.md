@@ -24,7 +24,7 @@ Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 - Part visibility toggle (`H`), duplication (`Ctrl+D`), removal (`Delete`/`Backspace`)
 - **Snap/align mode** (`F`) — click two faces to align boards
 - **Cut mode** (`C`) — boolean-subtract a cut rectangle from any board face; cuts can be linked (paired) across mating parts
-- **Dado joint mode** (`J`) — click a housing face then a housed board's end to create a parametric dado; the groove is generated on the housing and the housed board seated into it, staying in sync as dimensions change. Switch a joint's **Profile** to *rabbeted* (tongue-and-dado) in the sidebar to also cut a tongue on the housed end.
+- **Dado joint mode** (`J`) — click a housing face then a housed board's end to create a parametric dado; the groove is generated on the housing and the housed board seated into it, staying in sync as dimensions change. Switch a joint's **Profile** to *rabbeted* (tongue-and-dado) in the sidebar to also cut a tongue on the housed end. Set **Stop A**/**Stop B** in the sidebar to make it a stopped/blind dado — the groove shortens and a matching notch is cut into the housed board's corner so the joint doesn't show through.
 - 50-entry undo/redo (`Ctrl+Z` / `Ctrl+Shift+Z`); consecutive dimension edits coalesce into one entry
 - Full shortcut reference: [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md)
 
