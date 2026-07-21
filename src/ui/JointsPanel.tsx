@@ -1,5 +1,6 @@
 import type { BoardPart, DadoJoint, Joint, Part, PartId, Scene } from '../scene/types'
 import { isValidDadoSeat } from '../geom/dado'
+import { isValidHalfLap } from '../geom/halflap'
 import { jointInvolves } from '../scene/jointInvolves'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -66,7 +67,53 @@ export function JointsPanel({
     <>
       <p className="text-[10px] uppercase tracking-widest text-muted-foreground py-1.5">▾ Joints</p>
       {joints.map((j: Joint) => {
-        if (j.kind !== 'dado') return null
+        if (j.kind === 'halflap') {
+          const a = scene.parts.find((p) => p.id === j.partAId)
+          const b = scene.parts.find((p) => p.id === j.partBId)
+          const stale = a?.kind === 'board' && b?.kind === 'board' ? !isValidHalfLap(a, b) : true
+          const other = j.partAId === part.id ? j.partBId : j.partAId
+          return (
+            <div key={j.id} className="border-t border-border/30 pt-1 pb-1">
+              <div className="flex items-center gap-1 py-0.5">
+                <span className="flex-1 text-[11px] text-foreground">{j.label}</span>
+                <span className="text-[10px] text-muted-foreground">half-lap</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Remove joint"
+                  className="h-5 w-5 text-destructive hover:text-destructive"
+                  onClick={() => onRemoveJoint(j.id)}
+                >
+                  ✕
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground pb-0.5">
+                ↔ {partLabel(scene, other)}
+              </p>
+              {stale && (
+                <p className="text-[10px] text-destructive-foreground pb-1">
+                  Joint stale — boards must be coplanar, equal-thickness, and overlapping
+                </p>
+              )}
+              <JointNumInput
+                label="Split"
+                value={j.split}
+                suffix=""
+                onCommit={(v) =>
+                  onUpdateJoint(j.id, (jt) => ({ ...jt, split: Math.min(Math.max(0.05, v), 0.95) }))
+                }
+              />
+              <JointNumInput
+                label="Clear"
+                value={j.clearance}
+                suffix="mm"
+                onCommit={(v) =>
+                  onUpdateJoint(j.id, (jt) => ({ ...jt, clearance: Math.max(0, v) }))
+                }
+              />
+            </div>
+          )
+        }
         const isHousing = j.housingPartId === part.id
         const housing = scene.parts.find((p) => p.id === j.housingPartId)
         const housed = scene.parts.find((p) => p.id === j.housedPartId)

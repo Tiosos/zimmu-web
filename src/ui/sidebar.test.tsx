@@ -612,3 +612,44 @@ describe('Sidebar joints panel — rabbeted', () => {
     expect(screen.getByText('Stop B')).toBeTruthy()
   })
 })
+
+describe('Sidebar joints panel — half-lap', () => {
+  afterEach(() => cleanup())
+
+  const lapScene = () => ({
+    parts: [
+      makeBoard(),
+      makeBoard({
+        id: 'board_t2',
+        label: 'Board 2',
+        length: 40,
+        width: 200,
+        position: { x: 40, y: -80, z: 0 },
+      }),
+    ],
+    materials: {},
+    hardware: [],
+    joints: [
+      {
+        kind: 'halflap' as const,
+        id: 'jl',
+        label: 'Half-lap 1',
+        partAId: 'board_t1',
+        partBId: 'board_t2',
+        split: 0.5,
+        clearance: 0,
+      },
+    ],
+  })
+
+  it('shows Split / Clear inputs for a board in a half-lap', () => {
+    render(<Sidebar {...props({ scene: lapScene(), selectedId: 'board_t1' })} />)
+    expect(screen.getByText('Split')).toBeTruthy()
+    expect(screen.getByText('Clear')).toBeTruthy()
+  })
+
+  it('shows the half-lap controls on the OTHER board too (symmetric)', () => {
+    render(<Sidebar {...props({ scene: lapScene(), selectedId: 'board_t2' })} />)
+    expect(screen.getByText('Split')).toBeTruthy()
+  })
+})
