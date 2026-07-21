@@ -120,14 +120,16 @@ export function computeDadoGroove(housing: BoardPart, housed: BoardPart, joint: 
     (hasTongue(joint)
       ? clamp(joint.tongueThickness, 0.1, housed.thickness - 0.1)
       : housed.thickness) + joint.clearance
+  const ss = clamp(joint.stopStart, 0, dim[runAx] - 1)
+  const se = clamp(joint.stopEnd, 0, dim[runAx] - 1 - ss) // leave ≥ 1 mm of groove
   const size: Vec3 = { x: 0, y: 0, z: 0 }
   size[dAx] = depth
   size[narrowAx] = width
-  size[runAx] = dim[runAx]
+  size[runAx] = dim[runAx] - ss - se
   const offset = clamp(joint.offset, width / 2, dim[narrowAx] - width / 2)
   const position: Vec3 = { x: 0, y: 0, z: 0 }
   position[dAx] = joint.housingFace.startsWith('+') ? dim[dAx] - depth : 0
-  position[runAx] = 0
+  position[runAx] = ss
   position[narrowAx] = offset - width / 2
   return {
     kind: 'box',

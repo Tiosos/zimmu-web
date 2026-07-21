@@ -91,6 +91,26 @@ test('computeDadoGroove: depth clamps below the housing thickness', () => {
   expect(deep.size.z).toBe(24) // thickness - 1
 })
 
+test('computeDadoGroove: stopStart insets the run-axis start; length shrinks', () => {
+  const cut = computeDadoGroove(housing, housed, { ...joint, stopStart: 10 })
+  expect(cut.position.y).toBe(10)
+  expect(cut.size.y).toBe(90) // 100 − 10
+  expect(cut.size.x).toBe(18) // narrow width unchanged
+  expect(cut.position.z).toBe(17) // depth flush unchanged
+})
+
+test('computeDadoGroove: both stops inset both ends', () => {
+  const cut = computeDadoGroove(housing, housed, { ...joint, stopStart: 10, stopEnd: 15 })
+  expect(cut.position.y).toBe(10)
+  expect(cut.size.y).toBe(75) // 100 − 10 − 15
+})
+
+test('computeDadoGroove: combined stops clamp to leave ≥ 1 mm of groove', () => {
+  const cut = computeDadoGroove(housing, housed, { ...joint, stopStart: 200, stopEnd: 200 })
+  expect(cut.position.y).toBe(99) // ss clamped to dim − 1
+  expect(cut.size.y).toBe(1) // never below 1 mm
+})
+
 test('defaultDadoDepth: ~thickness/3, clamped', () => {
   expect(defaultDadoDepth(housing, '+Z')).toBe(8) // round(25/3)=8
 })
