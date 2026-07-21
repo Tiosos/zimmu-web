@@ -140,6 +140,16 @@ export interface DadoJoint {
   stopEnd: number // mm the groove is inset from the run-axis far end (0 = through)
 }
 
+export interface HalfLapJoint {
+  kind: 'halflap'
+  id: string // "joint_<uuid>"
+  label: string // "Half-lap 1"
+  partAId: PartId // the two lapping boards — A/B is just an ordering
+  partBId: PartId
+  split: number // 0..1 — fraction of thickness board A keeps (default 0.5 = true half-lap)
+  clearance: number // mm added to each notch's thickness-depth for fit (default 0)
+}
+
 export type Joint = DadoJoint
 
 export interface Scene {

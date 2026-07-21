@@ -220,7 +220,7 @@ test('deriveJoint: plain returns one groove cut on the housing + a seat', () => 
   expect(r).not.toBeNull()
   expect(r!.cuts).toHaveLength(1)
   expect(r!.cuts[0].partId).toBe('H')
-  expect(r!.seat.partId).toBe('D')
+  expect(r!.seat!.partId).toBe('D')
 })
 
 test('deriveJoint: rabbeted returns groove (housing) + rabbet (housed)', () => {

@@ -17,7 +17,7 @@ const DEG2RAD = Math.PI / 180
 type Axis = 'x' | 'y' | 'z'
 
 export type DerivedCut = { partId: PartId; cut: BoxCut }
-export type DeriveResult = { cuts: DerivedCut[]; seat: { partId: PartId; position: Vec3 } }
+export type DeriveResult = { cuts: DerivedCut[]; seat?: { partId: PartId; position: Vec3 } }
 
 const FACE_NORMALS: Record<Face, Vec3> = {
   '+X': { x: 1, y: 0, z: 0 },

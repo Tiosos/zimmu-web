@@ -59,3 +59,22 @@ export function applyMatrixToPoint(
     m[2] * x + m[6] * y + m[10] * z + m[14],
   ]
 }
+
+// Apply the inverse of a rigid (rotation + translation, unit-scale) column-major matrix to a
+// point. Since scale is 1, the rotation block is orthonormal ⇒ inverse rotation = transpose:
+// local = Rᵀ · (world − t).
+export function applyInverseToPoint(
+  m: Float64Array,
+  x: number,
+  y: number,
+  z: number,
+): [number, number, number] {
+  const dx = x - m[12]
+  const dy = y - m[13]
+  const dz = z - m[14]
+  return [
+    m[0] * dx + m[1] * dy + m[2] * dz,
+    m[4] * dx + m[5] * dy + m[6] * dz,
+    m[8] * dx + m[9] * dy + m[10] * dz,
+  ]
+}

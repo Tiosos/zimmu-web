@@ -39,9 +39,10 @@ export function reconcileJoints(scene: Scene): Scene {
         p.id === partId && p.kind === 'board' ? { ...p, cuts: [...p.cuts, cut] } : p,
       )
     }
-    parts = parts.map((p) =>
-      p.id === result.seat.partId ? { ...p, position: result.seat.position } : p,
-    )
+    const seat = result.seat
+    if (seat) {
+      parts = parts.map((p) => (p.id === seat.partId ? { ...p, position: seat.position } : p))
+    }
   }
 
   return { ...scene, parts }

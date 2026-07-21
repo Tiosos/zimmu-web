@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, test, expect } from 'vitest'
 import * as THREE from 'three'
-import { composeWorldMatrix, applyMatrixToPoint } from './transform'
+import { composeWorldMatrix, applyMatrixToPoint, applyInverseToPoint } from './transform'
 import type { BoardPart, Part } from '../scene/types'
 
 function part(overrides: Partial<BoardPart> = {}): BoardPart {
@@ -86,4 +86,28 @@ describe('applyMatrixToPoint', () => {
     expect(y).toBeCloseTo(v.y, 9)
     expect(z).toBeCloseTo(v.z, 9)
   })
+})
+
+test('applyInverseToPoint undoes applyMatrixToPoint for a rotated, translated board', () => {
+  const b: BoardPart = {
+    kind: 'board',
+    id: 'b',
+    label: 'B',
+    length: 100,
+    width: 50,
+    thickness: 20,
+    material: '',
+    color: '#fff',
+    position: { x: 12, y: -7, z: 3 },
+    rotation: { x: 10, y: 20, z: 30 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+  }
+  const m = composeWorldMatrix(b)
+  const [wx, wy, wz] = applyMatrixToPoint(m, 40, 15, 8)
+  const [lx, ly, lz] = applyInverseToPoint(m, wx, wy, wz)
+  expect(lx).toBeCloseTo(40, 6)
+  expect(ly).toBeCloseTo(15, 6)
+  expect(lz).toBeCloseTo(8, 6)
 })

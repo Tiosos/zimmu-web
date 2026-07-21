@@ -1,0 +1,150 @@
+import type { BoardPart, BoxCut, CutId, HalfLapJoint, Part, Vec3 } from '../scene/types'
+import type { DeriveResult } from './dado'
+import { applyInverseToPoint, applyMatrixToPoint, composeWorldMatrix } from './transform'
+
+type Axis = 'x' | 'y' | 'z'
+const AXES: Axis[] = ['x', 'y', 'z']
+const EPS = 1e-4
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v))
+}
+
+function boardDims(b: BoardPart): Record<Axis, number> {
+  return { x: b.length, y: b.width, z: b.thickness }
+}
+
+export function worldAabb(b: BoardPart): { min: Vec3; max: Vec3 } {
+  const m = composeWorldMatrix(b)
+  const d = boardDims(b)
+  const min: Vec3 = { x: Infinity, y: Infinity, z: Infinity }
+  const max: Vec3 = { x: -Infinity, y: -Infinity, z: -Infinity }
+  for (const cx of [0, d.x]) {
+    for (const cy of [0, d.y]) {
+      for (const cz of [0, d.z]) {
+        const [wx, wy, wz] = applyMatrixToPoint(m, cx, cy, cz)
+        if (wx < min.x) min.x = wx
+        if (wx > max.x) max.x = wx
+        if (wy < min.y) min.y = wy
+        if (wy > max.y) max.y = wy
+        if (wz < min.z) min.z = wz
+        if (wz > max.z) max.z = wz
+      }
+    }
+  }
+  return { min, max }
+}
+
+export function stackAxis(b: BoardPart): Axis {
+  const m = composeWorldMatrix(b)
+  const ax = Math.abs(m[8])
+  const ay = Math.abs(m[9])
+  const az = Math.abs(m[10])
+  if (az >= ax && az >= ay) return 'z'
+  if (ay >= ax) return 'y'
+  return 'x'
+}
+
+export function isValidHalfLap(a: BoardPart, b: BoardPart): boolean {
+  const s = stackAxis(a)
+  if (stackAxis(b) !== s) return false
+  const A = worldAabb(a)
+  const B = worldAabb(b)
+  if (Math.abs(A.min[s] - B.min[s]) > EPS || Math.abs(A.max[s] - B.max[s]) > EPS) return false
+  for (const ax of AXES) {
+    if (ax === s) continue
+    const lo = Math.max(A.min[ax], B.min[ax])
+    const hi = Math.min(A.max[ax], B.max[ax])
+    if (hi - lo <= EPS) return false
+  }
+  return true
+}
+
+function worldBoxToLocalCut(
+  b: BoardPart,
+  wmin: Vec3,
+  wmax: Vec3,
+  id: CutId,
+  label: string,
+  jointId: string,
+): BoxCut {
+  const m = composeWorldMatrix(b)
+  const min: Vec3 = { x: Infinity, y: Infinity, z: Infinity }
+  const max: Vec3 = { x: -Infinity, y: -Infinity, z: -Infinity }
+  for (const px of [wmin.x, wmax.x]) {
+    for (const py of [wmin.y, wmax.y]) {
+      for (const pz of [wmin.z, wmax.z]) {
+        const [lx, ly, lz] = applyInverseToPoint(m, px, py, pz)
+        if (lx < min.x) min.x = lx
+        if (lx > max.x) max.x = lx
+        if (ly < min.y) min.y = ly
+        if (ly > max.y) max.y = ly
+        if (lz < min.z) min.z = lz
+        if (lz > max.z) max.z = lz
+      }
+    }
+  }
+  return {
+    kind: 'box',
+    id,
+    label,
+    face: '+Z', // cosmetic; geometry lives in position/size
+    position: { x: min.x, y: min.y, z: min.z },
+    size: { x: max.x - min.x, y: max.y - min.y, z: max.z - min.z },
+    sourceJointId: jointId,
+  }
+}
+
+export function deriveHalfLap(joint: HalfLapJoint, parts: Part[]): DeriveResult | null {
+  const a = parts.find((p) => p.id === joint.partAId)
+  const b = parts.find((p) => p.id === joint.partBId)
+  if (a?.kind !== 'board' || b?.kind !== 'board') return null
+  if (!isValidHalfLap(a, b)) return null
+
+  const s = stackAxis(a)
+  const A = worldAabb(a)
+  const B = worldAabb(b)
+  const s0 = A.min[s]
+  const s1 = A.max[s]
+  const mid = s0 + clamp(joint.split, 0.05, 0.95) * (s1 - s0)
+  const c = Math.max(0, joint.clearance)
+
+  const lo: Vec3 = { x: 0, y: 0, z: 0 }
+  const hi: Vec3 = { x: 0, y: 0, z: 0 }
+  for (const ax of AXES) {
+    lo[ax] = ax === s ? s0 : Math.max(A.min[ax], B.min[ax])
+    hi[ax] = ax === s ? s1 : Math.min(A.max[ax], B.max[ax])
+  }
+
+  const aMin: Vec3 = { ...lo }
+  const aMax: Vec3 = { ...hi }
+  aMin[s] = mid - c
+  aMax[s] = s1
+  const bMin: Vec3 = { ...lo }
+  const bMax: Vec3 = { ...hi }
+  bMin[s] = s0
+  bMax[s] = mid + c
+
+  const cutA = worldBoxToLocalCut(
+    a,
+    aMin,
+    aMax,
+    `cut_${joint.id}_lapA` as CutId,
+    `${joint.label} lap A`,
+    joint.id,
+  )
+  const cutB = worldBoxToLocalCut(
+    b,
+    bMin,
+    bMax,
+    `cut_${joint.id}_lapB` as CutId,
+    `${joint.label} lap B`,
+    joint.id,
+  )
+  return {
+    cuts: [
+      { partId: a.id, cut: cutA },
+      { partId: b.id, cut: cutB },
+    ],
+  }
+}
