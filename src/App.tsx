@@ -4,6 +4,7 @@ import { useFile } from './scene/useFile'
 import { useSnap } from './scene/useSnap'
 import { useAddCut } from './scene/useAddCut'
 import { useAddJoint } from './scene/useAddJoint'
+import { useAddHalfLap } from './scene/useAddHalfLap'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
@@ -38,6 +39,7 @@ function App() {
     onLinkCuts,
     onUnlinkCuts,
     onAddJoint,
+    onAddHalfLap,
     onUpdateJoint,
     onRemoveJoint,
     onSelect,
@@ -94,6 +96,17 @@ function App() {
     onFaceHover: onFaceHoverJoint,
   } = useAddJoint({ parts: scene.parts, onAddJoint })
 
+  const {
+    halfLapActive,
+    pendingA: halfLapPendingFace,
+    statusMessage: halfLapStatus,
+    hoveredFace: halfLapHoveredFace,
+    activateHalfLap,
+    cancelHalfLap,
+    onFaceClick: onFaceClickHalfLap,
+    onFaceHover: onFaceHoverHalfLap,
+  } = useAddHalfLap({ parts: scene.parts, onAddHalfLap })
+
   const cameraStateRef = useRef<CameraState>({
     position: { x: 250, y: -200, z: 150 },
     target: { x: 0, y: 0, z: 0 },
@@ -148,18 +161,27 @@ function App() {
   const handleActivateCut = useCallback(() => {
     cancelSnap()
     cancelJoint()
+    cancelHalfLap()
     activateCut()
-  }, [cancelSnap, cancelJoint, activateCut])
+  }, [cancelSnap, cancelJoint, cancelHalfLap, activateCut])
   const handleActivateSnap = useCallback(() => {
     cancelCut()
     cancelJoint()
+    cancelHalfLap()
     activateSnap()
-  }, [cancelCut, cancelJoint, activateSnap])
+  }, [cancelCut, cancelJoint, cancelHalfLap, activateSnap])
   const handleActivateJoint = useCallback(() => {
     cancelCut()
     cancelSnap()
+    cancelHalfLap()
     activateJoint()
-  }, [cancelCut, cancelSnap, activateJoint])
+  }, [cancelCut, cancelSnap, cancelHalfLap, activateJoint])
+  const handleActivateHalfLap = useCallback(() => {
+    cancelCut()
+    cancelSnap()
+    cancelJoint()
+    activateHalfLap()
+  }, [cancelCut, cancelSnap, cancelJoint, activateHalfLap])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -183,21 +205,27 @@ function App() {
           handleActivateJoint()
           return
         }
+        if (e.key.toLowerCase() === 'l') {
+          e.preventDefault()
+          handleActivateHalfLap()
+          return
+        }
         if (e.key === 'Escape') {
           if (cutActive) cancelCut()
           if (snapActive) cancelSnap()
           if (jointActive) cancelJoint()
+          if (halfLapActive) cancelHalfLap()
           return
         }
         if (e.key.toLowerCase() === 'h') {
-          if (selectedId && !snapActive && !cutActive && !jointActive) {
+          if (selectedId && !snapActive && !cutActive && !jointActive && !halfLapActive) {
             e.preventDefault()
             onToggleVisible(selectedId)
           }
           return
         }
         if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (selectedId && !snapActive && !cutActive && !jointActive) {
+          if (selectedId && !snapActive && !cutActive && !jointActive && !halfLapActive) {
             e.preventDefault()
             onRemove(selectedId)
           }
@@ -259,12 +287,15 @@ function App() {
     handleActivateCut,
     handleActivateSnap,
     handleActivateJoint,
+    handleActivateHalfLap,
     cancelCut,
     cutActive,
     cancelSnap,
     snapActive,
     cancelJoint,
     jointActive,
+    cancelHalfLap,
+    halfLapActive,
   ])
 
   if (!fileReady) return null
@@ -333,6 +364,11 @@ function App() {
           onFaceHoverJoint={onFaceHoverJoint}
           jointHousingFace={pendingHousing}
           jointHoveredFace={jointHoveredFace}
+          halfLapActive={halfLapActive}
+          onFaceClickHalfLap={onFaceClickHalfLap}
+          onFaceHoverHalfLap={onFaceHoverHalfLap}
+          halfLapPendingFace={halfLapPendingFace}
+          halfLapHoveredFace={halfLapHoveredFace}
           flashTarget={flashTarget}
         />
         <Sidebar
@@ -366,6 +402,9 @@ function App() {
           jointActive={jointActive}
           onJointToggle={handleActivateJoint}
           jointStatus={jointStatus}
+          halfLapActive={halfLapActive}
+          onHalfLapToggle={handleActivateHalfLap}
+          halfLapStatus={halfLapStatus}
         />
       </div>
       {cuttingListOpen && (

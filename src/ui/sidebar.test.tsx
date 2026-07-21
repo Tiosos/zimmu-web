@@ -85,6 +85,9 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     jointActive: false,
     onJointToggle: vi.fn(),
     jointStatus: null,
+    halfLapActive: false,
+    onHalfLapToggle: vi.fn(),
+    halfLapStatus: null,
     ...overrides,
   }
 }

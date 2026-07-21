@@ -63,6 +63,9 @@ interface SidebarProps {
   jointActive: boolean
   onJointToggle: () => void
   jointStatus: string | null
+  halfLapActive: boolean
+  onHalfLapToggle: () => void
+  halfLapStatus: string | null
 }
 
 function DimInput({
@@ -810,6 +813,9 @@ export function Sidebar({
   jointActive,
   onJointToggle,
   jointStatus,
+  halfLapActive,
+  onHalfLapToggle,
+  halfLapStatus,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -851,6 +857,19 @@ export function Sidebar({
             {jointActive && (
               <span className="text-[10px] text-muted-foreground font-normal">
                 {jointStatus ?? 'Click housing face, then housed end · Esc to cancel'}
+              </span>
+            )}
+          </Button>
+          <Button
+            variant={halfLapActive ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={onHalfLapToggle}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${halfLapActive ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
+          >
+            <span>{halfLapActive ? 'Half-lap joint' : 'Add Half-lap'}</span>
+            {halfLapActive && (
+              <span className="text-[10px] text-muted-foreground font-normal">
+                {halfLapStatus ?? 'Click first board, then second board · Esc to cancel'}
               </span>
             )}
           </Button>
