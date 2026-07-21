@@ -143,3 +143,23 @@ test('flipping rabbeted → plain removes the housed rabbet cut', () => {
   const D = plain.parts.find((p) => p.id === 'D') as BoardPart
   expect(D.cuts.some((c) => c.kind === 'box' && c.sourceJointId === 'j1')).toBe(false)
 })
+
+test('stopped joint materializes a groove on the housing AND a notch on the housed board', () => {
+  const s = scene()
+  s.joints = [{ ...s.joints[0], stopStart: 10 }]
+  const out = reconcileJoints(s)
+  const H = out.parts.find((p) => p.id === 'H') as BoardPart
+  const D = out.parts.find((p) => p.id === 'D') as BoardPart
+  expect(H.cuts.filter((c) => c.kind === 'box' && c.sourceJointId === 'j1')).toHaveLength(1)
+  const notch = D.cuts.find((c) => c.kind === 'box' && c.sourceJointId === 'j1')
+  expect(notch && notch.id).toBe('cut_j1_notch0')
+})
+
+test('zeroing the stop removes the housed notch cut', () => {
+  const s = scene()
+  s.joints = [{ ...s.joints[0], stopStart: 10 }]
+  const stopped = reconcileJoints(s)
+  const through = reconcileJoints({ ...stopped, joints: [{ ...stopped.joints[0], stopStart: 0 }] })
+  const D = through.parts.find((p) => p.id === 'D') as BoardPart
+  expect(D.cuts.some((c) => c.kind === 'box' && c.sourceJointId === 'j1')).toBe(false)
+})

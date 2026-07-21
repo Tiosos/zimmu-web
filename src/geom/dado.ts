@@ -269,11 +269,18 @@ export function deriveJoint(joint: Joint, parts: Part[]): DeriveResult | null {
   if (housing?.kind !== 'board' || housed?.kind !== 'board') return null
   if (!isValidDadoSeat(housing, joint.housingFace, housed, joint.housedEnd)) return null
 
+  const notchable = faceAxes(joint.housedEnd).depth !== 'z' // housed seats on a length/width end
   const cuts: DerivedCut[] = [
     { partId: housing.id, cut: computeDadoGroove(housing, housed, joint) },
   ]
   if (hasTongue(joint)) {
     cuts.push({ partId: housed.id, cut: computeRabbet(housing, housed, joint) })
+  }
+  if (notchable && joint.stopStart > 0) {
+    cuts.push({ partId: housed.id, cut: computeNotch(housing, housed, joint, 'start') })
+  }
+  if (notchable && joint.stopEnd > 0) {
+    cuts.push({ partId: housed.id, cut: computeNotch(housing, housed, joint, 'end') })
   }
   const seat = { partId: housed.id, position: computeDadoSeat(housing, housed, joint).position }
   return { cuts, seat }

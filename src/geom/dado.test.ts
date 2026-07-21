@@ -254,3 +254,41 @@ test('deriveJoint: rabbeted with a thickness-end housedEnd emits only the groove
   expect(r!.cuts).toHaveLength(1) // groove only, no rabbet
   expect(r!.cuts[0].partId).toBe('H')
 })
+
+test('deriveJoint: one stop → groove (housing) + one notch (housed)', () => {
+  const r = deriveJoint({ ...joint, stopStart: 10 }, parts)
+  expect(r!.cuts).toHaveLength(2)
+  expect(r!.cuts.map((c) => c.partId).sort()).toEqual(['D', 'H'])
+  expect(r!.cuts.find((c) => c.partId === 'D')!.cut.id).toBe('cut_j1_notch0')
+})
+
+test('deriveJoint: both stops → groove + two notches', () => {
+  const r = deriveJoint({ ...joint, stopStart: 10, stopEnd: 15 }, parts)
+  expect(r!.cuts).toHaveLength(3)
+  const dCutIds = r!.cuts
+    .filter((c) => c.partId === 'D')
+    .map((c) => c.cut.id)
+    .sort()
+  expect(dCutIds).toEqual(['cut_j1_notch0', 'cut_j1_notch1'])
+})
+
+test('deriveJoint: stopped-rabbeted emits groove + rabbet + two notches (4 cuts)', () => {
+  const r = deriveJoint({ ...rabbeted, stopStart: 10, stopEnd: 15 }, parts)
+  expect(r!.cuts).toHaveLength(4)
+  const dCutIds = r!.cuts
+    .filter((c) => c.partId === 'D')
+    .map((c) => c.cut.id)
+    .sort()
+  expect(dCutIds).toEqual(['cut_j1_notch0', 'cut_j1_notch1', 'cut_j1_rabbet'])
+})
+
+test('deriveJoint: a thickness-seated housed end with a stop emits groove only (no notch)', () => {
+  const flatHoused = { ...housed, rotation: { x: 0, y: 0, z: 0 } }
+  const r = deriveJoint({ ...joint, housedEnd: '-Z' as const, stopStart: 10 }, [
+    housing,
+    flatHoused,
+  ])
+  expect(r).not.toBeNull()
+  expect(r!.cuts).toHaveLength(1)
+  expect(r!.cuts[0].partId).toBe('H')
+})
