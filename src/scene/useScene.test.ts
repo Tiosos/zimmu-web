@@ -1613,4 +1613,40 @@ describe('useScene — joints', () => {
     expect(housedNotches()).toBe(0) // single undo restores through
     expect((result.current.scene.joints[0] as DadoJoint).stopStart).toBe(0)
   })
+
+  it('onAddHalfLap creates a half-lap + two lap cuts in one undo entry', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    await act(async () => result.current.onAdd('board'))
+    await act(async () => result.current.onAdd('board'))
+    const [P, Q] = result.current.scene.parts
+    // Force them coplanar + fully overlapping so the half-lap is valid (not stale),
+    // independent of onAdd's default placement.
+    await act(async () => {
+      result.current.onUpdate(
+        P.id,
+        (p) => ({ ...p, position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 } }),
+        'posP',
+      )
+      result.current.onUpdate(
+        Q.id,
+        (p) => ({ ...p, position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 } }),
+        'posQ',
+      )
+    })
+    await act(async () => {
+      result.current.onAddHalfLap(P.id, Q.id)
+    })
+    expect(result.current.scene.joints).toHaveLength(1)
+    expect(result.current.scene.joints[0].kind).toBe('halflap')
+    const lapCuts = () =>
+      result.current.scene.parts.filter(
+        (p) => p.kind === 'board' && p.cuts.some((c) => c.kind === 'box' && c.sourceJointId),
+      ).length
+    expect(lapCuts()).toBe(2) // one lap cut on each board
+
+    await act(async () => result.current.undo())
+    expect(result.current.scene.joints).toHaveLength(0)
+    expect(lapCuts()).toBe(0)
+  })
 })

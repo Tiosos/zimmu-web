@@ -91,6 +91,7 @@ export interface UseSceneResult {
   onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
   onUnlinkCuts: (partId: PartId, cutId: CutId) => void
   onAddJoint: (housingHit: FaceHit, housedHit: FaceHit) => void
+  onAddHalfLap: (aId: PartId, bId: PartId) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
   onSelect: (id: PartId | null) => void
@@ -909,6 +910,28 @@ export function useScene(): UseSceneResult {
     [commitReconciled],
   )
 
+  const onAddHalfLap = useCallback(
+    (aId: PartId, bId: PartId) => {
+      const s = sceneRef.current
+      const a = s.parts.find((p) => p.id === aId)
+      const b = s.parts.find((p) => p.id === bId)
+      if (a?.kind !== 'board' || b?.kind !== 'board' || a.id === b.id) return
+      const n = s.joints.filter((j) => j.kind === 'halflap').length + 1
+      const joint: Joint = {
+        kind: 'halflap',
+        id: `joint_${crypto.randomUUID()}`,
+        label: `Half-lap ${n}`,
+        partAId: a.id,
+        partBId: b.id,
+        split: 0.5,
+        clearance: 0,
+      }
+      commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add half-lap')
+      setSelectedId(a.id)
+    },
+    [commitReconciled],
+  )
+
   const onUpdateJoint = useCallback(
     (jointId: string, updater: (j: Joint) => Joint) => {
       if (!sceneRef.current.joints.some((j) => j.id === jointId)) return
@@ -1026,6 +1049,7 @@ export function useScene(): UseSceneResult {
     onLinkCuts,
     onUnlinkCuts,
     onAddJoint,
+    onAddHalfLap,
     onUpdateJoint,
     onRemoveJoint,
     onSelect,
