@@ -59,6 +59,8 @@ const joint: DadoJoint = {
   profile: 'plain',
   tongueThickness: 8,
   rabbetFace: '+Z',
+  stopStart: 0,
+  stopEnd: 0,
 }
 
 test('isValidDadoSeat: perpendicular end opposing the face is valid', () => {

@@ -48,6 +48,8 @@ const joint: DadoJoint = {
   profile: 'plain',
   tongueThickness: 8,
   rabbetFace: '+Z',
+  stopStart: 0,
+  stopEnd: 0,
 }
 const scene = (): Scene => ({
   parts: [structuredClone(housing), structuredClone(housed)],

@@ -782,6 +782,43 @@ describe('useFile', () => {
     expect(joint).toMatchObject({ profile: 'rabbeted', tongueThickness: 10, rabbetFace: '-Z' })
   })
 
+  it('v5→v6: legacy joint without stop fields defaults to through (stopStart/stopEnd = 0)', () => {
+    const v5Json = JSON.stringify({
+      version: 5,
+      name: 'Test',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: CAMERA,
+      scene: {
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [
+          {
+            kind: 'dado',
+            id: 'j1',
+            label: 'Dado 1',
+            housingPartId: 'H',
+            housingFace: '+Z',
+            housedPartId: 'D',
+            housedEnd: '+X',
+            offset: 50,
+            depth: 8,
+            clearance: 0,
+            profile: 'plain',
+            tongueThickness: 6,
+            rabbetFace: '+Z',
+            // no stopStart/stopEnd — simulates a pre-v6 joint
+          },
+        ],
+      },
+    })
+    const result = parseFile(v5Json)
+    expect(result.scene.joints[0]).toMatchObject({ stopStart: 0, stopEnd: 0 })
+  })
+
   it('defaults materials and hardware for v1 files', () => {
     const v1Json = JSON.stringify({
       version: 1,

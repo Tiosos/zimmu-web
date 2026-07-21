@@ -580,6 +580,8 @@ describe('Sidebar joints panel — rabbeted', () => {
         profile,
         tongueThickness: 8,
         rabbetFace: '+Z' as const,
+        stopStart: 0,
+        stopEnd: 0,
       },
     ],
   })

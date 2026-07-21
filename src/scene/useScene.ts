@@ -902,6 +902,8 @@ export function useScene(): UseSceneResult {
         profile: 'plain',
         tongueThickness: Math.round(housed.thickness / 2),
         rabbetFace: '+Z',
+        stopStart: 0,
+        stopEnd: 0,
       }
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add dado')
       setSelectedId(housing.id)

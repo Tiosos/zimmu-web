@@ -136,6 +136,8 @@ export interface DadoJoint {
   profile: 'plain' | 'rabbeted' // 'plain' = groove only; 'rabbeted' = groove + tongue
   tongueThickness: number // mm — tongue/groove width when rabbeted
   rabbetFace: '+Z' | '-Z' // housed-board local thickness face the rabbet removes from
+  stopStart: number // mm the groove is inset from the run-axis 0 end (0 = through)
+  stopEnd: number // mm the groove is inset from the run-axis far end (0 = through)
 }
 
 export type Joint = DadoJoint
