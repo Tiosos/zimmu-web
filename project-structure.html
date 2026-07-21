@@ -503,6 +503,7 @@
           <tr><td><code>stl.ts</code></td><td><code>buildBinaryStl(parts, geometries)</code> — world-space binary STL triangle soup with recomputed facet normals. Visible parts only.</td></tr>
           <tr><td><code>drawing.ts</code></td><td><code>buildDrawingSheet(part)</code> → <code>DrawingView[]</code>. Face/Edge/End orthographic projections with cut rects, dimension lines, cut labels.</td></tr>
           <tr><td><code>dado.ts</code></td><td>Pure dado-joint geometry — <code>isValidDadoSeat</code>, <code>deriveDadoAxes</code>, <code>computeDadoGroove</code>, <code>computeDadoSeat</code>, <code>computeRabbet</code>, <code>hasTongue</code>, <code>computeNotch</code> (stopped/blind-dado housed-corner cut), and <code>deriveJoint</code> (the list of derived cuts + seat consumed by <code>reconcileJoints</code>). Three-typed but browser-free.</td></tr>
+          <tr><td><code>halflap.ts</code></td><td>Pure half-lap-joint geometry — <code>worldAabb</code>, <code>stackAxis</code>, <code>isValidHalfLap</code> (same stack axis + coincident thickness range + overlapping footprint), and <code>deriveHalfLap</code> (notches both boards to half thickness at the <code>split</code> plane, widened by <code>clearance</code>). Three-typed but browser-free.</td></tr>
           <tr><td><code class="tree-test">occt.test.ts</code></td><td>Smoke tests (live OCCT skipped in Node with <code>it.skip</code>).</td></tr>
           <tr><td><code class="tree-test">transform.test.ts</code></td><td>Element-wise parity tests against <code>THREE.Matrix4</code>.</td></tr>
           <tr><td><code class="tree-test">stl.test.ts</code></td><td>Binary STL output validation.</td></tr>
@@ -524,6 +525,7 @@
           <tr><td><code>useSnap.ts</code></td><td>Face-to-face snap-align interaction state machine. Fed <code>FaceHit</code>s from the raycaster.</td></tr>
           <tr><td><code>useAddCut.ts</code></td><td>Click-a-face-to-add-joinery-cut interaction state machine.</td></tr>
           <tr><td><code>useAddJoint.ts</code></td><td>Two-click dado-joint creation state machine (housing face → housed end). Fed <code>FaceHit</code>s from the raycaster.</td></tr>
+          <tr><td><code>useAddHalfLap.ts</code></td><td>Two-click half-lap-joint creation state machine (first board → overlapping second board). Fed <code>FaceHit</code>s from the raycaster.</td></tr>
           <tr><td><code>reconcileJoints.ts</code></td><td>Pure, idempotent regeneration of joint-derived groove cuts + seated positions from <code>Scene.joints</code>. Run after every joint-affecting mutation and on file load.</td></tr>
           <tr><td><code>useMaterialLibrary.ts</code></td><td>Loads/persists material cost rates via the IDB <code>library</code> store.</td></tr>
           <tr><td><code>palette.ts</code></td><td><code>PART_COLORS</code> preset swatches array.</td></tr>
