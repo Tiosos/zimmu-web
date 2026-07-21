@@ -146,6 +146,22 @@ export function JointsPanel({
                   suffix="mm"
                   onCommit={(v) => onUpdateJoint(j.id, (jt) => ({ ...jt, offset: v }))}
                 />
+                <JointNumInput
+                  label="Stop A"
+                  value={j.stopStart}
+                  suffix="mm"
+                  onCommit={(v) =>
+                    onUpdateJoint(j.id, (jt) => ({ ...jt, stopStart: Math.max(0, v) }))
+                  }
+                />
+                <JointNumInput
+                  label="Stop B"
+                  value={j.stopEnd}
+                  suffix="mm"
+                  onCommit={(v) =>
+                    onUpdateJoint(j.id, (jt) => ({ ...jt, stopEnd: Math.max(0, v) }))
+                  }
+                />
                 {j.profile === 'rabbeted' && (
                   <>
                     <JointNumInput
@@ -187,7 +203,7 @@ export function JointsPanel({
               </>
             ) : (
               <p className="text-[10px] text-muted-foreground pb-0.5">
-                Edit depth / clearance / offset from {partLabel(scene, j.housingPartId)}.
+                Edit depth / clearance / offset / stops from {partLabel(scene, j.housingPartId)}.
               </p>
             )}
           </div>

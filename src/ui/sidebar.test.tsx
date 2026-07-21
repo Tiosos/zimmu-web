@@ -596,4 +596,16 @@ describe('Sidebar joints panel — rabbeted', () => {
     expect(screen.getByText('Tongue')).toBeTruthy()
     expect(screen.getByText('Rabbet')).toBeTruthy()
   })
+
+  it('shows Stop A / Stop B inputs for the housing part (plain)', () => {
+    render(<Sidebar {...props({ scene: jointScene('plain'), selectedId: 'board_t1' })} />)
+    expect(screen.getByText('Stop A')).toBeTruthy()
+    expect(screen.getByText('Stop B')).toBeTruthy()
+  })
+
+  it('keeps Stop A / Stop B visible for a rabbeted joint too', () => {
+    render(<Sidebar {...props({ scene: jointScene('rabbeted'), selectedId: 'board_t1' })} />)
+    expect(screen.getByText('Stop A')).toBeTruthy()
+    expect(screen.getByText('Stop B')).toBeTruthy()
+  })
 })
