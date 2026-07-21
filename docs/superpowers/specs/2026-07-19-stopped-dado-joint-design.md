@@ -44,10 +44,18 @@ persistence inherited from JP1/JP2. Composable with `profile: 'rabbeted'`.
 **v1 boundaries (in addition to JP1/JP2's axis-aligned / perpendicular / boards-only rules):**
 - The notch removes the housed board's seating corner over the **full thickness** (so it composes
   with a rabbeted tongue by simply removing it too at that corner).
+- **The notch only applies when the housed end is a length/width end** (`faceAxes(housedEnd).depth
+  !== 'z'`). A housed board seated on its **thickness** face still gets its groove shortened, but is
+  **not** notched — it silently falls back to an un-notched groove (non-buildable at the stop),
+  exactly as JP2's rabbet falls back to plain for the same case. `deriveJoint` gates the notch on
+  this predicate (see §5); without the gate a thickness-end notch degenerates (`size.z` is assigned
+  twice → a zero-extent box).
 - `stopStart + stopEnd` is clamped to leave a **minimum groove length** (≥ 1 mm).
-- The notch's stop width is measured on the housed board's width axis; it assumes the housed
-  board's width spans the groove run (true for a normal perpendicular dado). A housed board whose
-  width is much smaller/larger than the housing run is out of scope for exactness.
+- The notch's stop width is measured on the housed board's width axis and its back-distance follows
+  `joint.depth`, **both clamped against the housed board** — while the groove's inset and depth clamp
+  against the **housing**. The notch is therefore exact only when the housed width ≈ the housing run
+  **and** `joint.depth ≤` the housing thickness (true for a normal perpendicular dado). For extreme
+  stop/depth values the notch and groove diverge (over/under-cut); out of scope for exactness.
 
 **Non-goals:** dovetailed/tapered stopped dados, stop measured from a chosen named edge (we use
 the two run-axis ends), cylinders.
@@ -105,7 +113,9 @@ identical to today.
 
 `end: 'start' | 'end'`. Returns the corner `BoxCut` on the housed board for one stopped end.
 In housed-local coords: `dim = boardDims(housed)`, `seatAx = faceAxes(joint.housedEnd).depth`
-(∈ `{x,y}`), `widthAx: Axis = seatAx === 'x' ? 'y' : 'x'`, thickness = `z`,
+(∈ `{x,y}` — **precondition**: `deriveJoint` only calls `computeNotch` when
+`faceAxes(joint.housedEnd).depth !== 'z'`, mirroring `computeRabbet`'s precondition), `widthAx: Axis
+= seatAx === 'x' ? 'y' : 'x'`, thickness = `z`,
 `d = clamp(joint.depth, 0.1, dim[seatAx] - 0.1)` (notch-back distance = groove depth),
 `stop = clamp(end === 'start' ? joint.stopStart : joint.stopEnd, 0.1, dim[widthAx] - 0.1)`.
 
@@ -170,11 +180,12 @@ derive is idempotent.
 `deriveJoint` grows two conditional pushes after the groove (+ rabbet):
 
 ```ts
+  const notchable = faceAxes(joint.housedEnd).depth !== 'z' // housed seats on a length/width end
   const cuts: DerivedCut[] = [{ partId: housing.id, cut: computeDadoGroove(housing, housed, joint) }]
   if (hasTongue(joint)) cuts.push({ partId: housed.id, cut: computeRabbet(housing, housed, joint) })
-  if (joint.stopStart > 0)
+  if (notchable && joint.stopStart > 0)
     cuts.push({ partId: housed.id, cut: computeNotch(housing, housed, joint, 'start') })
-  if (joint.stopEnd > 0)
+  if (notchable && joint.stopEnd > 0)
     cuts.push({ partId: housed.id, cut: computeNotch(housing, housed, joint, 'end') })
   const seat = { partId: housed.id, position: computeDadoSeat(housing, housed, joint).position }
   return { cuts, seat }
@@ -182,6 +193,13 @@ derive is idempotent.
 
 Plain-through = 1 cut; stopped-plain = 2–3 cuts; stopped-rabbeted = 3–4 cuts — all distributed
 identically, all preserved-last-good on a `null` (stale) derive.
+
+Two accepted degeneracies: (1) a **thickness-seated** housed end (`notchable === false`) yields
+groove-only — the groove shortens but no notch is emitted (§2). (2) The notch gate uses the **raw**
+`stopStart`/`stopEnd > 0`, while `computeDadoGroove` clamps the *combined* `ss + se` to leave ≥ 1 mm
+of groove. In the extreme over-stop case (one stop ≥ the run) a notch can be emitted for an end the
+groove no longer reaches. Both are visibly-wrong-but-not-crashing edge cases the user drives into
+with pathological inputs; not worth guarding beyond the clamps already present.
 
 ---
 
@@ -209,7 +227,8 @@ list — JP1's `sourceJointId` read-only rendering already covers them, so the h
     (`size[widthAx]`), full thickness (`size.z`), at the correct width end (`position[widthAx]`
     0 vs `width − stop`) via the `aligned` sign mapping, and flush at the housed end.
   - `deriveJoint`: emits groove + 0/1/2 notches by stop count; composes with rabbeted
-    (through-rabbeted = 2 cuts; stopped-rabbeted with both stops = 4 cuts, partIds correct).
+    (through-rabbeted = 2 cuts; stopped-rabbeted with both stops = 4 cuts, partIds correct); a
+    **thickness-seated** housed end with stops set emits groove only (no notch — `notchable` gate).
 - **`src/scene/reconcileJoints.test.ts`**: a stopped joint materializes groove (housing) + notch(es)
   (housed); zeroing both stops removes the notches; JP1/JP2 tests still pass.
 - **`src/scene/useScene.test.ts`**: setting a stop via `onUpdateJoint` adds the notch in a single
@@ -222,9 +241,10 @@ list — JP1's `sourceJointId` read-only rendering already covers them, so the h
 
 **Modified:**
 - `src/scene/types.ts` — `stopStart` / `stopEnd` on `DadoJoint`.
-- `src/scene/useFile.ts` — `FILE_FORMAT_VERSION` `5 → 6`; `parseFile` stop defaults.
-- `src/geom/dado.ts` — `computeNotch`, `computeDadoGroove` run-axis inset, `deriveJoint` pushes;
-  `+ dado.test.ts`.
+- `src/scene/useFile.ts` — `FILE_FORMAT_VERSION` `5 → 6`; `parseFile` stop defaults + the migration
+  comment (`v5→v6: joints gained stopStart/stopEnd`).
+- `src/geom/dado.ts` — `computeNotch`, `computeDadoGroove` run-axis inset, `deriveJoint` `notchable`
+  gate + stop pushes; `+ dado.test.ts`.
 - `src/scene/reconcileJoints.test.ts` — stopped-joint distribution tests (production reconciler
   unchanged).
 - `src/scene/useScene.test.ts` — stop-flip single-undo test (production `useScene` unchanged;
