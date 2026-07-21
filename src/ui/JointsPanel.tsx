@@ -1,5 +1,6 @@
 import type { BoardPart, DadoJoint, Joint, Part, PartId, Scene } from '../scene/types'
 import { isValidDadoSeat } from '../geom/dado'
+import { jointInvolves } from '../scene/jointInvolves'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -55,18 +56,17 @@ export function JointsPanel({
 }: {
   part: Part
   scene: Scene
-  onUpdateJoint: (jointId: string, updater: (j: DadoJoint) => DadoJoint) => void
+  onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
 }) {
-  const joints = scene.joints.filter(
-    (j) => j.housingPartId === part.id || j.housedPartId === part.id,
-  )
+  const joints = scene.joints.filter((j) => jointInvolves(j, part.id))
   if (joints.length === 0) return null
 
   return (
     <>
       <p className="text-[10px] uppercase tracking-widest text-muted-foreground py-1.5">▾ Joints</p>
       {joints.map((j: Joint) => {
+        if (j.kind !== 'dado') return null
         const isHousing = j.housingPartId === part.id
         const housing = scene.parts.find((p) => p.id === j.housingPartId)
         const housed = scene.parts.find((p) => p.id === j.housedPartId)

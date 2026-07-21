@@ -127,7 +127,9 @@ test('non-derived (user) cuts pass through untouched alongside the groove', () =
 
 test('rabbeted joint materializes a groove on the housing AND a rabbet on the housed board', () => {
   const s = scene()
-  s.joints = [{ ...s.joints[0], profile: 'rabbeted', tongueThickness: 8, rabbetFace: '+Z' }]
+  s.joints = [
+    { ...(s.joints[0] as DadoJoint), profile: 'rabbeted', tongueThickness: 8, rabbetFace: '+Z' },
+  ]
   const out = reconcileJoints(s)
   const H = out.parts.find((p) => p.id === 'H') as BoardPart
   const D = out.parts.find((p) => p.id === 'D') as BoardPart
@@ -137,16 +139,21 @@ test('rabbeted joint materializes a groove on the housing AND a rabbet on the ho
 
 test('flipping rabbeted → plain removes the housed rabbet cut', () => {
   const s = scene()
-  s.joints = [{ ...s.joints[0], profile: 'rabbeted', tongueThickness: 8, rabbetFace: '+Z' }]
+  s.joints = [
+    { ...(s.joints[0] as DadoJoint), profile: 'rabbeted', tongueThickness: 8, rabbetFace: '+Z' },
+  ]
   const rab = reconcileJoints(s)
-  const plain = reconcileJoints({ ...rab, joints: [{ ...rab.joints[0], profile: 'plain' }] })
+  const plain = reconcileJoints({
+    ...rab,
+    joints: [{ ...(rab.joints[0] as DadoJoint), profile: 'plain' }],
+  })
   const D = plain.parts.find((p) => p.id === 'D') as BoardPart
   expect(D.cuts.some((c) => c.kind === 'box' && c.sourceJointId === 'j1')).toBe(false)
 })
 
 test('stopped joint materializes a groove on the housing AND a notch on the housed board', () => {
   const s = scene()
-  s.joints = [{ ...s.joints[0], stopStart: 10 }]
+  s.joints = [{ ...(s.joints[0] as DadoJoint), stopStart: 10 }]
   const out = reconcileJoints(s)
   const H = out.parts.find((p) => p.id === 'H') as BoardPart
   const D = out.parts.find((p) => p.id === 'D') as BoardPart
@@ -157,9 +164,12 @@ test('stopped joint materializes a groove on the housing AND a notch on the hous
 
 test('zeroing the stop removes the housed notch cut', () => {
   const s = scene()
-  s.joints = [{ ...s.joints[0], stopStart: 10 }]
+  s.joints = [{ ...(s.joints[0] as DadoJoint), stopStart: 10 }]
   const stopped = reconcileJoints(s)
-  const through = reconcileJoints({ ...stopped, joints: [{ ...stopped.joints[0], stopStart: 0 }] })
+  const through = reconcileJoints({
+    ...stopped,
+    joints: [{ ...(stopped.joints[0] as DadoJoint), stopStart: 0 }],
+  })
   const D = through.parts.find((p) => p.id === 'D') as BoardPart
   expect(D.cuts.some((c) => c.kind === 'box' && c.sourceJointId === 'j1')).toBe(false)
 })

@@ -150,7 +150,7 @@ export interface HalfLapJoint {
   clearance: number // mm added to each notch's thickness-depth for fit (default 0)
 }
 
-export type Joint = DadoJoint
+export type Joint = DadoJoint | HalfLapJoint
 
 export interface Scene {
   parts: Part[]

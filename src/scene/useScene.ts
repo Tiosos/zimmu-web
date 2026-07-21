@@ -13,12 +13,12 @@ import type {
   CutDef,
   CutId,
   Joint,
-  DadoJoint,
   FaceHit,
 } from './types'
 import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
+import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat, computeDadoOffset, defaultDadoDepth } from '../geom/dado'
 import { PART_COLORS } from './palette'
 import { composeWorldMatrix } from '../geom/transform'
@@ -91,7 +91,7 @@ export interface UseSceneResult {
   onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
   onUnlinkCuts: (partId: PartId, cutId: CutId) => void
   onAddJoint: (housingHit: FaceHit, housedHit: FaceHit) => void
-  onUpdateJoint: (jointId: string, updater: (j: DadoJoint) => DadoJoint) => void
+  onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
   onSelect: (id: PartId | null) => void
   replaceScene: (next: Scene) => void
@@ -361,7 +361,7 @@ export function useScene(): UseSceneResult {
       const after = reconcileJoints({
         ...before,
         parts: before.parts.filter((p) => p.id !== id),
-        joints: before.joints.filter((j) => j.housingPartId !== id && j.housedPartId !== id),
+        joints: before.joints.filter((j) => !jointInvolves(j, id)),
       })
       setScene(after)
       setSelectedId((prev) => (prev === id ? null : prev))
@@ -478,9 +478,7 @@ export function useScene(): UseSceneResult {
       const afterPart = updater(beforePart)
       const label = historyLabel ?? `Update ${afterPart.label}`
       const coalesceKey = historyLabel !== undefined ? undefined : `update-${id}`
-      const participates = before.joints.some(
-        (j) => j.housingPartId === id || j.housedPartId === id,
-      )
+      const participates = before.joints.some((j) => jointInvolves(j, id))
 
       if (participates) {
         const after = reconcileJoints({
@@ -912,14 +910,14 @@ export function useScene(): UseSceneResult {
   )
 
   const onUpdateJoint = useCallback(
-    (jointId: string, updater: (j: DadoJoint) => DadoJoint) => {
+    (jointId: string, updater: (j: Joint) => Joint) => {
       if (!sceneRef.current.joints.some((j) => j.id === jointId)) return
       commitReconciled(
         (prev) => ({
           ...prev,
           joints: prev.joints.map((j) => (j.id === jointId ? updater(j) : j)),
         }),
-        'Edit dado',
+        'Edit joint',
         `joint-${jointId}`,
       )
     },

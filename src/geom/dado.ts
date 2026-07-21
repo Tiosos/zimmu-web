@@ -12,6 +12,7 @@ import type {
 } from '../scene/types'
 import { faceAxes, computeLocalFaceCenter } from '../scene/snapMath'
 import { composeWorldMatrix, applyMatrixToPoint } from './transform'
+import { deriveHalfLap } from './halflap'
 
 const DEG2RAD = Math.PI / 180
 type Axis = 'x' | 'y' | 'z'
@@ -261,9 +262,18 @@ export function computeNotch(
   }
 }
 
+export function deriveJoint(joint: Joint, parts: Part[]): DeriveResult | null {
+  switch (joint.kind) {
+    case 'dado':
+      return deriveDadoJoint(joint, parts)
+    case 'halflap':
+      return deriveHalfLap(joint, parts)
+  }
+}
+
 // Returns null when the joint is stale/invalid (missing/non-board parts, or a
 // non-perpendicular seat); the caller preserves last-good geometry.
-export function deriveJoint(joint: Joint, parts: Part[]): DeriveResult | null {
+function deriveDadoJoint(joint: DadoJoint, parts: Part[]): DeriveResult | null {
   const housing = parts.find((p) => p.id === joint.housingPartId)
   const housed = parts.find((p) => p.id === joint.housedPartId)
   if (housing?.kind !== 'board' || housed?.kind !== 'board') return null

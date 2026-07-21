@@ -4,7 +4,7 @@ import type {
   CutDef,
   CutId,
   CylinderPart,
-  DadoJoint,
+  Joint,
   MitreCut,
   Part,
   PartId,
@@ -58,7 +58,7 @@ interface SidebarProps {
   onToggleVisible: (id: PartId) => void
   dowelTool: DowelCutTool | null
   armDowelTool: (tool: DowelCutTool) => void
-  onUpdateJoint: (jointId: string, updater: (j: DadoJoint) => DadoJoint) => void
+  onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
   jointActive: boolean
   onJointToggle: () => void
@@ -501,7 +501,7 @@ function EditPanel({
   nextLabel: string
   dowelTool: DowelCutTool | null
   armDowelTool: (tool: DowelCutTool) => void
-  onUpdateJoint: (jointId: string, updater: (j: DadoJoint) => DadoJoint) => void
+  onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
 }) {
   const [shapeOpen, setShapeOpen] = useState(true)

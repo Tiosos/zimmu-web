@@ -235,6 +235,38 @@ test('deriveJoint: invalid seat returns null (stale)', () => {
   expect(deriveJoint(rabbeted, [housing, flat])).toBeNull()
 })
 
+test('deriveJoint dispatches half-laps to the half-lap deriver (no seat)', () => {
+  const la: BoardPart = {
+    ...housing,
+    id: 'LA',
+    length: 200,
+    width: 40,
+    thickness: 20,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+  }
+  const lb: BoardPart = {
+    ...la,
+    id: 'LB',
+    length: 40,
+    width: 200,
+    position: { x: 80, y: -80, z: 0 },
+  }
+  const lap = {
+    kind: 'halflap' as const,
+    id: 'jl',
+    label: 'Half-lap 1',
+    partAId: 'LA',
+    partBId: 'LB',
+    split: 0.5,
+    clearance: 0,
+  }
+  const r = deriveJoint(lap, [la, lb])
+  expect(r).not.toBeNull()
+  expect(r!.seat).toBeUndefined()
+  expect(r!.cuts.map((c) => c.partId).sort()).toEqual(['LA', 'LB'])
+})
+
 test('computeDadoGroove: rabbeted with a thickness-end housedEnd keeps the full-thickness groove (no tongue → no narrowing)', () => {
   const thicknessEnd = { ...rabbeted, housedEnd: '+Z' as const }
   // hasTongue is false (housedEnd depth axis is 'z'), so no narrowing.

@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile, Joint } from './types'
 import * as idb from './idb'
 
-export const FILE_FORMAT_VERSION = 6
+export const FILE_FORMAT_VERSION = 7
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -70,20 +70,19 @@ export function parseFile(text: string): ZimmuFile {
       ),
       materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
       hardware: raw.scene.hardware ?? [],
-      // v4→v5: joints gained `profile` (+ tongueThickness/rabbetFace).
-      // v5→v6: joints gained stopStart/stopEnd (blind-dado insets); legacy joints are through.
-      joints: ((raw.scene.joints ?? []) as unknown as Array<Record<string, unknown>>).map(
-        (j) =>
-          ({
-            profile: 'plain' as const,
-            // Inert placeholder while profile is 'plain'; re-derived to housedThickness/2
-            // when a joint is first flipped to rabbeted (see onAddJoint) — not meant to track that formula here.
-            tongueThickness: 6,
-            rabbetFace: '+Z' as const,
-            stopStart: 0,
-            stopEnd: 0,
-            ...j,
-          }) as unknown as Joint,
+      // v4→v5: profile (+ tongueThickness/rabbetFace). v5→v6: stopStart/stopEnd.
+      // v6→v7: half-lap joints (kind 'halflap'); legacy joints are all dados.
+      joints: ((raw.scene.joints ?? []) as unknown as Array<Record<string, unknown>>).map((j) =>
+        j.kind === 'halflap'
+          ? ({ split: 0.5, clearance: 0, ...j } as unknown as Joint)
+          : ({
+              profile: 'plain' as const,
+              tongueThickness: 6,
+              rabbetFace: '+Z' as const,
+              stopStart: 0,
+              stopEnd: 0,
+              ...j,
+            } as unknown as Joint),
       ),
     },
   }

@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import type { BoardPart, BoxCut, CutDef, CylinderPart, FaceHit, Part, PartId } from './types'
+import type {
+  BoardPart,
+  BoxCut,
+  CutDef,
+  CylinderPart,
+  DadoJoint,
+  FaceHit,
+  Part,
+  PartId,
+} from './types'
 
 function asBoard(p: Part): BoardPart {
   if (p.kind !== 'board') throw new Error('expected board part')
@@ -1574,7 +1583,7 @@ describe('useScene — joints', () => {
       result.current.undo()
     })
     expect(housedRabbets()).toBe(0) // single undo restores plain
-    expect(result.current.scene.joints[0].profile).toBe('plain')
+    expect((result.current.scene.joints[0] as DadoJoint).profile).toBe('plain')
   })
 
   it('setting a stop adds the housed notch cut in one undo entry', async () => {
@@ -1602,6 +1611,6 @@ describe('useScene — joints', () => {
       result.current.undo()
     })
     expect(housedNotches()).toBe(0) // single undo restores through
-    expect(result.current.scene.joints[0].stopStart).toBe(0)
+    expect((result.current.scene.joints[0] as DadoJoint).stopStart).toBe(0)
   })
 })
