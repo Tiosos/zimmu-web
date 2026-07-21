@@ -1576,4 +1576,32 @@ describe('useScene — joints', () => {
     expect(housedRabbets()).toBe(0) // single undo restores plain
     expect(result.current.scene.joints[0].profile).toBe('plain')
   })
+
+  it('setting a stop adds the housed notch cut in one undo entry', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const { Hid, Did } = await twoBoards(result)
+    await act(async () => {
+      result.current.onAddJoint(hit(Hid, { x: 0, y: 0, z: 1 }), hit(Did, { x: 1, y: 0, z: 0 }))
+    })
+    const jointId = result.current.scene.joints[0].id
+    const housedNotches = () => {
+      const D = result.current.scene.parts.find((p) => p.id === Did)!
+      return D.kind === 'board'
+        ? D.cuts.filter((c) => c.kind === 'box' && c.sourceJointId === jointId).length
+        : 0
+    }
+    expect(housedNotches()).toBe(0) // through: no notch on the housed board
+
+    await act(async () => {
+      result.current.onUpdateJoint(jointId, (j) => ({ ...j, stopStart: 20 }))
+    })
+    expect(housedNotches()).toBe(1) // stopped: one notch on the housed board
+
+    await act(async () => {
+      result.current.undo()
+    })
+    expect(housedNotches()).toBe(0) // single undo restores through
+    expect(result.current.scene.joints[0].stopStart).toBe(0)
+  })
 })
