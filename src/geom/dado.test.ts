@@ -7,6 +7,7 @@ import {
   computeDadoSeat,
   defaultDadoDepth,
   computeRabbet,
+  computeNotch,
   deriveJoint,
 } from './dado'
 import { composeWorldMatrix, applyMatrixToPoint } from './transform'
@@ -161,6 +162,35 @@ test('computeRabbet: rabbetFace −Z removes the low face instead', () => {
   const cut = computeRabbet(housing, housed, { ...rabbeted, rabbetFace: '-Z' })
   expect(cut.position.z).toBe(0)
   expect(cut.size.z).toBe(10) // removes z∈[0,10], tongue at z∈[10,18]
+})
+
+test('computeNotch: start-end corner box — depth deep into the end, stop wide, full thickness', () => {
+  const cut = computeNotch(housing, housed, { ...joint, stopStart: 10 }, 'start')
+  expect(cut.size).toEqual({ x: 8, y: 10, z: 18 }) // d=depth, stop, full thickness
+  expect(cut.position).toEqual({ x: 112, y: 0, z: 0 }) // flush at +X end, low width end
+  expect(cut.id).toBe('cut_j1_notch0')
+  expect(cut.label).toBe('Dado 1 notch')
+  expect(cut.face).toBe('+X')
+  expect(cut.sourceJointId).toBe('j1')
+})
+
+test('computeNotch: end-end corner box sits at the far width end', () => {
+  const cut = computeNotch(housing, housed, { ...joint, stopEnd: 15 }, 'end')
+  expect(cut.size).toEqual({ x: 8, y: 15, z: 18 })
+  expect(cut.position).toEqual({ x: 112, y: 85, z: 0 }) // width − stop = 100 − 15
+  expect(cut.id).toBe('cut_j1_notch1')
+})
+
+test('computeNotch: stop width clamps below the housed width', () => {
+  const cut = computeNotch(housing, housed, { ...joint, stopStart: 999 }, 'start')
+  expect(cut.size.y).toBeCloseTo(100 - 0.1, 6)
+})
+
+test('computeNotch: when the housed width axis opposes the housing run axis, the start notch flips to the far width end', () => {
+  const flipped = { ...housed, rotation: { x: 180, y: 90, z: 0 } }
+  const cut = computeNotch(housing, flipped, { ...joint, stopStart: 10 }, 'start')
+  expect(cut.position.y).toBe(90) // width − stop = 100 − 10 (far end, because aligned is false)
+  expect(cut.size).toEqual({ x: 8, y: 10, z: 18 })
 })
 
 test('computeDadoSeat: rabbeted centers the tongue (not the board) on the groove; seating depth unchanged', () => {

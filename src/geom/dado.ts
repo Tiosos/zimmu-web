@@ -221,6 +221,46 @@ export function computeRabbet(_housing: BoardPart, housed: BoardPart, joint: Dad
   }
 }
 
+// Corner box removed from the housed board at one stopped end so its front corner
+// clears the un-grooved solid housing. Precondition (enforced by deriveJoint): the
+// housed end is a length/width end (faceAxes(joint.housedEnd).depth !== 'z').
+export function computeNotch(
+  housing: BoardPart,
+  housed: BoardPart,
+  joint: DadoJoint,
+  end: 'start' | 'end',
+): BoxCut {
+  const dim = boardDims(housed)
+  const seatAx = faceAxes(joint.housedEnd).depth
+  const widthAx: Axis = seatAx === 'x' ? 'y' : 'x'
+  const d = clamp(joint.depth, 0.1, dim[seatAx] - 0.1) // notch-back distance = groove depth
+  const stop = clamp(end === 'start' ? joint.stopStart : joint.stopEnd, 0.1, dim[widthAx] - 0.1)
+
+  const { runAx } = deriveDadoAxes(housing, housed, joint.housingFace)
+  const aligned =
+    localDirToWorld(housed, unitVec(widthAx)).dot(localDirToWorld(housing, unitVec(runAx))) > 0
+  const atLow = (end === 'start') === aligned // notch sits at housed widthAx 0 vs the far end
+
+  const size: Vec3 = { x: 0, y: 0, z: 0 }
+  size[seatAx] = d
+  size[widthAx] = stop
+  size.z = housed.thickness // full thickness — removes the tongue too if rabbeted
+  const position: Vec3 = { x: 0, y: 0, z: 0 }
+  position[seatAx] = joint.housedEnd.startsWith('+') ? dim[seatAx] - d : 0
+  position[widthAx] = atLow ? 0 : dim[widthAx] - stop
+  position.z = 0
+
+  return {
+    kind: 'box',
+    id: `cut_${joint.id}_notch${end === 'start' ? 0 : 1}` as CutId,
+    label: `${joint.label} notch`,
+    face: joint.housedEnd,
+    position,
+    size,
+    sourceJointId: joint.id,
+  }
+}
+
 // Returns null when the joint is stale/invalid (missing/non-board parts, or a
 // non-perpendicular seat); the caller preserves last-good geometry.
 export function deriveJoint(joint: Joint, parts: Part[]): DeriveResult | null {
