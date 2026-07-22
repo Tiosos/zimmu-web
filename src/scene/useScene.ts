@@ -949,10 +949,12 @@ export function useScene(): UseSceneResult {
 
   const onRemoveJoint = useCallback(
     (jointId: string) => {
-      if (!sceneRef.current.joints.some((j) => j.id === jointId)) return
+      const joint = sceneRef.current.joints.find((j) => j.id === jointId)
+      if (!joint) return
+      const label = joint.kind === 'halflap' ? 'Remove half-lap' : 'Remove dado'
       commitReconciled(
         (prev) => ({ ...prev, joints: prev.joints.filter((j) => j.id !== jointId) }),
-        'Remove dado',
+        label,
       )
     },
     [commitReconciled],

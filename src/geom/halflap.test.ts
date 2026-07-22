@@ -67,6 +67,10 @@ test('isValidHalfLap: disjoint footprints are invalid', () => {
   expect(isValidHalfLap(A, { ...B, position: { x: 400, y: -80, z: 0 } })).toBe(false)
 })
 
+test('isValidHalfLap: a non-axis-aligned (45° about Z) board is invalid', () => {
+  expect(isValidHalfLap(A, { ...B, rotation: { x: 0, y: 0, z: 45 } })).toBe(false)
+})
+
 test('deriveHalfLap: complementary corner cuts, one per board, no seat', () => {
   const r = deriveHalfLap(joint, parts)
   expect(r).not.toBeNull()
@@ -104,4 +108,32 @@ test('deriveHalfLap: clearance deepens each notch past the mid-plane', () => {
 
 test('deriveHalfLap: stale (non-coplanar) returns null', () => {
   expect(deriveHalfLap(joint, [A, { ...B, position: { x: 80, y: -80, z: 5 } }])).toBeNull()
+})
+
+test('deriveHalfLap: cuts are correct when the second board is rotated Rz=90 (still axis-aligned)', () => {
+  const C: BoardPart = {
+    ...A,
+    id: 'C',
+    rotation: { x: 0, y: 0, z: 90 },
+    position: { x: 120, y: 0, z: 0 },
+  }
+  const jointAC = { ...joint, partBId: 'C' }
+  const r = deriveHalfLap(jointAC, [A, C])
+  expect(r).not.toBeNull()
+  const cutA = r!.cuts.find((c) => c.partId === 'A')!.cut
+  const cutC = r!.cuts.find((c) => c.partId === 'C')!.cut
+  // A keeps low, removes high [10,20] over the overlap x[80,120] y[0,40]:
+  expect(cutA.position.x).toBeCloseTo(80, 6)
+  expect(cutA.position.y).toBeCloseTo(0, 6)
+  expect(cutA.position.z).toBeCloseTo(10, 6)
+  expect(cutA.size.x).toBeCloseTo(40, 6)
+  expect(cutA.size.y).toBeCloseTo(40, 6)
+  expect(cutA.size.z).toBeCloseTo(10, 6)
+  // C (Rz=90 at (120,0,0)) removes low [0,10]; via worldBoxToLocalCut → local pos (0,0,0) size (40,40,10):
+  expect(cutC.position.x).toBeCloseTo(0, 6)
+  expect(cutC.position.y).toBeCloseTo(0, 6)
+  expect(cutC.position.z).toBeCloseTo(0, 6)
+  expect(cutC.size.x).toBeCloseTo(40, 6)
+  expect(cutC.size.y).toBeCloseTo(40, 6)
+  expect(cutC.size.z).toBeCloseTo(10, 6)
 })

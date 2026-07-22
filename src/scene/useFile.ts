@@ -76,6 +76,7 @@ export function parseFile(text: string): ZimmuFile {
         j.kind === 'halflap'
           ? ({ split: 0.5, clearance: 0, ...j } as unknown as Joint)
           : ({
+              kind: 'dado' as const,
               profile: 'plain' as const,
               tongueThickness: 6,
               rabbetFace: '+Z' as const,

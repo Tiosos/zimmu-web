@@ -45,7 +45,18 @@ export function stackAxis(b: BoardPart): Axis {
   return 'x'
 }
 
+function isAxisAligned(b: BoardPart): boolean {
+  const m = composeWorldMatrix(b)
+  const cols = [
+    [m[0], m[1], m[2]],
+    [m[4], m[5], m[6]],
+    [m[8], m[9], m[10]],
+  ]
+  return cols.every((c) => Math.max(Math.abs(c[0]), Math.abs(c[1]), Math.abs(c[2])) >= 1 - EPS)
+}
+
 export function isValidHalfLap(a: BoardPart, b: BoardPart): boolean {
+  if (!isAxisAligned(a) || !isAxisAligned(b)) return false
   const s = stackAxis(a)
   if (stackAxis(b) !== s) return false
   const A = worldAabb(a)
