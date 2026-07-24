@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import type { FaceHit, Part } from './types'
-import { isValidDadoSeat } from '../geom/dado'
+import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { localNormalToFaceString } from './snapMath'
 
 export interface AddMortiseTenonState {
@@ -58,8 +58,8 @@ export function useAddMortiseTenon(params: {
       }
       const mortiseFace = localNormalToFaceString(pendingMortise.localFaceNormal)
       const tenonEnd = localNormalToFaceString(hit.localFaceNormal)
-      if (!isValidDadoSeat(mortise, mortiseFace, part, tenonEnd)) {
-        setStatus('Tenon end must be perpendicular to the mortise face')
+      if (!isValidMortiseTenon(mortise, mortiseFace, part, tenonEnd)) {
+        setStatus('Tenon end must be a board end perpendicular to the mortise face')
         setPending(null)
         return
       }

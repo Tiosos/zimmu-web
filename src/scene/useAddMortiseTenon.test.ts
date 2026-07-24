@@ -60,6 +60,21 @@ test('a non-perpendicular second hit does not create a joint', () => {
   expect(result.current.statusMessage).toMatch(/perpendicular/i)
 })
 
+test('a thickness-face tenon end (a face, not a board end) does not create a joint', () => {
+  const onAddMortiseTenon = vi.fn()
+  // Flat board: its −Z face is anti-parallel to the +Z mortise face (so a bare perpendicular
+  // check passes) but it is a thickness face, not a length/width end — an invalid tenon.
+  const flat: Part = { ...tenon, rotation: { x: 0, y: 0, z: 0 } }
+  const { result } = renderHook(() =>
+    useAddMortiseTenon({ parts: [mortise, flat], onAddMortiseTenon }),
+  )
+  act(() => result.current.activateMortiseTenon())
+  act(() => result.current.onFaceClick(hit('M', { x: 0, y: 0, z: 1 })))
+  act(() => result.current.onFaceClick(hit('T', { x: 0, y: 0, z: -1 })))
+  expect(onAddMortiseTenon).not.toHaveBeenCalled()
+  expect(result.current.statusMessage).toMatch(/board end/i)
+})
+
 test('a second click on the same board does not create a joint', () => {
   const onAddMortiseTenon = vi.fn()
   const { result } = renderHook(() =>

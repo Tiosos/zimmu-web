@@ -20,7 +20,7 @@ import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
 import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat, computeDadoOffset, defaultDadoDepth } from '../geom/dado'
-import { computeMortiseOffset } from '../geom/mortisetenon'
+import { computeMortiseOffset, isValidMortiseTenon } from '../geom/mortisetenon'
 import { PART_COLORS } from './palette'
 import { composeWorldMatrix } from '../geom/transform'
 
@@ -942,7 +942,7 @@ export function useScene(): UseSceneResult {
       if (mortise?.kind !== 'board' || tenon?.kind !== 'board' || mortise.id === tenon.id) return
       const mortiseFace = localNormalToFaceString(mortiseHit.localFaceNormal)
       const tenonEnd = localNormalToFaceString(tenonHit.localFaceNormal)
-      if (!isValidDadoSeat(mortise, mortiseFace, tenon, tenonEnd)) return
+      if (!isValidMortiseTenon(mortise, mortiseFace, tenon, tenonEnd)) return
       const n = s.joints.filter((j) => j.kind === 'mortise-tenon').length + 1
       const tenonThickness = Math.round(tenon.thickness / 3)
       const { offsetU, offsetV } = computeMortiseOffset(mortise, tenon, mortiseFace)
