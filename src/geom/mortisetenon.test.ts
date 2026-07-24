@@ -7,6 +7,7 @@ import {
   computeTenonShoulders,
   computeMortisePocket,
   computeMortiseTenonSeat,
+  computeMortiseOffset,
   deriveMortiseTenon,
 } from './mortisetenon'
 
@@ -64,8 +65,10 @@ test('isValidMortiseTenon: perpendicular, axis-aligned, length/width-end seat is
 test('isValidMortiseTenon: a non-perpendicular seat is invalid', () => {
   expect(isValidMortiseTenon(M, '+Z', { ...T, rotation: { x: 0, y: 0, z: 0 } }, '+X')).toBe(false)
 })
-test('isValidMortiseTenon: a thickness-end tenon is invalid', () => {
-  expect(isValidMortiseTenon(M, '+Z', { ...T, rotation: { x: 0, y: 0, z: 0 } }, '+Z')).toBe(false)
+test('isValidMortiseTenon: a thickness-end tenon is invalid (perpendicular but seatAx z)', () => {
+  // Unrotated tenon, tenonEnd '-Z': perpendicular to M's '+Z' (dot −1), axis-aligned,
+  // but faceAxes('-Z').depth === 'z' — so only the thickness-end guard rejects it.
+  expect(isValidMortiseTenon(M, '+Z', { ...T, rotation: { x: 0, y: 0, z: 0 } }, '-Z')).toBe(false)
 })
 test('isValidMortiseTenon: a non-axis-aligned tenon board is invalid', () => {
   expect(isValidMortiseTenon(M, '+Z', { ...T, rotation: { x: 0, y: 45, z: 0 } }, '+X')).toBe(false)
@@ -116,6 +119,12 @@ test('computeMortiseTenonSeat: tongue tip on the pocket bottom, centered on the 
   expect(wx).toBeCloseTo(100, 6)
   expect(wy).toBeCloseTo(50, 6)
   expect(wz).toBeCloseTo(13, 6)
+})
+
+test('computeMortiseOffset: projects the tenon board center onto the mortise face axes', () => {
+  const { offsetU, offsetV } = computeMortiseOffset(M, T, '+Z')
+  expect(offsetU).toBeCloseTo(15, 6)
+  expect(offsetV).toBeCloseTo(30, 6)
 })
 
 test('deriveMortiseTenon: 4 shoulders (tenon) + 1 pocket (mortise) + a seat', () => {
