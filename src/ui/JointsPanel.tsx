@@ -114,6 +114,7 @@ export function JointsPanel({
             </div>
           )
         }
+        if (j.kind === 'mortise-tenon') return null
         const isHousing = j.housingPartId === part.id
         const housing = scene.parts.find((p) => p.id === j.housingPartId)
         const housed = scene.parts.find((p) => p.id === j.housedPartId)

@@ -167,7 +167,7 @@ export interface MortiseTenonJoint {
   offsetV: number // mortise center along mortiseFace's v axis
 }
 
-export type Joint = DadoJoint | HalfLapJoint
+export type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint
 
 export interface Scene {
   parts: Part[]

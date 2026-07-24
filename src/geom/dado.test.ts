@@ -267,6 +267,47 @@ test('deriveJoint dispatches half-laps to the half-lap deriver (no seat)', () =>
   expect(r!.cuts.map((c) => c.partId).sort()).toEqual(['LA', 'LB'])
 })
 
+test('deriveJoint dispatches a mortise-tenon to the M&T deriver', () => {
+  const m: BoardPart = {
+    ...housing,
+    id: 'MM',
+    length: 200,
+    width: 100,
+    thickness: 40,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+  }
+  const t: BoardPart = {
+    ...housing,
+    id: 'TT',
+    length: 120,
+    width: 60,
+    thickness: 30,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 90, z: 0 },
+  }
+  const mt = {
+    kind: 'mortise-tenon' as const,
+    id: 'jm',
+    label: 'Mortise & tenon 1',
+    mortisePartId: 'MM',
+    mortiseFace: '+Z' as const,
+    tenonPartId: 'TT',
+    tenonEnd: '+X' as const,
+    tenonLength: 27,
+    tenonThickness: 10,
+    tenonWidth: 40,
+    clearance: 0,
+    through: false,
+    offsetU: 100,
+    offsetV: 50,
+  }
+  const r = deriveJoint(mt, [m, t])
+  expect(r).not.toBeNull()
+  expect(r!.seat!.partId).toBe('TT')
+  expect(r!.cuts).toHaveLength(5)
+})
+
 test('computeDadoGroove: rabbeted with a thickness-end housedEnd keeps the full-thickness groove (no tongue → no narrowing)', () => {
   const thicknessEnd = { ...rabbeted, housedEnd: '+Z' as const }
   // hasTongue is false (housedEnd depth axis is 'z'), so no narrowing.

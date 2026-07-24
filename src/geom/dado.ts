@@ -13,6 +13,7 @@ import type {
 import { faceAxes, computeLocalFaceCenter } from '../scene/snapMath'
 import { composeWorldMatrix, applyMatrixToPoint } from './transform'
 import { deriveHalfLap } from './halflap'
+import { deriveMortiseTenon } from './mortisetenon'
 
 const DEG2RAD = Math.PI / 180
 type Axis = 'x' | 'y' | 'z'
@@ -268,6 +269,8 @@ export function deriveJoint(joint: Joint, parts: Part[]): DeriveResult | null {
       return deriveDadoJoint(joint, parts)
     case 'halflap':
       return deriveHalfLap(joint, parts)
+    case 'mortise-tenon':
+      return deriveMortiseTenon(joint, parts)
   }
 }
 
