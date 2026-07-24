@@ -239,8 +239,8 @@ export function computeTenonShoulders(tenon: BoardPart, joint: MortiseTenonJoint
   const seatAx = faceAxes(joint.tenonEnd).depth
   const widthAx: Axis = seatAx === 'x' ? 'y' : 'x'
   const d = clamp(joint.tenonLength, 0.1, dim[seatAx] - 0.1)
-  const tt = clamp(joint.tenonThickness, 0.1, dim.z - 0.1)
-  const tw = clamp(joint.tenonWidth, 0.1, dim[widthAx] - 0.1)
+  const tt = clamp(joint.tenonThickness, 0.1, dim.z)
+  const tw = clamp(joint.tenonWidth, 0.1, dim[widthAx])
   const s0 = joint.tenonEnd.startsWith('+') ? dim[seatAx] - d : 0
   const zMargin = (dim.z - tt) / 2
   const wMargin = (dim[widthAx] - tw) / 2
