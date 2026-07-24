@@ -88,6 +88,9 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     halfLapActive: false,
     onHalfLapToggle: vi.fn(),
     halfLapStatus: null,
+    mortiseTenonActive: false,
+    onMortiseTenonToggle: vi.fn(),
+    mortiseTenonStatus: null,
     ...overrides,
   }
 }

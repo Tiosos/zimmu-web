@@ -66,6 +66,9 @@ interface SidebarProps {
   halfLapActive: boolean
   onHalfLapToggle: () => void
   halfLapStatus: string | null
+  mortiseTenonActive: boolean
+  onMortiseTenonToggle: () => void
+  mortiseTenonStatus: string | null
 }
 
 function DimInput({
@@ -816,6 +819,9 @@ export function Sidebar({
   halfLapActive,
   onHalfLapToggle,
   halfLapStatus,
+  mortiseTenonActive,
+  onMortiseTenonToggle,
+  mortiseTenonStatus,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -870,6 +876,19 @@ export function Sidebar({
             {halfLapActive && (
               <span className="text-[10px] text-muted-foreground font-normal">
                 {halfLapStatus ?? 'Click first board, then second board · Esc to cancel'}
+              </span>
+            )}
+          </Button>
+          <Button
+            variant={mortiseTenonActive ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={onMortiseTenonToggle}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${mortiseTenonActive ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
+          >
+            <span>{mortiseTenonActive ? 'Mortise & tenon' : 'Add Mortise & tenon'}</span>
+            {mortiseTenonActive && (
+              <span className="text-[10px] text-muted-foreground font-normal">
+                {mortiseTenonStatus ?? 'Click mortise board, then tenon board · Esc to cancel'}
               </span>
             )}
           </Button>

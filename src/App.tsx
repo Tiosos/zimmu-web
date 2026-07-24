@@ -5,6 +5,7 @@ import { useSnap } from './scene/useSnap'
 import { useAddCut } from './scene/useAddCut'
 import { useAddJoint } from './scene/useAddJoint'
 import { useAddHalfLap } from './scene/useAddHalfLap'
+import { useAddMortiseTenon } from './scene/useAddMortiseTenon'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
@@ -40,6 +41,7 @@ function App() {
     onUnlinkCuts,
     onAddJoint,
     onAddHalfLap,
+    onAddMortiseTenon,
     onUpdateJoint,
     onRemoveJoint,
     onSelect,
@@ -107,6 +109,17 @@ function App() {
     onFaceHover: onFaceHoverHalfLap,
   } = useAddHalfLap({ parts: scene.parts, onAddHalfLap })
 
+  const {
+    mortiseTenonActive,
+    pendingMortise: mortiseTenonPendingFace,
+    statusMessage: mortiseTenonStatus,
+    hoveredFace: mortiseTenonHoveredFace,
+    activateMortiseTenon,
+    cancelMortiseTenon,
+    onFaceClick: onFaceClickMortiseTenon,
+    onFaceHover: onFaceHoverMortiseTenon,
+  } = useAddMortiseTenon({ parts: scene.parts, onAddMortiseTenon })
+
   const cameraStateRef = useRef<CameraState>({
     position: { x: 250, y: -200, z: 150 },
     target: { x: 0, y: 0, z: 0 },
@@ -162,26 +175,37 @@ function App() {
     cancelSnap()
     cancelJoint()
     cancelHalfLap()
+    cancelMortiseTenon()
     activateCut()
-  }, [cancelSnap, cancelJoint, cancelHalfLap, activateCut])
+  }, [cancelSnap, cancelJoint, cancelHalfLap, cancelMortiseTenon, activateCut])
   const handleActivateSnap = useCallback(() => {
     cancelCut()
     cancelJoint()
     cancelHalfLap()
+    cancelMortiseTenon()
     activateSnap()
-  }, [cancelCut, cancelJoint, cancelHalfLap, activateSnap])
+  }, [cancelCut, cancelJoint, cancelHalfLap, cancelMortiseTenon, activateSnap])
   const handleActivateJoint = useCallback(() => {
     cancelCut()
     cancelSnap()
     cancelHalfLap()
+    cancelMortiseTenon()
     activateJoint()
-  }, [cancelCut, cancelSnap, cancelHalfLap, activateJoint])
+  }, [cancelCut, cancelSnap, cancelHalfLap, cancelMortiseTenon, activateJoint])
   const handleActivateHalfLap = useCallback(() => {
     cancelCut()
     cancelSnap()
     cancelJoint()
+    cancelMortiseTenon()
     activateHalfLap()
-  }, [cancelCut, cancelSnap, cancelJoint, activateHalfLap])
+  }, [cancelCut, cancelSnap, cancelJoint, cancelMortiseTenon, activateHalfLap])
+  const handleActivateMortiseTenon = useCallback(() => {
+    cancelCut()
+    cancelSnap()
+    cancelJoint()
+    cancelHalfLap()
+    activateMortiseTenon()
+  }, [cancelCut, cancelSnap, cancelJoint, cancelHalfLap, activateMortiseTenon])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -210,22 +234,42 @@ function App() {
           handleActivateHalfLap()
           return
         }
+        if (e.key.toLowerCase() === 'm') {
+          e.preventDefault()
+          handleActivateMortiseTenon()
+          return
+        }
         if (e.key === 'Escape') {
           if (cutActive) cancelCut()
           if (snapActive) cancelSnap()
           if (jointActive) cancelJoint()
           if (halfLapActive) cancelHalfLap()
+          if (mortiseTenonActive) cancelMortiseTenon()
           return
         }
         if (e.key.toLowerCase() === 'h') {
-          if (selectedId && !snapActive && !cutActive && !jointActive && !halfLapActive) {
+          if (
+            selectedId &&
+            !snapActive &&
+            !cutActive &&
+            !jointActive &&
+            !halfLapActive &&
+            !mortiseTenonActive
+          ) {
             e.preventDefault()
             onToggleVisible(selectedId)
           }
           return
         }
         if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (selectedId && !snapActive && !cutActive && !jointActive && !halfLapActive) {
+          if (
+            selectedId &&
+            !snapActive &&
+            !cutActive &&
+            !jointActive &&
+            !halfLapActive &&
+            !mortiseTenonActive
+          ) {
             e.preventDefault()
             onRemove(selectedId)
           }
@@ -288,6 +332,7 @@ function App() {
     handleActivateSnap,
     handleActivateJoint,
     handleActivateHalfLap,
+    handleActivateMortiseTenon,
     cancelCut,
     cutActive,
     cancelSnap,
@@ -296,6 +341,8 @@ function App() {
     jointActive,
     cancelHalfLap,
     halfLapActive,
+    cancelMortiseTenon,
+    mortiseTenonActive,
   ])
 
   if (!fileReady) return null
@@ -369,6 +416,11 @@ function App() {
           onFaceHoverHalfLap={onFaceHoverHalfLap}
           halfLapPendingFace={halfLapPendingFace}
           halfLapHoveredFace={halfLapHoveredFace}
+          mortiseTenonActive={mortiseTenonActive}
+          onFaceClickMortiseTenon={onFaceClickMortiseTenon}
+          onFaceHoverMortiseTenon={onFaceHoverMortiseTenon}
+          mortiseTenonPendingFace={mortiseTenonPendingFace}
+          mortiseTenonHoveredFace={mortiseTenonHoveredFace}
           flashTarget={flashTarget}
         />
         <Sidebar
@@ -405,6 +457,9 @@ function App() {
           halfLapActive={halfLapActive}
           onHalfLapToggle={handleActivateHalfLap}
           halfLapStatus={halfLapStatus}
+          mortiseTenonActive={mortiseTenonActive}
+          onMortiseTenonToggle={handleActivateMortiseTenon}
+          mortiseTenonStatus={mortiseTenonStatus}
         />
       </div>
       {cuttingListOpen && (

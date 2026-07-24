@@ -37,6 +37,11 @@ interface ViewportProps {
   onFaceHoverHalfLap: (hit: FaceHit | null) => void
   halfLapPendingFace: FaceHit | null
   halfLapHoveredFace: FaceHit | null
+  mortiseTenonActive: boolean
+  onFaceClickMortiseTenon: (hit: FaceHit) => void
+  onFaceHoverMortiseTenon: (hit: FaceHit | null) => void
+  mortiseTenonPendingFace: FaceHit | null
+  mortiseTenonHoveredFace: FaceHit | null
   flashTarget?: { id: PartId; seq: number } | null
 }
 
@@ -66,6 +71,11 @@ export function Viewport({
   onFaceHoverHalfLap,
   halfLapPendingFace,
   halfLapHoveredFace,
+  mortiseTenonActive,
+  onFaceClickMortiseTenon,
+  onFaceHoverMortiseTenon,
+  mortiseTenonPendingFace,
+  mortiseTenonHoveredFace,
   flashTarget,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
@@ -91,6 +101,9 @@ export function Viewport({
   const halfLapActiveRef = useRef(halfLapActive)
   const onFaceClickHalfLapRef = useRef(onFaceClickHalfLap)
   const onFaceHoverHalfLapRef = useRef(onFaceHoverHalfLap)
+  const mortiseTenonActiveRef = useRef(mortiseTenonActive)
+  const onFaceClickMortiseTenonRef = useRef(onFaceClickMortiseTenon)
+  const onFaceHoverMortiseTenonRef = useRef(onFaceHoverMortiseTenon)
   const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
   const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
   const ghostMeshRef = useRef<THREE.Mesh | null>(null)
@@ -115,6 +128,9 @@ export function Viewport({
     halfLapActiveRef.current = halfLapActive
     onFaceClickHalfLapRef.current = onFaceClickHalfLap
     onFaceHoverHalfLapRef.current = onFaceHoverHalfLap
+    mortiseTenonActiveRef.current = mortiseTenonActive
+    onFaceClickMortiseTenonRef.current = onFaceClickMortiseTenon
+    onFaceHoverMortiseTenonRef.current = onFaceHoverMortiseTenon
     selectedIdRef.current = selectedId
   })
 
@@ -356,7 +372,12 @@ export function Viewport({
         false,
       )
 
-      if (halfLapActiveRef.current) {
+      if (mortiseTenonActiveRef.current) {
+        if (hits.length > 0) {
+          const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
+          if (faceHit) onFaceClickMortiseTenonRef.current(faceHit)
+        }
+      } else if (halfLapActiveRef.current) {
         if (hits.length > 0) {
           const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
           if (faceHit) onFaceClickHalfLapRef.current(faceHit)
@@ -400,7 +421,8 @@ export function Viewport({
           !snapActiveRef.current &&
           !cutActiveRef.current &&
           !jointActiveRef.current &&
-          !halfLapActiveRef.current
+          !halfLapActiveRef.current &&
+          !mortiseTenonActiveRef.current
         )
           return
         const { x, y } = lastMouseRef.current
@@ -414,12 +436,14 @@ export function Viewport({
         )
         if (hits.length > 0) {
           const hit = buildFaceHit(hits[0], meshes.current, partsRef.current)
-          if (halfLapActiveRef.current) onFaceHoverHalfLapRef.current(hit)
+          if (mortiseTenonActiveRef.current) onFaceHoverMortiseTenonRef.current(hit)
+          else if (halfLapActiveRef.current) onFaceHoverHalfLapRef.current(hit)
           else if (jointActiveRef.current) onFaceHoverJointRef.current(hit)
           else if (cutActiveRef.current) onFaceHoverCutRef.current(hit)
           else onFaceHoverRef.current(hit)
         } else {
-          if (halfLapActiveRef.current) onFaceHoverHalfLapRef.current(null)
+          if (mortiseTenonActiveRef.current) onFaceHoverMortiseTenonRef.current(null)
+          else if (halfLapActiveRef.current) onFaceHoverHalfLapRef.current(null)
           else if (jointActiveRef.current) onFaceHoverJointRef.current(null)
           else if (cutActiveRef.current) onFaceHoverCutRef.current(null)
           else onFaceHoverRef.current(null)
@@ -591,24 +615,28 @@ export function Viewport({
 
     updateHighlight(
       sourceHighlightRef.current,
-      halfLapActive
-        ? halfLapPendingFace
-        : snapActive
-          ? sourceFace
-          : jointActive
-            ? jointHousingFace
-            : null,
+      mortiseTenonActive
+        ? mortiseTenonPendingFace
+        : halfLapActive
+          ? halfLapPendingFace
+          : snapActive
+            ? sourceFace
+            : jointActive
+              ? jointHousingFace
+              : null,
       0xfbbf24,
     )
     updateHighlight(
       hoverHighlightRef.current,
-      halfLapActive
-        ? halfLapHoveredFace
-        : jointActive
-          ? jointHoveredFace
-          : snapActive || cutActive
-            ? hoveredFace
-            : null,
+      mortiseTenonActive
+        ? mortiseTenonHoveredFace
+        : halfLapActive
+          ? halfLapHoveredFace
+          : jointActive
+            ? jointHoveredFace
+            : snapActive || cutActive
+              ? hoveredFace
+              : null,
       0x60a5fa,
     )
   }, [
@@ -622,6 +650,9 @@ export function Viewport({
     halfLapActive,
     halfLapPendingFace,
     halfLapHoveredFace,
+    mortiseTenonActive,
+    mortiseTenonPendingFace,
+    mortiseTenonHoveredFace,
     parts,
   ])
 
@@ -661,11 +692,14 @@ export function Viewport({
   useEffect(() => {
     const mount = mountRef.current
     if (!mount) return
-    mount.style.cursor = snapActive || cutActive || jointActive || halfLapActive ? 'crosshair' : ''
+    mount.style.cursor =
+      snapActive || cutActive || jointActive || halfLapActive || mortiseTenonActive
+        ? 'crosshair'
+        : ''
     return () => {
       mount.style.cursor = ''
     }
-  }, [snapActive, cutActive, jointActive, halfLapActive])
+  }, [snapActive, cutActive, jointActive, halfLapActive, mortiseTenonActive])
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 }
