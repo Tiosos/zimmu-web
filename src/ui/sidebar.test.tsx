@@ -656,3 +656,47 @@ describe('Sidebar joints panel — half-lap', () => {
     expect(screen.getByText('Split')).toBeTruthy()
   })
 })
+
+describe('Sidebar joints panel — mortise & tenon', () => {
+  afterEach(() => cleanup())
+
+  const mtScene = () => ({
+    parts: [
+      makeBoard(),
+      makeBoard({ id: 'board_t2', label: 'Board 2', rotation: { x: 0, y: 90, z: 0 } }),
+    ],
+    materials: {},
+    hardware: [],
+    joints: [
+      {
+        kind: 'mortise-tenon' as const,
+        id: 'jm',
+        label: 'Mortise & tenon 1',
+        mortisePartId: 'board_t1',
+        mortiseFace: '+Z' as const,
+        tenonPartId: 'board_t2',
+        tenonEnd: '+X' as const,
+        tenonLength: 20,
+        tenonThickness: 8,
+        tenonWidth: 40,
+        clearance: 0,
+        through: false,
+        offsetU: 100,
+        offsetV: 50,
+      },
+    ],
+  })
+
+  it('shows Length / Thk / Width / Through controls for the mortise board', () => {
+    render(<Sidebar {...props({ scene: mtScene(), selectedId: 'board_t1' })} />)
+    expect(screen.getByText('Length')).toBeTruthy()
+    expect(screen.getByText('Thk')).toBeTruthy()
+    expect(screen.getByText('Width')).toBeTruthy()
+    expect(screen.getByText('Through')).toBeTruthy()
+  })
+
+  it('shows the tenon-side read-only hint on the other board', () => {
+    render(<Sidebar {...props({ scene: mtScene(), selectedId: 'board_t2' })} />)
+    expect(screen.getByText(/Edit from/)).toBeTruthy()
+  })
+})

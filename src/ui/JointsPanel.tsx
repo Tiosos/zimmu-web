@@ -1,6 +1,7 @@
 import type { BoardPart, DadoJoint, Joint, Part, PartId, Scene } from '../scene/types'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidHalfLap } from '../geom/halflap'
+import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { jointInvolves } from '../scene/jointInvolves'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -114,7 +115,100 @@ export function JointsPanel({
             </div>
           )
         }
-        if (j.kind === 'mortise-tenon') return null
+        if (j.kind === 'mortise-tenon') {
+          const isMortise = j.mortisePartId === part.id
+          const mortise = scene.parts.find((p) => p.id === j.mortisePartId)
+          const tenon = scene.parts.find((p) => p.id === j.tenonPartId)
+          const stale =
+            mortise?.kind === 'board' && tenon?.kind === 'board'
+              ? !isValidMortiseTenon(mortise, j.mortiseFace, tenon, j.tenonEnd)
+              : true
+          return (
+            <div key={j.id} className="border-t border-border/30 pt-1 pb-1">
+              <div className="flex items-center gap-1 py-0.5">
+                <span className="flex-1 text-[11px] text-foreground">{j.label}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {isMortise ? 'mortise' : 'tenon'}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Remove joint"
+                  className="h-5 w-5 text-destructive hover:text-destructive"
+                  onClick={() => onRemoveJoint(j.id)}
+                >
+                  ✕
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground pb-0.5">
+                {isMortise ? '→' : '←'}{' '}
+                {partLabel(scene, isMortise ? j.tenonPartId : j.mortisePartId)}
+              </p>
+              {stale && (
+                <p className="text-[10px] text-destructive-foreground pb-1">
+                  Joint stale — tenon end must be perpendicular to the mortise face
+                </p>
+              )}
+              {isMortise ? (
+                <>
+                  <JointNumInput
+                    label="Length"
+                    value={j.tenonLength}
+                    suffix="mm"
+                    onCommit={(v) =>
+                      onUpdateJoint(j.id, (jt) => ({ ...jt, tenonLength: Math.max(0.1, v) }))
+                    }
+                  />
+                  <JointNumInput
+                    label="Thk"
+                    value={j.tenonThickness}
+                    suffix="mm"
+                    onCommit={(v) =>
+                      onUpdateJoint(j.id, (jt) => ({ ...jt, tenonThickness: Math.max(0.1, v) }))
+                    }
+                  />
+                  <JointNumInput
+                    label="Width"
+                    value={j.tenonWidth}
+                    suffix="mm"
+                    onCommit={(v) =>
+                      onUpdateJoint(j.id, (jt) => ({ ...jt, tenonWidth: Math.max(0.1, v) }))
+                    }
+                  />
+                  <JointNumInput
+                    label="Clear"
+                    value={j.clearance}
+                    suffix="mm"
+                    onCommit={(v) =>
+                      onUpdateJoint(j.id, (jt) => ({ ...jt, clearance: Math.max(0, v) }))
+                    }
+                  />
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Label className="w-10 shrink-0 text-right">Through</Label>
+                    <Select
+                      value={j.through ? 'yes' : 'no'}
+                      onValueChange={(val) =>
+                        onUpdateJoint(j.id, (jt) => ({ ...jt, through: val === 'yes' }))
+                      }
+                    >
+                      <SelectTrigger className="h-7 flex-1 text-[11px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no">Blind</SelectItem>
+                        <SelectItem value="yes">Through</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              ) : (
+                <p className="text-[10px] text-muted-foreground pb-0.5">
+                  Edit from {partLabel(scene, j.mortisePartId)}.
+                </p>
+              )}
+            </div>
+          )
+        }
         const isHousing = j.housingPartId === part.id
         const housing = scene.parts.find((p) => p.id === j.housingPartId)
         const housed = scene.parts.find((p) => p.id === j.housedPartId)
