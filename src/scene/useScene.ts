@@ -20,6 +20,7 @@ import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
 import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat, computeDadoOffset, defaultDadoDepth } from '../geom/dado'
+import { computeMortiseOffset } from '../geom/mortisetenon'
 import { PART_COLORS } from './palette'
 import { composeWorldMatrix } from '../geom/transform'
 
@@ -92,6 +93,7 @@ export interface UseSceneResult {
   onUnlinkCuts: (partId: PartId, cutId: CutId) => void
   onAddJoint: (housingHit: FaceHit, housedHit: FaceHit) => void
   onAddHalfLap: (aId: PartId, bId: PartId) => void
+  onAddMortiseTenon: (mortiseHit: FaceHit, tenonHit: FaceHit) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
   onSelect: (id: PartId | null) => void
@@ -932,6 +934,43 @@ export function useScene(): UseSceneResult {
     [commitReconciled],
   )
 
+  const onAddMortiseTenon = useCallback(
+    (mortiseHit: FaceHit, tenonHit: FaceHit) => {
+      const s = sceneRef.current
+      const mortise = s.parts.find((p) => p.id === mortiseHit.partId)
+      const tenon = s.parts.find((p) => p.id === tenonHit.partId)
+      if (mortise?.kind !== 'board' || tenon?.kind !== 'board' || mortise.id === tenon.id) return
+      const mortiseFace = localNormalToFaceString(mortiseHit.localFaceNormal)
+      const tenonEnd = localNormalToFaceString(tenonHit.localFaceNormal)
+      if (!isValidDadoSeat(mortise, mortiseFace, tenon, tenonEnd)) return
+      const n = s.joints.filter((j) => j.kind === 'mortise-tenon').length + 1
+      const tenonThickness = Math.round(tenon.thickness / 3)
+      const { offsetU, offsetV } = computeMortiseOffset(mortise, tenon, mortiseFace)
+      const joint: Joint = {
+        kind: 'mortise-tenon',
+        id: `joint_${crypto.randomUUID()}`,
+        label: `Mortise & tenon ${n}`,
+        mortisePartId: mortise.id,
+        mortiseFace,
+        tenonPartId: tenon.id,
+        tenonEnd,
+        tenonLength: Math.round((mortise.thickness * 2) / 3),
+        tenonThickness,
+        tenonWidth: Math.max(0.1, tenon.width - 2 * tenonThickness),
+        clearance: 0,
+        through: false,
+        offsetU,
+        offsetV,
+      }
+      commitReconciled(
+        (prev) => ({ ...prev, joints: [...prev.joints, joint] }),
+        'Add mortise & tenon',
+      )
+      setSelectedId(mortise.id)
+    },
+    [commitReconciled],
+  )
+
   const onUpdateJoint = useCallback(
     (jointId: string, updater: (j: Joint) => Joint) => {
       if (!sceneRef.current.joints.some((j) => j.id === jointId)) return
@@ -951,7 +990,12 @@ export function useScene(): UseSceneResult {
     (jointId: string) => {
       const joint = sceneRef.current.joints.find((j) => j.id === jointId)
       if (!joint) return
-      const label = joint.kind === 'halflap' ? 'Remove half-lap' : 'Remove dado'
+      const label =
+        joint.kind === 'mortise-tenon'
+          ? 'Remove mortise & tenon'
+          : joint.kind === 'halflap'
+            ? 'Remove half-lap'
+            : 'Remove dado'
       commitReconciled(
         (prev) => ({ ...prev, joints: prev.joints.filter((j) => j.id !== jointId) }),
         label,
@@ -1052,6 +1096,7 @@ export function useScene(): UseSceneResult {
     onUnlinkCuts,
     onAddJoint,
     onAddHalfLap,
+    onAddMortiseTenon,
     onUpdateJoint,
     onRemoveJoint,
     onSelect,

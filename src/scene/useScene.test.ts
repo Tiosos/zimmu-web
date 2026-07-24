@@ -1649,4 +1649,48 @@ describe('useScene — joints', () => {
     expect(result.current.scene.joints).toHaveLength(0)
     expect(lapCuts()).toBe(0)
   })
+
+  it('onAddMortiseTenon creates a mortise & tenon + cuts + seat in one undo entry', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    await act(async () => result.current.onAdd('board'))
+    await act(async () => result.current.onAdd('board'))
+    const [Mb, Tb] = result.current.scene.parts
+    await act(async () => {
+      result.current.onUpdate(
+        Mb.id,
+        (p) => ({ ...p, position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 } }),
+        'posM',
+      )
+      result.current.onUpdate(
+        Tb.id,
+        (p) => ({ ...p, position: { x: 0, y: 0, z: 60 }, rotation: { x: 0, y: 90, z: 0 } }),
+        'posT',
+      )
+    })
+    await act(async () => {
+      result.current.onAddMortiseTenon(
+        hit(Mb.id, { x: 0, y: 0, z: 1 }),
+        hit(Tb.id, { x: 1, y: 0, z: 0 }),
+      )
+    })
+    expect(result.current.scene.joints).toHaveLength(1)
+    expect(result.current.scene.joints[0].kind).toBe('mortise-tenon')
+    const jointCuts = () =>
+      result.current.scene.parts
+        .filter((p) => p.kind === 'board')
+        .reduce(
+          (n, p) =>
+            n +
+            (p.kind === 'board'
+              ? p.cuts.filter((c) => c.kind === 'box' && c.sourceJointId).length
+              : 0),
+          0,
+        )
+    expect(jointCuts()).toBeGreaterThanOrEqual(2) // shoulders on tenon + pocket on mortise
+
+    await act(async () => result.current.undo())
+    expect(result.current.scene.joints).toHaveLength(0)
+    expect(jointCuts()).toBe(0)
+  })
 })
