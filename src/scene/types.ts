@@ -150,6 +150,23 @@ export interface HalfLapJoint {
   clearance: number // mm added to each notch's thickness-depth for fit (default 0)
 }
 
+export interface MortiseTenonJoint {
+  kind: 'mortise-tenon'
+  id: string // "joint_<uuid>"
+  label: string // "Mortise & tenon 1"
+  mortisePartId: PartId // board that carries the pocket
+  mortiseFace: Face // face the pocket is cut into
+  tenonPartId: PartId // board whose end becomes the tenon
+  tenonEnd: Face // the tenon board's end reduced to the tongue
+  tenonLength: number // mm — tongue projection = blind mortise depth
+  tenonThickness: number // mm — tongue thickness (tenon board local Z)
+  tenonWidth: number // mm — tongue width (the non-Z cross-section axis)
+  clearance: number // mm — added to pocket cross-section + depth for fit
+  through: boolean // false = blind pocket; true = pocket spans the mortise thickness
+  offsetU: number // mortise center along mortiseFace's u axis
+  offsetV: number // mortise center along mortiseFace's v axis
+}
+
 export type Joint = DadoJoint | HalfLapJoint
 
 export interface Scene {
