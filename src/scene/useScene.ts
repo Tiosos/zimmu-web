@@ -21,6 +21,7 @@ import { reconcileJoints } from './reconcileJoints'
 import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat, computeDadoOffset, defaultDadoDepth } from '../geom/dado'
 import { computeMortiseOffset, isValidMortiseTenon } from '../geom/mortisetenon'
+import { isValidFingerJoint } from '../geom/fingerjoint'
 import { PART_COLORS } from './palette'
 import { composeWorldMatrix } from '../geom/transform'
 
@@ -94,6 +95,7 @@ export interface UseSceneResult {
   onAddJoint: (housingHit: FaceHit, housedHit: FaceHit) => void
   onAddHalfLap: (aId: PartId, bId: PartId) => void
   onAddMortiseTenon: (mortiseHit: FaceHit, tenonHit: FaceHit) => void
+  onAddFingerJoint: (hitA: FaceHit, hitB: FaceHit) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
   onSelect: (id: PartId | null) => void
@@ -971,6 +973,35 @@ export function useScene(): UseSceneResult {
     [commitReconciled],
   )
 
+  const onAddFingerJoint = useCallback(
+    (hitA: FaceHit, hitB: FaceHit) => {
+      const s = sceneRef.current
+      const a = s.parts.find((p) => p.id === hitA.partId)
+      const b = s.parts.find((p) => p.id === hitB.partId)
+      if (a?.kind !== 'board' || b?.kind !== 'board' || a.id === b.id) return
+      const endA = localNormalToFaceString(hitA.localFaceNormal)
+      const endB = localNormalToFaceString(hitB.localFaceNormal)
+      if (!isValidFingerJoint(a, endA, b, endB)) return
+      const n = s.joints.filter((j) => j.kind === 'finger').length + 1
+      const widthA = faceAxes(endA).depth === 'x' ? a.width : a.length
+      const fingerCount = Math.min(15, Math.max(3, Math.round(widthA / (2 * a.thickness))))
+      const joint: Joint = {
+        kind: 'finger',
+        id: `joint_${crypto.randomUUID()}`,
+        label: `Finger joint ${n}`,
+        partAId: a.id,
+        endA,
+        partBId: b.id,
+        endB,
+        fingerCount,
+        clearance: 0,
+      }
+      commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add finger joint')
+      setSelectedId(a.id)
+    },
+    [commitReconciled],
+  )
+
   const onUpdateJoint = useCallback(
     (jointId: string, updater: (j: Joint) => Joint) => {
       if (!sceneRef.current.joints.some((j) => j.id === jointId)) return
@@ -991,11 +1022,13 @@ export function useScene(): UseSceneResult {
       const joint = sceneRef.current.joints.find((j) => j.id === jointId)
       if (!joint) return
       const label =
-        joint.kind === 'mortise-tenon'
-          ? 'Remove mortise & tenon'
-          : joint.kind === 'halflap'
-            ? 'Remove half-lap'
-            : 'Remove dado'
+        joint.kind === 'finger'
+          ? 'Remove finger joint'
+          : joint.kind === 'mortise-tenon'
+            ? 'Remove mortise & tenon'
+            : joint.kind === 'halflap'
+              ? 'Remove half-lap'
+              : 'Remove dado'
       commitReconciled(
         (prev) => ({ ...prev, joints: prev.joints.filter((j) => j.id !== jointId) }),
         label,
@@ -1097,6 +1130,7 @@ export function useScene(): UseSceneResult {
     onAddJoint,
     onAddHalfLap,
     onAddMortiseTenon,
+    onAddFingerJoint,
     onUpdateJoint,
     onRemoveJoint,
     onSelect,

@@ -1693,4 +1693,62 @@ describe('useScene — joints', () => {
     expect(result.current.scene.joints).toHaveLength(0)
     expect(jointCuts()).toBe(0)
   })
+
+  it('onAddFingerJoint creates a finger joint + cuts on both boards + seat in one undo entry', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    await act(async () => result.current.onAdd('board'))
+    await act(async () => result.current.onAdd('board'))
+    const [Ab, Bb] = result.current.scene.parts
+    await act(async () => {
+      result.current.onUpdate(
+        Ab.id,
+        (p) => ({
+          ...p,
+          length: 200,
+          width: 80,
+          thickness: 18,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+        }),
+        'a',
+      )
+      result.current.onUpdate(
+        Bb.id,
+        (p) => ({
+          ...p,
+          length: 200,
+          width: 80,
+          thickness: 18,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 90, z: 0 },
+        }),
+        'b',
+      )
+    })
+    await act(async () => {
+      result.current.onAddFingerJoint(
+        hit(Ab.id, { x: 1, y: 0, z: 0 }),
+        hit(Bb.id, { x: 1, y: 0, z: 0 }),
+      )
+    })
+    expect(result.current.scene.joints).toHaveLength(1)
+    expect(result.current.scene.joints[0].kind).toBe('finger')
+    const jointCuts = () =>
+      result.current.scene.parts
+        .filter((p) => p.kind === 'board')
+        .reduce(
+          (n, p) =>
+            n +
+            (p.kind === 'board'
+              ? p.cuts.filter((c) => c.kind === 'box' && c.sourceJointId).length
+              : 0),
+          0,
+        )
+    expect(jointCuts()).toBeGreaterThanOrEqual(2) // fingers on both boards
+
+    await act(async () => result.current.undo())
+    expect(result.current.scene.joints).toHaveLength(0)
+    expect(jointCuts()).toBe(0)
+  })
 })
