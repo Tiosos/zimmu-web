@@ -9,6 +9,7 @@
 | `J` | Activate dado joint mode | Click housing face, then housed board's end |
 | `L` | Activate half-lap joint mode | Click first board, then the overlapping second board |
 | `M` | Activate mortise & tenon mode | Click the mortise face, then the perpendicular tenon end |
+| `B` | Activate box / finger joint mode | Click one board's end, then the perpendicular equal-width end of another |
 | `Escape` | Cancel snap, cut, or joint mode | No-op if none is active |
 | `H` | Toggle visibility of selected part | Suppressed in snap/cut/joint mode |
 | `Delete` / `Backspace` | Remove selected part | Suppressed in snap/cut/joint mode |
