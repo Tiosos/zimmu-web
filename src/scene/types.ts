@@ -167,6 +167,18 @@ export interface MortiseTenonJoint {
   offsetV: number // mortise center along mortiseFace's v axis
 }
 
+export interface FingerJoint {
+  kind: 'finger'
+  id: string // "joint_<uuid>"
+  label: string // "Finger joint 1"
+  partAId: PartId // lead board — keeps EVEN world-segments; stays put
+  endA: Face // A's joined end (a non-thickness end)
+  partBId: PartId // mating board — keeps ODD world-segments; auto-seats into the corner
+  endB: Face // B's joined end
+  fingerCount: number // N — the shared joint width split into N equal segments
+  clearance: number // mm — widens each cut slot for fit (default 0)
+}
+
 export type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint
 
 export interface Scene {
