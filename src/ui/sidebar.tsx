@@ -69,6 +69,9 @@ interface SidebarProps {
   mortiseTenonActive: boolean
   onMortiseTenonToggle: () => void
   mortiseTenonStatus: string | null
+  fingerJointActive: boolean
+  onFingerJointToggle: () => void
+  fingerJointStatus: string | null
 }
 
 function DimInput({
@@ -822,6 +825,9 @@ export function Sidebar({
   mortiseTenonActive,
   onMortiseTenonToggle,
   mortiseTenonStatus,
+  fingerJointActive,
+  onFingerJointToggle,
+  fingerJointStatus,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -889,6 +895,19 @@ export function Sidebar({
             {mortiseTenonActive && (
               <span className="text-[10px] text-muted-foreground font-normal">
                 {mortiseTenonStatus ?? 'Click mortise board, then tenon board · Esc to cancel'}
+              </span>
+            )}
+          </Button>
+          <Button
+            variant={fingerJointActive ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={onFingerJointToggle}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${fingerJointActive ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
+          >
+            <span>{fingerJointActive ? 'Finger joint' : 'Add Finger joint'}</span>
+            {fingerJointActive && (
+              <span className="text-[10px] text-muted-foreground font-normal">
+                {fingerJointStatus ?? 'Click first board, then second board · Esc to cancel'}
               </span>
             )}
           </Button>

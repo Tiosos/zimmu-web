@@ -91,6 +91,9 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     mortiseTenonActive: false,
     onMortiseTenonToggle: vi.fn(),
     mortiseTenonStatus: null,
+    fingerJointActive: false,
+    onFingerJointToggle: vi.fn(),
+    fingerJointStatus: null,
     ...overrides,
   }
 }

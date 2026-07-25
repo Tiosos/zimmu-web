@@ -42,6 +42,11 @@ interface ViewportProps {
   onFaceHoverMortiseTenon: (hit: FaceHit | null) => void
   mortiseTenonPendingFace: FaceHit | null
   mortiseTenonHoveredFace: FaceHit | null
+  fingerJointActive: boolean
+  onFaceClickFingerJoint: (hit: FaceHit) => void
+  onFaceHoverFingerJoint: (hit: FaceHit | null) => void
+  fingerJointPendingFace: FaceHit | null
+  fingerJointHoveredFace: FaceHit | null
   flashTarget?: { id: PartId; seq: number } | null
 }
 
@@ -76,6 +81,11 @@ export function Viewport({
   onFaceHoverMortiseTenon,
   mortiseTenonPendingFace,
   mortiseTenonHoveredFace,
+  fingerJointActive,
+  onFaceClickFingerJoint,
+  onFaceHoverFingerJoint,
+  fingerJointPendingFace,
+  fingerJointHoveredFace,
   flashTarget,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
@@ -104,6 +114,9 @@ export function Viewport({
   const mortiseTenonActiveRef = useRef(mortiseTenonActive)
   const onFaceClickMortiseTenonRef = useRef(onFaceClickMortiseTenon)
   const onFaceHoverMortiseTenonRef = useRef(onFaceHoverMortiseTenon)
+  const fingerJointActiveRef = useRef(fingerJointActive)
+  const onFaceClickFingerJointRef = useRef(onFaceClickFingerJoint)
+  const onFaceHoverFingerJointRef = useRef(onFaceHoverFingerJoint)
   const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
   const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
   const ghostMeshRef = useRef<THREE.Mesh | null>(null)
@@ -131,6 +144,9 @@ export function Viewport({
     mortiseTenonActiveRef.current = mortiseTenonActive
     onFaceClickMortiseTenonRef.current = onFaceClickMortiseTenon
     onFaceHoverMortiseTenonRef.current = onFaceHoverMortiseTenon
+    fingerJointActiveRef.current = fingerJointActive
+    onFaceClickFingerJointRef.current = onFaceClickFingerJoint
+    onFaceHoverFingerJointRef.current = onFaceHoverFingerJoint
     selectedIdRef.current = selectedId
   })
 
@@ -372,7 +388,12 @@ export function Viewport({
         false,
       )
 
-      if (mortiseTenonActiveRef.current) {
+      if (fingerJointActiveRef.current) {
+        if (hits.length > 0) {
+          const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
+          if (faceHit) onFaceClickFingerJointRef.current(faceHit)
+        }
+      } else if (mortiseTenonActiveRef.current) {
         if (hits.length > 0) {
           const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
           if (faceHit) onFaceClickMortiseTenonRef.current(faceHit)
@@ -422,7 +443,8 @@ export function Viewport({
           !cutActiveRef.current &&
           !jointActiveRef.current &&
           !halfLapActiveRef.current &&
-          !mortiseTenonActiveRef.current
+          !mortiseTenonActiveRef.current &&
+          !fingerJointActiveRef.current
         )
           return
         const { x, y } = lastMouseRef.current
@@ -436,13 +458,15 @@ export function Viewport({
         )
         if (hits.length > 0) {
           const hit = buildFaceHit(hits[0], meshes.current, partsRef.current)
-          if (mortiseTenonActiveRef.current) onFaceHoverMortiseTenonRef.current(hit)
+          if (fingerJointActiveRef.current) onFaceHoverFingerJointRef.current(hit)
+          else if (mortiseTenonActiveRef.current) onFaceHoverMortiseTenonRef.current(hit)
           else if (halfLapActiveRef.current) onFaceHoverHalfLapRef.current(hit)
           else if (jointActiveRef.current) onFaceHoverJointRef.current(hit)
           else if (cutActiveRef.current) onFaceHoverCutRef.current(hit)
           else onFaceHoverRef.current(hit)
         } else {
-          if (mortiseTenonActiveRef.current) onFaceHoverMortiseTenonRef.current(null)
+          if (fingerJointActiveRef.current) onFaceHoverFingerJointRef.current(null)
+          else if (mortiseTenonActiveRef.current) onFaceHoverMortiseTenonRef.current(null)
           else if (halfLapActiveRef.current) onFaceHoverHalfLapRef.current(null)
           else if (jointActiveRef.current) onFaceHoverJointRef.current(null)
           else if (cutActiveRef.current) onFaceHoverCutRef.current(null)
@@ -615,28 +639,32 @@ export function Viewport({
 
     updateHighlight(
       sourceHighlightRef.current,
-      mortiseTenonActive
-        ? mortiseTenonPendingFace
-        : halfLapActive
-          ? halfLapPendingFace
-          : snapActive
-            ? sourceFace
-            : jointActive
-              ? jointHousingFace
-              : null,
+      fingerJointActive
+        ? fingerJointPendingFace
+        : mortiseTenonActive
+          ? mortiseTenonPendingFace
+          : halfLapActive
+            ? halfLapPendingFace
+            : snapActive
+              ? sourceFace
+              : jointActive
+                ? jointHousingFace
+                : null,
       0xfbbf24,
     )
     updateHighlight(
       hoverHighlightRef.current,
-      mortiseTenonActive
-        ? mortiseTenonHoveredFace
-        : halfLapActive
-          ? halfLapHoveredFace
-          : jointActive
-            ? jointHoveredFace
-            : snapActive || cutActive
-              ? hoveredFace
-              : null,
+      fingerJointActive
+        ? fingerJointHoveredFace
+        : mortiseTenonActive
+          ? mortiseTenonHoveredFace
+          : halfLapActive
+            ? halfLapHoveredFace
+            : jointActive
+              ? jointHoveredFace
+              : snapActive || cutActive
+                ? hoveredFace
+                : null,
       0x60a5fa,
     )
   }, [
@@ -653,6 +681,9 @@ export function Viewport({
     mortiseTenonActive,
     mortiseTenonPendingFace,
     mortiseTenonHoveredFace,
+    fingerJointActive,
+    fingerJointPendingFace,
+    fingerJointHoveredFace,
     parts,
   ])
 
@@ -693,13 +724,18 @@ export function Viewport({
     const mount = mountRef.current
     if (!mount) return
     mount.style.cursor =
-      snapActive || cutActive || jointActive || halfLapActive || mortiseTenonActive
+      snapActive ||
+      cutActive ||
+      jointActive ||
+      halfLapActive ||
+      mortiseTenonActive ||
+      fingerJointActive
         ? 'crosshair'
         : ''
     return () => {
       mount.style.cursor = ''
     }
-  }, [snapActive, cutActive, jointActive, halfLapActive, mortiseTenonActive])
+  }, [snapActive, cutActive, jointActive, halfLapActive, mortiseTenonActive, fingerJointActive])
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 }
