@@ -308,6 +308,42 @@ test('deriveJoint dispatches a mortise-tenon to the M&T deriver', () => {
   expect(r!.cuts).toHaveLength(5)
 })
 
+test('deriveJoint dispatches a finger joint to the finger deriver', () => {
+  const a: BoardPart = {
+    ...housing,
+    id: 'FA',
+    length: 200,
+    width: 80,
+    thickness: 18,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+  }
+  const b: BoardPart = {
+    ...housing,
+    id: 'FB',
+    length: 200,
+    width: 80,
+    thickness: 18,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 90, z: 0 },
+  }
+  const fj = {
+    kind: 'finger' as const,
+    id: 'jf',
+    label: 'Finger joint 1',
+    partAId: 'FA',
+    endA: '+X' as const,
+    partBId: 'FB',
+    endB: '+X' as const,
+    fingerCount: 4,
+    clearance: 0,
+  }
+  const r = deriveJoint(fj, [a, b])
+  expect(r).not.toBeNull()
+  expect(r!.seat!.partId).toBe('FB')
+  expect(r!.cuts).toHaveLength(4)
+})
+
 test('computeDadoGroove: rabbeted with a thickness-end housedEnd keeps the full-thickness groove (no tongue → no narrowing)', () => {
   const thicknessEnd = { ...rabbeted, housedEnd: '+Z' as const }
   // hasTongue is false (housedEnd depth axis is 'z'), so no narrowing.

@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import type { DadoJoint, HalfLapJoint, MortiseTenonJoint } from './types'
+import type { DadoJoint, FingerJoint, HalfLapJoint, MortiseTenonJoint } from './types'
 import { jointInvolves } from './jointInvolves'
 
 const dado: DadoJoint = {
@@ -61,4 +61,22 @@ test('jointInvolves: mortise & tenon matches the mortise/tenon parts', () => {
   expect(jointInvolves(mt, 'MO')).toBe(true)
   expect(jointInvolves(mt, 'TE')).toBe(true)
   expect(jointInvolves(mt, 'X')).toBe(false)
+})
+
+const finger: FingerJoint = {
+  kind: 'finger',
+  id: 'f',
+  label: 'F',
+  partAId: 'FA',
+  endA: '+X',
+  partBId: 'FB',
+  endB: '+X',
+  fingerCount: 5,
+  clearance: 0,
+}
+
+test('jointInvolves: finger joint matches partA/partB', () => {
+  expect(jointInvolves(finger, 'FA')).toBe(true)
+  expect(jointInvolves(finger, 'FB')).toBe(true)
+  expect(jointInvolves(finger, 'X')).toBe(false)
 })

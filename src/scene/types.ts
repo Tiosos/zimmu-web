@@ -179,7 +179,7 @@ export interface FingerJoint {
   clearance: number // mm — widens each cut slot for fit (default 0)
 }
 
-export type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint
+export type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint | FingerJoint
 
 export interface Scene {
   parts: Part[]
