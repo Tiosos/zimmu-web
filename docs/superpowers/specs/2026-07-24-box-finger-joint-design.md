@@ -109,21 +109,34 @@ Returns true iff **all** hold:
    `|worldDir(a, fingerAxisA) · worldDir(b, fingerAxisB)| > 1 − EPS`.
 5. **Equal joint widths:** `|dim_a[fingerAxisA] − dim_b[fingerAxisB]| < WIDTH_EPS` (e.g. 0.01 mm).
 
-### `computeFingerCuts(board, joint, matingThickness, role): BoxCut[]`
+### `computeFingerCuts(board, joint, matingThickness, removeParity, flip): BoxCut[]`
 
-`role` ∈ `'A' | 'B'`. Split the joint width `W = dim[fingerAxis]` into `N = fingerCount` equal
-segments of size `seg = W / N`. Segment `i` spans `[i·seg, (i+1)·seg]` along `fingerAxis`.
+Split the joint width `W = dim[fingerAxis]` into `N = fingerCount` equal segments of size
+`seg = W / N`. Local segment `i` spans `[i·seg, (i+1)·seg]` along `fingerAxis`.
 
-- **A removes odd `i`**, **B removes even `i`** (so A's kept even fingers fill B's removed even
-  slots and vice-versa). Cut count = `⌊N/2⌋` for A, `⌈N/2⌉` for B.
+**Removal is by WORLD segment parity, not local index** — this is essential. Because the seat aligns
+the two boards' physical width spans, the *world* segment at a given position may correspond to a
+*different* local index on each board when their `fingerAxis` directions are anti-parallel. Define
+`worldIndex(i) = flip ? (N − 1 − i) : i`. A board removes local segment `i` iff
+`worldIndex(i) % 2 === removeParity`.
+
+- **A: `removeParity = 1` (world-odd), `flip = false`** (A is the world reference; local = world).
+- **B: `removeParity = 0` (world-even), `flip` computed in `deriveFingerJoint`** (see below).
+- This makes the two boards complementary at every world segment: exactly one has material. (Worked
+  example, N=4, flipped B: A removes world-{1,3}=local-{1,3}; B removes world-{0,2}=local-{3,1} —
+  disjoint in world → interlocks.)
 - Each removed slot is a `BoxCut`:
   - along `seatAx`: from the end inward, depth = `clamp(matingThickness, 0.1, dim[seatAx])`; position
     = `end.startsWith('+') ? dim[seatAx] − depth : 0`.
-  - along `fingerAxis`: `[i·seg, (i+1)·seg]`, then widened by `clearance/2` on each side and clamped
-    to `[0, W]`.
+  - along `fingerAxis`: `[i·seg, (i+1)·seg]`, then widened by `clearance/2` on each side (giving the
+    mating finger a fit gap) and clamped to `[0, W]`. **Clearance note:** both boards widen their
+    slots, so the physical per-side gap between a meshed finger and its slot wall is ≈ `clearance`
+    (i.e. `clearance/2` from each board). Default `clearance = 0` → exact segments (a press fit).
   - along `z`: full thickness `[0, dim.z]`.
-  - id `cut_{joint.id}_finger{i}`; `face: end`; `sourceJointId: joint.id`.
-- Guard `N < 1` → return `[]` (defensive; the panel/creation never produce `N < 1`).
+  - id `cut_{joint.id}_finger{i}`; `face: end`; `sourceJointId: joint.id`. (A and B live on different
+    boards, so identical `finger{i}` ids across the two never collide in one cut list.)
+- Guard `N < 2` → return `[]` (defensive; the panel enforces min 3 and creation clamps to ≥ 3, so
+  `N < 2` only arises from a hand-edited/corrupt file).
 
 ### `computeFingerSeat(a, b, joint): { position: Vec3 }`
 
@@ -137,24 +150,38 @@ The seat places B so that, in world space:
   B's fingers penetrate A to depth `Ta` (along A's thickness normal / B's `seatAx`).
 - **A's `endA` face is flush with B's outer thickness face** — i.e. A's fingers penetrate B to depth
   `Tb` (along `endA`'s normal, which is parallel to B's thickness axis).
-- **The two joint-width spans coincide** along `fingerAxis` (segment `i` of A overlaps segment `i`
-  of B).
+- **The two joint-width spans coincide** along `fingerAxis` (the physical `[0,W]` ranges overlap in
+  world space; the `flip`-aware cut parity then guarantees interlock).
 
-Returns B's new `position` (delta applied to B's current position, like `computeMortiseTenonSeat`,
-so re-deriving with unchanged params is idempotent — no drift).
+**Corner-side determinacy:** `endA`/`endB` fix the two meeting ends but not *which* of A's two
+thickness faces the corner closes on, nor which way each body extends — up to four candidate poses.
+The seat resolves this from **B's current position**: it picks the nearest valid corner (the side of
+A that B is already closest to, and the width-span alignment nearest B's current span). This makes
+auto-seat move B the short way and keeps it **idempotent** once seated — re-deriving with unchanged
+params reselects the same pose (B is now at it), so B does not drift. Manually dragging B to the
+opposite thickness side and re-deriving intentionally flips the corner to follow the user.
+
+Returns B's new `position` (delta applied to B's current position, like `computeMortiseTenonSeat`).
 
 ### `deriveFingerJoint(joint, parts): DeriveResult | null`
 
-Look up A and B; return `null` if either isn't a board or `isValidFingerJoint` fails. Otherwise:
+Look up A and B; return `null` if either isn't a board or `isValidFingerJoint` fails. Otherwise
+compute `flip` (whether B's `fingerAxis` runs opposite A's in world space), and split the cuts:
 
 ```ts
+const flip = worldDir(a, fingerAxisA).dot(worldDir(b, fingerAxisB)) < 0
 const cuts = [
-  ...computeFingerCuts(a, joint, b.thickness, 'A').map((cut) => ({ partId: a.id, cut })),
-  ...computeFingerCuts(b, joint, a.thickness, 'B').map((cut) => ({ partId: b.id, cut })),
+  // A: world-odd, reference direction (flip=false)
+  ...computeFingerCuts(a, joint, b.thickness, 1, false).map((cut) => ({ partId: a.id, cut })),
+  // B: world-even, flip-aware
+  ...computeFingerCuts(b, joint, a.thickness, 0, flip).map((cut) => ({ partId: b.id, cut })),
 ]
 const seat = { partId: b.id, position: computeFingerSeat(a, b, joint).position }
 return { cuts, seat }
 ```
+
+(`fingerAxisA`/`fingerAxisB` are each board's non-thickness in-plane axis of its end; `worldDir`
+rotates a local unit axis into world space via the board's rotation.)
 
 ### Reference fixture (for the geometry tests)
 
@@ -166,11 +193,22 @@ Two equal-width boards forming a right-angle corner:
   parallel to A's; local X → world −Z so its length runs along world Z; local Z → world X),
   `endB = '+X'`.
 
-With `fingerCount = 4, clearance = 0`: `seg = 20`. A removes segments 1,3 (`y ∈ [20,40], [60,80]`),
-each depth = B.thickness 18 (`x ∈ [182,200]`), full z (`[0,18]`) → 2 cuts on A. B removes segments
-0,2, each depth = A.thickness 18, full z → 2 cuts on B. `deriveFingerJoint` → 4 cuts + a seat on B.
-The implementation plan (T1) will hand-compute the exact seated `B.position` and the per-cut
+With `fingerCount = 4, clearance = 0`: `seg = 20`. This is the **non-flip** case (B's `fingerAxis`
+→ world +Y, same as A's), so `flip = false`: A removes segments 1,3 (`y ∈ [20,40], [60,80]`), each
+depth = B.thickness 18 (`x ∈ [182,200]`), full z (`[0,18]`) → 2 cuts on A. B removes world-even = 0,2,
+each depth = A.thickness 18, full z → 2 cuts on B. `deriveFingerJoint` → 4 cuts + a seat on B. The
+implementation plan (T1) will hand-compute the exact seated `B.position` and the per-cut
 positions/sizes as the test's expected values.
+
+**Two additional required fixtures** (per the L99 review, finding I2):
+
+- **Flip case** — B rotated so its `fingerAxis` maps to world **−Y** (e.g. an added `z:180` on top of
+  the `y:90`). `deriveFingerJoint` must set `flip = true`, and B's removed *local* segments must still
+  be **complementary to A in world space** (B removes world-even, which is now the reversed local
+  indices). A test asserts B's world-space finger regions interlock with A's (no overlap, no gap).
+- **Unequal-thickness case** — a valid corner where `Ta ≠ Tb` (equal widths still required). Asserts
+  A's slot depth = `Tb` and B's slot depth = `Ta` (the asymmetric mating depths), and that the corner
+  still closes flush.
 
 ## Interaction
 
@@ -212,8 +250,8 @@ A `j.kind === 'finger'` branch, mirroring the M&T branch's structure:
 - `stale = both boards exist && !isValidFingerJoint(...) ? … : true`.
 - Header (label + `isLead ? 'A' : 'B'` tag + remove ✕), a mate line, and a stale banner
   ("Joint stale — ends must form a right-angle corner of equal width").
-- If `isLead`: a **`Fingers`** integer stepper (`fingerCount`, min 1 — commit
-  `Math.max(1, Math.round(v))`) and a **`Clear`** input (`clearance`, `Math.max(0, v)`).
+- If `isLead`: a **`Fingers`** integer stepper (`fingerCount`, **min 3** — commit
+  `Math.max(3, Math.round(v))`) and a **`Clear`** input (`clearance`, `Math.max(0, v)`).
 - Else: a read-only "Edit from `<A label>`." hint.
 
 All `onUpdateJoint` updater closures sit inside the `j.kind === 'finger'` narrow (the type-hole
@@ -232,10 +270,15 @@ or a minimal stepper — the plan will pick whichever matches the existing contr
 
 - **Geometry (`fingerjoint.test.ts`)** against the reference fixture: `isValidFingerJoint`
   (valid corner; invalid for non-axis-aligned, thickness-end, non-perpendicular, non-parallel
-  widths, unequal widths); `computeFingerCuts` (A removes odd, B removes even; correct count,
-  segment bounds, depth = mating thickness, full thickness, clearance widening); `computeFingerSeat`
-  (B's end-region lands flush in the corner; idempotent); `deriveFingerJoint` (cut split across both
-  boards + seat; stale → null).
+  widths, unequal widths); `computeFingerCuts` (A removes world-odd, B removes world-even; correct
+  count, segment bounds, depth = mating thickness, full thickness, clearance widening);
+  `computeFingerSeat` (B's end-region lands flush in the corner; idempotent — re-derive doesn't
+  drift); `deriveFingerJoint` (cut split across both boards + seat; stale → null).
+- **Flip coverage (required):** the flip fixture (B `fingerAxis` → world −Y) — assert `deriveFingerJoint`
+  produces cuts that interlock in **world** space (A's and B's finger regions are disjoint and cover
+  the full width), catching the C1 direction bug that the non-flip fixture cannot.
+- **Unequal-thickness coverage (required):** the `Ta ≠ Tb` valid fixture — assert A's slot depth =
+  `Tb` and B's slot depth = `Ta`.
 - **Dispatch** (`dado.test.ts`): `deriveJoint` routes `finger` to `deriveFingerJoint`.
 - **Scene** (`useScene.test.ts`): `onAddFingerJoint` creates joint + cuts on both boards + seat in
   one undo entry; undo reverses it.
@@ -270,6 +313,16 @@ or a minimal stepper — the plan will pick whichever matches the existing contr
   not drift B (as with `computeMortiseTenonSeat`).
 - **Euler XYZ assumption:** like the rest of the joint geometry, world-direction math assumes
   `rotationOrder === 'XYZ'`; non-axis-aligned boards are rejected by `isValidFingerJoint`.
-- **Risk — the corner seat is the meatiest new math** (3-axis flush placement). Mitigation: derive
-  it against the reference fixture with hand-computed expected values in T1, exactly as M&T's seat
-  was validated.
+- **World-parity interlock:** finger removal is by **world** segment index (`flip`-aware), not local
+  index — the anti-parallel `fingerAxis` case (reachable by rotating B) otherwise self-collides. This
+  is the C1 finding from the L99 review and is covered by the required flip fixture.
+- **Risk — the corner seat is the meatiest new math** (3-axis flush placement, plus corner-side
+  selection from B's current position). Mitigation: derive it against the reference fixture with
+  hand-computed expected values in T1, exactly as M&T's seat was validated.
+
+## Deferred (not JP6)
+
+- **Mode-system refactor (D1):** JP6 makes six mutually-exclusive viewport modes; each new mode adds
+  cross-cancellation wiring to every other (the `activeMode`-enum refactor deferred since JP4). Worth
+  doing as its **own** slice — folding it into JP6 would break the lean cadence. Flagged in the L99
+  review; raise it as a candidate after JP6 ships.
