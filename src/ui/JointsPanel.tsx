@@ -1,5 +1,6 @@
 import type { BoardPart, DadoJoint, Joint, Part, PartId, Scene } from '../scene/types'
 import { isValidDadoSeat } from '../geom/dado'
+import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidHalfLap } from '../geom/halflap'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { jointInvolves } from '../scene/jointInvolves'
@@ -209,7 +210,67 @@ export function JointsPanel({
             </div>
           )
         }
-        if (j.kind === 'finger') return null
+        if (j.kind === 'finger') {
+          const isLead = j.partAId === part.id
+          const a = scene.parts.find((p) => p.id === j.partAId)
+          const b = scene.parts.find((p) => p.id === j.partBId)
+          const stale =
+            a?.kind === 'board' && b?.kind === 'board'
+              ? !isValidFingerJoint(a, j.endA, b, j.endB)
+              : true
+          return (
+            <div key={j.id} className="border-t border-border/30 pt-1 pb-1">
+              <div className="flex items-center gap-1 py-0.5">
+                <span className="flex-1 text-[11px] text-foreground">{j.label}</span>
+                <span className="text-[10px] text-muted-foreground">{isLead ? 'A' : 'B'}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Remove joint"
+                  className="h-5 w-5 text-destructive hover:text-destructive"
+                  onClick={() => onRemoveJoint(j.id)}
+                >
+                  ✕
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground pb-0.5">
+                {isLead ? '→' : '←'} {partLabel(scene, isLead ? j.partBId : j.partAId)}
+              </p>
+              {stale && (
+                <p className="text-[10px] text-destructive-foreground pb-1">
+                  Joint stale — ends must form a right-angle corner of equal width
+                </p>
+              )}
+              {isLead ? (
+                <>
+                  <JointNumInput
+                    label="Fingers"
+                    value={j.fingerCount}
+                    suffix=""
+                    onCommit={(v) =>
+                      onUpdateJoint(j.id, (jt) => ({
+                        ...jt,
+                        fingerCount: Math.max(3, Math.round(v)),
+                      }))
+                    }
+                  />
+                  <JointNumInput
+                    label="Clear"
+                    value={j.clearance}
+                    suffix="mm"
+                    onCommit={(v) =>
+                      onUpdateJoint(j.id, (jt) => ({ ...jt, clearance: Math.max(0, v) }))
+                    }
+                  />
+                </>
+              ) : (
+                <p className="text-[10px] text-muted-foreground pb-0.5">
+                  Edit from {partLabel(scene, j.partAId)}.
+                </p>
+              )}
+            </div>
+          )
+        }
         const isHousing = j.housingPartId === part.id
         const housing = scene.parts.find((p) => p.id === j.housingPartId)
         const housed = scene.parts.find((p) => p.id === j.housedPartId)

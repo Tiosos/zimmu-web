@@ -703,3 +703,47 @@ describe('Sidebar joints panel — mortise & tenon', () => {
     expect(screen.getByText(/Edit from/)).toBeTruthy()
   })
 })
+
+describe('Sidebar joints panel — finger joint', () => {
+  afterEach(() => cleanup())
+
+  const fjScene = () => ({
+    parts: [
+      makeBoard({ length: 200, width: 80, thickness: 18 }),
+      makeBoard({
+        id: 'board_t2',
+        label: 'Board 2',
+        length: 200,
+        width: 80,
+        thickness: 18,
+        rotation: { x: 0, y: 90, z: 0 },
+      }),
+    ],
+    materials: {},
+    hardware: [],
+    joints: [
+      {
+        kind: 'finger' as const,
+        id: 'jf',
+        label: 'Finger joint 1',
+        partAId: 'board_t1',
+        endA: '+X' as const,
+        partBId: 'board_t2',
+        endB: '+X' as const,
+        fingerCount: 5,
+        clearance: 0,
+      },
+    ],
+  })
+
+  it('shows Fingers / Clear controls for the lead board', () => {
+    render(<Sidebar {...props({ scene: fjScene(), selectedId: 'board_t1' })} />)
+    expect(screen.getByText('Fingers')).toBeTruthy()
+    expect(screen.getByText('Clear')).toBeTruthy()
+  })
+
+  it('shows the read-only hint on the mating board', () => {
+    render(<Sidebar {...props({ scene: fjScene(), selectedId: 'board_t2' })} />)
+    expect(screen.getByText(/Edit from/)).toBeTruthy()
+  })
+})
