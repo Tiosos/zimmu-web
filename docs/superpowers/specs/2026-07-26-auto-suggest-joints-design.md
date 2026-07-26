@@ -1,67 +1,86 @@
 # Auto-Suggest Joints — Design Spec
 
 **Date:** 2026-07-26
-**Status:** approved (brainstorm) → ready for implementation plan
+**Status:** approved (brainstorm) → revised during planning (contact-based detection; finger deferred) → ready for implementation plan
 
 ## Overview
 
 Add a **joint-suggestion** feature: when a single board is selected, Zimmu inspects the boards
 touching it and offers the joint types that would actually work between them, each with a one-click
-**Add**. It answers "what can I join here?" without the user hunting through the six two-click
-joint gestures and discovering only after two clicks that the geometry is stale.
+**Add**. It answers "what can I join here?" without the user hunting through the joint gestures and
+discovering only after two clicks that the geometry is stale.
 
 This is **not** a new joint type and touches **no** kernel, mesh, worker, export, drawing, file
-format, or `Joint` data model. It is a thin, pure read-over of the existing joint validity gates
-plus a UI panel that replays a suggestion through the **existing** `onAdd*` creators. Applying a
-suggestion produces exactly the same joint (cuts + optional seat + single undo entry) as performing
-the two-click gesture by hand.
+format, or `Joint` data model. It is a thin, pure read-over of the scene plus a UI panel that
+replays a suggestion through the **existing** `onAdd*` creators. Applying a suggestion produces
+exactly the same joint (cuts + optional seat + single undo entry) as performing the two-click
+gesture by hand.
 
-The MVP is deliberately narrow (see Non-Goals). Two forks were settled during the brainstorm:
+Two forks were settled during the brainstorm:
 
 - **Trigger: selection-driven.** Suggestions are computed for the one currently-selected board
-  against its neighbours — not a continuous global scan of every pair. Bounded, low-noise, and it
-  reuses the app's existing single-selection model.
+  against its neighbours — not a continuous global scan of every pair.
 - **Surface: a sidebar panel.** A "Suggested joints" section in the selected part's `EditPanel`,
   not an in-viewport chip. No Three.js screen-projection plumbing; fully testable.
+
+## Revision note (why this differs from the brainstorm)
+
+The brainstorm's plan was "enumerate the six faces of each board, run each joint's `isValid*` gate,
+take the first pair that passes." Verification against the real gates during planning showed this is
+**geometrically wrong for four of the five joints**: only `isValidHalfLap` is position-aware. The
+dado, mortise-tenon, tongue-groove, and finger gates check **orientation only** (anti-parallel or
+perpendicular face normals), because the two-click UI depends on the *human* clicking the actually
+touching faces. Blind enumeration would pick the first *orientation*-passing pair — e.g. two edge
+faces far apart — and emit a joint on the wrong faces.
+
+Two consequences, both folded into this revision:
+
+1. **Detection must be contact-based.** A `contactPair()` helper infers the faces that physically
+   meet (from world AABBs), and the existing gates validate *that* pair. See Core Algorithm.
+2. **Finger joints are deferred.** A finger/box joint is a *perpendicular interlocking corner* —
+   a different geometry from the anti-parallel face contacts `contactPair` models. It needs its own
+   corner detector; bolting a second heuristic on now would bloat the MVP. The MVP ships the four
+   joints that share the contact/coplanar model: **half-lap, dado, mortise-tenon, tongue-groove**.
 
 ## Goals
 
 - A pure, browser-free engine `src/scene/suggestJoints.ts`:
   - `suggestJointsFor(selectedId, parts, joints): JointSuggestion[]` — the applicable joints for the
     selected board vs. each neighbouring board.
-  - `areAdjacent(a, b, tol)` — an AABB proximity gate.
+  - `contactPair(a, b)` — infers the physically-meeting face on each board (or `null`).
   - `synthHit(partId, face): FaceHit` — synthesises the minimal `FaceHit` an `onAdd*` creator reads.
 - A `JointSuggestion` discriminated union (in-memory only; **never serialised**).
 - A `src/ui/SuggestionsPanel.tsx` component: one row per suggestion (`<joint type> with <neighbour>`)
   plus an **Add** button; renders nothing when empty.
 - Wiring: an `App.tsx` `useMemo` computing `suggestions` for `selectedId`, an `applySuggestion`
-  dispatcher that routes each suggestion to the matching existing `onAdd*`, and the prop threading
+  dispatcher routing each suggestion to the matching existing `onAdd*`, and the prop threading
   through `Sidebar → EditPanel → SuggestionsPanel`.
-- Tests on the engine seam (applicability, adjacency, already-joined exclusion, a **round-trip**
-  guarantee) and the panel (row rendering + Add wiring).
+- Tests on the engine seam (contact detection, per-type applicability, already-joined exclusion, a
+  **round-trip** guarantee) and the panel (row rendering + Add wiring).
 - Docs: notes file + `project-structure.html`.
 
 ## Non-Goals
 
-- **No continuous / global scanning.** Only the selected board is considered. A board that is
-  hidden, or the selection being empty/non-board, yields no suggestions.
-- **No in-viewport chip / overlay.** Sidebar list only. (The in-viewport affordance can come later.)
-- **No auto-apply, no settings/preferences, no "apply all".** Every joint is one explicit click.
+- **Finger / box joints** — deferred (see Revision note). A follow-up spec adds a perpendicular-corner
+  detector and a fifth `JointSuggestion` variant.
+- **No continuous / global scanning.** Only the selected board is considered. A hidden board, or an
+  empty/non-board selection, yields no suggestions.
+- **No in-viewport chip / overlay.** Sidebar list only.
+- **No auto-apply, no settings, no "apply all".** Every joint is one explicit click.
 - **No new ranking model.** A fixed neighbour-distance-then-kind ordering, capped to a small count.
-- **No board↔dowel (cylinder) joints.** All five joint gates are board↔board; cylinders are ignored.
-- **No new joint parameters exposed at suggest time.** Applying uses each creator's existing
-  defaults (the same values the two-click gesture would produce). The user tunes afterwards in the
-  existing `JointsPanel`.
-- **No contact-face inference.** Face/role assignment is chosen by bounded enumeration against the
-  existing validity gates (see Algorithm); a smarter geometric picker is explicitly deferred.
+- **No board↔dowel (cylinder) joints.** All gates are board↔board; cylinders are ignored.
+- **No new joint parameters at suggest time.** Applying uses each creator's existing defaults (the
+  same values the two-click gesture produces). The user tunes afterwards in the existing `JointsPanel`.
+- **No suggestions for far-apart boards.** Detection requires the boards to be touching/near-touching
+  (post-snap placement). Two boards the user intends to seat together from a distance are joined via
+  the existing two-click gesture, not suggested. (Documented tradeoff — see Risks.)
 
 ## Why no data-model / file-format change
 
-A `JointSuggestion` is a transient, recomputed-on-render value describing *how to call a creator*.
-It is derived state, not scene state — nothing about it is persisted. `FILE_FORMAT_VERSION` is
-unchanged, `types.ts` `Joint`/`Scene` are unchanged, and `reconcileJoints`/`deriveJoint` are
-untouched. Applying a suggestion goes through the same `onAdd*` path as a manual gesture, so the
-resulting `Joint` is indistinguishable from a hand-made one.
+A `JointSuggestion` is transient derived state describing *how to call a creator* — not scene state,
+never persisted. `FILE_FORMAT_VERSION` is unchanged, `types.ts` `Joint`/`Scene` are unchanged, and
+`reconcileJoints`/`deriveJoint` are untouched. Applying a suggestion goes through the same `onAdd*`
+path as a manual gesture, so the resulting `Joint` is indistinguishable from a hand-made one.
 
 ## Data Model (in-memory only — `src/scene/suggestJoints.ts`)
 
@@ -83,7 +102,6 @@ export type JointSuggestion = SuggestionBase &
         tenonPartId: PartId
         tenonEnd: Face
       }
-    | { kind: 'finger'; partAId: PartId; endA: Face; partBId: PartId; endB: Face }
     | {
         kind: 'tongue-groove'
         groovePartId: PartId
@@ -96,97 +114,129 @@ export type JointSuggestion = SuggestionBase &
 
 Each variant carries **exactly** the parts + faces its matching `onAdd*` creator needs — no display
 strings (the panel derives labels from `scene.parts`). `kind` mirrors the corresponding `Joint`
-union tags so the apply dispatcher and the panel's label map can `switch` exhaustively.
+union tags so the apply dispatcher and the panel's label map `switch` exhaustively.
 
 ## Core Algorithm — `suggestJointsFor(selectedId, parts, joints)`
 
-**Preconditions.** Return `[]` immediately if `selectedId == null`, if the selected part is absent,
-or if it is not a **visible board** (`p.kind === 'board' && p.visible`).
+**Preconditions.** Return `[]` if `selectedId == null`, the selected part is absent, or it is not a
+**visible board** (`p.kind === 'board' && p.visible`).
 
-Let `S` be the selected board. For each other part `T` in `parts`:
+Let `S` be the selected board. For each other part `T`:
 
-1. **Skip** unless `T.kind === 'board' && T.visible` and `T.id !== S.id`.
-2. **Adjacency gate.** Skip unless `areAdjacent(S, T, TOUCH_TOL)` (below). This is essential:
-   several validity gates (dado, M&T, finger, T&G) check only *orientation*, so without a proximity
-   gate they pass for correctly-oriented but distant boards.
-3. **Already-joined gate.** Skip the pair entirely if an existing joint already links both:
-   `joints.some(j => jointInvolves(j, S.id) && jointInvolves(j, T.id))`. (One pair may still carry
-   at most one existing joint in the app, but this is the honest test and is future-proof.)
-4. **Per-type applicability** (below). Each type that passes yields **one** `JointSuggestion` for
-   this pair (so a single neighbour can produce several rows — e.g. both a dado and an M&T for a
-   perpendicular tee, which is correct woodworking).
+1. **Skip** unless `T.kind === 'board' && T.visible && T.id !== S.id`.
+2. **Already-joined gate.** Skip the pair if an existing joint already links both:
+   `joints.some(j => jointInvolves(j, S.id) && jointInvolves(j, T.id))`.
+3. **Half-lap** (position-aware gate, no faces): if `isValidHalfLap(S, T)` push
+   `{ kind:'halflap', neighborId: T.id, partAId: S.id, partBId: T.id }`. (Half-lap boards cross and
+   overlap on all axes, so they have no single contact face — detected on their own strong gate.)
+4. **Contact-based joints.** Compute `pair = contactPair(S, T)`. If non-null, classify by the
+   contact faces' local depth axes and validate against the existing gates (below).
 
-### Adjacency — `areAdjacent(a, b, tol)`
+### Contact detection — `contactPair(a, b)`
 
-Reuse `worldAabb(board): { min, max }` from `../geom/halflap` (already exported, parity-tested).
-Two boards are adjacent when their world AABBs **intersect after expanding by `tol` on every axis**:
+All joint gates require **axis-aligned** boards, so every face maps to a world ±axis and each face is
+an axis-aligned rectangle at a known world coordinate. `worldAabb` (from `../geom/halflap`, already
+exported + parity-tested) gives each board's world box.
 
 ```ts
-const A = worldAabb(a)
-const B = worldAabb(b)
-return (['x', 'y', 'z'] as const).every(
-  (ax) => A.min[ax] - tol <= B.max[ax] && B.min[ax] - tol <= A.max[ax],
-)
+type WorldAxis = 'x' | 'y' | 'z'
+const WORLD_AXES: WorldAxis[] = ['x', 'y', 'z']
+const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
+const TOUCH_TOL = 1 // mm
+const EPS = 1e-4
+
+// Local face → world unit normal, via the rotation columns of composeWorldMatrix (THREE-free).
+function worldFaceNormal(b: BoardPart, f: Face): Vec3 {
+  const m = composeWorldMatrix(b) // Float64Array, column-major
+  const col = f.includes('X') ? [m[0], m[1], m[2]] : f.includes('Y') ? [m[4], m[5], m[6]] : [m[8], m[9], m[10]]
+  const s = f[0] === '+' ? 1 : -1
+  return { x: col[0] * s, y: col[1] * s, z: col[2] * s }
+}
+
+// The board's local face whose world normal points along (ax, sign).
+function faceTowardWorld(b: BoardPart, ax: WorldAxis, sign: number): Face | null {
+  for (const f of FACES) {
+    const n = worldFaceNormal(b, f)
+    if (n[ax] * sign > 1 - EPS) return f
+  }
+  return null
+}
+
+export function contactPair(a: BoardPart, b: BoardPart): { faceA: Face; faceB: Face } | null {
+  const A = worldAabb(a)
+  const B = worldAabb(b)
+  let contactAx: WorldAxis | null = null
+  let bestGap = -Infinity
+  for (const ax of WORLD_AXES) {
+    const gap = Math.max(A.min[ax], B.min[ax]) - Math.min(A.max[ax], B.max[ax])
+    if (gap > TOUCH_TOL) return null // separated on this axis → not adjacent at all
+    if (gap > bestGap) {
+      bestGap = gap
+      contactAx = ax
+    }
+  }
+  if (!contactAx) return null
+  const aMid = (A.min[contactAx] + A.max[contactAx]) / 2
+  const bMid = (B.min[contactAx] + B.max[contactAx]) / 2
+  const sign = bMid >= aMid ? 1 : -1 // world direction from A toward B
+  const faceA = faceTowardWorld(a, contactAx, sign)
+  const faceB = faceTowardWorld(b, contactAx, -sign)
+  return faceA && faceB ? { faceA, faceB } : null
+}
 ```
 
-`TOUCH_TOL` = **1 mm** (module const, documented tunable). This covers every joint geometry: dado /
-M&T tees **overlap** (the housed/tenon end penetrates), while finger corners and T&G glue-ups
-**touch** within tolerance. Distant-but-parallel boards fail it.
+**Contact axis = the axis with the largest (least-negative) gap** among the three — i.e. the axis on
+which the boards are only just touching while overlapping on the others. That is the axis they *meet*
+on. `contactPair` returns `null` if the boards are separated on any axis (beyond `TOUCH_TOL`), so it
+doubles as the adjacency gate. By construction `faceA` and `faceB` have exactly opposite world
+normals (they face each other).
 
-### Per-type applicability
+*Assumption:* shallow, post-snap contact — the seat axis has the smallest overlap. Deep penetration
+could flip the argmax; out of scope (documented in Risks).
 
-Faces enumerated in a fixed order: `const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']`.
-All gates operate in **world space** (via `composeWorldMatrix`), so board rotations are already
-accounted for — no extra transform work. For each type, take the **first** gate-passing assignment
-in deterministic enumeration order and stop (≤ one suggestion per pair per kind).
+### Classification & validation (contact pair `faceA` on `S`, `faceB` on `T`)
 
-- **half-lap** — symmetric, no faces:
-  `isValidHalfLap(S, T)` → `{ kind:'halflap', partAId: S.id, partBId: T.id, neighborId: T.id }`.
+Let `dS = faceAxes(faceA).depth`, `dT = faceAxes(faceB).depth` (each `'x' | 'y' | 'z'` — the local
+axis of the face normal: `'z'` = broad thickness face, `'y'` = long edge, `'x'` = end).
 
-- **dado** — enumerate `housing ∈ [S, T]` (in that order), `housed` = the other; over
-  `(hf, he) ∈ FACES × FACES` require **both**:
-  - `faceAxes(he).depth !== 'z'` — the housed end must be a genuine *end*, not a broad thickness
-    face. **This guard is the fix for `isValidDadoSeat`'s weakness:** the raw gate only tests that
-    the two chosen face normals are anti-parallel, which two flat-stacked (laminated) boards also
-    satisfy via their ±Z faces. Excluding `depth === 'z'` ends rules that false positive out and
-    matches the guard `isValidMortiseTenon` already applies to its tenon end.
-  - `isValidDadoSeat(housing, hf, housed, he)`.
-  → `{ kind:'dado', housingPartId, housingFace: hf, housedPartId, housedEnd: he, neighborId: T.id }`.
+- **Perpendicular tee → dado + mortise-tenon** — when **exactly one** contact face is a broad face
+  (`dS === 'z'` XOR `dT === 'z'`). The broad-face board is the housing/mortise; the other is the
+  housed/tenon (its contact face is an end/edge). Then:
+  - if `isValidDadoSeat(housing, housingFace, housed, housedEnd)` → push a `dado` suggestion;
+  - if `isValidMortiseTenon(mortise, mortiseFace, tenon, tenonEnd)` → push a `mortise-tenon`
+    suggestion.
 
-- **mortise-tenon** — enumerate `mortise ∈ [S, T]`, `tenon` = the other; over `(mf, te)`:
-  `isValidMortiseTenon(mortise, mf, tenon, te)` (self-guards: axis-aligned + perpendicular seat +
-  `tenonEnd` not a thickness face) →
-  `{ kind:'mortise-tenon', mortisePartId, mortiseFace: mf, tenonPartId, tenonEnd: te, neighborId }`.
+  Both use the same role assignment (`mortise = housing`, `tenon = housed`). A perpendicular tee is
+  genuinely joinable either way, so offering both is correct.
 
-- **finger** — `a = S, b = T` (S is the lead board that stays put); over `(ea, eb)`:
-  `isValidFingerJoint(S, ea, T, eb)` →
-  `{ kind:'finger', partAId: S.id, endA: ea, partBId: T.id, endB: eb, neighborId: T.id }`.
+- **Coplanar edge glue-up → tongue-groove** — when **both** contact faces are long edges
+  (`dS === 'y' && dT === 'y'`). Role: `groove = S` (stays put), `tongue = T`. If
+  `isValidTongueGroove(S, faceA, T, faceB)` → push a `tongue-groove` suggestion. (`isValidTongueGroove`
+  additionally enforces coplanarity + equal thickness, so a perpendicular L of two edges is rejected.)
 
-- **tongue-groove** — enumerate `groove ∈ [S, T]`, `tongue` = the other; over `(ge, tf)`:
-  `isValidTongueGroove(groove, ge, tongue, tf)` →
-  `{ kind:'tongue-groove', groovePartId, grooveEdge: ge, tonguePartId, tongueEdge: tf, neighborId }`.
+- **Otherwise** (two broad faces = lamination; two ends = butt/corner) → no MVP suggestion.
 
-Both role directions are enumerated where a joint has asymmetric roles (dado, M&T, T&G); the first
-passing `(role, faces)` wins, giving one deterministic suggestion per kind per pair.
+This classification-first approach means each contact pair yields at most a dado+M&T pair *or* a T&G,
+never spurious cross-type noise (e.g. it does **not** offer M&T for a coplanar edge glue-up, which the
+raw orientation gate would wrongly accept).
 
 ### Ordering & cap
 
-Collect all suggestions, then sort by **(neighbour distance ascending, then a fixed `KIND_PRIORITY`)**
-so the nearest neighbour's options group together. Neighbour distance = world-AABB-centre distance
-`S↔T`. `KIND_PRIORITY = ['halflap', 'dado', 'mortise-tenon', 'tongue-groove', 'finger']` (heuristic,
-documented adjustable). Cap the result at `MAX_SUGGESTIONS = 8`.
+Sort by **(neighbour distance ascending, then a fixed `KIND_PRIORITY`)** so the nearest neighbour's
+options group together. Neighbour distance = world-AABB-centre distance `S↔T`.
+`KIND_PRIORITY = ['halflap', 'dado', 'mortise-tenon', 'tongue-groove']`. Cap at `MAX_SUGGESTIONS = 8`.
 
 ### Complexity
 
-Per selection: `(N−1)` neighbours × 5 types × ≤ 36 face pairs × O(1) gate — trivial for realistic
-`N`. Recomputed via `useMemo` keyed on `selectedId`, `scene.parts`, `scene.joints`.
+Per selection: `(N−1)` neighbours × O(1) contact detection + a few gate calls — trivial. Recomputed
+via `useMemo` keyed on `selectedId`, `scene.parts`, `scene.joints`.
 
 ## Apply Path
 
-The five `onAdd*` creators (in `useScene`) read only `partId` and `localFaceNormal` from a `FaceHit`
-(verified: each does `localNormalToFaceString(hit.localFaceNormal)` + a part lookup). So a suggestion
-is replayed by synthesising minimal hits — identical in shape to the `hit()` helper the `useScene`
-tests already use:
+The `onAdd*` creators (in `useScene`) read only `partId` and `localFaceNormal` from a `FaceHit`
+(verified: each does `localNormalToFaceString(hit.localFaceNormal)` + a part lookup). A suggestion is
+replayed by synthesising minimal hits — identical in shape to the `hit()` helper the `useScene` tests
+already use:
 
 ```ts
 const ZERO: Vec3 = { x: 0, y: 0, z: 0 }
@@ -194,14 +244,7 @@ const ZERO: Vec3 = { x: 0, y: 0, z: 0 }
 // geom/{dado,mortisetenon,tonguegroove,fingerjoint}.ts (each keeps its own local copy).
 export function synthHit(partId: PartId, face: Face): FaceHit {
   const n = FACE_NORMALS[face]
-  return {
-    partId,
-    faceNormal: n,
-    faceCenter: ZERO,
-    localFaceNormal: n,
-    localHitPoint: ZERO,
-    hitPoint: ZERO,
-  }
+  return { partId, faceNormal: n, faceCenter: ZERO, localFaceNormal: n, localHitPoint: ZERO, hitPoint: ZERO }
 }
 ```
 
@@ -220,19 +263,17 @@ const applySuggestion = useCallback(
         return onAddJoint(synthHit(s.housingPartId, s.housingFace), synthHit(s.housedPartId, s.housedEnd))
       case 'mortise-tenon':
         return onAddMortiseTenon(synthHit(s.mortisePartId, s.mortiseFace), synthHit(s.tenonPartId, s.tenonEnd))
-      case 'finger':
-        return onAddFingerJoint(synthHit(s.partAId, s.endA), synthHit(s.partBId, s.endB))
       case 'tongue-groove':
         return onAddTongueGroove(synthHit(s.groovePartId, s.grooveEdge), synthHit(s.tonguePartId, s.tongueEdge))
     }
   },
-  [onAddHalfLap, onAddJoint, onAddMortiseTenon, onAddFingerJoint, onAddTongueGroove],
+  [onAddHalfLap, onAddJoint, onAddMortiseTenon, onAddTongueGroove],
 )
 ```
 
 Because it goes through `onAdd*`, apply participates in undo/redo and cut derivation for free. The
-creators **re-validate** internally, so even a stale suggestion (parts moved between render and
-click) fails safely with no joint created rather than producing a broken one.
+creators **re-validate** internally, so a stale suggestion (parts moved between render and click)
+fails safely with no joint created.
 
 ## UI — `src/ui/SuggestionsPanel.tsx`
 
@@ -244,7 +285,6 @@ const KIND_LABEL: Record<JointSuggestion['kind'], string> = {
   halflap: 'Half-lap',
   dado: 'Dado',
   'mortise-tenon': 'Mortise & tenon',
-  finger: 'Finger joint',
   'tongue-groove': 'Tongue & groove',
 }
 
@@ -280,17 +320,16 @@ export function SuggestionsPanel({
 
 `partLabel(scene, id)` is the same one-liner `JointsPanel` uses (find part → `label` ?? `'(deleted)'`).
 The `suggestions` array is already scoped to the selected board by the engine, so the panel needs no
-extra filtering. Keys use array index (order is stable per render; rows are ephemeral and carry no
-input state).
+extra filtering. Keys use array index (rows are ephemeral, carry no input state).
 
 ## Wiring
 
 - **`App.tsx`:**
   - `const suggestions = useMemo(() => suggestJointsFor(selectedId, scene.parts, scene.joints), [selectedId, scene.parts, scene.joints])`.
   - Add the `applySuggestion` dispatcher above.
-  - Pass `suggestions={suggestions}` and `onApplySuggestion={applySuggestion}` to `<Sidebar>`.
-- **`sidebar.tsx`:** add `suggestions` + `onApplySuggestion` to `Sidebar`'s props and to
-  `EditPanel`'s props; render `<SuggestionsPanel suggestions={suggestions} scene={scene} onApply={onApplySuggestion} />`
+  - Pass `suggestions` and `onApplySuggestion={applySuggestion}` to `<Sidebar>`.
+- **`sidebar.tsx`:** add `suggestions` + `onApplySuggestion` to `SidebarProps` and to `EditPanel`'s
+  props; render `<SuggestionsPanel suggestions={suggestions} scene={scene} onApply={onApplySuggestion} />`
   just above `<JointsPanel …>` in `EditPanel`.
 
 No viewport, worker, or geom-kernel change.
@@ -298,59 +337,59 @@ No viewport, worker, or geom-kernel change.
 ## Edge Cases
 
 - **Selection empty / non-board / hidden** → `[]` (panel hidden).
-- **Hidden neighbour** → skipped.
-- **Cylinder parts** → skipped (all gates require boards).
+- **Hidden neighbour / cylinder** → skipped.
 - **Pair already joined** → no suggestion for that pair.
-- **Multiple types applicable to one neighbour** → multiple rows (intended).
-- **Stale-at-click** (parts moved after render, before Add) → creator re-validates and no-ops; no
-  broken joint. (Acceptable; the panel recomputes on the next render anyway.)
-- **Flat laminated boards (±Z faces touching)** → *not* suggested as a dado, thanks to the
-  `faceAxes(he).depth !== 'z'` end-guard.
+- **Perpendicular tee** → both dado and mortise-tenon rows.
+- **Coplanar edge glue-up** → tongue-groove only (M&T *not* offered — classification excludes it).
+- **Face-lamination / butt-corner** → nothing (no MVP joint fits).
+- **Stale-at-click** → creator re-validates and no-ops; panel recomputes next render.
 
 ## Testing
 
-**`src/scene/suggestJoints.test.ts`** (pure, no OCCT, no React):
+**`src/scene/suggestJoints.test.ts`** (pure, no OCCT, no React). Fixtures are **physically coherent**
+(boards actually touching at the declared faces — do *not* reuse the geometrically-arbitrary fixtures
+from the joints' own derivation tests):
 
-- `areAdjacent`: overlapping → true; touching within `TOUCH_TOL` → true; clearly separated → false.
-- `suggestJointsFor` fixtures (construct `BoardPart`s directly with positions/rotations):
+- `contactPair`: a board resting on another's broad face → contact axis + the broad/end faces; two
+  boards edge-to-edge → the two long-edge faces; boards separated beyond `TOUCH_TOL` → `null`.
+- `suggestJointsFor`:
   - Two crossing coplanar equal-thickness boards → a `halflap` suggestion.
-  - A board standing perpendicular into another's broad face → **both** `dado` and `mortise-tenon`.
-  - Two equal-width boards meeting at a right-angle corner → a `finger` suggestion.
-  - Two coplanar equal-thickness boards abutting along a long edge → a `tongue-groove` suggestion.
-  - Correctly-oriented but **distant** boards → `[]` (adjacency gate).
-  - A pair with a pre-existing joint between them → no suggestion for that pair.
+  - A board standing perpendicular on another's broad face, touching → **both** `dado` and
+    `mortise-tenon`.
+  - Two coplanar equal-thickness boards abutting along a long edge → a `tongue-groove` suggestion,
+    and **no** `mortise-tenon` (classification guard).
+  - Boards separated beyond `TOUCH_TOL` → `[]`.
+  - A pair already carrying a joint → no suggestion for that pair.
   - `selectedId` null / a cylinder / a hidden board → `[]`.
-  - **Round-trip (key correctness test):** for every suggestion returned across the fixtures, feed
-    its carried faces back through the matching `isValid*` gate and assert `true` — proving apply can
-    never dead-end on a suggestion the engine surfaced.
-- `synthHit`: `localFaceNormal` equals `FACE_NORMALS[face]`, and
+  - **Round-trip (key correctness test):** for every suggestion returned, feed its carried faces
+    back through the matching `isValid*` gate and assert `true` — apply can never dead-end.
+- `synthHit`: `localFaceNormal === FACE_NORMALS[face]`, and
   `localNormalToFaceString(synthHit(id, face).localFaceNormal) === face` for all six faces.
 
 **`src/ui/SuggestionsPanel.test.tsx`** (happy-dom + testing-library):
 
-- Given N suggestions, renders N rows with `<KIND_LABEL> with <neighbour label>` and an Add button.
+- N suggestions → N rows with `<KIND_LABEL> with <neighbour label>` + an Add button.
 - Clicking Add calls `onApply` with that exact suggestion.
 - Empty suggestions → renders nothing.
 
-The apply dispatch itself needs no new integration test: `synthHit`'s round-trip plus the existing
-`useScene` `onAdd*` tests already cover creator behaviour end-to-end.
+The apply dispatch needs no new integration test: `synthHit`'s round-trip plus the existing
+`useScene` `onAdd*` tests cover creator behaviour end-to-end.
 
 ## Docs
 
-- `docs/superpowers/notes/2026-07-26-auto-suggest-joints-notes.md` — the living notes file (record
-  the dado end-guard rationale, `TOUCH_TOL` choice, ranking heuristic, deferred contact-face
-  inference).
+- `docs/superpowers/notes/2026-07-26-auto-suggest-joints-notes.md` — living notes (record the
+  enumeration-was-wrong discovery, contact-axis heuristic + its shallow-contact assumption,
+  `TOUCH_TOL`, finger-deferral rationale, ranking heuristic).
 - `project-structure.html` — add `src/scene/suggestJoints.ts` and `src/ui/SuggestionsPanel.tsx` and
   a line on the selection→suggestions→apply data flow.
-- **No** `keyboard-shortcuts.md` change — the feature adds no shortcut/mode (it's a panel, not a
-  seventh exclusive viewport gesture).
+- **No** `keyboard-shortcuts.md` change — the feature adds no shortcut/mode.
 
 ## Files Touched
 
 | File | Change |
 | --- | --- |
-| `src/scene/suggestJoints.ts` | **new** — engine + `areAdjacent` + `synthHit` + `JointSuggestion` |
-| `src/scene/suggestJoints.test.ts` | **new** — engine + round-trip + `synthHit` tests |
+| `src/scene/suggestJoints.ts` | **new** — engine + `contactPair` + `synthHit` + `JointSuggestion` |
+| `src/scene/suggestJoints.test.ts` | **new** — contact + engine + round-trip + `synthHit` tests |
 | `src/ui/SuggestionsPanel.tsx` | **new** — the panel |
 | `src/ui/SuggestionsPanel.test.tsx` | **new** — panel render + Add wiring |
 | `src/App.tsx` | `suggestions` memo + `applySuggestion` dispatcher + props to `Sidebar` |
@@ -363,15 +402,17 @@ Untouched: `types.ts`, `useFile.ts` (no format bump), `useScene.ts` (creators re
 
 ## Risks & Open Questions
 
-- **Face-selection heuristic.** "First gate-passing assignment" can, on ambiguous geometry, pick a
-  valid-but-not-ideal face. Mitigations: the adjacency gate narrows candidates, the dado end-guard
-  removes the known false positive, and the round-trip test guarantees every surfaced suggestion is
-  creatable. A geometric contact-face picker is deferred (Non-Goal).
-- **`TOUCH_TOL` = 1 mm** is a judgement call; too large invites noise, too small misses
-  near-but-not-snapped placements. Tunable const; revisit if suggestions feel noisy/sparse.
-- **`KIND_PRIORITY` ordering** is a heuristic, not derived from joint strength; adjustable.
-- **`FACE_NORMALS` duplication.** A fifth private copy is added, consistent with the existing
-  per-file convention in `geom/*`. Consolidating into one shared export is a separate refactor and
-  out of scope here (flagged, not done).
+- **Contact-axis heuristic** assumes shallow post-snap contact (the seat axis has the smallest
+  overlap). Deep penetration could flip the argmax and mis-pick the contact axis. Acceptable for the
+  MVP (users snap boards together before jointing); revisit if it misfires.
+- **`TOUCH_TOL` = 1 mm** — too large invites noise, too small misses near-but-not-snapped placements.
+  Tunable const.
+- **No far-apart suggestions.** Boards the user places apart intending to auto-seat get no suggestion
+  (they use the two-click gesture). Deliberate, to keep the list intent-scoped.
+- **`KIND_PRIORITY`** ordering is a heuristic, not derived from joint strength; adjustable.
+- **Finger deferred** — needs a perpendicular-corner detector (`contactPair` models anti-parallel
+  contact only). Tracked as a fast-follow; adds a fifth `JointSuggestion` variant + an
+  `onAddFingerJoint` dispatcher arm.
+- **`FACE_NORMALS` duplication** — a fifth private copy, consistent with the existing per-file
+  convention in `geom/*`. Consolidation is a separate refactor, out of scope.
 </content>
-</invoke>
