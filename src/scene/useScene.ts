@@ -1018,10 +1018,7 @@ export function useScene(): UseSceneResult {
         Math.max(3, Math.round(groove.thickness / 3)),
         groove.thickness - 2,
       )
-      const tongueDepth = Math.min(
-        Math.max(3, 8),
-        Math.floor(Math.min(groove.width, tongue.width) / 2) - 1,
-      )
+      const tongueDepth = Math.min(8, Math.floor(Math.min(groove.width, tongue.width) / 2) - 1)
       const joint: Joint = {
         kind: 'tongue-groove',
         id: `joint_${crypto.randomUUID()}`,
