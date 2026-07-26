@@ -1751,4 +1751,62 @@ describe('useScene — joints', () => {
     expect(result.current.scene.joints).toHaveLength(0)
     expect(jointCuts()).toBe(0)
   })
+
+  it('onAddTongueGroove creates a tongue-groove joint + cuts on both boards + seat in one undo entry', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    await act(async () => result.current.onAdd('board'))
+    await act(async () => result.current.onAdd('board'))
+    const [Gb, Tb] = result.current.scene.parts
+    await act(async () => {
+      result.current.onUpdate(
+        Gb.id,
+        (p) => ({
+          ...p,
+          length: 800,
+          width: 150,
+          thickness: 18,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+        }),
+        'g',
+      )
+      result.current.onUpdate(
+        Tb.id,
+        (p) => ({
+          ...p,
+          length: 800,
+          width: 150,
+          thickness: 18,
+          position: { x: 0, y: 160, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+        }),
+        't',
+      )
+    })
+    await act(async () => {
+      result.current.onAddTongueGroove(
+        hit(Gb.id, { x: 0, y: 1, z: 0 }), // groove board +Y edge
+        hit(Tb.id, { x: 0, y: -1, z: 0 }), // tongue board -Y edge
+      )
+    })
+    expect(result.current.scene.joints).toHaveLength(1)
+    expect(result.current.scene.joints[0].kind).toBe('tongue-groove')
+    const jointCuts = () =>
+      result.current.scene.parts
+        .filter((p) => p.kind === 'board')
+        .reduce(
+          (n, p) =>
+            n +
+            (p.kind === 'board'
+              ? p.cuts.filter((c) => c.kind === 'box' && c.sourceJointId).length
+              : 0),
+          0,
+        )
+    expect(jointCuts()).toBe(3) // 1 groove + 2 shoulders
+
+    await act(async () => result.current.undo())
+    expect(result.current.scene.joints).toHaveLength(0)
+    expect(jointCuts()).toBe(0)
+  })
 })

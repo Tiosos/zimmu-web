@@ -22,6 +22,7 @@ import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat, computeDadoOffset, defaultDadoDepth } from '../geom/dado'
 import { computeMortiseOffset, isValidMortiseTenon } from '../geom/mortisetenon'
 import { isValidFingerJoint } from '../geom/fingerjoint'
+import { isValidTongueGroove } from '../geom/tonguegroove'
 import { PART_COLORS } from './palette'
 import { composeWorldMatrix } from '../geom/transform'
 
@@ -96,6 +97,7 @@ export interface UseSceneResult {
   onAddHalfLap: (aId: PartId, bId: PartId) => void
   onAddMortiseTenon: (mortiseHit: FaceHit, tenonHit: FaceHit) => void
   onAddFingerJoint: (hitA: FaceHit, hitB: FaceHit) => void
+  onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
   onSelect: (id: PartId | null) => void
@@ -1002,6 +1004,45 @@ export function useScene(): UseSceneResult {
     [commitReconciled],
   )
 
+  const onAddTongueGroove = useCallback(
+    (grooveHit: FaceHit, tongueHit: FaceHit) => {
+      const s = sceneRef.current
+      const groove = s.parts.find((p) => p.id === grooveHit.partId)
+      const tongue = s.parts.find((p) => p.id === tongueHit.partId)
+      if (groove?.kind !== 'board' || tongue?.kind !== 'board' || groove.id === tongue.id) return
+      const grooveEdge = localNormalToFaceString(grooveHit.localFaceNormal)
+      const tongueEdge = localNormalToFaceString(tongueHit.localFaceNormal)
+      if (!isValidTongueGroove(groove, grooveEdge, tongue, tongueEdge)) return
+      const n = s.joints.filter((j) => j.kind === 'tongue-groove').length + 1
+      const tongueThickness = Math.min(
+        Math.max(3, Math.round(groove.thickness / 3)),
+        groove.thickness - 2,
+      )
+      const tongueDepth = Math.min(
+        Math.max(3, 8),
+        Math.floor(Math.min(groove.width, tongue.width) / 2) - 1,
+      )
+      const joint: Joint = {
+        kind: 'tongue-groove',
+        id: `joint_${crypto.randomUUID()}`,
+        label: `Tongue & groove ${n}`,
+        groovePartId: groove.id,
+        grooveEdge,
+        tonguePartId: tongue.id,
+        tongueEdge,
+        tongueThickness,
+        tongueDepth,
+        clearance: 0,
+      }
+      commitReconciled(
+        (prev) => ({ ...prev, joints: [...prev.joints, joint] }),
+        'Add tongue & groove',
+      )
+      setSelectedId(groove.id)
+    },
+    [commitReconciled],
+  )
+
   const onUpdateJoint = useCallback(
     (jointId: string, updater: (j: Joint) => Joint) => {
       if (!sceneRef.current.joints.some((j) => j.id === jointId)) return
@@ -1022,13 +1063,15 @@ export function useScene(): UseSceneResult {
       const joint = sceneRef.current.joints.find((j) => j.id === jointId)
       if (!joint) return
       const label =
-        joint.kind === 'finger'
-          ? 'Remove finger joint'
-          : joint.kind === 'mortise-tenon'
-            ? 'Remove mortise & tenon'
-            : joint.kind === 'halflap'
-              ? 'Remove half-lap'
-              : 'Remove dado'
+        joint.kind === 'tongue-groove'
+          ? 'Remove tongue & groove'
+          : joint.kind === 'finger'
+            ? 'Remove finger joint'
+            : joint.kind === 'mortise-tenon'
+              ? 'Remove mortise & tenon'
+              : joint.kind === 'halflap'
+                ? 'Remove half-lap'
+                : 'Remove dado'
       commitReconciled(
         (prev) => ({ ...prev, joints: prev.joints.filter((j) => j.id !== jointId) }),
         label,
@@ -1131,6 +1174,7 @@ export function useScene(): UseSceneResult {
     onAddHalfLap,
     onAddMortiseTenon,
     onAddFingerJoint,
+    onAddTongueGroove,
     onUpdateJoint,
     onRemoveJoint,
     onSelect,
