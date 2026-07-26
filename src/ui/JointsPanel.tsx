@@ -2,6 +2,7 @@ import type { BoardPart, DadoJoint, Joint, Part, PartId, Scene } from '../scene/
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidHalfLap } from '../geom/halflap'
+import { isValidTongueGroove } from '../geom/tonguegroove'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { jointInvolves } from '../scene/jointInvolves'
 import { Button } from '@/components/ui/button'
@@ -272,7 +273,73 @@ export function JointsPanel({
           )
         }
         if (j.kind === 'tongue-groove') {
-          return <div key={j.id} />
+          const isGroove = j.groovePartId === part.id
+          const groove = scene.parts.find((p) => p.id === j.groovePartId)
+          const tongue = scene.parts.find((p) => p.id === j.tonguePartId)
+          const stale =
+            groove?.kind === 'board' && tongue?.kind === 'board'
+              ? !isValidTongueGroove(groove, j.grooveEdge, tongue, j.tongueEdge)
+              : true
+          return (
+            <div key={j.id} className="border-t border-border/30 pt-1 pb-1">
+              <div className="flex items-center gap-1 py-0.5">
+                <span className="flex-1 text-[11px] text-foreground">{j.label}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {isGroove ? 'groove' : 'tongue'}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Remove joint"
+                  className="h-5 w-5 text-destructive hover:text-destructive"
+                  onClick={() => onRemoveJoint(j.id)}
+                >
+                  ✕
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground pb-0.5">
+                {isGroove ? '→' : '←'}{' '}
+                {partLabel(scene, isGroove ? j.tonguePartId : j.groovePartId)}
+              </p>
+              {stale && (
+                <p className="text-[10px] text-destructive-foreground pb-1">
+                  Joint stale — edges must be facing long edges of equal-thickness boards
+                </p>
+              )}
+              {isGroove ? (
+                <>
+                  <JointNumInput
+                    label="Thk"
+                    value={j.tongueThickness}
+                    suffix="mm"
+                    onCommit={(v) =>
+                      onUpdateJoint(j.id, (jt) => ({ ...jt, tongueThickness: Math.max(0.1, v) }))
+                    }
+                  />
+                  <JointNumInput
+                    label="Depth"
+                    value={j.tongueDepth}
+                    suffix="mm"
+                    onCommit={(v) =>
+                      onUpdateJoint(j.id, (jt) => ({ ...jt, tongueDepth: Math.max(0.1, v) }))
+                    }
+                  />
+                  <JointNumInput
+                    label="Clear"
+                    value={j.clearance}
+                    suffix="mm"
+                    onCommit={(v) =>
+                      onUpdateJoint(j.id, (jt) => ({ ...jt, clearance: Math.max(0, v) }))
+                    }
+                  />
+                </>
+              ) : (
+                <p className="text-[10px] text-muted-foreground pb-0.5">
+                  Edit from {partLabel(scene, j.groovePartId)}.
+                </p>
+              )}
+            </div>
+          )
         }
         const isHousing = j.housingPartId === part.id
         const housing = scene.parts.find((p) => p.id === j.housingPartId)

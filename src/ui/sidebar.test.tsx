@@ -750,3 +750,49 @@ describe('Sidebar joints panel — finger joint', () => {
     expect(screen.getByText(/Edit from/)).toBeTruthy()
   })
 })
+
+describe('Sidebar joints panel — tongue & groove', () => {
+  afterEach(() => cleanup())
+
+  const tgScene = () => ({
+    parts: [
+      makeBoard({ length: 800, width: 150, thickness: 18 }),
+      makeBoard({
+        id: 'board_t2',
+        label: 'Board 2',
+        length: 800,
+        width: 150,
+        thickness: 18,
+        position: { x: 0, y: 160, z: 0 },
+      }),
+    ],
+    materials: {},
+    hardware: [],
+    joints: [
+      {
+        kind: 'tongue-groove' as const,
+        id: 'jtg',
+        label: 'Tongue & groove 1',
+        groovePartId: 'board_t1',
+        grooveEdge: '+Y' as const,
+        tonguePartId: 'board_t2',
+        tongueEdge: '-Y' as const,
+        tongueThickness: 6,
+        tongueDepth: 8,
+        clearance: 0,
+      },
+    ],
+  })
+
+  it('shows Thk / Depth / Clear controls for the groove board', () => {
+    render(<Sidebar {...props({ scene: tgScene(), selectedId: 'board_t1' })} />)
+    expect(screen.getByText('Thk')).toBeTruthy()
+    expect(screen.getByText('Depth')).toBeTruthy()
+    expect(screen.getByText('Clear')).toBeTruthy()
+  })
+
+  it('shows the read-only hint on the tongue board', () => {
+    render(<Sidebar {...props({ scene: tgScene(), selectedId: 'board_t2' })} />)
+    expect(screen.getByText(/Edit from/)).toBeTruthy()
+  })
+})
