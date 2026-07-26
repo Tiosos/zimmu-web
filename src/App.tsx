@@ -1,12 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
-import { useSnap } from './scene/useSnap'
-import { useAddCut } from './scene/useAddCut'
-import { useAddJoint } from './scene/useAddJoint'
-import { useAddHalfLap } from './scene/useAddHalfLap'
-import { useAddMortiseTenon } from './scene/useAddMortiseTenon'
-import { useAddFingerJoint } from './scene/useAddFingerJoint'
+import { useInteractionMode } from './scene/useInteractionMode'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
@@ -67,71 +62,17 @@ function App() {
     [],
   )
 
-  const {
-    snapActive,
-    snapPhase,
-    sourceFace,
-    hoveredFace,
-    activateSnap,
-    cancelSnap,
-    onFaceClick,
-    onFaceHover,
-  } = useSnap({ parts: scene.parts, onUpdate, onRotationSnap: handleRotationSnap })
-
-  const {
-    cutActive,
-    lastPlacedCutId,
-    activateCut,
-    cancelCut,
-    onFaceClick: onFaceClickCut,
-    onFaceHover: onFaceHoverCut,
-    dowelTool,
-    armDowelTool,
-  } = useAddCut({ parts: scene.parts, onUpdate, onSelect })
-
-  const {
-    jointActive,
-    pendingHousing,
-    statusMessage: jointStatus,
-    hoveredFace: jointHoveredFace,
-    activateJoint,
-    cancelJoint,
-    onFaceClick: onFaceClickJoint,
-    onFaceHover: onFaceHoverJoint,
-  } = useAddJoint({ parts: scene.parts, onAddJoint })
-
-  const {
-    halfLapActive,
-    pendingA: halfLapPendingFace,
-    statusMessage: halfLapStatus,
-    hoveredFace: halfLapHoveredFace,
-    activateHalfLap,
-    cancelHalfLap,
-    onFaceClick: onFaceClickHalfLap,
-    onFaceHover: onFaceHoverHalfLap,
-  } = useAddHalfLap({ parts: scene.parts, onAddHalfLap })
-
-  const {
-    mortiseTenonActive,
-    pendingMortise: mortiseTenonPendingFace,
-    statusMessage: mortiseTenonStatus,
-    hoveredFace: mortiseTenonHoveredFace,
-    activateMortiseTenon,
-    cancelMortiseTenon,
-    onFaceClick: onFaceClickMortiseTenon,
-    onFaceHover: onFaceHoverMortiseTenon,
-  } = useAddMortiseTenon({ parts: scene.parts, onAddMortiseTenon })
-
-  const {
-    fingerJointActive,
-    pendingA: fingerJointPendingFace,
-    statusMessage: fingerJointStatus,
-    hoveredFace: fingerJointHoveredFace,
-    activateFingerJoint,
-    cancelFingerJoint,
-    onFaceClick: onFaceClickFingerJoint,
-    onFaceHover: onFaceHoverFingerJoint,
-  } = useAddFingerJoint({ parts: scene.parts, onAddFingerJoint })
+  const mode = useInteractionMode({
+    parts: scene.parts,
+    onUpdate,
+    onSelect,
+    onRotationSnap: handleRotationSnap,
+    onAddJoint,
+    onAddHalfLap,
+    onAddMortiseTenon,
+    onAddFingerJoint,
+  })
+  const { setMode, interactionActive } = mode
 
   const cameraStateRef = useRef<CameraState>({
     position: { x: 250, y: -200, z: 150 },
@@ -184,55 +125,6 @@ function App() {
     })()
   }, [visibleParts, projectName, exportStep])
 
-  const handleActivateCut = useCallback(() => {
-    cancelSnap()
-    cancelJoint()
-    cancelHalfLap()
-    cancelMortiseTenon()
-    cancelFingerJoint()
-    activateCut()
-  }, [cancelSnap, cancelJoint, cancelHalfLap, cancelMortiseTenon, cancelFingerJoint, activateCut])
-  const handleActivateSnap = useCallback(() => {
-    cancelCut()
-    cancelJoint()
-    cancelHalfLap()
-    cancelMortiseTenon()
-    cancelFingerJoint()
-    activateSnap()
-  }, [cancelCut, cancelJoint, cancelHalfLap, cancelMortiseTenon, cancelFingerJoint, activateSnap])
-  const handleActivateJoint = useCallback(() => {
-    cancelCut()
-    cancelSnap()
-    cancelHalfLap()
-    cancelMortiseTenon()
-    cancelFingerJoint()
-    activateJoint()
-  }, [cancelCut, cancelSnap, cancelHalfLap, cancelMortiseTenon, cancelFingerJoint, activateJoint])
-  const handleActivateHalfLap = useCallback(() => {
-    cancelCut()
-    cancelSnap()
-    cancelJoint()
-    cancelMortiseTenon()
-    cancelFingerJoint()
-    activateHalfLap()
-  }, [cancelCut, cancelSnap, cancelJoint, cancelMortiseTenon, cancelFingerJoint, activateHalfLap])
-  const handleActivateMortiseTenon = useCallback(() => {
-    cancelCut()
-    cancelSnap()
-    cancelJoint()
-    cancelHalfLap()
-    cancelFingerJoint()
-    activateMortiseTenon()
-  }, [cancelCut, cancelSnap, cancelJoint, cancelHalfLap, cancelFingerJoint, activateMortiseTenon])
-  const handleActivateFingerJoint = useCallback(() => {
-    cancelCut()
-    cancelSnap()
-    cancelJoint()
-    cancelHalfLap()
-    cancelMortiseTenon()
-    activateFingerJoint()
-  }, [cancelCut, cancelSnap, cancelJoint, cancelHalfLap, cancelMortiseTenon, activateFingerJoint])
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
@@ -242,68 +134,47 @@ function App() {
       if (!mod) {
         if (e.key.toLowerCase() === 'f') {
           e.preventDefault()
-          handleActivateSnap()
+          setMode('snap')
           return
         }
         if (e.key.toLowerCase() === 'c') {
           e.preventDefault()
-          handleActivateCut()
+          setMode('cut')
           return
         }
         if (e.key.toLowerCase() === 'j') {
           e.preventDefault()
-          handleActivateJoint()
+          setMode('dado')
           return
         }
         if (e.key.toLowerCase() === 'l') {
           e.preventDefault()
-          handleActivateHalfLap()
+          setMode('halflap')
           return
         }
         if (e.key.toLowerCase() === 'm') {
           e.preventDefault()
-          handleActivateMortiseTenon()
+          setMode('mortiseTenon')
           return
         }
         if (e.key.toLowerCase() === 'b') {
           e.preventDefault()
-          handleActivateFingerJoint()
+          setMode('finger')
           return
         }
         if (e.key === 'Escape') {
-          if (cutActive) cancelCut()
-          if (snapActive) cancelSnap()
-          if (jointActive) cancelJoint()
-          if (halfLapActive) cancelHalfLap()
-          if (mortiseTenonActive) cancelMortiseTenon()
-          if (fingerJointActive) cancelFingerJoint()
+          setMode('none')
           return
         }
         if (e.key.toLowerCase() === 'h') {
-          if (
-            selectedId &&
-            !snapActive &&
-            !cutActive &&
-            !jointActive &&
-            !halfLapActive &&
-            !mortiseTenonActive &&
-            !fingerJointActive
-          ) {
+          if (selectedId && !interactionActive) {
             e.preventDefault()
             onToggleVisible(selectedId)
           }
           return
         }
         if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (
-            selectedId &&
-            !snapActive &&
-            !cutActive &&
-            !jointActive &&
-            !halfLapActive &&
-            !mortiseTenonActive &&
-            !fingerJointActive
-          ) {
+          if (selectedId && !interactionActive) {
             e.preventDefault()
             onRemove(selectedId)
           }
@@ -362,24 +233,8 @@ function App() {
     onRemove,
     onToggleVisible,
     selectedId,
-    handleActivateCut,
-    handleActivateSnap,
-    handleActivateJoint,
-    handleActivateHalfLap,
-    handleActivateMortiseTenon,
-    handleActivateFingerJoint,
-    cancelCut,
-    cutActive,
-    cancelSnap,
-    snapActive,
-    cancelJoint,
-    jointActive,
-    cancelHalfLap,
-    halfLapActive,
-    cancelMortiseTenon,
-    mortiseTenonActive,
-    cancelFingerJoint,
-    fingerJointActive,
+    setMode,
+    interactionActive,
   ])
 
   if (!fileReady) return null
@@ -434,35 +289,12 @@ function App() {
           onPartClick={onSelect}
           cameraStateRef={cameraStateRef}
           loadedCamera={loadedCamera}
-          snapActive={snapActive}
-          snapPhase={snapPhase}
-          sourceFace={sourceFace}
-          hoveredFace={hoveredFace}
-          onFaceClick={onFaceClick}
-          onFaceHover={onFaceHover}
-          cutActive={cutActive}
-          onFaceClickCut={onFaceClickCut}
-          onFaceHoverCut={onFaceHoverCut}
-          jointActive={jointActive}
-          onFaceClickJoint={onFaceClickJoint}
-          onFaceHoverJoint={onFaceHoverJoint}
-          jointHousingFace={pendingHousing}
-          jointHoveredFace={jointHoveredFace}
-          halfLapActive={halfLapActive}
-          onFaceClickHalfLap={onFaceClickHalfLap}
-          onFaceHoverHalfLap={onFaceHoverHalfLap}
-          halfLapPendingFace={halfLapPendingFace}
-          halfLapHoveredFace={halfLapHoveredFace}
-          mortiseTenonActive={mortiseTenonActive}
-          onFaceClickMortiseTenon={onFaceClickMortiseTenon}
-          onFaceHoverMortiseTenon={onFaceHoverMortiseTenon}
-          mortiseTenonPendingFace={mortiseTenonPendingFace}
-          mortiseTenonHoveredFace={mortiseTenonHoveredFace}
-          fingerJointActive={fingerJointActive}
-          onFaceClickFingerJoint={onFaceClickFingerJoint}
-          onFaceHoverFingerJoint={onFaceHoverFingerJoint}
-          fingerJointPendingFace={fingerJointPendingFace}
-          fingerJointHoveredFace={fingerJointHoveredFace}
+          interactionActive={mode.interactionActive}
+          onFaceClick={mode.onFaceClick}
+          onFaceHover={mode.onFaceHover}
+          sourceFace={mode.sourceFace}
+          hoveredFace={mode.hoveredFace}
+          snapPhase={mode.snapPhase}
           flashTarget={flashTarget}
         />
         <Sidebar
@@ -480,31 +312,31 @@ function App() {
           onRemoveCut={onRemoveCut}
           onLinkCuts={onLinkCuts}
           onUnlinkCuts={onUnlinkCuts}
-          lastPlacedCutId={lastPlacedCutId}
+          lastPlacedCutId={mode.lastPlacedCutId}
           selectedId={selectedId}
           onSelect={onSelect}
           onToggleVisible={onToggleVisible}
-          snapActive={snapActive}
-          snapPhase={snapPhase}
-          onSnapToggle={handleActivateSnap}
-          cutActive={cutActive}
-          onCutToggle={handleActivateCut}
-          dowelTool={dowelTool}
-          armDowelTool={armDowelTool}
+          snapActive={mode.activeMode === 'snap'}
+          snapPhase={mode.snapPhase}
+          onSnapToggle={() => mode.setMode('snap')}
+          cutActive={mode.activeMode === 'cut'}
+          onCutToggle={() => mode.setMode('cut')}
+          dowelTool={mode.dowelTool}
+          armDowelTool={mode.armDowelTool}
           onUpdateJoint={onUpdateJoint}
           onRemoveJoint={onRemoveJoint}
-          jointActive={jointActive}
-          onJointToggle={handleActivateJoint}
-          jointStatus={jointStatus}
-          halfLapActive={halfLapActive}
-          onHalfLapToggle={handleActivateHalfLap}
-          halfLapStatus={halfLapStatus}
-          mortiseTenonActive={mortiseTenonActive}
-          onMortiseTenonToggle={handleActivateMortiseTenon}
-          mortiseTenonStatus={mortiseTenonStatus}
-          fingerJointActive={fingerJointActive}
-          onFingerJointToggle={handleActivateFingerJoint}
-          fingerJointStatus={fingerJointStatus}
+          jointActive={mode.activeMode === 'dado'}
+          onJointToggle={() => mode.setMode('dado')}
+          jointStatus={mode.statuses.dado}
+          halfLapActive={mode.activeMode === 'halflap'}
+          onHalfLapToggle={() => mode.setMode('halflap')}
+          halfLapStatus={mode.statuses.halflap}
+          mortiseTenonActive={mode.activeMode === 'mortiseTenon'}
+          onMortiseTenonToggle={() => mode.setMode('mortiseTenon')}
+          mortiseTenonStatus={mode.statuses.mortiseTenon}
+          fingerJointActive={mode.activeMode === 'finger'}
+          onFingerJointToggle={() => mode.setMode('finger')}
+          fingerJointStatus={mode.statuses.finger}
         />
       </div>
       {cuttingListOpen && (

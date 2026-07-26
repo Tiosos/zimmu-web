@@ -18,35 +18,12 @@ interface ViewportProps {
   onPartClick: (id: PartId | null) => void
   cameraStateRef: { current: CameraState }
   loadedCamera: CameraState | null
-  snapActive: boolean
-  snapPhase: 'idle' | 'source-picked'
-  sourceFace: FaceHit | null
-  hoveredFace: FaceHit | null
+  interactionActive: boolean
   onFaceClick: (hit: FaceHit) => void
   onFaceHover: (hit: FaceHit | null) => void
-  cutActive: boolean
-  onFaceClickCut: (hit: FaceHit) => void
-  onFaceHoverCut: (hit: FaceHit | null) => void
-  jointActive: boolean
-  onFaceClickJoint: (hit: FaceHit) => void
-  onFaceHoverJoint: (hit: FaceHit | null) => void
-  jointHousingFace: FaceHit | null
-  jointHoveredFace: FaceHit | null
-  halfLapActive: boolean
-  onFaceClickHalfLap: (hit: FaceHit) => void
-  onFaceHoverHalfLap: (hit: FaceHit | null) => void
-  halfLapPendingFace: FaceHit | null
-  halfLapHoveredFace: FaceHit | null
-  mortiseTenonActive: boolean
-  onFaceClickMortiseTenon: (hit: FaceHit) => void
-  onFaceHoverMortiseTenon: (hit: FaceHit | null) => void
-  mortiseTenonPendingFace: FaceHit | null
-  mortiseTenonHoveredFace: FaceHit | null
-  fingerJointActive: boolean
-  onFaceClickFingerJoint: (hit: FaceHit) => void
-  onFaceHoverFingerJoint: (hit: FaceHit | null) => void
-  fingerJointPendingFace: FaceHit | null
-  fingerJointHoveredFace: FaceHit | null
+  sourceFace: FaceHit | null
+  hoveredFace: FaceHit | null
+  snapPhase: 'idle' | 'source-picked'
   flashTarget?: { id: PartId; seq: number } | null
 }
 
@@ -57,35 +34,12 @@ export function Viewport({
   onPartClick,
   cameraStateRef,
   loadedCamera,
-  snapActive,
-  snapPhase,
-  sourceFace,
-  hoveredFace,
+  interactionActive,
   onFaceClick,
   onFaceHover,
-  cutActive,
-  onFaceClickCut,
-  onFaceHoverCut,
-  jointActive,
-  onFaceClickJoint,
-  onFaceHoverJoint,
-  jointHousingFace,
-  jointHoveredFace,
-  halfLapActive,
-  onFaceClickHalfLap,
-  onFaceHoverHalfLap,
-  halfLapPendingFace,
-  halfLapHoveredFace,
-  mortiseTenonActive,
-  onFaceClickMortiseTenon,
-  onFaceHoverMortiseTenon,
-  mortiseTenonPendingFace,
-  mortiseTenonHoveredFace,
-  fingerJointActive,
-  onFaceClickFingerJoint,
-  onFaceHoverFingerJoint,
-  fingerJointPendingFace,
-  fingerJointHoveredFace,
+  sourceFace,
+  hoveredFace,
+  snapPhase,
   flashTarget,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
@@ -99,24 +53,9 @@ export function Viewport({
   const mouseDown = useRef<{ x: number; y: number } | null>(null)
   const onClickRef = useRef(onPartClick)
   const partsRef = useRef<Part[]>(parts)
-  const snapActiveRef = useRef(snapActive)
+  const interactionActiveRef = useRef(interactionActive)
   const onFaceClickRef = useRef(onFaceClick)
   const onFaceHoverRef = useRef(onFaceHover)
-  const cutActiveRef = useRef(cutActive)
-  const onFaceClickCutRef = useRef(onFaceClickCut)
-  const onFaceHoverCutRef = useRef(onFaceHoverCut)
-  const jointActiveRef = useRef(jointActive)
-  const onFaceClickJointRef = useRef(onFaceClickJoint)
-  const onFaceHoverJointRef = useRef(onFaceHoverJoint)
-  const halfLapActiveRef = useRef(halfLapActive)
-  const onFaceClickHalfLapRef = useRef(onFaceClickHalfLap)
-  const onFaceHoverHalfLapRef = useRef(onFaceHoverHalfLap)
-  const mortiseTenonActiveRef = useRef(mortiseTenonActive)
-  const onFaceClickMortiseTenonRef = useRef(onFaceClickMortiseTenon)
-  const onFaceHoverMortiseTenonRef = useRef(onFaceHoverMortiseTenon)
-  const fingerJointActiveRef = useRef(fingerJointActive)
-  const onFaceClickFingerJointRef = useRef(onFaceClickFingerJoint)
-  const onFaceHoverFingerJointRef = useRef(onFaceHoverFingerJoint)
   const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
   const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
   const ghostMeshRef = useRef<THREE.Mesh | null>(null)
@@ -128,25 +67,10 @@ export function Viewport({
   useLayoutEffect(() => {
     onClickRef.current = onPartClick
     partsRef.current = parts
-    snapActiveRef.current = snapActive
-    snapPhaseRef.current = snapPhase
+    interactionActiveRef.current = interactionActive
     onFaceClickRef.current = onFaceClick
     onFaceHoverRef.current = onFaceHover
-    cutActiveRef.current = cutActive
-    onFaceClickCutRef.current = onFaceClickCut
-    onFaceHoverCutRef.current = onFaceHoverCut
-    jointActiveRef.current = jointActive
-    onFaceClickJointRef.current = onFaceClickJoint
-    onFaceHoverJointRef.current = onFaceHoverJoint
-    halfLapActiveRef.current = halfLapActive
-    onFaceClickHalfLapRef.current = onFaceClickHalfLap
-    onFaceHoverHalfLapRef.current = onFaceHoverHalfLap
-    mortiseTenonActiveRef.current = mortiseTenonActive
-    onFaceClickMortiseTenonRef.current = onFaceClickMortiseTenon
-    onFaceHoverMortiseTenonRef.current = onFaceHoverMortiseTenon
-    fingerJointActiveRef.current = fingerJointActive
-    onFaceClickFingerJointRef.current = onFaceClickFingerJoint
-    onFaceHoverFingerJointRef.current = onFaceHoverFingerJoint
+    snapPhaseRef.current = snapPhase
     selectedIdRef.current = selectedId
   })
 
@@ -388,37 +312,12 @@ export function Viewport({
         false,
       )
 
-      if (fingerJointActiveRef.current) {
-        if (hits.length > 0) {
-          const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
-          if (faceHit) onFaceClickFingerJointRef.current(faceHit)
-        }
-      } else if (mortiseTenonActiveRef.current) {
-        if (hits.length > 0) {
-          const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
-          if (faceHit) onFaceClickMortiseTenonRef.current(faceHit)
-        }
-      } else if (halfLapActiveRef.current) {
-        if (hits.length > 0) {
-          const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
-          if (faceHit) onFaceClickHalfLapRef.current(faceHit)
-        }
-      } else if (jointActiveRef.current) {
-        if (hits.length > 0) {
-          const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
-          if (faceHit) onFaceClickJointRef.current(faceHit)
-        }
-      } else if (cutActiveRef.current) {
-        if (hits.length > 0) {
-          const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
-          if (faceHit) onFaceClickCutRef.current(faceHit)
-        }
-      } else if (snapActiveRef.current) {
-        // Snap mode: route to onFaceClick; ignore miss (don't deselect)
+      if (interactionActiveRef.current) {
         if (hits.length > 0) {
           const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
           if (faceHit) onFaceClickRef.current(faceHit)
         }
+        // in-mode: a miss is ignored (no deselect)
       } else {
         // Normal mode: route to onPartClick
         if (hits.length > 0) {
@@ -438,15 +337,7 @@ export function Viewport({
       lastMouseRef.current = { x: e.clientX, y: e.clientY }
       cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = requestAnimationFrame(() => {
-        if (
-          !snapActiveRef.current &&
-          !cutActiveRef.current &&
-          !jointActiveRef.current &&
-          !halfLapActiveRef.current &&
-          !mortiseTenonActiveRef.current &&
-          !fingerJointActiveRef.current
-        )
-          return
+        if (!interactionActiveRef.current) return
         const { x, y } = lastMouseRef.current
         const rect = renderer.domElement.getBoundingClientRect()
         const nx = ((x - rect.left) / rect.width) * 2 - 1
@@ -458,19 +349,9 @@ export function Viewport({
         )
         if (hits.length > 0) {
           const hit = buildFaceHit(hits[0], meshes.current, partsRef.current)
-          if (fingerJointActiveRef.current) onFaceHoverFingerJointRef.current(hit)
-          else if (mortiseTenonActiveRef.current) onFaceHoverMortiseTenonRef.current(hit)
-          else if (halfLapActiveRef.current) onFaceHoverHalfLapRef.current(hit)
-          else if (jointActiveRef.current) onFaceHoverJointRef.current(hit)
-          else if (cutActiveRef.current) onFaceHoverCutRef.current(hit)
-          else onFaceHoverRef.current(hit)
+          onFaceHoverRef.current(hit)
         } else {
-          if (fingerJointActiveRef.current) onFaceHoverFingerJointRef.current(null)
-          else if (mortiseTenonActiveRef.current) onFaceHoverMortiseTenonRef.current(null)
-          else if (halfLapActiveRef.current) onFaceHoverHalfLapRef.current(null)
-          else if (jointActiveRef.current) onFaceHoverJointRef.current(null)
-          else if (cutActiveRef.current) onFaceHoverCutRef.current(null)
-          else onFaceHoverRef.current(null)
+          onFaceHoverRef.current(null)
         }
       })
     }
@@ -637,55 +518,9 @@ export function Viewport({
       loop.visible = true
     }
 
-    updateHighlight(
-      sourceHighlightRef.current,
-      fingerJointActive
-        ? fingerJointPendingFace
-        : mortiseTenonActive
-          ? mortiseTenonPendingFace
-          : halfLapActive
-            ? halfLapPendingFace
-            : snapActive
-              ? sourceFace
-              : jointActive
-                ? jointHousingFace
-                : null,
-      0xfbbf24,
-    )
-    updateHighlight(
-      hoverHighlightRef.current,
-      fingerJointActive
-        ? fingerJointHoveredFace
-        : mortiseTenonActive
-          ? mortiseTenonHoveredFace
-          : halfLapActive
-            ? halfLapHoveredFace
-            : jointActive
-              ? jointHoveredFace
-              : snapActive || cutActive
-                ? hoveredFace
-                : null,
-      0x60a5fa,
-    )
-  }, [
-    snapActive,
-    cutActive,
-    jointActive,
-    sourceFace,
-    hoveredFace,
-    jointHousingFace,
-    jointHoveredFace,
-    halfLapActive,
-    halfLapPendingFace,
-    halfLapHoveredFace,
-    mortiseTenonActive,
-    mortiseTenonPendingFace,
-    mortiseTenonHoveredFace,
-    fingerJointActive,
-    fingerJointPendingFace,
-    fingerJointHoveredFace,
-    parts,
-  ])
+    updateHighlight(sourceHighlightRef.current, sourceFace, 0xfbbf24)
+    updateHighlight(hoverHighlightRef.current, hoveredFace, 0x60a5fa)
+  }, [sourceFace, hoveredFace, snapPhase, parts])
 
   // Ghost mesh — semi-transparent preview of the source part at its snapped destination
   useEffect(() => {
@@ -723,19 +558,11 @@ export function Viewport({
   useEffect(() => {
     const mount = mountRef.current
     if (!mount) return
-    mount.style.cursor =
-      snapActive ||
-      cutActive ||
-      jointActive ||
-      halfLapActive ||
-      mortiseTenonActive ||
-      fingerJointActive
-        ? 'crosshair'
-        : ''
+    mount.style.cursor = interactionActive ? 'crosshair' : ''
     return () => {
       mount.style.cursor = ''
     }
-  }, [snapActive, cutActive, jointActive, halfLapActive, mortiseTenonActive, fingerJointActive])
+  }, [interactionActive])
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 }
