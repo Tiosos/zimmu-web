@@ -40,6 +40,7 @@ const setup = (parts: Part[] = [boardA, boardB]) => {
       onAddHalfLap: vi.fn(),
       onAddMortiseTenon: vi.fn(),
       onAddFingerJoint: vi.fn(),
+      onAddTongueGroove: vi.fn(),
     }),
   )
   return { ...r, onAddJoint }
@@ -98,4 +99,13 @@ test('click is a no-op when no mode is active', () => {
   act(() => result.current.onFaceClick(hit('A', { x: 0, y: 0, z: 1 })))
   expect(onAddJoint).not.toHaveBeenCalled()
   expect(result.current.sourceFace).toBeNull()
+})
+
+test('setMode activates tongue-groove exclusively and toggles off', () => {
+  const { result } = setup()
+  act(() => result.current.setMode('mortiseTenon'))
+  act(() => result.current.setMode('tongueGroove'))
+  expect(result.current.activeMode).toBe('tongueGroove') // mortiseTenon cancelled
+  act(() => result.current.setMode('tongueGroove'))
+  expect(result.current.activeMode).toBe('none')
 })

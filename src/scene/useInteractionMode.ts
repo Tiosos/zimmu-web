@@ -7,6 +7,7 @@ import { useAddJoint } from './useAddJoint'
 import { useAddHalfLap } from './useAddHalfLap'
 import { useAddMortiseTenon } from './useAddMortiseTenon'
 import { useAddFingerJoint } from './useAddFingerJoint'
+import { useAddTongueGroove } from './useAddTongueGroove'
 
 export type InteractionMode =
   | 'none'
@@ -16,6 +17,7 @@ export type InteractionMode =
   | 'halflap'
   | 'mortiseTenon'
   | 'finger'
+  | 'tongueGroove'
 
 export interface UseInteractionModeParams {
   parts: Part[]
@@ -26,6 +28,7 @@ export interface UseInteractionModeParams {
   onAddHalfLap: (aId: PartId, bId: PartId) => void
   onAddMortiseTenon: (mortiseHit: FaceHit, tenonHit: FaceHit) => void
   onAddFingerJoint: (hitA: FaceHit, hitB: FaceHit) => void
+  onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
 }
 
 export interface UseInteractionModeResult {
@@ -42,6 +45,7 @@ export interface UseInteractionModeResult {
     halflap: string | null
     mortiseTenon: string | null
     finger: string | null
+    tongueGroove: string | null
   }
   lastPlacedCutId: CutId | null
   dowelTool: DowelCutTool | null
@@ -56,6 +60,10 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
   const halfLap = useAddHalfLap({ parts, onAddHalfLap: params.onAddHalfLap })
   const mortiseTenon = useAddMortiseTenon({ parts, onAddMortiseTenon: params.onAddMortiseTenon })
   const finger = useAddFingerJoint({ parts, onAddFingerJoint: params.onAddFingerJoint })
+  const tongueGroove = useAddTongueGroove({
+    parts,
+    onAddTongueGroove: params.onAddTongueGroove,
+  })
 
   const activeMode: InteractionMode = snap.snapActive
     ? 'snap'
@@ -69,7 +77,9 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
             ? 'mortiseTenon'
             : finger.fingerJointActive
               ? 'finger'
-              : 'none'
+              : tongueGroove.tongueGrooveActive
+                ? 'tongueGroove'
+                : 'none'
 
   const { cancelSnap, activateSnap } = snap
   const { cancelCut, activateCut } = cut
@@ -77,6 +87,7 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
   const { cancelHalfLap, activateHalfLap } = halfLap
   const { cancelMortiseTenon, activateMortiseTenon } = mortiseTenon
   const { cancelFingerJoint, activateFingerJoint } = finger
+  const { cancelTongueGroove, activateTongueGroove } = tongueGroove
 
   const { onFaceClick: snapClick, onFaceHover: snapHover } = snap
   const { onFaceClick: cutClick, onFaceHover: cutHover } = cut
@@ -84,6 +95,7 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
   const { onFaceClick: halfLapClick, onFaceHover: halfLapHover } = halfLap
   const { onFaceClick: mtClick, onFaceHover: mtHover } = mortiseTenon
   const { onFaceClick: fingerClick, onFaceHover: fingerHover } = finger
+  const { onFaceClick: tgClick, onFaceHover: tgHover } = tongueGroove
 
   const setMode = useCallback(
     (mode: InteractionMode) => {
@@ -95,12 +107,14 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
       if (mode !== 'halflap') cancelHalfLap()
       if (mode !== 'mortiseTenon') cancelMortiseTenon()
       if (mode !== 'finger') cancelFingerJoint()
+      if (mode !== 'tongueGroove') cancelTongueGroove()
       if (mode === 'snap') activateSnap()
       else if (mode === 'cut') activateCut()
       else if (mode === 'dado') activateJoint()
       else if (mode === 'halflap') activateHalfLap()
       else if (mode === 'mortiseTenon') activateMortiseTenon()
       else if (mode === 'finger') activateFingerJoint()
+      else if (mode === 'tongueGroove') activateTongueGroove()
     },
     [
       cancelSnap,
@@ -109,12 +123,14 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
       cancelHalfLap,
       cancelMortiseTenon,
       cancelFingerJoint,
+      cancelTongueGroove,
       activateSnap,
       activateCut,
       activateJoint,
       activateHalfLap,
       activateMortiseTenon,
       activateFingerJoint,
+      activateTongueGroove,
     ],
   )
 
@@ -139,9 +155,12 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
         case 'finger':
           fingerClick(hit)
           break
+        case 'tongueGroove':
+          tgClick(hit)
+          break
       }
     },
-    [activeMode, snapClick, cutClick, jointClick, halfLapClick, mtClick, fingerClick],
+    [activeMode, snapClick, cutClick, jointClick, halfLapClick, mtClick, fingerClick, tgClick],
   )
 
   const onFaceHover = useCallback(
@@ -165,9 +184,12 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
         case 'finger':
           fingerHover(hit)
           break
+        case 'tongueGroove':
+          tgHover(hit)
+          break
       }
     },
-    [activeMode, snapHover, cutHover, jointHover, halfLapHover, mtHover, fingerHover],
+    [activeMode, snapHover, cutHover, jointHover, halfLapHover, mtHover, fingerHover, tgHover],
   )
 
   const sourceFace: FaceHit | null =
@@ -181,7 +203,9 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
             ? mortiseTenon.pendingMortise
             : activeMode === 'finger'
               ? finger.pendingA
-              : null
+              : activeMode === 'tongueGroove'
+                ? tongueGroove.pendingA
+                : null
 
   const hoveredFace: FaceHit | null =
     activeMode === 'snap'
@@ -194,7 +218,9 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
             ? mortiseTenon.hoveredFace
             : activeMode === 'finger'
               ? finger.hoveredFace
-              : null
+              : activeMode === 'tongueGroove'
+                ? tongueGroove.hoveredFace
+                : null
 
   return {
     activeMode,
@@ -210,6 +236,7 @@ export function useInteractionMode(params: UseInteractionModeParams): UseInterac
       halflap: halfLap.statusMessage,
       mortiseTenon: mortiseTenon.statusMessage,
       finger: finger.statusMessage,
+      tongueGroove: tongueGroove.statusMessage,
     },
     lastPlacedCutId: cut.lastPlacedCutId,
     dowelTool: cut.dowelTool,

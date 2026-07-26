@@ -72,6 +72,9 @@ interface SidebarProps {
   fingerJointActive: boolean
   onFingerJointToggle: () => void
   fingerJointStatus: string | null
+  tongueGrooveActive: boolean
+  onTongueGrooveToggle: () => void
+  tongueGrooveStatus: string | null
 }
 
 function DimInput({
@@ -828,6 +831,9 @@ export function Sidebar({
   fingerJointActive,
   onFingerJointToggle,
   fingerJointStatus,
+  tongueGrooveActive,
+  onTongueGrooveToggle,
+  tongueGrooveStatus,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -908,6 +914,19 @@ export function Sidebar({
             {fingerJointActive && (
               <span className="text-[10px] text-muted-foreground font-normal">
                 {fingerJointStatus ?? 'Click first board, then second board · Esc to cancel'}
+              </span>
+            )}
+          </Button>
+          <Button
+            variant={tongueGrooveActive ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={onTongueGrooveToggle}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${tongueGrooveActive ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
+          >
+            <span>{tongueGrooveActive ? 'Tongue & groove' : 'Add Tongue & groove'}</span>
+            {tongueGrooveActive && (
+              <span className="text-[10px] text-muted-foreground font-normal">
+                {tongueGrooveStatus ?? 'Click groove edge, then tongue edge · Esc to cancel'}
               </span>
             )}
           </Button>

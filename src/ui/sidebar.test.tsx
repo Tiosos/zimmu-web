@@ -94,6 +94,9 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     fingerJointActive: false,
     onFingerJointToggle: vi.fn(),
     fingerJointStatus: null,
+    tongueGrooveActive: false,
+    onTongueGrooveToggle: vi.fn(),
+    tongueGrooveStatus: null,
     ...overrides,
   }
 }

@@ -39,6 +39,7 @@ function App() {
     onAddHalfLap,
     onAddMortiseTenon,
     onAddFingerJoint,
+    onAddTongueGroove,
     onUpdateJoint,
     onRemoveJoint,
     onSelect,
@@ -71,6 +72,7 @@ function App() {
     onAddHalfLap,
     onAddMortiseTenon,
     onAddFingerJoint,
+    onAddTongueGroove,
   })
   const { setMode, interactionActive } = mode
 
@@ -160,6 +162,11 @@ function App() {
         if (e.key.toLowerCase() === 'b') {
           e.preventDefault()
           setMode('finger')
+          return
+        }
+        if (e.key.toLowerCase() === 't') {
+          e.preventDefault()
+          setMode('tongueGroove')
           return
         }
         if (e.key === 'Escape') {
@@ -337,6 +344,9 @@ function App() {
           fingerJointActive={mode.activeMode === 'finger'}
           onFingerJointToggle={() => mode.setMode('finger')}
           fingerJointStatus={mode.statuses.finger}
+          tongueGrooveActive={mode.activeMode === 'tongueGroove'}
+          onTongueGrooveToggle={() => mode.setMode('tongueGroove')}
+          tongueGrooveStatus={mode.statuses.tongueGroove}
         />
       </div>
       {cuttingListOpen && (
