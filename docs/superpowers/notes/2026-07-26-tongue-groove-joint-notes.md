@@ -28,3 +28,10 @@
 - `FILE_FORMAT_VERSION` 9 → 10 (adds `tongue-groove`; inert backfill defaults in `parseFile`).
 - No OCCT/mesh/export/drawing change — ordinary `BoxCut`s. Interactive 3D verification is a human step
   (OCCT WASM doesn't boot headless).
+- **Known minor edges (non-blocking):** (1) the `tongueDepth` default is `Math.min(8, floor(min(width)/2)−1)`
+  — for real boards (≥ 8 mm wide) it's always 8; on absurdly narrow boards it can seed below the spec's
+  nominal 3 mm floor, but downstream `clamp(…, 0.1, …)` keeps every cut valid. (2) `isValidTongueGroove`
+  requires equal *thickness* but not equal *width* (edge glue-ups legitimately mix widths); the seat clamps
+  its depth by the groove board's width while the shoulders clamp by the tongue board's width, so a
+  *manually* over-large `tongueDepth` on boards narrower than the tongue depth could leave a small gap or
+  interference — unreachable via the create defaults (clamped by `min(groove.width, tongue.width)`).
