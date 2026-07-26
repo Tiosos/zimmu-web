@@ -530,6 +530,7 @@
           <tr><td><code>useAddHalfLap.ts</code></td><td>Two-click half-lap-joint creation state machine (first board → overlapping second board). Fed <code>FaceHit</code>s from the raycaster.</td></tr>
           <tr><td><code>useAddMortiseTenon.ts</code></td><td>Two-click mortise-&amp;-tenon-joint creation state machine (mortise face → perpendicular tenon end). Fed <code>FaceHit</code>s from the raycaster.</td></tr>
           <tr><td><code>useAddFingerJoint.ts</code></td><td>Two-click box/finger-joint creation state machine (one board's end → perpendicular equal-width end of another). Fed <code>FaceHit</code>s from the raycaster.</td></tr>
+          <tr><td><code>useInteractionMode.ts</code></td><td>Coordinator composing the six gesture hooks (snap, cut, dado, half-lap, mortise-tenon, finger) into one exclusive <code>activeMode</code> + normalized <code>{ onFaceClick, onFaceHover, sourceFace, hoveredFace, interactionActive, snapPhase }</code> bundle for the viewport.</td></tr>
           <tr><td><code>reconcileJoints.ts</code></td><td>Pure, idempotent regeneration of joint-derived groove cuts + seated positions from <code>Scene.joints</code>. Run after every joint-affecting mutation and on file load.</td></tr>
           <tr><td><code>useMaterialLibrary.ts</code></td><td>Loads/persists material cost rates via the IDB <code>library</code> store.</td></tr>
           <tr><td><code>palette.ts</code></td><td><code>PART_COLORS</code> preset swatches array.</td></tr>

@@ -140,6 +140,7 @@ src/
 │   ├── snapMath.ts      Pure face/cut geometry math (faceAxes, computeSnapDelta) — no React
 │   ├── useSnap.ts       Face-to-face snap-align interaction state machine
 │   ├── useAddCut.ts     Click-a-face-to-add-joinery-cut interaction state machine
+│   ├── useInteractionMode.ts  Coordinator composing the six gesture hooks into one activeMode + normalized viewport bundle
 │   ├── useMaterialLibrary.ts  Loads/persists material cost rates via idb.ts library store
 │   └── palette.ts       PART_COLORS preset swatches
 ├── render/
