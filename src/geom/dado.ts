@@ -15,6 +15,7 @@ import { composeWorldMatrix, applyMatrixToPoint } from './transform'
 import { deriveHalfLap } from './halflap'
 import { deriveMortiseTenon } from './mortisetenon'
 import { deriveFingerJoint } from './fingerjoint'
+import { deriveTongueGroove } from './tonguegroove'
 
 const DEG2RAD = Math.PI / 180
 type Axis = 'x' | 'y' | 'z'
@@ -274,6 +275,8 @@ export function deriveJoint(joint: Joint, parts: Part[]): DeriveResult | null {
       return deriveMortiseTenon(joint, parts)
     case 'finger':
       return deriveFingerJoint(joint, parts)
+    case 'tongue-groove':
+      return deriveTongueGroove(joint, parts)
   }
 }
 

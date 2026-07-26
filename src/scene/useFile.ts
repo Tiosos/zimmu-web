@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile, Joint } from './types'
 import * as idb from './idb'
 
-export const FILE_FORMAT_VERSION = 9
+export const FILE_FORMAT_VERSION = 10
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -74,31 +74,34 @@ export function parseFile(text: string): ZimmuFile {
       // v6→v7: half-lap joints (kind 'halflap'); legacy joints are all dados.
       // v7→v8: mortise-tenon joints (kind 'mortise-tenon').
       // v8→v9: finger joints (kind 'finger').
+      // v9→v10: tongue-groove joints (kind 'tongue-groove').
       joints: ((raw.scene.joints ?? []) as unknown as Array<Record<string, unknown>>).map((j) =>
-        j.kind === 'finger'
-          ? ({ fingerCount: 0, clearance: 0, ...j } as unknown as Joint)
-          : j.kind === 'mortise-tenon'
-            ? ({
-                tenonLength: 0,
-                tenonThickness: 0,
-                tenonWidth: 0,
-                clearance: 0,
-                through: false,
-                offsetU: 0,
-                offsetV: 0,
-                ...j,
-              } as unknown as Joint)
-            : j.kind === 'halflap'
-              ? ({ split: 0.5, clearance: 0, ...j } as unknown as Joint)
-              : ({
-                  kind: 'dado' as const,
-                  profile: 'plain' as const,
-                  tongueThickness: 6,
-                  rabbetFace: '+Z' as const,
-                  stopStart: 0,
-                  stopEnd: 0,
+        j.kind === 'tongue-groove'
+          ? ({ tongueThickness: 6, tongueDepth: 8, clearance: 0, ...j } as unknown as Joint)
+          : j.kind === 'finger'
+            ? ({ fingerCount: 0, clearance: 0, ...j } as unknown as Joint)
+            : j.kind === 'mortise-tenon'
+              ? ({
+                  tenonLength: 0,
+                  tenonThickness: 0,
+                  tenonWidth: 0,
+                  clearance: 0,
+                  through: false,
+                  offsetU: 0,
+                  offsetV: 0,
                   ...j,
-                } as unknown as Joint),
+                } as unknown as Joint)
+              : j.kind === 'halflap'
+                ? ({ split: 0.5, clearance: 0, ...j } as unknown as Joint)
+                : ({
+                    kind: 'dado' as const,
+                    profile: 'plain' as const,
+                    tongueThickness: 6,
+                    rabbetFace: '+Z' as const,
+                    stopStart: 0,
+                    stopEnd: 0,
+                    ...j,
+                  } as unknown as Joint),
       ),
     },
   }

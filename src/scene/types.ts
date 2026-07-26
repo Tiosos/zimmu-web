@@ -192,7 +192,7 @@ export interface TongueGrooveJoint {
   clearance: number // mm — added to groove width for fit (default 0)
 }
 
-export type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint | FingerJoint
+export type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint | FingerJoint | TongueGrooveJoint
 
 export interface Scene {
   parts: Part[]

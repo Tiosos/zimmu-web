@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import type { BoardPart, DadoJoint, Part } from '../scene/types'
+import type { BoardPart, DadoJoint, Joint, Part } from '../scene/types'
 import {
   isValidDadoSeat,
   deriveDadoAxes,
@@ -400,4 +400,33 @@ test('deriveJoint: a thickness-seated housed end with a stop emits groove only (
   expect(r).not.toBeNull()
   expect(r!.cuts).toHaveLength(1)
   expect(r!.cuts[0].partId).toBe('H')
+})
+
+test('deriveJoint dispatches tongue-groove to the tongue-groove deriver', () => {
+  const g: BoardPart = {
+    ...housing,
+    id: 'TG',
+    length: 800,
+    width: 150,
+    thickness: 18,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+  }
+  const t: BoardPart = { ...g, id: 'TT', position: { x: 0, y: 160, z: 0 } }
+  const tg: Joint = {
+    kind: 'tongue-groove',
+    id: 'jtg',
+    label: 'Tongue & groove 1',
+    groovePartId: 'TG',
+    grooveEdge: '+Y',
+    tonguePartId: 'TT',
+    tongueEdge: '-Y',
+    tongueThickness: 6,
+    tongueDepth: 8,
+    clearance: 0,
+  }
+  const r = deriveJoint(tg, [g, t])
+  expect(r).not.toBeNull()
+  expect(r!.cuts).toHaveLength(3)
+  expect(r!.seat!.partId).toBe('TT')
 })

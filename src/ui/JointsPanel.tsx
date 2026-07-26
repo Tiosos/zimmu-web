@@ -271,6 +271,9 @@ export function JointsPanel({
             </div>
           )
         }
+        if (j.kind === 'tongue-groove') {
+          return <div key={j.id} />
+        }
         const isHousing = j.housingPartId === part.id
         const housing = scene.parts.find((p) => p.id === j.housingPartId)
         const housed = scene.parts.find((p) => p.id === j.housedPartId)
