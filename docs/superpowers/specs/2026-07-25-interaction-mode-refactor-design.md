@@ -142,9 +142,23 @@ Removed: `snapActive`, `cutActive`, `jointActive`, `halfLapActive`, `mortiseTeno
 retained, now fed from the normalized bundle). Correspondingly:
 - The ~18 mode refs → ~5 (`interactionActiveRef`, `onFaceClickRef`, `onFaceHoverRef`,
   `sourceFaceRef`… as needed) synced in the existing ref-sync effect.
-- Click dispatch: `if (interactionActiveRef.current) { const faceHit = buildFaceHit(...); if
-  (faceHit) onFaceClickRef.current(faceHit) }` — one path replaces the six ordered branches.
-- Hover early-return guard: `if (!interactionActiveRef.current) return`.
+- Click dispatch: **only the six mode-branches collapse; the `else` normal-selection branch is
+  retained unchanged.** The new shape is:
+  ```
+  if (interactionActiveRef.current) {
+    if (hits.length > 0) {
+      const faceHit = buildFaceHit(hits[0], meshes.current, partsRef.current)
+      if (faceHit) onFaceClickRef.current(faceHit)   // on-hit only; NEVER deselect in-mode
+    }
+  } else {
+    // UNCHANGED normal-mode selection: hit → onClickRef.current(id); miss → onClickRef.current(null)
+  }
+  ```
+  This preserves today's semantics exactly: in a mode, a hit routes to `onFaceClick` and a **miss is
+  ignored** (no deselect — snap's "ignore miss", shared by all mode-branches today); with no mode
+  active, the normal branch selects on hit and **deselects on miss** (`viewport.tsx:422-434`).
+- Hover early-return guard: `if (!interactionActiveRef.current) return` (hover has no normal-mode
+  branch — today it early-returns when no mode is active, `viewport.tsx:441-449`).
 - Hover dispatch: `onFaceHoverRef.current(faceHit /* or null */)` — one path.
 - Highlight effect: one source highlight (`sourceFace`) + one hover highlight (`hoveredFace`),
   replacing the six-way ternary; deps shrink accordingly.
@@ -162,8 +176,13 @@ The six hook destructures, the `activeMode` derivation (none today — inline bo
 const mode = useInteractionMode({ parts: scene.parts, onUpdate, onSelect, onRotationSnap: handleRotationSnap, onAddJoint, onAddHalfLap, onAddMortiseTenon, onAddFingerJoint })
 ```
 - **Keyboard** (`c`/`f`/`j`/`l`/`m`/`b`): each case calls `mode.setMode('<x>')`. Escape →
-  `mode.setMode('none')`. The `h` and `Delete`/`Backspace` guards check `!mode.interactionActive`.
-  The keydown effect's deps reduce to `[mode]` (its `setMode`/`interactionActive` are stable/tracked).
+  `mode.setMode('none')` — but first confirm the current Escape handler does nothing beyond
+  cancelling modes; if it has any non-mode behavior (e.g. clearing selection), preserve that
+  alongside `setMode('none')`. The `h` and `Delete`/`Backspace` guards check `!mode.interactionActive`.
+  The keydown effect must depend on the **stable primitives** `[mode.setMode, mode.interactionActive]`
+  (plus whatever non-mode deps it already has), **not** `[mode]` — the returned object is a fresh
+  literal each render, so depending on it would re-subscribe the listener every render. `setMode` is a
+  stable `useCallback`, and `interactionActive` changes only when the mode changes.
 - **`<Viewport>`** receives the six normalized props from `mode`.
 - **`<Sidebar>`** keeps its current prop shape, fed from `mode`:
   `snapActive={mode.activeMode === 'snap'}`, `onSnapToggle={() => mode.setMode('snap')}`,
@@ -192,7 +211,9 @@ away from `sourceFace`, even though `sourceFace != null` correlates with `'sourc
   - `setMode('none')` from any mode → `'none'` (Escape path).
   - `onFaceClick`/`onFaceHover` route to the active mode's handler (e.g. activate dado, click a
     housing then a housed end → `onAddJoint` called once); no-op when `'none'`.
-  - `sourceFace` reflects the active mode's pending face (e.g. after the first dado click).
+  - `sourceFace`/`hoveredFace` reflect the active mode's faces for **at least two modes** (e.g. dado
+    `sourceFace` after the first housing click, and snap `sourceFace` after the first snap click — a
+    wrong per-mode face mapping silently breaks a highlight and is not caught by the existing suite).
 - **The entire existing suite stays green** — this is the primary safety net for the App/Viewport
   flip. No behavior change means no existing test changes.
 - Interactive 3D verification (that highlighting/cursor/routing look identical) is a human step.
