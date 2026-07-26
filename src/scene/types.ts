@@ -179,6 +179,19 @@ export interface FingerJoint {
   clearance: number // mm — widens each cut slot for fit (default 0)
 }
 
+export interface TongueGrooveJoint {
+  kind: 'tongue-groove'
+  id: string // "joint_<uuid>"
+  label: string // "Tongue & groove 1"
+  groovePartId: PartId // board carrying the groove — stays put (first click)
+  grooveEdge: Face // the long edge (±Y) the groove is cut into
+  tonguePartId: PartId // board carrying the centered tongue — auto-seats (second click)
+  tongueEdge: Face // the long edge (±Y) the tongue is formed on
+  tongueThickness: number // mm — tongue thickness = groove width (before clearance)
+  tongueDepth: number // mm — tongue projection = groove depth
+  clearance: number // mm — added to groove width for fit (default 0)
+}
+
 export type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint | FingerJoint
 
 export interface Scene {
