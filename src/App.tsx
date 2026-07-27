@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
+import { suggestJointsFor, synthHit } from './scene/suggestJoints'
+import type { JointSuggestion } from './scene/suggestJoints'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
@@ -54,6 +56,36 @@ function App() {
     onUpdateMaterial,
     onUpdateHardware,
   } = useScene()
+
+  const suggestions = useMemo(
+    () => suggestJointsFor(selectedId, scene.parts, scene.joints),
+    [selectedId, scene.parts, scene.joints],
+  )
+
+  const applySuggestion = useCallback(
+    (s: JointSuggestion) => {
+      switch (s.kind) {
+        case 'halflap':
+          return onAddHalfLap(s.partAId, s.partBId)
+        case 'dado':
+          return onAddJoint(
+            synthHit(s.housingPartId, s.housingFace),
+            synthHit(s.housedPartId, s.housedEnd),
+          )
+        case 'mortise-tenon':
+          return onAddMortiseTenon(
+            synthHit(s.mortisePartId, s.mortiseFace),
+            synthHit(s.tenonPartId, s.tenonEnd),
+          )
+        case 'tongue-groove':
+          return onAddTongueGroove(
+            synthHit(s.groovePartId, s.grooveEdge),
+            synthHit(s.tonguePartId, s.tongueEdge),
+          )
+      }
+    },
+    [onAddHalfLap, onAddJoint, onAddMortiseTenon, onAddTongueGroove],
+  )
 
   const { library, saveRate, deleteEntry } = useMaterialLibrary()
 
@@ -347,6 +379,8 @@ function App() {
           tongueGrooveActive={mode.activeMode === 'tongueGroove'}
           onTongueGrooveToggle={() => mode.setMode('tongueGroove')}
           tongueGrooveStatus={mode.statuses.tongueGroove}
+          suggestions={suggestions}
+          onApplySuggestion={applySuggestion}
         />
       </div>
       {cuttingListOpen && (

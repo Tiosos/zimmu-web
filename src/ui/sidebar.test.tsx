@@ -97,6 +97,8 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     tongueGrooveActive: false,
     onTongueGrooveToggle: vi.fn(),
     tongueGrooveStatus: null,
+    suggestions: [],
+    onApplySuggestion: vi.fn(),
     ...overrides,
   }
 }

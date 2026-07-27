@@ -11,8 +11,10 @@ import type {
   Scene,
 } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
+import type { JointSuggestion } from '../scene/suggestJoints'
 import { DowelCutsPanel } from './DowelCutsPanel'
 import { JointsPanel } from './JointsPanel'
+import { SuggestionsPanel } from './SuggestionsPanel'
 import { useDebouncedCallback } from './useDebouncedCallback'
 import { faceAxes } from '../scene/snapMath'
 import { PART_COLORS } from '../scene/palette'
@@ -75,6 +77,8 @@ interface SidebarProps {
   tongueGrooveActive: boolean
   onTongueGrooveToggle: () => void
   tongueGrooveStatus: string | null
+  suggestions: JointSuggestion[]
+  onApplySuggestion: (s: JointSuggestion) => void
 }
 
 function DimInput({
@@ -499,6 +503,8 @@ function EditPanel({
   armDowelTool,
   onUpdateJoint,
   onRemoveJoint,
+  suggestions,
+  onApplySuggestion,
 }: {
   part: Part
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
@@ -515,6 +521,8 @@ function EditPanel({
   armDowelTool: (tool: DowelCutTool) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
+  suggestions: JointSuggestion[]
+  onApplySuggestion: (s: JointSuggestion) => void
 }) {
   const [shapeOpen, setShapeOpen] = useState(true)
   const [posOpen, setPosOpen] = useState(true)
@@ -768,6 +776,8 @@ function EditPanel({
         </>
       )}
 
+      <SuggestionsPanel suggestions={suggestions} scene={scene} onApply={onApplySuggestion} />
+
       <JointsPanel
         part={part}
         scene={scene}
@@ -834,6 +844,8 @@ export function Sidebar({
   tongueGrooveActive,
   onTongueGrooveToggle,
   tongueGrooveStatus,
+  suggestions,
+  onApplySuggestion,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -1047,6 +1059,8 @@ export function Sidebar({
             armDowelTool={armDowelTool}
             onUpdateJoint={onUpdateJoint}
             onRemoveJoint={onRemoveJoint}
+            suggestions={suggestions}
+            onApplySuggestion={onApplySuggestion}
           />
         )}
 
