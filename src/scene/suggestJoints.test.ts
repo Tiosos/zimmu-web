@@ -1,7 +1,11 @@
 import { test, expect } from 'vitest'
-import type { Face, BoardPart } from './types'
+import type { Face, BoardPart, Joint, Part } from './types'
 import { localNormalToFaceString } from './snapMath'
-import { synthHit, contactPair } from './suggestJoints'
+import { isValidHalfLap } from '../geom/halflap'
+import { isValidDadoSeat } from '../geom/dado'
+import { isValidMortiseTenon } from '../geom/mortisetenon'
+import { isValidTongueGroove } from '../geom/tonguegroove'
+import { synthHit, contactPair, suggestJointsFor } from './suggestJoints'
 
 const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
 
@@ -68,4 +72,99 @@ test('contactPair finds the long-edge faces of a coplanar edge joint', () => {
 
 test('contactPair returns null for separated boards', () => {
   expect(contactPair(farA, farB)).toBeNull()
+})
+
+// Two crossing coplanar equal-thickness boards → half-lap.
+const lapA = board({ id: 'LA', length: 200, width: 40, thickness: 20 })
+const lapB = board({
+  id: 'LB',
+  length: 40,
+  width: 200,
+  thickness: 20,
+  position: { x: 80, y: -80, z: 0 },
+})
+
+// A cylinder + a hidden board for the negative cases.
+const cyl = { ...board({ id: 'CY' }), kind: 'cylinder' as const, diameter: 10 } as unknown as Part
+const hidden = board({ id: 'HID', visible: false })
+
+function kinds(parts: Part[], selectedId: string, joints: Joint[] = []): string[] {
+  return suggestJointsFor(selectedId, parts, joints)
+    .map((s) => s.kind)
+    .sort()
+}
+
+test('perpendicular tee suggests both dado and mortise-tenon', () => {
+  expect(kinds([teeH, teeD], 'H')).toEqual(['dado', 'mortise-tenon'])
+})
+
+test('coplanar edge joint suggests tongue-groove only (no mortise-tenon)', () => {
+  expect(kinds([edgeG, edgeE], 'G')).toEqual(['tongue-groove'])
+})
+
+test('crossing coplanar boards suggest half-lap', () => {
+  expect(kinds([lapA, lapB], 'LA')).toEqual(['halflap'])
+})
+
+test('separated boards yield no suggestions', () => {
+  expect(suggestJointsFor('FA', [farA, farB], [])).toEqual([])
+})
+
+test('an already-joined pair yields no suggestion for that pair', () => {
+  const joint = {
+    kind: 'dado',
+    id: 'j1',
+    housingPartId: 'H',
+    housedPartId: 'D',
+  } as unknown as Joint
+  expect(suggestJointsFor('H', [teeH, teeD], [joint])).toEqual([])
+})
+
+test('null selection, a cylinder, or a hidden board yield no suggestions', () => {
+  expect(suggestJointsFor(null, [teeH, teeD], [])).toEqual([])
+  expect(suggestJointsFor('CY', [cyl, teeD], [])).toEqual([])
+  expect(suggestJointsFor('HID', [hidden, teeD], [])).toEqual([])
+})
+
+test('every emitted suggestion round-trips through its validity gate', () => {
+  const scenes: Array<{ parts: Part[]; sel: string }> = [
+    { parts: [teeH, teeD], sel: 'H' },
+    { parts: [edgeG, edgeE], sel: 'G' },
+    { parts: [lapA, lapB], sel: 'LA' },
+  ]
+  const asBoard = (parts: Part[], id: string) => parts.find((p) => p.id === id) as BoardPart
+  for (const { parts, sel } of scenes) {
+    for (const s of suggestJointsFor(sel, parts, [])) {
+      if (s.kind === 'halflap') {
+        expect(isValidHalfLap(asBoard(parts, s.partAId), asBoard(parts, s.partBId))).toBe(true)
+      } else if (s.kind === 'dado') {
+        expect(
+          isValidDadoSeat(
+            asBoard(parts, s.housingPartId),
+            s.housingFace,
+            asBoard(parts, s.housedPartId),
+            s.housedEnd,
+          ),
+        ).toBe(true)
+      } else if (s.kind === 'mortise-tenon') {
+        expect(
+          isValidMortiseTenon(
+            asBoard(parts, s.mortisePartId),
+            s.mortiseFace,
+            asBoard(parts, s.tenonPartId),
+            s.tenonEnd,
+          ),
+        ).toBe(true)
+      } else {
+        expect(
+          isValidTongueGroove(
+            asBoard(parts, s.groovePartId),
+            s.grooveEdge,
+            asBoard(parts, s.tonguePartId),
+            s.tongueEdge,
+          ),
+        ).toBe(true)
+      }
+    }
+  }
 })

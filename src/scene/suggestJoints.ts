@@ -1,6 +1,11 @@
-import type { BoardPart, Face, FaceHit, PartId, Vec3 } from './types'
+import type { BoardPart, Face, FaceHit, Joint, Part, PartId, Vec3 } from './types'
 import { composeWorldMatrix } from '../geom/transform'
-import { worldAabb } from '../geom/halflap'
+import { worldAabb, isValidHalfLap } from '../geom/halflap'
+import { isValidDadoSeat } from '../geom/dado'
+import { isValidMortiseTenon } from '../geom/mortisetenon'
+import { isValidTongueGroove } from '../geom/tonguegroove'
+import { faceAxes } from './snapMath'
+import { jointInvolves } from './jointInvolves'
 
 const ZERO: Vec3 = { x: 0, y: 0, z: 0 }
 
@@ -101,4 +106,101 @@ export function contactPair(a: BoardPart, b: BoardPart): { faceA: Face; faceB: F
   const faceA = faceTowardWorld(a, contactAx, sign)
   const faceB = faceTowardWorld(b, contactAx, -sign)
   return faceA && faceB ? { faceA, faceB } : null
+}
+
+const KIND_PRIORITY: JointSuggestion['kind'][] = [
+  'halflap',
+  'dado',
+  'mortise-tenon',
+  'tongue-groove',
+]
+const MAX_SUGGESTIONS = 8
+
+function aabbCenterDist(a: BoardPart, b: BoardPart): number {
+  const A = worldAabb(a)
+  const B = worldAabb(b)
+  let sum = 0
+  for (const ax of WORLD_AXES) {
+    const ca = (A.min[ax] + A.max[ax]) / 2
+    const cb = (B.min[ax] + B.max[ax]) / 2
+    sum += (ca - cb) * (ca - cb)
+  }
+  return Math.sqrt(sum)
+}
+
+export function suggestJointsFor(
+  selectedId: PartId | null,
+  parts: Part[],
+  joints: Joint[],
+): JointSuggestion[] {
+  if (selectedId == null) return []
+  const s = parts.find((p) => p.id === selectedId)
+  if (!s || s.kind !== 'board' || !s.visible) return []
+
+  const out: JointSuggestion[] = []
+  for (const t of parts) {
+    if (t.id === s.id || t.kind !== 'board' || !t.visible) continue
+    if (joints.some((j) => jointInvolves(j, s.id) && jointInvolves(j, t.id))) continue
+
+    if (isValidHalfLap(s, t)) {
+      out.push({ kind: 'halflap', neighborId: t.id, partAId: s.id, partBId: t.id })
+    }
+
+    const pair = contactPair(s, t)
+    if (!pair) continue
+    const { faceA, faceB } = pair
+    const dS = faceAxes(faceA).depth
+    const dT = faceAxes(faceB).depth
+    const sBroad = dS === 'z'
+    const tBroad = dT === 'z'
+
+    if (sBroad !== tBroad) {
+      const housing = sBroad ? s : t
+      const housingFace = sBroad ? faceA : faceB
+      const housed = sBroad ? t : s
+      const housedEnd = sBroad ? faceB : faceA
+      if (isValidDadoSeat(housing, housingFace, housed, housedEnd)) {
+        out.push({
+          kind: 'dado',
+          neighborId: t.id,
+          housingPartId: housing.id,
+          housingFace,
+          housedPartId: housed.id,
+          housedEnd,
+        })
+      }
+      if (isValidMortiseTenon(housing, housingFace, housed, housedEnd)) {
+        out.push({
+          kind: 'mortise-tenon',
+          neighborId: t.id,
+          mortisePartId: housing.id,
+          mortiseFace: housingFace,
+          tenonPartId: housed.id,
+          tenonEnd: housedEnd,
+        })
+      }
+    } else if (dS === 'y' && dT === 'y') {
+      if (isValidTongueGroove(s, faceA, t, faceB)) {
+        out.push({
+          kind: 'tongue-groove',
+          neighborId: t.id,
+          groovePartId: s.id,
+          grooveEdge: faceA,
+          tonguePartId: t.id,
+          tongueEdge: faceB,
+        })
+      }
+    }
+  }
+
+  const distOf = (id: PartId) => {
+    const t = parts.find((p) => p.id === id)
+    return t && t.kind === 'board' ? aabbCenterDist(s, t) : Infinity
+  }
+  out.sort((a, b) => {
+    const d = distOf(a.neighborId) - distOf(b.neighborId)
+    if (Math.abs(d) > EPS) return d
+    return KIND_PRIORITY.indexOf(a.kind) - KIND_PRIORITY.indexOf(b.kind)
+  })
+  return out.slice(0, MAX_SUGGESTIONS)
 }
