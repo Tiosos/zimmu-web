@@ -415,4 +415,3 @@ Untouched: `types.ts`, `useFile.ts` (no format bump), `useScene.ts` (creators re
   `onAddFingerJoint` dispatcher arm.
 - **`FACE_NORMALS` duplication** — a fifth private copy, consistent with the existing per-file
   convention in `geom/*`. Consolidation is a separate refactor, out of scope.
-</content>

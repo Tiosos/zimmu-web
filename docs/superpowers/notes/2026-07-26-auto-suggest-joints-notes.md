@@ -53,7 +53,6 @@ an `onAddFingerJoint` dispatcher arm). MVP ships half-lap + dado + mortise-tenon
   `localFaceNormal`), so undo/redo + cut derivation come for free and stale suggestions fail safe.
 - `FACE_NORMALS` gets a fifth private copy (matches the per-file convention in `geom/*`); a shared
   export is a separate refactor.
-</content>
 
 ## 2026-07-27 — implementation complete
 
