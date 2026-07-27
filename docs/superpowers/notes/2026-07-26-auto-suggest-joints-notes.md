@@ -54,3 +54,13 @@ an `onAddFingerJoint` dispatcher arm). MVP ships half-lap + dado + mortise-tenon
 - `FACE_NORMALS` gets a fifth private copy (matches the per-file convention in `geom/*`); a shared
   export is a separate refactor.
 </content>
+
+## 2026-07-27 — implementation complete
+
+- Implemented via subagent-driven development across 6 tasks; all merged with a spec review and a
+  code-quality review each.
+- Ships 4 joint types: half-lap, dado, mortise-tenon, tongue-groove. Finger deferred as designed above.
+- One test-infra necessity discovered: `SuggestionsPanel.test.tsx` needs `afterEach(cleanup)` because
+  the repo doesn't set vitest `globals: true` (matches the existing `src/ui/*.test.tsx` convention).
+- A follow-up during Task 3 added a sort-order test and two classification "why" comments (from code
+  review).

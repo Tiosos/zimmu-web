@@ -534,6 +534,7 @@
           <tr><td><code>useAddTongueGroove.ts</code></td><td>Tongue &amp; groove two-click gesture.</td></tr>
           <tr><td><code>useInteractionMode.ts</code></td><td>Coordinator composing the seven gesture hooks (snap, cut, dado, half-lap, mortise-tenon, finger, tongue-groove) into one exclusive <code>activeMode</code> + normalized <code>{ onFaceClick, onFaceHover, sourceFace, hoveredFace, interactionActive, snapPhase }</code> bundle for the viewport.</td></tr>
           <tr><td><code>reconcileJoints.ts</code></td><td>Pure, idempotent regeneration of joint-derived groove cuts + seated positions from <code>Scene.joints</code>. Run after every joint-affecting mutation and on file load.</td></tr>
+          <tr><td><code>suggestJoints.ts</code></td><td>Selection-driven joint suggestions: <code>contactPair</code> face detection + per-type validity → <code>JointSuggestion[]</code>; <code>synthHit</code> replays through existing <code>onAdd*</code> creators.</td></tr>
           <tr><td><code>useMaterialLibrary.ts</code></td><td>Loads/persists material cost rates via the IDB <code>library</code> store.</td></tr>
           <tr><td><code>palette.ts</code></td><td><code>PART_COLORS</code> preset swatches array.</td></tr>
           <tr><td><code class="tree-test">useScene.test.ts</code>, <code class="tree-test">useFile.test.ts</code>, etc.</td><td>Co-located unit tests for each module.</td></tr>
@@ -555,6 +556,7 @@
           <tr><td><code>FileMenu.tsx</code></td><td>Top menu bar: File menu, project name, undo/redo buttons, BOM modal trigger, 3D/2D export buttons.</td></tr>
           <tr><td><code>sidebar.tsx</code></td><td>Parts list panel + <code>EditPanel</code> (label, material, ColorControl, dimensions, position, rotation, cuts panel with cut-linking UI, joints panel, read-only derived-cut rows, linked hardware display). Also the Cut / Snap / Add-Dado mode buttons.</td></tr>
           <tr><td><code>JointsPanel.tsx</code></td><td>Per-part joints subsection in <code>EditPanel</code> — edit depth/clearance/offset (housing side), remove joint, stale banner.</td></tr>
+          <tr><td><code>SuggestionsPanel.tsx</code></td><td>Sidebar "Suggested joints" list with one-click Add (calls <code>onApplySuggestion</code>).</td></tr>
           <tr><td><code>BomModal.tsx</code></td><td>Three-tab modal (Boards / Hardware / Library). Footer shows board subtotal, hardware subtotal, grand total. CSV copy/download.</td></tr>
           <tr><td><code>CuttingList.tsx</code></td><td>Grouped cutting-list table with per-material cost popover. Quantity = instances of same dimensions. CSV export.</td></tr>
           <tr><td><code>HardwareTab.tsx</code></td><td>Hardware BOM table with add/edit/delete. Clicking a row opens <code>HardwareEditPanel</code>.</td></tr>
@@ -730,6 +732,19 @@ interface FaceHit {
         <div class="flow-box">snapMath.ts<br><span style="color:var(--muted);font-size:11px">pure geometry math</span></div>
         <div class="flow-arrow">→</div>
         <div class="flow-box">useScene.onUpdate<br><span style="color:var(--muted);font-size:11px">undo entry</span></div>
+      </div>
+
+      <h3>Joint suggestions</h3>
+      <div class="flow">
+        <div class="flow-box">selected board</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">suggestJointsFor<br><span style="color:var(--muted);font-size:11px">contactPair + per-type validity</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">SuggestionsPanel<br><span style="color:var(--muted);font-size:11px">sidebar list</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">applySuggestion<br><span style="color:var(--muted);font-size:11px">synthHit</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">existing onAdd* creators</div>
       </div>
 
       <h3>Material rates</h3>
