@@ -154,6 +154,7 @@ export function suggestJointsFor(
     const sBroad = dS === 'z'
     const tBroad = dT === 'z'
 
+    // Exactly one broad (depth 'z') contact face => perpendicular tee: the broad-face board is the housing/mortise, the other seats its end/edge into it.
     if (sBroad !== tBroad) {
       const housing = sBroad ? s : t
       const housingFace = sBroad ? faceA : faceB
@@ -180,6 +181,7 @@ export function suggestJointsFor(
         })
       }
     } else if (dS === 'y' && dT === 'y') {
+      // Both contact faces are long edges (depth 'y') => coplanar edge glue-up.
       if (isValidTongueGroove(s, faceA, t, faceB)) {
         out.push({
           kind: 'tongue-groove',

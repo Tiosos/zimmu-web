@@ -168,3 +168,21 @@ test('every emitted suggestion round-trips through its validity gate', () => {
     }
   }
 })
+
+// A second tee neighbour on teeH, farther along +X than teeD.
+const teeDFar = board({
+  id: 'D2',
+  length: 80,
+  width: 40,
+  thickness: 18,
+  rotation: { x: 0, y: -90, z: 0 },
+  position: { x: 180, y: 30, z: 20 },
+})
+
+test('suggestions are ordered nearest-neighbour first', () => {
+  const out = suggestJointsFor('H', [teeH, teeD, teeDFar], [])
+  const firstFar = out.findIndex((s) => s.neighborId === 'D2')
+  const lastNear = out.map((s) => s.neighborId).lastIndexOf('D')
+  expect(firstFar).toBeGreaterThan(lastNear)
+  expect(out.every((s) => s.neighborId === 'D' || s.neighborId === 'D2')).toBe(true)
+})
