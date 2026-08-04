@@ -5,7 +5,7 @@ import { isValidHalfLap } from '../geom/halflap'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { isValidTongueGroove } from '../geom/tonguegroove'
-import { synthHit, contactPair, suggestJointsFor } from './suggestJoints'
+import { synthHit, contactPair, cornerPair, suggestJointsFor } from './suggestJoints'
 
 const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
 
@@ -185,4 +185,37 @@ test('suggestions are ordered nearest-neighbour first', () => {
   const lastNear = out.map((s) => s.neighborId).lastIndexOf('D')
   expect(firstFar).toBeGreaterThan(lastNear)
   expect(out.every((s) => s.neighborId === 'D' || s.neighborId === 'D2')).toBe(true)
+})
+
+// Flush box corner: cornerA's +X end meets cornerB's -X end; shared edge runs along world Y.
+const cornerA = board({ id: 'CA', length: 200, width: 100, thickness: 18 })
+const cornerB = board({
+  id: 'CB',
+  length: 150,
+  width: 100,
+  thickness: 18,
+  rotation: { x: 0, y: -90, z: 0 },
+  position: { x: 200, y: 0, z: 18 },
+})
+
+// Same orientation and widths, but standing on cornerA's broad face mid-span rather than at its end.
+const faceStandB = board({
+  id: 'FS',
+  length: 150,
+  width: 100,
+  thickness: 18,
+  rotation: { x: 0, y: -90, z: 0 },
+  position: { x: 138, y: 0, z: 18 },
+})
+
+test('cornerPair finds the two end faces of a flush right-angle corner', () => {
+  expect(cornerPair(cornerA, cornerB)).toEqual({ endA: '+X', endB: '-X' })
+})
+
+test('cornerPair returns null for separated boards', () => {
+  expect(cornerPair(farA, farB)).toBeNull()
+})
+
+test('cornerPair rejects a board standing mid-face, not at an end', () => {
+  expect(cornerPair(cornerA, faceStandB)).toBeNull()
 })

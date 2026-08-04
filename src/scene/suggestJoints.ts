@@ -1,10 +1,10 @@
 import type { BoardPart, Face, FaceHit, Joint, Part, PartId, Vec3 } from './types'
-import { composeWorldMatrix } from '../geom/transform'
+import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 import { worldAabb, isValidHalfLap } from '../geom/halflap'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { isValidTongueGroove } from '../geom/tonguegroove'
-import { faceAxes } from './snapMath'
+import { faceAxes, computeLocalFaceCenter } from './snapMath'
 import { jointInvolves } from './jointInvolves'
 
 const ZERO: Vec3 = { x: 0, y: 0, z: 0 }
@@ -108,6 +108,65 @@ export function contactPair(a: BoardPart, b: BoardPart): { faceA: Face; faceB: F
   return faceA && faceB ? { faceA, faceB } : null
 }
 
+const NON_BROAD_FACES: Face[] = ['+X', '-X', '+Y', '-Y']
+
+function aabbCenter(box: { min: Vec3; max: Vec3 }): Vec3 {
+  return {
+    x: (box.min.x + box.max.x) / 2,
+    y: (box.min.y + box.max.y) / 2,
+    z: (box.min.z + box.max.z) / 2,
+  }
+}
+
+function endTowardPoint(b: BoardPart, selfCenter: Vec3, target: Vec3): Face | null {
+  const d = {
+    x: target.x - selfCenter.x,
+    y: target.y - selfCenter.y,
+    z: target.z - selfCenter.z,
+  }
+  let best: Face | null = null
+  let bestDot = 0 // strictly positive: the end must actually face the other board
+  for (const f of NON_BROAD_FACES) {
+    const n = worldFaceNormal(b, f)
+    const dot = n.x * d.x + n.y * d.y + n.z * d.z
+    if (dot > bestDot) {
+      bestDot = dot
+      best = f
+    }
+  }
+  return best
+}
+
+function endFaceCenterWorld(b: BoardPart, f: Face): Vec3 {
+  const local = computeLocalFaceCenter(FACE_NORMALS[f], b)
+  const [x, y, z] = applyMatrixToPoint(composeWorldMatrix(b), local.x, local.y, local.z)
+  return { x, y, z }
+}
+
+export function cornerPair(a: BoardPart, b: BoardPart): { endA: Face; endB: Face } | null {
+  const A = worldAabb(a)
+  const B = worldAabb(b)
+  for (const ax of WORLD_AXES) {
+    const gap = Math.max(A.min[ax], B.min[ax]) - Math.min(A.max[ax], B.max[ax])
+    if (gap > TOUCH_TOL) return null
+  }
+  const ca = aabbCenter(A)
+  const cb = aabbCenter(B)
+  const endA = endTowardPoint(a, ca, cb)
+  const endB = endTowardPoint(b, cb, ca)
+  if (!endA || !endB) return null
+
+  // Orientation alone is not enough: a board standing on A's broad face, merely off-centre toward
+  // A's +X, would otherwise be reported as being at A's +X end. In a flush corner the two end
+  // centres are offset by about (Ta/2, Tb/2), so their distance never exceeds (Ta + Tb) / 2.
+  const pa = endFaceCenterWorld(a, endA)
+  const pb = endFaceCenterWorld(b, endB)
+  const d = Math.hypot(pa.x - pb.x, pa.y - pb.y, pa.z - pb.z)
+  if (d > (a.thickness + b.thickness) / 2 + TOUCH_TOL) return null
+
+  return { endA, endB }
+}
+
 const KIND_PRIORITY: JointSuggestion['kind'][] = [
   'halflap',
   'dado',
@@ -117,14 +176,10 @@ const KIND_PRIORITY: JointSuggestion['kind'][] = [
 const MAX_SUGGESTIONS = 8
 
 function aabbCenterDist(a: BoardPart, b: BoardPart): number {
-  const A = worldAabb(a)
-  const B = worldAabb(b)
+  const ca = aabbCenter(worldAabb(a))
+  const cb = aabbCenter(worldAabb(b))
   let sum = 0
-  for (const ax of WORLD_AXES) {
-    const ca = (A.min[ax] + A.max[ax]) / 2
-    const cb = (B.min[ax] + B.max[ax]) / 2
-    sum += (ca - cb) * (ca - cb)
-  }
+  for (const ax of WORLD_AXES) sum += (ca[ax] - cb[ax]) * (ca[ax] - cb[ax])
   return Math.sqrt(sum)
 }
 
