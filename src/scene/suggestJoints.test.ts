@@ -170,6 +170,10 @@ test('every emitted suggestion round-trips through its validity gate', () => {
             s.tongueEdge,
           ),
         ).toBe(true)
+      } else {
+        // A new suggestion kind must be given a gate here, not skipped silently.
+        const _exhaustive: never = s
+        throw new Error(`unhandled suggestion kind: ${JSON.stringify(_exhaustive)}`)
       }
     }
   }
