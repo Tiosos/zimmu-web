@@ -6,6 +6,7 @@ const KIND_LABEL: Record<JointSuggestion['kind'], string> = {
   halflap: 'Half-lap',
   dado: 'Dado',
   'mortise-tenon': 'Mortise & tenon',
+  finger: 'Finger joint',
   'tongue-groove': 'Tongue & groove',
 }
 

@@ -5,6 +5,7 @@ import { isValidHalfLap } from '../geom/halflap'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { isValidTongueGroove } from '../geom/tonguegroove'
+import { isValidFingerJoint } from '../geom/fingerjoint'
 import { synthHit, contactPair, cornerPair, suggestJointsFor } from './suggestJoints'
 
 const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
@@ -131,6 +132,7 @@ test('every emitted suggestion round-trips through its validity gate', () => {
     { parts: [teeH, teeD], sel: 'H' },
     { parts: [edgeG, edgeE], sel: 'G' },
     { parts: [lapA, lapB], sel: 'LA' },
+    { parts: [cornerA, cornerB], sel: 'CA' },
   ]
   const asBoard = (parts: Part[], id: string) => parts.find((p) => p.id === id) as BoardPart
   for (const { parts, sel } of scenes) {
@@ -155,7 +157,11 @@ test('every emitted suggestion round-trips through its validity gate', () => {
             s.tenonEnd,
           ),
         ).toBe(true)
-      } else {
+      } else if (s.kind === 'finger') {
+        expect(
+          isValidFingerJoint(asBoard(parts, s.partAId), s.endA, asBoard(parts, s.partBId), s.endB),
+        ).toBe(true)
+      } else if (s.kind === 'tongue-groove') {
         expect(
           isValidTongueGroove(
             asBoard(parts, s.groovePartId),
@@ -218,4 +224,12 @@ test('cornerPair returns null for separated boards', () => {
 
 test('cornerPair rejects a board standing mid-face, not at an end', () => {
   expect(cornerPair(cornerA, faceStandB)).toBeNull()
+})
+
+test('a right-angle corner suggests a finger joint', () => {
+  expect(kinds([cornerA, cornerB], 'CA')).toContain('finger')
+})
+
+test('a board standing mid-face does not suggest a finger joint', () => {
+  expect(kinds([cornerA, faceStandB], 'CA')).not.toContain('finger')
 })

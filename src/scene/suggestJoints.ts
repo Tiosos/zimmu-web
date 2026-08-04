@@ -4,6 +4,7 @@ import { worldAabb, isValidHalfLap } from '../geom/halflap'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { isValidTongueGroove } from '../geom/tonguegroove'
+import { isValidFingerJoint } from '../geom/fingerjoint'
 import { faceAxes, computeLocalFaceCenter } from './snapMath'
 import { jointInvolves } from './jointInvolves'
 
@@ -47,6 +48,7 @@ export type JointSuggestion = SuggestionBase &
         tonguePartId: PartId
         tongueEdge: Face
       }
+    | { kind: 'finger'; partAId: PartId; endA: Face; partBId: PartId; endB: Face }
   )
 
 export function synthHit(partId: PartId, face: Face): FaceHit {
@@ -174,6 +176,7 @@ const KIND_PRIORITY: JointSuggestion['kind'][] = [
   'halflap',
   'dado',
   'mortise-tenon',
+  'finger',
   'tongue-groove',
 ]
 const MAX_SUGGESTIONS = 8
@@ -202,6 +205,20 @@ export function suggestJointsFor(
 
     if (isValidHalfLap(s, t)) {
       out.push({ kind: 'halflap', neighborId: t.id, partAId: s.id, partBId: t.id })
+    }
+
+    // A right-angle corner is neither an anti-parallel face contact nor a coplanar cross, so it is
+    // detected on its own rather than through the contactPair classification below.
+    const corner = cornerPair(s, t)
+    if (corner && isValidFingerJoint(s, corner.endA, t, corner.endB)) {
+      out.push({
+        kind: 'finger',
+        neighborId: t.id,
+        partAId: s.id, // lead board — stays put, so it must be the selected one
+        endA: corner.endA,
+        partBId: t.id, // mating board — auto-seats into the corner
+        endB: corner.endB,
+      })
     }
 
     const pair = contactPair(s, t)
