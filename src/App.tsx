@@ -82,9 +82,11 @@ function App() {
             synthHit(s.groovePartId, s.grooveEdge),
             synthHit(s.tonguePartId, s.tongueEdge),
           )
+        case 'finger':
+          return onAddFingerJoint(synthHit(s.partAId, s.endA), synthHit(s.partBId, s.endB))
       }
     },
-    [onAddHalfLap, onAddJoint, onAddMortiseTenon, onAddTongueGroove],
+    [onAddHalfLap, onAddJoint, onAddMortiseTenon, onAddTongueGroove, onAddFingerJoint],
   )
 
   const { library, saveRate, deleteEntry } = useMaterialLibrary()
