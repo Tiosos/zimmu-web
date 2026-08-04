@@ -1,7 +1,23 @@
 # Finger-Joint Suggestions — Design Spec
 
 **Date:** 2026-07-27
-**Status:** approved (brainstorm) → ready for implementation plan
+**Status:** approved (brainstorm) → revised during planning (end-proximity gate) → ready for
+implementation plan
+
+## Revision note (2026-07-27, during planning)
+
+Working the test fixture by hand exposed a false-positive hole in the approved detector. As first
+written, `cornerPair` picked each board's end by "which end normal points most toward the other
+board", with `isValidFingerJoint` as the only other filter — but that gate checks orientation and
+widths, never position. A board standing on A's *broad face*, merely off-centre toward A's `+X`
+(e.g. A = 200×100×18 at the origin, B standing on top at x ∈ [120, 138]), would be reported as being
+at A's `+X` end and pass every check, producing a suggestion whose apply would seat the board clear
+across to the end.
+
+Fixed by requiring the two joined end-face centres to actually meet, within `(Ta + Tb) / 2 +
+TOUCH_TOL`. The threshold is derived from the flush-corner geometry rather than tuned. This is the
+same class of bug as the one that reshaped the 2026-07-26 spec: an orientation-only gate being asked
+to carry a position judgement it was never written to make.
 
 ## Overview
 
@@ -115,6 +131,13 @@ function endTowardPoint(b: BoardPart, selfCenter: Vec3, target: Vec3): Face | nu
   return best
 }
 
+// World-space centre of a board's given face.
+function endFaceCenterWorld(b: BoardPart, f: Face): Vec3 {
+  const local = computeLocalFaceCenter(FACE_NORMALS[f], b)
+  const [x, y, z] = applyMatrixToPoint(composeWorldMatrix(b), local.x, local.y, local.z)
+  return { x, y, z }
+}
+
 export function cornerPair(a: BoardPart, b: BoardPart): { endA: Face; endB: Face } | null {
   const A = worldAabb(a)
   const B = worldAabb(b)
@@ -126,7 +149,18 @@ export function cornerPair(a: BoardPart, b: BoardPart): { endA: Face; endB: Face
   const cb = aabbCenter(B)
   const endA = endTowardPoint(a, ca, cb)
   const endB = endTowardPoint(b, cb, ca)
-  return endA && endB ? { endA, endB } : null
+  if (!endA || !endB) return null
+
+  // The two ends must actually meet. Orientation alone is not enough: a board standing on A's broad
+  // face, merely off-centre toward A's +X, would otherwise be reported as being at A's +X end.
+  // In a flush right-angle corner the two end centres are offset by about (Ta/2, Tb/2), so their
+  // distance never exceeds (Ta + Tb) / 2.
+  const pa = endFaceCenterWorld(a, endA)
+  const pb = endFaceCenterWorld(b, endB)
+  const d = Math.hypot(pa.x - pb.x, pa.y - pb.y, pa.z - pb.z)
+  if (d > (a.thickness + b.thickness) / 2 + TOUCH_TOL) return null
+
+  return { endA, endB }
 }
 ```
 
@@ -134,9 +168,10 @@ Notes:
 
 - `NON_BROAD_FACES` are the four local faces with depth `'x'` or `'y'` — exactly the ends
   `isValidFingerJoint` accepts. Iterating only these means a broad face can never be proposed.
-- `worldFaceNormal`, `worldAabb`, `WORLD_AXES`, and `TOUCH_TOL` all already exist in the file from
-  the shipped work; nothing new is introduced beyond `NON_BROAD_FACES`, `aabbCenter`, and
-  `endTowardPoint`.
+- `worldFaceNormal`, `worldAabb`, `WORLD_AXES`, `TOUCH_TOL`, `FACE_NORMALS`, and
+  `composeWorldMatrix` all already exist in the file from the shipped work. New in this spec:
+  `NON_BROAD_FACES`, `aabbCenter`, `endTowardPoint`, `endFaceCenterWorld`, plus two new imports —
+  `computeLocalFaceCenter` from `./snapMath` and `applyMatrixToPoint` from `../geom/transform`.
 - `bestDot` starts at `0`, so a face is only chosen if it genuinely points toward the other board.
 - **Deliberate small cleanup:** the existing `aabbCenterDist` computes AABB centres inline with the
   same arithmetic `aabbCenter` now encapsulates. Rather than leave two copies in one file, it should
@@ -248,6 +283,10 @@ No new props, no new component, no new file. The change is confined to:
 
 - `cornerPair` on a physically coherent box corner → the two expected end faces.
 - `cornerPair` on the existing far-apart fixtures → `null`.
+- **False-positive guard (the bug from the Revision note):** `cornerPair` on a board standing on
+  another's broad face, off-centre toward one end → `null`, and `suggestJointsFor` for that scene
+  must **not** include `'finger'`. Without the proximity gate this case returns a bogus pair, so the
+  test genuinely protects the fix rather than restating it.
 - `suggestJointsFor` on a box corner → the returned kinds include `'finger'`.
 - The existing **round-trip test** extended with the corner scene, asserting every emitted `finger`
   suggestion re-passes `isValidFingerJoint(partA, endA, partB, endB)` — so apply can never dead-end.
@@ -295,10 +334,15 @@ drawing, export.
   click. The plan must include the arm explicitly, and the round-trip test does not cover it.
   Mitigation: verify by inspection during review; adding an exhaustiveness guard is out of scope here
   (it would touch the shipped dispatcher's shape).
-- **`endTowardPoint` uses AABB centres**, so for an L-shaped pair whose centres are oddly placed the
-  argmax could pick an unintended end. `isValidFingerJoint` then rejects the pair, so the failure mode
-  is a *missing* suggestion, not a wrong one — fail-closed, consistent with `contactPair`'s existing
-  behaviour for non-axis-aligned boards.
+- **`endTowardPoint` uses AABB centres**, so it identifies the *direction* of the neighbour, not that
+  the neighbour is at that end. This is why the end-face-centre proximity gate exists (added during
+  planning — see Revision note); without it the detector produces false positives on off-centre
+  face-standing boards. With it, a wrong argmax fails closed: the proximity check or
+  `isValidFingerJoint` rejects the pair, yielding a *missing* suggestion rather than a wrong one.
+- **The proximity threshold `(Ta + Tb) / 2 + TOUCH_TOL`** is derived, not tuned: a flush corner offsets
+  the two end centres by about `(Ta/2, Tb/2)`, and `hypot(Ta/2, Tb/2) ≤ (Ta+Tb)/2` always. A corner
+  left much sloppier than one thickness by the user will not be suggested — acceptable, since the
+  two-click gesture still covers it.
 - **Butt corners now produce three suggestions** (Dado, Mortise & tenon, Finger joint). Judged correct
   above, but it is the most visible behavioural change and worth confirming in the app.
 - **`TOUCH_TOL` is reused** (1 mm). If it is ever retuned for `contactPair`, corner detection moves
