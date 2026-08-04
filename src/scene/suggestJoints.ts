@@ -143,6 +143,9 @@ function endFaceCenterWorld(b: BoardPart, f: Face): Vec3 {
   return { x, y, z }
 }
 
+// Position-only: finds which ends meet, but does NOT verify they are perpendicular — collinear
+// boards butted end-to-end also return a pair. Always compose with isValidFingerJoint before
+// treating the result as a corner.
 export function cornerPair(a: BoardPart, b: BoardPart): { endA: Face; endB: Face } | null {
   const A = worldAabb(a)
   const B = worldAabb(b)
