@@ -63,3 +63,24 @@ an `onAddFingerJoint` dispatcher arm). MVP ships half-lap + dado + mortise-tenon
   the repo doesn't set vitest `globals: true` (matches the existing `src/ui/*.test.tsx` convention).
 - A follow-up during Task 3 added a sort-order test and two classification "why" comments (from code
   review).
+
+## 2026-07-27 — finger joints added (feature now covers all five joint types)
+
+- `cornerPair` detects the right-angle corner `contactPair` cannot model: world-AABB adjacency, then
+  each board's end face pointing toward the other, then a proximity gate.
+- The proximity gate was **not** in the approved spec — planning found that without it, a board
+  standing on another's broad face, off-centre toward one end, is reported as being at that end and
+  passes `isValidFingerJoint` (which checks orientation and widths, never position). Threshold is
+  `(Ta + Tb) / 2 + TOUCH_TOL`, derived from the flush-corner offset, not tuned. Same class of bug as
+  the enumeration flaw recorded on 2026-07-26.
+- `cornerPair` is position-only by design: it does not verify perpendicularity (collinear boards
+  butted end-to-end also return a pair), so it must always be composed with `isValidFingerJoint`.
+- Role assignment is load-bearing: `FingerJoint.partAId` stays put and `partBId` auto-seats, so the
+  **selected** board is always A — clicking Add never moves the board the user selected.
+- The dispatcher arm in `App.tsx` is not compile-enforced (the switch has no `never` guard), unlike
+  `KIND_LABEL` which is. A missing arm would silently no-op. The round-trip test's kind chain does
+  now carry a `never` guard, added after code review flagged that converting its bare `else` had
+  removed exhaustiveness for a future sixth kind.
+- A right-angle corner also satisfies the tee classification, so a box corner lists Dado, Mortise &
+  tenon, and Finger joint together. Confirmed intentional — all three are legitimate for that
+  geometry.
