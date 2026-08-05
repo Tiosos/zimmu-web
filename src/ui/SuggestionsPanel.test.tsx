@@ -24,6 +24,7 @@ function scene(): Scene {
     parts: [
       { ...base, id: 'A', label: 'Rail 1' },
       { ...base, id: 'B', label: 'Rail 2' },
+      { ...base, id: 'C', label: 'Rail 3' },
     ],
     materials: {},
     hardware: [],
@@ -83,32 +84,46 @@ test('renders nothing when there are no suggestions', () => {
   expect(container.textContent).toBe('')
 })
 
-test('hovering a row reports that row’s neighbour', () => {
+// Distinct neighbours, so a row reporting the *wrong* row's neighbour cannot pass.
+const twoNeighbors: JointSuggestion[] = [
+  { kind: 'halflap', neighborId: 'B', partAId: 'A', partBId: 'B' },
+  {
+    kind: 'dado',
+    neighborId: 'C',
+    housingPartId: 'A',
+    housingFace: '+Z',
+    housedPartId: 'C',
+    housedEnd: '+X',
+  },
+]
+
+test('each row reports its own neighbour on hover', () => {
   const onHoverSuggestion = vi.fn()
   render(
     <SuggestionsPanel
-      suggestions={suggestions}
+      suggestions={twoNeighbors}
       scene={scene()}
       onApply={vi.fn()}
       onHoverSuggestion={onHoverSuggestion}
     />,
   )
-  const row = screen.getByText('Dado with Rail 2').closest('div')!
-  fireEvent.mouseEnter(row)
-  expect(onHoverSuggestion).toHaveBeenCalledWith('B')
+  fireEvent.mouseEnter(screen.getByText('Half-lap with Rail 2').closest('div')!)
+  expect(onHoverSuggestion).toHaveBeenLastCalledWith('B')
+
+  fireEvent.mouseEnter(screen.getByText('Dado with Rail 3').closest('div')!)
+  expect(onHoverSuggestion).toHaveBeenLastCalledWith('C')
 })
 
 test('leaving a row clears the hover', () => {
   const onHoverSuggestion = vi.fn()
   render(
     <SuggestionsPanel
-      suggestions={suggestions}
+      suggestions={twoNeighbors}
       scene={scene()}
       onApply={vi.fn()}
       onHoverSuggestion={onHoverSuggestion}
     />,
   )
-  const row = screen.getByText('Dado with Rail 2').closest('div')!
-  fireEvent.mouseLeave(row)
-  expect(onHoverSuggestion).toHaveBeenCalledWith(null)
+  fireEvent.mouseLeave(screen.getByText('Dado with Rail 3').closest('div')!)
+  expect(onHoverSuggestion).toHaveBeenLastCalledWith(null)
 })
