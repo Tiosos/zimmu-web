@@ -18,10 +18,12 @@ export function SuggestionsPanel({
   suggestions,
   scene,
   onApply,
+  onHoverSuggestion,
 }: {
   suggestions: JointSuggestion[]
   scene: Scene
   onApply: (s: JointSuggestion) => void
+  onHoverSuggestion: (id: PartId | null) => void
 }) {
   if (suggestions.length === 0) return null
   return (
@@ -30,7 +32,12 @@ export function SuggestionsPanel({
         ▾ Suggested joints
       </p>
       {suggestions.map((s, i) => (
-        <div key={i} className="flex items-center gap-1 py-0.5 border-t border-border/30">
+        <div
+          key={i}
+          className="flex items-center gap-1 py-0.5 border-t border-border/30"
+          onMouseEnter={() => onHoverSuggestion(s.neighborId)}
+          onMouseLeave={() => onHoverSuggestion(null)}
+        >
           <span className="flex-1 text-[11px] text-foreground">
             {KIND_LABEL[s.kind]} with {partLabel(scene, s.neighborId)}
           </span>

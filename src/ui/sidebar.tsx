@@ -79,6 +79,7 @@ interface SidebarProps {
   tongueGrooveStatus: string | null
   suggestions: JointSuggestion[]
   onApplySuggestion: (s: JointSuggestion) => void
+  onHoverSuggestion: (id: PartId | null) => void
 }
 
 function DimInput({
@@ -505,6 +506,7 @@ function EditPanel({
   onRemoveJoint,
   suggestions,
   onApplySuggestion,
+  onHoverSuggestion,
 }: {
   part: Part
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
@@ -523,6 +525,7 @@ function EditPanel({
   onRemoveJoint: (jointId: string) => void
   suggestions: JointSuggestion[]
   onApplySuggestion: (s: JointSuggestion) => void
+  onHoverSuggestion: (id: PartId | null) => void
 }) {
   const [shapeOpen, setShapeOpen] = useState(true)
   const [posOpen, setPosOpen] = useState(true)
@@ -776,7 +779,12 @@ function EditPanel({
         </>
       )}
 
-      <SuggestionsPanel suggestions={suggestions} scene={scene} onApply={onApplySuggestion} />
+      <SuggestionsPanel
+        suggestions={suggestions}
+        scene={scene}
+        onApply={onApplySuggestion}
+        onHoverSuggestion={onHoverSuggestion}
+      />
 
       <JointsPanel
         part={part}
@@ -846,6 +854,7 @@ export function Sidebar({
   tongueGrooveStatus,
   suggestions,
   onApplySuggestion,
+  onHoverSuggestion,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -1061,6 +1070,7 @@ export function Sidebar({
             onRemoveJoint={onRemoveJoint}
             suggestions={suggestions}
             onApplySuggestion={onApplySuggestion}
+            onHoverSuggestion={onHoverSuggestion}
           />
         )}
 

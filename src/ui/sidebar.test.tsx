@@ -99,6 +99,7 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     tongueGrooveStatus: null,
     suggestions: [],
     onApplySuggestion: vi.fn(),
+    onHoverSuggestion: vi.fn(),
     ...overrides,
   }
 }

@@ -62,8 +62,10 @@ function App() {
     [selectedId, scene.parts, scene.joints],
   )
 
+  const [hoveredNeighborId, setHoveredNeighborId] = useState<PartId | null>(null)
   const applySuggestion = useCallback(
     (s: JointSuggestion) => {
+      setHoveredNeighborId(null)
       switch (s.kind) {
         case 'halflap':
           return onAddHalfLap(s.partAId, s.partBId)
@@ -337,6 +339,7 @@ function App() {
           hoveredFace={mode.hoveredFace}
           snapPhase={mode.snapPhase}
           flashTarget={flashTarget}
+          highlightedId={hoveredNeighborId}
         />
         <Sidebar
           scene={scene}
@@ -383,6 +386,7 @@ function App() {
           tongueGrooveStatus={mode.statuses.tongueGroove}
           suggestions={suggestions}
           onApplySuggestion={applySuggestion}
+          onHoverSuggestion={setHoveredNeighborId}
         />
       </div>
       {cuttingListOpen && (

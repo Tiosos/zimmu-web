@@ -44,7 +44,14 @@ const suggestions: JointSuggestion[] = [
 ]
 
 test('renders a row per suggestion with the neighbour label', () => {
-  render(<SuggestionsPanel suggestions={suggestions} scene={scene()} onApply={vi.fn()} />)
+  render(
+    <SuggestionsPanel
+      suggestions={suggestions}
+      scene={scene()}
+      onApply={vi.fn()}
+      onHoverSuggestion={vi.fn()}
+    />,
+  )
   expect(screen.getByText('Half-lap with Rail 2')).toBeTruthy()
   expect(screen.getByText('Dado with Rail 2')).toBeTruthy()
   expect(screen.getAllByRole('button', { name: 'Add' })).toHaveLength(2)
@@ -52,14 +59,56 @@ test('renders a row per suggestion with the neighbour label', () => {
 
 test('clicking Add calls onApply with that suggestion', () => {
   const onApply = vi.fn()
-  render(<SuggestionsPanel suggestions={suggestions} scene={scene()} onApply={onApply} />)
+  render(
+    <SuggestionsPanel
+      suggestions={suggestions}
+      scene={scene()}
+      onApply={onApply}
+      onHoverSuggestion={vi.fn()}
+    />,
+  )
   fireEvent.click(screen.getAllByRole('button', { name: 'Add' })[1])
   expect(onApply).toHaveBeenCalledWith(suggestions[1])
 })
 
 test('renders nothing when there are no suggestions', () => {
   const { container } = render(
-    <SuggestionsPanel suggestions={[]} scene={scene()} onApply={vi.fn()} />,
+    <SuggestionsPanel
+      suggestions={[]}
+      scene={scene()}
+      onApply={vi.fn()}
+      onHoverSuggestion={vi.fn()}
+    />,
   )
   expect(container.textContent).toBe('')
+})
+
+test('hovering a row reports that row’s neighbour', () => {
+  const onHoverSuggestion = vi.fn()
+  render(
+    <SuggestionsPanel
+      suggestions={suggestions}
+      scene={scene()}
+      onApply={vi.fn()}
+      onHoverSuggestion={onHoverSuggestion}
+    />,
+  )
+  const row = screen.getByText('Dado with Rail 2').closest('div')!
+  fireEvent.mouseEnter(row)
+  expect(onHoverSuggestion).toHaveBeenCalledWith('B')
+})
+
+test('leaving a row clears the hover', () => {
+  const onHoverSuggestion = vi.fn()
+  render(
+    <SuggestionsPanel
+      suggestions={suggestions}
+      scene={scene()}
+      onApply={vi.fn()}
+      onHoverSuggestion={onHoverSuggestion}
+    />,
+  )
+  const row = screen.getByText('Dado with Rail 2').closest('div')!
+  fireEvent.mouseLeave(row)
+  expect(onHoverSuggestion).toHaveBeenCalledWith(null)
 })
