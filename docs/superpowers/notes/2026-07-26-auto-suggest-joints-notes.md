@@ -84,3 +84,30 @@ an `onAddFingerJoint` dispatcher arm). MVP ships half-lap + dado + mortise-tenon
 - A right-angle corner also satisfies the tee classification, so a box corner lists Dado, Mortise &
   tenon, and Finger joint together. Confirmed intentional — all three are legitimate for that
   geometry.
+
+## 2026-07-27 — suggestion hover highlight
+
+- Hovering a Suggested joints row lights the neighbouring board's edges amber (`0xfbbf24`) in the
+  viewport, so "Dado with Rail 2" is self-explanatory. Matters more now that one box corner can list
+  Dado, Mortise & tenon and Finger joint together.
+- **Edge colour only, never emissive.** Selection uses both channels, so mirroring it is the
+  instinct — but the flash animation's completion handler (`viewport.tsx`, animation loop) resets a
+  mesh's emissive to a hardcoded `selected ? 0x222244 : 0x000000`. An emissive-based highlight would
+  be silently wiped when a flash finished on that board, and stay wiped until `parts`/`geometries`/
+  `selectedId`/`highlightedId` next changed. Staying on the edge channel sidesteps it without
+  touching working animation code.
+- `applySuggestion` clears the hover: applying makes the row unmount, and `onMouseLeave` never fires
+  on an unmounted element, which would otherwise leave the board lit indefinitely.
+- `onHoverSuggestion` is deliberately a **required** prop through the whole chain, so a missing
+  wire-up is a compile error. `Viewport.highlightedId` is optional (matching the existing
+  `flashTarget?` convention), so that one is not compile-enforced.
+- Moving the pointer from the row onto its Add button does NOT clear the highlight: React's
+  `onMouseEnter`/`onMouseLeave` use native mouseenter/mouseleave semantics, which ignore transitions
+  onto descendant elements.
+- Known minor gap: rows are keyed by array index, so if the distance-sorted `suggestions` reorder
+  while the pointer sits motionless over a row, the highlight can go stale until the next mouse move.
+  Self-correcting; not worth a guard yet.
+- Face-level highlighting (outlining the two faces a joint would use) was considered and deferred.
+  The groundwork exists: `computeFaceCorners` reads only `localFaceNormal`, which `synthHit` sets, so
+  suggestion faces feed the existing `updateHighlight` LineLoops directly. Blockers were half-lap
+  carrying no faces and the two LineLoops being owned by the snap/gesture modes.

@@ -556,7 +556,7 @@
           <tr><td><code>FileMenu.tsx</code></td><td>Top menu bar: File menu, project name, undo/redo buttons, BOM modal trigger, 3D/2D export buttons.</td></tr>
           <tr><td><code>sidebar.tsx</code></td><td>Parts list panel + <code>EditPanel</code> (label, material, ColorControl, dimensions, position, rotation, cuts panel with cut-linking UI, joints panel, read-only derived-cut rows, linked hardware display). Also the Cut / Snap / Add-Dado mode buttons.</td></tr>
           <tr><td><code>JointsPanel.tsx</code></td><td>Per-part joints subsection in <code>EditPanel</code> — edit depth/clearance/offset (housing side), remove joint, stale banner.</td></tr>
-          <tr><td><code>SuggestionsPanel.tsx</code></td><td>Sidebar "Suggested joints" list with one-click Add (calls <code>onApplySuggestion</code>).</td></tr>
+          <tr><td><code>SuggestionsPanel.tsx</code></td><td>Sidebar "Suggested joints" list with one-click Add (calls <code>onApplySuggestion</code>); hovering a row highlights the neighbour board via <code>onHoverSuggestion</code>.</td></tr>
           <tr><td><code>BomModal.tsx</code></td><td>Three-tab modal (Boards / Hardware / Library). Footer shows board subtotal, hardware subtotal, grand total. CSV copy/download.</td></tr>
           <tr><td><code>CuttingList.tsx</code></td><td>Grouped cutting-list table with per-material cost popover. Quantity = instances of same dimensions. CSV export.</td></tr>
           <tr><td><code>HardwareTab.tsx</code></td><td>Hardware BOM table with add/edit/delete. Clicking a row opens <code>HardwareEditPanel</code>.</td></tr>
