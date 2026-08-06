@@ -134,3 +134,31 @@ an `onAddFingerJoint` dispatcher arm). MVP ships half-lap + dado + mortise-tenon
 - Hover state changed from `hoveredNeighborId: PartId | null` to `hoveredSuggestion: JointSuggestion
   | null` one slice after landing; the tint now derives `neighborId` from it. Runtime value is
   unchanged because `SuggestionBase` mandates `neighborId` on every variant.
+
+## 2026-08-06 — browser verification of the hover highlight
+
+Everything above this line was verified by unit tests only: the tests pin `suggestionFaceRefs` and
+`faceHitForDisplay` as pure functions, but nothing asserted that the LineLoops actually reach the
+screen. Driven in headless Chromium to close that gap.
+
+- Repro, for anyone re-checking this: add a second board, set its Position Y to 100 (both boards are
+  200×100×25 at the origin, so y=100 makes their long edges meet at y=50), then hover the
+  "Tongue & groove with Board 1" row in the selected board's panel.
+- Confirmed on screen: the neighbour board's edges go amber, and the two mating faces are outlined.
+  Isolating just the pixels that changed between the un-hovered and hovered frames shows the
+  neighbour silhouette plus one rectangle standing along the seam and nothing else — no stray
+  geometry. Un-hovering returns the canvas to the baseline frame (0.002% of pixels differ, all of it
+  the dev FPS counter). No console or page errors across the whole run.
+- The two face outlines are coincident for an edge-to-edge joint — both faces occupy the same plane
+  at y=50 — so they draw as one doubled line, separated only by `updateHighlight`'s 1mm clearance
+  offset. Correct, but worth knowing before someone reports "only one face highlights".
+- **Legibility nit, not a defect.** The neighbour tint and the face outline are both `0xfbbf24`, so
+  the outline on the *neighbour* board is hard to pick out against that board's now-amber wireframe;
+  it reads clearly on the selected board, whose edges stay cyan. If the face outlines ever need to
+  carry more weight, giving them a distinct hue from the board tint is the cheap fix.
+- Headless setup notes: the image ships Chromium build 1194 while the project pins
+  `@playwright/test` 1.61 (which wants 1228), so a launch must pass
+  `executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'` — do not run
+  `playwright install`. WebGL needs `--use-gl=swiftshader --enable-unsafe-swiftshader`, and the OCCT
+  WASM kernel takes long enough to boot that the gate to wait on is the `+ Board` button losing its
+  `disabled` attribute, not any fixed timeout.
