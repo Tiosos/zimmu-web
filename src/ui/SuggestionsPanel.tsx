@@ -23,7 +23,7 @@ export function SuggestionsPanel({
   suggestions: JointSuggestion[]
   scene: Scene
   onApply: (s: JointSuggestion) => void
-  onHoverSuggestion: (id: PartId | null) => void
+  onHoverSuggestion: (s: JointSuggestion | null) => void
 }) {
   if (suggestions.length === 0) return null
   return (
@@ -35,7 +35,7 @@ export function SuggestionsPanel({
         <div
           key={i}
           className="flex items-center gap-1 py-0.5 border-t border-border/30"
-          onMouseEnter={() => onHoverSuggestion(s.neighborId)}
+          onMouseEnter={() => onHoverSuggestion(s)}
           onMouseLeave={() => onHoverSuggestion(null)}
         >
           <span className="flex-1 text-[11px] text-foreground">

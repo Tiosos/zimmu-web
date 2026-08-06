@@ -97,7 +97,7 @@ const twoNeighbors: JointSuggestion[] = [
   },
 ]
 
-test('each row reports its own neighbour on hover', () => {
+test('each row reports its own suggestion on hover', () => {
   const onHoverSuggestion = vi.fn()
   render(
     <SuggestionsPanel
@@ -108,10 +108,10 @@ test('each row reports its own neighbour on hover', () => {
     />,
   )
   fireEvent.mouseEnter(screen.getByText('Half-lap with Rail 2').closest('div')!)
-  expect(onHoverSuggestion).toHaveBeenLastCalledWith('B')
+  expect(onHoverSuggestion).toHaveBeenLastCalledWith(twoNeighbors[0])
 
   fireEvent.mouseEnter(screen.getByText('Dado with Rail 3').closest('div')!)
-  expect(onHoverSuggestion).toHaveBeenLastCalledWith('C')
+  expect(onHoverSuggestion).toHaveBeenLastCalledWith(twoNeighbors[1])
 })
 
 test('leaving a row clears the hover', () => {

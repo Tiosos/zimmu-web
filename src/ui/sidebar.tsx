@@ -79,7 +79,7 @@ interface SidebarProps {
   tongueGrooveStatus: string | null
   suggestions: JointSuggestion[]
   onApplySuggestion: (s: JointSuggestion) => void
-  onHoverSuggestion: (id: PartId | null) => void
+  onHoverSuggestion: (s: JointSuggestion | null) => void
 }
 
 function DimInput({
@@ -525,7 +525,7 @@ function EditPanel({
   onRemoveJoint: (jointId: string) => void
   suggestions: JointSuggestion[]
   onApplySuggestion: (s: JointSuggestion) => void
-  onHoverSuggestion: (id: PartId | null) => void
+  onHoverSuggestion: (s: JointSuggestion | null) => void
 }) {
   const [shapeOpen, setShapeOpen] = useState(true)
   const [posOpen, setPosOpen] = useState(true)
