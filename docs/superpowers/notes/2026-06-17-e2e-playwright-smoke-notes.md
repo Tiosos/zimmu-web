@@ -83,3 +83,38 @@ If stats.js is ever conditionally excluded from the dev build (or the viewport c
 - **Built-artifact testing** — running smoke tests against `vite preview` (the production build) rather than the dev server. More representative but slower; deferred.
 - **Visual-regression baselines** — screenshot diffing against committed reference images. Higher maintenance cost; deferred until the UI is stable.
 - **`preserveDrawingBuffer` fallback** — if CI shows Path A (locator screenshot) returns a false blank in headless Chromium, switch the pixel check to canvas visibility + non-zero dimensions. Update these notes and the spec if that happens.
+
+## 2026-08-06 — `suggestion-highlight.spec.ts` (first hover-interaction spec)
+
+Closes the "raycaster-driven 3D interaction tests" item above, for the hover case at least
+(no face clicking yet). Drives the sidebar, hovers a suggestion row, and asserts the highlight
+reaches the WebGL canvas — the seam the unit tests structurally cannot reach, since they pin
+`suggestionFaceRefs`/`faceHitForDisplay` as pure functions and nothing asserts a LineLoop is drawn.
+
+Four things bit during the build; all are load-bearing, do not "simplify" them away:
+
+- **`changedFraction` is the wrong instrument for wireframe.** It masks colour to its high bits to
+  suppress AA noise, which also erases 1px anti-aliased lines — the highlight measured *smaller*
+  than the frame-to-frame churn of the dev-mode stats.js FPS counter (~0.25% of the canvas, which
+  a locator screenshot captures because it overlaps the viewport). Replaced with a count of pixels
+  matching the highlight's own amber (`0xfbbf24`); the FPS overlay is cyan, so it drops out.
+- **The pointer sits on the suggestion row before the test asks it to.** Clicking "+ Board" leaves
+  the cursor over the add-part footer; the sidebar then re-renders the new board's panel — including
+  the suggestion row — under that stationary pointer, which fires `mouseenter`. The highlight was
+  therefore already on in the "before" frame, the hover changed nothing, and the only visible
+  transition was the *un*-hover. The spec now parks the pointer on an inert sidebar header and
+  asserts amber == 0 before hovering. Worth knowing as product behaviour too, not just a test quirk.
+- **Viewport height, not scrolling.** At the default 720px the suggested-joints section is below the
+  fold; `scrollIntoViewIfNeeded()` reports success but the scroll does not survive the re-render
+  hovering triggers, so the hover lands on nothing. The spec sets a 1100px-tall viewport instead.
+- **The threshold is mutation-calibrated, not eyeballed.** A permissive floor passed with either half
+  of the feature deleted. Measured: both halves 1942 amber px (bit-identical across runs), tint
+  disabled 1221, outlines disabled 717, un-hovered 0. The gate sits at 1500, in the gap, and both
+  mutants now fail. If a runner's AA shifts these, recalibrate against that table — lowering the
+  number until it passes would silently restore the useless version.
+
+Local-run gotcha unrelated to CI: this image ships Chromium build 1194 while the project pins
+`@playwright/test` 1.61 (which wants 1228), so `pnpm test:e2e` fails to launch until the expected
+path is bridged to the installed build. Do not run `playwright install`, and do not pin
+`executablePath` in `playwright.config.ts` — CI installs a matching build via `--with-deps chromium`
+and would break.
