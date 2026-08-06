@@ -26,6 +26,7 @@ interface ViewportProps {
   snapPhase: 'idle' | 'source-picked'
   flashTarget?: { id: PartId; seq: number } | null
   highlightedId?: PartId | null
+  suggestionFaces?: FaceHit[] | null
 }
 
 export function Viewport({
@@ -43,6 +44,7 @@ export function Viewport({
   snapPhase,
   flashTarget,
   highlightedId,
+  suggestionFaces,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -60,6 +62,7 @@ export function Viewport({
   const onFaceHoverRef = useRef(onFaceHover)
   const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
   const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
+  const suggestionHighlightRefs = useRef<(THREE.LineLoop | null)[]>([null, null])
   const ghostMeshRef = useRef<THREE.Mesh | null>(null)
   const snapPhaseRef = useRef(snapPhase)
   const rafIdRef = useRef<number>(0)
@@ -224,6 +227,16 @@ export function Viewport({
     scene.add(hoverLoop)
     sourceHighlightRef.current = sourceLoop
     hoverHighlightRef.current = hoverLoop
+    const suggestionLoops = [
+      new THREE.LineLoop(emptyGeo(), snapMat(0xfbbf24)),
+      new THREE.LineLoop(emptyGeo(), snapMat(0xfbbf24)),
+    ]
+    for (const loop of suggestionLoops) {
+      loop.renderOrder = 1
+      loop.visible = false
+      scene.add(loop)
+    }
+    suggestionHighlightRefs.current = suggestionLoops
 
     const ghostPlaceholderGeo = new THREE.BufferGeometry()
     const ghostMat = new THREE.MeshStandardMaterial({
@@ -375,6 +388,11 @@ export function Viewport({
       scene.remove(hoverLoop)
       sourceLoop.material.dispose()
       hoverLoop.material.dispose()
+      for (const loop of suggestionLoops) {
+        loop.geometry.dispose()
+        scene.remove(loop)
+        loop.material.dispose()
+      }
       ghostPlaceholderGeo.dispose()
       ghostMesh.material.dispose()
       scene.remove(ghostMesh)
@@ -522,7 +540,10 @@ export function Viewport({
 
     updateHighlight(sourceHighlightRef.current, sourceFace, 0xfbbf24)
     updateHighlight(hoverHighlightRef.current, hoveredFace, 0x60a5fa)
-  }, [sourceFace, hoveredFace, snapPhase, parts])
+    const sf = suggestionFaces ?? []
+    updateHighlight(suggestionHighlightRefs.current[0], sf[0] ?? null, 0xfbbf24)
+    updateHighlight(suggestionHighlightRefs.current[1], sf[1] ?? null, 0xfbbf24)
+  }, [sourceFace, hoveredFace, snapPhase, parts, suggestionFaces])
 
   // Ghost mesh — semi-transparent preview of the source part at its snapped destination
   useEffect(() => {

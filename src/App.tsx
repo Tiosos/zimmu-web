@@ -2,7 +2,12 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
-import { suggestJointsFor, synthHit } from './scene/suggestJoints'
+import {
+  suggestJointsFor,
+  synthHit,
+  suggestionFaceRefs,
+  faceHitForDisplay,
+} from './scene/suggestJoints'
 import type { JointSuggestion } from './scene/suggestJoints'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
@@ -63,6 +68,13 @@ function App() {
   )
 
   const [hoveredSuggestion, setHoveredSuggestion] = useState<JointSuggestion | null>(null)
+  const suggestionFaces = useMemo(() => {
+    if (!hoveredSuggestion) return null
+    return suggestionFaceRefs(hoveredSuggestion).flatMap((r) => {
+      const p = scene.parts.find((x) => x.id === r.partId)
+      return p && p.kind === 'board' ? [faceHitForDisplay(p, r.face)] : []
+    })
+  }, [hoveredSuggestion, scene.parts])
   const applySuggestion = useCallback(
     (s: JointSuggestion) => {
       setHoveredSuggestion(null)
@@ -340,6 +352,7 @@ function App() {
           snapPhase={mode.snapPhase}
           flashTarget={flashTarget}
           highlightedId={hoveredSuggestion?.neighborId ?? null}
+          suggestionFaces={suggestionFaces}
         />
         <Sidebar
           scene={scene}
