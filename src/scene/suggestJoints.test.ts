@@ -245,11 +245,13 @@ test('a board standing mid-face does not suggest a finger joint', () => {
   expect(kinds([cornerA, faceStandB], 'CA')).not.toContain('finger')
 })
 
-test('suggestionFaceRefs returns the faces each joint kind would cut', () => {
+test('suggestionFaceRefs: half-lap has no single pair of faces', () => {
   expect(
     suggestionFaceRefs({ kind: 'halflap', neighborId: 'B', partAId: 'A', partBId: 'B' }),
   ).toEqual([])
+})
 
+test('suggestionFaceRefs: dado maps the housing face and the housed end', () => {
   expect(
     suggestionFaceRefs({
       kind: 'dado',
@@ -263,7 +265,9 @@ test('suggestionFaceRefs returns the faces each joint kind would cut', () => {
     { partId: 'A', face: '+Z' },
     { partId: 'B', face: '+X' },
   ])
+})
 
+test('suggestionFaceRefs: mortise-tenon maps the mortise face and the tenon end', () => {
   expect(
     suggestionFaceRefs({
       kind: 'mortise-tenon',
@@ -277,7 +281,9 @@ test('suggestionFaceRefs returns the faces each joint kind would cut', () => {
     { partId: 'A', face: '+Z' },
     { partId: 'B', face: '-X' },
   ])
+})
 
+test('suggestionFaceRefs: tongue-groove maps both long edges', () => {
   expect(
     suggestionFaceRefs({
       kind: 'tongue-groove',
@@ -291,7 +297,9 @@ test('suggestionFaceRefs returns the faces each joint kind would cut', () => {
     { partId: 'A', face: '+Y' },
     { partId: 'B', face: '-Y' },
   ])
+})
 
+test('suggestionFaceRefs: finger maps both ends', () => {
   expect(
     suggestionFaceRefs({
       kind: 'finger',

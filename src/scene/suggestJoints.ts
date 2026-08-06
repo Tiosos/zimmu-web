@@ -95,20 +95,6 @@ export function suggestionFaceRefs(s: JointSuggestion): Array<{ partId: PartId; 
   }
 }
 
-// Render-ready hit: computeFaceCorners reads localFaceNormal, while updateHighlight's 1mm
-// clearance offset reads faceNormal and needs it in WORLD space. synthHit sets both to the
-// local normal, which is correct for the onAdd* creators but wrong for drawing.
-export function faceHitForDisplay(part: BoardPart, face: Face): FaceHit {
-  return {
-    partId: part.id,
-    faceNormal: worldFaceNormal(part, face),
-    faceCenter: ZERO,
-    localFaceNormal: FACE_NORMALS[face],
-    localHitPoint: ZERO,
-    hitPoint: ZERO,
-  }
-}
-
 const EPS = 1e-4
 const TOUCH_TOL = 1 // mm
 const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
@@ -124,6 +110,20 @@ function worldFaceNormal(b: BoardPart, f: Face): Vec3 {
       : [m[8], m[9], m[10]]
   const s = f[0] === '+' ? 1 : -1
   return { x: col[0] * s, y: col[1] * s, z: col[2] * s }
+}
+
+// Render-ready hit: computeFaceCorners reads localFaceNormal, while updateHighlight's 1mm
+// clearance offset reads faceNormal and needs it in WORLD space. synthHit sets both to the
+// local normal, which is correct for the onAdd* creators but wrong for drawing.
+export function faceHitForDisplay(part: BoardPart, face: Face): FaceHit {
+  return {
+    partId: part.id,
+    faceNormal: worldFaceNormal(part, face),
+    faceCenter: ZERO,
+    localFaceNormal: FACE_NORMALS[face],
+    localHitPoint: ZERO,
+    hitPoint: ZERO,
+  }
 }
 
 function faceTowardWorld(b: BoardPart, ax: WorldAxis, sign: number): Face | null {
