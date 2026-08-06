@@ -63,6 +63,52 @@ export function synthHit(partId: PartId, face: Face): FaceHit {
   }
 }
 
+export function suggestionFaceRefs(s: JointSuggestion): Array<{ partId: PartId; face: Face }> {
+  switch (s.kind) {
+    case 'halflap':
+      return [] // crossing overlap — no single pair of faces
+    case 'dado':
+      return [
+        { partId: s.housingPartId, face: s.housingFace },
+        { partId: s.housedPartId, face: s.housedEnd },
+      ]
+    case 'mortise-tenon':
+      return [
+        { partId: s.mortisePartId, face: s.mortiseFace },
+        { partId: s.tenonPartId, face: s.tenonEnd },
+      ]
+    case 'tongue-groove':
+      return [
+        { partId: s.groovePartId, face: s.grooveEdge },
+        { partId: s.tonguePartId, face: s.tongueEdge },
+      ]
+    case 'finger':
+      return [
+        { partId: s.partAId, face: s.endA },
+        { partId: s.partBId, face: s.endB },
+      ]
+    default: {
+      // A new suggestion kind must declare its faces here, not silently highlight nothing.
+      const _exhaustive: never = s
+      throw new Error(`unhandled suggestion kind: ${JSON.stringify(_exhaustive)}`)
+    }
+  }
+}
+
+// Render-ready hit: computeFaceCorners reads localFaceNormal, while updateHighlight's 1mm
+// clearance offset reads faceNormal and needs it in WORLD space. synthHit sets both to the
+// local normal, which is correct for the onAdd* creators but wrong for drawing.
+export function faceHitForDisplay(part: BoardPart, face: Face): FaceHit {
+  return {
+    partId: part.id,
+    faceNormal: worldFaceNormal(part, face),
+    faceCenter: ZERO,
+    localFaceNormal: FACE_NORMALS[face],
+    localHitPoint: ZERO,
+    hitPoint: ZERO,
+  }
+}
+
 const EPS = 1e-4
 const TOUCH_TOL = 1 // mm
 const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']

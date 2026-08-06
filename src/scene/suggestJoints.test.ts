@@ -6,7 +6,14 @@ import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { isValidTongueGroove } from '../geom/tonguegroove'
 import { isValidFingerJoint } from '../geom/fingerjoint'
-import { synthHit, contactPair, cornerPair, suggestJointsFor } from './suggestJoints'
+import {
+  synthHit,
+  contactPair,
+  cornerPair,
+  suggestJointsFor,
+  suggestionFaceRefs,
+  faceHitForDisplay,
+} from './suggestJoints'
 
 const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
 
@@ -236,4 +243,86 @@ test('a right-angle corner suggests a finger joint', () => {
 
 test('a board standing mid-face does not suggest a finger joint', () => {
   expect(kinds([cornerA, faceStandB], 'CA')).not.toContain('finger')
+})
+
+test('suggestionFaceRefs returns the faces each joint kind would cut', () => {
+  expect(
+    suggestionFaceRefs({ kind: 'halflap', neighborId: 'B', partAId: 'A', partBId: 'B' }),
+  ).toEqual([])
+
+  expect(
+    suggestionFaceRefs({
+      kind: 'dado',
+      neighborId: 'B',
+      housingPartId: 'A',
+      housingFace: '+Z',
+      housedPartId: 'B',
+      housedEnd: '+X',
+    }),
+  ).toEqual([
+    { partId: 'A', face: '+Z' },
+    { partId: 'B', face: '+X' },
+  ])
+
+  expect(
+    suggestionFaceRefs({
+      kind: 'mortise-tenon',
+      neighborId: 'B',
+      mortisePartId: 'A',
+      mortiseFace: '+Z',
+      tenonPartId: 'B',
+      tenonEnd: '-X',
+    }),
+  ).toEqual([
+    { partId: 'A', face: '+Z' },
+    { partId: 'B', face: '-X' },
+  ])
+
+  expect(
+    suggestionFaceRefs({
+      kind: 'tongue-groove',
+      neighborId: 'B',
+      groovePartId: 'A',
+      grooveEdge: '+Y',
+      tonguePartId: 'B',
+      tongueEdge: '-Y',
+    }),
+  ).toEqual([
+    { partId: 'A', face: '+Y' },
+    { partId: 'B', face: '-Y' },
+  ])
+
+  expect(
+    suggestionFaceRefs({
+      kind: 'finger',
+      neighborId: 'B',
+      partAId: 'A',
+      endA: '+X',
+      partBId: 'B',
+      endB: '-X',
+    }),
+  ).toEqual([
+    { partId: 'A', face: '+X' },
+    { partId: 'B', face: '-X' },
+  ])
+})
+
+test('faceHitForDisplay keeps the local normal and adds the world normal', () => {
+  // Unrotated: world normal equals local normal.
+  const flat = board({ id: 'F' })
+  const hFlat = faceHitForDisplay(flat, '+X')
+  expect(hFlat.partId).toBe('F')
+  expect(hFlat.localFaceNormal).toEqual({ x: 1, y: 0, z: 0 })
+  expect(hFlat.faceNormal.x).toBeCloseTo(1)
+  expect(hFlat.faceNormal.y).toBeCloseTo(0)
+  expect(hFlat.faceNormal.z).toBeCloseTo(0)
+
+  // Rotated Ry=-90: local +X maps to world +Z. This is the case that catches the bug —
+  // an unrotated board cannot distinguish a world normal from a local one.
+  const spun = board({ id: 'R', rotation: { x: 0, y: -90, z: 0 } })
+  const hSpun = faceHitForDisplay(spun, '+X')
+  expect(hSpun.localFaceNormal).toEqual({ x: 1, y: 0, z: 0 })
+  expect(hSpun.faceNormal.x).toBeCloseTo(0)
+  expect(hSpun.faceNormal.y).toBeCloseTo(0)
+  expect(hSpun.faceNormal.z).toBeCloseTo(1)
 })
