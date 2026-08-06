@@ -540,6 +540,8 @@ export function Viewport({
 
     updateHighlight(sourceHighlightRef.current, sourceFace, 0xfbbf24)
     updateHighlight(hoverHighlightRef.current, hoveredFace, 0x60a5fa)
+    // Two loops is enough because suggestionFaceRefs returns 0 or 2 faces for every joint kind.
+    // A future kind returning 3+ would silently lose the extras here — add a loop if that changes.
     const sf = suggestionFaces ?? []
     updateHighlight(suggestionHighlightRefs.current[0], sf[0] ?? null, 0xfbbf24)
     updateHighlight(suggestionHighlightRefs.current[1], sf[1] ?? null, 0xfbbf24)
