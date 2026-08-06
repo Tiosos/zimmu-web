@@ -111,3 +111,26 @@ an `onAddFingerJoint` dispatcher arm). MVP ships half-lap + dado + mortise-tenon
   The groundwork exists: `computeFaceCorners` reads only `localFaceNormal`, which `synthHit` sets, so
   suggestion faces feed the existing `updateHighlight` LineLoops directly. Blockers were half-lap
   carrying no faces and the two LineLoops being owned by the snap/gesture modes.
+
+## 2026-07-27 — suggestion face outlines
+
+- Hovering a suggestion now outlines the two faces the joint would cut, in addition to tinting the
+  neighbour board. This is what makes the three suggestions on one box corner distinguishable —
+  Dado, Mortise & tenon and Finger joint all point at the same board but use different faces.
+- **Latent bug fixed on the way.** `updateHighlight` builds the outline from `localFaceNormal` but
+  offsets it 1mm clear of the surface along `faceNormal`, expecting a WORLD normal. `synthHit` sets
+  both to the same LOCAL vector — harmless for the apply path (creators read only `localFaceNormal`)
+  but wrong for drawing: on a rotated board the outline was pushed the wrong way, into the solid.
+  Added `faceHitForDisplay` rather than changing `synthHit`, whose local/zeroed shape the `onAdd*`
+  creators depend on and the round-trip test asserts. The test that pins this uses a ROTATED board
+  (Ry=-90, local +X → world +Z); an unrotated one cannot tell the two apart.
+- `suggestionFaceRefs` carries a `never` guard, so a sixth joint kind is a compile error rather than
+  a row that silently highlights nothing.
+- Dedicated LineLoops rather than reusing `sourceFace`/`hoveredFace`: those belong to the snap and
+  add-joint gestures, and the sidebar stays live during a gesture, so the two would contend.
+- Only two loops exist, because `suggestionFaceRefs` returns 0 or 2 faces for every kind. A future
+  kind returning 3+ would silently lose the extras; there is a comment at the call site saying so.
+- Half-lap has no faces, so it degrades to the board tint alone — deliberate, not a gap.
+- Hover state changed from `hoveredNeighborId: PartId | null` to `hoveredSuggestion: JointSuggestion
+  | null` one slice after landing; the tint now derives `neighborId` from it. Runtime value is
+  unchanged because `SuggestionBase` mandates `neighborId` on every variant.
