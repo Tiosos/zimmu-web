@@ -117,6 +117,8 @@ an `onAddFingerJoint` dispatcher arm). MVP ships half-lap + dado + mortise-tenon
 - Hovering a suggestion now outlines the two faces the joint would cut, in addition to tinting the
   neighbour board. This is what makes the three suggestions on one box corner distinguishable —
   Dado, Mortise & tenon and Finger joint all point at the same board but use different faces.
+  **Correction (2026-08-07): the second sentence is wrong.** Dado and Mortise & tenon use the *same*
+  faces and are indistinguishable by their outlines. See the 2026-08-07 entry at the end of this file.
 - **Latent bug fixed on the way.** `updateHighlight` builds the outline from `localFaceNormal` but
   offsets it 1mm clear of the surface along `faceNormal`, expecting a WORLD normal. `synthHit` sets
   both to the same LOCAL vector — harmless for the apply path (creators read only `localFaceNormal`)
@@ -162,3 +164,28 @@ screen. Driven in headless Chromium to close that gap.
   `playwright install`. WebGL needs `--use-gl=swiftshader --enable-unsafe-swiftshader`, and the OCCT
   WASM kernel takes long enough to boot that the gate to wait on is the `+ Board` button losing its
   `disabled` attribute, not any fixed timeout.
+
+## 2026-08-07 — the butt corner, confirmed in the app (and one claim disproved)
+
+The finger-joint spec flagged "butt corners now produce three suggestions … worth confirming in the
+app" and it had never been confirmed. Built the `cornerA`/`cornerB` fixture through the UI and
+hovered each row.
+
+- **The three suggestions are real.** Selecting Board 1 on a flush right-angle corner lists Dado,
+  Mortise & tenon and Finger joint, exactly matching `suggestJointsFor`. The unit test asserted this
+  with `toContain('finger')`, which would have passed even if dado or mortise-tenon had silently
+  stopped being offered; it now pins the exact set.
+- **Dado and Mortise & tenon are visually identical on hover.** Measured amber pixels per row: dado
+  1772, mortise-tenon 1772, finger 1262 — and the dado and mortise-tenon amber *pixel sets* overlap
+  100%, not merely in count. The two frames differ only in the dev FPS counter.
+- **Cause is structural, not specific to corners.** Both kinds are pushed from the same contact pair
+  using the same `housing`/`housingFace`/`housed`/`housedEnd` values (`suggestJoints.ts`), so
+  `suggestionFaceRefs` returns the same pair for both, always. They are indistinguishable by outline
+  anywhere they appear together — every perpendicular tee as well as every butt corner. Pinned by a
+  test so a future change to the outline logic has to confront it.
+- **So the face-outline rationale above was one-third right.** Outlines separate Finger joint from
+  the other two (51.5% overlap), and do nothing to separate Dado from Mortise & tenon. That is not a
+  bug in the outline code — the two joints genuinely use the same faces and differ in how much
+  material is removed, so no face-based cue can ever separate them. Distinguishing them needs a
+  different signal: a ghost of the resulting cut, a one-line description per row, or simply not
+  offering both where one clearly dominates. Left open — it is a design decision, not a defect.

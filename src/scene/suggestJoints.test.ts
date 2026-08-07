@@ -237,8 +237,11 @@ test('cornerPair rejects a board standing mid-face, not at an end', () => {
   expect(cornerPair(cornerA, faceStandB)).toBeNull()
 })
 
-test('a right-angle corner suggests a finger joint', () => {
-  expect(kinds([cornerA, cornerB], 'CA')).toContain('finger')
+// Pinned as an exact set, not toContain: a butt corner offering all three is the most visible
+// behavioural change finger-joint suggestions introduced, and toContain('finger') would still
+// pass if dado or mortise-tenon silently stopped being offered here.
+test('a right-angle corner suggests finger alongside dado and mortise-tenon', () => {
+  expect(kinds([cornerA, cornerB], 'CA')).toEqual(['dado', 'finger', 'mortise-tenon'])
 })
 
 test('a board standing mid-face does not suggest a finger joint', () => {
@@ -313,6 +316,22 @@ test('suggestionFaceRefs: finger maps both ends', () => {
     { partId: 'A', face: '+X' },
     { partId: 'B', face: '-X' },
   ])
+})
+
+// Pins a known limitation, not desired behaviour. Both kinds are emitted from the same
+// contact pair with the same housing/housed values (suggestJoints.ts), so their face refs
+// are identical by construction — confirmed in the browser, where hovering each of them
+// lights up a pixel-for-pixel identical highlight. The hover outlines therefore cannot
+// distinguish dado from mortise & tenon anywhere they are offered together, which is every
+// perpendicular tee and every butt corner. Telling them apart needs something other than
+// which faces are involved (they differ in how much material comes out, not where).
+test('dado and mortise-tenon resolve to identical faces — outlines cannot distinguish them', () => {
+  const suggestions = suggestJointsFor('H', [teeH, teeD], [])
+  const dado = suggestions.find((s) => s.kind === 'dado')
+  const mortiseTenon = suggestions.find((s) => s.kind === 'mortise-tenon')
+  expect(dado).toBeDefined()
+  expect(mortiseTenon).toBeDefined()
+  expect(suggestionFaceRefs(dado!)).toEqual(suggestionFaceRefs(mortiseTenon!))
 })
 
 test('faceHitForDisplay keeps the local normal and adds the world normal', () => {
