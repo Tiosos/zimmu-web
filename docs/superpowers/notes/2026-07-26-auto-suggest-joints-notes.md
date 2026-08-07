@@ -189,3 +189,34 @@ hovered each row.
   material is removed, so no face-based cue can ever separate them. Distinguishing them needs a
   different signal: a ghost of the resulting cut, a one-line description per row, or simply not
   offering both where one clearly dominates. Left open — it is a design decision, not a defect.
+
+## 2026-08-07 — `defaultJoint.ts`, and the scope of cut-footprint previews
+
+The candidate fix for the above is to outline the **cut footprint** rather than the whole face: the
+dado groove runs the full board width, the mortise pocket is inset, and that difference is visible at
+a glance. `computeDadoGroove` and `computeMortisePocket` already return the removed region as a
+`BoxCut`, on the main thread, with no OCCT round-trip. Only the groundwork is done so far.
+
+- **Extracted `src/scene/defaultJoint.ts`** — `defaultDadoJoint` / `defaultMortiseTenonJoint`, called
+  by useScene's creators. A preview needs a whole joint object to call the footprint functions, and
+  duplicating the seeded parameters would let the preview drift from what the creator actually makes.
+- **`id`/`label` are parameters, not generated inside.** The footprint functions read them only to
+  stamp the resulting `BoxCut`'s id/label/`sourceJointId`; position and size are independent. So a
+  preview passes placeholders and needs neither `crypto.randomUUID()` nor the joint counter nor any
+  scene state. That is what keeps a preview a pure function of two boards and two faces.
+- **The defaults were pinned first, and were previously pinned by nothing.** No test in
+  `useScene.test.ts` (79 at the time), `useAddJoint.test.ts` or `useAddMortiseTenon.test.ts` asserted
+  any default value, though they decide real cut geometry. Two characterization tests went in as a
+  separate commit *before* the extraction, so the refactor had something to be verified against.
+  `offset` and `offsetU` centre on 12.500000000000005, hence `toBeCloseTo` for those two.
+
+Two findings for whoever picks up the drawing half:
+
+- **Do not reuse `computeFaceCorners` for footprints.** `BoxCut.position`/`size` are in board-local
+  x/y/z; `computeFaceCorners` builds its rectangle from an arbitrary u/v cross-product basis, not
+  `faceAxes()`. Build the corners straight from the `BoxCut` in local axes and transform with
+  `composeWorldMatrix`, the way `suggestJoints.ts` already does.
+- **The tenon side is not one rectangle.** `computeTenonShoulders` returns `BoxCut[]`. The viewport
+  allocates exactly two `LineLoop`s and has a comment warning that a kind needing 3+ silently loses
+  the extras — so footprint previews force that pool to become dynamic. This is the largest hidden
+  cost in the idea and was not visible until the housed/tenon side was examined.

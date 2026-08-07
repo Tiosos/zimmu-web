@@ -19,8 +19,9 @@ import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
 import { jointInvolves } from './jointInvolves'
-import { isValidDadoSeat, computeDadoOffset, defaultDadoDepth } from '../geom/dado'
-import { computeMortiseOffset, isValidMortiseTenon } from '../geom/mortisetenon'
+import { isValidDadoSeat } from '../geom/dado'
+import { isValidMortiseTenon } from '../geom/mortisetenon'
+import { defaultDadoJoint, defaultMortiseTenonJoint } from './defaultJoint'
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidTongueGroove } from '../geom/tonguegroove'
 import { PART_COLORS } from './palette'
@@ -893,23 +894,14 @@ export function useScene(): UseSceneResult {
       if (!isValidDadoSeat(housing, housingFace, housed, housedEnd)) return
 
       const n = s.joints.filter((j) => j.kind === 'dado').length + 1
-      const joint: Joint = {
-        kind: 'dado',
-        id: `joint_${crypto.randomUUID()}`,
-        label: `Dado ${n}`,
-        housingPartId: housing.id,
+      const joint: Joint = defaultDadoJoint(
+        housing,
+        housed,
         housingFace,
-        housedPartId: housed.id,
         housedEnd,
-        offset: computeDadoOffset(housing, housed, housingFace),
-        depth: defaultDadoDepth(housing, housingFace),
-        clearance: 0,
-        profile: 'plain',
-        tongueThickness: Math.round(housed.thickness / 2),
-        rabbetFace: '+Z',
-        stopStart: 0,
-        stopEnd: 0,
-      }
+        `joint_${crypto.randomUUID()}`,
+        `Dado ${n}`,
+      )
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add dado')
       setSelectedId(housing.id)
     },
@@ -948,24 +940,14 @@ export function useScene(): UseSceneResult {
       const tenonEnd = localNormalToFaceString(tenonHit.localFaceNormal)
       if (!isValidMortiseTenon(mortise, mortiseFace, tenon, tenonEnd)) return
       const n = s.joints.filter((j) => j.kind === 'mortise-tenon').length + 1
-      const tenonThickness = Math.round(tenon.thickness / 3)
-      const { offsetU, offsetV } = computeMortiseOffset(mortise, tenon, mortiseFace)
-      const joint: Joint = {
-        kind: 'mortise-tenon',
-        id: `joint_${crypto.randomUUID()}`,
-        label: `Mortise & tenon ${n}`,
-        mortisePartId: mortise.id,
+      const joint: Joint = defaultMortiseTenonJoint(
+        mortise,
+        tenon,
         mortiseFace,
-        tenonPartId: tenon.id,
         tenonEnd,
-        tenonLength: Math.round((mortise.thickness * 2) / 3),
-        tenonThickness,
-        tenonWidth: Math.max(0.1, tenon.width - 2 * tenonThickness),
-        clearance: 0,
-        through: false,
-        offsetU,
-        offsetV,
-      }
+        `joint_${crypto.randomUUID()}`,
+        `Mortise & tenon ${n}`,
+      )
       commitReconciled(
         (prev) => ({ ...prev, joints: [...prev.joints, joint] }),
         'Add mortise & tenon',
