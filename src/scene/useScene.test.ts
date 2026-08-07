@@ -6,6 +6,7 @@ import type {
   CutDef,
   CylinderPart,
   DadoJoint,
+  MortiseTenonJoint,
   FaceHit,
   Part,
   PartId,
@@ -1516,6 +1517,40 @@ describe('useScene — joints', () => {
     expect(H2.cuts.length).toBe(0)
   })
 
+  // Characterization test. These defaults decide the real cut geometry a user gets, and
+  // nothing else asserted any of them, so any refactor of the creator could change every
+  // user's dado silently. Pinned here before extracting them into a shared helper.
+  it('onAddJoint seeds the documented dado defaults', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    const { Hid, Did } = await twoBoards(result)
+
+    await act(async () => {
+      result.current.onAddJoint(hit(Hid, { x: 0, y: 0, z: 1 }), hit(Did, { x: 1, y: 0, z: 0 }))
+    })
+
+    const joint = result.current.scene.joints[0] as DadoJoint
+    // Centering the groove lands on 12.500000000000005, so this one field cannot be ===.
+    expect(joint.offset).toBeCloseTo(12.5, 6)
+    expect({ ...joint, id: '<uuid>', offset: '<float>' }).toEqual({
+      kind: 'dado',
+      id: '<uuid>',
+      label: 'Dado 1',
+      housingPartId: Hid,
+      housingFace: '+Z',
+      housedPartId: Did,
+      housedEnd: '+X',
+      offset: '<float>',
+      depth: 8, // defaultDadoDepth on a 25mm housing
+      clearance: 0,
+      profile: 'plain',
+      tongueThickness: 13, // round(housed.thickness / 2)
+      rabbetFace: '+Z',
+      stopStart: 0,
+      stopEnd: 0,
+    })
+  })
+
   it('onRemove of a participating part cascades the joint, single undo restores both', async () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
@@ -1692,6 +1727,53 @@ describe('useScene — joints', () => {
     await act(async () => result.current.undo())
     expect(result.current.scene.joints).toHaveLength(0)
     expect(jointCuts()).toBe(0)
+  })
+
+  // Characterization test — same reasoning as the dado one above.
+  it('onAddMortiseTenon seeds the documented mortise & tenon defaults', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    await act(async () => result.current.onAdd('board'))
+    await act(async () => result.current.onAdd('board'))
+    const [Mb, Tb] = result.current.scene.parts
+    await act(async () => {
+      result.current.onUpdate(
+        Mb.id,
+        (p) => ({ ...p, position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 } }),
+        'posM',
+      )
+      result.current.onUpdate(
+        Tb.id,
+        (p) => ({ ...p, position: { x: 0, y: 0, z: 60 }, rotation: { x: 0, y: 90, z: 0 } }),
+        'posT',
+      )
+    })
+    await act(async () => {
+      result.current.onAddMortiseTenon(
+        hit(Mb.id, { x: 0, y: 0, z: 1 }),
+        hit(Tb.id, { x: 1, y: 0, z: 0 }),
+      )
+    })
+
+    const joint = result.current.scene.joints[0] as MortiseTenonJoint
+    // Centering on the mortise face lands on 12.500000000000005, so offsetU cannot be ===.
+    expect(joint.offsetU).toBeCloseTo(12.5, 6)
+    expect({ ...joint, id: '<uuid>', offsetU: '<float>' }).toEqual({
+      kind: 'mortise-tenon',
+      id: '<uuid>',
+      label: 'Mortise & tenon 1',
+      mortisePartId: Mb.id,
+      mortiseFace: '+Z',
+      tenonPartId: Tb.id,
+      tenonEnd: '+X',
+      tenonLength: 17, // round(mortise.thickness * 2 / 3) on a 25mm mortise board
+      tenonThickness: 8, // round(tenon.thickness / 3)
+      tenonWidth: 84, // tenon.width - 2 * tenonThickness
+      clearance: 0,
+      through: false,
+      offsetU: '<float>',
+      offsetV: 50,
+    })
   })
 
   it('onAddFingerJoint creates a finger joint + cuts on both boards + seat in one undo entry', async () => {
