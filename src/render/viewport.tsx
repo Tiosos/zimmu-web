@@ -29,6 +29,15 @@ interface ViewportProps {
   suggestionFaces?: FaceHit[] | null
 }
 
+const snapMat = (color: number) =>
+  new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true, linewidth: 1 })
+
+const emptyGeo = () => {
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(0), 3))
+  return g
+}
+
 export function Viewport({
   parts,
   geometries,
@@ -62,7 +71,7 @@ export function Viewport({
   const onFaceHoverRef = useRef(onFaceHover)
   const sourceHighlightRef = useRef<THREE.LineLoop | null>(null)
   const hoverHighlightRef = useRef<THREE.LineLoop | null>(null)
-  const suggestionHighlightRefs = useRef<(THREE.LineLoop | null)[]>([null, null])
+  const suggestionHighlightRefs = useRef<THREE.LineLoop[]>([])
   const ghostMeshRef = useRef<THREE.Mesh | null>(null)
   const snapPhaseRef = useRef(snapPhase)
   const rafIdRef = useRef<number>(0)
@@ -210,13 +219,6 @@ export function Viewport({
     scene.add(grid)
 
     // Snap face highlight LineLoops
-    const snapMat = (color: number) =>
-      new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true, linewidth: 1 })
-    const emptyGeo = () => {
-      const g = new THREE.BufferGeometry()
-      g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(0), 3))
-      return g
-    }
     const sourceLoop = new THREE.LineLoop(emptyGeo(), snapMat(0xfbbf24))
     const hoverLoop = new THREE.LineLoop(emptyGeo(), snapMat(0x60a5fa))
     sourceLoop.renderOrder = 1
@@ -227,16 +229,9 @@ export function Viewport({
     scene.add(hoverLoop)
     sourceHighlightRef.current = sourceLoop
     hoverHighlightRef.current = hoverLoop
-    const suggestionLoops = [
-      new THREE.LineLoop(emptyGeo(), snapMat(0xfbbf24)),
-      new THREE.LineLoop(emptyGeo(), snapMat(0xfbbf24)),
-    ]
-    for (const loop of suggestionLoops) {
-      loop.renderOrder = 1
-      loop.visible = false
-      scene.add(loop)
-    }
-    suggestionHighlightRefs.current = suggestionLoops
+    // Suggestion loops are allocated on demand by the highlight effect, not fixed at two: a
+    // suggestion's face count is not constant (tenon shoulders come back as a BoxCut[]).
+    suggestionHighlightRefs.current = []
 
     const ghostPlaceholderGeo = new THREE.BufferGeometry()
     const ghostMat = new THREE.MeshStandardMaterial({
@@ -388,11 +383,13 @@ export function Viewport({
       scene.remove(hoverLoop)
       sourceLoop.material.dispose()
       hoverLoop.material.dispose()
-      for (const loop of suggestionLoops) {
+      // Read the ref, not a captured local: the pool grows after mount.
+      for (const loop of suggestionHighlightRefs.current) {
         loop.geometry.dispose()
         scene.remove(loop)
-        loop.material.dispose()
+        ;(loop.material as THREE.LineBasicMaterial).dispose()
       }
+      suggestionHighlightRefs.current = []
       ghostPlaceholderGeo.dispose()
       ghostMesh.material.dispose()
       scene.remove(ghostMesh)
@@ -540,11 +537,24 @@ export function Viewport({
 
     updateHighlight(sourceHighlightRef.current, sourceFace, 0xfbbf24)
     updateHighlight(hoverHighlightRef.current, hoveredFace, 0x60a5fa)
-    // Two loops is enough because suggestionFaceRefs returns 0 or 2 faces for every joint kind.
-    // A future kind returning 3+ would silently lose the extras here — add a loop if that changes.
+    // Grow the pool to whatever this suggestion needs rather than assuming a face count. The
+    // pool never shrinks — a few hidden LineLoops cost nothing, and reusing them avoids
+    // churning geometry on every hover.
     const sf = suggestionFaces ?? []
-    updateHighlight(suggestionHighlightRefs.current[0], sf[0] ?? null, 0xfbbf24)
-    updateHighlight(suggestionHighlightRefs.current[1], sf[1] ?? null, 0xfbbf24)
+    const pool = suggestionHighlightRefs.current
+    const scene = sceneRef.current
+    if (scene) {
+      while (pool.length < sf.length) {
+        const loop = new THREE.LineLoop(emptyGeo(), snapMat(0xfbbf24))
+        loop.renderOrder = 1
+        loop.visible = false
+        scene.add(loop)
+        pool.push(loop)
+      }
+    }
+    for (let i = 0; i < pool.length; i++) {
+      updateHighlight(pool[i], sf[i] ?? null, 0xfbbf24)
+    }
   }, [sourceFace, hoveredFace, snapPhase, parts, suggestionFaces])
 
   // Ghost mesh — semi-transparent preview of the source part at its snapped destination

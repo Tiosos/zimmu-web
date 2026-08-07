@@ -220,3 +220,26 @@ Two findings for whoever picks up the drawing half:
   allocates exactly two `LineLoop`s and has a comment warning that a kind needing 3+ silently loses
   the extras — so footprint previews force that pool to become dynamic. This is the largest hidden
   cost in the idea and was not visible until the housed/tenon side was examined.
+  *(Done — the pool is dynamic as of the entry below.)*
+
+## 2026-08-07 — `cutFootprint.ts` + dynamic highlight pool (drawing half, not yet wired)
+
+- **`cutFootprintCorners(part, cut)`** returns the world-space corners of the rectangle a `BoxCut`
+  removes from one board face. Built directly in the board's local axes rather than on
+  `computeFaceCorners`, whose in-plane basis comes from a cross product with an arbitrary fallback
+  vector — fine for a full face, which is symmetric about its centre either way, and meaningless for
+  an off-centre sub-rectangle. Board-local space and `BoxCut.position` share the same min-corner
+  origin (`computeLocalFaceCenter` confirms it), so no rebasing was needed after all.
+- The outline sits on the board's own face plane, not the cut's far plane: it marks where material
+  leaves the surface being looked at, and `updateHighlight` lifts it 1mm clear from there.
+- **The payoff is pinned by a test**: on the same tee, the dado groove's footprint runs the full
+  100mm width of the housing board while the mortise pocket's reaches neither board dimension. That
+  is the difference face outlines structurally could not show.
+- **The viewport's suggestion `LineLoop` pool now grows on demand** and no longer assumes two faces.
+  It never shrinks — a few hidden loops cost nothing and reusing them avoids churning geometry on
+  every hover. Cleanup reads the ref rather than a captured local, since the pool grows after mount.
+  `snapMat`/`emptyGeo` moved to module scope so the highlight effect can allocate too.
+- **Not yet wired.** `cutFootprintCorners` has no production caller — only its tests. Hovering still
+  outlines whole faces, so dado and mortise-tenon still look identical in the app. Swapping
+  `suggestionFaces` over to footprints is the remaining step; the existing `suggestion-highlight`
+  e2e spec passing throughout this change is what shows the pool refactor kept current behaviour.
