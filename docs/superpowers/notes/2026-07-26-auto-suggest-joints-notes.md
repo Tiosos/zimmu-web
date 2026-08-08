@@ -243,3 +243,27 @@ Two findings for whoever picks up the drawing half:
   outlines whole faces, so dado and mortise-tenon still look identical in the app. Swapping
   `suggestionFaces` over to footprints is the remaining step; the existing `suggestion-highlight`
   e2e spec passing throughout this change is what shows the pool refactor kept current behaviour.
+  *(Wired in the entry below.)*
+
+## 2026-08-07 — footprints wired: dado and mortise & tenon now look different
+
+`suggestionOutline.ts` turns a hovered suggestion into `Outline[]` (`corners` + world `normal`), and
+the viewport draws outlines rather than faces — one code path, no faces-vs-footprints branch in the
+renderer. `App` passes `suggestionOutlines` where it used to pass `suggestionFaces`.
+
+- **Driven through `deriveJoint`, not by hand-picking cut functions.** Build the default joint, ask
+  `deriveJoint` what it cuts, outline each resulting `BoxCut`. The preview is then the same
+  derivation the creator uses, so it cannot drift, and it needs no per-kind knowledge of how many
+  cuts a joint makes.
+- **Only dado and mortise & tenon use footprints.** Everything else keeps whole-face outlines:
+  finger and tongue & groove are already distinguishable, half-lap has no face pair. That also
+  leaves the `suggestion-highlight` e2e spec's amber calibration untouched, since it hovers a
+  tongue & groove.
+- **Measured result on the box corner** (same scene as the 2026-08-07 entry above): dado 1005 amber
+  px, mortise & tenon 1538, and their pixel-set overlap fell from **100% to 42%**. On screen the
+  dado is a single groove running across the housing board; the mortise & tenon is a nest of
+  rectangles — the inset pocket plus the tenon shoulders.
+- What the defaults actually cut, which decided what gets drawn: a default dado is `profile:
+  'plain'` with no stops, so `deriveDadoJoint` emits exactly **one** cut, the groove on the housing
+  board — nothing at all on the housed board. A mortise & tenon emits the pocket plus up to **four**
+  shoulder strips, so a single preview can be five outlines. Hence the dynamic loop pool.

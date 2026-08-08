@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import Stats from 'stats.js'
 import type { Part, PartId, CameraState } from '../scene/types'
 import type { FaceHit } from '../scene/types'
+import type { Outline } from '../scene/suggestionOutline'
 import {
   computeFaceCorners,
   computeLocalFaceCenter,
@@ -26,7 +27,7 @@ interface ViewportProps {
   snapPhase: 'idle' | 'source-picked'
   flashTarget?: { id: PartId; seq: number } | null
   highlightedId?: PartId | null
-  suggestionFaces?: FaceHit[] | null
+  suggestionOutlines?: Outline[] | null
 }
 
 const snapMat = (color: number) =>
@@ -53,7 +54,7 @@ export function Viewport({
   snapPhase,
   flashTarget,
   highlightedId,
-  suggestionFaces,
+  suggestionOutlines,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -508,6 +509,27 @@ export function Viewport({
 
   // Snap highlight update — rebuilds LineLoop geometry when faces change
   useEffect(() => {
+    function drawLoop(loop: THREE.LineLoop | null, outline: Outline | null, color: number) {
+      if (!loop) return
+      if (outline === null) {
+        loop.visible = false
+        return
+      }
+      const OFFSET = 1.0
+      const pos = new Float32Array(4 * 3)
+      outline.corners.forEach((c, i) => {
+        pos[i * 3] = c.x + outline.normal.x * OFFSET
+        pos[i * 3 + 1] = c.y + outline.normal.y * OFFSET
+        pos[i * 3 + 2] = c.z + outline.normal.z * OFFSET
+      })
+      loop.geometry.dispose()
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+      loop.geometry = geo
+      ;(loop.material as THREE.LineBasicMaterial).color.setHex(color)
+      loop.visible = true
+    }
+
     function updateHighlight(loop: THREE.LineLoop | null, face: FaceHit | null, color: number) {
       if (!loop) return
       if (face === null) {
@@ -519,20 +541,7 @@ export function Viewport({
         loop.visible = false
         return
       }
-      const corners = computeFaceCorners(face, part)
-      const OFFSET = 1.0
-      const pos = new Float32Array(4 * 3)
-      corners.forEach((c, i) => {
-        pos[i * 3] = c.x + face.faceNormal.x * OFFSET
-        pos[i * 3 + 1] = c.y + face.faceNormal.y * OFFSET
-        pos[i * 3 + 2] = c.z + face.faceNormal.z * OFFSET
-      })
-      loop.geometry.dispose()
-      const geo = new THREE.BufferGeometry()
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
-      loop.geometry = geo
-      ;(loop.material as THREE.LineBasicMaterial).color.setHex(color)
-      loop.visible = true
+      drawLoop(loop, { corners: computeFaceCorners(face, part), normal: face.faceNormal }, color)
     }
 
     updateHighlight(sourceHighlightRef.current, sourceFace, 0xfbbf24)
@@ -540,7 +549,7 @@ export function Viewport({
     // Grow the pool to whatever this suggestion needs rather than assuming a face count. The
     // pool never shrinks — a few hidden LineLoops cost nothing, and reusing them avoids
     // churning geometry on every hover.
-    const sf = suggestionFaces ?? []
+    const sf = suggestionOutlines ?? []
     const pool = suggestionHighlightRefs.current
     const scene = sceneRef.current
     if (scene) {
@@ -553,9 +562,9 @@ export function Viewport({
       }
     }
     for (let i = 0; i < pool.length; i++) {
-      updateHighlight(pool[i], sf[i] ?? null, 0xfbbf24)
+      drawLoop(pool[i], sf[i] ?? null, 0xfbbf24)
     }
-  }, [sourceFace, hoveredFace, snapPhase, parts, suggestionFaces])
+  }, [sourceFace, hoveredFace, snapPhase, parts, suggestionOutlines])
 
   // Ghost mesh — semi-transparent preview of the source part at its snapped destination
   useEffect(() => {
