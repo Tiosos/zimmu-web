@@ -8,6 +8,12 @@
       "Bash(tsc *)"
     ]
   },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Deleting local or remote git branches that are already fully merged into the default branch, including via `git push origin --delete`"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -49,12 +55,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty') && printf '%s' \"$f\" | grep -qE '\\.(ts|tsx|js|jsx|css)$' && pnpm exec prettier --write \"$f\" 2>/dev/null || true",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && f=$(node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);process.stdout.write(i.tool_input?.file_path||i.tool_response?.filePath||'')}catch(e){}})\") && case \"$f\" in *.ts|*.tsx|*.js|*.jsx|*.css) pnpm exec prettier --write \"$f\" ;; esac",
             "statusMessage": "Formatting..."
           },
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty') && printf '%s' \"$f\" | grep -qE '\\.test\\.(ts|tsx)$' && pnpm vitest run \"$f\" 2>&1 | tail -20 || true",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && f=$(node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);process.stdout.write(i.tool_input?.file_path||i.tool_response?.filePath||'')}catch(e){}})\") && case \"$f\" in *.test.ts|*.test.tsx) pnpm vitest run \"$f\" 2>&1 | tail -20 ;; esac",
             "statusMessage": "Running tests...",
             "timeout": 60
           }
