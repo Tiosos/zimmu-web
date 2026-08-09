@@ -1,6 +1,7 @@
 # Scene-Wide Joint Suggestions — Design Spec
 
-Status: **draft — one open decision blocks implementation** (see [Orientation](#orientation-the-open-decision)).
+Status: **decided and implemented** — Option B chosen (2026-08-07). The orientation section below is
+kept as the record of what was weighed, not as an open question.
 
 ## Overview
 
@@ -74,10 +75,10 @@ mortise & tenon twice, and it would silently discard one of the two real options
 tongue & groove — keeping whichever the loop happened to reach first, i.e. an artefact of part
 order.
 
-## Orientation — the open decision
+## Orientation — decided (Option B)
 
-This determines the row model, so it must be settled before any component is written. Three options,
-all consistent with the measured facts.
+This determined the row model, so it was settled before any component was written. Three options were
+weighed, all consistent with the measured facts; kept here as the record of the trade-off.
 
 ### Option A — one row per pair, with a swap control
 
@@ -109,15 +110,15 @@ board; lead finger board = the one with more existing joints, or lower label ord
 - **Against:** removes a real choice; the user must apply then edit the joint to flip it. Only
   defensible if one orientation is almost always right, which I have no evidence for.
 
-**Recommendation: Option B**, on the grounds that it needs no new interaction, keeps the row model
-identical to the per-part panel (one row = one applicable suggestion), and does not require inventing
-a defaulting heuristic. Its weakness — near-duplicate labels — is addressable in wording, whereas
+**Chosen: Option B** (confirmed 2026-08-07), on the grounds that it needs no new interaction, keeps
+the row model identical to the per-part panel (one row = one applicable suggestion), and does not
+require inventing a defaulting heuristic. Its weakness — near-duplicate labels — is addressable in wording, whereas
 Option C's weakness (a silently discarded option) is not addressable at all. Option A is the better
 end state if the list proves too long in practice, and B can migrate to A later without changing the
 engine.
 
-**This is a product judgement about how woodworkers choose orientation, made without observing anyone
-use the app. It should be confirmed rather than assumed.**
+This was a product judgement about how woodworkers choose orientation, made without observing anyone
+use the app, and was flagged for confirmation rather than assumed. Confirmed 2026-08-07.
 
 ## Ranking
 
@@ -198,7 +199,7 @@ Each row must name both boards ("Dado — Board 3 into Board 1"), since neither 
 
 ## Risks & Open Questions
 
-1. **Orientation (blocking).** Options above; recommendation is B, unconfirmed.
+1. ~~**Orientation (blocking).**~~ Resolved: Option B.
 2. **Whether this is wanted at all.** The gap was found by reading code, not by observing use. If
    the real workflow is "place two boards, joint them, place the next two", per-part scoping is
    already right and this solves nothing.

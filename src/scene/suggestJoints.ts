@@ -235,20 +235,11 @@ function aabbCenterDist(a: BoardPart, b: BoardPart): number {
   return Math.sqrt(sum)
 }
 
-export function suggestJointsFor(
-  selectedId: PartId | null,
-  parts: Part[],
-  joints: Joint[],
-): JointSuggestion[] {
-  if (selectedId == null) return []
-  const s = parts.find((p) => p.id === selectedId)
-  if (!s || s.kind !== 'board' || !s.visible) return []
-
+// Suggestions for the ordered pair (s, t): what joints s could form with t, with s in the role the
+// caller's selection implies. Ordered, not symmetric — see ORIENTATION_MATTERS.
+function suggestForOrderedPair(s: BoardPart, t: BoardPart): JointSuggestion[] {
   const out: JointSuggestion[] = []
-  for (const t of parts) {
-    if (t.id === s.id || t.kind !== 'board' || !t.visible) continue
-    if (joints.some((j) => jointInvolves(j, s.id) && jointInvolves(j, t.id))) continue
-
+  {
     if (isValidHalfLap(s, t)) {
       out.push({ kind: 'halflap', neighborId: t.id, partAId: s.id, partBId: t.id })
     }
@@ -268,7 +259,7 @@ export function suggestJointsFor(
     }
 
     const pair = contactPair(s, t)
-    if (!pair) continue
+    if (!pair) return out
     const { faceA, faceB } = pair
     const dS = faceAxes(faceA).depth
     const dT = faceAxes(faceB).depth
@@ -316,6 +307,25 @@ export function suggestJointsFor(
     }
   }
 
+  return out
+}
+
+export function suggestJointsFor(
+  selectedId: PartId | null,
+  parts: Part[],
+  joints: Joint[],
+): JointSuggestion[] {
+  if (selectedId == null) return []
+  const s = parts.find((p) => p.id === selectedId)
+  if (!s || s.kind !== 'board' || !s.visible) return []
+
+  const out: JointSuggestion[] = []
+  for (const t of parts) {
+    if (t.id === s.id || t.kind !== 'board' || !t.visible) continue
+    if (joints.some((j) => jointInvolves(j, s.id) && jointInvolves(j, t.id))) continue
+    out.push(...suggestForOrderedPair(s, t))
+  }
+
   const distOf = (id: PartId) => {
     const t = parts.find((p) => p.id === id)
     return t && t.kind === 'board' ? aabbCenterDist(s, t) : Infinity
@@ -326,4 +336,73 @@ export function suggestJointsFor(
     return KIND_PRIORITY.indexOf(a.kind) - KIND_PRIORITY.indexOf(b.kind)
   })
   return out.slice(0, MAX_SUGGESTIONS)
+}
+
+// Kinds whose two orientations are genuinely different joints, so both are worth offering.
+// FingerJoint.partAId is the lead board that stays put while the other auto-seats into the corner;
+// TongueGrooveJoint.groovePartId decides which board is grooved and which is tongued. Measured
+// 2026-08-07: scoring a pair from both sides yields identical roles for dado and mortise-tenon
+// (housing/housed is chosen by geometry, not by which board was selected), so those must be
+// collapsed. Half-lap only swaps partA/partB, immaterial at the default split of 0.5 — treated as
+// symmetric here, which is worth revisiting if split ever gets a non-centred default.
+const ORIENTATION_MATTERS: ReadonlySet<JointSuggestion['kind']> = new Set(['finger', 'tongue-groove'])
+
+// Runaway guard, not a curation device: unlike the per-part cap this is not trying to shorten the
+// list to what is worth reading, so it sits far above any plausible real scene.
+const MAX_SCENE_SUGGESTIONS = 100
+
+// Every joint available anywhere in the scene, with no selection. Pairs are visited once as an
+// unordered pair; the reverse direction contributes only the kinds whose orientation is a real
+// choice (see ORIENTATION_MATTERS), which is what keeps dado and mortise-tenon from appearing twice
+// while still offering both ways round for finger and tongue & groove.
+export function suggestJointsForScene(parts: Part[], joints: Joint[]): JointSuggestion[] {
+  const boards = parts.filter((p): p is BoardPart => p.kind === 'board' && p.visible)
+  const out: JointSuggestion[] = []
+
+  for (let i = 0; i < boards.length; i++) {
+    for (let j = i + 1; j < boards.length; j++) {
+      const a = boards[i]
+      const b = boards[j]
+      if (joints.some((joint) => jointInvolves(joint, a.id) && jointInvolves(joint, b.id))) continue
+      out.push(...suggestForOrderedPair(a, b))
+      out.push(...suggestForOrderedPair(b, a).filter((sug) => ORIENTATION_MATTERS.has(sug.kind)))
+    }
+  }
+
+  // No selected board to measure from, so order pairs by how close the two boards are — touching
+  // boards first — and keep the per-part kind order within a pair.
+  const board = (id: PartId) => boards.find((p) => p.id === id)
+  const pairDist = (sug: JointSuggestion) => {
+    const ids = pairIdsOf(sug)
+    const x = board(ids[0])
+    const y = board(ids[1])
+    return x && y ? aabbCenterDist(x, y) : Infinity
+  }
+  out.sort((x, y) => {
+    const d = pairDist(x) - pairDist(y)
+    if (Math.abs(d) > EPS) return d
+    return KIND_PRIORITY.indexOf(x.kind) - KIND_PRIORITY.indexOf(y.kind)
+  })
+  return out.slice(0, MAX_SCENE_SUGGESTIONS)
+}
+
+// The two boards a suggestion involves, without leaning on neighborId — which means "the other
+// board relative to the selection" and has no meaning in a scene-wide list.
+export function pairIdsOf(s: JointSuggestion): [PartId, PartId] {
+  switch (s.kind) {
+    case 'halflap':
+      return [s.partAId, s.partBId]
+    case 'dado':
+      return [s.housingPartId, s.housedPartId]
+    case 'mortise-tenon':
+      return [s.mortisePartId, s.tenonPartId]
+    case 'finger':
+      return [s.partAId, s.partBId]
+    case 'tongue-groove':
+      return [s.groovePartId, s.tonguePartId]
+    default: {
+      const _exhaustive: never = s
+      throw new Error(`unhandled suggestion kind: ${JSON.stringify(_exhaustive)}`)
+    }
+  }
 }

@@ -11,6 +11,8 @@ import {
   contactPair,
   cornerPair,
   suggestJointsFor,
+  suggestJointsForScene,
+  pairIdsOf,
   suggestionFaceRefs,
   faceHitForDisplay,
 } from './suggestJoints'
@@ -352,4 +354,87 @@ test('faceHitForDisplay keeps the local normal and adds the world normal', () =>
   expect(hSpun.faceNormal.x).toBeCloseTo(0)
   expect(hSpun.faceNormal.y).toBeCloseTo(0)
   expect(hSpun.faceNormal.z).toBeCloseTo(1)
+})
+
+// --- scene-wide suggestions -------------------------------------------------------------------
+// The dedup rule is per kind, not uniform. Measured 2026-08-07: scoring a pair from both sides
+// gives identical roles for dado and mortise-tenon (housing/housed is decided by geometry, not by
+// which board was selected) but genuinely different joints for finger and tongue & groove.
+
+function sceneKinds(parts: Part[]): string[] {
+  return suggestJointsForScene(parts, [])
+    .map((s) => s.kind)
+    .sort()
+}
+
+test('scene: a perpendicular tee yields dado and mortise-tenon exactly once each', () => {
+  // Both would appear twice if the reverse direction were kept for symmetric kinds.
+  expect(sceneKinds([teeH, teeD])).toEqual(['dado', 'mortise-tenon'])
+})
+
+test('scene: a crossing lap yields one half-lap, not one per direction', () => {
+  expect(sceneKinds([lapA, lapB])).toEqual(['halflap'])
+})
+
+test('scene: an edge glue-up offers the groove on either board', () => {
+  const tg = suggestJointsForScene([edgeG, edgeE], []).filter((s) => s.kind === 'tongue-groove')
+  expect(tg).toHaveLength(2)
+  // The whole point of keeping both: which board carries the groove is a real choice.
+  const grooved = tg.map((s) => (s.kind === 'tongue-groove' ? s.groovePartId : '')).sort()
+  expect(grooved).toEqual(['E', 'G'])
+})
+
+test('scene: a box corner offers the finger joint led from either board', () => {
+  const finger = suggestJointsForScene([cornerA, cornerB], []).filter((s) => s.kind === 'finger')
+  expect(finger).toHaveLength(2)
+  // partAId is the board that stays put while the other auto-seats — not interchangeable.
+  const leads = finger.map((s) => (s.kind === 'finger' ? s.partAId : '')).sort()
+  expect(leads).toEqual(['CA', 'CB'])
+})
+
+test('scene: a pair that already carries a joint is skipped, as in the per-part path', () => {
+  const joint: Joint = {
+    kind: 'halflap',
+    id: 'j1',
+    label: 'Half-lap 1',
+    partAId: 'LA',
+    partBId: 'LB',
+    split: 0.5,
+    clearance: 0,
+  }
+  expect(suggestJointsForScene([lapA, lapB], [joint])).toEqual([])
+})
+
+test('scene: hidden boards are excluded', () => {
+  expect(suggestJointsForScene([lapA, { ...lapB, visible: false }], [])).toEqual([])
+})
+
+test('scene: every per-part suggestion for a board is reachable scene-wide', () => {
+  const parts = [teeH, teeD]
+  const scene = suggestJointsForScene(parts, [])
+  for (const s of suggestJointsFor('H', parts, [])) {
+    expect(
+      scene.some((x) => x.kind === s.kind && pairIdsOf(x).sort().join() === pairIdsOf(s).sort().join()),
+      `scene list is missing the ${s.kind} the per-part list offers`,
+    ).toBe(true)
+  }
+})
+
+test('pairIdsOf names both boards for every kind', () => {
+  const parts = [cornerA, cornerB]
+  for (const s of suggestJointsForScene(parts, [])) {
+    expect(pairIdsOf(s).sort()).toEqual(['CA', 'CB'])
+  }
+})
+
+test('scene: an all-pairs pass over a 24-board scene stays within budget', () => {
+  const many: Part[] = []
+  for (let i = 0; i < 24; i++) {
+    many.push(board({ id: `B${i}`, position: { x: (i % 6) * 40, y: Math.floor(i / 6) * 40, z: 0 } }))
+  }
+  const t0 = performance.now()
+  suggestJointsForScene(many, [])
+  // Measured ~30ms for the equivalent per-part sweep; this guards an order-of-magnitude regression,
+  // not a precise number, since it recomputes on every scene.parts change.
+  expect(performance.now() - t0).toBeLessThan(300)
 })

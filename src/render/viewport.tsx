@@ -26,7 +26,7 @@ interface ViewportProps {
   hoveredFace: FaceHit | null
   snapPhase: 'idle' | 'source-picked'
   flashTarget?: { id: PartId; seq: number } | null
-  highlightedId?: PartId | null
+  highlightedIds?: readonly PartId[] | null
   suggestionOutlines?: Outline[] | null
 }
 
@@ -59,7 +59,7 @@ export function Viewport({
   hoveredFace,
   snapPhase,
   flashTarget,
-  highlightedId,
+  highlightedIds,
   suggestionOutlines,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
@@ -502,7 +502,7 @@ export function Viewport({
     // Selection + suggestion-hover highlight
     for (const [id, el] of edgeLines.current) {
       ;(el.material as THREE.LineBasicMaterial).color.setHex(
-        id === selectedId ? 0x4fc3f7 : id === highlightedId ? 0xfbbf24 : 0x1a1a1d,
+        id === selectedId ? 0x4fc3f7 : highlightedIds?.includes(id) ? 0xfbbf24 : 0x1a1a1d,
       )
     }
     for (const [id, mesh] of meshes.current) {
@@ -511,7 +511,7 @@ export function Viewport({
         id === selectedId ? 0x222244 : 0x000000,
       )
     }
-  }, [parts, geometries, selectedId, highlightedId])
+  }, [parts, geometries, selectedId, highlightedIds])
 
   // Snap highlight update — rebuilds LineLoop geometry when faces change
   useEffect(() => {

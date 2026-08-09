@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
-import { suggestJointsFor, synthHit } from './scene/suggestJoints'
+import { suggestJointsFor, suggestJointsForScene, synthHit, pairIdsOf } from './scene/suggestJoints'
 import { suggestionOutlines } from './scene/suggestionOutline'
 import type { JointSuggestion } from './scene/suggestJoints'
 import { Viewport } from './render/viewport'
@@ -63,7 +63,19 @@ function App() {
     [selectedId, scene.parts, scene.joints],
   )
 
+  const sceneSuggestions = useMemo(
+    () => suggestJointsForScene(scene.parts, scene.joints),
+    [scene.parts, scene.joints],
+  )
+
   const [hoveredSuggestion, setHoveredSuggestion] = useState<JointSuggestion | null>(null)
+  // Both boards tint, not just the "neighbour": scene rows have no selection to be relative to.
+  // In the per-part panel this changes nothing visible, because the selected board's own cyan
+  // takes precedence over the tint in the viewport.
+  const highlightedIds = useMemo(
+    () => (hoveredSuggestion ? pairIdsOf(hoveredSuggestion) : null),
+    [hoveredSuggestion],
+  )
   const hoveredOutlines = useMemo(
     () => (hoveredSuggestion ? suggestionOutlines(hoveredSuggestion, scene.parts) : null),
     [hoveredSuggestion, scene.parts],
@@ -344,7 +356,7 @@ function App() {
           hoveredFace={mode.hoveredFace}
           snapPhase={mode.snapPhase}
           flashTarget={flashTarget}
-          highlightedId={hoveredSuggestion?.neighborId ?? null}
+          highlightedIds={highlightedIds}
           suggestionOutlines={hoveredOutlines}
         />
         <Sidebar
@@ -391,6 +403,7 @@ function App() {
           onTongueGrooveToggle={() => mode.setMode('tongueGroove')}
           tongueGrooveStatus={mode.statuses.tongueGroove}
           suggestions={suggestions}
+          sceneSuggestions={sceneSuggestions}
           onApplySuggestion={applySuggestion}
           onHoverSuggestion={setHoveredSuggestion}
         />

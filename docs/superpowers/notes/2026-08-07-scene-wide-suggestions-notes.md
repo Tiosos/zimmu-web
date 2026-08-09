@@ -1,7 +1,6 @@
 # Scene-Wide Suggestions — Implementation Notes
 
 Living notes for `docs/superpowers/specs/2026-08-07-scene-wide-suggestions-design.md`.
-Nothing is implemented yet; these are the findings the spec was built on.
 
 ## 2026-08-07 — scoping
 
@@ -29,11 +28,37 @@ Nothing is implemented yet; these are the findings the spec was built on.
   slices to `MAX_SUGGESTIONS = 8`. Neither survives scene-wide: there is no reference board, and 8 is
   far too few for a whole carcase.
 
+## 2026-08-07 — implemented (Option B)
+
+- **`suggestForOrderedPair(s, t)` extracted first**, so the per-part and scene passes share one
+  scoring body rather than drifting. Behaviour-preserving; the existing suggestion tests were the
+  check. One wrinkle: the extracted block contained a loop `continue` (`if (!pair) continue`) which
+  becomes a compile error inside a function — it is now `return out`.
+- **`suggestJointsForScene` visits each unordered pair once**, taking the forward direction whole
+  and keeping only `ORIENTATION_MATTERS` kinds from the reverse. That is the entire dedup rule, and
+  it is expressed as a set of kinds rather than a per-kind branch so a new kind has to be classified
+  deliberately.
+- **`pairIdsOf(sug)`** names both boards without `neighborId`, which means "the other board relative
+  to the selection" and is meaningless scene-wide. It has a `never` guard like `suggestionFaceRefs`.
+- **The tint became plural** (`highlightedIds`). In the per-part panel this changes nothing visible:
+  the selected board's cyan is checked first in the viewport's colour branch, so adding it to the
+  list is inert there. Scene-wide, where neither board is selected, both now tint.
+- **The scene panel is collapsed by default.** It lists every candidate in the scene, which is noise
+  while working on one board; the per-part panel remains the foreground path.
+- Confirmed in the app with **nothing selected** — the case that was impossible before, since
+  `suggestJointsFor` returns `[]` for a null selection. Two boards edge-to-edge produce exactly the
+  two tongue & groove rows Option B predicts, each naming which board carries the groove.
+
 ## Open
 
-- **Orientation is the blocking decision** and is a product judgement, not a technical one — three
-  options are laid out in the spec with a recommendation (B: one row per distinct outcome) that has
-  not been confirmed. Implementation should not start until it is.
 - Whether the feature is wanted at all: the gap was found by reading code, not by watching the app
   be used. If the working style is "place two boards, joint them, repeat", per-part scoping is
-  already correct.
+  already correct and this is unused weight.
+- **List length is untested on a real carcase.** Option B's row count grows with asymmetric pairs.
+  If it proves unwieldy, Option A (one row per pair + swap control) is the migration, and the engine
+  does not change — only the row model does.
+- **Recompute cost is guarded but not tuned.** A 24-board pass is ~30ms and recomputes on every
+  `scene.parts` change, including each keystroke in a dimension input. A test caps it at 300ms to
+  catch an order-of-magnitude regression. If it ever bites, memoize on something narrower than
+  `scene.parts` or defer during edits.
+- Camera framing on hover is still a non-goal; scene rows can name boards that are off-screen.

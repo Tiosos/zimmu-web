@@ -15,6 +15,7 @@ import type { JointSuggestion } from '../scene/suggestJoints'
 import { DowelCutsPanel } from './DowelCutsPanel'
 import { JointsPanel } from './JointsPanel'
 import { SuggestionsPanel } from './SuggestionsPanel'
+import { SceneSuggestionsPanel } from './SceneSuggestionsPanel'
 import { useDebouncedCallback } from './useDebouncedCallback'
 import { faceAxes } from '../scene/snapMath'
 import { PART_COLORS } from '../scene/palette'
@@ -78,6 +79,7 @@ interface SidebarProps {
   onTongueGrooveToggle: () => void
   tongueGrooveStatus: string | null
   suggestions: JointSuggestion[]
+  sceneSuggestions: JointSuggestion[]
   onApplySuggestion: (s: JointSuggestion) => void
   onHoverSuggestion: (s: JointSuggestion | null) => void
 }
@@ -853,6 +855,7 @@ export function Sidebar({
   onTongueGrooveToggle,
   tongueGrooveStatus,
   suggestions,
+  sceneSuggestions,
   onApplySuggestion,
   onHoverSuggestion,
 }: SidebarProps) {
@@ -1073,6 +1076,15 @@ export function Sidebar({
             onHoverSuggestion={onHoverSuggestion}
           />
         )}
+
+        {/* Scene-wide suggestions — outside EditPanel, since they belong to no single part
+            and must stay reachable with nothing selected. */}
+        <SceneSuggestionsPanel
+          suggestions={sceneSuggestions}
+          scene={scene}
+          onApply={onApplySuggestion}
+          onHoverSuggestion={onHoverSuggestion}
+        />
 
         {/* Add part footer */}
         <div className="p-2 border-t border-border flex gap-1">
