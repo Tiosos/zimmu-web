@@ -225,6 +225,7 @@ const KIND_PRIORITY: JointSuggestion['kind'][] = [
   'finger',
   'tongue-groove',
 ]
+
 function aabbCenterDist(a: BoardPart, b: BoardPart): number {
   const ca = aabbCenter(worldAabb(a))
   const cb = aabbCenter(worldAabb(b))
