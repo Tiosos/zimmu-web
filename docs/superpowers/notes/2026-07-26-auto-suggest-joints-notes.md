@@ -49,6 +49,8 @@ an `onAddFingerJoint` dispatcher arm). MVP ships half-lap + dado + mortise-tenon
 ### Other choices
 
 - `TOUCH_TOL = 1 mm`; `MAX_SUGGESTIONS = 8`; `KIND_PRIORITY = [halflap, dado, mortise-tenon, tongue-groove]`.
+  (`MAX_SUGGESTIONS` was removed on 2026-08-09 — it silently hid real joints on a carcase. See the
+  2026-08-09 entry in `2026-08-07-scene-wide-suggestions-notes.md`.)
 - Apply replays through the existing `onAdd*` creators via `synthHit` (creators read only `partId` +
   `localFaceNormal`), so undo/redo + cut derivation come for free and stale suggestions fail safe.
 - `FACE_NORMALS` gets a fifth private copy (matches the per-file convention in `geom/*`); a shared
