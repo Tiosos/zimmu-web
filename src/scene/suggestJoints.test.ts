@@ -336,6 +336,31 @@ test('dado and mortise-tenon resolve to identical faces — outlines cannot dist
   expect(suggestionFaceRefs(dado!)).toEqual(suggestionFaceRefs(mortiseTenon!))
 })
 
+// Five uprights standing on one shelf, spaced so they touch the shelf but not each other. Each
+// contributes a dado and a mortise & tenon, so the shelf has ten candidates — more than one board
+// can reach in the small fixtures above, and the size a real carcase side reaches easily.
+const shelf = board({ id: 'S', length: 200, width: 100, thickness: 20 })
+const upright = (id: string, x: number) =>
+  board({
+    id,
+    length: 80,
+    width: 40,
+    thickness: 18,
+    rotation: { x: 0, y: -90, z: 0 },
+    position: { x, y: 30, z: 20 },
+  })
+const crowdedShelf = [shelf, ...[40, 80, 120, 160, 200].map((x, i) => upright(`U${i + 1}`, x))]
+
+// Measured 2026-08-09 on an 800x600x720 carcase: a cabinet side has 13 real candidates, so a cap
+// of 8 silently hid 5 — including, because the sort is nearest-neighbour first, the whole
+// side-to-top joint. A dropped row is indistinguishable from a joint the engine cannot make.
+test('a board reports every candidate joint, not a truncated few', () => {
+  const out = suggestJointsFor('S', crowdedShelf, [])
+  expect(out).toHaveLength(10)
+  const neighbours = [...new Set(out.map((s) => s.neighborId))].sort()
+  expect(neighbours).toEqual(['U1', 'U2', 'U3', 'U4', 'U5'])
+})
+
 test('faceHitForDisplay keeps the local normal and adds the world normal', () => {
   // Unrotated: world normal equals local normal.
   const flat = board({ id: 'F' })

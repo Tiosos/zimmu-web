@@ -225,8 +225,6 @@ const KIND_PRIORITY: JointSuggestion['kind'][] = [
   'finger',
   'tongue-groove',
 ]
-const MAX_SUGGESTIONS = 8
-
 function aabbCenterDist(a: BoardPart, b: BoardPart): number {
   const ca = aabbCenter(worldAabb(a))
   const cb = aabbCenter(worldAabb(b))
@@ -330,12 +328,16 @@ export function suggestJointsFor(
     const t = parts.find((p) => p.id === id)
     return t && t.kind === 'board' ? aabbCenterDist(s, t) : Infinity
   }
+  // Nearest neighbour first, so the most likely joint is at the top. The list is not truncated:
+  // it is bounded by how many boards actually touch the selection, and a hidden row is
+  // indistinguishable from a joint the engine cannot make. See the 2026-08-09 note in
+  // docs/superpowers/notes/2026-08-07-scene-wide-suggestions-notes.md.
   out.sort((a, b) => {
     const d = distOf(a.neighborId) - distOf(b.neighborId)
     if (Math.abs(d) > EPS) return d
     return KIND_PRIORITY.indexOf(a.kind) - KIND_PRIORITY.indexOf(b.kind)
   })
-  return out.slice(0, MAX_SUGGESTIONS)
+  return out
 }
 
 // Kinds whose two orientations are genuinely different joints, so both are worth offering.
@@ -347,8 +349,10 @@ export function suggestJointsFor(
 // symmetric here, which is worth revisiting if split ever gets a non-centred default.
 const ORIENTATION_MATTERS: ReadonlySet<JointSuggestion['kind']> = new Set(['finger', 'tongue-groove'])
 
-// Runaway guard, not a curation device: unlike the per-part cap this is not trying to shorten the
-// list to what is worth reading, so it sits far above any plausible real scene.
+// Runaway guard on an all-pairs list, not a curation device. Measured 2026-08-09: three 8-board
+// carcases — a modest kitchen run — produce 120 candidates and are cut to 100, so this IS reachable
+// by a real scene and truncates it silently. Grouping rows by pair is the fix; raising the number
+// only moves the cliff.
 const MAX_SCENE_SUGGESTIONS = 100
 
 // Every joint available anywhere in the scene, with no selection. Pairs are visited once as an
