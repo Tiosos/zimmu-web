@@ -34,6 +34,16 @@ const teeD = board({
   position: { x: 100, y: 30, z: 20 },
 })
 
+// Two crossing coplanar boards of equal thickness — offers a half-lap.
+const lapA = board({ id: 'LA', length: 200, width: 40, thickness: 20 })
+const lapB = board({
+  id: 'LB',
+  length: 40,
+  width: 200,
+  thickness: 20,
+  position: { x: 80, y: -80, z: 0 },
+})
+
 // Coplanar edge glue-up — offers tongue & groove, which keeps whole-face outlines.
 const edgeG = board({ id: 'G', length: 200, width: 40, thickness: 18 })
 const edgeE = board({
@@ -82,6 +92,21 @@ test('dado and mortise-tenon previews differ on the same pair of boards', () => 
 
 test('tongue & groove still previews whole faces — one per board', () => {
   expect(of('tongue-groove', 'G', [edgeG, edgeE])).toHaveLength(2)
+})
+
+// Half-lap has no mating face pair, so suggestionFaceRefs returns [] for it and hovering used to
+// draw nothing at all — only the neighbour tint. Its lap cuts are the preview.
+test('a half-lap previews its two lap cuts instead of nothing', () => {
+  expect(of('halflap', 'LA', [lapA, lapB])).toHaveLength(2)
+})
+
+// halflap.ts stamps both lap cuts face '+Z' as a placeholder. If that were taken at face value both
+// outlines would be drawn on the boards' top faces, when the lap removes the upper half of one
+// board and the lower half of the other — so the two normals must oppose.
+test('the two lap outlines sit on opposite sides, not both on top', () => {
+  const [a, b] = of('halflap', 'LA', [lapA, lapB])
+  const dot = a.normal.x * b.normal.x + a.normal.y * b.normal.y + a.normal.z * b.normal.z
+  expect(dot).toBeCloseTo(-1, 6)
 })
 
 test('a suggestion naming a missing part yields nothing rather than throwing', () => {

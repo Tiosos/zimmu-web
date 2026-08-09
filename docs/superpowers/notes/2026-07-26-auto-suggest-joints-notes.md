@@ -267,3 +267,24 @@ renderer. `App` passes `suggestionOutlines` where it used to pass `suggestionFac
   'plain'` with no stops, so `deriveDadoJoint` emits exactly **one** cut, the groove on the housing
   board — nothing at all on the housed board. A mortise & tenon emits the pocket plus up to **four**
   shoulder strips, so a single preview can be five outlines. Hence the dynamic loop pool.
+
+## 2026-08-07 — half-lap gets a preview at all
+
+Half-lap was the one kind that previewed *nothing*: `suggestionFaceRefs` returns `[]` for it, so
+hovering drew only the neighbour tint. That was right when outlines meant faces — a crossing overlap
+has no mating face pair — and stopped being right the moment footprints existed. It now outlines its
+two lap cuts. Earlier notes calling this "deliberate, not a gap" are superseded.
+
+- `defaultHalfLapJoint` joins the other two in `defaultJoint.ts`; its defaults (`split: 0.5`,
+  `clearance: 0`) were pinned by a characterization test before the extraction, same discipline.
+- **`face` on a lap cut is a placeholder and must not be trusted.** `worldBoxToLocalCut` stamps
+  every lap cut `'+Z'` with a comment saying it is cosmetic — the geometry lives in position/size.
+  Taken at face value both outlines land on the boards' *top* faces, when a lap removes the upper
+  half of one board and the lower half of the other. `lapFace` recovers the real side: `stackAxis`
+  reads the board's local z column and `isValidHalfLap` requires both boards to share that axis, so
+  a lap always cuts through local z; only the sign is open, and the cut's local z position settles
+  it. A test asserts the two outline normals oppose, which is what fails if this is naive.
+- Scoped to laps rather than applied everywhere: every other producer sets a meaningful `face`, and
+  re-deriving it globally would risk the dado and mortise & tenon behaviour already verified.
+- Confirmed in the app on two crossing 200×40×20 / 40×200×20 boards: 903 amber px at the crossing,
+  two rectangles at different heights. Previously this hover produced zero outlines.

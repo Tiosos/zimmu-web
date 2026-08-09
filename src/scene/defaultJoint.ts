@@ -1,4 +1,4 @@
-import type { BoardPart, DadoJoint, Face, MortiseTenonJoint } from './types'
+import type { BoardPart, DadoJoint, Face, HalfLapJoint, MortiseTenonJoint } from './types'
 import { computeDadoOffset, defaultDadoDepth } from '../geom/dado'
 import { computeMortiseOffset } from '../geom/mortisetenon'
 
@@ -35,6 +35,23 @@ export function defaultDadoJoint(
     rabbetFace: '+Z',
     stopStart: 0,
     stopEnd: 0,
+  }
+}
+
+export function defaultHalfLapJoint(
+  a: BoardPart,
+  b: BoardPart,
+  id: string,
+  label: string,
+): HalfLapJoint {
+  return {
+    kind: 'halflap',
+    id,
+    label,
+    partAId: a.id,
+    partBId: b.id,
+    split: 0.5,
+    clearance: 0,
   }
 }
 

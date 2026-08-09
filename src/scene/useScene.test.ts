@@ -6,6 +6,7 @@ import type {
   CutDef,
   CylinderPart,
   DadoJoint,
+  HalfLapJoint,
   MortiseTenonJoint,
   FaceHit,
   Part,
@@ -1683,6 +1684,29 @@ describe('useScene — joints', () => {
     await act(async () => result.current.undo())
     expect(result.current.scene.joints).toHaveLength(0)
     expect(lapCuts()).toBe(0)
+  })
+
+  // Characterization test — same reasoning as the dado and mortise & tenon ones.
+  it('onAddHalfLap seeds the documented half-lap defaults', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    await act(async () => result.current.onAdd('board'))
+    await act(async () => result.current.onAdd('board'))
+    const [P, Q] = result.current.scene.parts
+    await act(async () => {
+      result.current.onAddHalfLap(P.id, Q.id)
+    })
+
+    const joint = result.current.scene.joints[0] as HalfLapJoint
+    expect({ ...joint, id: '<uuid>' }).toEqual({
+      kind: 'halflap',
+      id: '<uuid>',
+      label: 'Half-lap 1',
+      partAId: P.id,
+      partBId: Q.id,
+      split: 0.5, // a true half-lap: each board keeps half its thickness
+      clearance: 0,
+    })
   })
 
   it('onAddMortiseTenon creates a mortise & tenon + cuts + seat in one undo entry', async () => {

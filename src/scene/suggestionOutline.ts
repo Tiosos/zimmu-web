@@ -1,9 +1,9 @@
-import type { Part, Vec3 } from './types'
+import type { BoardPart, BoxCut, Face, Part, Vec3 } from './types'
 import type { JointSuggestion } from './suggestJoints'
 import { suggestionFaceRefs, faceHitForDisplay } from './suggestJoints'
 import { computeFaceCorners } from './snapMath'
 import { cutFootprintCorners } from './cutFootprint'
-import { defaultDadoJoint, defaultMortiseTenonJoint } from './defaultJoint'
+import { defaultDadoJoint, defaultHalfLapJoint, defaultMortiseTenonJoint } from './defaultJoint'
 import { deriveJoint } from '../geom/dado'
 
 export interface Outline {
@@ -32,29 +32,54 @@ function faceOutlines(s: JointSuggestion, parts: Part[]): Outline[] {
   })
 }
 
+// halflap.ts stamps every lap cut with face '+Z' and says so in a comment — the field is a
+// placeholder there, the geometry lives in position/size. Recover the real side: isValidHalfLap
+// requires both boards to share a stack axis, and stackAxis reads the board's local z column, so a
+// lap always removes material through local z. Only the sign is in question, and where the cut
+// sits in local z settles it. Every other producer sets a meaningful face, so this is scoped to
+// laps rather than applied everywhere.
+function lapFace(part: BoardPart, cut: BoxCut): Face {
+  return cut.position.z <= (part.thickness - cut.size.z) / 2 ? '-Z' : '+Z'
+}
+
 // Outlines of the material a joint would actually remove, derived through deriveJoint so the
 // preview shows the same cuts the creator would produce rather than a second guess at them.
-function cutOutlines(joint: Parameters<typeof deriveJoint>[0], parts: Part[]): Outline[] | null {
+function cutOutlines(
+  joint: Parameters<typeof deriveJoint>[0],
+  parts: Part[],
+  faceOf?: (part: BoardPart, cut: BoxCut) => Face,
+): Outline[] | null {
   const derived = deriveJoint(joint, parts)
   if (!derived) return null
   return derived.cuts.flatMap(({ partId, cut }) => {
     const p = board(parts, partId)
     if (!p || cut.kind !== 'box') return []
+    const face = faceOf ? faceOf(p, cut) : cut.face
     return [
       {
-        corners: cutFootprintCorners(p, cut),
-        normal: faceHitForDisplay(p, cut.face).faceNormal,
+        corners: cutFootprintCorners(p, { ...cut, face }),
+        normal: faceHitForDisplay(p, face).faceNormal,
       },
     ]
   })
 }
 
-// Dado and mortise & tenon are offered on the same contact pair and resolve to the same two faces,
-// so face outlines cannot separate them (see suggestJoints.test.ts). Their *cuts* differ plainly —
-// the groove runs clear across the housing board, the mortise pocket is inset — so those two kinds
-// preview their footprints instead. The rest keep face outlines: finger and tongue & groove are
-// already distinguishable, and half-lap has no face pair at all.
+// Which kinds preview cuts rather than faces, and why:
+//   half-lap        — has no mating face pair, so face outlines gave it nothing at all.
+//   dado, mortise&tenon — share a contact pair and resolve to the same two faces, so face outlines
+//                     could not tell them apart (see suggestJoints.test.ts); their cuts plainly can.
+// Finger and tongue & groove keep whole-face outlines: their faces already differ, and the faces
+// are what the joint mates on, so they are the more honest thing to show.
 export function suggestionOutlines(s: JointSuggestion, parts: Part[]): Outline[] {
+  if (s.kind === 'halflap') {
+    // A crossing overlap has no pair of mating faces, so this kind previewed nothing at all
+    // before footprints existed — only the neighbour tint. Its lap cuts give it one.
+    const a = board(parts, s.partAId)
+    const b = board(parts, s.partBId)
+    if (!a || !b) return []
+    const joint = defaultHalfLapJoint(a, b, PREVIEW_ID, PREVIEW_LABEL)
+    return cutOutlines(joint, parts, lapFace) ?? []
+  }
   if (s.kind === 'dado') {
     const housing = board(parts, s.housingPartId)
     const housed = board(parts, s.housedPartId)

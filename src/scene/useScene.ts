@@ -21,7 +21,11 @@ import { reconcileJoints } from './reconcileJoints'
 import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
-import { defaultDadoJoint, defaultMortiseTenonJoint } from './defaultJoint'
+import {
+  defaultDadoJoint,
+  defaultHalfLapJoint,
+  defaultMortiseTenonJoint,
+} from './defaultJoint'
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidTongueGroove } from '../geom/tonguegroove'
 import { PART_COLORS } from './palette'
@@ -915,15 +919,12 @@ export function useScene(): UseSceneResult {
       const b = s.parts.find((p) => p.id === bId)
       if (a?.kind !== 'board' || b?.kind !== 'board' || a.id === b.id) return
       const n = s.joints.filter((j) => j.kind === 'halflap').length + 1
-      const joint: Joint = {
-        kind: 'halflap',
-        id: `joint_${crypto.randomUUID()}`,
-        label: `Half-lap ${n}`,
-        partAId: a.id,
-        partBId: b.id,
-        split: 0.5,
-        clearance: 0,
-      }
+      const joint: Joint = defaultHalfLapJoint(
+        a,
+        b,
+        `joint_${crypto.randomUUID()}`,
+        `Half-lap ${n}`,
+      )
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add half-lap')
       setSelectedId(a.id)
     },
