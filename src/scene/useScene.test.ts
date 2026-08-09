@@ -6,6 +6,8 @@ import type {
   CutDef,
   CylinderPart,
   DadoJoint,
+  FingerJoint,
+  TongueGrooveJoint,
   HalfLapJoint,
   MortiseTenonJoint,
   FaceHit,
@@ -1858,6 +1860,61 @@ describe('useScene — joints', () => {
     expect(jointCuts()).toBe(0)
   })
 
+  // Characterization test — same reasoning as the other joint kinds.
+  it('onAddFingerJoint seeds the documented finger defaults', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    await act(async () => result.current.onAdd('board'))
+    await act(async () => result.current.onAdd('board'))
+    const [Ab, Bb] = result.current.scene.parts
+    await act(async () => {
+      result.current.onUpdate(
+        Ab.id,
+        (p) => ({
+          ...p,
+          length: 200,
+          width: 80,
+          thickness: 18,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+        }),
+        'a',
+      )
+      result.current.onUpdate(
+        Bb.id,
+        (p) => ({
+          ...p,
+          length: 200,
+          width: 80,
+          thickness: 18,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 90, z: 0 },
+        }),
+        'b',
+      )
+    })
+    await act(async () => {
+      result.current.onAddFingerJoint(
+        hit(Ab.id, { x: 1, y: 0, z: 0 }),
+        hit(Bb.id, { x: 1, y: 0, z: 0 }),
+      )
+    })
+
+    const joint = result.current.scene.joints[0] as FingerJoint
+    expect({ ...joint, id: '<uuid>' }).toEqual({
+      kind: 'finger',
+      id: '<uuid>',
+      label: 'Finger joint 1',
+      partAId: Ab.id,
+      endA: '+X',
+      partBId: Bb.id,
+      endB: '+X',
+      // clamp(round(width / 2*thickness), 3, 15) — 80/(2*18) rounds to 2, so the floor applies
+      fingerCount: 3,
+      clearance: 0,
+    })
+  })
+
   it('onAddTongueGroove creates a tongue-groove joint + cuts on both boards + seat in one undo entry', async () => {
     const { result } = renderHook(() => useScene())
     await waitFor(() => expect(result.current.occtReady).toBe(true))
@@ -1910,6 +1967,21 @@ describe('useScene — joints', () => {
           0,
         )
     expect(jointCuts()).toBe(3) // 1 groove + 2 shoulders
+
+    // Characterization of the seeded parameters — same reasoning as the other joint kinds.
+    const tgJoint = result.current.scene.joints[0] as TongueGrooveJoint
+    expect({ ...tgJoint, id: '<uuid>' }).toEqual({
+      kind: 'tongue-groove',
+      id: '<uuid>',
+      label: 'Tongue & groove 1',
+      groovePartId: Gb.id,
+      grooveEdge: '+Y',
+      tonguePartId: Tb.id,
+      tongueEdge: '-Y',
+      tongueThickness: 6, // min(max(3, round(18/3)), 18-2)
+      tongueDepth: 8, // min(8, floor(min(150,150)/2) - 1)
+      clearance: 0,
+    })
 
     await act(async () => result.current.undo())
     expect(result.current.scene.joints).toHaveLength(0)

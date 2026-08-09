@@ -288,3 +288,33 @@ two lap cuts. Earlier notes calling this "deliberate, not a gap" are superseded.
   re-deriving it globally would risk the dado and mortise & tenon behaviour already verified.
 - Confirmed in the app on two crossing 200×40×20 / 40×200×20 boards: 903 amber px at the crossing,
   two rectangles at different heights. Previously this hover produced zero outlines.
+
+## 2026-08-07 — all five kinds preview cuts, and outlines get their own hue
+
+- **Finger and tongue & groove now preview cuts too**, so a hover means one thing everywhere rather
+  than "cuts for three kinds, faces for two". A finger joint benefits most: its end faces are plain
+  rectangles that say nothing, while `computeFingerCuts` draws the comb of slots that *is* the
+  joint. `defaultFingerJoint` / `defaultTongueGrooveJoint` complete `defaultJoint.ts`, both pinned
+  by characterization tests first. Neither producer has half-lap's placeholder-`face` problem —
+  checked before starting: `fingerjoint.ts` sets `face: end`, `tonguegroove.ts` sets the real edge.
+- `faceOutlines` survives only as the fallback for a joint `deriveJoint` declines to resolve.
+- **Cut outlines moved to their own colour** (`SUGGESTION_OUTLINE_COLOR = 0xf472b6`). They sit on a
+  neighbour board whose edges are tinted amber, and amber-on-amber left an outline hard to pick out
+  against the very board it marked. Pink is clear of the amber tint, the blue hover face, the cyan
+  selection, and every entry in `PART_COLORS` (whose closest neighbour is a pale lavender).
+- **The e2e spec had to change with it**, and got better for it. It counted one colour against a
+  threshold sitting in a narrow gap, because that single number had to discriminate between the
+  tint and the outlines. Now it counts both hues separately, so each is evidence for exactly one
+  half and the floors can be generous: measured tint 717 / outline 1749 against gates of 300.
+  Mutation-checked both ways — disabling the tint fails the tint gate, disabling the outlines
+  fails the outline gate.
+- Measured on the box corner, hovering each of the three suggestions: amber is now **constant**
+  (748 / 744 / 747 — it is the same neighbour board every time, which is the point), while the pink
+  outline count varies with the joint (dado 252, mortise & tenon 782, finger 480). Before the split,
+  one number conflated both and moved for reasons that were hard to attribute.
+
+**Process note for anyone mutation-testing uncommitted work:** restoring a mutated file with
+`git checkout <file>` reverts it to the index, which silently discards *any* uncommitted change in
+that file — including the one under test. That happened here: the colour change vanished mid-run and
+a later verification showed zero pink, which looked like the feature failing rather than the harness
+eating it. Copy the file aside and restore from the copy, or commit before mutating.

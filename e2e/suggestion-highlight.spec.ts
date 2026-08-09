@@ -6,60 +6,55 @@ import { isNonBlank } from './canvas'
 // generous time for it to compile and run the first build on a slow CI runner.
 const OCCT_READY_TIMEOUT = 120_000
 
-// Minimum amber pixels that must appear in the viewport while a suggestion is
-// hovered. The highlight has two halves, both painted 0xfbbf24
-// (src/render/viewport.tsx): the neighbour board's edge lines, and the two face
-// LineLoops. Threshold is set to require BOTH — mutation-tested on this scene:
+// A hovered suggestion paints two distinct things, and this spec pins both because they are
+// separately breakable: the neighbour board's edges are re-tinted amber (0xfbbf24), and the cuts
+// the joint would make are outlined in their own hue (0xf472b6, SUGGESTION_OUTLINE_COLOR in
+// viewport.tsx). Those two shared a colour until the outlines were given their own, at which point
+// counting one colour could no longer tell you both had rendered.
 //
-//   both halves rendering ....... 1942   (bit-identical across repeated runs)
-//   neighbour tint disabled ..... 1221
-//   face outlines disabled ....... 717
-//   nothing hovered ................ 0
-//
-// 1500 sits in the gap, so deleting either half fails the gate. A permissive
-// floor (say 150) would pass with half the feature gone, which is the failure
-// mode this spec exists to catch.
-//
-// The counts come from software rendering (swiftshader) and were reproducible to
-// the pixel locally. A runner with different anti-aliasing may shift them; if this
-// fails, the assertion message reports the measured count — recalibrate against
-// the table above rather than simply lowering the number, or the gate stops
-// discriminating between the two halves.
-const HIGHLIGHT_AMBER_PIXELS = 1500
+// Calibrated on this scene, hovering the tongue & groove suggestion:
+//   both rendering ....... tint 717,  outline 1749
+//   nothing hovered ...... tint 0,    outline 0
+// The gates sit well below the live numbers rather than snug against them. Unlike the earlier
+// single-colour threshold — which had to sit in a narrow gap to tell two halves apart — each
+// colour is now evidence for exactly one half, so a generous floor still fails if either is
+// missing, and there is no need to track the live numbers closely.
+const TINT_PIXELS = 300
+const OUTLINE_PIXELS = 300
 
-// The sidebar is tall: at the default 720px height the suggested-joints section
-// renders below the fold, and scrolling it into view does not survive the
-// re-render that hovering triggers. Give the page enough height that the row is
-// on screen without scrolling.
+// The sidebar is tall: at the default 720px height the suggested-joints section renders below the
+// fold, and scrolling it into view does not survive the re-render that hovering triggers. Give the
+// page enough height that the row is on screen without scrolling.
 test.use({ viewport: { width: 1280, height: 1100 } })
 
-// Counts pixels matching the highlight amber (0xfbbf24 = rgb(251,191,36)),
-// loosely enough to catch anti-aliased line pixels. Deliberately not
-// changedFraction(): that masks colour to its high bits to suppress AA noise,
-// which also erases 1px anti-aliased wireframe, leaving the highlight smaller
-// than the frame-to-frame noise of the dev-mode FPS overlay. Keying on the
-// highlight's own colour ignores that overlay (cyan) entirely.
-function amberPixels(pngBuffer: Buffer): number {
+type Match = (r: number, g: number, b: number) => boolean
+
+// Amber 0xfbbf24 = rgb(251,191,36) — the neighbour-board tint.
+const isTint: Match = (r, g, b) => r > 200 && g > 130 && g < 225 && b < 110 && r - b > 120
+// Pink 0xf472b6 = rgb(244,114,182) — the cut outlines.
+const isOutline: Match = (r, g, b) => r > 190 && g > 60 && g < 175 && b > 130 && b - g > 30
+
+// Counts pixels of a given hue. Deliberately not changedFraction(): that masks colour to its high
+// bits to suppress AA noise, which also erases 1px anti-aliased wireframe, leaving the highlight
+// smaller than the frame-to-frame churn of the dev-mode FPS overlay. Keying on the highlight's own
+// colours ignores that overlay (cyan) entirely.
+function countPixels(pngBuffer: Buffer, match: Match): number {
   const { data, width, height } = PNG.sync.read(pngBuffer)
   let count = 0
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const o = (y * width + x) << 2
-      const r = data[o]
-      const g = data[o + 1]
-      const b = data[o + 2]
-      if (r > 200 && g > 130 && g < 225 && b < 110 && r - b > 120) count++
+      if (match(data[o], data[o + 1], data[o + 2])) count++
     }
   }
   return count
 }
 
-// Private copy of the helper in smoke.spec.ts, matching the per-file convention
-// used elsewhere in this repo. Worth hoisting into canvas.ts if a third spec needs it.
+// Private copy of the helper in smoke.spec.ts, matching the per-file convention used elsewhere in
+// this repo. Worth hoisting into canvas.ts if a third spec needs it.
 //
-// Dev mode mounts a small stats.js FPS canvas as a sibling of the WebGL viewport
-// canvas (src/render/viewport.tsx). Pick the largest canvas (by area, measured from
-// the live layout) to reliably target the viewport.
+// Dev mode mounts a small stats.js FPS canvas as a sibling of the WebGL viewport canvas
+// (src/render/viewport.tsx). Pick the largest canvas (by area, measured from the live layout).
 async function viewportCanvas(page: Page): Promise<Locator> {
   await expect(page.locator('canvas').first()).toBeVisible()
   const index = await page.evaluate(() => {
@@ -79,9 +74,9 @@ async function viewportCanvas(page: Page): Promise<Locator> {
   return page.locator('canvas').nth(index)
 }
 
-// The Position inputs carry no label association, so reach them through the Radix
-// Collapsible: the section trigger's aria-controls names its content panel, whose
-// three number inputs are X, Y, Z in order (src/ui/sidebar.tsx).
+// The Position inputs carry no label association, so reach them through the Radix Collapsible: the
+// section trigger's aria-controls names its content panel, whose three number inputs are X, Y, Z in
+// order (src/ui/sidebar.tsx).
 async function positionInput(page: Page, axis: 'X' | 'Y' | 'Z'): Promise<Locator> {
   const trigger = page.getByRole('button', { name: /Position/i }).first()
   const panelId = await trigger.getAttribute('aria-controls')
@@ -89,20 +84,20 @@ async function positionInput(page: Page, axis: 'X' | 'Y' | 'Z'): Promise<Locator
   return page.locator(`#${panelId} input[type=number]`).nth({ X: 0, Y: 1, Z: 2 }[axis])
 }
 
-// Polls the viewport until its amber-pixel count satisfies `done`, then returns the
-// last reading. Rendering trails the DOM event by at least a frame, so a single
-// sample races the render loop.
-async function pollAmber(
+// Polls the viewport until both hue counts satisfy `done`, then returns the last reading.
+// Rendering trails the DOM event by at least a frame, so a single sample races the render loop.
+async function pollHues(
   canvas: Locator,
-  done: (amber: number) => boolean,
+  done: (tint: number, outline: number) => boolean,
   message: string,
-): Promise<number> {
-  let last = -1
+): Promise<{ tint: number; outline: number }> {
+  let last = { tint: -1, outline: -1 }
   await expect
     .poll(
       async () => {
-        last = amberPixels(await canvas.screenshot())
-        return done(last)
+        const shot = await canvas.screenshot()
+        last = { tint: countPixels(shot, isTint), outline: countPixels(shot, isOutline) }
+        return done(last.tint, last.outline)
       },
       { timeout: 30_000, message },
     )
@@ -110,7 +105,7 @@ async function pollAmber(
   return last
 }
 
-test('hovering a joint suggestion highlights the neighbour board and its joint faces', async ({
+test('hovering a joint suggestion tints the neighbour board and outlines the joint cuts', async ({
   page,
 }) => {
   await page.goto('/')
@@ -119,15 +114,15 @@ test('hovering a joint suggestion highlights the neighbour board and its joint f
   await expect(addBoard).toBeEnabled({ timeout: OCCT_READY_TIMEOUT })
 
   // Build a coplanar edge glue-up. Both boards default to 200×100×25 at the origin
-  // (src/scene/useScene.ts), so moving the second to y=100 makes their long edges
-  // meet at y=50 — the geometry suggestJointsFor scores as a tongue & groove.
+  // (src/scene/useScene.ts), so moving the second to y=100 makes their long edges meet at y=50 —
+  // the geometry suggestJointsFor scores as a tongue & groove.
   await addBoard.click()
   await expect(page.getByText('Board 2')).toBeVisible()
   await (await positionInput(page, 'Y')).fill('100')
 
-  // The new board is selected on add, so its panel lists the joint it could form
-  // with Board 1. This row appearing is itself proof that the whole suggestion
-  // pipeline ran against live scene state, not just the pure scoring functions.
+  // The new board is selected on add, so its panel lists the joint it could form with Board 1.
+  // This row appearing is itself proof that the whole suggestion pipeline ran against live scene
+  // state, not just the pure scoring functions.
   const suggestion = page.getByText('Tongue & groove with Board 1')
   await expect(suggestion).toBeVisible()
 
@@ -136,35 +131,35 @@ test('hovering a joint suggestion highlights the neighbour board and its joint f
     .poll(async () => isNonBlank(await canvas.screenshot()), { timeout: 30_000 })
     .toBe(true)
 
-  // Park the pointer somewhere inert before measuring the baseline. Clicking
-  // "+ Board" leaves the cursor over the add-part footer, and the sidebar then
-  // re-renders the suggestion row into that spot — which fires mouseenter and
-  // turns the highlight on before the test ever asks for it. Without this the
-  // baseline already contains the highlight and the hover appears to do nothing.
+  // Park the pointer somewhere inert before measuring the baseline. Clicking "+ Board" leaves the
+  // cursor over the add-part footer, and the sidebar then re-renders the suggestion row into that
+  // spot — which fires mouseenter and turns the highlight on before the test ever asks for it.
+  // Without this the baseline already contains the highlight and the hover appears to do nothing.
   const inertTarget = page.getByRole('button', { name: /Shape/i }).first()
   await inertTarget.hover()
-  await pollAmber(canvas, (n) => n === 0, 'highlight should be off before hovering')
+  await pollHues(canvas, (t, o) => t === 0 && o === 0, 'highlight should be off before hovering')
 
-  // Gate 1: hovering reaches the screen. This is what the unit tests structurally
-  // cannot cover — they pin suggestionFaceRefs/faceHitForDisplay as pure functions,
-  // but nothing else asserts a LineLoop is ever drawn. If the viewport stops
-  // rendering the highlight, no amber appears and this poll times out.
+  // Gate 1: both halves of the hover reach the screen. This is what the unit tests structurally
+  // cannot cover — they pin suggestionOutlines as a pure function, but nothing else asserts a
+  // LineLoop is ever drawn. Each colour is evidence for one half, so a missing tint or missing
+  // outlines fails here rather than hiding behind the other.
   await suggestion.hover()
-  const amber = await pollAmber(
+  const { tint, outline } = await pollHues(
     canvas,
-    (n) => n >= HIGHLIGHT_AMBER_PIXELS,
-    'hovering a suggestion should paint the highlight amber into the viewport',
+    (t, o) => t >= TINT_PIXELS && o >= OUTLINE_PIXELS,
+    'hovering should paint both the neighbour tint and the cut outlines',
   )
+  expect(tint, `neighbour tint: measured ${tint} amber px`).toBeGreaterThanOrEqual(TINT_PIXELS)
   expect(
-    amber,
-    `measured ${amber} amber px; ~1942 means both halves rendered, ~1221 means the face ` +
-      `outlines are missing, ~717 means the neighbour tint is missing, 0 means neither drew`,
-  ).toBeGreaterThanOrEqual(HIGHLIGHT_AMBER_PIXELS)
+    outline,
+    `cut outlines: measured ${outline} px of the outline hue — 0 here with a healthy tint means ` +
+      `the outlines stopped rendering, or their colour changed without this spec being updated`,
+  ).toBeGreaterThanOrEqual(OUTLINE_PIXELS)
 
-  // Gate 2: the highlight clears. Park on the sidebar again rather than the canvas —
-  // moving over the canvas would raycast a face and light the hoveredFace LineLoop,
-  // repainting amber for an unrelated reason.
+  // Gate 2: the highlight clears. Park on the sidebar again rather than the canvas — moving over
+  // the canvas would raycast a face and light the hoveredFace LineLoop, repainting for an
+  // unrelated reason.
   await inertTarget.hover()
-  const cleared = await pollAmber(canvas, (n) => n === 0, 'un-hover should clear the highlight')
-  expect(cleared).toBe(0)
+  const cleared = await pollHues(canvas, (t, o) => t === 0 && o === 0, 'un-hover should clear both')
+  expect(cleared).toEqual({ tint: 0, outline: 0 })
 })

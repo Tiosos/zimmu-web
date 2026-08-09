@@ -1,6 +1,15 @@
-import type { BoardPart, DadoJoint, Face, HalfLapJoint, MortiseTenonJoint } from './types'
+import type {
+  BoardPart,
+  DadoJoint,
+  Face,
+  FingerJoint,
+  HalfLapJoint,
+  MortiseTenonJoint,
+  TongueGrooveJoint,
+} from './types'
 import { computeDadoOffset, defaultDadoDepth } from '../geom/dado'
 import { computeMortiseOffset } from '../geom/mortisetenon'
+import { faceAxes } from './snapMath'
 
 // Seeded joint parameters, extracted from useScene's creators so a caller that only wants to
 // *preview* a joint can build the same object the creator would without touching scene state.
@@ -80,5 +89,49 @@ export function defaultMortiseTenonJoint(
     through: false,
     offsetU,
     offsetV,
+  }
+}
+
+export function defaultFingerJoint(
+  a: BoardPart,
+  b: BoardPart,
+  endA: Face,
+  endB: Face,
+  id: string,
+  label: string,
+): FingerJoint {
+  const widthA = faceAxes(endA).depth === 'x' ? a.width : a.length
+  return {
+    kind: 'finger',
+    id,
+    label,
+    partAId: a.id,
+    endA,
+    partBId: b.id,
+    endB,
+    fingerCount: Math.min(15, Math.max(3, Math.round(widthA / (2 * a.thickness)))),
+    clearance: 0,
+  }
+}
+
+export function defaultTongueGrooveJoint(
+  groove: BoardPart,
+  tongue: BoardPart,
+  grooveEdge: Face,
+  tongueEdge: Face,
+  id: string,
+  label: string,
+): TongueGrooveJoint {
+  return {
+    kind: 'tongue-groove',
+    id,
+    label,
+    groovePartId: groove.id,
+    grooveEdge,
+    tonguePartId: tongue.id,
+    tongueEdge,
+    tongueThickness: Math.min(Math.max(3, Math.round(groove.thickness / 3)), groove.thickness - 2),
+    tongueDepth: Math.min(8, Math.floor(Math.min(groove.width, tongue.width) / 2) - 1),
+    clearance: 0,
   }
 }

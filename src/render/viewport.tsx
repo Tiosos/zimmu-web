@@ -30,6 +30,12 @@ interface ViewportProps {
   suggestionOutlines?: Outline[] | null
 }
 
+// Suggestion cut outlines get their own hue. They are drawn over a neighbour board whose edges are
+// tinted amber, and amber-on-amber left the outline hard to pick out against the very board it sits
+// on — more so now that a mortise & tenon draws up to five of them. Kept clear of the amber tint,
+// the blue hover face, the cyan selection, and every entry in PART_COLORS.
+const SUGGESTION_OUTLINE_COLOR = 0xf472b6
+
 const snapMat = (color: number) =>
   new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true, linewidth: 1 })
 
@@ -554,7 +560,7 @@ export function Viewport({
     const scene = sceneRef.current
     if (scene) {
       while (pool.length < sf.length) {
-        const loop = new THREE.LineLoop(emptyGeo(), snapMat(0xfbbf24))
+        const loop = new THREE.LineLoop(emptyGeo(), snapMat(SUGGESTION_OUTLINE_COLOR))
         loop.renderOrder = 1
         loop.visible = false
         scene.add(loop)
@@ -562,7 +568,7 @@ export function Viewport({
       }
     }
     for (let i = 0; i < pool.length; i++) {
-      drawLoop(pool[i], sf[i] ?? null, 0xfbbf24)
+      drawLoop(pool[i], sf[i] ?? null, SUGGESTION_OUTLINE_COLOR)
     }
   }, [sourceFace, hoveredFace, snapPhase, parts, suggestionOutlines])
 

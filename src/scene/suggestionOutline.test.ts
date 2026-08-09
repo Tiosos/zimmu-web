@@ -44,7 +44,18 @@ const lapB = board({
   position: { x: 80, y: -80, z: 0 },
 })
 
-// Coplanar edge glue-up — offers tongue & groove, which keeps whole-face outlines.
+// Flush box corner — offers a finger joint (alongside dado and mortise & tenon).
+const cornerA = board({ id: 'CA', length: 200, width: 100, thickness: 18 })
+const cornerB = board({
+  id: 'CB',
+  length: 150,
+  width: 100,
+  thickness: 18,
+  rotation: { x: 0, y: -90, z: 0 },
+  position: { x: 200, y: 0, z: 18 },
+})
+
+// Coplanar edge glue-up — offers tongue & groove.
 const edgeG = board({ id: 'G', length: 200, width: 40, thickness: 18 })
 const edgeE = board({
   id: 'E',
@@ -90,8 +101,30 @@ test('dado and mortise-tenon previews differ on the same pair of boards', () => 
   expect(dado).not.toEqual(mt)
 })
 
-test('tongue & groove still previews whole faces — one per board', () => {
-  expect(of('tongue-groove', 'G', [edgeG, edgeE])).toHaveLength(2)
+// deriveTongueGroove emits the groove on one board plus two shoulders on the other, so the
+// preview is three outlines rather than the two mating faces it used to show.
+test('a tongue & groove previews its groove and both tongue shoulders', () => {
+  expect(of('tongue-groove', 'G', [edgeG, edgeE])).toHaveLength(3)
+})
+
+// A finger joint's end faces are plain rectangles that say nothing about the joint; the comb of
+// slots is the whole point, and computeFingerCuts emits one cut per removed segment.
+test('a finger joint previews its comb of slots, not two plain end faces', () => {
+  expect(of('finger', 'CA', [cornerA, cornerB]).length).toBeGreaterThan(2)
+})
+
+// Every kind now previews cuts, so no suggestion should fall back to whole-face outlines.
+test('no kind falls back to whole-face outlines', () => {
+  const faceCounts = [
+    of('halflap', 'LA', [lapA, lapB]).length,
+    of('dado', 'H', [teeH, teeD]).length,
+    of('mortise-tenon', 'H', [teeH, teeD]).length,
+    of('finger', 'CA', [cornerA, cornerB]).length,
+    of('tongue-groove', 'G', [edgeG, edgeE]).length,
+  ]
+  // Two outlines would be the signature of the old face-pair fallback for every kind at once.
+  expect(faceCounts.every((n) => n > 0)).toBe(true)
+  expect(faceCounts).not.toEqual([2, 2, 2, 2, 2])
 })
 
 // Half-lap has no mating face pair, so suggestionFaceRefs returns [] for it and hovering used to

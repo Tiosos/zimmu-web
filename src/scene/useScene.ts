@@ -23,8 +23,10 @@ import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
 import {
   defaultDadoJoint,
+  defaultFingerJoint,
   defaultHalfLapJoint,
   defaultMortiseTenonJoint,
+  defaultTongueGrooveJoint,
 } from './defaultJoint'
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidTongueGroove } from '../geom/tonguegroove'
@@ -968,19 +970,14 @@ export function useScene(): UseSceneResult {
       const endB = localNormalToFaceString(hitB.localFaceNormal)
       if (!isValidFingerJoint(a, endA, b, endB)) return
       const n = s.joints.filter((j) => j.kind === 'finger').length + 1
-      const widthA = faceAxes(endA).depth === 'x' ? a.width : a.length
-      const fingerCount = Math.min(15, Math.max(3, Math.round(widthA / (2 * a.thickness))))
-      const joint: Joint = {
-        kind: 'finger',
-        id: `joint_${crypto.randomUUID()}`,
-        label: `Finger joint ${n}`,
-        partAId: a.id,
+      const joint: Joint = defaultFingerJoint(
+        a,
+        b,
         endA,
-        partBId: b.id,
         endB,
-        fingerCount,
-        clearance: 0,
-      }
+        `joint_${crypto.randomUUID()}`,
+        `Finger joint ${n}`,
+      )
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add finger joint')
       setSelectedId(a.id)
     },
@@ -997,23 +994,14 @@ export function useScene(): UseSceneResult {
       const tongueEdge = localNormalToFaceString(tongueHit.localFaceNormal)
       if (!isValidTongueGroove(groove, grooveEdge, tongue, tongueEdge)) return
       const n = s.joints.filter((j) => j.kind === 'tongue-groove').length + 1
-      const tongueThickness = Math.min(
-        Math.max(3, Math.round(groove.thickness / 3)),
-        groove.thickness - 2,
-      )
-      const tongueDepth = Math.min(8, Math.floor(Math.min(groove.width, tongue.width) / 2) - 1)
-      const joint: Joint = {
-        kind: 'tongue-groove',
-        id: `joint_${crypto.randomUUID()}`,
-        label: `Tongue & groove ${n}`,
-        groovePartId: groove.id,
+      const joint: Joint = defaultTongueGrooveJoint(
+        groove,
+        tongue,
         grooveEdge,
-        tonguePartId: tongue.id,
         tongueEdge,
-        tongueThickness,
-        tongueDepth,
-        clearance: 0,
-      }
+        `joint_${crypto.randomUUID()}`,
+        `Tongue & groove ${n}`,
+      )
       commitReconciled(
         (prev) => ({ ...prev, joints: [...prev.joints, joint] }),
         'Add tongue & groove',
