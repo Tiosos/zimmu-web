@@ -10,6 +10,9 @@ export const MAX_SCENE_PAIRS = 100
 
 export interface PairGroup {
   key: string
+  // aId/bId deliberately preserve pairIdsOf's role order — only `key` is sorted. orientationArrow
+  // reads aId to decide which way its arrow points, so tidying these into sorted ids would
+  // silently invert every arrow on real data.
   aId: PartId
   bId: PartId
   options: JointSuggestion[]
