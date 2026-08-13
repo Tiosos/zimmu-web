@@ -66,11 +66,15 @@ test('returns an empty array for no suggestions', () => {
 })
 
 test('caps the number of groups, and the last kept group is complete', () => {
+  // Ordered the way suggestJointsForScene actually emits: sorted by pair distance, tiebroken by
+  // kind, so every dado precedes every mortise-tenon and a pair's two options are far apart. This
+  // is what makes the completeness assertion meaningful — slicing the flat list at 100 would keep
+  // 100 dados and no mortise-tenons, producing 100 groups that each have one option instead of two.
   const many: JointSuggestion[] = []
-  for (let i = 0; i < MAX_SCENE_PAIRS + 5; i++) {
-    many.push(dado('A', `B${i}`))
-    many.push(mortiseTenon('A', `B${i}`))
-  }
+  const pairCount = MAX_SCENE_PAIRS + 5
+  for (let i = 0; i < pairCount; i++) many.push(dado('A', `B${i}`))
+  for (let i = 0; i < pairCount; i++) many.push(mortiseTenon('A', `B${i}`))
+
   const groups = groupByPair(many)
   expect(groups).toHaveLength(MAX_SCENE_PAIRS)
   // A partial row is worse than an absent one: a missing chip is indistinguishable from a joint
