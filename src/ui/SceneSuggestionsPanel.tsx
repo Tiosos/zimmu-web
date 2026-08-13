@@ -1,9 +1,10 @@
 import type { PartId, Scene } from '../scene/types'
 import type { JointSuggestion } from '../scene/suggestJoints'
 import { pairIdsOf } from '../scene/suggestJoints'
+import { groupByPair, orientationArrow } from '../scene/groupSuggestions'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const KIND_LABEL: Record<JointSuggestion['kind'], string> = {
   halflap: 'Half-lap',
@@ -11,6 +12,15 @@ const KIND_LABEL: Record<JointSuggestion['kind'], string> = {
   'mortise-tenon': 'Mortise & tenon',
   finger: 'Finger joint',
   'tongue-groove': 'Tongue & groove',
+}
+
+// Short forms: a chip sits inside a row alongside up to three others.
+const CHIP_LABEL: Record<JointSuggestion['kind'], string> = {
+  halflap: 'Half-lap',
+  dado: 'Dado',
+  'mortise-tenon': 'M&T',
+  finger: 'Finger',
+  'tongue-groove': 'T&G',
 }
 
 function label(scene: Scene, id: PartId): string {
@@ -50,29 +60,39 @@ export function SceneSuggestionsPanel({
   onHoverSuggestion: (s: JointSuggestion | null) => void
 }) {
   const [open, setOpen] = useState(false)
-  if (suggestions.length === 0) return null
+  const groups = useMemo(() => groupByPair(suggestions), [suggestions])
+  if (groups.length === 0) return null
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border-t border-border px-2">
       <CollapsibleTrigger className="w-full flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground py-1.5 cursor-pointer select-none hover:text-foreground transition-colors">
-        {open ? '▾' : '▸'} All possible joints ({suggestions.length})
+        {open ? '▾' : '▸'} All possible joints ({groups.length})
       </CollapsibleTrigger>
       <CollapsibleContent>
-        {suggestions.map((s, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-1 py-0.5 border-t border-border/30"
-            onMouseEnter={() => onHoverSuggestion(s)}
-            onMouseLeave={() => onHoverSuggestion(null)}
-          >
-            <span className="flex-1 text-[11px] text-foreground">{describe(scene, s)}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 text-[11px]"
-              onClick={() => onApply(s)}
-            >
-              Add
-            </Button>
+        {groups.map((g) => (
+          <div key={g.key} className="flex items-center gap-1 py-0.5 border-t border-border/30">
+            <span className="flex-1 text-[11px] text-foreground">
+              {label(scene, g.aId)} + {label(scene, g.bId)}
+            </span>
+            <div className="flex flex-wrap gap-1 justify-end">
+              {g.options.map((s, i) => {
+                const arrow = orientationArrow(g, s)
+                return (
+                  <Button
+                    key={i}
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[11px] px-1.5"
+                    title={describe(scene, s)}
+                    onMouseEnter={() => onHoverSuggestion(s)}
+                    onMouseLeave={() => onHoverSuggestion(null)}
+                    onClick={() => onApply(s)}
+                  >
+                    {CHIP_LABEL[s.kind]}
+                    {arrow ? ` ${arrow}` : ''}
+                  </Button>
+                )
+              })}
+            </div>
           </div>
         ))}
       </CollapsibleContent>
