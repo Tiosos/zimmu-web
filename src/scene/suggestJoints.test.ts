@@ -463,3 +463,34 @@ test('scene: an all-pairs pass over a 24-board scene stays within budget', () =>
   // not a precise number, since it recomputes on every scene.parts change.
   expect(performance.now() - t0).toBeLessThan(300)
 })
+
+// The pair cap in groupSuggestions.ts guarantees complete rows only if the engine hands over every
+// suggestion. Measured 2026-08-09: three 8-board carcases produce 120 candidates, so the old
+// 100-suggestion slice was reachable by a real scene.
+test('scene: the suggestion list is not truncated', () => {
+  const many: Part[] = []
+  // 60 tees, each yielding a dado + a mortise-tenon = 120 suggestions, comfortably past the old
+  // 100 slice. Rows are 300 mm apart in y so no board touches its neighbours' tees.
+  for (let i = 0; i < 60; i++) {
+    many.push(
+      board({
+        id: `S${i}`,
+        length: 200,
+        width: 100,
+        thickness: 20,
+        position: { x: 0, y: i * 300, z: 0 },
+      }),
+    )
+    many.push(
+      board({
+        id: `U${i}`,
+        length: 80,
+        width: 40,
+        thickness: 18,
+        rotation: { x: 0, y: -90, z: 0 },
+        position: { x: 100, y: i * 300 + 30, z: 20 },
+      }),
+    )
+  }
+  expect(suggestJointsForScene(many, []).length).toBeGreaterThan(100)
+})

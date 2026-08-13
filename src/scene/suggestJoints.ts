@@ -350,12 +350,6 @@ export function suggestJointsFor(
 // symmetric here, which is worth revisiting if split ever gets a non-centred default.
 const ORIENTATION_MATTERS: ReadonlySet<JointSuggestion['kind']> = new Set(['finger', 'tongue-groove'])
 
-// Runaway guard on an all-pairs list, not a curation device. Measured 2026-08-09: three 8-board
-// carcases — a modest kitchen run — produce 120 candidates and are cut to 100, so this IS reachable
-// by a real scene and truncates it silently. Grouping rows by pair is the fix; raising the number
-// only moves the cliff.
-const MAX_SCENE_SUGGESTIONS = 100
-
 // Every joint available anywhere in the scene, with no selection. Pairs are visited once as an
 // unordered pair; the reverse direction contributes only the kinds whose orientation is a real
 // choice (see ORIENTATION_MATTERS), which is what keeps dado and mortise-tenon from appearing twice
@@ -388,7 +382,9 @@ export function suggestJointsForScene(parts: Part[], joints: Joint[]): JointSugg
     if (Math.abs(d) > EPS) return d
     return KIND_PRIORITY.indexOf(x.kind) - KIND_PRIORITY.indexOf(y.kind)
   })
-  return out.slice(0, MAX_SCENE_SUGGESTIONS)
+  // Not truncated: the cap now applies to rows, after grouping (groupSuggestions.ts), so a rendered
+  // row is always complete. Capping here would render a pair with only some of its kinds.
+  return out
 }
 
 // The two boards a suggestion involves, without leaning on neighborId — which means "the other
