@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 import type { JointSuggestion } from './suggestJoints'
-import { groupByPair } from './groupSuggestions'
+import { groupByPair, MAX_SCENE_PAIRS } from './groupSuggestions'
 
 const dado = (housing: string, housed: string): JointSuggestion => ({
   kind: 'dado',
@@ -63,4 +63,17 @@ test('keeps options in input order within a group', () => {
 
 test('returns an empty array for no suggestions', () => {
   expect(groupByPair([])).toEqual([])
+})
+
+test('caps the number of groups, and the last kept group is complete', () => {
+  const many: JointSuggestion[] = []
+  for (let i = 0; i < MAX_SCENE_PAIRS + 5; i++) {
+    many.push(dado('A', `B${i}`))
+    many.push(mortiseTenon('A', `B${i}`))
+  }
+  const groups = groupByPair(many)
+  expect(groups).toHaveLength(MAX_SCENE_PAIRS)
+  // A partial row is worse than an absent one: a missing chip is indistinguishable from a joint
+  // the engine cannot make.
+  expect(groups[groups.length - 1].options).toHaveLength(2)
 })

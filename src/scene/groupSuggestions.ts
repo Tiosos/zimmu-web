@@ -2,6 +2,12 @@ import type { PartId } from './types'
 import type { JointSuggestion } from './suggestJoints'
 import { pairIdsOf } from './suggestJoints'
 
+// Runaway guard on rows, not on suggestions. A row is one real decision where a suggestion was a
+// quarter of one, so this sits far above any scene measured: an 8-board carcase needs 14 rows and
+// three of them need 42. Applied after grouping so a rendered row is always complete — capping the
+// flat list instead would render a pair with only some of its kinds.
+export const MAX_SCENE_PAIRS = 100
+
 export interface PairGroup {
   key: string
   aId: PartId
@@ -24,5 +30,5 @@ export function groupByPair(suggestions: JointSuggestion[]): PairGroup[] {
     if (existing) existing.options.push(s)
     else groups.set(key, { key, aId: x, bId: y, options: [s] })
   }
-  return [...groups.values()]
+  return [...groups.values()].slice(0, MAX_SCENE_PAIRS)
 }
