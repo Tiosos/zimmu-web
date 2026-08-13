@@ -91,6 +91,20 @@ test('arrows point at whichever board leads when a kind appears twice', () => {
   expect(orientationArrow(group, group.options[0])).toBeNull()
 })
 
+// aId is role order (the first id pairIdsOf returns for the first-seen suggestion), not the
+// alphabetically sorted id — group.key sorts, but aId/bId do not. Pick a pair whose role order is
+// reversed from alphabetical order so a group construction that accidentally used sorted ids would
+// point every arrow the wrong way.
+test('arrows follow role order, not alphabetical order', () => {
+  const [group] = groupByPair([dado('B', 'A'), finger('A', 'B'), finger('B', 'A')])
+  expect(group.aId).toBe('B')
+  const fingers = group.options.filter((o) => o.kind === 'finger')
+  const leadsWithB = fingers.find((f) => f.kind === 'finger' && f.partAId === 'B')
+  const leadsWithA = fingers.find((f) => f.kind === 'finger' && f.partAId === 'A')
+  expect(orientationArrow(group, leadsWithB!)).toBe('→')
+  expect(orientationArrow(group, leadsWithA!)).toBe('←')
+})
+
 test('caps the number of groups, and the last kept group is complete', () => {
   // The worst ordering suggestJointsForScene can produce: when pairs tie on distance the sort
   // falls through to kind, so across the whole tied set every dado precedes every mortise-tenon
