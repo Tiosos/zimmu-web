@@ -32,3 +32,15 @@ export function groupByPair(suggestions: JointSuggestion[]): PairGroup[] {
   }
   return [...groups.values()].slice(0, MAX_SCENE_PAIRS)
 }
+
+// Only the ORIENTATION_MATTERS kinds (finger, tongue-groove) can appear twice for one pair, so an
+// arrow is added only when that happens. '→' means the row's first-named board leads: it carries
+// the finger joint's partA role, or the groove. Matches the →/← lead convention JointsPanel already
+// uses for an existing joint.
+export function orientationArrow(group: PairGroup, s: JointSuggestion): '→' | '←' | null {
+  if (group.options.filter((o) => o.kind === s.kind).length < 2) return null
+  const leadId =
+    s.kind === 'finger' ? s.partAId : s.kind === 'tongue-groove' ? s.groovePartId : null
+  if (leadId === null) return null
+  return leadId === group.aId ? '→' : '←'
+}

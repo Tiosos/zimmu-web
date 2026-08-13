@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 import type { JointSuggestion } from './suggestJoints'
-import { groupByPair, MAX_SCENE_PAIRS } from './groupSuggestions'
+import { groupByPair, orientationArrow, MAX_SCENE_PAIRS } from './groupSuggestions'
 
 const dado = (housing: string, housed: string): JointSuggestion => ({
   kind: 'dado',
@@ -63,6 +63,32 @@ test('keeps options in input order within a group', () => {
 
 test('returns an empty array for no suggestions', () => {
   expect(groupByPair([])).toEqual([])
+})
+
+const finger = (a: string, b: string): JointSuggestion => ({
+  kind: 'finger',
+  neighborId: b,
+  partAId: a,
+  endA: '+X',
+  partBId: b,
+  endB: '-X',
+})
+
+test('no arrow when a kind appears once in the group', () => {
+  const [group] = groupByPair([dado('A', 'B'), finger('A', 'B')])
+  expect(orientationArrow(group, group.options[0])).toBeNull()
+  expect(orientationArrow(group, group.options[1])).toBeNull()
+})
+
+test('arrows point at whichever board leads when a kind appears twice', () => {
+  const [group] = groupByPair([dado('A', 'B'), finger('A', 'B'), finger('B', 'A')])
+  expect(group.aId).toBe('A')
+  const fingers = group.options.filter((o) => o.kind === 'finger')
+  // Both orientations survive grouping — they are different joints, not duplicates.
+  expect(fingers).toHaveLength(2)
+  expect(orientationArrow(group, fingers[0])).toBe('→')
+  expect(orientationArrow(group, fingers[1])).toBe('←')
+  expect(orientationArrow(group, group.options[0])).toBeNull()
 })
 
 test('caps the number of groups, and the last kept group is complete', () => {
