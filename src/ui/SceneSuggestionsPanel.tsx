@@ -74,11 +74,14 @@ export function SceneSuggestionsPanel({
               {label(scene, g.aId)} + {label(scene, g.bId)}
             </span>
             <div className="flex flex-wrap gap-1 justify-end">
-              {g.options.map((s, i) => {
+              {g.options.map((s) => {
                 const arrow = orientationArrow(g, s)
                 return (
+                  // Keyed by kind+arrow, not index: within a group only finger/tongue-groove repeat,
+                  // and orientationArrow gives those two entries distinct arrows, so this is unique
+                  // and — unlike an index — stable when the group's options change between renders.
                   <Button
-                    key={i}
+                    key={`${s.kind}${arrow ?? ''}`}
                     variant="ghost"
                     size="sm"
                     className="h-6 text-[11px] px-1.5"
