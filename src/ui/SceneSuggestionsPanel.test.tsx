@@ -105,9 +105,12 @@ test('hovering a chip reports that exact suggestion, and leaving clears it', () 
     />,
   )
   fireEvent.click(screen.getByText(/All possible joints/))
-  const chip = screen.getAllByRole('button', { name: 'Dado' })[1]
+  // Deliberately an M&T chip, which is the second option in its group — a dado precedes it. A bug
+  // that reported group.options[0] instead of the hovered suggestion would report that dado, so
+  // hovering options[0] (a Dado chip, where s and options[0] coincide) could not catch it.
+  const chip = screen.getAllByRole('button', { name: 'M&T' })[0]
   fireEvent.mouseEnter(chip)
-  expect(onHoverSuggestion).toHaveBeenLastCalledWith(interleaved[1])
+  expect(onHoverSuggestion).toHaveBeenLastCalledWith(interleaved[2])
   fireEvent.mouseLeave(chip)
   expect(onHoverSuggestion).toHaveBeenLastCalledWith(null)
 })
