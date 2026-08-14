@@ -126,3 +126,42 @@ test('renders nothing when there are no suggestions', () => {
   )
   expect(container.textContent).toBe('')
 })
+
+const finger = (a: string, b: string): JointSuggestion => ({
+  kind: 'finger',
+  neighborId: b,
+  partAId: a,
+  endA: '+X',
+  partBId: b,
+  endB: '-X',
+})
+
+test('an arrow appears only on a kind duplicated within the pair', () => {
+  render(
+    <SceneSuggestionsPanel
+      suggestions={[dado('A', 'B'), finger('A', 'B'), finger('B', 'A')]}
+      scene={scene()}
+      onApply={vi.fn()}
+      onHoverSuggestion={vi.fn()}
+    />,
+  )
+  fireEvent.click(screen.getByText(/All possible joints/))
+  expect(screen.getByRole('button', { name: 'Dado' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Finger →' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Finger ←' })).toBeTruthy()
+})
+
+test('a chip carries the long description as its tooltip', () => {
+  render(
+    <SceneSuggestionsPanel
+      suggestions={[dado('A', 'B'), finger('A', 'B'), finger('B', 'A')]}
+      scene={scene()}
+      onApply={vi.fn()}
+      onHoverSuggestion={vi.fn()}
+    />,
+  )
+  fireEvent.click(screen.getByText(/All possible joints/))
+  expect(screen.getByRole('button', { name: 'Finger →' }).getAttribute('title')).toBe(
+    'Finger joint — Left Side leads, Bottom seats',
+  )
+})
