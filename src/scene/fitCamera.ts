@@ -6,10 +6,25 @@ export interface Bounds {
   max: Vec3
 }
 
+// The local axis-aligned box of a part, in its own coordinates. The two kinds genuinely differ:
+// a board is corner-origin on all three axes (BRepPrimAPI_MakeBox_1 spans 0..d, per snapMath.ts:43-48),
+// while a cylinder's local origin lies on the axis at the base circle, so it is centred in x/y but
+// corner-origin in z.
 function localBox(part: Part): Bounds {
-  return {
-    min: { x: 0, y: 0, z: 0 },
-    max: { x: part.length, y: part.width, z: part.thickness },
+  switch (part.kind) {
+    case 'board':
+      return {
+        min: { x: 0, y: 0, z: 0 },
+        max: { x: part.length, y: part.width, z: part.thickness },
+      }
+    case 'cylinder': {
+      const r = part.diameter / 2
+      return { min: { x: -r, y: -r, z: 0 }, max: { x: r, y: r, z: part.length } }
+    }
+    default: {
+      const _exhaustive: never = part
+      throw new Error(`unhandled part kind: ${JSON.stringify(_exhaustive)}`)
+    }
   }
 }
 

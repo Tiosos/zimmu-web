@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import type { BoardPart } from './types'
+import type { BoardPart, CylinderPart, Part } from './types'
 import { worldBounds } from './fitCamera'
 
 const board = (over: Partial<BoardPart> = {}): BoardPart => ({
@@ -53,4 +53,34 @@ test('returns null when there is nothing visible', () => {
 test('rotation is honoured', () => {
   const b = worldBounds([board({ rotation: { x: 0, y: 0, z: 45 } })])
   expect(b!.max.y).toBeGreaterThan(200)
+})
+
+const cylinder = (over: Partial<CylinderPart> = {}): CylinderPart => ({
+  kind: 'cylinder',
+  id: 'd1',
+  label: 'Dowel',
+  diameter: 8,
+  length: 40,
+  material: '',
+  color: '#ffffff',
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  rotationOrder: 'XYZ',
+  cuts: [],
+  visible: true,
+  ...over,
+})
+
+// A dowel's local origin lies on its axis at the base circle: centred in x/y, corner-origin in z.
+test('a cylinder is centred in x/y and corner-origin in z', () => {
+  const b = worldBounds([cylinder()])
+  expect(b!.min).toEqual({ x: -4, y: -4, z: 0 })
+  expect(b!.max).toEqual({ x: 4, y: 4, z: 40 })
+})
+
+// The never guard is what forces a future part kind to be classified deliberately instead of being
+// silently measured with board fields. Reaching it requires defeating the type system, which is the point.
+test('an unknown part kind throws rather than being silently mismeasured', () => {
+  const bogus = { ...board(), kind: 'sphere' } as unknown as Part
+  expect(() => worldBounds([bogus])).toThrow(/unhandled part kind/)
 })
