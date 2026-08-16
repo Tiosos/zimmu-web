@@ -75,8 +75,13 @@ function makeDefaultSceneReturn() {
   }
 }
 
+const viewportSpy = vi.hoisted(() => ({ fitRequest: 0 }))
+
 vi.mock('./render/viewport', () => ({
-  Viewport: () => null,
+  Viewport: (props: { fitRequest: number }) => {
+    viewportSpy.fitRequest = props.fitRequest
+    return null
+  },
 }))
 
 vi.mock('./scene/useFile', () => ({
@@ -195,6 +200,29 @@ describe('App keyboard shortcuts', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', bubbles: true }))
     })
     expect(mockOnToggleVisible).not.toHaveBeenCalled()
+  })
+
+  it('Home requests a camera fit', async () => {
+    render(<App />)
+    await act(async () => {})
+    const before = viewportSpy.fitRequest
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    })
+    expect(viewportSpy.fitRequest).toBe(before + 1)
+  })
+
+  it('Home inside a text input does not request a fit', async () => {
+    render(<App />)
+    await act(async () => {})
+    const before = viewportSpy.fitRequest
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    })
+    expect(viewportSpy.fitRequest).toBe(before)
+    input.remove()
   })
 })
 
