@@ -525,6 +525,7 @@
           <tr><td><code>idb.ts</code></td><td>IndexedDB wrapper (schema v2) — two object stores: <code>handles</code> (FileSystemFileHandle) and <code>library</code> (material cost rates).</td></tr>
           <tr><td><code>utils.ts</code></td><td><code>shapeKey(part)</code> — geometry cache key. Encodes only shape-affecting fields (dimensions + cut positions/sizes).</td></tr>
           <tr><td><code>snapMath.ts</code></td><td>Pure face/cut geometry math — <code>faceAxes()</code>, <code>computeSnapDelta()</code>. No React. Three-typed but browser-free.</td></tr>
+          <tr><td><code>fitCamera.ts</code></td><td>Pure camera framing for the <code>Home</code> key: <code>worldBounds</code> builds the world AABB of the visible parts, <code>fitDirection</code> preserves the current bearing, and <code>fitCameraToParts</code> solves the distance that satisfies both FOV half-angles.</td></tr>
           <tr><td><code>useSnap.ts</code></td><td>Face-to-face snap-align interaction state machine. Fed <code>FaceHit</code>s from the raycaster.</td></tr>
           <tr><td><code>useAddCut.ts</code></td><td>Click-a-face-to-add-joinery-cut interaction state machine.</td></tr>
           <tr><td><code>useAddJoint.ts</code></td><td>Two-click dado-joint creation state machine (housing face → housed end). Fed <code>FaceHit</code>s from the raycaster.</td></tr>

@@ -12,6 +12,7 @@
 | `B` | Activate box / finger joint mode | Click one board's end, then the perpendicular equal-width end of another |
 | `T` | Activate tongue & groove joint mode | Click one board's long edge, then the facing long edge of another |
 | `Escape` | Cancel snap, cut, or joint mode | No-op if none is active |
+| `Home` | Frame all visible parts | Keeps the current view direction; no-op when nothing is visible |
 | `H` | Toggle visibility of selected part | Suppressed in snap/cut/joint mode |
 | `Delete` / `Backspace` | Remove selected part | Suppressed in snap/cut/joint mode |
 
