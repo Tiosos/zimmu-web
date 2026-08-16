@@ -85,13 +85,39 @@ numbers below are the app's, not a model of it. 14 of the 28 board pairs actuall
   frame it. Unrelated to suggestions, but it is friction on every session of the 60-second-cabinet
   workflow.
 
+## 2026-08-09 — pair grouping shipped
+
+Scene rows now group by board pair. The 8-board carcase goes from 40 rows to 14; each pair is one
+row carrying a chip per joint kind, and every option stays reachable. Spec + plan:
+`docs/superpowers/specs/2026-08-09-scene-suggestions-pair-grouping-design.md` and the matching plan.
+
+- **Presentation only, exactly as predicted.** The engine, `applySuggestion` and `suggestionOutlines`
+  are untouched. Grouping lives in a new pure module `src/scene/groupSuggestions.ts` (`groupByPair`,
+  `orientationArrow`, `MAX_SCENE_PAIRS`); the panel groups internally so `App.tsx` never changed.
+- **The ordering trap was real and worth the guard test.** `suggestJointsForScene` sorts by pair
+  distance then tiebreaks on kind, so equidistant pairs interleave and a pair's suggestions are
+  **not** contiguous. `groupByPair` keys a Map. An adjacency-based grouping passes a two-board
+  fixture and splits every real carcase pair — there is a dedicated test pinning the interleaved
+  case.
+- **The cap moved with the grouping.** `MAX_SCENE_SUGGESTIONS` is gone; `MAX_SCENE_PAIRS = 100` caps
+  rows after grouping, so a rendered row is never partial. Removing the flat cap cost nothing — the
+  sort already ran on the full array before the old `.slice`, so the O(n²) work was always done.
+- **Arrows follow role order, not alphabetical.** `finger`/`tongue-groove` yield two chips for a
+  pair; `→` means the row's first-named board leads. `PairGroup.aId` deliberately preserves
+  `pairIdsOf` role order (only `key` is sorted) — a test and a code comment both guard this, because
+  tidying the ids into sorted order would silently invert every arrow.
+- **Verified in the live app, not just fixtures.** A temporary e2e spec built a real two-board edge
+  glue-up: the scene panel collapsed the engine's two tongue-groove suggestions into one
+  "Board 1 + Board 2" row with `T&G →` / `T&G ←` chips, where main showed two separate rows. Deleted
+  the spec after; the grouping logic and the panel render are covered by unit tests with
+  mutation-proven teeth.
+
 ## Open
 
 - Whether the feature is wanted at all: the gap was found by reading code, not by watching the app
-  be used. If the working style is "place two boards, joint them, repeat", per-part scoping is
-  already correct and this is unused weight. The carcase run leans this way — the scene panel
-  restated the same 14 decisions with 26 extra rows — but it earns its place if it becomes the
-  grouped checklist described above.
-- **Row model, not the engine, is the next change.** Group scene rows by pair (40 → 14). The engine
-  is unchanged by this, exactly as scoped on 2026-08-07.
+  be used. The grouped panel is now the "have I jointed everything?" view the carcase run wanted —
+  14 rows, not 40 — but whether that view earns its place in day-to-day use is still unobserved.
+- The scene panel still shows only *unjointed* pairs (a pair drops out once jointed). If the
+  checklist framing proves valuable, the migration is to keep jointed pairs listed as done — which
+  needs the engine to report what it currently discards.
 - Camera framing on hover is still a non-goal; scene rows can name boards that are off-screen.
