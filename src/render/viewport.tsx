@@ -11,6 +11,7 @@ import {
   computeDowelLocalFaceCenter,
   computeSnapTransform,
 } from '../scene/snapMath'
+import { fitCameraToParts } from '../scene/fitCamera'
 
 interface ViewportProps {
   parts: Part[]
@@ -19,6 +20,7 @@ interface ViewportProps {
   onPartClick: (id: PartId | null) => void
   cameraStateRef: { current: CameraState }
   loadedCamera: CameraState | null
+  fitRequest: number
   interactionActive: boolean
   onFaceClick: (hit: FaceHit) => void
   onFaceHover: (hit: FaceHit | null) => void
@@ -52,6 +54,7 @@ export function Viewport({
   onPartClick,
   cameraStateRef,
   loadedCamera,
+  fitRequest,
   interactionActive,
   onFaceClick,
   onFaceHover,
@@ -423,6 +426,25 @@ export function Viewport({
     ctrl.target.set(loadedCamera.target.x, loadedCamera.target.y, loadedCamera.target.z)
     ctrl.update()
   }, [loadedCamera])
+
+  // Frame every visible part. Deliberately keyed on fitRequest alone: parts, camera and controls are
+  // read at fire time, and re-running whenever they change would move the camera unbidden. The nonce
+  // is a counter rather than a boolean so a second Home press fires again.
+  useEffect(() => {
+    if (fitRequest === 0) return
+    const camera = cameraRef.current
+    const controls = controlsRef.current
+    if (!camera || !controls) return
+    const next = fitCameraToParts(parts, camera.aspect, camera.fov, {
+      position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+      target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
+    })
+    if (!next) return
+    camera.position.set(next.position.x, next.position.y, next.position.z)
+    controls.target.set(next.target.x, next.target.y, next.target.z)
+    controls.update()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitRequest])
 
   // Mesh management — syncs Three.js scene to parts + geometries + selectedId
   useEffect(() => {

@@ -134,6 +134,7 @@ function App() {
     target: { x: 0, y: 0, z: 0 },
   })
   const [loadedCamera, setLoadedCamera] = useState<CameraState | null>(null)
+  const [fitRequest, setFitRequest] = useState(0)
   const [cuttingListOpen, setCuttingListOpen] = useState(false)
   const closeCuttingList = useCallback(() => setCuttingListOpen(false), [])
   const [drawingsOpen, setDrawingsOpen] = useState(false)
@@ -220,6 +221,11 @@ function App() {
         if (e.key.toLowerCase() === 't') {
           e.preventDefault()
           setMode('tongueGroove')
+          return
+        }
+        if (e.key === 'Home') {
+          e.preventDefault()
+          setFitRequest((n) => n + 1)
           return
         }
         if (e.key === 'Escape') {
@@ -349,6 +355,7 @@ function App() {
           onPartClick={onSelect}
           cameraStateRef={cameraStateRef}
           loadedCamera={loadedCamera}
+          fitRequest={fitRequest}
           interactionActive={mode.interactionActive}
           onFaceClick={mode.onFaceClick}
           onFaceHover={mode.onFaceHover}
