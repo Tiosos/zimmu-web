@@ -47,8 +47,10 @@ test('returns null when there is nothing visible', () => {
   expect(worldBounds([board({ visible: false })])).toBeNull()
 })
 
-// Rotation must go through composeWorldMatrix, not be ignored. A 45° yaw widens the footprint.
+// Rotation must go through composeWorldMatrix, not be ignored. A 45° yaw about Z sends the far corner
+// of the 200×100 footprint to y ≈ 212; ignoring rotation would leave max.y at 100. (max.x actually
+// shrinks to ≈141 under this rotation, so it is the wrong axis to assert on.)
 test('rotation is honoured', () => {
   const b = worldBounds([board({ rotation: { x: 0, y: 0, z: 45 } })])
-  expect(b!.max.x).toBeGreaterThan(200)
+  expect(b!.max.y).toBeGreaterThan(200)
 })
