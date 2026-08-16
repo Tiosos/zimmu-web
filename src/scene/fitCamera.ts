@@ -1,5 +1,16 @@
-import type { Part, Vec3 } from './types'
+import type { CameraState, Part, Vec3 } from './types'
 import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
+
+// The app's opening view direction (viewport.tsx:200). Used only when the current camera has no
+// bearing to preserve.
+export const CANONICAL_DIR: Vec3 = { x: 250, y: -200, z: 150 }
+
+const EPS = 1e-9
+
+const sub = (a: Vec3, b: Vec3): Vec3 => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z })
+const scale = (a: Vec3, s: number): Vec3 => ({ x: a.x * s, y: a.y * s, z: a.z * s })
+const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z
+const length = (a: Vec3): number => Math.sqrt(dot(a, a))
 
 export interface Bounds {
   min: Vec3
@@ -59,4 +70,12 @@ export function worldBounds(parts: Part[]): Bounds | null {
 
   if (!found) return null
   return { min: { x: minX, y: minY, z: minZ }, max: { x: maxX, y: maxY, z: maxZ } }
+}
+
+// The unit vector pointing from the target toward the camera — the bearing a fit preserves.
+export function fitDirection(current: CameraState): Vec3 {
+  const raw = sub(current.position, current.target)
+  const l = length(raw)
+  if (l > EPS) return scale(raw, 1 / l)
+  return scale(CANONICAL_DIR, 1 / length(CANONICAL_DIR))
 }

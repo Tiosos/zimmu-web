@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 import type { BoardPart, CylinderPart, Part } from './types'
-import { worldBounds } from './fitCamera'
+import { worldBounds, fitDirection, CANONICAL_DIR } from './fitCamera'
 
 const board = (over: Partial<BoardPart> = {}): BoardPart => ({
   kind: 'board',
@@ -83,4 +83,29 @@ test('a cylinder is centred in x/y and corner-origin in z', () => {
 test('an unknown part kind throws rather than being silently mismeasured', () => {
   const bogus = { ...board(), kind: 'sphere' } as unknown as Part
   expect(() => worldBounds([bogus])).toThrow(/unhandled part kind/)
+})
+
+test('preserves the current bearing as a unit vector', () => {
+  const d = fitDirection({ position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } })
+  expect(d).toEqual({ x: 0, y: 0, z: 1 })
+})
+
+test('the bearing is measured from target to position, not from the origin', () => {
+  const d = fitDirection({ position: { x: 100, y: 0, z: 0 }, target: { x: 90, y: 0, z: 0 } })
+  expect(d).toEqual({ x: 1, y: 0, z: 0 })
+})
+
+// useFile restores camera position and target verbatim from the .zimmu file, so a file carrying
+// equal position and target is reachable input. There is no bearing to preserve; use the canonical one.
+test('falls back to the canonical bearing when position equals target', () => {
+  const d = fitDirection({ position: { x: 5, y: 5, z: 5 }, target: { x: 5, y: 5, z: 5 } })
+  const len = Math.hypot(CANONICAL_DIR.x, CANONICAL_DIR.y, CANONICAL_DIR.z)
+  expect(d.x).toBeCloseTo(CANONICAL_DIR.x / len, 10)
+  expect(d.y).toBeCloseTo(CANONICAL_DIR.y / len, 10)
+  expect(d.z).toBeCloseTo(CANONICAL_DIR.z / len, 10)
+})
+
+test('the returned bearing is always unit length', () => {
+  const d = fitDirection({ position: { x: 3, y: 4, z: 12 }, target: { x: 0, y: 0, z: 0 } })
+  expect(Math.hypot(d.x, d.y, d.z)).toBeCloseTo(1, 10)
 })
