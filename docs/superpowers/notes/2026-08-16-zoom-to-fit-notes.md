@@ -56,3 +56,29 @@ single 800 × 600 × 720 board placed at the origin is corner-origin — box `[0
 so the default camera at `(250,-200,150)` sits just outside it on −Y while aimed at its origin corner.
 The "badly framed, most of the box off to the side" condition still reproduces; "strictly inside" is
 position-dependent. Worth remembering when reasoning about framing from part positions.
+
+## 2026-08-17 — far-plane follow-up (separate PR)
+
+The Home fit could frame a scene past the camera's fixed 10 000 mm far plane. A board wider than
+~7 m fits at a distance whose corners sit beyond 10 000 mm, so the frame the solve just produced
+rendered clipped — and for a scene large enough that even the nearest corner overruns the plane
+(a 30 m board fits ~28 m back, nearest corner ~16 m out), the whole thing vanishes.
+
+- `fitFarPlane(parts, camera)` (pure, in `fitCamera.ts`) returns the far plane that reaches every
+  corner. It uses Euclidean distance to the farthest corner, which is never smaller than that
+  corner's view-direction depth (the quantity the camera actually clips on), so it is a provably
+  sufficient bound without needing the camera basis.
+- The viewport clamps `camera.far = max(DEFAULT_FAR_PLANE, required)` in the fit effect, and drops
+  back to the default when a smaller scene no longer needs the range.
+- **The e2e reproduction was subtle and nearly gave false confidence.** Three traps, all found by a
+  test that passed on deliberately broken code: (1) `isNonBlank` cannot see the bug — the origin
+  `GridHelper`/`AxesHelper` keep painting when the board is clipped, so the canvas is never blank;
+  switched to a non-background pixel count. (2) A 10 m board is only *partially* clipped, leaving a
+  visible sliver; needed 30 m so even the nearest corner overruns the plane. (3) `App` suppresses
+  shortcuts while an input is focused, so pressing Home right after `fill()` did nothing and the
+  test measured the default camera twice — had to blur the input first. The final spec was
+  mutation-checked (fails with the clamp neutralised) before being deleted per repo convention.
+- **Known limitation, not addressed:** a very large scene pushes far out to ~40 000 mm against a
+  0.1 mm near plane, a depth ratio that can invite z-fighting on coplanar faces. Strictly better
+  than clipping the scene away, and out of scope here; raise the near plane with the far if it ever
+  bites.

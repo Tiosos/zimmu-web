@@ -146,3 +146,22 @@ export function fitCameraToParts(
   const distance = Math.max(t * FIT_MARGIN, MIN_FIT_DISTANCE)
   return { position: add(centre, scale(d, distance)), target: centre }
 }
+
+// The minimum far clip plane that keeps the whole scene visible from `camera`, or null when there
+// is nothing to frame. The perspective camera clips by view-direction depth, but the Euclidean
+// distance to a corner is never smaller than its depth, so reaching the farthest corner by straight
+// distance guarantees no corner is clipped — without needing the camera's basis here. The viewport's
+// default far plane is a fixed 10 000 mm (viewport.tsx), which a scene wider than ~7 m overruns.
+export function fitFarPlane(parts: Part[], camera: CameraState): number | null {
+  const bounds = worldBounds(parts)
+  if (bounds === null) return null
+  let far = 0
+  for (const x of [bounds.min.x, bounds.max.x]) {
+    for (const y of [bounds.min.y, bounds.max.y]) {
+      for (const z of [bounds.min.z, bounds.max.z]) {
+        far = Math.max(far, length(sub({ x, y, z }, camera.position)))
+      }
+    }
+  }
+  return far
+}
