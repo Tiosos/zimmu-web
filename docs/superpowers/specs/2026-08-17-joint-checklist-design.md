@@ -246,6 +246,9 @@ const highlightedIds = useMemo(
 `hoveredOutlines` is unchanged — it stays driven by `hoveredSuggestion` alone, so a done row tints
 without drawing outlines, which is the intended behaviour rather than an omission.
 
+The panel is rendered by `Sidebar` (`sidebar.tsx:1082`), not by `App` directly, so `onHoverPair`
+threads through `SidebarProps` the same way `onHoverSuggestion` already does.
+
 ## Testing
 
 TDD, per repo convention — each test written and watched to fail first.
@@ -296,6 +299,7 @@ tests stand unchanged as the parity guard on the extraction.
 | `src/scene/groupSuggestions.test.ts` | cap test moves out; add no-truncation test |
 | `src/ui/SceneSuggestionsPanel.tsx` | checklist rows, counter header, nested no-offer section |
 | `src/ui/SceneSuggestionsPanel.test.tsx` | new state/counter/hover assertions |
+| `src/ui/sidebar.tsx` | thread `onHoverPair` through to the panel |
 | `src/App.tsx` | `hoveredPair` state; `highlightedIds` falls back to it |
 | `docs/superpowers/notes/2026-08-17-joint-checklist-notes.md` | **new** — living notes |
 | `docs/superpowers/notes/2026-08-07-scene-wide-suggestions-notes.md` | close the "Open" item |
