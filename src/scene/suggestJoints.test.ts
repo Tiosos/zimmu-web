@@ -85,6 +85,30 @@ test('contactPair returns null for separated boards', () => {
   expect(contactPair(farA, farB)).toBeNull()
 })
 
+// contactPair now gates on boardsTouch rather than its own copy of the separation test, so the two
+// must agree at the tolerance boundary. A 0.5 mm gap (< TOUCH_TOL) is a contact; a 2 mm gap is not.
+test('contactPair and boardsTouch agree at the touch tolerance', () => {
+  const base = board({ id: 'BASE', length: 200, width: 100, thickness: 20 })
+  const near = board({
+    id: 'NEAR',
+    length: 200,
+    width: 100,
+    thickness: 18,
+    position: { x: 0, y: 0, z: 20.5 },
+  })
+  const far = board({
+    id: 'FAR2',
+    length: 200,
+    width: 100,
+    thickness: 18,
+    position: { x: 0, y: 0, z: 22 },
+  })
+  expect(boardsTouch(base, near)).toBe(true)
+  expect(contactPair(base, near)).not.toBeNull()
+  expect(boardsTouch(base, far)).toBe(false)
+  expect(contactPair(base, far)).toBeNull()
+})
+
 // Two crossing coplanar equal-thickness boards → half-lap.
 const lapA = board({ id: 'LA', length: 200, width: 40, thickness: 20 })
 const lapB = board({

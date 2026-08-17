@@ -148,19 +148,20 @@ export function boardsTouch(a: BoardPart, b: BoardPart): boolean {
 }
 
 export function contactPair(a: BoardPart, b: BoardPart): { faceA: Face; faceB: Face } | null {
+  // Separation is decided once, in boardsTouch. worldAabb is memoized, so re-reading the two boxes
+  // below is a cache hit — the contact axis still needs the per-axis gaps that boardsTouch discards.
+  if (!boardsTouch(a, b)) return null
   const A = worldAabb(a)
   const B = worldAabb(b)
-  let contactAx: WorldAxis | null = null
+  let contactAx: WorldAxis = WORLD_AXES[0]
   let bestGap = -Infinity
   for (const ax of WORLD_AXES) {
     const gap = Math.max(A.min[ax], B.min[ax]) - Math.min(A.max[ax], B.max[ax])
-    if (gap > TOUCH_TOL) return null // separated on this axis
     if (gap > bestGap) {
       bestGap = gap
       contactAx = ax
     }
   }
-  if (!contactAx) return null
   const aMid = (A.min[contactAx] + A.max[contactAx]) / 2
   const bMid = (B.min[contactAx] + B.max[contactAx]) / 2
   const sign = bMid >= aMid ? 1 : -1
