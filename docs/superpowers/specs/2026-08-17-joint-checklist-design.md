@@ -126,6 +126,9 @@ So: `groupByPair` drops its `.slice` and becomes pure grouping; `buildJointCheck
 The cap applies to `rows` and `unresolved` **independently**, so a scene with many untouchable-but-
 adjacent boards cannot starve the actionable list.
 
+`MAX_SCENE_PAIRS` stays exported from `groupSuggestions.ts` — moving the constant as well as its
+application would churn imports for no gain, and its doc comment is already written about rows.
+
 ### Extracted adjacency predicate — `src/scene/suggestJoints.ts`
 
 ```ts
@@ -189,9 +192,23 @@ Pure and React-free, tested directly rather than through the panel — matching 
 2. `groupByPair(suggestions)` → index by `key`. Reuses the existing grouping (and with it
    `orientationArrow`, which reads `PairGroup.aId`).
 3. Index `joints` by sorted pair key via a local `jointPairIds(joint): [PartId, PartId]` helper.
-4. For each `i < j` board pair: skip unless `boardsTouch`. Compute `key` and `dist`. Classify
-   `jointed` → `open` → `no-offer`, in that order of precedence.
+4. For each `i < j` board pair: keep it if `boardsTouch(a, b)` **or** the pair carries a joint;
+   skip otherwise. Compute `key` and `dist`. Classify `jointed` → `open` → `no-offer`, in that order
+   of precedence.
 5. Sort each array by `dist`, tiebreak `key`. Apply `MAX_SCENE_PAIRS` to each.
+
+**An existing joint outranks the adjacency test.** `reconcileJoints.ts:27-29` preserves a joint whose
+`deriveJoint` returns null — a stale joint keeps its last-good cuts rather than being deleted. So a
+joint survives its boards being moved apart, and gating rows on `boardsTouch` alone would make that
+joint vanish from the checklist while `jointedCount` silently decremented. A joint is the strongest
+possible evidence that a pair is a real junction, so it admits the row on its own. This also keeps a
+jointed row from flickering out when a board drifts a hair past `TOUCH_TOL`.
+
+**Hidden boards are excluded, numerator and denominator alike.** `boards` filters on `visible`, so
+hiding a board drops both its jointed rows and its open rows. The counter therefore describes the
+visible scene, which is coherent but worth stating: hiding a jointed board moves the count for a
+non-structural reason. Consistent with the engine, which already refuses to suggest against hidden
+boards.
 
 **`aId`/`bId` role order.** For `open` rows these come from the `PairGroup`, **not** from the board
 loop. `groupSuggestions.ts:13-16` warns that `PairGroup.aId` preserves `pairIdsOf` role order and
@@ -240,6 +257,8 @@ TDD, per repo convention — each test written and watched to fail first.
 - touching pair, no joint, no suggestions → `no-offer`, lands in `unresolved`
 - **non-touching pair produces no row at all** — the guard against a checklist of every pair in the
   scene
+- **a jointed pair whose boards no longer touch still produces a `jointed` row** and still counts —
+  the stale-joint case `reconcileJoints` makes reachable
 - `jointedCount` / `actionableTotal` exclude `no-offer`
 - **stability:** build → apply a joint to the nearest pair → rebuild → that row's index in `rows` is
   unchanged. The distance-ordering decision has no other teeth.

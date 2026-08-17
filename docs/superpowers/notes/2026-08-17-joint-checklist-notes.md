@@ -46,6 +46,20 @@ Left the overclaim out of the spec deliberately. The remaining two copies stay c
 construction (same `TOUCH_TOL`, same early return on the same comparison), which is weaker than one
 definition and should be stated as such.
 
+### Stale joints outrank the adjacency test (found in spec self-review)
+
+First draft gated every row on `boardsTouch`. That silently loses joints: `reconcileJoints.ts:27-29`
+does **not** delete a joint whose `deriveJoint` returns null — it leaves the last-good cuts and
+position in place. So a joint outlives its boards being moved apart, and an adjacency-gated
+checklist would drop the row and decrement `jointedCount` with nothing to explain it.
+
+Row admission is therefore `boardsTouch(a, b) || pairHasJoint`. Secondary benefit: a jointed row
+cannot flicker out when a board drifts a hair past `TOUCH_TOL`.
+
+The general lesson is that the checklist has two independent sources of truth about what constitutes
+a pair — geometry and `scene.joints` — and geometry is the weaker one. Anywhere the two disagree,
+the recorded joint wins.
+
 ### Requirements settled with the user
 
 - Row states are three, not two: `no-offer` is what distinguishes "engine has no opinion" from
