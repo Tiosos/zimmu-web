@@ -8,6 +8,8 @@
 
 **Tech Stack:** React 19 + TypeScript, Vitest + happy-dom + @testing-library/react, OpenCASCADE.js (WASM via Comlink worker), Three.js.
 
+**Spec:** `docs/superpowers/specs/2026-06-05-3d-export-stl-step-design.md`
+
 **Plan-time de-risking already done:** The opencascade.js build (v1.1.1) lists `STEPCAFControl_Writer`, `XCAFApp_Application`, `XCAFDoc_DocumentTool`, `TDataStd_Name`, `TDocStd_Document`, `STEPControl_Writer`, `Interface_Static`, `BRep_Builder`, `TopoDS_Compound` in its **Supported APIs** doc, so the named-solid path is viable. Exact embind overload suffixes (`_1`/`_2`) and `oc.FS` read-back are confirmed at runtime by the **Task 6 live spike**.
 
 ---

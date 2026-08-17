@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript strict, React 19, Vitest + happy-dom + @testing-library/react
 
+**Spec:** none — plan-only; no design spec was written for this feature.
+
 ---
 
 ## File Structure

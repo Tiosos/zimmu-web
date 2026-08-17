@@ -8,6 +8,8 @@
 
 **Tech Stack:** React 19, TypeScript strict mode, Vitest + @testing-library/react, Three.js (`MeshStandardMaterial.color.set`), Tailwind CSS.
 
+**Spec:** `docs/superpowers/specs/2026-06-03-part-color-picker-design.md`
+
 ---
 
 ## File map

@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript strict mode, Three.js quaternion math (already imported in snapMath.ts), Vitest + happy-dom
 
+**Spec:** `docs/superpowers/specs/2026-06-14-rotation-snap-design.md`
+
 ---
 
 ## File Map

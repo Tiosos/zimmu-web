@@ -8,6 +8,8 @@
 
 **Tech Stack:** React 19, TypeScript strict, Three.js, Comlink, Vitest + happy-dom, @testing-library/react
 
+**Spec:** `docs/superpowers/specs/2026-05-29-scene-model-design.md`
+
 ---
 
 ### Task 1: Scene types + shape key utility

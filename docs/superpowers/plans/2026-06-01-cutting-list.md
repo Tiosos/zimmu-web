@@ -8,6 +8,8 @@
 
 **Tech Stack:** React 19, TypeScript strict, Vitest + @testing-library/react, `navigator.clipboard.writeText` for copy, `Blob` + `URL.createObjectURL` for download.
 
+**Spec:** none — plan-only; no design spec was written for this feature.
+
 ---
 
 ## File Map

@@ -8,6 +8,8 @@
 
 **Tech Stack:** React 19 hooks (`useState`, `useEffect`, `useRef`), Three.js `MeshStandardMaterial.emissive`, TypeScript strict mode.
 
+**Spec:** `docs/superpowers/specs/2026-06-14-rotation-flash-indicator-design.md`
+
 ---
 
 ## File Map

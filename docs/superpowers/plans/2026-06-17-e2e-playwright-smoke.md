@@ -8,6 +8,8 @@
 
 **Tech Stack:** `@playwright/test`, `pngjs` (+ `@types/pngjs`) for Node-side PNG decode, GitHub Actions for CI. Existing: Vite 8, Vitest 4, React 19, Three.js, OCCT WASM via Comlink worker.
 
+**Spec:** `docs/superpowers/specs/2026-06-17-e2e-playwright-smoke-design.md`
+
 **Conventions for every commit in this plan:** the repo's git hooks require commits authored as `Claude <noreply@anthropic.com>` (already configured) and every commit message must end with the two trailers:
 
 ```

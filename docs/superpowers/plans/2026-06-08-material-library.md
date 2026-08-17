@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript strict, React 19, Vitest + happy-dom + @testing-library/react, fake-indexeddb (already polyfilled in vitest.setup.ts)
 
+**Spec:** `docs/superpowers/specs/2026-06-08-material-library-design.md`
+
 ---
 
 ## File Structure

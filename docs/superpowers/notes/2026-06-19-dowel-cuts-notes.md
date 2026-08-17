@@ -1,6 +1,6 @@
 # Dowel Cuts (SP2) — Implementation Notes
 
-Living notes for the SP2 dowel-cuts work. Audience: a future developer/AI who needs to know *why*, not just *what*. Spec: `../specs/2026-06-19-dowel-cuts-design.md`. Plan: `../plans/2026-06-19-dowel-cuts.md`.
+Living notes for the SP2 dowel-cuts work. Audience: a future developer/AI who needs to know *why*, not just *what*. Spec: `../specs/2026-06-19-dowel-cuts-design.md`. Plan: `../plans/2026-06-12-dowel.md` (SP2 section).
 
 ## Base-branch dependency
 

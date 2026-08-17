@@ -1,7 +1,7 @@
 # Rotation Flash Indicator — Implementation Notes
 
 **Date:** 2026-06-14 (notes backfilled 2026-06-15 from a plan/code cross-check)
-**Spec:** `docs/superpowers/specs/2026-06-14-rotation-flash-indicator.md`
+**Spec:** `docs/superpowers/specs/2026-06-14-rotation-flash-indicator-design.md`
 **Plan:** `docs/superpowers/plans/2026-06-14-rotation-flash-indicator.md`
 
 Living record of decisions/deviations. This file was missing and is reconstructed from the shipped code.

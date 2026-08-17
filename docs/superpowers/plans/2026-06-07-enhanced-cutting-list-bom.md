@@ -8,6 +8,8 @@
 
 **Tech Stack:** React 19, TypeScript strict (`noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`), Vitest + happy-dom + @testing-library/react, Tailwind v4, shadcn/Radix primitives.
 
+**Spec:** `docs/superpowers/specs/2026-06-07-enhanced-cutting-list-bom-design.md`
+
 ---
 
 ## File Map

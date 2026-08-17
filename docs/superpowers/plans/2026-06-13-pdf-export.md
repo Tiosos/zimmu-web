@@ -8,6 +8,8 @@
 
 **Tech Stack:** `pdf-lib` (new), Vitest (existing tests), React `useCallback`, existing `downloadBlob` helper.
 
+**Spec:** `docs/superpowers/specs/2026-06-13-pdf-export-design.md`
+
 ---
 
 ## File Map

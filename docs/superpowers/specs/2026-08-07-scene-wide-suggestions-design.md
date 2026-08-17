@@ -3,6 +3,11 @@
 Status: **decided and implemented** — Option B chosen (2026-08-07). The orientation section below is
 kept as the record of what was weighed, not as an open question.
 
+> **No dedicated plan file.** This spec has no `plans/2026-08-07-scene-wide-suggestions.md`; its
+> implementation planning was carried in the follow-on plans
+> `plans/2026-08-09-scene-suggestions-pair-grouping.md` and `plans/2026-08-17-joint-checklist.md`,
+> with the living thread in `notes/2026-08-07-scene-wide-suggestions-notes.md`.
+
 ## Overview
 
 Joint suggestions today exist only for the selected board. `suggestJointsFor` opens with:

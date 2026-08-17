@@ -8,6 +8,8 @@
 
 **Tech Stack:** React 19 + TypeScript, Vitest + @testing-library/react, OpenCASCADE.js (WASM via Comlink worker), Three.js
 
+**Spec:** `docs/superpowers/specs/2026-05-31-joinery-cuts-design.md`
+
 ---
 
 ## File map

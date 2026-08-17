@@ -1,7 +1,7 @@
 # Dowel 2D Drawings (SP4) — Implementation Notes
 
 Living notes for `2026-06-21-dowel-drawings-design.md` /
-`2026-06-21-dowel-drawings.md`. Record decisions that don't belong in the spec:
+`2026-06-12-dowel.md` (SP4 section). Record decisions that don't belong in the spec:
 rejected approaches, surprises, workarounds, deferred ideas. Audience: a future
 reader who needs the *why*.
 

@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript 6 strict mode, React 19, Vitest + happy-dom + @testing-library/react, shadcn/ui `Input` component.
 
+**Spec:** `docs/superpowers/specs/2026-06-03-cutting-list-material-grouping-design.md`
+
 ---
 
 ### Task 1: Add `material` field to the data model
