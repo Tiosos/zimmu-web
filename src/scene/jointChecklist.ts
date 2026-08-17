@@ -2,7 +2,16 @@ import type { BoardPart, Joint, Part, PartId } from './types'
 import type { JointSuggestion } from './suggestJoints'
 import { boardsTouch, aabbCenterDist } from './suggestJoints'
 import { obbOverlap } from './obbOverlap'
-import { groupByPair, MAX_SCENE_PAIRS } from './groupSuggestions'
+import { groupByPair } from './groupSuggestions'
+
+// Two runaway guards, sized to their lists rather than sharing one number. Actionable rows (jointed
+// + open) are all real decisions, so their cap is generous — it only exists to bound a pathological
+// scene, and 200 covers well over ten carcases. No-offer rows are muted noise the OBB filter has
+// already pruned, so a tight cap keeps that section from ever growing long. Splitting the two is
+// what restores the headroom the single 100-pair cap lost when it began counting touching pairs (a
+// strictly larger set) rather than offering pairs.
+export const MAX_ACTIONABLE_ROWS = 200
+export const MAX_NOOFFER_ROWS = 50
 
 export type PairState = 'jointed' | 'open' | 'no-offer'
 
@@ -130,10 +139,10 @@ export function buildJointChecklist(
   rows.sort(byDistance)
   unresolved.sort(byDistance)
 
-  const capped = rows.slice(0, MAX_SCENE_PAIRS)
+  const capped = rows.slice(0, MAX_ACTIONABLE_ROWS)
   return {
     rows: capped,
-    unresolved: unresolved.slice(0, MAX_SCENE_PAIRS),
+    unresolved: unresolved.slice(0, MAX_NOOFFER_ROWS),
     // Counted from the capped rows, so the header can never claim more than is rendered.
     jointedCount: capped.filter((r) => r.state === 'jointed').length,
     actionableTotal: capped.length,

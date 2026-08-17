@@ -2,8 +2,7 @@ import { test, expect } from 'vitest'
 import type { BoardPart, DadoJoint, Part } from './types'
 import { suggestJointsForScene } from './suggestJoints'
 import { defaultDadoJoint } from './defaultJoint'
-import { MAX_SCENE_PAIRS } from './groupSuggestions'
-import { buildJointChecklist } from './jointChecklist'
+import { buildJointChecklist, MAX_NOOFFER_ROWS } from './jointChecklist'
 
 function board(over: Partial<BoardPart>): BoardPart {
   return {
@@ -202,7 +201,7 @@ test('equidistant pairs come back in deterministic key order', () => {
 test('caps rows and no-offer rows independently', () => {
   const base = board({ id: 'B', length: 20000, width: 100, thickness: 20 })
   const parts: Part[] = [base]
-  for (let i = 0; i < MAX_SCENE_PAIRS + 5; i++) {
+  for (let i = 0; i < MAX_NOOFFER_ROWS + 5; i++) {
     parts.push(
       board({
         id: `P${i}`,
@@ -226,7 +225,8 @@ test('caps rows and no-offer rows independently', () => {
     )
   }
   const c = build(parts)
-  expect(c.unresolved).toHaveLength(MAX_SCENE_PAIRS)
+  // The no-offer flood is capped tightly, while the actionable rows keep their own generous budget.
+  expect(c.unresolved).toHaveLength(MAX_NOOFFER_ROWS)
   expect(c.rows).toHaveLength(3)
   expect(c.rows.every((r) => r.state === 'open')).toBe(true)
   expect(c.actionableTotal).toBe(3)

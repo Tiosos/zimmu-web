@@ -2,13 +2,9 @@ import type { PartId } from './types'
 import type { JointSuggestion } from './suggestJoints'
 import { pairIdsOf } from './suggestJoints'
 
-// Runaway guard on rows. Applied by buildJointChecklist (jointChecklist.ts), not here: the checklist
-// classifies a pair by whether grouping produced a group for it, so truncating before that point
-// would report "no joint available" for pairs that have offers. A row is one real decision where a
-// suggestion was a quarter of one — an 8-board carcase needs 14 rows and three of them need 42.
-// Note it now bounds *touching* pairs, a strictly larger set than the offering pairs it used to.
-export const MAX_SCENE_PAIRS = 100
-
+// groupByPair does not cap — the checklist classifies a pair by whether a group exists for it, so
+// truncating here would report "no joint available" for pairs that have offers. The row caps live in
+// jointChecklist.ts (MAX_ACTIONABLE_ROWS / MAX_NOOFFER_ROWS), applied after classification.
 export interface PairGroup {
   key: string
   // aId/bId deliberately preserve pairIdsOf's role order — only `key` is sorted. orientationArrow

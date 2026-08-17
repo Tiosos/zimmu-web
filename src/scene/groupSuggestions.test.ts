@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 import type { JointSuggestion } from './suggestJoints'
-import { groupByPair, orientationArrow, MAX_SCENE_PAIRS } from './groupSuggestions'
+import { groupByPair, orientationArrow } from './groupSuggestions'
 
 const dado = (housing: string, housed: string): JointSuggestion => ({
   kind: 'dado',
@@ -113,7 +113,8 @@ test('does not truncate — every pair survives grouping, complete', () => {
   // is what makes the completeness assertion meaningful — slicing the flat list at 100 would keep
   // 100 dados and no mortise-tenons, producing 100 groups that each have one option instead of two.
   const many: JointSuggestion[] = []
-  const pairCount = MAX_SCENE_PAIRS + 5
+  // Comfortably past any checklist row cap, so a surviving truncation would show here.
+  const pairCount = 250
   for (let i = 0; i < pairCount; i++) many.push(dado('A', `B${i}`))
   for (let i = 0; i < pairCount; i++) many.push(mortiseTenon('A', `B${i}`))
 
