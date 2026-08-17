@@ -82,3 +82,12 @@ rendered clipped — and for a scene large enough that even the nearest corner o
   0.1 mm near plane, a depth ratio that can invite z-fighting on coplanar faces. Strictly better
   than clipping the scene away, and out of scope here; raise the near plane with the far if it ever
   bites.
+
+## 2026-08-17 — near-plane follow-up
+
+Closes the z-fighting limitation the far-plane fix left open. When `fitFarPlane` raises `camera.far`
+for a large scene, the near plane now rises with it (`nearPlaneForFar`, pure, in `fitCamera.ts`) so
+the far/near ratio stays at the app's default (10000/0.1) rather than ballooning — a big scene no
+longer trades clipping for depth-buffer precision loss. An ordinary scene (far at or below the
+default) keeps `near = 0.1` unchanged; the helper floors there. Unit-tested for the ratio identity
+and the floor; the viewport wiring sets both planes together in the fit effect.

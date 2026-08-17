@@ -165,3 +165,11 @@ export function fitFarPlane(parts: Part[], camera: CameraState): number | null {
   }
   return far
 }
+
+// The near plane to pair with a raised far plane. Depth-buffer precision degrades with the far/near
+// ratio, so when fitFarPlane pushes far out for a large scene, near must rise in step to hold the
+// ratio at the app's default (defaultFar/defaultNear) — otherwise a big scene invites z-fighting on
+// coplanar faces. Floored at defaultNear so an ordinary scene (far ≤ defaultFar) is unchanged.
+export function nearPlaneForFar(far: number, defaultNear: number, defaultFar: number): number {
+  return Math.max(defaultNear, (far * defaultNear) / defaultFar)
+}
