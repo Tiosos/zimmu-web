@@ -113,6 +113,65 @@ test('an empty scene produces empty arrays and zero counts', () => {
   expect(c).toEqual({ rows: [], unresolved: [], jointedCount: 0, actionableTotal: 0 })
 })
 
+// Two uprights on one shelf, at different distances from it, so row order is non-trivial.
+const shelf = board({ id: 'S', length: 400, width: 100, thickness: 20 })
+const upNear = board({
+  id: 'N',
+  length: 80,
+  width: 40,
+  thickness: 18,
+  rotation: { x: 0, y: -90, z: 0 },
+  position: { x: 180, y: 30, z: 20 },
+})
+const upFar = board({
+  id: 'R',
+  length: 80,
+  width: 40,
+  thickness: 18,
+  rotation: { x: 0, y: -90, z: 0 },
+  position: { x: 20, y: 30, z: 20 },
+})
+
+test('rows are ordered by pair centre distance, nearest first', () => {
+  const c = build([shelf, upFar, upNear])
+  expect(c.rows.map((r) => r.key)).toEqual(['N|S', 'R|S'])
+})
+
+// The whole point of computing distance for jointed rows too: joint the nearest pair and the row
+// order must not move. Ordering off the suggestion list instead would make a row jump the moment
+// you joint it, losing your place halfway through a carcase.
+test('a row keeps its position when it flips from open to jointed', () => {
+  const parts = [shelf, upFar, upNear]
+  const before = build(parts)
+  const joint = defaultDadoJoint(shelf, upNear, '+Z', '-X', 'joint_1', 'Dado 1')
+  const after = build(parts, [joint])
+
+  expect(after.rows.map((r) => r.key)).toEqual(before.rows.map((r) => r.key))
+  expect(after.rows.find((r) => r.key === 'N|S')!.state).toBe('jointed')
+  expect(after.rows.find((r) => r.key === 'R|S')!.state).toBe('open')
+})
+
+// Equidistant pairs otherwise fall back on board-iteration order and reshuffle as parts are added
+// or reordered — the same interleaving trap groupByPair documents.
+// Mirrored about the shelf's centre so both pairs are exactly equidistant. Two things bite here:
+// under Ry=-90 `position.x` is the board's *max* x edge, so A spans x 2..20 (centre 11) and its
+// mirror about the shelf centre of 200 is centre 389, i.e. position.x 398. And they must not be
+// coincident copies — two boards in the same place overlap on every axis and form a half-lap with
+// each other, adding a third row this test is not about.
+test('equidistant pairs come back in deterministic key order', () => {
+  const left = board({
+    id: 'A',
+    length: 80,
+    width: 40,
+    thickness: 18,
+    rotation: { x: 0, y: -90, z: 0 },
+    position: { x: 20, y: 30, z: 20 },
+  })
+  const right = { ...left, id: 'Z', position: { x: 398, y: 30, z: 20 } }
+  const c = build([shelf, right, left])
+  expect(c.rows.map((r) => r.key)).toEqual(['A|S', 'S|Z'])
+})
+
 // groupSuggestions.ts warns that PairGroup.aId is role order, and that sorting the ids would invert
 // every orientation arrow. Open rows must inherit it verbatim rather than take board-loop order.
 test('an open row inherits the group role order, not board-iteration order', () => {

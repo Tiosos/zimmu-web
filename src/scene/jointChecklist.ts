@@ -24,6 +24,10 @@ export interface JointChecklist {
   actionableTotal: number
 }
 
+// Float noise must not decide row order: two pairs the same distance apart can differ in the last
+// bit, and falling through to the key tiebreak is what keeps the list stable across rebuilds.
+const DIST_EPS = 1e-4
+
 function pairKey(x: PartId, y: PartId): string {
   return x < y ? `${x}|${y}` : `${y}|${x}`
 }
@@ -111,6 +115,14 @@ export function buildJointChecklist(
       }
     }
   }
+
+  const byDistance = (x: ChecklistRow, y: ChecklistRow) => {
+    const d = x.dist - y.dist
+    if (Math.abs(d) > DIST_EPS) return d
+    return x.key < y.key ? -1 : x.key > y.key ? 1 : 0
+  }
+  rows.sort(byDistance)
+  unresolved.sort(byDistance)
 
   const capped = rows.slice(0, MAX_SCENE_PAIRS)
   return {
