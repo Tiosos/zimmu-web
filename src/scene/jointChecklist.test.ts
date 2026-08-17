@@ -2,8 +2,7 @@ import { test, expect } from 'vitest'
 import type { BoardPart, DadoJoint, Part } from './types'
 import { suggestJointsForScene } from './suggestJoints'
 import { defaultDadoJoint } from './defaultJoint'
-import { MAX_SCENE_PAIRS } from './groupSuggestions'
-import { buildJointChecklist } from './jointChecklist'
+import { buildJointChecklist, MAX_NOOFFER_ROWS } from './jointChecklist'
 
 function board(over: Partial<BoardPart>): BoardPart {
   return {
@@ -78,6 +77,29 @@ test('a non-touching pair produces no row at all', () => {
   const far = board({ id: 'F', position: { x: 5000, y: 0, z: 0 } })
   const c = build([teeH, teeD, far])
   expect([...c.rows, ...c.unresolved].map((r) => r.key)).toEqual(['D|H'])
+})
+
+// AABB adjacency over-reports: a small board sitting in the empty off-diagonal corner of a rotated
+// bar's bounding box passes boardsTouch but does not actually meet the bar. The oriented-box check
+// keeps it out of the no-offer group entirely, rather than padding that list with a phantom pair.
+test('an AABB-only false positive is dropped from the no-offer group', () => {
+  const bar = board({
+    id: 'BAR',
+    length: 200,
+    width: 20,
+    thickness: 20,
+    rotation: { x: 0, y: 0, z: 45 },
+  })
+  const corner = board({
+    id: 'S',
+    length: 20,
+    width: 20,
+    thickness: 20,
+    position: { x: 110, y: 0, z: 0 },
+  })
+  const c = build([bar, corner])
+  expect(c.rows).toEqual([])
+  expect(c.unresolved).toEqual([])
 })
 
 // reconcileJoints preserves a joint whose deriveJoint returns null, so a joint outlives its boards
@@ -179,7 +201,7 @@ test('equidistant pairs come back in deterministic key order', () => {
 test('caps rows and no-offer rows independently', () => {
   const base = board({ id: 'B', length: 20000, width: 100, thickness: 20 })
   const parts: Part[] = [base]
-  for (let i = 0; i < MAX_SCENE_PAIRS + 5; i++) {
+  for (let i = 0; i < MAX_NOOFFER_ROWS + 5; i++) {
     parts.push(
       board({
         id: `P${i}`,
@@ -203,7 +225,8 @@ test('caps rows and no-offer rows independently', () => {
     )
   }
   const c = build(parts)
-  expect(c.unresolved).toHaveLength(MAX_SCENE_PAIRS)
+  // The no-offer flood is capped tightly, while the actionable rows keep their own generous budget.
+  expect(c.unresolved).toHaveLength(MAX_NOOFFER_ROWS)
   expect(c.rows).toHaveLength(3)
   expect(c.rows.every((r) => r.state === 'open')).toBe(true)
   expect(c.actionableTotal).toBe(3)

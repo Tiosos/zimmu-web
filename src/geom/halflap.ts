@@ -14,7 +14,15 @@ function boardDims(b: BoardPart): Record<Axis, number> {
   return { x: b.length, y: b.width, z: b.thickness }
 }
 
+// Keyed by board identity, not by value: the scene stores parts immutably, so an edit yields a new
+// object and a stale entry is unreachable. This turns the checklist's two O(n^2) pair walks — each
+// recomputing every board's AABB — into one compute per board. A WeakMap lets a deleted part's entry
+// be collected with it.
+const aabbCache = new WeakMap<BoardPart, { min: Vec3; max: Vec3 }>()
+
 export function worldAabb(b: BoardPart): { min: Vec3; max: Vec3 } {
+  const cached = aabbCache.get(b)
+  if (cached) return cached
   const m = composeWorldMatrix(b)
   const d = boardDims(b)
   const min: Vec3 = { x: Infinity, y: Infinity, z: Infinity }
@@ -32,7 +40,9 @@ export function worldAabb(b: BoardPart): { min: Vec3; max: Vec3 } {
       }
     }
   }
-  return { min, max }
+  const box = { min, max }
+  aabbCache.set(b, box)
+  return box
 }
 
 export function stackAxis(b: BoardPart): Axis {
