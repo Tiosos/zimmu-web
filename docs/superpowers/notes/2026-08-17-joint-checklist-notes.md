@@ -151,3 +151,39 @@ carries both `aId` and `options` — so no change was needed.
   2026-08-09 "unreachable by any scene we have measured" claim is less generous than it reads.
 - No permanent e2e coverage. The verification spec was deleted per repo convention; the flip from
   open to `✓` is pinned by unit tests only.
+
+## 2026-08-17 — follow-up: adjacency accuracy, memoization, and purpose-sized caps
+
+Cleared four of the items from the Risks/Open sections in one branch
+(`claude/checklist-adjacency-and-caps`). Each shipped TDD, full suite green.
+
+- **#1 `worldAabb` memoized** (`geom/halflap.ts`). A `WeakMap<BoardPart, aabb>` keyed on object
+  identity. Safe because the scene stores parts immutably — an edit yields a new object, so a stale
+  entry is unreachable and gets collected with the part. Turns the checklist's two O(n²) walks into
+  one AABB compute per board. Proven by a referential-equality test: a repeat call returns the same
+  object, a structural clone recomputes.
+- **#2 `contactPair` delegates to `boardsTouch`.** The last inline copy of the axis-gap separation
+  test is gone; `contactPair` still computes per-axis gaps for the contact axis but no longer decides
+  "separated" itself. Memoization (#1) makes the re-read of both boxes free, which is what made this
+  a clean unify rather than a double-walk regression — the two compose.
+- **#4/#5 checklist-local OBB refinement.** New pure `obbOverlap` (`scene/obbOverlap.ts`), a
+  separating-axis test on the two boards' oriented boxes, run **only** on the no-offer path behind
+  the cheap AABB gate. A diagonal corner-kiss or a rotated board's ballooned AABB now yields no row
+  at all instead of padding the muted group. Chose the checklist-local layer over swapping the
+  engine's `boardsTouch`: the engine's suggestion validity gates are already stricter than AABB, so
+  only the no-offer classification needed tightening, and leaving `boardsTouch` alone keeps finger-
+  joint gating (via `cornerPair`) untouched. The AABB-vs-OBB divergence fixture (a small board in
+  the empty off-diagonal corner of a 45°-rotated bar's bounding box) was calibrated numerically, not
+  guessed — the first several hand-picked positions cleared the AABB too and showed no divergence.
+- **#6 purpose-sized caps.** `MAX_SCENE_PAIRS` (100, shared) → `MAX_ACTIONABLE_ROWS` (200) +
+  `MAX_NOOFFER_ROWS` (50). The single cap began bounding *touching* pairs (⊇ offering pairs) once the
+  checklist existed, quietly shrinking headroom for the rows that matter. Splitting restores it: real
+  decisions get a generous guard, muted noise a tight one. The constant moved out of
+  `groupSuggestions.ts`, where it was orphaned after PR #22 removed the truncation.
+
+Decisions the user made for this round: checklist-local OBB (not an engine-wide swap); implement
+all three low-evidence items (#1/#2/#6) despite the thin justification; land engine/checklist work
+separately from the viewport near-plane fix (#3), which is on its own branch.
+
+Still open after this round (unchanged): the feature is unobserved in real use, and there is no
+permanent e2e coverage.

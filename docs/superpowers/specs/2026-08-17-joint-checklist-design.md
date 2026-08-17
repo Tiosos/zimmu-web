@@ -307,20 +307,23 @@ tests stand unchanged as the parity guard on the extraction.
 
 ## Risks and limitations
 
-- **AABB-only adjacency.** `boardsTouch` is a three-axis AABB gap test, so two boards meeting only at
-  a diagonal corner count as touching. They land in `no-offer` — muted, collapsed, uncounted — which
-  is the least harmful place for a false positive, but the group will read longer than a
-  woodworker's intuition suggests.
-- **Rotated boards inflate their AABBs**, over-reporting adjacency the same way. Both limitations are
-  inherited from the existing engine's model rather than introduced here; fixing them means OBB
-  adjacency, which is out of scope.
-- **A second O(n²) walk.** The checklist re-walks pairs that `suggestJointsForScene` already walked,
-  recomputing `worldAabb` per pair. The full existing pass measured ~10 ms for 24 boards
-  (2026-08-09 spec, `:109`), so this is immaterial at any scene we have measured. Memoizing
-  `worldAabb` per board is the fix if it ever bites — deferred, not designed in.
-- **`MAX_SCENE_PAIRS` is now reachable in a way it was not.** It counted offering pairs; it now
-  counts touching pairs, which is a strictly larger set. Still far above the 14 a carcase needs and
-  the 42 three carcases need, but the headroom is smaller than the 2026-08-09 analysis assumed.
+> All four were addressed on 2026-08-17 (branch `claude/checklist-adjacency-and-caps`). See the
+> follow-up section in `docs/superpowers/notes/2026-08-17-joint-checklist-notes.md`.
+
+- ~~**AABB-only adjacency.**~~ **Resolved.** A checklist-local `obbOverlap` (separating-axis test)
+  now runs on the no-offer path and drops a diagonal corner-kiss entirely, so it never reaches the
+  muted group. The engine's AABB `boardsTouch` is unchanged — the OBB check is layered above it,
+  behind the cheap AABB gate.
+- ~~**Rotated boards inflate their AABBs.**~~ **Resolved** by the same `obbOverlap` check, which
+  rejects a rotated board whose axis-aligned bounds balloon past its footprint. This is the
+  checklist-local refinement, not the engine-wide OBB swap (still out of scope).
+- ~~**A second O(n²) walk.**~~ **Resolved.** `worldAabb` is now memoized per board object (a WeakMap
+  keyed on identity, safe under the immutable scene), so the second walk's box computations are
+  cache hits. `contactPair` also now delegates its separation gate to `boardsTouch`, removing the
+  last duplicated copy of that test.
+- ~~**`MAX_SCENE_PAIRS` is now reachable in a way it was not.**~~ **Resolved.** The single shared cap
+  is replaced by `MAX_ACTIONABLE_ROWS` (200) and `MAX_NOOFFER_ROWS` (50), each sized to its list, so
+  the meaningful (jointed + open) rows keep generous headroom while the muted noise stays bounded.
 
 ## Non-goals
 
