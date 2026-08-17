@@ -79,15 +79,75 @@ a carcase, which defeats the checklist framing entirely. Computing `aabbCenterDi
 no-offer pairs too is ~3 lines and is the only thing keeping a row in its slot across the
 `open → jointed` flip. It has a dedicated test because nothing else would catch a regression.
 
+## 2026-08-17 — shipped
+
+Implemented in nine steps, TDD throughout. Verified in Chromium against the live app with a
+temporary e2e spec (deleted after, following the 2026-08-09 precedent): a two-board tee showed
+`Joints — 0 / 1` with `Dado` and `M&T` chips, and clicking `Dado` left the row **in place** as
+`✓ Board 1 + Board 2` with the header at `Joints — 1 / 1`. On `main` that row disappears; that
+difference is the whole feature.
+
+### The no-offer group is empty on a well-formed carcase
+
+This was the open design risk — that AABB adjacency would over-report and fill the group with noise.
+Measured on a 7-board 800×600×720 carcase (two sides, divider, bottom, two shelves, top, 18 mm ply):
+
+```
+21 possible pairs → 12 actionable rows → 0 no-offer rows
+```
+
+The nine non-touching pairs (side-to-side, shelf-to-shelf) were dropped entirely; **none** leaked
+into no-offer. The section does not render at all when empty, so on clean geometry it is invisible
+and costs nothing. It surfaces only for genuinely odd placements — stacked panels being the case we
+have. **OBB adjacency is not needed**, and the collapsed-section design stands as specced.
+
+Also worth recording: the 12 rows split 8 × `[dado, mortise-tenon]` and 4 ×
+`[dado, mortise-tenon, finger, finger]` (the four corners, where both finger orientations are
+offered). That matches the 2026-08-09 grouping analysis exactly.
+
+### Fixture traps that cost real time
+
+Three of these bit during implementation, all the same shape — geometry that looks inert but is not:
+
+- **Coincident boards are a valid half-lap.** Two boards at the same place overlap on every axis
+  with identical spans, which is exactly `isValidHalfLap`'s condition. Used as a "no-offer" fixture
+  they silently produce an open row instead. The stacked pair (different z-spans) is the correct
+  no-offer fixture.
+- **Under `Ry=-90`, `position.x` is the board's MAX x edge**, not the min. Mirroring a board about a
+  shelf centre by naive arithmetic lands it off by its own thickness, which quietly breaks an
+  "equidistant" fixture into two different distances. Measured rather than derived, in the end.
+- **The app seeds `[makeDefaultBoard()]`**, so `+ Board` twice gives three boards, not two. An e2e
+  fixture assuming two got `Joints — 0 / 3` and looked like a counting bug.
+
+None of these were product defects. All three were tests asserting the wrong thing, and each was
+found only because a red test disagreed with the expected number — which is the argument for
+writing the expected count into the test rather than snapshotting whatever comes out.
+
+### Deviation from the plan: tasks 6 and 7 committed together
+
+The plan had them as separate commits. They cannot be: Task 6 adds a required `onHoverPair` prop,
+which leaves `sidebar.tsx` failing typecheck until Task 7 passes it, and the repo's pre-commit hook
+blocks a commit while typecheck is red. Splitting them would have meant committing a broken build.
+The hook was right; the plan was wrong.
+
+`sidebar.test.tsx` also needed the new prop added to its props factory — a file the plan's file list
+did not mention.
+
+### The `orientationArrow` risk did not materialise
+
+Flagged before implementation: `orientationArrow(r, s)` passes a `ChecklistRow` where `PairGroup` is
+declared, and might need the parameter widened. TypeScript accepted it structurally — `ChecklistRow`
+carries both `aId` and `options` — so no change was needed.
+
 ## Open
 
 - Unobserved, same caveat the 2026-08-07 notes recorded for the panel itself: the gap was found by
   reading code and by reasoning about the end of a carcase run, not by watching the app be used.
   Whether the `9 / 14` counter is the signal a woodworker actually wants is still untested against a
-  real session.
-- The no-offer group's length on real data is unknown. AABB adjacency will over-report (diagonal
-  corner kisses, rotated boards), and if that group reads as noise rather than information, the fix
-  is OBB adjacency rather than hiding the group.
-- `MAX_SCENE_PAIRS` headroom shrank — it now counts touching pairs, not offering pairs. Not
-  reachable at measured scene sizes, but the 2026-08-09 "unreachable by any scene we have measured"
-  claim is now less generous than it reads.
+  real session. The carcase measurement above says the *shape* of the list is right; it says nothing
+  about whether anyone wants to read it.
+- `MAX_SCENE_PAIRS` headroom shrank — it now counts touching pairs, not offering pairs. The carcase
+  measurement puts a real scene at 12 rows against a cap of 100, so this is comfortable, but the
+  2026-08-09 "unreachable by any scene we have measured" claim is less generous than it reads.
+- No permanent e2e coverage. The verification spec was deleted per repo convention; the flip from
+  open to `✓` is pinned by unit tests only.

@@ -117,7 +117,9 @@ row carrying a chip per joint kind, and every option stays reachable. Spec + pla
 - Whether the feature is wanted at all: the gap was found by reading code, not by watching the app
   be used. The grouped panel is now the "have I jointed everything?" view the carcase run wanted —
   14 rows, not 40 — but whether that view earns its place in day-to-day use is still unobserved.
-- The scene panel still shows only *unjointed* pairs (a pair drops out once jointed). If the
-  checklist framing proves valuable, the migration is to keep jointed pairs listed as done — which
-  needs the engine to report what it currently discards.
+- ~~The scene panel still shows only *unjointed* pairs (a pair drops out once jointed).~~ Closed
+  2026-08-17 by the joint checklist (`docs/superpowers/specs/2026-08-17-joint-checklist-design.md`).
+  The engine still discards jointed pairs — `jointChecklist.ts` re-derives the touching-pair set
+  above it from the same `boardsTouch` predicate, so `suggestForOrderedPair` never had to report
+  what it drops.
 - Camera framing on hover is still a non-goal; scene rows can name boards that are off-screen.
