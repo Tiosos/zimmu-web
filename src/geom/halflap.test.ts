@@ -51,6 +51,20 @@ test('worldAabb / stackAxis for a Rz=90 board', () => {
   expect(bb.max.y).toBeCloseTo(200, 6)
 })
 
+// worldAabb is a pure function of a board's immutable geometry, and the scene rebuilds it on every
+// pair in two O(n^2) walks. Memoizing on object identity is safe because an edit replaces the part
+// with a new object. The referential-equality check is the proof of a cache hit — a fresh compute
+// would return a new object each call.
+test('worldAabb memoizes per board object', () => {
+  const first = worldAabb(A)
+  expect(worldAabb(A)).toBe(first)
+  // A structurally-equal but distinct object is a different key, so it recomputes to an equal value.
+  const clone: BoardPart = { ...A }
+  const cloned = worldAabb(clone)
+  expect(cloned).not.toBe(first)
+  expect(cloned).toEqual(first)
+})
+
 test('isValidHalfLap: coplanar equal-thickness overlapping boards are valid', () => {
   expect(isValidHalfLap(A, B)).toBe(true)
 })
