@@ -11,7 +11,7 @@ import {
   computeDowelLocalFaceCenter,
   computeSnapTransform,
 } from '../scene/snapMath'
-import { fitCameraToParts } from '../scene/fitCamera'
+import { fitCameraToParts, fitFarPlane } from '../scene/fitCamera'
 
 interface ViewportProps {
   parts: Part[]
@@ -37,6 +37,10 @@ interface ViewportProps {
 // on — more so now that a mortise & tenon draws up to five of them. Kept clear of the amber tint,
 // the blue hover face, the cyan selection, and every entry in PART_COLORS.
 const SUGGESTION_OUTLINE_COLOR = 0xf472b6
+
+// Default camera far clip plane, in mm. A Home fit of a scene wider than this can reach past it, so
+// the fit effect raises it to cover the framed bounds (see fitFarPlane).
+const DEFAULT_FAR_PLANE = 10000
 
 const snapMat = (color: number) =>
   new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true, linewidth: 1 })
@@ -198,7 +202,7 @@ export function Viewport({
       45,
       mount.clientWidth / mount.clientHeight,
       0.1,
-      10000,
+      DEFAULT_FAR_PLANE,
     )
     camera.position.set(250, -200, 150)
     camera.up.set(0, 0, 1)
@@ -442,6 +446,15 @@ export function Viewport({
     if (!next) return
     camera.position.set(next.position.x, next.position.y, next.position.z)
     controls.target.set(next.target.x, next.target.y, next.target.z)
+    // A scene wider than ~7 m frames at a distance whose far corners sit past the default far plane,
+    // so the fit we just solved would render clipped. Raise the plane to reach them, and drop it
+    // back to the default when a smaller scene no longer needs the extra range.
+    const required = fitFarPlane(parts, next)
+    const far = required === null ? DEFAULT_FAR_PLANE : Math.max(DEFAULT_FAR_PLANE, required)
+    if (camera.far !== far) {
+      camera.far = far
+      camera.updateProjectionMatrix()
+    }
     controls.update()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitRequest])

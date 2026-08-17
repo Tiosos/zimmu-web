@@ -4,6 +4,7 @@ import {
   worldBounds,
   fitDirection,
   fitCameraToParts,
+  fitFarPlane,
   CANONICAL_DIR,
   FIT_MARGIN,
   MIN_FIT_DISTANCE,
@@ -147,7 +148,7 @@ function worstOverflow(cam: CameraState, parts: Part[], aspect: number, fovDeg: 
   const rl = Math.hypot(r.x, r.y, r.z)
   r = { x: r.x / rl, y: r.y / rl, z: r.z / rl }
   const u = xp(r, f)
-  const tanV = Math.tan(((fovDeg * Math.PI) / 180) / 2)
+  const tanV = Math.tan((fovDeg * Math.PI) / 180 / 2)
   const tanH = aspect * tanV
   let worst = 0
   for (const c of cornersOf(b.min, b.max)) {
@@ -242,4 +243,39 @@ test('a non-finite aspect is treated as 1', () => {
   const nan = fitCameraToParts(parts, Number.NaN, 45, ISO)!
   const one = fitCameraToParts(parts, 1, 45, ISO)!
   expect(nan.position.x).toBeCloseTo(one.position.x, 10)
+})
+
+// fitFarPlane must reach every corner of the scene, or the fitted frame renders it clipped. A large
+// scene fits at a distance whose far corners sit past the viewport's default 10 000 mm far plane —
+// this is the case that renders a wide cabinet gone when Home is pressed.
+test('fitFarPlane covers every corner of a large scene', () => {
+  const parts = [board({ length: 10000, width: 3000, thickness: 800 })]
+  const cam = fitCameraToParts(parts, 1.5, 45, ISO)!
+  const far = fitFarPlane(parts, cam)
+  const b = worldBounds(parts)!
+  for (const c of cornersOf(b.min, b.max)) {
+    const dist = Math.hypot(c.x - cam.position.x, c.y - cam.position.y, c.z - cam.position.z)
+    expect(far).toBeGreaterThanOrEqual(dist)
+  }
+})
+
+// The bug reproduction: the required far for a scene this size exceeds the default far plane, so a
+// viewport that keeps the default would clip it.
+test('fitFarPlane exceeds the default far plane for a scene wider than the frustum reaches', () => {
+  const parts = [board({ length: 10000, width: 3000, thickness: 800 })]
+  const cam = fitCameraToParts(parts, 1.5, 45, ISO)!
+  expect(fitFarPlane(parts, cam)).toBeGreaterThan(10000)
+})
+
+// A normal-sized scene needs nothing beyond the default, so the viewport keeps its default far
+// plane and near-plane precision is unaffected in the common case.
+test('fitFarPlane for a small scene stays well under the default far plane', () => {
+  const parts = [board()]
+  const cam = fitCameraToParts(parts, 1.5, 45, ISO)!
+  expect(fitFarPlane(parts, cam)).toBeLessThan(10000)
+})
+
+test('fitFarPlane returns null when there is nothing to frame', () => {
+  expect(fitFarPlane([], ISO)).toBeNull()
+  expect(fitFarPlane([board({ visible: false })], ISO)).toBeNull()
 })
