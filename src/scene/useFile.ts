@@ -33,6 +33,8 @@ function serialize(envelope: ZimmuFile): string {
   )
 }
 
+const KNOWN_JOINT_KINDS = ['dado', 'halflap', 'mortise-tenon', 'finger', 'tongue-groove']
+
 export function parseFile(text: string): ZimmuFile {
   const raw = JSON.parse(text) as ZimmuFile
   if (raw.version > FILE_FORMAT_VERSION) {
@@ -75,34 +77,45 @@ export function parseFile(text: string): ZimmuFile {
       // v7→v8: mortise-tenon joints (kind 'mortise-tenon').
       // v8→v9: finger joints (kind 'finger').
       // v9→v10: tongue-groove joints (kind 'tongue-groove').
-      joints: ((raw.scene.joints ?? []) as unknown as Array<Record<string, unknown>>).map((j) =>
-        j.kind === 'tongue-groove'
-          ? ({ tongueThickness: 6, tongueDepth: 8, clearance: 0, ...j } as unknown as Joint)
-          : j.kind === 'finger'
-            ? ({ fingerCount: 0, clearance: 0, ...j } as unknown as Joint)
-            : j.kind === 'mortise-tenon'
-              ? ({
-                  tenonLength: 0,
-                  tenonThickness: 0,
-                  tenonWidth: 0,
-                  clearance: 0,
-                  through: false,
-                  offsetU: 0,
-                  offsetV: 0,
-                  ...j,
-                } as unknown as Joint)
-              : j.kind === 'halflap'
-                ? ({ split: 0.5, clearance: 0, ...j } as unknown as Joint)
-                : ({
-                    kind: 'dado' as const,
-                    profile: 'plain' as const,
-                    tongueThickness: 6,
-                    rabbetFace: '+Z' as const,
-                    stopStart: 0,
-                    stopEnd: 0,
+      joints: ((raw.scene.joints ?? []) as unknown as Array<Record<string, unknown>>)
+        // Dropped the way an unknown part kind is, rather than kept verbatim. A newer file version
+        // only warns above and parses on, so without this a joint kind from a future release reaches
+        // the render path, where the exhaustiveness guard in jointChecklist's jointPairIds throws
+        // and blanks the app instead of degrading. Pre-v7 joints carry no kind at all and are
+        // dados — those must survive.
+        .filter((j) => {
+          if (j.kind === undefined || KNOWN_JOINT_KINDS.includes(j.kind as string)) return true
+          console.warn(`zimmu: unknown joint kind "${j.kind as string}" — skipped`)
+          return false
+        })
+        .map((j) =>
+          j.kind === 'tongue-groove'
+            ? ({ tongueThickness: 6, tongueDepth: 8, clearance: 0, ...j } as unknown as Joint)
+            : j.kind === 'finger'
+              ? ({ fingerCount: 0, clearance: 0, ...j } as unknown as Joint)
+              : j.kind === 'mortise-tenon'
+                ? ({
+                    tenonLength: 0,
+                    tenonThickness: 0,
+                    tenonWidth: 0,
+                    clearance: 0,
+                    through: false,
+                    offsetU: 0,
+                    offsetV: 0,
                     ...j,
-                  } as unknown as Joint),
-      ),
+                  } as unknown as Joint)
+                : j.kind === 'halflap'
+                  ? ({ split: 0.5, clearance: 0, ...j } as unknown as Joint)
+                  : ({
+                      kind: 'dado' as const,
+                      profile: 'plain' as const,
+                      tongueThickness: 6,
+                      rabbetFace: '+Z' as const,
+                      stopStart: 0,
+                      stopEnd: 0,
+                      ...j,
+                    } as unknown as Joint),
+        ),
     },
   }
 }

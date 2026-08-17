@@ -72,9 +72,13 @@ function App() {
   // Both boards tint, not just the "neighbour": scene rows have no selection to be relative to.
   // In the per-part panel this changes nothing visible, because the selected board's own cyan
   // takes precedence over the tint in the viewport.
+  // A done checklist row has no suggestion to preview, so it tints both boards without drawing face
+  // outlines. That is the complete answer for a jointed pair, not a degraded one: there is no
+  // candidate geometry an outline could depict.
+  const [hoveredPair, setHoveredPair] = useState<[PartId, PartId] | null>(null)
   const highlightedIds = useMemo(
-    () => (hoveredSuggestion ? pairIdsOf(hoveredSuggestion) : null),
-    [hoveredSuggestion],
+    () => (hoveredSuggestion ? pairIdsOf(hoveredSuggestion) : hoveredPair),
+    [hoveredSuggestion, hoveredPair],
   )
   const hoveredOutlines = useMemo(
     () => (hoveredSuggestion ? suggestionOutlines(hoveredSuggestion, scene.parts) : null),
@@ -413,6 +417,7 @@ function App() {
           sceneSuggestions={sceneSuggestions}
           onApplySuggestion={applySuggestion}
           onHoverSuggestion={setHoveredSuggestion}
+          onHoverPair={setHoveredPair}
         />
       </div>
       {cuttingListOpen && (

@@ -82,6 +82,7 @@ interface SidebarProps {
   sceneSuggestions: JointSuggestion[]
   onApplySuggestion: (s: JointSuggestion) => void
   onHoverSuggestion: (s: JointSuggestion | null) => void
+  onHoverPair: (ids: [PartId, PartId] | null) => void
 }
 
 function DimInput({
@@ -858,6 +859,7 @@ export function Sidebar({
   sceneSuggestions,
   onApplySuggestion,
   onHoverSuggestion,
+  onHoverPair,
 }: SidebarProps) {
   const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
 
@@ -1084,6 +1086,7 @@ export function Sidebar({
           scene={scene}
           onApply={onApplySuggestion}
           onHoverSuggestion={onHoverSuggestion}
+          onHoverPair={onHoverPair}
         />
 
         {/* Add part footer */}

@@ -105,7 +105,7 @@ test('arrows follow role order, not alphabetical order', () => {
   expect(orientationArrow(group, leadsWithA!)).toBe('←')
 })
 
-test('caps the number of groups, and the last kept group is complete', () => {
+test('does not truncate — every pair survives grouping, complete', () => {
   // The worst ordering suggestJointsForScene can produce: when pairs tie on distance the sort
   // falls through to kind, so across the whole tied set every dado precedes every mortise-tenon
   // and a pair's two options end up far apart. Measured on a real carcase, where Left Side+Bottom
@@ -118,7 +118,10 @@ test('caps the number of groups, and the last kept group is complete', () => {
   for (let i = 0; i < pairCount; i++) many.push(mortiseTenon('A', `B${i}`))
 
   const groups = groupByPair(many)
-  expect(groups).toHaveLength(MAX_SCENE_PAIRS)
+  // The cap moved to buildJointChecklist. It had to: the checklist classifies a pair by whether
+  // grouping produced a group for it, so truncating here would turn "absent because truncated" into
+  // a positive claim of "no joint available" for pairs that do have offers.
+  expect(groups).toHaveLength(pairCount)
   // A partial row is worse than an absent one: a missing chip is indistinguishable from a joint
   // the engine cannot make.
   expect(groups[groups.length - 1].options).toHaveLength(2)
