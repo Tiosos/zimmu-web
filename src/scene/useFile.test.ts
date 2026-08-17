@@ -414,6 +414,56 @@ describe('useFile', () => {
     expect(loaded.scene.parts[0].kind).toBe('board')
   })
 
+  // parseFile only warns on a newer file version and parses on, so a joint kind from a future
+  // release would otherwise survive into the render path, where jointChecklist's jointPairIds
+  // exhaustiveness guard throws and blanks the app instead of degrading.
+  it('parseFile drops an unknown joint kind and keeps the known ones', () => {
+    const raw = JSON.stringify({
+      version: 99,
+      name: 'T',
+      appVersion: 'x',
+      units: 'mm',
+      createdAt: '',
+      updatedAt: '',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [
+          { kind: 'dovetail', id: 'j1', label: 'Dovetail 1', partAId: 'a', partBId: 'b' },
+          { kind: 'halflap', id: 'j2', label: 'Half-lap 1', partAId: 'a', partBId: 'b' },
+        ],
+      },
+    })
+    const parsed = parseFile(raw)
+    expect(parsed.scene.joints).toHaveLength(1)
+    expect(parsed.scene.joints[0].kind).toBe('halflap')
+  })
+
+  // Pre-v7 files carry joints with no `kind` at all — they are all dados. The unknown-kind filter
+  // must not mistake a missing kind for an unknown one.
+  it('parseFile keeps a legacy joint that carries no kind', () => {
+    const raw = JSON.stringify({
+      version: 6,
+      name: 'T',
+      appVersion: 'x',
+      units: 'mm',
+      createdAt: '',
+      updatedAt: '',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [{ id: 'j1', label: 'Dado 1', housingPartId: 'a', housedPartId: 'b' }],
+      },
+    })
+    const parsed = parseFile(raw)
+    expect(parsed.scene.joints).toHaveLength(1)
+    expect(parsed.scene.joints[0].kind).toBe('dado')
+  })
+
   it('parseFile preserves cylinder (dowel) parts', () => {
     const raw = JSON.stringify({
       version: 2,

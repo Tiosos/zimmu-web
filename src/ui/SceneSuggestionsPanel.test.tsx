@@ -191,6 +191,28 @@ test('hovering a jointed row reports the pair, and leaving clears it', () => {
   expect(onHoverPair).toHaveBeenLastCalledWith(null)
 })
 
+// Undo the joint with the pointer still on its row and the row flips to open underneath it. If the
+// leave handler were conditioned on state it would be gone by then, stranding both boards tinted
+// with nothing left to clear them.
+test('leaving a row that flipped to open still clears the pair', () => {
+  const onHoverPair = vi.fn()
+  const { rerender } = panel({ suggestions: [], scene: jointedScene(), onHoverPair })
+  expand()
+  fireEvent.mouseEnter(screen.getByText(/✓ Left Side \+ Bottom/).parentElement!)
+  expect(onHoverPair).toHaveBeenLastCalledWith(['A', 'B'])
+  rerender(
+    <SceneSuggestionsPanel
+      suggestions={[dado('A', 'B')]}
+      scene={scene()}
+      onApply={vi.fn()}
+      onHoverSuggestion={vi.fn()}
+      onHoverPair={onHoverPair}
+    />,
+  )
+  fireEvent.mouseLeave(screen.getByText('Left Side + Bottom').parentElement!)
+  expect(onHoverPair).toHaveBeenLastCalledWith(null)
+})
+
 // The no-offer group is muted, uncounted and closed by default: on a carcase it is noise most of
 // the time, and inlining it would re-inflate the row count grouping brought down from 40 to 14.
 test('no-offer pairs live in their own section, closed by default', () => {

@@ -81,7 +81,10 @@ export function SceneSuggestionsPanel({
             key={r.key}
             className="flex items-center gap-1 py-0.5 border-t border-border/30"
             onMouseEnter={r.state === 'jointed' ? () => onHoverPair([r.aId, r.bId]) : undefined}
-            onMouseLeave={r.state === 'jointed' ? () => onHoverPair(null) : undefined}
+            // Unconditional, unlike the enter handler: a hovered row that flips to open — undo the
+            // joint while the pointer sits on it — would otherwise lose its leave handler with the
+            // tint still applied, leaving both boards lit with nothing left to clear them.
+            onMouseLeave={() => onHoverPair(null)}
           >
             <span className="flex-1 text-[11px] text-foreground">
               {r.state === 'jointed' ? '✓ ' : ''}
