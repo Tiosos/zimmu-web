@@ -2,6 +2,7 @@ import { test, expect } from 'vitest'
 import type { BoardPart, DadoJoint, Part } from './types'
 import { suggestJointsForScene } from './suggestJoints'
 import { defaultDadoJoint } from './defaultJoint'
+import { MAX_SCENE_PAIRS } from './groupSuggestions'
 import { buildJointChecklist } from './jointChecklist'
 
 function board(over: Partial<BoardPart>): BoardPart {
@@ -170,6 +171,42 @@ test('equidistant pairs come back in deterministic key order', () => {
   const right = { ...left, id: 'Z', position: { x: 398, y: 30, z: 20 } }
   const c = build([shelf, right, left])
   expect(c.rows.map((r) => r.key)).toEqual(['A|S', 'S|Z'])
+})
+
+// A flood of no-offer pairs must not eat the actionable list's budget. The uprights sit well clear
+// of the stacked plates in x, so the only pairs in play are each plate on the base (no-offer) and
+// each upright teed into it (open).
+test('caps rows and no-offer rows independently', () => {
+  const base = board({ id: 'B', length: 20000, width: 100, thickness: 20 })
+  const parts: Part[] = [base]
+  for (let i = 0; i < MAX_SCENE_PAIRS + 5; i++) {
+    parts.push(
+      board({
+        id: `P${i}`,
+        length: 40,
+        width: 100,
+        thickness: 18,
+        position: { x: i * 60, y: 0, z: 20 },
+      }),
+    )
+  }
+  for (let i = 0; i < 3; i++) {
+    parts.push(
+      board({
+        id: `T${i}`,
+        length: 80,
+        width: 40,
+        thickness: 18,
+        rotation: { x: 0, y: -90, z: 0 },
+        position: { x: 10000 + i * 200, y: 30, z: 20 },
+      }),
+    )
+  }
+  const c = build(parts)
+  expect(c.unresolved).toHaveLength(MAX_SCENE_PAIRS)
+  expect(c.rows).toHaveLength(3)
+  expect(c.rows.every((r) => r.state === 'open')).toBe(true)
+  expect(c.actionableTotal).toBe(3)
 })
 
 // groupSuggestions.ts warns that PairGroup.aId is role order, and that sorting the ids would invert
