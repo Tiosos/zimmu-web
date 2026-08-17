@@ -80,6 +80,29 @@ test('a non-touching pair produces no row at all', () => {
   expect([...c.rows, ...c.unresolved].map((r) => r.key)).toEqual(['D|H'])
 })
 
+// AABB adjacency over-reports: a small board sitting in the empty off-diagonal corner of a rotated
+// bar's bounding box passes boardsTouch but does not actually meet the bar. The oriented-box check
+// keeps it out of the no-offer group entirely, rather than padding that list with a phantom pair.
+test('an AABB-only false positive is dropped from the no-offer group', () => {
+  const bar = board({
+    id: 'BAR',
+    length: 200,
+    width: 20,
+    thickness: 20,
+    rotation: { x: 0, y: 0, z: 45 },
+  })
+  const corner = board({
+    id: 'S',
+    length: 20,
+    width: 20,
+    thickness: 20,
+    position: { x: 110, y: 0, z: 0 },
+  })
+  const c = build([bar, corner])
+  expect(c.rows).toEqual([])
+  expect(c.unresolved).toEqual([])
+})
+
 // reconcileJoints preserves a joint whose deriveJoint returns null, so a joint outlives its boards
 // being moved apart. Gating rows on adjacency alone would drop it and silently decrement the count.
 test('a jointed pair whose boards no longer touch still produces a jointed row', () => {

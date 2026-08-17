@@ -1,6 +1,7 @@
 import type { BoardPart, Joint, Part, PartId } from './types'
 import type { JointSuggestion } from './suggestJoints'
 import { boardsTouch, aabbCenterDist } from './suggestJoints'
+import { obbOverlap } from './obbOverlap'
 import { groupByPair, MAX_SCENE_PAIRS } from './groupSuggestions'
 
 export type PairState = 'jointed' | 'open' | 'no-offer'
@@ -102,7 +103,12 @@ export function buildJointChecklist(
           joints: [],
           dist,
         })
-      } else {
+      } else if (obbOverlap(a, b)) {
+        // boardsTouch is an AABB test — it over-reports for a diagonal corner-kiss or a rotated
+        // board whose axis-aligned bounds balloon past its footprint. The oriented-box check keeps
+        // the muted group honest: a pair that only overlaps as loose bounding boxes gets no row at
+        // all, rather than padding the "no joint available" list. Run only on the no-offer path, so
+        // the cheap AABB gate above still filters most pairs before the exact test.
         unresolved.push({
           key,
           aId: a.id,
