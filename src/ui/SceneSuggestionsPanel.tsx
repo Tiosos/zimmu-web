@@ -1,7 +1,9 @@
 import type { PartId, Scene } from '../scene/types'
+
 import type { JointSuggestion } from '../scene/suggestJoints'
 import { pairIdsOf } from '../scene/suggestJoints'
-import { groupByPair, orientationArrow } from '../scene/groupSuggestions'
+import { orientationArrow } from '../scene/groupSuggestions'
+import { buildJointChecklist } from '../scene/jointChecklist'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useMemo, useState } from 'react'
@@ -53,51 +55,87 @@ export function SceneSuggestionsPanel({
   scene,
   onApply,
   onHoverSuggestion,
+  onHoverPair,
 }: {
   suggestions: JointSuggestion[]
   scene: Scene
   onApply: (s: JointSuggestion) => void
   onHoverSuggestion: (s: JointSuggestion | null) => void
+  onHoverPair: (ids: [PartId, PartId] | null) => void
 }) {
   const [open, setOpen] = useState(false)
-  const groups = useMemo(() => groupByPair(suggestions), [suggestions])
-  if (groups.length === 0) return null
+  const [unresolvedOpen, setUnresolvedOpen] = useState(false)
+  const { rows, unresolved, jointedCount, actionableTotal } = useMemo(
+    () => buildJointChecklist(scene.parts, scene.joints, suggestions),
+    [scene.parts, scene.joints, suggestions],
+  )
+  if (rows.length === 0 && unresolved.length === 0) return null
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border-t border-border px-2">
       <CollapsibleTrigger className="w-full flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground py-1.5 cursor-pointer select-none hover:text-foreground transition-colors">
-        {open ? '▾' : '▸'} All possible joints ({groups.length})
+        {open ? '▾' : '▸'} Joints — {jointedCount} / {actionableTotal}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        {groups.map((g) => (
-          <div key={g.key} className="flex items-center gap-1 py-0.5 border-t border-border/30">
+        {rows.map((r) => (
+          <div
+            key={r.key}
+            className="flex items-center gap-1 py-0.5 border-t border-border/30"
+            onMouseEnter={r.state === 'jointed' ? () => onHoverPair([r.aId, r.bId]) : undefined}
+            onMouseLeave={r.state === 'jointed' ? () => onHoverPair(null) : undefined}
+          >
             <span className="flex-1 text-[11px] text-foreground">
-              {label(scene, g.aId)} + {label(scene, g.bId)}
+              {r.state === 'jointed' ? '✓ ' : ''}
+              {label(scene, r.aId)} + {label(scene, r.bId)}
             </span>
-            <div className="flex flex-wrap gap-1 justify-end">
-              {g.options.map((s) => {
-                const arrow = orientationArrow(g, s)
-                return (
-                  // Keyed by kind+arrow, not index: within a group only finger/tongue-groove repeat,
-                  // and orientationArrow gives those two entries distinct arrows, so this is unique
-                  // and — unlike an index — stable when the group's options change between renders.
-                  <Button
-                    key={`${s.kind}${arrow ?? ''}`}
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-[11px] px-1.5"
-                    title={describe(scene, s)}
-                    onMouseEnter={() => onHoverSuggestion(s)}
-                    onMouseLeave={() => onHoverSuggestion(null)}
-                    onClick={() => onApply(s)}
-                  >
-                    {CHIP_LABEL[s.kind]}
-                    {arrow ? ` ${arrow}` : ''}
-                  </Button>
-                )
-              })}
-            </div>
+            {r.state === 'jointed' ? (
+              <span className="text-[11px] text-muted-foreground">
+                {r.joints.map((j) => KIND_LABEL[j.kind]).join(', ')}
+              </span>
+            ) : (
+              <div className="flex flex-wrap gap-1 justify-end">
+                {r.options.map((s) => {
+                  const arrow = orientationArrow(r, s)
+                  return (
+                    // Keyed by kind+arrow, not index: within a row only finger/tongue-groove repeat,
+                    // and orientationArrow gives those two entries distinct arrows, so this is unique
+                    // and — unlike an index — stable when the row's options change between renders.
+                    <Button
+                      key={`${s.kind}${arrow ?? ''}`}
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[11px] px-1.5"
+                      title={describe(scene, s)}
+                      onMouseEnter={() => onHoverSuggestion(s)}
+                      onMouseLeave={() => onHoverSuggestion(null)}
+                      onClick={() => onApply(s)}
+                    >
+                      {CHIP_LABEL[s.kind]}
+                      {arrow ? ` ${arrow}` : ''}
+                    </Button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         ))}
+        {unresolved.length > 0 && (
+          <Collapsible
+            open={unresolvedOpen}
+            onOpenChange={setUnresolvedOpen}
+            className="border-t border-border/30"
+          >
+            <CollapsibleTrigger className="w-full flex items-center gap-1 text-[10px] text-muted-foreground/70 py-1 cursor-pointer select-none hover:text-muted-foreground transition-colors">
+              {unresolvedOpen ? '▾' : '▸'} No joint available ({unresolved.length})
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              {unresolved.map((r) => (
+                <div key={r.key} className="py-0.5 text-[11px] text-muted-foreground/70">
+                  {label(scene, r.aId)} + {label(scene, r.bId)}
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </CollapsibleContent>
     </Collapsible>
   )
