@@ -134,6 +134,19 @@ function faceTowardWorld(b: BoardPart, ax: WorldAxis, sign: number): Face | null
   return null
 }
 
+// The adjacency predicate: do these two boards meet at all? Shared by cornerPair and the scene
+// checklist (jointChecklist.ts), which needs exactly the engine's own notion of "touching" for its
+// denominator. contactPair deliberately keeps its own fused copy — it derives contactAx and bestGap
+// from the same iteration, so delegating here would walk the axes twice for no gain.
+export function boardsTouch(a: BoardPart, b: BoardPart): boolean {
+  const A = worldAabb(a)
+  const B = worldAabb(b)
+  for (const ax of WORLD_AXES) {
+    if (Math.max(A.min[ax], B.min[ax]) - Math.min(A.max[ax], B.max[ax]) > TOUCH_TOL) return false
+  }
+  return true
+}
+
 export function contactPair(a: BoardPart, b: BoardPart): { faceA: Face; faceB: Face } | null {
   const A = worldAabb(a)
   const B = worldAabb(b)
@@ -195,12 +208,9 @@ function endFaceCenterWorld(b: BoardPart, f: Face): Vec3 {
 // boards butted end-to-end also return a pair. Always compose with isValidFingerJoint before
 // treating the result as a corner.
 export function cornerPair(a: BoardPart, b: BoardPart): { endA: Face; endB: Face } | null {
+  if (!boardsTouch(a, b)) return null
   const A = worldAabb(a)
   const B = worldAabb(b)
-  for (const ax of WORLD_AXES) {
-    const gap = Math.max(A.min[ax], B.min[ax]) - Math.min(A.max[ax], B.max[ax])
-    if (gap > TOUCH_TOL) return null
-  }
   const ca = aabbCenter(A)
   const cb = aabbCenter(B)
   const endA = endTowardPoint(a, ca, cb)
@@ -226,7 +236,7 @@ const KIND_PRIORITY: JointSuggestion['kind'][] = [
   'tongue-groove',
 ]
 
-function aabbCenterDist(a: BoardPart, b: BoardPart): number {
+export function aabbCenterDist(a: BoardPart, b: BoardPart): number {
   const ca = aabbCenter(worldAabb(a))
   const cb = aabbCenter(worldAabb(b))
   let sum = 0
@@ -348,7 +358,10 @@ export function suggestJointsFor(
 // (housing/housed is chosen by geometry, not by which board was selected), so those must be
 // collapsed. Half-lap only swaps partA/partB, immaterial at the default split of 0.5 — treated as
 // symmetric here, which is worth revisiting if split ever gets a non-centred default.
-const ORIENTATION_MATTERS: ReadonlySet<JointSuggestion['kind']> = new Set(['finger', 'tongue-groove'])
+const ORIENTATION_MATTERS: ReadonlySet<JointSuggestion['kind']> = new Set([
+  'finger',
+  'tongue-groove',
+])
 
 // Every joint available anywhere in the scene, with no selection. Pairs are visited once as an
 // unordered pair; the reverse direction contributes only the kinds whose orientation is a real

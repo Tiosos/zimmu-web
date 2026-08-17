@@ -8,6 +8,7 @@ import { isValidTongueGroove } from '../geom/tonguegroove'
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import {
   synthHit,
+  boardsTouch,
   contactPair,
   cornerPair,
   suggestJointsFor,
@@ -439,7 +440,9 @@ test('scene: every per-part suggestion for a board is reachable scene-wide', () 
   const scene = suggestJointsForScene(parts, [])
   for (const s of suggestJointsFor('H', parts, [])) {
     expect(
-      scene.some((x) => x.kind === s.kind && pairIdsOf(x).sort().join() === pairIdsOf(s).sort().join()),
+      scene.some(
+        (x) => x.kind === s.kind && pairIdsOf(x).sort().join() === pairIdsOf(s).sort().join(),
+      ),
       `scene list is missing the ${s.kind} the per-part list offers`,
     ).toBe(true)
   }
@@ -455,7 +458,9 @@ test('pairIdsOf names both boards for every kind', () => {
 test('scene: an all-pairs pass over a 24-board scene stays within budget', () => {
   const many: Part[] = []
   for (let i = 0; i < 24; i++) {
-    many.push(board({ id: `B${i}`, position: { x: (i % 6) * 40, y: Math.floor(i / 6) * 40, z: 0 } }))
+    many.push(
+      board({ id: `B${i}`, position: { x: (i % 6) * 40, y: Math.floor(i / 6) * 40, z: 0 } }),
+    )
   }
   const t0 = performance.now()
   suggestJointsForScene(many, [])
@@ -493,4 +498,24 @@ test('scene: the suggestion list is not truncated', () => {
     )
   }
   expect(suggestJointsForScene(many, []).length).toBeGreaterThan(100)
+})
+
+// The checklist's denominator is this predicate, so it must agree with the engine's own idea of
+// "these two boards meet" rather than being a third private copy.
+test('boardsTouch: true for boards that meet, false for separated boards', () => {
+  expect(boardsTouch(teeH, teeD)).toBe(true)
+  const far = board({ id: 'F', position: { x: 5000, y: 0, z: 0 } })
+  expect(boardsTouch(teeH, far)).toBe(false)
+})
+
+test('boardsTouch: true for boards touching broad face to broad face', () => {
+  const lower = board({ id: 'L', length: 200, width: 100, thickness: 18 })
+  const upper = board({
+    id: 'U',
+    length: 200,
+    width: 100,
+    thickness: 18,
+    position: { x: 0, y: 0, z: 18 },
+  })
+  expect(boardsTouch(lower, upper)).toBe(true)
 })
