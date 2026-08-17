@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-05
 **Spec:** `docs/superpowers/specs/2026-06-05-3d-export-stl-step-design.md`
-**Plan:** `docs/superpowers/plans/2026-06-05-3d-export-stl-step.md`
+**Plan:** `docs/superpowers/plans/2026-06-05-export.md` (3D Export (STL + STEP) section)
 
 Living record of decisions and surprises that don't belong in the spec/plan. Audience: a future developer who needs to know *why*.
 

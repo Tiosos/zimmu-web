@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-03 (notes backfilled 2026-06-15 from a plan/code cross-check)
 **Spec:** `docs/superpowers/specs/2026-06-03-cutting-list-material-grouping-design.md`
-**Plan:** `docs/superpowers/plans/2026-06-03-cutting-list-material-grouping.md`
+**Plan:** `docs/superpowers/plans/2026-06-01-cutting-list-bom.md` (Material Field + Quantity Grouping section)
 
 Living record of decisions/deviations. This file was missing and is reconstructed from the shipped code.
 

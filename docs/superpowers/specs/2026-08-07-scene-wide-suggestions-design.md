@@ -4,9 +4,9 @@ Status: **decided and implemented** — Option B chosen (2026-08-07). The orient
 kept as the record of what was weighed, not as an open question.
 
 > **No dedicated plan file.** This spec has no `plans/2026-08-07-scene-wide-suggestions.md`; its
-> implementation planning was carried in the follow-on plans
-> `plans/2026-08-09-scene-suggestions-pair-grouping.md` and `plans/2026-08-17-joint-checklist.md`,
-> with the living thread in `notes/2026-08-07-scene-wide-suggestions-notes.md`.
+> implementation planning was carried in the follow-on Pair Grouping and Joint Checklist sections
+> of the consolidated `plans/2026-07-26-joint-suggestions.md`, with the living thread in
+> `notes/2026-08-07-scene-wide-suggestions-notes.md`.
 
 ## Overview
 

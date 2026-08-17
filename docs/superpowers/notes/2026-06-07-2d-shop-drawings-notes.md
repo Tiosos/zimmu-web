@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-07
 **Spec:** `docs/superpowers/specs/2026-06-07-2d-shop-drawings-design.md`
-**Plan:** `docs/superpowers/plans/2026-06-07-2d-shop-drawings.md`
+**Plan:** `docs/superpowers/plans/2026-06-05-export.md` (2D Shop Drawings section)
 
 Living record of decisions and surprises. Audience: future developer who needs to know *why*.
 

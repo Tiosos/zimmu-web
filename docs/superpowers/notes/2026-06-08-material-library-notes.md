@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-08 (notes backfilled 2026-06-15 from a plan/code cross-check)
 **Spec:** `docs/superpowers/specs/2026-06-08-material-library-design.md`
-**Plan:** `docs/superpowers/plans/2026-06-08-material-library.md`
+**Plan:** `docs/superpowers/plans/2026-06-01-cutting-list-bom.md` (Persistent Material Library section)
 
 Living record of decisions/deviations. This file was missing and is reconstructed from the shipped code.
 

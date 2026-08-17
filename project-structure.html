@@ -424,14 +424,26 @@
 ├── geom/
 │   ├── dado.test.ts
 │   ├── dado.ts
+│   ├── dowelCut.test.ts
+│   ├── dowelCut.ts
 │   ├── drawing.test.ts
 │   ├── drawing.ts
+│   ├── fingerjoint.test.ts
+│   ├── fingerjoint.ts
+│   ├── halflap.test.ts
+│   ├── halflap.ts
 │   ├── mesh.ts
+│   ├── mitre.test.ts
+│   ├── mitre.ts
+│   ├── mortisetenon.test.ts
+│   ├── mortisetenon.ts
 │   ├── occt.test.ts
 │   ├── occt.ts
 │   ├── occt.worker.ts
 │   ├── stl.test.ts
 │   ├── stl.ts
+│   ├── tonguegroove.test.ts
+│   ├── tonguegroove.ts
 │   ├── transform.test.ts
 │   └── transform.ts
 ├── index.css
@@ -441,20 +453,47 @@
 ├── render/
 │   └── viewport.tsx
 ├── scene/
+│   ├── cutFootprint.test.ts
+│   ├── cutFootprint.ts
+│   ├── defaultJoint.ts
+│   ├── fitCamera.test.ts
+│   ├── fitCamera.ts
+│   ├── groupSuggestions.test.ts
+│   ├── groupSuggestions.ts
 │   ├── idb.test.ts
 │   ├── idb.ts
+│   ├── jointChecklist.test.ts
+│   ├── jointChecklist.ts
+│   ├── jointInvolves.test.ts
+│   ├── jointInvolves.ts
+│   ├── obbOverlap.test.ts
+│   ├── obbOverlap.ts
 │   ├── palette.ts
 │   ├── reconcileJoints.test.ts
 │   ├── reconcileJoints.ts
 │   ├── snapMath.test.ts
 │   ├── snapMath.ts
+│   ├── suggestionOutline.test.ts
+│   ├── suggestionOutline.ts
+│   ├── suggestJoints.test.ts
+│   ├── suggestJoints.ts
 │   ├── types.ts
 │   ├── useAddCut.test.ts
 │   ├── useAddCut.ts
+│   ├── useAddFingerJoint.test.ts
+│   ├── useAddFingerJoint.ts
+│   ├── useAddHalfLap.test.ts
+│   ├── useAddHalfLap.ts
 │   ├── useAddJoint.test.ts
 │   ├── useAddJoint.ts
+│   ├── useAddMortiseTenon.test.ts
+│   ├── useAddMortiseTenon.ts
+│   ├── useAddTongueGroove.test.ts
+│   ├── useAddTongueGroove.ts
 │   ├── useFile.test.ts
 │   ├── useFile.ts
+│   ├── useInteractionMode.test.ts
+│   ├── useInteractionMode.ts
 │   ├── useMaterialLibrary.test.ts
 │   ├── useMaterialLibrary.ts
 │   ├── useScene.test.ts
@@ -470,10 +509,16 @@
 │   ├── buildCsv.ts
 │   ├── buildDxf.test.ts
 │   ├── buildDxf.ts
+│   ├── buildPdf.test.ts
+│   ├── buildPdf.ts
 │   ├── buildSvg.test.ts
 │   ├── buildSvg.ts
 │   ├── CuttingList.test.tsx
 │   ├── CuttingList.tsx
+│   ├── DowelCutsPanel.test.tsx
+│   ├── DowelCutsPanel.tsx
+│   ├── DowelList.test.tsx
+│   ├── DowelList.tsx
 │   ├── download.test.ts
 │   ├── download.ts
 │   ├── DrawingViewer.test.tsx
@@ -485,8 +530,13 @@
 │   ├── HardwareTab.test.tsx
 │   ├── HardwareTab.tsx
 │   ├── JointsPanel.tsx
+│   ├── NumberField.tsx
+│   ├── SceneSuggestionsPanel.test.tsx
+│   ├── SceneSuggestionsPanel.tsx
 │   ├── sidebar.test.tsx
 │   ├── sidebar.tsx
+│   ├── SuggestionsPanel.test.tsx
+│   ├── SuggestionsPanel.tsx
 │   ├── useDebouncedCallback.test.ts
 │   └── useDebouncedCallback.ts
 └── vite-env.d.ts<!-- /AUTOGEN:src-tree --></code></pre>
@@ -889,7 +939,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->25<!-- /AUTOGEN:test-file-count --> test files (co-located <code>*.test.ts</code> / <code>*.test.tsx</code>); live-OCCT specs skipped in Node</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->52<!-- /AUTOGEN:test-file-count --> test files (co-located <code>*.test.ts</code> / <code>*.test.tsx</code>); live-OCCT specs skipped in Node</p>
     </section>
 
     <!-- HOOKS -->
@@ -978,28 +1028,54 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-05-30-undo-redo-notes.md
     │   ├── 2026-06-01-cutting-list-notes.md
     │   ├── 2026-06-02-part-visibility-notes.md
+    │   ├── 2026-06-03-cutting-list-material-grouping-notes.md
     │   ├── 2026-06-05-3d-export-notes.md
     │   ├── 2026-06-07-2d-shop-drawings-notes.md
     │   ├── 2026-06-07-enhanced-cutting-list-bom-notes.md
-    │   └── 2026-06-13-project-structure-autoupdate-notes.md
+    │   ├── 2026-06-08-material-library-notes.md
+    │   ├── 2026-06-12-dowel-part-notes.md
+    │   ├── 2026-06-13-drawing-export-notes.md
+    │   ├── 2026-06-13-project-structure-autoupdate-notes.md
+    │   ├── 2026-06-14-rotation-flash-indicator-notes.md
+    │   ├── 2026-06-14-rotation-snap-notes.md
+    │   ├── 2026-06-17-e2e-playwright-smoke-notes.md
+    │   ├── 2026-06-18-mitre-end-cut-notes.md
+    │   ├── 2026-06-18-mitre-end-cut-spec.md
+    │   ├── 2026-06-19-dowel-cuts-notes.md
+    │   ├── 2026-06-20-dowel-snap-align-notes.md
+    │   ├── 2026-06-21-dowel-drawings-notes.md
+    │   ├── 2026-07-16-parametric-dado-joint-notes.md
+    │   ├── 2026-07-17-rabbeted-dado-joint-notes.md
+    │   ├── 2026-07-19-stopped-dado-joint-notes.md
+    │   ├── 2026-07-21-half-lap-joint-notes.md
+    │   ├── 2026-07-23-mortise-tenon-joint-notes.md
+    │   ├── 2026-07-24-box-finger-joint-notes.md
+    │   ├── 2026-07-25-interaction-mode-refactor-notes.md
+    │   ├── 2026-07-26-auto-suggest-joints-notes.md
+    │   ├── 2026-07-26-tongue-groove-joint-notes.md
+    │   ├── 2026-08-07-scene-wide-suggestions-notes.md
+    │   ├── 2026-08-16-zoom-to-fit-notes.md
+    │   └── 2026-08-17-joint-checklist-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
     │   ├── 2026-05-30-undo-redo.md
     │   ├── 2026-05-31-joinery-cuts.md
     │   ├── 2026-05-31-snap-align.md
-    │   ├── 2026-06-01-cutting-list.md
+    │   ├── 2026-06-01-cutting-list-bom.md
     │   ├── 2026-06-02-part-duplication.md
     │   ├── 2026-06-02-part-visibility.md
     │   ├── 2026-06-02-shadcn-ui.md
-    │   ├── 2026-06-03-cutting-list-material-grouping.md
     │   ├── 2026-06-03-part-color-picker.md
-    │   ├── 2026-06-04-cutting-list-color.md
-    │   ├── 2026-06-05-3d-export-stl-step.md
-    │   ├── 2026-06-07-2d-shop-drawings.md
-    │   ├── 2026-06-07-enhanced-cutting-list-bom.md
-    │   ├── 2026-06-08-material-library.md
-    │   └── 2026-06-10-linked-hardware.md
+    │   ├── 2026-06-05-export.md
+    │   ├── 2026-06-12-dowel.md
+    │   ├── 2026-06-14-rotation-flash-indicator.md
+    │   ├── 2026-06-14-rotation-snap.md
+    │   ├── 2026-06-17-e2e-playwright-smoke.md
+    │   ├── 2026-07-16-joints.md
+    │   ├── 2026-07-25-interaction-mode-refactor.md
+    │   ├── 2026-07-26-joint-suggestions.md
+    │   └── 2026-08-16-zoom-to-fit.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1012,7 +1088,31 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-06-05-3d-export-stl-step-design.md
         ├── 2026-06-07-2d-shop-drawings-design.md
         ├── 2026-06-07-enhanced-cutting-list-bom-design.md
-        └── 2026-06-08-material-library-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-06-08-material-library-design.md
+        ├── 2026-06-12-dowel-part-design.md
+        ├── 2026-06-13-pdf-export-design.md
+        ├── 2026-06-14-rotation-flash-indicator-design.md
+        ├── 2026-06-14-rotation-snap-design.md
+        ├── 2026-06-17-e2e-playwright-smoke-design.md
+        ├── 2026-06-19-dowel-cuts-design.md
+        ├── 2026-06-20-dowel-snap-align-design.md
+        ├── 2026-06-21-dowel-drawings-design.md
+        ├── 2026-07-16-parametric-dado-joint-design.md
+        ├── 2026-07-17-rabbeted-dado-joint-design.md
+        ├── 2026-07-19-stopped-dado-joint-design.md
+        ├── 2026-07-21-half-lap-joint-design.md
+        ├── 2026-07-23-mortise-tenon-joint-design.md
+        ├── 2026-07-24-box-finger-joint-design.md
+        ├── 2026-07-25-interaction-mode-refactor-design.md
+        ├── 2026-07-26-auto-suggest-joints-design.md
+        ├── 2026-07-26-tongue-groove-joint-design.md
+        ├── 2026-07-27-finger-joint-suggestions-design.md
+        ├── 2026-07-27-suggestion-face-highlight-design.md
+        ├── 2026-07-27-suggestion-hover-highlight-design.md
+        ├── 2026-08-07-scene-wide-suggestions-design.md
+        ├── 2026-08-09-scene-suggestions-pair-grouping-design.md
+        ├── 2026-08-16-zoom-to-fit-design.md
+        └── 2026-08-17-joint-checklist-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
