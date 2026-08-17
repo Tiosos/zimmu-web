@@ -11,7 +11,7 @@ import {
   computeDowelLocalFaceCenter,
   computeSnapTransform,
 } from '../scene/snapMath'
-import { fitCameraToParts, fitFarPlane } from '../scene/fitCamera'
+import { fitCameraToParts, fitFarPlane, nearPlaneForFar } from '../scene/fitCamera'
 
 interface ViewportProps {
   parts: Part[]
@@ -38,8 +38,10 @@ interface ViewportProps {
 // the blue hover face, the cyan selection, and every entry in PART_COLORS.
 const SUGGESTION_OUTLINE_COLOR = 0xf472b6
 
-// Default camera far clip plane, in mm. A Home fit of a scene wider than this can reach past it, so
-// the fit effect raises it to cover the framed bounds (see fitFarPlane).
+// Default camera clip planes, in mm. A Home fit of a scene wider than the far plane can reach past
+// it, so the fit effect raises far to cover the framed bounds (see fitFarPlane) and lifts near with
+// it (nearPlaneForFar) to hold the depth-buffer ratio steady.
+const DEFAULT_NEAR_PLANE = 0.1
 const DEFAULT_FAR_PLANE = 10000
 
 const snapMat = (color: number) =>
@@ -201,7 +203,7 @@ export function Viewport({
     const camera = new THREE.PerspectiveCamera(
       45,
       mount.clientWidth / mount.clientHeight,
-      0.1,
+      DEFAULT_NEAR_PLANE,
       DEFAULT_FAR_PLANE,
     )
     camera.position.set(250, -200, 150)
@@ -447,12 +449,15 @@ export function Viewport({
     camera.position.set(next.position.x, next.position.y, next.position.z)
     controls.target.set(next.target.x, next.target.y, next.target.z)
     // A scene wider than ~7 m frames at a distance whose far corners sit past the default far plane,
-    // so the fit we just solved would render clipped. Raise the plane to reach them, and drop it
-    // back to the default when a smaller scene no longer needs the extra range.
+    // so the fit we just solved would render clipped. Raise the plane to reach them, lift the near
+    // plane in step so the depth-buffer ratio stays put, and drop both back to their defaults when a
+    // smaller scene no longer needs the extra range.
     const required = fitFarPlane(parts, next)
     const far = required === null ? DEFAULT_FAR_PLANE : Math.max(DEFAULT_FAR_PLANE, required)
-    if (camera.far !== far) {
+    const near = nearPlaneForFar(far, DEFAULT_NEAR_PLANE, DEFAULT_FAR_PLANE)
+    if (camera.far !== far || camera.near !== near) {
       camera.far = far
+      camera.near = near
       camera.updateProjectionMatrix()
     }
     controls.update()

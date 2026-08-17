@@ -5,6 +5,7 @@ import {
   fitDirection,
   fitCameraToParts,
   fitFarPlane,
+  nearPlaneForFar,
   CANONICAL_DIR,
   FIT_MARGIN,
   MIN_FIT_DISTANCE,
@@ -278,4 +279,17 @@ test('fitFarPlane for a small scene stays well under the default far plane', () 
 test('fitFarPlane returns null when there is nothing to frame', () => {
   expect(fitFarPlane([], ISO)).toBeNull()
   expect(fitFarPlane([board({ visible: false })], ISO)).toBeNull()
+})
+
+// When fitFarPlane pushes the far plane out for a big scene, the near plane must rise with it so the
+// depth-buffer ratio stays no worse than the app's default — otherwise a large scene loses precision
+// to z-fighting. An ordinary scene (far at or below the default) keeps the default near plane.
+test('nearPlaneForFar keeps the depth ratio bounded and floors at the default near', () => {
+  expect(nearPlaneForFar(10000, 0.1, 10000)).toBeCloseTo(0.1, 10)
+  expect(nearPlaneForFar(40000, 0.1, 10000)).toBeCloseTo(0.4, 10)
+  // A far below the default never lowers the near plane below its floor.
+  expect(nearPlaneForFar(5000, 0.1, 10000)).toBeCloseTo(0.1, 10)
+  // The ratio at the raised planes equals the default ratio.
+  const far = 55000
+  expect(far / nearPlaneForFar(far, 0.1, 10000)).toBeCloseTo(10000 / 0.1, 6)
 })
