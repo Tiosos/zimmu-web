@@ -249,10 +249,14 @@ src/
 
 - **`docs/keyboard-shortcuts.md`** — user-facing keyboard shortcut reference; update whenever a shortcut is added or removed.
 - **`docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`** — design specs (what and why) written before implementation starts.
-- **`docs/superpowers/plans/YYYY-MM-DD-<topic>.md`** — step-by-step implementation plans derived from the spec.
+- **`docs/superpowers/plans/YYYY-MM-DD-<topic>.md`** — step-by-step implementation plans derived from the spec. A new plan is one file per topic; some existing files are **consolidated plans** (see below) that gather a related series into one document.
 - **`docs/superpowers/notes/YYYY-MM-DD-<topic>-notes.md`** — living implementation notes (decisions, surprises, workarounds); see below.
 
-`project-structure.html` at the repo root is a manually-maintained architecture reference. Update it when the source tree or data-flow diagrams change significantly.
+`project-structure.html` at the repo root is an architecture reference. Its prose and data-flow diagrams are hand-written; the file trees, test count, and version/date are enclosed in `<!-- AUTOGEN:NAME --> … <!-- /AUTOGEN:NAME -->` markers and regenerated from disk by `scripts/update-structure-html.mjs` (run it after adding, removing, or renaming tracked files; a release workflow also runs it). Update the hand-written prose when the source tree or data-flow diagrams change significantly.
+
+### Consolidated plan files
+
+Several plans in `plans/` each merge a related series of formerly-separate plans into one file (e.g. `2026-06-12-dowel.md`, `2026-07-16-joints.md`, `2026-06-01-cutting-list-bom.md`, `2026-06-05-export.md`, `2026-07-26-joint-suggestions.md`). A consolidated file opens with a title, a one-line "consolidated plan" note, and a **Sections:** index listing each sub-plan with its own spec and notes paths; each section below is the original plan verbatim, its headings demoted one level to nest under the document. The per-topic specs and notes were **not** merged — they remain one file each, and a consolidated plan links every one of them from its header. When you touch a merged-away topic, edit its section inside the consolidated plan (do not recreate the old standalone file), and keep the corresponding spec/notes files' `Plan:` pointers aimed at `<consolidated-file>.md` and the named section.
 
 ### Implementation Notes
 
