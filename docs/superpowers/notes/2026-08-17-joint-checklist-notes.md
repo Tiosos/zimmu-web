@@ -174,10 +174,11 @@ to make an exception, and the flip is the feature's whole point, so it earns a s
   panel has no rows left and disappears entirely, so even the header vanishes. Reverted; green
   restored.
 - **Pre-installed-browser note.** Playwright 1.61 pins Chromium build 1228 but the environment ships
-  1194, so a bare `pnpm test:e2e` reports a missing executable. Ran via a throwaway config pointing
-  `launchOptions.executablePath` at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` (deleted
-  after). CI, which installs the pinned build, needs no such override; the committed
-  `playwright.config.ts` is untouched.
+  1194, so a bare `pnpm test:e2e` reports a missing executable. First verified via a throwaway config;
+  then made repeatable — `playwright.config.ts` now reads `PW_CHROMIUM_EXECUTABLE` and applies it as
+  `launchOptions.executablePath` only when set, so `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e`
+  runs the suite in a web session while CI (var unset) resolves the pinned build unchanged. See the
+  2026-06-17 e2e smoke notes for the full rationale.
 
 ## 2026-08-17 — follow-up: adjacency accuracy, memoization, and purpose-sized caps
 

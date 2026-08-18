@@ -114,7 +114,18 @@ Four things bit during the build; all are load-bearing, do not "simplify" them a
   number until it passes would silently restore the useless version.
 
 Local-run gotcha unrelated to CI: this image ships Chromium build 1194 while the project pins
-`@playwright/test` 1.61 (which wants 1228), so `pnpm test:e2e` fails to launch until the expected
-path is bridged to the installed build. Do not run `playwright install`, and do not pin
-`executablePath` in `playwright.config.ts` — CI installs a matching build via `--with-deps chromium`
-and would break.
+`@playwright/test` 1.61 (which wants 1228), so a bare `pnpm test:e2e` fails to launch until the
+expected path is bridged to the installed build. Do not run `playwright install`.
+
+Resolved 2026-08-18 without breaking CI: `playwright.config.ts` reads `PW_CHROMIUM_EXECUTABLE` and,
+**only when it is set**, applies it as the chromium project's `launchOptions.executablePath`. This is
+not the unconditional pin the earlier draft of this note warned against — CI leaves the var unset (it
+installs a matching build via `--with-deps chromium`), so the runner resolves Chromium itself and the
+default path is untouched. To run e2e in a web session:
+
+```bash
+PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e
+```
+
+The build number in that path tracks whatever the image ships (`ls -d /opt/pw-browsers/chromium-*`),
+so it is not hardcoded anywhere in the repo.

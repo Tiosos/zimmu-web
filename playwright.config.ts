@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 
+// Environments that ship a pre-installed Chromium whose build differs from the one @playwright/test
+// pins (e.g. Claude Code on the web) can point the runner at it by setting PW_CHROMIUM_EXECUTABLE,
+// avoiding a `playwright install` that would fetch the pinned build. Unset — as on CI, which installs
+// the pinned browser — the runner resolves Chromium itself, so the default path is unchanged.
+const chromiumExecutable = process.env.PW_CHROMIUM_EXECUTABLE
+
 export default defineConfig({
   testDir: 'e2e',
   testMatch: '**/*.spec.ts',
@@ -16,7 +22,15 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(chromiumExecutable ? { launchOptions: { executablePath: chromiumExecutable } } : {}),
+      },
+    },
+  ],
   webServer: {
     command: 'pnpm dev',
     url: 'http://localhost:5173',
