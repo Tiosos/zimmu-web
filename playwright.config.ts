@@ -27,7 +27,8 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        ...(chromiumExecutable ? { launchOptions: { executablePath: chromiumExecutable } } : {}),
+        // undefined when the var is unset, which is Playwright's default browser resolution.
+        launchOptions: { executablePath: chromiumExecutable },
       },
     },
   ],
