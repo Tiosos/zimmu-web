@@ -149,8 +149,36 @@ carries both `aId` and `options` — so no change was needed.
 - `MAX_SCENE_PAIRS` headroom shrank — it now counts touching pairs, not offering pairs. The carcase
   measurement puts a real scene at 12 rows against a cap of 100, so this is comfortable, but the
   2026-08-09 "unreachable by any scene we have measured" claim is less generous than it reads.
-- No permanent e2e coverage. The verification spec was deleted per repo convention; the flip from
-  open to `✓` is pinned by unit tests only.
+- ~~No permanent e2e coverage.~~ Closed 2026-08-18 — see the follow-up section below.
+
+## 2026-08-18 — follow-up: permanent e2e coverage for the open → done flip
+
+`e2e/joint-checklist.spec.ts` now pins the behaviour end to end against the live app, the one thing
+the unit tests structurally cannot: a chip click applies a real joint through the OCCT worker, and
+the row must survive the rebuild flipped to `✓` rather than vanish. This reverses the 2026-08-09
+convention of deleting the verification spec — the "no permanent e2e coverage" item was the reason
+to make an exception, and the flip is the feature's whole point, so it earns a standing test.
+
+- **Fixture is the `teeH`/`teeD` pair from `jointChecklist.test.ts`, rebuilt through the UI.** Board
+  1 (the seeded default) is retuned to 200×100×20 — only its thickness differs from the 200×100×25
+  default, so the dado seats on its face rather than 5 mm into it — and Board 2 is set to 80×40×18,
+  `Ry=-90`, at `(100, 30, 20)`. Reusing the proven fixture rather than hand-picking new geometry is
+  what keeps the dado + M&T offer guaranteed; a fresh tee would have risked landing on a different
+  offer set.
+- **The row is asserted, then jointed, then re-asserted in place.** Header `Joints — 0 / 1` → click
+  `Dado` → header `Joints — 1 / 1`, row now `✓ Board 1 + Board 2`, and the `Dado` *button* count
+  drops to 0 (the chip gives way to a plain kind-label span). The counter tick and the ✓ together
+  are what a jointed-row-dropping regression cannot satisfy.
+- **Proven to bite.** Temporarily dropping the `state: 'jointed'` push in `jointChecklist.ts` (the
+  old unjointed-only behaviour) fails the spec at the `1 / 1` assertion — with the pair jointed the
+  panel has no rows left and disappears entirely, so even the header vanishes. Reverted; green
+  restored.
+- **Pre-installed-browser note.** Playwright 1.61 pins Chromium build 1228 but the environment ships
+  1194, so a bare `pnpm test:e2e` reports a missing executable. First verified via a throwaway config;
+  then made repeatable — `playwright.config.ts` now reads `PW_CHROMIUM_EXECUTABLE` and applies it as
+  `launchOptions.executablePath` only when set, so `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e`
+  runs the suite in a web session while CI (var unset) resolves the pinned build unchanged. See the
+  2026-06-17 e2e smoke notes for the full rationale.
 
 ## 2026-08-17 — follow-up: adjacency accuracy, memoization, and purpose-sized caps
 
