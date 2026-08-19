@@ -1160,3 +1160,62 @@ describe('v10 → v11 migration', () => {
     }
   })
 })
+
+describe('v11 loader repairs a structurally broken file', () => {
+  const envelope = (components: unknown[]) =>
+    JSON.stringify({
+      version: 11,
+      name: 'Broken',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: { parts: [], materials: {}, hardware: [], joints: [], components },
+    })
+
+  const cmp = (id: string, parentId: string | null, extra: Record<string, unknown> = {}) => ({
+    id,
+    kind: 'group',
+    label: id,
+    parentId,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    ...extra,
+  })
+
+  it('roots a component cycle rather than loading a scene that throws on render', () => {
+    const parsed = parseFile(envelope([cmp('a', 'b'), cmp('b', 'a')]))
+    expect(parsed.scene.components).toHaveLength(2)
+    expect(parsed.scene.components.some((c) => c.parentId === null)).toBe(true)
+  })
+
+  it('demotes a carcase carrying no params to a group', () => {
+    const parsed = parseFile(envelope([cmp('a', null, { kind: 'carcase' })]))
+    expect(parsed.scene.components[0].kind).toBe('group')
+  })
+
+  it('keeps a carcase that does carry params', () => {
+    const params = {
+      width: 600,
+      height: 720,
+      depth: 560,
+      material: '',
+      thickness: 18,
+      hasTop: true,
+      backMode: 'captured',
+      backThickness: 12,
+      baseMode: 'none',
+      toeKickHeight: 100,
+      toeKickSetback: 60,
+      fixedShelves: 1,
+      adjustableShelves: { rows: 1, pitch: 32, setback: 37, startHeight: 200, count: 0 },
+      jointMethod: 'dado-rabbet',
+      dividers: [],
+    }
+    const parsed = parseFile(envelope([cmp('a', null, { kind: 'carcase', params })]))
+    expect(parsed.scene.components[0].kind).toBe('carcase')
+  })
+})

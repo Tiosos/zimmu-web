@@ -1,7 +1,15 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile, Joint } from './types'
+import type {
+  Part,
+  CutDef,
+  MaterialDef,
+  Scene,
+  CameraState,
+  ZimmuFile,
+  Joint,
+} from './types'
 import * as idb from './idb'
-import { promoteOrphans } from './componentTree'
+import { breakComponentCycles, promoteOrphans } from './componentTree'
 
 export const FILE_FORMAT_VERSION = 11
 
@@ -128,14 +136,33 @@ export function parseFile(text: string): ZimmuFile {
                   } as unknown as Joint),
       ),
     // v10→v11: component tree. Legacy files have no components and no parentage.
-    components: (raw.scene.components ?? []).map((c) => ({
-      ...c,
-      parentId: c.parentId ?? null,
-      visible: c.visible ?? true,
-      rotationOrder: 'XYZ' as const,
-    })),
+    components: (raw.scene.components ?? []).map((c) => {
+      const base = {
+        ...c,
+        parentId: c.parentId ?? null,
+        visible: c.visible ?? true,
+        rotationOrder: 'XYZ' as const,
+      }
+      // `CarcaseComponent` declares `params` required, so a carcase without them is a shape the
+      // type says cannot exist. Demote rather than fabricate defaults: a group keeps the label,
+      // the placement and every child part, and loses only the ability to regenerate.
+      if (base.kind === 'carcase' && base.params === undefined) {
+        console.warn(`zimmu: carcase "${base.id}" has no params — loaded as a group`)
+        return {
+          kind: 'group' as const,
+          id: base.id,
+          label: base.label,
+          parentId: base.parentId,
+          position: base.position,
+          rotation: base.rotation,
+          rotationOrder: base.rotationOrder,
+          visible: base.visible,
+        }
+      }
+      return base
+    }),
   }
-  return { ...raw, scene: promoteOrphans(scene) }
+  return { ...raw, scene: breakComponentCycles(promoteOrphans(scene)) }
 }
 
 export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): UseFileResult {

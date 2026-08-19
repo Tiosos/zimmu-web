@@ -6,6 +6,7 @@ import {
   descendantIds,
   wouldCycle,
   promoteOrphans,
+  breakComponentCycles,
 } from './componentTree'
 
 function cmp(id: string, parentId: string | null): Component {
@@ -125,5 +126,69 @@ describe('promoteOrphans', () => {
       components: [cmp('a', null)],
     }
     expect(promoteOrphans(scene)).toBe(scene)
+  })
+})
+
+describe('breakComponentCycles', () => {
+  it('roots a two-component cycle so the tree becomes walkable', () => {
+    const scene = {
+      parts: [],
+      materials: {},
+      hardware: [],
+      joints: [],
+      components: [cmp('a', 'b'), cmp('b', 'a')],
+    }
+    const out = breakComponentCycles(scene)
+    expect(() => ancestorsOf(out.components[0], componentsById(out.components))).not.toThrow()
+    expect(out.components.some((c) => c.parentId === null)).toBe(true)
+  })
+
+  it('roots a three-component cycle', () => {
+    const scene = {
+      parts: [],
+      materials: {},
+      hardware: [],
+      joints: [],
+      components: [cmp('a', 'c'), cmp('b', 'a'), cmp('c', 'b')],
+    }
+    const out = breakComponentCycles(scene)
+    const byId = componentsById(out.components)
+    for (const c of out.components) {
+      expect(() => ancestorsOf(c, byId)).not.toThrow()
+    }
+  })
+
+  it('never drops a component', () => {
+    const scene = {
+      parts: [],
+      materials: {},
+      hardware: [],
+      joints: [],
+      components: [cmp('a', 'b'), cmp('b', 'a')],
+    }
+    expect(breakComponentCycles(scene).components).toHaveLength(2)
+  })
+
+  it('leaves an acyclic tree untouched by identity', () => {
+    const scene = {
+      parts: [],
+      materials: {},
+      hardware: [],
+      joints: [],
+      components: [cmp('a', null), cmp('b', 'a'), cmp('c', 'b')],
+    }
+    expect(breakComponentCycles(scene)).toBe(scene)
+  })
+
+  it('leaves a self-parented component walkable', () => {
+    const scene = {
+      parts: [],
+      materials: {},
+      hardware: [],
+      joints: [],
+      components: [cmp('a', 'a')],
+    }
+    const out = breakComponentCycles(scene)
+    expect(out.components[0].parentId).toBeNull()
   })
 })

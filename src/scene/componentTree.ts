@@ -82,3 +82,32 @@ export function promoteOrphans(scene: Scene): Scene {
     components: scene.components.map((c) => (dangling(c.parentId) ? { ...c, parentId: null } : c)),
   }
 }
+
+// A cycle among components that all exist is not repaired by promoteOrphans — every parentId
+// resolves, so nothing looks dangling — but it makes ancestorsOf throw at render time. Only
+// reachable from a corrupted or hand-edited file, since wouldCycle guards the reparent path.
+// Roots every component that can reach itself, which flattens the cycle rather than guessing
+// which edge was the intended one: hierarchy is lost, components never are.
+export function breakComponentCycles(scene: Scene): Scene {
+  const byId = componentsById(scene.components)
+  const cyclic = new Set<ComponentId>()
+
+  for (const start of scene.components) {
+    const seen = new Set<ComponentId>()
+    let cursor: ComponentId | null = start.id
+    while (cursor !== null) {
+      if (seen.has(cursor)) {
+        cyclic.add(cursor)
+        break
+      }
+      seen.add(cursor)
+      cursor = byId.get(cursor)?.parentId ?? null
+    }
+  }
+
+  if (cyclic.size === 0) return scene
+  return {
+    ...scene,
+    components: scene.components.map((c) => (cyclic.has(c.id) ? { ...c, parentId: null } : c)),
+  }
+}

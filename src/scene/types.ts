@@ -155,17 +155,30 @@ export interface CarcaseParams {
   dividers: number[] // fractions of width, 0..1, ascending
 }
 
-export interface Component {
+export interface GroupComponent {
+  kind: 'group'
   id: ComponentId // "cmp_<uuid>"
-  kind: 'group' | 'carcase'
   label: string
   parentId: ComponentId | null
   position: Vec3
   rotation: Vec3
   rotationOrder: 'XYZ'
   visible: boolean
-  params?: CarcaseParams // present iff kind === 'carcase'
 }
+
+export interface CarcaseComponent {
+  kind: 'carcase'
+  id: ComponentId // "cmp_<uuid>"
+  label: string
+  parentId: ComponentId | null
+  position: Vec3
+  rotation: Vec3
+  rotationOrder: 'XYZ'
+  visible: boolean
+  params: CarcaseParams
+}
+
+export type Component = GroupComponent | CarcaseComponent
 
 export interface DadoJoint {
   kind: 'dado'

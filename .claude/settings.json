@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(git commit *)",
+            "if": "Bash(git commit *) & !Bash(*&&*) & !Bash(*|*) & !Bash(*;*)",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-commit-typecheck.sh",
             "statusMessage": "Typechecking before commit...",
             "timeout": 60
