@@ -970,3 +970,193 @@ describe('useFile', () => {
     expect(loaded.scene.parts[0].visible).toBe(false)
   })
 })
+
+describe('v10 → v11 migration', () => {
+  it('defaults components, parentId and driven on a v10 file', () => {
+    const v10 = JSON.stringify({
+      version: 10,
+      name: 'Old',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [
+          {
+            kind: 'board',
+            id: 'b1',
+            label: 'Board 1',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            material: '',
+            color: '#c8a97e',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            cuts: [],
+            visible: true,
+          },
+        ],
+        materials: {},
+        hardware: [],
+        joints: [
+          {
+            kind: 'halflap',
+            id: 'j1',
+            label: 'Half-lap 1',
+            partAId: 'b1',
+            partBId: 'b1',
+            split: 0.5,
+            clearance: 0,
+          },
+        ],
+      },
+    })
+
+    const parsed = parseFile(v10)
+
+    expect(parsed.scene.components).toEqual([])
+    expect(parsed.scene.parts[0].parentId).toBeNull()
+    expect(parsed.scene.parts[0].driven).toBe(false)
+    expect(parsed.scene.joints[0].driven).toBe(false)
+  })
+
+  it('preserves an explicit v11 tree', () => {
+    const v11 = JSON.stringify({
+      version: 11,
+      name: 'New',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [
+          {
+            id: 'cmp_1',
+            kind: 'carcase',
+            label: 'Base Cabinet',
+            parentId: null,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            visible: true,
+          },
+        ],
+      },
+    })
+
+    expect(parseFile(v11).scene.components[0].label).toBe('Base Cabinet')
+  })
+
+  it('promotes a part whose parentId names a component that is not in the file', () => {
+    const broken = JSON.stringify({
+      version: 11,
+      name: 'Broken',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [
+          {
+            kind: 'board',
+            id: 'b1',
+            label: 'Orphan',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            material: '',
+            color: '#c8a97e',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            cuts: [],
+            visible: true,
+            parentId: 'ghost',
+            driven: false,
+          },
+        ],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [],
+      },
+    })
+
+    const parsed = parseFile(broken)
+    expect(parsed.scene.parts).toHaveLength(1)
+    expect(parsed.scene.parts[0].parentId).toBeNull()
+  })
+
+  // The invariant this migration exists for: downstream transform code walks parentId chains
+  // with `=== null` root checks, so an absent key reaching a Part is a placement bug, not a
+  // cosmetic one. Asserted per-branch (board AND cylinder) and via own-property presence so
+  // that deleting the default from either mapper branch fails here.
+  it('leaves no part with an undefined parentId or driven after loading a v10 file', () => {
+    const v10 = JSON.stringify({
+      version: 10,
+      name: 'Legacy',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [
+          {
+            kind: 'board',
+            id: 'b1',
+            label: 'Board 1',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            material: '',
+            color: '#c8a97e',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            cuts: [],
+            visible: true,
+          },
+          {
+            kind: 'cylinder',
+            id: 'c1',
+            label: 'Dowel 1',
+            diameter: 8,
+            length: 40,
+            material: '',
+            color: '#c8a97e',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            cuts: [],
+            visible: true,
+          },
+        ],
+        materials: {},
+        hardware: [],
+        joints: [],
+      },
+    })
+
+    const parts = parseFile(v10).scene.parts
+    expect(parts.map((p) => p.kind)).toEqual(['board', 'cylinder'])
+    for (const part of parts) {
+      const own = Object.prototype.hasOwnProperty.bind(part)
+      expect(own('parentId')).toBe(true)
+      expect(own('driven')).toBe(true)
+      expect(part.parentId).not.toBe(undefined)
+      expect(part.driven).not.toBe(undefined)
+      expect(part.parentId).toBeNull()
+      expect(part.driven).toBe(false)
+    }
+  })
+})
