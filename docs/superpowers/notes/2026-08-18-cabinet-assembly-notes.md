@@ -175,3 +175,67 @@ Joint emission covers `dado-rabbet` and `finger` only. `dowel`, `butt-screw` and
 fastener methods whose geometry is hardware, so they emit no joints and their pairs read as open on
 the checklist. This is stated in Phase 7 and in the phase's verification list so it is not mistaken
 for a bug.
+
+## 2026-08-19 — Phase 1 shipped
+
+Three tasks, all TDD, subagent-implemented with review gates. Commits `e469702`, `5054e4e`, `8b69564`.
+
+**Phase 1's contract held:** 778 → 793 passing tests, and the +15 are *only* the new
+`componentTree` (11) and v11 migration (4) tests. No existing expectation was edited, and all 8
+Playwright specs pass against the live app. That is the evidence the phase changed no behaviour,
+which is what licenses Phase 2 to move world-transform resolution underneath everything.
+
+### The `undefined` vs `null` parentId trap
+
+Task 1.1 widened `Part` with `parentId: ComponentId | null`, but `parseFile` did not yet populate it
+— so for two commits the type system asserted something untrue: a v10 file deserialised into parts
+whose `parentId` was `undefined`, a value the declared type does not admit.
+
+Nothing broke, and the analysis of *why* is worth keeping because it is nearly a false reassurance:
+`promoteOrphans`'s `dangling()` tests `parentId !== null`, so `undefined` is read as "not dangling"
+and left alone — correct, since `undefined` means top-level anyway. `ancestorsOf` loops on
+`while (parentId !== null)`, so `undefined` *enters* the loop, misses in `byId`, and breaks on the
+falsy-parent guard — returning `[]`, again correct. Both paths are right **by coincidence, not by
+design**. Phase 2 walks these chains with `=== null` root checks, where the same coincidence would
+have produced a silent geometry-placement bug rather than a crash.
+
+Fixed the way it should be: normalised once at the single deserialisation boundary
+(`useFile.ts:64,72`), not by scattering `?? null` through consumers. The rule to keep: **when a type
+claims an invariant the loader does not enforce, fix the loader, not the readers.**
+
+The guard test is deliberately stronger than the plan asked for — it asserts own-property presence
+via `hasOwnProperty` (so "key absent" and "key present but undefined" are distinguishable, which
+`toBeNull()` alone cannot tell apart), covers the board *and* cylinder mapper branches, and was
+mutation-verified by deleting the default from one branch and watching it fail.
+
+### Open — a component cycle in a hand-edited file still loads
+
+`promoteOrphans` repairs *dangling* parentIds only. A file whose components form a cycle among ids
+that all exist passes the loader untouched, and then `ancestorsOf` throws its max-depth error at
+render time. `wouldCycle` guards the UI reparent path, so this is only reachable via a corrupted or
+hand-edited file. Candidate for a load-time guard in Phase 2 — noted rather than fixed, because
+Phase 1's contract is that it changes no behaviour.
+
+### Two plan defects found by implementers
+
+- **Off-by-one test count.** Task 1.2's snippet has 11 `it` blocks; the plan said 10. Left alone,
+  every later task quoting a running total inherits the error and a future implementer "fixes" a
+  phantom missing test. Corrected in the plan (`9e16aa1`).
+- **A plan snippet that was not Prettier-clean** (a 5-name import at 108 chars). Written via heredoc
+  the format hook never fires, so the first Write/Edit of that file would produce a spurious diff.
+  Plan snippets now carry the wrapped form.
+
+### Out-of-scope churn caught at review
+
+Task 1.1's commit had reformatted `src/geom/mesh.ts` — a Prettier reflow of a file the task never
+needed to touch. Reverted and amended before push. Worth a standing note for the remaining phases:
+the Prettier hook will reformat whatever it is pointed at, so `git status --short` before every
+commit, and revert anything the task did not intend. In a phase whose entire claim is "nothing
+changed", unrelated churn is not cosmetic — it destroys the diff's evidentiary value.
+
+### Environment note
+
+The repo's `PreToolUse` hook matching `Bash(git commit *)` appears to over-match compound and
+multi-line bash (a `for` loop, an `xargs`, a heredoc `cat` all triggered it), and because it runs
+`pnpm typecheck` it hard-fails those commands while a wide refactor is mid-flight and red. Not
+caused by this work, but Phases 2 and 4 are broad refactors and will hit it again.
