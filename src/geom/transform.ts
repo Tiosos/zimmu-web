@@ -1,10 +1,11 @@
-import type { Part } from '../scene/types'
+import type { Component, ComponentId, Part } from '../scene/types'
+import { ancestorsOf } from '../scene/componentTree'
 
 const DEG2RAD = Math.PI / 180
 
 // Column-major (THREE Matrix4.elements layout). Equivalent to
 // new THREE.Matrix4().compose(position, quaternion(Euler XYZ deg), (1,1,1)).
-export function composeWorldMatrix(part: Part): Float64Array {
+export function composeWorldMatrix(part: Part | Component): Float64Array {
   const x = part.rotation.x * DEG2RAD
   const y = part.rotation.y * DEG2RAD
   const z = part.rotation.z * DEG2RAD
@@ -77,4 +78,34 @@ export function applyInverseToPoint(
     m[4] * dx + m[5] * dy + m[6] * dz,
     m[8] * dx + m[9] * dy + m[10] * dz,
   ]
+}
+
+// Column-major, same layout and convention as composeWorldMatrix. Equivalent to
+// THREE Matrix4.multiply (a * b).
+export function multiplyMatrix(a: Float64Array, b: Float64Array): Float64Array {
+  const m = new Float64Array(16)
+  for (let col = 0; col < 4; col++) {
+    for (let row = 0; row < 4; row++) {
+      m[col * 4 + row] =
+        a[row] * b[col * 4] +
+        a[4 + row] * b[col * 4 + 1] +
+        a[8 + row] * b[col * 4 + 2] +
+        a[12 + row] * b[col * 4 + 3]
+    }
+  }
+  return m
+}
+
+// A node's placement in world space, composing every ancestor component's local matrix.
+// For parentId === null this returns exactly composeWorldMatrix(node) — the identity that lets
+// the component tree land without changing any existing behaviour.
+export function resolveWorldMatrix(
+  node: Part | Component,
+  byId: Map<ComponentId, Component>,
+): Float64Array {
+  let m = composeWorldMatrix(node)
+  for (const ancestor of ancestorsOf(node, byId)) {
+    m = multiplyMatrix(composeWorldMatrix(ancestor), m)
+  }
+  return m
 }
