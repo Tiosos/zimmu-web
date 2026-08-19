@@ -2275,7 +2275,7 @@ git add src/scene/regenerateComponents.ts src/scene/regenerateComponents.test.ts
 git commit -m "feat(scene): regenerateComponents reconciles carcase parts by stable role key"
 ```
 
-## Task 4.6: The toe-kick notch
+## Task 4.5: The toe-kick notch
 
 **Files:**
 - Modify: `src/scene/carcaseRoles.ts`, `src/scene/carcaseRoles.test.ts`, `src/scene/regenerateComponents.ts`
@@ -2404,7 +2404,7 @@ git add src/scene/carcaseRoles.ts src/scene/carcaseRoles.test.ts src/scene/regen
 git commit -m "feat(scene): notch the side panels for a toe kick as a component-owned cut"
 ```
 
-## Task 4.5: Wire the pipeline into `useScene`
+## Task 4.6: Wire the pipeline into `useScene`
 
 **Files:**
 - Modify: `src/scene/useScene.ts`
