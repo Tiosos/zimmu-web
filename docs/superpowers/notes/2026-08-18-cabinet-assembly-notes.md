@@ -125,3 +125,53 @@ code you are working in, don't refactor what you aren't" rule:
 - `pitch: 32` typed as a literal rather than `number` now says why in the type: 32 mm is the system,
   not a preference. Left as a literal deliberately; if a 25 mm variant is ever needed it is a type
   widening, not a redesign.
+
+## 2026-08-18 — plan written
+
+`docs/superpowers/plans/2026-08-18-cabinet-assembly.md`. Ten phases, 33 tasks, 211 checkbox steps.
+
+### Caught in plan self-review
+
+- **The toe-kick notch had no task.** The spec names it as the motivating case for
+  `sourceComponentId` on `BoxCut`, but the first draft of the role table ran the side panels full
+  height and emitted a toe-kick rail without notching the sides — which would have blocked the toe
+  recess with the sides themselves. Added as Task 4.6, and with it the test that matters more than
+  the notch geometry: a side panel must end up carrying **both** a `sourceComponentId` cut and a
+  `sourceJointId` cut, proving the two pipeline stages do not strip each other's work.
+- **`faceDrillAxis` / `stepVector` were described rather than written.** Now written out. Chose to
+  duplicate six lines rather than widen `faceAxes` in `snapMath.ts`, which returns THREE-typed axes
+  for a different purpose; the duplication is bounded by a total function over six faces.
+- **Four test fixtures were named but never defined** (`sideWithPins`, `partsTwoCabinetsTouching`,
+  `twoIdenticalSidesInDifferentCabinets`, `partsWithTwoLooseBoards`). All now built by calling
+  `regenerateComponents` on a preset, so the fixtures are the real generator output rather than
+  hand-stitched geometry that could drift from it.
+
+### Panel orientation was derived, not guessed
+
+`orientedPanel` needs three rotations, one per thickness axis. They were solved algebraically against
+`composeWorldMatrix`'s `R = Rx·Ry·Rz` convention rather than picked by trial:
+
+- thickness on **z** → `(0, 0, 0)`
+- thickness on **x** → `(0, 90, 90)` (board x→carcase y, y→z, z→x)
+- thickness on **y** → `(-90, 0, -90)` (board x→carcase z, y→x, z→y)
+
+Both non-trivial rotations map all three board axes onto carcase axes **positively**, which is why
+`position` is always the box's min corner with no compensation term. That property is worth keeping
+if the table is ever extended — a negative mapping would need an offset and would be easy to miss.
+
+**The tests assert world AABBs, not rotation triples.** An equivalent Euler triple still passes; a
+wrong one cannot. Recorded because the temptation on a red test will be to compare rotations.
+
+### Phasing property worth preserving
+
+Phases 1 and 2 are pure refactors: after each, the full suite passes **with no edited expectations**.
+The plan states that explicitly as the pass condition, because "I had to update some tests" during
+those two phases is the signal that the `resolveWorldMatrix` ≡ `composeWorldMatrix` identity for
+top-level parts has been broken, and that identity is what makes the whole migration safe.
+
+### Deliberate scope limit inside the plan
+
+Joint emission covers `dado-rabbet` and `finger` only. `dowel`, `butt-screw` and `confirmat` are
+fastener methods whose geometry is hardware, so they emit no joints and their pairs read as open on
+the checklist. This is stated in Phase 7 and in the phase's verification list so it is not mistaken
+for a bug.
