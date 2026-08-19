@@ -21,12 +21,12 @@ const FIXTURE: ZimmuFile = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T12:00:00.000Z',
   camera: CAMERA,
-  scene: { parts: [], materials: {}, hardware: [], joints: [] },
+  scene: { parts: [], materials: {}, hardware: [], joints: [], components: [] },
 }
 
 function makeInput(overrides?: Partial<Parameters<typeof useFile>[0]>) {
   return {
-    scene: { parts: [], materials: {}, hardware: [], joints: [] },
+    scene: { parts: [], materials: {}, hardware: [], joints: [], components: [] },
     getCameraState: () => CAMERA,
     onFileLoaded: vi.fn(),
     ...overrides,
@@ -177,18 +177,28 @@ describe('useFile', () => {
       rotationOrder: 'XYZ' as const,
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
       {
         initialProps: {
-          scene: { parts: [] as Scene['parts'], materials: {}, hardware: [], joints: [] },
+          scene: {
+            parts: [] as Scene['parts'],
+            materials: {},
+            hardware: [],
+            joints: [],
+            components: [],
+          },
         },
       },
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
-    rerender({ scene: { parts: [mockPart], materials: {}, hardware: [], joints: [] } })
+    rerender({
+      scene: { parts: [mockPart], materials: {}, hardware: [], joints: [], components: [] },
+    })
     await waitFor(() => expect(result.current.isDirty).toBe(true))
 
     await act(async () => {
@@ -225,18 +235,28 @@ describe('useFile', () => {
       rotationOrder: 'XYZ' as const,
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
       {
         initialProps: {
-          scene: { parts: [] as Scene['parts'], materials: {}, hardware: [], joints: [] },
+          scene: {
+            parts: [] as Scene['parts'],
+            materials: {},
+            hardware: [],
+            joints: [],
+            components: [],
+          },
         },
       },
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
-    rerender({ scene: { parts: [mockPart], materials: {}, hardware: [], joints: [] } })
+    rerender({
+      scene: { parts: [mockPart], materials: {}, hardware: [], joints: [], components: [] },
+    })
     await waitFor(() => expect(result.current.isDirty).toBe(true))
 
     await act(async () => {
@@ -343,9 +363,15 @@ describe('useFile', () => {
       rotationOrder: 'XYZ' as const,
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     const { result } = renderHook(() =>
-      useFile(makeInput({ scene: { parts: [part], materials: {}, hardware: [], joints: [] } })),
+      useFile(
+        makeInput({
+          scene: { parts: [part], materials: {}, hardware: [], joints: [], components: [] },
+        }),
+      ),
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
@@ -487,6 +513,8 @@ describe('useFile', () => {
             rotation: { x: 0, y: 0, z: 0 },
             rotationOrder: 'XYZ',
             visible: true,
+            parentId: null,
+            driven: false,
           },
         ],
         materials: {},
@@ -566,6 +594,7 @@ describe('useFile', () => {
           } as unknown as Part,
         ],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       },
@@ -610,6 +639,7 @@ describe('useFile', () => {
           } as unknown as Part,
         ],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       },
@@ -654,6 +684,7 @@ describe('useFile', () => {
           } as unknown as Part,
         ],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       },
@@ -700,6 +731,8 @@ describe('useFile', () => {
             rotationOrder: 'XYZ',
             material: '',
             visible: true,
+            parentId: null,
+            driven: false,
             cuts: [
               {
                 id: 'cut_1',
@@ -746,6 +779,8 @@ describe('useFile', () => {
             rotationOrder: 'XYZ',
             material: '',
             visible: true,
+            parentId: null,
+            driven: false,
             cuts: [{ kind: 'mitre', id: 'm1', label: 'Mitre', end: '+X', axis: 'Z', angle: 45 }],
           },
         ],
@@ -778,6 +813,7 @@ describe('useFile', () => {
             kind: 'dado',
             id: 'j1',
             label: 'Dado 1',
+            driven: false,
             housingPartId: 'H',
             housingFace: '+Z',
             housedPartId: 'D',
@@ -813,6 +849,7 @@ describe('useFile', () => {
             kind: 'dado',
             id: 'j1',
             label: 'Dado 1',
+            driven: false,
             housingPartId: 'H',
             housingFace: '+Z',
             housedPartId: 'D',
@@ -850,6 +887,7 @@ describe('useFile', () => {
             kind: 'dado',
             id: 'j1',
             label: 'Dado 1',
+            driven: false,
             housingPartId: 'H',
             housingFace: '+Z',
             housedPartId: 'D',
@@ -904,9 +942,12 @@ describe('useFile', () => {
             cuts: [],
             material: '',
             visible: false,
+            parentId: null,
+            driven: false,
           },
         ],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       },

@@ -34,6 +34,8 @@ const partA: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const partB: Part = {
   kind: 'board',
@@ -49,6 +51,8 @@ const partB: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 
 const dowelD: Part = {
@@ -64,6 +68,8 @@ const dowelD: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 
 const capOnD: FaceHit = {

@@ -20,6 +20,8 @@ const board = (id: string): BoardPart => ({
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 })
 const hit = (partId: string): FaceHit => ({
   partId,

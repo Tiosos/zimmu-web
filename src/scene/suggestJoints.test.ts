@@ -35,6 +35,8 @@ function board(over: Partial<BoardPart>): BoardPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...over,
   }
 }
@@ -447,6 +449,7 @@ test('scene: a pair that already carries a joint is skipped, as in the per-part 
     kind: 'halflap',
     id: 'j1',
     label: 'Half-lap 1',
+    driven: false,
     partAId: 'LA',
     partBId: 'LB',
     split: 0.5,

@@ -28,6 +28,8 @@ const housing: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 // Housed: standing vertically via Ry=90 so its local +X end points to world -Z
 // (opposes housing +Z → valid seat). Local +Z (thickness) → world +X.
@@ -45,11 +47,14 @@ const housed: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const joint: DadoJoint = {
   kind: 'dado',
   id: 'j1',
   label: 'Dado 1',
+  driven: false,
   housingPartId: 'H',
   housingFace: '+Z',
   housedPartId: 'D',
@@ -256,6 +261,7 @@ test('deriveJoint dispatches half-laps to the half-lap deriver (no seat)', () =>
     kind: 'halflap' as const,
     id: 'jl',
     label: 'Half-lap 1',
+    driven: false,
     partAId: 'LA',
     partBId: 'LB',
     split: 0.5,
@@ -290,6 +296,7 @@ test('deriveJoint dispatches a mortise-tenon to the M&T deriver', () => {
     kind: 'mortise-tenon' as const,
     id: 'jm',
     label: 'Mortise & tenon 1',
+    driven: false,
     mortisePartId: 'MM',
     mortiseFace: '+Z' as const,
     tenonPartId: 'TT',
@@ -331,6 +338,7 @@ test('deriveJoint dispatches a finger joint to the finger deriver', () => {
     kind: 'finger' as const,
     id: 'jf',
     label: 'Finger joint 1',
+    driven: false,
     partAId: 'FA',
     endA: '+X' as const,
     partBId: 'FB',
@@ -417,6 +425,7 @@ test('deriveJoint dispatches tongue-groove to the tongue-groove deriver', () => 
     kind: 'tongue-groove',
     id: 'jtg',
     label: 'Tongue & groove 1',
+    driven: false,
     groovePartId: 'TG',
     grooveEdge: '+Y',
     tonguePartId: 'TT',

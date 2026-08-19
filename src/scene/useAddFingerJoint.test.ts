@@ -17,6 +17,8 @@ const a: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const b: Part = { ...a, id: 'B', rotation: { x: 0, y: 90, z: 0 } }
 const hit = (partId: string, n: { x: number; y: number; z: number }): FaceHit => ({

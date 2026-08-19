@@ -18,6 +18,8 @@ function part(overrides: Partial<BoardPart> = {}): BoardPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...overrides,
   }
 }

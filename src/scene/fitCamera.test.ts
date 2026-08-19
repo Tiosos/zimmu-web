@@ -25,6 +25,8 @@ const board = (over: Partial<BoardPart> = {}): BoardPart => ({
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
   ...over,
 })
 
@@ -77,6 +79,8 @@ const cylinder = (over: Partial<CylinderPart> = {}): CylinderPart => ({
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
   ...over,
 })
 

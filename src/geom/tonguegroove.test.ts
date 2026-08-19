@@ -24,6 +24,8 @@ const GROOVE: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 // Tongue board: same size, unrotated, placed on the +Y side (y=160) with its -Y edge facing the groove.
 const TONGUE: BoardPart = {
@@ -37,6 +39,7 @@ const joint: TongueGrooveJoint = {
   kind: 'tongue-groove',
   id: 'j1',
   label: 'Tongue & groove 1',
+  driven: false,
   groovePartId: 'G',
   grooveEdge: '+Y',
   tonguePartId: 'T',

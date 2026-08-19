@@ -22,6 +22,8 @@ const A: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const B: BoardPart = {
   kind: 'board',
@@ -37,12 +39,15 @@ const B: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const parts: Part[] = [A, B]
 const joint: FingerJoint = {
   kind: 'finger',
   id: 'j1',
   label: 'Finger joint 1',
+  driven: false,
   partAId: 'A',
   endA: '+X',
   partBId: 'B',

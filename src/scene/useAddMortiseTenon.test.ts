@@ -17,6 +17,8 @@ const mortise: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const tenon: Part = {
   ...mortise,

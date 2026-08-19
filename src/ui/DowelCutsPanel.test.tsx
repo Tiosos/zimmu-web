@@ -17,6 +17,8 @@ function dowel(): CylinderPart {
     rotationOrder: 'XYZ',
     cuts: [{ kind: 'end', id: 'c1', label: 'End 1', end: '+Z', offset: 0, angle: 45, azimuth: 0 }],
     visible: true,
+    parentId: null,
+    driven: false,
   }
 }
 

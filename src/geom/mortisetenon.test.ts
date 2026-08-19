@@ -25,6 +25,8 @@ const M: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const T: BoardPart = {
   kind: 'board',
@@ -40,12 +42,15 @@ const T: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const parts: Part[] = [M, T]
 const joint: MortiseTenonJoint = {
   kind: 'mortise-tenon',
   id: 'j1',
   label: 'Mortise & tenon 1',
+  driven: false,
   mortisePartId: 'M',
   mortiseFace: '+Z',
   tenonPartId: 'T',

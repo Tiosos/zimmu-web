@@ -18,6 +18,8 @@ function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...overrides,
   }
 }
@@ -119,6 +121,8 @@ function makeDowel(overrides: Partial<CylinderPart> = {}): CylinderPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...overrides,
   }
 }

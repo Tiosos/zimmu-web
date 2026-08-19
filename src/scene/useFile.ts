@@ -116,6 +116,7 @@ export function parseFile(text: string): ZimmuFile {
                       ...j,
                     } as unknown as Joint),
         ),
+      components: raw.scene.components ?? [],
     },
   }
 }
@@ -295,7 +296,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       createdAt: now,
       updatedAt: now,
       camera: getCameraStateRef.current(),
-      scene: { parts: [], materials: {}, hardware: [], joints: [] },
+      scene: { parts: [], materials: {}, hardware: [], joints: [], components: [] },
     }
     handleRef.current = null
     createdAtRef.current = null
@@ -305,6 +306,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       materials: {},
       hardware: [],
       joints: [],
+      components: [],
     })
     lastSavedProjectNameRef.current = 'Untitled'
     isDirtyRef.current = false

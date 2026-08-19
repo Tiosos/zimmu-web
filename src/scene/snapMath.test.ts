@@ -47,6 +47,8 @@ const BOARD: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 
 function makeFace(nx: number, ny: number, nz: number): FaceHit {
@@ -567,6 +569,8 @@ describe('isSnapFace', () => {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   }
 
   it('board: any axis-aligned face is snappable', () => {
@@ -600,6 +604,8 @@ describe('computeDowelLocalFaceCenter', () => {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   }
 
   it('+Z cap center is (0, 0, length)', () => {
@@ -625,6 +631,8 @@ describe('computeDowelSnapTransform', () => {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   }
 
   function eulerToQuat(rotation: { x: number; y: number; z: number }): THREE.Quaternion {

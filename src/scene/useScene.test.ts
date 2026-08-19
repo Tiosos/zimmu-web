@@ -261,9 +261,12 @@ describe('useScene', () => {
           rotationOrder: 'XYZ' as const,
           cuts: [],
           visible: true,
+          parentId: null,
+          driven: false,
         },
       ],
       materials: {},
+      components: [],
       hardware: [],
       joints: [],
     }
@@ -280,7 +283,13 @@ describe('useScene', () => {
   it('replaceScene with empty parts resets labelCounter to 1', () => {
     const { result } = renderHook(() => useScene())
     act(() => {
-      result.current.replaceScene({ parts: [], materials: {}, hardware: [], joints: [] })
+      result.current.replaceScene({
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [],
+      })
     })
     expect(result.current.scene.parts).toHaveLength(0)
     expect(result.current.nextLabel).toBe('Board 1')
@@ -574,7 +583,13 @@ describe('useScene', () => {
       })
       expect(result.current.canUndo).toBe(true)
       act(() => {
-        result.current.replaceScene({ parts: [], materials: {}, hardware: [], joints: [] })
+        result.current.replaceScene({
+          parts: [],
+          materials: {},
+          hardware: [],
+          joints: [],
+          components: [],
+        })
       })
       expect(result.current.canUndo).toBe(false)
       expect(result.current.canRedo).toBe(false)
@@ -587,7 +602,13 @@ describe('useScene', () => {
         result.current.onAdd('board')
       })
       act(() => {
-        result.current.replaceScene({ parts: [], materials: {}, hardware: [], joints: [] })
+        result.current.replaceScene({
+          parts: [],
+          materials: {},
+          hardware: [],
+          joints: [],
+          components: [],
+        })
       })
       expect(() => {
         act(() => {
@@ -1456,6 +1477,8 @@ describe('buildSpecForPart — cylinder cuts', () => {
         { kind: 'end', id: 'c1', label: 'End 1', end: '+Z', offset: 0, angle: 45, azimuth: 0 },
       ],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     const spec = buildSpecForPart(part)
     expect(spec.kind).toBe('cylinder')
@@ -1539,6 +1562,7 @@ describe('useScene — joints', () => {
       kind: 'dado',
       id: '<uuid>',
       label: 'Dado 1',
+      driven: false,
       housingPartId: Hid,
       housingFace: '+Z',
       housedPartId: Did,
@@ -1704,6 +1728,7 @@ describe('useScene — joints', () => {
       kind: 'halflap',
       id: '<uuid>',
       label: 'Half-lap 1',
+      driven: false,
       partAId: P.id,
       partBId: Q.id,
       split: 0.5, // a true half-lap: each board keeps half its thickness
@@ -1788,6 +1813,7 @@ describe('useScene — joints', () => {
       kind: 'mortise-tenon',
       id: '<uuid>',
       label: 'Mortise & tenon 1',
+      driven: false,
       mortisePartId: Mb.id,
       mortiseFace: '+Z',
       tenonPartId: Tb.id,
@@ -1905,6 +1931,7 @@ describe('useScene — joints', () => {
       kind: 'finger',
       id: '<uuid>',
       label: 'Finger joint 1',
+      driven: false,
       partAId: Ab.id,
       endA: '+X',
       partBId: Bb.id,
@@ -1974,6 +2001,7 @@ describe('useScene — joints', () => {
       kind: 'tongue-groove',
       id: '<uuid>',
       label: 'Tongue & groove 1',
+      driven: false,
       groovePartId: Gb.id,
       grooveEdge: '+Y',
       tonguePartId: Tb.id,

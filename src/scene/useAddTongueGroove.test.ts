@@ -17,6 +17,8 @@ const groove: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const tongue: Part = { ...groove, id: 'T', position: { x: 0, y: 160, z: 0 } }
 const hit = (partId: string, n: { x: number; y: number; z: number }): FaceHit => ({

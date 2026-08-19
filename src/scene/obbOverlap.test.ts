@@ -16,6 +16,8 @@ const board = (o: Partial<BoardPart>): BoardPart => ({
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
   ...o,
 })
 

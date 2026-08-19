@@ -18,6 +18,8 @@ function part(overrides: Partial<BoardPart> = {}): BoardPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...overrides,
   }
 }
@@ -103,6 +105,8 @@ test('applyInverseToPoint undoes applyMatrixToPoint for a rotated, translated bo
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   }
   const m = composeWorldMatrix(b)
   const [wx, wy, wz] = applyMatrixToPoint(m, 40, 15, 8)

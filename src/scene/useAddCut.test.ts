@@ -17,6 +17,8 @@ const mockPart: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 
 function makeHit(overrides: Partial<FaceHit> = {}): FaceHit {
@@ -239,6 +241,8 @@ function dowel(): CylinderPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   }
 }
 function capHit(): FaceHit {

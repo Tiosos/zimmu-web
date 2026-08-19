@@ -16,6 +16,8 @@ function makeDowel(over: Partial<CylinderPart> & { id: string }): Part {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...over,
   }
 }
@@ -34,6 +36,8 @@ const plywoodPart: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 
 const materials: Record<string, MaterialDef> = {
@@ -82,6 +86,8 @@ describe('groupParts', () => {
         rotationOrder: 'XYZ',
         cuts: [],
         visible: true,
+        parentId: null,
+        driven: false,
       },
     ]
     const rows = groupParts(parts, { 'Beech dowel': { costPerM: 5 } })
@@ -201,6 +207,8 @@ describe('groupDowels', () => {
       rotationOrder: 'XYZ',
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     expect(groupDowels([board], {})).toHaveLength(0)
   })

@@ -31,6 +31,8 @@ function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...overrides,
   }
 }
@@ -49,13 +51,15 @@ function makeCylinder(overrides: Partial<CylinderPart> = {}): CylinderPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...overrides,
   }
 }
 
 function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
   return {
-    scene: { parts: [makeBoard()], materials: {}, hardware: [], joints: [] },
+    scene: { parts: [makeBoard()], materials: {}, hardware: [], joints: [], components: [] },
     occtReady: true,
     errors: new Map<PartId, string>(),
     pendingIds: new Set<PartId>(),
@@ -118,7 +122,11 @@ describe('Sidebar', () => {
 
   it('shows empty state when no parts', () => {
     render(
-      <Sidebar {...props({ scene: { parts: [], materials: {}, hardware: [], joints: [] } })} />,
+      <Sidebar
+        {...props({
+          scene: { parts: [], materials: {}, hardware: [], joints: [], components: [] },
+        })}
+      />,
     )
     expect(screen.getByText(/No parts/)).toBeTruthy()
   })
@@ -172,6 +180,7 @@ describe('Sidebar', () => {
           scene: {
             parts: [makeBoard({ visible: false })],
             materials: {},
+            components: [],
             hardware: [],
             joints: [],
           },
@@ -245,7 +254,13 @@ describe('Sidebar', () => {
       position: { x: 90, y: 40, z: 15 },
       size: { x: 20, y: 20, z: 10 },
     }
-    const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [], joints: [] }
+    const scene = {
+      parts: [makeBoard({ cuts: [cut] })],
+      materials: {},
+      hardware: [],
+      joints: [],
+      components: [],
+    }
     render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
     expect(screen.getByText('Dado')).toBeTruthy()
   })
@@ -260,7 +275,13 @@ describe('Sidebar', () => {
       position: { x: 90, y: 40, z: 15 },
       size: { x: 20, y: 20, z: 10 },
     }
-    const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [], joints: [] }
+    const scene = {
+      parts: [makeBoard({ cuts: [cut] })],
+      materials: {},
+      hardware: [],
+      joints: [],
+      components: [],
+    }
     render(<Sidebar {...props({ scene, selectedId: 'board_t1', onRemoveCut })} />)
     fireEvent.click(screen.getByTitle('Delete cut'))
     expect(onRemoveCut).toHaveBeenCalledWith('board_t1', 'cut_1')
@@ -271,6 +292,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard({ cuts: [makeCut()] })],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       }
@@ -282,6 +304,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard({ cuts: [makeCut()] })],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       }
@@ -293,6 +316,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard({ cuts: [makeCut()] })],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       }
@@ -310,6 +334,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard({ cuts: [makeCut()] }), other],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       }
@@ -321,6 +346,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard({ cuts: [makeCut()] })],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       }
@@ -338,6 +364,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard({ cuts: [makeCut()] }), other],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       }
@@ -358,6 +385,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard({ cuts: [cut] }), other],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       }
@@ -373,6 +401,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard({ cuts: [cut] }), other],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       }
@@ -387,7 +416,13 @@ describe('Sidebar', () => {
 
     it('shows "Pair lost" when pairedCutId references a missing cut', () => {
       const cut = makeCut({ pairedCutId: 'board_missing:cut_missing' })
-      const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [], joints: [] }
+      const scene = {
+        parts: [makeBoard({ cuts: [cut] })],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [],
+      }
       render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
       expect(screen.getByText(/Pair lost/)).toBeTruthy()
     })
@@ -395,7 +430,13 @@ describe('Sidebar', () => {
     it('Unlink button in pair-lost state calls onUnlinkCuts', () => {
       const onUnlinkCuts = vi.fn()
       const cut = makeCut({ pairedCutId: 'board_missing:cut_missing' })
-      const scene = { parts: [makeBoard({ cuts: [cut] })], materials: {}, hardware: [], joints: [] }
+      const scene = {
+        parts: [makeBoard({ cuts: [cut] })],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [],
+      }
       render(
         <Sidebar
           {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1', onUnlinkCuts })}
@@ -411,6 +452,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard()],
         materials: {},
+        components: [],
         hardware: [
           {
             id: 'hw_1',
@@ -434,6 +476,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard()],
         materials: {},
+        components: [],
         hardware: [
           {
             id: 'hw_1',
@@ -458,6 +501,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard(), makeBoard({ id: 'board_t2', label: 'Board 2' })],
         materials: {},
+        components: [],
         hardware: [
           {
             id: 'hw_1',
@@ -492,7 +536,13 @@ describe('Sidebar', () => {
 
   describe('CylinderPart editing', () => {
     it('shows Ø dimension label and not T when a cylinder is selected', () => {
-      const scene = { parts: [makeCylinder()], materials: {}, hardware: [], joints: [] }
+      const scene = {
+        parts: [makeCylinder()],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [],
+      }
       render(<Sidebar {...props({ scene, selectedId: 'cyl_t1' })} />)
       expect(screen.getByText('Ø')).toBeTruthy()
       expect(screen.queryByText('T')).toBeNull()
@@ -500,7 +550,13 @@ describe('Sidebar', () => {
 
     it('blanking a dowel label falls back to "Dowel", not the board nextLabel', () => {
       const onUpdate = vi.fn()
-      const scene = { parts: [makeCylinder()], materials: {}, hardware: [], joints: [] }
+      const scene = {
+        parts: [makeCylinder()],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [],
+      }
       render(<Sidebar {...props({ scene, selectedId: 'cyl_t1', onUpdate })} />)
       const input = screen.getByDisplayValue('Dowel 1')
       fireEvent.change(input, { target: { value: '' } })
@@ -561,6 +617,7 @@ describe('Sidebar', () => {
       const scene = {
         parts: [makeBoard({ color: '#ff0000' })],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       }
@@ -581,12 +638,14 @@ describe('Sidebar joints panel — rabbeted', () => {
       makeBoard({ id: 'board_t2', label: 'Board 2', rotation: { x: 0, y: 90, z: 0 } }),
     ],
     materials: {},
+    components: [],
     hardware: [],
     joints: [
       {
         kind: 'dado' as const,
         id: 'j1',
         label: 'Dado 1',
+        driven: false,
         housingPartId: 'board_t1',
         housingFace: '+Z' as const,
         housedPartId: 'board_t2',
@@ -642,12 +701,14 @@ describe('Sidebar joints panel — half-lap', () => {
       }),
     ],
     materials: {},
+    components: [],
     hardware: [],
     joints: [
       {
         kind: 'halflap' as const,
         id: 'jl',
         label: 'Half-lap 1',
+        driven: false,
         partAId: 'board_t1',
         partBId: 'board_t2',
         split: 0.5,
@@ -677,12 +738,14 @@ describe('Sidebar joints panel — mortise & tenon', () => {
       makeBoard({ id: 'board_t2', label: 'Board 2', rotation: { x: 0, y: 90, z: 0 } }),
     ],
     materials: {},
+    components: [],
     hardware: [],
     joints: [
       {
         kind: 'mortise-tenon' as const,
         id: 'jm',
         label: 'Mortise & tenon 1',
+        driven: false,
         mortisePartId: 'board_t1',
         mortiseFace: '+Z' as const,
         tenonPartId: 'board_t2',
@@ -728,12 +791,14 @@ describe('Sidebar joints panel — finger joint', () => {
       }),
     ],
     materials: {},
+    components: [],
     hardware: [],
     joints: [
       {
         kind: 'finger' as const,
         id: 'jf',
         label: 'Finger joint 1',
+        driven: false,
         partAId: 'board_t1',
         endA: '+X' as const,
         partBId: 'board_t2',
@@ -772,12 +837,14 @@ describe('Sidebar joints panel — tongue & groove', () => {
       }),
     ],
     materials: {},
+    components: [],
     hardware: [],
     joints: [
       {
         kind: 'tongue-groove' as const,
         id: 'jtg',
         label: 'Tongue & groove 1',
+        driven: false,
         groovePartId: 'board_t1',
         grooveEdge: '+Y' as const,
         tonguePartId: 'board_t2',

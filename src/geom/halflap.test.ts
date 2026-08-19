@@ -16,6 +16,8 @@ const A: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const B: BoardPart = {
   ...A,
@@ -30,6 +32,7 @@ const joint: HalfLapJoint = {
   kind: 'halflap',
   id: 'j1',
   label: 'Half-lap 1',
+  driven: false,
   partAId: 'A',
   partBId: 'B',
   split: 0.5,

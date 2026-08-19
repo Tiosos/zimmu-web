@@ -77,6 +77,8 @@ function makeDefaultBoard(): BoardPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   }
 }
 
@@ -137,6 +139,7 @@ export function useScene(): UseSceneResult {
     materials: {},
     hardware: [],
     joints: [],
+    components: [],
   }))
   const [geometries, setGeometries] = useState<Map<PartId, THREE.BufferGeometry>>(new Map())
   const [errors, setErrors] = useState<Map<PartId, string>>(new Map())
@@ -324,6 +327,8 @@ export function useScene(): UseSceneResult {
           rotationOrder: 'XYZ',
           cuts: [],
           visible: true,
+          parentId: null,
+          driven: false,
         }
       } else {
         const dowelMax = sceneRef.current.parts.reduce((m, p) => {
@@ -343,6 +348,8 @@ export function useScene(): UseSceneResult {
           rotationOrder: 'XYZ',
           cuts: [],
           visible: true,
+          parentId: null,
+          driven: false,
         }
       }
       setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
