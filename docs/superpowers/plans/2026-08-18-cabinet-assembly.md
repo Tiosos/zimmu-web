@@ -194,7 +194,13 @@ Create `src/scene/componentTree.test.ts`:
 ```ts
 import { describe, it, expect } from 'vitest'
 import type { Component, BoardPart } from './types'
-import { componentsById, ancestorsOf, descendantIds, wouldCycle, promoteOrphans } from './componentTree'
+import {
+  componentsById,
+  ancestorsOf,
+  descendantIds,
+  wouldCycle,
+  promoteOrphans,
+} from './componentTree'
 
 function cmp(id: string, parentId: string | null): Component {
   return {
@@ -416,7 +422,7 @@ export function promoteOrphans(scene: Scene): Scene {
 - [ ] **Step 4: Run the tests to confirm they pass**
 
 Run: `pnpm vitest run src/scene/componentTree.test.ts`
-Expected: PASS — 10 tests.
+Expected: PASS — 11 tests. Full-suite total becomes 54 files / 789 passed / 10 skipped.
 
 - [ ] **Step 5: Commit**
 
