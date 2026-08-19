@@ -12,6 +12,9 @@ import {
 } from './dado'
 import { composeWorldMatrix, applyMatrixToPoint } from './transform'
 import { computeLocalFaceCenter } from '../scene/snapMath'
+import { componentsById } from '../scene/componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 // Housing: flat board, +Z face up, at the origin, unrotated.
 const housing: BoardPart = {
@@ -221,7 +224,7 @@ test('computeDadoSeat: rabbeted with a thickness-end housedEnd falls back to pla
 const parts: Part[] = [housing, housed]
 
 test('deriveJoint: plain returns one groove cut on the housing + a seat', () => {
-  const r = deriveJoint({ ...joint, profile: 'plain' }, parts)
+  const r = deriveJoint({ ...joint, profile: 'plain' }, parts, NO_COMPONENTS)
   expect(r).not.toBeNull()
   expect(r!.cuts).toHaveLength(1)
   expect(r!.cuts[0].partId).toBe('H')
@@ -229,7 +232,7 @@ test('deriveJoint: plain returns one groove cut on the housing + a seat', () => 
 })
 
 test('deriveJoint: rabbeted returns groove (housing) + rabbet (housed)', () => {
-  const r = deriveJoint(rabbeted, parts)
+  const r = deriveJoint(rabbeted, parts, NO_COMPONENTS)
   expect(r!.cuts).toHaveLength(2)
   expect(r!.cuts.map((c) => c.partId).sort()).toEqual(['D', 'H'])
   expect(r!.cuts.find((c) => c.partId === 'D')!.cut.id.endsWith('_rabbet')).toBe(true)
@@ -237,7 +240,7 @@ test('deriveJoint: rabbeted returns groove (housing) + rabbet (housed)', () => {
 
 test('deriveJoint: invalid seat returns null (stale)', () => {
   const flat = { ...housed, rotation: { x: 0, y: 0, z: 0 } }
-  expect(deriveJoint(rabbeted, [housing, flat])).toBeNull()
+  expect(deriveJoint(rabbeted, [housing, flat], NO_COMPONENTS)).toBeNull()
 })
 
 test('deriveJoint dispatches half-laps to the half-lap deriver (no seat)', () => {
@@ -267,7 +270,7 @@ test('deriveJoint dispatches half-laps to the half-lap deriver (no seat)', () =>
     split: 0.5,
     clearance: 0,
   }
-  const r = deriveJoint(lap, [la, lb])
+  const r = deriveJoint(lap, [la, lb], NO_COMPONENTS)
   expect(r).not.toBeNull()
   expect(r!.seat).toBeUndefined()
   expect(r!.cuts.map((c) => c.partId).sort()).toEqual(['LA', 'LB'])
@@ -309,7 +312,7 @@ test('deriveJoint dispatches a mortise-tenon to the M&T deriver', () => {
     offsetU: 100,
     offsetV: 50,
   }
-  const r = deriveJoint(mt, [m, t])
+  const r = deriveJoint(mt, [m, t], NO_COMPONENTS)
   expect(r).not.toBeNull()
   expect(r!.seat!.partId).toBe('TT')
   expect(r!.cuts).toHaveLength(5)
@@ -346,7 +349,7 @@ test('deriveJoint dispatches a finger joint to the finger deriver', () => {
     fingerCount: 4,
     clearance: 0,
   }
-  const r = deriveJoint(fj, [a, b])
+  const r = deriveJoint(fj, [a, b], NO_COMPONENTS)
   expect(r).not.toBeNull()
   expect(r!.seat!.partId).toBe('FB')
   expect(r!.cuts).toHaveLength(4)
@@ -366,21 +369,25 @@ test('computeDadoGroove: rabbeted groove width clamps tongueThickness to < house
 test('deriveJoint: rabbeted with a thickness-end housedEnd emits only the groove, full-width', () => {
   // A housed board seating a thickness face: unrotated, housedEnd '-Z' opposes the +Z housing face (valid seat), but the end is a thickness end.
   const flatHoused = { ...housed, rotation: { x: 0, y: 0, z: 0 } }
-  const r = deriveJoint({ ...rabbeted, housedEnd: '-Z' as const }, [housing, flatHoused])
+  const r = deriveJoint(
+    { ...rabbeted, housedEnd: '-Z' as const },
+    [housing, flatHoused],
+    NO_COMPONENTS,
+  )
   expect(r).not.toBeNull()
   expect(r!.cuts).toHaveLength(1) // groove only, no rabbet
   expect(r!.cuts[0].partId).toBe('H')
 })
 
 test('deriveJoint: one stop → groove (housing) + one notch (housed)', () => {
-  const r = deriveJoint({ ...joint, stopStart: 10 }, parts)
+  const r = deriveJoint({ ...joint, stopStart: 10 }, parts, NO_COMPONENTS)
   expect(r!.cuts).toHaveLength(2)
   expect(r!.cuts.map((c) => c.partId).sort()).toEqual(['D', 'H'])
   expect(r!.cuts.find((c) => c.partId === 'D')!.cut.id).toBe('cut_j1_notch0')
 })
 
 test('deriveJoint: both stops → groove + two notches', () => {
-  const r = deriveJoint({ ...joint, stopStart: 10, stopEnd: 15 }, parts)
+  const r = deriveJoint({ ...joint, stopStart: 10, stopEnd: 15 }, parts, NO_COMPONENTS)
   expect(r!.cuts).toHaveLength(3)
   const dCutIds = r!.cuts
     .filter((c) => c.partId === 'D')
@@ -390,7 +397,7 @@ test('deriveJoint: both stops → groove + two notches', () => {
 })
 
 test('deriveJoint: stopped-rabbeted emits groove + rabbet + two notches (4 cuts)', () => {
-  const r = deriveJoint({ ...rabbeted, stopStart: 10, stopEnd: 15 }, parts)
+  const r = deriveJoint({ ...rabbeted, stopStart: 10, stopEnd: 15 }, parts, NO_COMPONENTS)
   expect(r!.cuts).toHaveLength(4)
   const dCutIds = r!.cuts
     .filter((c) => c.partId === 'D')
@@ -401,10 +408,11 @@ test('deriveJoint: stopped-rabbeted emits groove + rabbet + two notches (4 cuts)
 
 test('deriveJoint: a thickness-seated housed end with a stop emits groove only (no notch)', () => {
   const flatHoused = { ...housed, rotation: { x: 0, y: 0, z: 0 } }
-  const r = deriveJoint({ ...joint, housedEnd: '-Z' as const, stopStart: 10 }, [
-    housing,
-    flatHoused,
-  ])
+  const r = deriveJoint(
+    { ...joint, housedEnd: '-Z' as const, stopStart: 10 },
+    [housing, flatHoused],
+    NO_COMPONENTS,
+  )
   expect(r).not.toBeNull()
   expect(r!.cuts).toHaveLength(1)
   expect(r!.cuts[0].partId).toBe('H')
@@ -434,7 +442,7 @@ test('deriveJoint dispatches tongue-groove to the tongue-groove deriver', () => 
     tongueDepth: 8,
     clearance: 0,
   }
-  const r = deriveJoint(tg, [g, t])
+  const r = deriveJoint(tg, [g, t], NO_COMPONENTS)
   expect(r).not.toBeNull()
   expect(r!.cuts).toHaveLength(3)
   expect(r!.seat!.partId).toBe('TT')

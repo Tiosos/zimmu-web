@@ -239,3 +239,39 @@ The repo's `PreToolUse` hook matching `Bash(git commit *)` appears to over-match
 multi-line bash (a `for` loop, an `xargs`, a heredoc `cat` all triggered it), and because it runs
 `pnpm typecheck` it hard-fails those commands while a wide refactor is mid-flight and red. Not
 caused by this work, but Phases 2 and 4 are broad refactors and will hit it again.
+
+## 2026-08-19 — Phase 2, Task 2.2 (`worldAabb` memo revalidation)
+
+### The `byId` thread reaches further than the plan listed
+
+The plan named `halflap.ts` and `suggestJoints.ts` as the call sites. The real transitive closure of
+a required `byId` parameter on `worldAabb` is 9 production files:
+
+`halflap.ts` → `suggestJoints.ts` + `dado.ts` (`deriveJoint`) → `reconcileJoints.ts`,
+`suggestionOutline.ts`, `jointChecklist.ts` → `App.tsx`, `SceneSuggestionsPanel.tsx`,
+`JointsPanel.tsx`.
+
+It terminates cleanly, and that is the useful part: every leaf already holds a whole `Scene`, so no
+caller had to grow a prop. `reconcileJoints(scene)` builds the map itself from `scene.components`;
+the three React callers build it from `scene.components` too. Nothing was threaded through
+`useScene`. Plus 6 test files, all call-site-only edits.
+
+Not made optional with an empty-map default, deliberately: a defaulted `byId` would let a nested
+part resolve as if it were top-level — silently wrong geometry, which is the exact failure this task
+exists to prevent. A required parameter makes every new call site state which tree it means.
+
+### Comparing the matrix by value is load-bearing, not a micro-optimization
+
+The obvious cheap invalidation — store the `byId` map (or the ancestor component) and compare by
+reference — passes the "ancestor moved" test and still destroys the memo. `componentsById` builds a
+fresh `Map` on every render and the scene replaces component objects on every edit, so a reference
+check misses every time and the WeakMap degenerates into a per-call recompute across the checklist's
+two O(n²) pair walks. Pinned by `halflap.test.ts` → "holds the cache across a structurally equal but
+freshly built tree", which was verified to fail against a reference-comparing implementation.
+
+### An incomplete test mock only now became load-bearing
+
+`src/App.test.tsx` had one `useScene` mock whose `scene` omitted `components` (the other one has it).
+Nothing read the field until this task, so it passed. Filling it in is fixture completion, not an
+expectation change — but it is a reminder that a partial mock of `Scene` hides a whole phase's worth
+of breakage until the first reader appears.

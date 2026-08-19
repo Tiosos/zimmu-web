@@ -240,7 +240,7 @@ describe('App BOM integration', () => {
     mockUseScene.mockImplementation(() => {
       const [parts, setParts] = useState<Part[]>([])
       return {
-        scene: { parts, materials: {}, hardware: [], joints: [] },
+        scene: { parts, materials: {}, hardware: [], joints: [], components: [] },
         geometries: new Map(),
         errors: new Map(),
         pendingIds: new Set(),

@@ -3,6 +3,9 @@ import type { BoardPart, DadoJoint, Part } from './types'
 import { suggestJointsForScene } from './suggestJoints'
 import { defaultDadoJoint } from './defaultJoint'
 import { buildJointChecklist, MAX_NOOFFER_ROWS } from './jointChecklist'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 function board(over: Partial<BoardPart>): BoardPart {
   return {
@@ -48,7 +51,12 @@ const stackUpper = board({
 })
 
 function build(parts: Part[], joints: DadoJoint[] = []) {
-  return buildJointChecklist(parts, joints, suggestJointsForScene(parts, joints))
+  return buildJointChecklist(
+    parts,
+    joints,
+    suggestJointsForScene(parts, joints, NO_COMPONENTS),
+    NO_COMPONENTS,
+  )
 }
 
 test('a touching pair with offers and no joint is open', () => {

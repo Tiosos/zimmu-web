@@ -1,4 +1,4 @@
-import type { BoardPart, BoxCut, Face, Part, Vec3 } from './types'
+import type { BoardPart, BoxCut, Component, ComponentId, Face, Part, Vec3 } from './types'
 import type { JointSuggestion } from './suggestJoints'
 import { suggestionFaceRefs, faceHitForDisplay } from './suggestJoints'
 import { computeFaceCorners } from './snapMath'
@@ -53,9 +53,10 @@ function lapFace(part: BoardPart, cut: BoxCut): Face {
 function cutOutlines(
   joint: Parameters<typeof deriveJoint>[0],
   parts: Part[],
+  byId: Map<ComponentId, Component>,
   faceOf?: (part: BoardPart, cut: BoxCut) => Face,
 ): Outline[] | null {
-  const derived = deriveJoint(joint, parts)
+  const derived = deriveJoint(joint, parts, byId)
   if (!derived) return null
   return derived.cuts.flatMap(({ partId, cut }) => {
     const p = board(parts, partId)
@@ -75,7 +76,11 @@ function cutOutlines(
 // share a contact pair and resolve to the *same* two faces (see suggestJoints.test.ts), and a
 // finger joint's plain end face says nothing about the comb of slots that defines it.
 // faceOutlines survives only as the fallback for a joint deriveJoint cannot resolve.
-export function suggestionOutlines(s: JointSuggestion, parts: Part[]): Outline[] {
+export function suggestionOutlines(
+  s: JointSuggestion,
+  parts: Part[],
+  byId: Map<ComponentId, Component>,
+): Outline[] {
   if (s.kind === 'halflap') {
     // A crossing overlap has no pair of mating faces, so this kind previewed nothing at all
     // before footprints existed — only the neighbour tint. Its lap cuts give it one.
@@ -83,7 +88,7 @@ export function suggestionOutlines(s: JointSuggestion, parts: Part[]): Outline[]
     const b = board(parts, s.partBId)
     if (!a || !b) return []
     const joint = defaultHalfLapJoint(a, b, PREVIEW_ID, PREVIEW_LABEL)
-    return cutOutlines(joint, parts, lapFace) ?? []
+    return cutOutlines(joint, parts, byId, lapFace) ?? []
   }
   if (s.kind === 'dado') {
     const housing = board(parts, s.housingPartId)
@@ -97,14 +102,14 @@ export function suggestionOutlines(s: JointSuggestion, parts: Part[]): Outline[]
       PREVIEW_ID,
       PREVIEW_LABEL,
     )
-    return cutOutlines(joint, parts) ?? faceOutlines(s, parts)
+    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts)
   }
   if (s.kind === 'finger') {
     const a = board(parts, s.partAId)
     const b = board(parts, s.partBId)
     if (!a || !b) return []
     const joint = defaultFingerJoint(a, b, s.endA, s.endB, PREVIEW_ID, PREVIEW_LABEL)
-    return cutOutlines(joint, parts) ?? faceOutlines(s, parts)
+    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts)
   }
   if (s.kind === 'tongue-groove') {
     const groove = board(parts, s.groovePartId)
@@ -118,7 +123,7 @@ export function suggestionOutlines(s: JointSuggestion, parts: Part[]): Outline[]
       PREVIEW_ID,
       PREVIEW_LABEL,
     )
-    return cutOutlines(joint, parts) ?? faceOutlines(s, parts)
+    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts)
   }
   if (s.kind === 'mortise-tenon') {
     const mortise = board(parts, s.mortisePartId)
@@ -132,7 +137,7 @@ export function suggestionOutlines(s: JointSuggestion, parts: Part[]): Outline[]
       PREVIEW_ID,
       PREVIEW_LABEL,
     )
-    return cutOutlines(joint, parts) ?? faceOutlines(s, parts)
+    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts)
   }
   return faceOutlines(s, parts)
 }

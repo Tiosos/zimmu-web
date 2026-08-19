@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import type {
   BoardPart,
   BoxCut,
+  Component,
+  ComponentId,
   CutId,
   DadoJoint,
   Face,
@@ -265,12 +267,16 @@ export function computeNotch(
   }
 }
 
-export function deriveJoint(joint: Joint, parts: Part[]): DeriveResult | null {
+export function deriveJoint(
+  joint: Joint,
+  parts: Part[],
+  byId: Map<ComponentId, Component>,
+): DeriveResult | null {
   switch (joint.kind) {
     case 'dado':
       return deriveDadoJoint(joint, parts)
     case 'halflap':
-      return deriveHalfLap(joint, parts)
+      return deriveHalfLap(joint, parts, byId)
     case 'mortise-tenon':
       return deriveMortiseTenon(joint, parts)
     case 'finger':

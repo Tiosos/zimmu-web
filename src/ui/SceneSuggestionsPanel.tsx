@@ -4,6 +4,7 @@ import type { JointSuggestion } from '../scene/suggestJoints'
 import { pairIdsOf } from '../scene/suggestJoints'
 import { orientationArrow } from '../scene/groupSuggestions'
 import { buildJointChecklist } from '../scene/jointChecklist'
+import { componentsById } from '../scene/componentTree'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useMemo, useState } from 'react'
@@ -66,8 +67,9 @@ export function SceneSuggestionsPanel({
   const [open, setOpen] = useState(false)
   const [unresolvedOpen, setUnresolvedOpen] = useState(false)
   const { rows, unresolved, jointedCount, actionableTotal } = useMemo(
-    () => buildJointChecklist(scene.parts, scene.joints, suggestions),
-    [scene.parts, scene.joints, suggestions],
+    () =>
+      buildJointChecklist(scene.parts, scene.joints, suggestions, componentsById(scene.components)),
+    [scene.parts, scene.joints, scene.components, suggestions],
   )
   if (rows.length === 0 && unresolved.length === 0) return null
   return (

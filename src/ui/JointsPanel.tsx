@@ -5,6 +5,7 @@ import { isValidHalfLap } from '../geom/halflap'
 import { isValidTongueGroove } from '../geom/tonguegroove'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { jointInvolves } from '../scene/jointInvolves'
+import { componentsById } from '../scene/componentTree'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -65,6 +66,7 @@ export function JointsPanel({
 }) {
   const joints = scene.joints.filter((j) => jointInvolves(j, part.id))
   if (joints.length === 0) return null
+  const componentMap = componentsById(scene.components)
 
   return (
     <>
@@ -73,7 +75,8 @@ export function JointsPanel({
         if (j.kind === 'halflap') {
           const a = scene.parts.find((p) => p.id === j.partAId)
           const b = scene.parts.find((p) => p.id === j.partBId)
-          const stale = a?.kind === 'board' && b?.kind === 'board' ? !isValidHalfLap(a, b) : true
+          const stale =
+            a?.kind === 'board' && b?.kind === 'board' ? !isValidHalfLap(a, b, componentMap) : true
           const other = j.partAId === part.id ? j.partBId : j.partAId
           return (
             <div key={j.id} className="border-t border-border/30 pt-1 pb-1">

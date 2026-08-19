@@ -17,6 +17,9 @@ import {
   suggestionFaceRefs,
   faceHitForDisplay,
 } from './suggestJoints'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
 
@@ -76,15 +79,15 @@ test('synthHit produces a FaceHit whose local normal round-trips to the same fac
 })
 
 test('contactPair finds the broad/end faces of a perpendicular tee', () => {
-  expect(contactPair(teeH, teeD)).toEqual({ faceA: '+Z', faceB: '-X' })
+  expect(contactPair(teeH, teeD, NO_COMPONENTS)).toEqual({ faceA: '+Z', faceB: '-X' })
 })
 
 test('contactPair finds the long-edge faces of a coplanar edge joint', () => {
-  expect(contactPair(edgeG, edgeE)).toEqual({ faceA: '+Y', faceB: '-Y' })
+  expect(contactPair(edgeG, edgeE, NO_COMPONENTS)).toEqual({ faceA: '+Y', faceB: '-Y' })
 })
 
 test('contactPair returns null for separated boards', () => {
-  expect(contactPair(farA, farB)).toBeNull()
+  expect(contactPair(farA, farB, NO_COMPONENTS)).toBeNull()
 })
 
 // contactPair now gates on boardsTouch rather than its own copy of the separation test, so the two
@@ -105,10 +108,10 @@ test('contactPair and boardsTouch agree at the touch tolerance', () => {
     thickness: 18,
     position: { x: 0, y: 0, z: 22 },
   })
-  expect(boardsTouch(base, near)).toBe(true)
-  expect(contactPair(base, near)).not.toBeNull()
-  expect(boardsTouch(base, far)).toBe(false)
-  expect(contactPair(base, far)).toBeNull()
+  expect(boardsTouch(base, near, NO_COMPONENTS)).toBe(true)
+  expect(contactPair(base, near, NO_COMPONENTS)).not.toBeNull()
+  expect(boardsTouch(base, far, NO_COMPONENTS)).toBe(false)
+  expect(contactPair(base, far, NO_COMPONENTS)).toBeNull()
 })
 
 // Two crossing coplanar equal-thickness boards → half-lap.
@@ -126,7 +129,7 @@ const cyl = { ...board({ id: 'CY' }), kind: 'cylinder' as const, diameter: 10 } 
 const hidden = board({ id: 'HID', visible: false })
 
 function kinds(parts: Part[], selectedId: string, joints: Joint[] = []): string[] {
-  return suggestJointsFor(selectedId, parts, joints)
+  return suggestJointsFor(selectedId, parts, joints, NO_COMPONENTS)
     .map((s) => s.kind)
     .sort()
 }
@@ -144,7 +147,7 @@ test('crossing coplanar boards suggest half-lap', () => {
 })
 
 test('separated boards yield no suggestions', () => {
-  expect(suggestJointsFor('FA', [farA, farB], [])).toEqual([])
+  expect(suggestJointsFor('FA', [farA, farB], [], NO_COMPONENTS)).toEqual([])
 })
 
 test('an already-joined pair yields no suggestion for that pair', () => {
@@ -154,13 +157,13 @@ test('an already-joined pair yields no suggestion for that pair', () => {
     housingPartId: 'H',
     housedPartId: 'D',
   } as unknown as Joint
-  expect(suggestJointsFor('H', [teeH, teeD], [joint])).toEqual([])
+  expect(suggestJointsFor('H', [teeH, teeD], [joint], NO_COMPONENTS)).toEqual([])
 })
 
 test('null selection, a cylinder, or a hidden board yield no suggestions', () => {
-  expect(suggestJointsFor(null, [teeH, teeD], [])).toEqual([])
-  expect(suggestJointsFor('CY', [cyl, teeD], [])).toEqual([])
-  expect(suggestJointsFor('HID', [hidden, teeD], [])).toEqual([])
+  expect(suggestJointsFor(null, [teeH, teeD], [], NO_COMPONENTS)).toEqual([])
+  expect(suggestJointsFor('CY', [cyl, teeD], [], NO_COMPONENTS)).toEqual([])
+  expect(suggestJointsFor('HID', [hidden, teeD], [], NO_COMPONENTS)).toEqual([])
 })
 
 test('every emitted suggestion round-trips through its validity gate', () => {
@@ -172,9 +175,11 @@ test('every emitted suggestion round-trips through its validity gate', () => {
   ]
   const asBoard = (parts: Part[], id: string) => parts.find((p) => p.id === id) as BoardPart
   for (const { parts, sel } of scenes) {
-    for (const s of suggestJointsFor(sel, parts, [])) {
+    for (const s of suggestJointsFor(sel, parts, [], NO_COMPONENTS)) {
       if (s.kind === 'halflap') {
-        expect(isValidHalfLap(asBoard(parts, s.partAId), asBoard(parts, s.partBId))).toBe(true)
+        expect(
+          isValidHalfLap(asBoard(parts, s.partAId), asBoard(parts, s.partBId), NO_COMPONENTS),
+        ).toBe(true)
       } else if (s.kind === 'dado') {
         expect(
           isValidDadoSeat(
@@ -226,7 +231,7 @@ const teeDFar = board({
 })
 
 test('suggestions are ordered nearest-neighbour first', () => {
-  const out = suggestJointsFor('H', [teeH, teeD, teeDFar], [])
+  const out = suggestJointsFor('H', [teeH, teeD, teeDFar], [], NO_COMPONENTS)
   const firstFar = out.findIndex((s) => s.neighborId === 'D2')
   const lastNear = out.map((s) => s.neighborId).lastIndexOf('D')
   expect(firstFar).toBeGreaterThan(lastNear)
@@ -255,15 +260,15 @@ const faceStandB = board({
 })
 
 test('cornerPair finds the two end faces of a flush right-angle corner', () => {
-  expect(cornerPair(cornerA, cornerB)).toEqual({ endA: '+X', endB: '-X' })
+  expect(cornerPair(cornerA, cornerB, NO_COMPONENTS)).toEqual({ endA: '+X', endB: '-X' })
 })
 
 test('cornerPair returns null for separated boards', () => {
-  expect(cornerPair(farA, farB)).toBeNull()
+  expect(cornerPair(farA, farB, NO_COMPONENTS)).toBeNull()
 })
 
 test('cornerPair rejects a board standing mid-face, not at an end', () => {
-  expect(cornerPair(cornerA, faceStandB)).toBeNull()
+  expect(cornerPair(cornerA, faceStandB, NO_COMPONENTS)).toBeNull()
 })
 
 // Pinned as an exact set, not toContain: a butt corner offering all three is the most visible
@@ -355,7 +360,7 @@ test('suggestionFaceRefs: finger maps both ends', () => {
 // perpendicular tee and every butt corner. Telling them apart needs something other than
 // which faces are involved (they differ in how much material comes out, not where).
 test('dado and mortise-tenon resolve to identical faces — outlines cannot distinguish them', () => {
-  const suggestions = suggestJointsFor('H', [teeH, teeD], [])
+  const suggestions = suggestJointsFor('H', [teeH, teeD], [], NO_COMPONENTS)
   const dado = suggestions.find((s) => s.kind === 'dado')
   const mortiseTenon = suggestions.find((s) => s.kind === 'mortise-tenon')
   expect(dado).toBeDefined()
@@ -382,7 +387,7 @@ const crowdedShelf = [shelf, ...[40, 80, 120, 160, 200].map((x, i) => upright(`U
 // of 8 silently hid 5 — including, because the sort is nearest-neighbour first, the whole
 // side-to-top joint. A dropped row is indistinguishable from a joint the engine cannot make.
 test('a board reports every candidate joint, not a truncated few', () => {
-  const out = suggestJointsFor('S', crowdedShelf, [])
+  const out = suggestJointsFor('S', crowdedShelf, [], NO_COMPONENTS)
   expect(out).toHaveLength(10)
   const neighbours = [...new Set(out.map((s) => s.neighborId))].sort()
   expect(neighbours).toEqual(['U1', 'U2', 'U3', 'U4', 'U5'])
@@ -414,7 +419,7 @@ test('faceHitForDisplay keeps the local normal and adds the world normal', () =>
 // which board was selected) but genuinely different joints for finger and tongue & groove.
 
 function sceneKinds(parts: Part[]): string[] {
-  return suggestJointsForScene(parts, [])
+  return suggestJointsForScene(parts, [], NO_COMPONENTS)
     .map((s) => s.kind)
     .sort()
 }
@@ -429,7 +434,9 @@ test('scene: a crossing lap yields one half-lap, not one per direction', () => {
 })
 
 test('scene: an edge glue-up offers the groove on either board', () => {
-  const tg = suggestJointsForScene([edgeG, edgeE], []).filter((s) => s.kind === 'tongue-groove')
+  const tg = suggestJointsForScene([edgeG, edgeE], [], NO_COMPONENTS).filter(
+    (s) => s.kind === 'tongue-groove',
+  )
   expect(tg).toHaveLength(2)
   // The whole point of keeping both: which board carries the groove is a real choice.
   const grooved = tg.map((s) => (s.kind === 'tongue-groove' ? s.groovePartId : '')).sort()
@@ -437,7 +444,9 @@ test('scene: an edge glue-up offers the groove on either board', () => {
 })
 
 test('scene: a box corner offers the finger joint led from either board', () => {
-  const finger = suggestJointsForScene([cornerA, cornerB], []).filter((s) => s.kind === 'finger')
+  const finger = suggestJointsForScene([cornerA, cornerB], [], NO_COMPONENTS).filter(
+    (s) => s.kind === 'finger',
+  )
   expect(finger).toHaveLength(2)
   // partAId is the board that stays put while the other auto-seats — not interchangeable.
   const leads = finger.map((s) => (s.kind === 'finger' ? s.partAId : '')).sort()
@@ -455,17 +464,17 @@ test('scene: a pair that already carries a joint is skipped, as in the per-part 
     split: 0.5,
     clearance: 0,
   }
-  expect(suggestJointsForScene([lapA, lapB], [joint])).toEqual([])
+  expect(suggestJointsForScene([lapA, lapB], [joint], NO_COMPONENTS)).toEqual([])
 })
 
 test('scene: hidden boards are excluded', () => {
-  expect(suggestJointsForScene([lapA, { ...lapB, visible: false }], [])).toEqual([])
+  expect(suggestJointsForScene([lapA, { ...lapB, visible: false }], [], NO_COMPONENTS)).toEqual([])
 })
 
 test('scene: every per-part suggestion for a board is reachable scene-wide', () => {
   const parts = [teeH, teeD]
-  const scene = suggestJointsForScene(parts, [])
-  for (const s of suggestJointsFor('H', parts, [])) {
+  const scene = suggestJointsForScene(parts, [], NO_COMPONENTS)
+  for (const s of suggestJointsFor('H', parts, [], NO_COMPONENTS)) {
     expect(
       scene.some(
         (x) => x.kind === s.kind && pairIdsOf(x).sort().join() === pairIdsOf(s).sort().join(),
@@ -477,7 +486,7 @@ test('scene: every per-part suggestion for a board is reachable scene-wide', () 
 
 test('pairIdsOf names both boards for every kind', () => {
   const parts = [cornerA, cornerB]
-  for (const s of suggestJointsForScene(parts, [])) {
+  for (const s of suggestJointsForScene(parts, [], NO_COMPONENTS)) {
     expect(pairIdsOf(s).sort()).toEqual(['CA', 'CB'])
   }
 })
@@ -490,7 +499,7 @@ test('scene: an all-pairs pass over a 24-board scene stays within budget', () =>
     )
   }
   const t0 = performance.now()
-  suggestJointsForScene(many, [])
+  suggestJointsForScene(many, [], NO_COMPONENTS)
   // Measured ~30ms for the equivalent per-part sweep; this guards an order-of-magnitude regression,
   // not a precise number, since it recomputes on every scene.parts change.
   expect(performance.now() - t0).toBeLessThan(300)
@@ -524,15 +533,15 @@ test('scene: the suggestion list is not truncated', () => {
       }),
     )
   }
-  expect(suggestJointsForScene(many, []).length).toBeGreaterThan(100)
+  expect(suggestJointsForScene(many, [], NO_COMPONENTS).length).toBeGreaterThan(100)
 })
 
 // The checklist's denominator is this predicate, so it must agree with the engine's own idea of
 // "these two boards meet" rather than being a third private copy.
 test('boardsTouch: true for boards that meet, false for separated boards', () => {
-  expect(boardsTouch(teeH, teeD)).toBe(true)
+  expect(boardsTouch(teeH, teeD, NO_COMPONENTS)).toBe(true)
   const far = board({ id: 'F', position: { x: 5000, y: 0, z: 0 } })
-  expect(boardsTouch(teeH, far)).toBe(false)
+  expect(boardsTouch(teeH, far, NO_COMPONENTS)).toBe(false)
 })
 
 test('boardsTouch: true for boards touching broad face to broad face', () => {
@@ -544,5 +553,5 @@ test('boardsTouch: true for boards touching broad face to broad face', () => {
     thickness: 18,
     position: { x: 0, y: 0, z: 18 },
   })
-  expect(boardsTouch(lower, upper)).toBe(true)
+  expect(boardsTouch(lower, upper, NO_COMPONENTS)).toBe(true)
 })

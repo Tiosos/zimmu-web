@@ -1,6 +1,20 @@
-import type { BoardPart, BoxCut, CutId, HalfLapJoint, Part, Vec3 } from '../scene/types'
+import type {
+  BoardPart,
+  BoxCut,
+  Component,
+  ComponentId,
+  CutId,
+  HalfLapJoint,
+  Part,
+  Vec3,
+} from '../scene/types'
 import type { DeriveResult } from './dado'
-import { applyInverseToPoint, applyMatrixToPoint, composeWorldMatrix } from './transform'
+import {
+  applyInverseToPoint,
+  applyMatrixToPoint,
+  composeWorldMatrix,
+  resolveWorldMatrix,
+} from './transform'
 
 type Axis = 'x' | 'y' | 'z'
 const AXES: Axis[] = ['x', 'y', 'z']
@@ -14,16 +28,26 @@ function boardDims(b: BoardPart): Record<Axis, number> {
   return { x: b.length, y: b.width, z: b.thickness }
 }
 
-// Keyed by board identity, not by value: the scene stores parts immutably, so an edit yields a new
-// object and a stale entry is unreachable. This turns the checklist's two O(n^2) pair walks — each
-// recomputing every board's AABB — into one compute per board. A WeakMap lets a deleted part's entry
-// be collected with it.
-const aabbCache = new WeakMap<BoardPart, { min: Vec3; max: Vec3 }>()
+// Keyed by board identity, but validated against the resolved world matrix: an ancestor component
+// can move without producing a new part object, so identity alone would serve a stale box. The
+// matrix is compared by value, not the tree by reference, so a rebuilt-but-equal tree still hits.
+// This turns the checklist's two O(n^2) pair walks — each recomputing every board's AABB — into one
+// compute per board. A WeakMap lets a deleted part's entry be collected with it.
+const aabbCache = new WeakMap<BoardPart, { matrix: Float64Array; box: { min: Vec3; max: Vec3 } }>()
 
-export function worldAabb(b: BoardPart): { min: Vec3; max: Vec3 } {
+function sameMatrix(a: Float64Array, b: Float64Array): boolean {
+  for (let i = 0; i < 16; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
+export function worldAabb(
+  b: BoardPart,
+  byId: Map<ComponentId, Component>,
+): { min: Vec3; max: Vec3 } {
+  const m = resolveWorldMatrix(b, byId)
   const cached = aabbCache.get(b)
-  if (cached) return cached
-  const m = composeWorldMatrix(b)
+  if (cached && sameMatrix(cached.matrix, m)) return cached.box
+
   const d = boardDims(b)
   const min: Vec3 = { x: Infinity, y: Infinity, z: Infinity }
   const max: Vec3 = { x: -Infinity, y: -Infinity, z: -Infinity }
@@ -41,7 +65,7 @@ export function worldAabb(b: BoardPart): { min: Vec3; max: Vec3 } {
     }
   }
   const box = { min, max }
-  aabbCache.set(b, box)
+  aabbCache.set(b, { matrix: m, box })
   return box
 }
 
@@ -65,12 +89,16 @@ function isAxisAligned(b: BoardPart): boolean {
   return cols.every((c) => Math.max(Math.abs(c[0]), Math.abs(c[1]), Math.abs(c[2])) >= 1 - EPS)
 }
 
-export function isValidHalfLap(a: BoardPart, b: BoardPart): boolean {
+export function isValidHalfLap(
+  a: BoardPart,
+  b: BoardPart,
+  byId: Map<ComponentId, Component>,
+): boolean {
   if (!isAxisAligned(a) || !isAxisAligned(b)) return false
   const s = stackAxis(a)
   if (stackAxis(b) !== s) return false
-  const A = worldAabb(a)
-  const B = worldAabb(b)
+  const A = worldAabb(a, byId)
+  const B = worldAabb(b, byId)
   if (Math.abs(A.min[s] - B.min[s]) > EPS || Math.abs(A.max[s] - B.max[s]) > EPS) return false
   for (const ax of AXES) {
     if (ax === s) continue
@@ -116,15 +144,19 @@ function worldBoxToLocalCut(
   }
 }
 
-export function deriveHalfLap(joint: HalfLapJoint, parts: Part[]): DeriveResult | null {
+export function deriveHalfLap(
+  joint: HalfLapJoint,
+  parts: Part[],
+  byId: Map<ComponentId, Component>,
+): DeriveResult | null {
   const a = parts.find((p) => p.id === joint.partAId)
   const b = parts.find((p) => p.id === joint.partBId)
   if (a?.kind !== 'board' || b?.kind !== 'board') return null
-  if (!isValidHalfLap(a, b)) return null
+  if (!isValidHalfLap(a, b, byId)) return null
 
   const s = stackAxis(a)
-  const A = worldAabb(a)
-  const B = worldAabb(b)
+  const A = worldAabb(a, byId)
+  const B = worldAabb(b, byId)
   const s0 = A.min[s]
   const s1 = A.max[s]
   const mid = s0 + clamp(joint.split, 0.05, 0.95) * (s1 - s0)

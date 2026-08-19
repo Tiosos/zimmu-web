@@ -1,4 +1,4 @@
-import type { BoardPart, Joint, Part, PartId } from './types'
+import type { BoardPart, Component, ComponentId, Joint, Part, PartId } from './types'
 import type { JointSuggestion } from './suggestJoints'
 import { boardsTouch, aabbCenterDist } from './suggestJoints'
 import { obbOverlap } from './obbOverlap'
@@ -68,6 +68,7 @@ export function buildJointChecklist(
   parts: Part[],
   joints: Joint[],
   suggestions: JointSuggestion[],
+  byId: Map<ComponentId, Component>,
 ): JointChecklist {
   // The same filter suggestJointsForScene uses. Any divergence would produce rows for pairs the
   // engine never considered.
@@ -95,8 +96,8 @@ export function buildJointChecklist(
       // A recorded joint admits the row on its own. reconcileJoints preserves a stale joint, so a
       // joint outlives its boards being moved apart; gating on adjacency alone would drop the row
       // and silently decrement jointedCount.
-      if (!js && !boardsTouch(a, b)) continue
-      const dist = aabbCenterDist(a, b)
+      if (!js && !boardsTouch(a, b, byId)) continue
+      const dist = aabbCenterDist(a, b, byId)
       if (js) {
         rows.push({ key, aId: a.id, bId: b.id, state: 'jointed', options: [], joints: js, dist })
         continue

@@ -4,6 +4,7 @@ import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
 import { suggestJointsFor, suggestJointsForScene, synthHit, pairIdsOf } from './scene/suggestJoints'
 import { suggestionOutlines } from './scene/suggestionOutline'
+import { componentsById } from './scene/componentTree'
 import type { JointSuggestion } from './scene/suggestJoints'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
@@ -58,14 +59,16 @@ function App() {
     onUpdateHardware,
   } = useScene()
 
+  const componentMap = useMemo(() => componentsById(scene.components), [scene.components])
+
   const suggestions = useMemo(
-    () => suggestJointsFor(selectedId, scene.parts, scene.joints),
-    [selectedId, scene.parts, scene.joints],
+    () => suggestJointsFor(selectedId, scene.parts, scene.joints, componentMap),
+    [selectedId, scene.parts, scene.joints, componentMap],
   )
 
   const sceneSuggestions = useMemo(
-    () => suggestJointsForScene(scene.parts, scene.joints),
-    [scene.parts, scene.joints],
+    () => suggestJointsForScene(scene.parts, scene.joints, componentMap),
+    [scene.parts, scene.joints, componentMap],
   )
 
   const [hoveredSuggestion, setHoveredSuggestion] = useState<JointSuggestion | null>(null)
@@ -81,8 +84,9 @@ function App() {
     [hoveredSuggestion, hoveredPair],
   )
   const hoveredOutlines = useMemo(
-    () => (hoveredSuggestion ? suggestionOutlines(hoveredSuggestion, scene.parts) : null),
-    [hoveredSuggestion, scene.parts],
+    () =>
+      hoveredSuggestion ? suggestionOutlines(hoveredSuggestion, scene.parts, componentMap) : null,
+    [hoveredSuggestion, scene.parts, componentMap],
   )
   const applySuggestion = useCallback(
     (s: JointSuggestion) => {
