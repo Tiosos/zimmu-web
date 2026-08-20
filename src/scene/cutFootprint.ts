@@ -1,6 +1,6 @@
-import type { BoardPart, BoxCut, Vec3 } from './types'
+import type { BoardPart, BoxCut, Component, ComponentId, Vec3 } from './types'
 import { faceAxes } from './snapMath'
-import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
+import { resolveWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 
 type Axis = 'x' | 'y' | 'z'
 
@@ -20,7 +20,11 @@ function boardDims(b: BoardPart): Record<Axis, number> {
 //
 // Board-local space runs 0..length, 0..width, 0..thickness (see computeLocalFaceCenter), which is
 // the same origin convention BoxCut.position uses — no rebasing needed.
-export function cutFootprintCorners(part: BoardPart, cut: BoxCut): [Vec3, Vec3, Vec3, Vec3] {
+export function cutFootprintCorners(
+  part: BoardPart,
+  cut: BoxCut,
+  byId: Map<ComponentId, Component>,
+): [Vec3, Vec3, Vec3, Vec3] {
   const { depth: dAx, u, v } = faceAxes(cut.face)
   const dims = boardDims(part)
 
@@ -33,7 +37,7 @@ export function cutFootprintCorners(part: BoardPart, cut: BoxCut): [Vec3, Vec3, 
   const v0 = cut.position[v]
   const v1 = v0 + cut.size[v]
 
-  const m = composeWorldMatrix(part)
+  const m = resolveWorldMatrix(part, byId)
   const corner = (uu: number, vv: number): Vec3 => {
     const local: Vec3 = { x: 0, y: 0, z: 0 }
     local[dAx] = d

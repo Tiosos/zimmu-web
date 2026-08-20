@@ -275,3 +275,71 @@ freshly built tree", which was verified to fail against a reference-comparing im
 Nothing read the field until this task, so it passed. Filling it in is fixture completion, not an
 expectation change — but it is a reminder that a partial mock of `Scene` hides a whole phase's worth
 of breakage until the first reader appears.
+
+## 2026-08-20 — file-list audit over Phases 3-10
+
+Run after Phase 2's consumer list turned out to be 11 files rather than the 6 the plan named — the
+third under-count in one phase. The question was whether the same scoping error repeats downstream.
+
+**It mostly does not.** Phases 3, 4 and 7 audit clean. Two phases had a single missed file each. One
+phase had a problem worse than a missed file.
+
+| Phase | Planned | Actual | Verdict |
+|---|---|---|---|
+| 3 — selection model | 3 files | 4 production | Sound (see below) |
+| 4 — regeneration pipeline | 4 `reconcileJoints` sites | 4 | Accurate |
+| 6 — detach prompt | `EditPanel` | + `DowelCutsPanel` consumes `onUpdate` | Noted |
+| 7 — checklist grouping | 2 files | 2 | Accurate |
+| 8 — hole arrays | 4 files | **discovery mechanism unsound** | Amended |
+| 9 — cutting list | 2 files | + `BomModal` calls `groupParts` | Amended |
+| 10 — docs | n/a | n/a | n/a |
+
+### Phase 3's containment was a good decision, and the audit proves it
+
+Ten files mention `selectedId`. Only four are real consumers. The reason is the plan's choice to keep
+`selectedId` as a **derived** field on `UseSceneResult`:
+
+```ts
+const selectedId = selection?.kind === 'part' ? selection.id : null
+```
+
+`suggestJoints.ts:368` takes `selectedId` as a parameter and never learns the selection model changed.
+`HardwareTab.tsx` has its own unrelated local `selectedId` `useState` for hardware rows — a name
+collision, not a consumer at all. Widening the state while preserving the old projection is what keeps
+this phase from touching six extra files, and it is worth reusing whenever a state shape widens.
+
+### Phase 8: the compiler will NOT find every CutDef discrimination site
+
+The most valuable finding, and it contradicts what the plan told the implementer to do. Widening
+`CutDef` with `HoleArrayCut` produces two failure shapes and only one of them errors:
+
+```ts
+// utils.ts:9-11 — property access in the else branch. TS ERRORS: c.end is not on HoleArrayCut.
+c.kind === 'box' ? `b:…` : `m:${c.end}|${c.axis}|${c.angle}`
+
+// drawing.ts:261-262 — filter with a type predicate. TS IS SILENT.
+const boxCuts = p.cuts.filter((c): c is BoxCut => c.kind === 'box')
+const mitres  = p.cuts.filter((c): c is MitreCut => c.kind === 'mitre')
+```
+
+The second compiles clean and silently drops hole arrays from both lists. The symptom would be shelf-pin
+rows that never appear in a shop drawing, with no error anywhere — found by a user, not by CI.
+
+Task 8.4 happens to cover `drawing.ts` by intent, so this specific instance was already handled. The
+defect is the **method**: Step 4 told the implementer to run `pnpm typecheck` and fix what it flags,
+which would have left any filter-shaped site undiscovered. Step 4 now requires enumerating all 15
+production files that mention `'box'`/`'mitre'` and triaging each into construct /
+discriminate-by-property / discriminate-by-filter, treating typecheck output as a subset of the work
+rather than the whole of it.
+
+**General lesson: a discriminated union is only as exhaustive as the shape of the code reading it.**
+`switch` with a `never` guard is checked; a ternary's else-branch is checked only if it touches a
+member-specific property; a `filter` predicate is not checked at all.
+
+### On the scoping method itself
+
+Three under-counts in Phase 2 and two in Phases 3-10 share one cause: the lists were written by
+grepping for direct consumers of the symbol being changed, which finds the first ring and misses the
+ring above it. `worldAabb` → `suggestJoints` was obvious; `suggestJoints` → `jointChecklist` →
+`SceneSuggestionsPanel` was not. For any future signature change, the list should be built by
+following the compiler out to a fixpoint on a scratch branch, not by grepping once.

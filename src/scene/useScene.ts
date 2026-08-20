@@ -32,7 +32,7 @@ import {
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidTongueGroove } from '../geom/tonguegroove'
 import { PART_COLORS } from './palette'
-import { composeWorldMatrix } from '../geom/transform'
+import { resolveWorldMatrix } from '../geom/transform'
 
 interface HistoryEntry {
   label: string
@@ -1108,6 +1108,7 @@ export function useScene(): UseSceneResult {
   }, [])
 
   const exportStep = useCallback(async (parts: Part[]): Promise<string> => {
+    const byId = componentsById(sceneRef.current.components)
     const specs: ExportSpec[] = parts.map((p) =>
       p.kind === 'board'
         ? {
@@ -1117,7 +1118,7 @@ export function useScene(): UseSceneResult {
             width: p.width,
             thickness: p.thickness,
             cuts: p.cuts,
-            matrix: Array.from(composeWorldMatrix(p)),
+            matrix: Array.from(resolveWorldMatrix(p, byId)),
           }
         : {
             kind: 'cylinder',
@@ -1125,7 +1126,7 @@ export function useScene(): UseSceneResult {
             diameter: p.diameter,
             length: p.length,
             cuts: p.cuts,
-            matrix: Array.from(composeWorldMatrix(p)),
+            matrix: Array.from(resolveWorldMatrix(p, byId)),
           },
     )
     return getOcct().exportStep(specs)

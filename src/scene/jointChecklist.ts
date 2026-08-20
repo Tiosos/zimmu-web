@@ -113,7 +113,7 @@ export function buildJointChecklist(
           joints: [],
           dist,
         })
-      } else if (obbOverlap(a, b)) {
+      } else if (obbOverlap(a, b, byId)) {
         // boardsTouch is an AABB test — it over-reports for a diagonal corner-kiss or a rotated
         // board whose axis-aligned bounds balloon past its footprint. The oriented-box check keeps
         // the muted group honest: a pair that only overlaps as loose bounding boxes gets no row at

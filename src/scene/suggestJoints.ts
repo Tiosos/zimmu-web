@@ -9,7 +9,7 @@ import type {
   PartId,
   Vec3,
 } from './types'
-import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
+import { resolveWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 import { worldAabb, isValidHalfLap } from '../geom/halflap'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
@@ -111,8 +111,8 @@ const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
 type WorldAxis = 'x' | 'y' | 'z'
 const WORLD_AXES: WorldAxis[] = ['x', 'y', 'z']
 
-function worldFaceNormal(b: BoardPart, f: Face): Vec3 {
-  const m = composeWorldMatrix(b)
+function worldFaceNormal(b: BoardPart, f: Face, byId: Map<ComponentId, Component>): Vec3 {
+  const m = resolveWorldMatrix(b, byId)
   const col = f.includes('X')
     ? [m[0], m[1], m[2]]
     : f.includes('Y')
@@ -125,10 +125,14 @@ function worldFaceNormal(b: BoardPart, f: Face): Vec3 {
 // Render-ready hit: computeFaceCorners reads localFaceNormal, while updateHighlight's 1mm
 // clearance offset reads faceNormal and needs it in WORLD space. synthHit sets both to the
 // local normal, which is correct for the onAdd* creators but wrong for drawing.
-export function faceHitForDisplay(part: BoardPart, face: Face): FaceHit {
+export function faceHitForDisplay(
+  part: BoardPart,
+  face: Face,
+  byId: Map<ComponentId, Component>,
+): FaceHit {
   return {
     partId: part.id,
-    faceNormal: worldFaceNormal(part, face),
+    faceNormal: worldFaceNormal(part, face, byId),
     faceCenter: ZERO,
     localFaceNormal: FACE_NORMALS[face],
     localHitPoint: ZERO,
@@ -136,9 +140,14 @@ export function faceHitForDisplay(part: BoardPart, face: Face): FaceHit {
   }
 }
 
-function faceTowardWorld(b: BoardPart, ax: WorldAxis, sign: number): Face | null {
+function faceTowardWorld(
+  b: BoardPart,
+  ax: WorldAxis,
+  sign: number,
+  byId: Map<ComponentId, Component>,
+): Face | null {
   for (const f of FACES) {
-    const n = worldFaceNormal(b, f)
+    const n = worldFaceNormal(b, f, byId)
     if (n[ax] * sign > 1 - EPS) return f
   }
   return null
@@ -183,8 +192,8 @@ export function contactPair(
   const aMid = (A.min[contactAx] + A.max[contactAx]) / 2
   const bMid = (B.min[contactAx] + B.max[contactAx]) / 2
   const sign = bMid >= aMid ? 1 : -1
-  const faceA = faceTowardWorld(a, contactAx, sign)
-  const faceB = faceTowardWorld(b, contactAx, -sign)
+  const faceA = faceTowardWorld(a, contactAx, sign, byId)
+  const faceB = faceTowardWorld(b, contactAx, -sign, byId)
   return faceA && faceB ? { faceA, faceB } : null
 }
 
@@ -198,7 +207,12 @@ function aabbCenter(box: { min: Vec3; max: Vec3 }): Vec3 {
   }
 }
 
-function endTowardPoint(b: BoardPart, selfCenter: Vec3, target: Vec3): Face | null {
+function endTowardPoint(
+  b: BoardPart,
+  selfCenter: Vec3,
+  target: Vec3,
+  byId: Map<ComponentId, Component>,
+): Face | null {
   const d = {
     x: target.x - selfCenter.x,
     y: target.y - selfCenter.y,
@@ -207,7 +221,7 @@ function endTowardPoint(b: BoardPart, selfCenter: Vec3, target: Vec3): Face | nu
   let best: Face | null = null
   let bestDot = 0 // strictly positive: the end must actually face the other board
   for (const f of NON_BROAD_FACES) {
-    const n = worldFaceNormal(b, f)
+    const n = worldFaceNormal(b, f, byId)
     const dot = n.x * d.x + n.y * d.y + n.z * d.z
     if (dot > bestDot) {
       bestDot = dot
@@ -217,9 +231,9 @@ function endTowardPoint(b: BoardPart, selfCenter: Vec3, target: Vec3): Face | nu
   return best
 }
 
-function endFaceCenterWorld(b: BoardPart, f: Face): Vec3 {
+function endFaceCenterWorld(b: BoardPart, f: Face, byId: Map<ComponentId, Component>): Vec3 {
   const local = computeLocalFaceCenter(FACE_NORMALS[f], b)
-  const [x, y, z] = applyMatrixToPoint(composeWorldMatrix(b), local.x, local.y, local.z)
+  const [x, y, z] = applyMatrixToPoint(resolveWorldMatrix(b, byId), local.x, local.y, local.z)
   return { x, y, z }
 }
 
@@ -236,15 +250,15 @@ export function cornerPair(
   const B = worldAabb(b, byId)
   const ca = aabbCenter(A)
   const cb = aabbCenter(B)
-  const endA = endTowardPoint(a, ca, cb)
-  const endB = endTowardPoint(b, cb, ca)
+  const endA = endTowardPoint(a, ca, cb, byId)
+  const endB = endTowardPoint(b, cb, ca, byId)
   if (!endA || !endB) return null
 
   // Orientation alone is not enough: a board standing on A's broad face, merely off-centre toward
   // A's +X, would otherwise be reported as being at A's +X end. In a flush corner the two end
   // centres are offset by about (Ta/2, Tb/2), so their distance never exceeds (Ta + Tb) / 2.
-  const pa = endFaceCenterWorld(a, endA)
-  const pb = endFaceCenterWorld(b, endB)
+  const pa = endFaceCenterWorld(a, endA, byId)
+  const pb = endFaceCenterWorld(b, endB, byId)
   const d = Math.hypot(pa.x - pb.x, pa.y - pb.y, pa.z - pb.z)
   if (d > (a.thickness + b.thickness) / 2 + TOUCH_TOL) return null
 

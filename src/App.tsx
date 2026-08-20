@@ -180,8 +180,12 @@ function App() {
   }, [visibleParts, projectName])
 
   const handleExportStl = useCallback(() => {
-    downloadBlob(buildBinaryStl(visibleParts, geometries), `${projectName}.stl`, 'model/stl')
-  }, [visibleParts, geometries, projectName])
+    downloadBlob(
+      buildBinaryStl(visibleParts, geometries, componentMap),
+      `${projectName}.stl`,
+      'model/stl',
+    )
+  }, [visibleParts, geometries, componentMap, projectName])
 
   const handleExportStep = useCallback(() => {
     void (async () => {
@@ -359,6 +363,7 @@ function App() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Viewport
           parts={scene.parts}
+          componentMap={componentMap}
           geometries={geometries}
           selectedId={selectedId}
           onPartClick={onSelect}

@@ -37,7 +37,7 @@ const dist = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 
 test('maps a +Z cut onto the board top face in local axis order', () => {
   const b = board({})
-  const corners = cutFootprintCorners(b, cut('+Z', { x: 10, y: 5, z: 8 }, { x: 20, y: 10, z: 10 }))
+  const corners = cutFootprintCorners(b, cut('+Z', { x: 10, y: 5, z: 8 }, { x: 20, y: 10, z: 10 }), NO_COMPONENTS)
   // faceAxes('+Z') = { depth: 'z', u: 'x', v: 'y' }; the plane is the board top, z = thickness.
   expect(corners).toEqual([
     { x: 10, y: 5, z: 18 },
@@ -49,7 +49,7 @@ test('maps a +Z cut onto the board top face in local axis order', () => {
 
 test('a negative face sits on the zero plane, spanning that face two axes', () => {
   const b = board({})
-  const corners = cutFootprintCorners(b, cut('-X', { x: 0, y: 5, z: 2 }, { x: 5, y: 10, z: 6 }))
+  const corners = cutFootprintCorners(b, cut('-X', { x: 0, y: 5, z: 2 }, { x: 5, y: 10, z: 6 }), NO_COMPONENTS)
   // faceAxes('-X') = { depth: 'x', u: 'y', v: 'z' }; the plane is x = 0.
   expect(corners).toEqual([
     { x: 0, y: 5, z: 2 },
@@ -63,6 +63,7 @@ test('corners are wound around the perimeter, not across the diagonal', () => {
   const corners = cutFootprintCorners(
     board({}),
     cut('+Z', { x: 10, y: 5, z: 8 }, { x: 20, y: 10, z: 10 }),
+    NO_COMPONENTS,
   )
   // A bow tie would make the two "sides" the diagonal instead: adjacent corners must differ
   // along exactly one in-plane axis each, and opposite sides must be equal length.
@@ -74,10 +75,11 @@ test('corners are wound around the perimeter, not across the diagonal', () => {
 
 test('board rotation and offset move the footprint rigidly', () => {
   const c = cut('+Z', { x: 10, y: 5, z: 8 }, { x: 20, y: 10, z: 10 })
-  const flat = cutFootprintCorners(board({}), c)
+  const flat = cutFootprintCorners(board({}), c, NO_COMPONENTS)
   const moved = cutFootprintCorners(
     board({ rotation: { x: 0, y: -90, z: 0 }, position: { x: 200, y: -30, z: 18 } }),
     c,
+    NO_COMPONENTS,
   )
   // A rigid transform preserves every side length; only placement changes.
   for (let i = 0; i < 4; i++) {
@@ -123,7 +125,7 @@ test('a dado footprint spans the housing board where a mortise footprint does no
   // Side lengths of the footprint rectangle, ascending. Which local axis each side falls on
   // depends on how deriveDadoAxes picks the run axis, so compare lengths rather than axes.
   const sides = (c: BoxCut) => {
-    const [c0, c1, c2] = cutFootprintCorners(housing, c)
+    const [c0, c1, c2] = cutFootprintCorners(housing, c, NO_COMPONENTS)
     return [dist(c0, c1), dist(c1, c2)].sort((a, b) => a - b)
   }
   // The groove runs clear across the 100mm width of the housing board. The mortise pocket is
@@ -132,5 +134,5 @@ test('a dado footprint spans the housing board where a mortise footprint does no
   expect(sides(pocket)[1]).toBeLessThan(100)
 
   // And the two footprints are genuinely different rectangles — the whole point.
-  expect(cutFootprintCorners(housing, groove)).not.toEqual(cutFootprintCorners(housing, pocket))
+  expect(cutFootprintCorners(housing, groove, NO_COMPONENTS)).not.toEqual(cutFootprintCorners(housing, pocket, NO_COMPONENTS))
 })

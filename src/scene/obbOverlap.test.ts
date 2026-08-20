@@ -1,6 +1,9 @@
 import { test, expect } from 'vitest'
 import type { BoardPart } from './types'
 import { obbOverlap } from './obbOverlap'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const board = (o: Partial<BoardPart>): BoardPart => ({
   kind: 'board',
@@ -30,13 +33,13 @@ test('axis-aligned overlapping boards overlap', () => {
     thickness: 20,
     position: { x: 0, y: 0, z: 18 },
   })
-  expect(obbOverlap(a, b)).toBe(true)
+  expect(obbOverlap(a, b, NO_COMPONENTS)).toBe(true)
 })
 
 test('axis-aligned separated boards do not overlap', () => {
   const a = board({ id: 'A' })
   const b = board({ id: 'B', position: { x: 0, y: 500, z: 0 } })
-  expect(obbOverlap(a, b)).toBe(false)
+  expect(obbOverlap(a, b, NO_COMPONENTS)).toBe(false)
 })
 
 test('boards a hair apart still count as overlapping, a clear gap does not', () => {
@@ -55,8 +58,8 @@ test('boards a hair apart still count as overlapping, a clear gap does not', () 
     thickness: 18,
     position: { x: 0, y: 0, z: 25 },
   })
-  expect(obbOverlap(base, near)).toBe(true)
-  expect(obbOverlap(base, far)).toBe(false)
+  expect(obbOverlap(base, near, NO_COMPONENTS)).toBe(true)
+  expect(obbOverlap(base, far, NO_COMPONENTS)).toBe(false)
 })
 
 // The reason this test exists. A thin bar rotated 45° about Z has a large square AABB, but its body
@@ -78,7 +81,7 @@ test('a board in the empty corner of a rotated bar AABB does not overlap the bar
     thickness: 20,
     position: { x: 110, y: 0, z: 0 },
   })
-  expect(obbOverlap(bar, corner)).toBe(false)
+  expect(obbOverlap(bar, corner, NO_COMPONENTS)).toBe(false)
 })
 
 // The complement: a rotated bar that genuinely passes through another board must still register, so
@@ -93,7 +96,7 @@ test('a rotated bar crossing a board does overlap', () => {
     rotation: { x: 0, y: 0, z: 45 },
     position: { x: 60, y: 20, z: 0 },
   })
-  expect(obbOverlap(plate, bar)).toBe(true)
+  expect(obbOverlap(plate, bar, NO_COMPONENTS)).toBe(true)
 })
 
 test('overlap is symmetric', () => {
@@ -111,5 +114,5 @@ test('overlap is symmetric', () => {
     thickness: 20,
     position: { x: 110, y: 0, z: 0 },
   })
-  expect(obbOverlap(corner, bar)).toBe(obbOverlap(bar, corner))
+  expect(obbOverlap(corner, bar, NO_COMPONENTS)).toBe(obbOverlap(bar, corner, NO_COMPONENTS))
 })

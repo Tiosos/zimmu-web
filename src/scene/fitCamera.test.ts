@@ -10,6 +10,9 @@ import {
   FIT_MARGIN,
   MIN_FIT_DISTANCE,
 } from './fitCamera'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const board = (over: Partial<BoardPart> = {}): BoardPart => ({
   kind: 'board',
@@ -33,14 +36,14 @@ const board = (over: Partial<BoardPart> = {}): BoardPart => ({
 // The local box runs (0,0,0)..(length,width,thickness) because geometry is built by
 // BRepPrimAPI_MakeBox_1. A centred-box assumption puts this at ±half and fails here.
 test('a board at the origin spans [0..length] x [0..width] x [0..thickness]', () => {
-  const b = worldBounds([board()])
+  const b = worldBounds([board()], NO_COMPONENTS)
   expect(b).not.toBeNull()
   expect(b!.min).toEqual({ x: 0, y: 0, z: 0 })
   expect(b!.max).toEqual({ x: 200, y: 100, z: 25 })
 })
 
 test('bounds cover every part', () => {
-  const b = worldBounds([board({ id: 'a' }), board({ id: 'b', position: { x: 500, y: 0, z: 0 } })])
+  const b = worldBounds([board({ id: 'a' }), board({ id: 'b', position: { x: 500, y: 0, z: 0 } })], NO_COMPONENTS)
   expect(b!.min.x).toBe(0)
   expect(b!.max.x).toBe(700)
 })
@@ -49,20 +52,20 @@ test('hidden parts are excluded', () => {
   const b = worldBounds([
     board({ id: 'a' }),
     board({ id: 'b', position: { x: 500, y: 0, z: 0 }, visible: false }),
-  ])
+  ], NO_COMPONENTS)
   expect(b!.max.x).toBe(200)
 })
 
 test('returns null when there is nothing visible', () => {
-  expect(worldBounds([])).toBeNull()
-  expect(worldBounds([board({ visible: false })])).toBeNull()
+  expect(worldBounds([], NO_COMPONENTS)).toBeNull()
+  expect(worldBounds([board({ visible: false })], NO_COMPONENTS)).toBeNull()
 })
 
 // Rotation must go through composeWorldMatrix, not be ignored. A 45° yaw about Z sends the far corner
 // of the 200×100 footprint to y ≈ 212; ignoring rotation would leave max.y at 100. (max.x actually
 // shrinks to ≈141 under this rotation, so it is the wrong axis to assert on.)
 test('rotation is honoured', () => {
-  const b = worldBounds([board({ rotation: { x: 0, y: 0, z: 45 } })])
+  const b = worldBounds([board({ rotation: { x: 0, y: 0, z: 45 } })], NO_COMPONENTS)
   expect(b!.max.y).toBeGreaterThan(200)
 })
 
@@ -86,7 +89,7 @@ const cylinder = (over: Partial<CylinderPart> = {}): CylinderPart => ({
 
 // A dowel's local origin lies on its axis at the base circle: centred in x/y, corner-origin in z.
 test('a cylinder is centred in x/y and corner-origin in z', () => {
-  const b = worldBounds([cylinder()])
+  const b = worldBounds([cylinder()], NO_COMPONENTS)
   expect(b!.min).toEqual({ x: -4, y: -4, z: 0 })
   expect(b!.max).toEqual({ x: 4, y: 4, z: 40 })
 })
@@ -95,7 +98,7 @@ test('a cylinder is centred in x/y and corner-origin in z', () => {
 // silently measured with board fields. Reaching it requires defeating the type system, which is the point.
 test('an unknown part kind throws rather than being silently mismeasured', () => {
   const bogus = { ...board(), kind: 'sphere' } as unknown as Part
-  expect(() => worldBounds([bogus])).toThrow(/unhandled part kind/)
+  expect(() => worldBounds([bogus], NO_COMPONENTS)).toThrow(/unhandled part kind/)
 })
 
 test('preserves the current bearing as a unit vector', () => {
@@ -140,7 +143,7 @@ function cornersOf(min: Vec3, max: Vec3): Vec3[] {
 
 // Largest |lateral| / (depth * tan(half-angle)) over every corner. <= 1 means everything is in frame.
 function worstOverflow(cam: CameraState, parts: Part[], aspect: number, fovDeg: number): number {
-  const b = worldBounds(parts)!
+  const b = worldBounds(parts, NO_COMPONENTS)!
   const d = fitDirection(cam)
   const f = { x: -d.x, y: -d.y, z: -d.z }
   const xp = (a: Vec3, c: Vec3): Vec3 => ({
@@ -170,19 +173,19 @@ const distanceOf = (c: CameraState): number =>
   Math.hypot(c.position.x - c.target.x, c.position.y - c.target.y, c.position.z - c.target.z)
 
 test('returns null when there is nothing to frame', () => {
-  expect(fitCameraToParts([], 1.5, 45, ISO)).toBeNull()
-  expect(fitCameraToParts([board({ visible: false })], 1.5, 45, ISO)).toBeNull()
+  expect(fitCameraToParts([], 1.5, 45, ISO, NO_COMPONENTS)).toBeNull()
+  expect(fitCameraToParts([board({ visible: false })], 1.5, 45, ISO, NO_COMPONENTS)).toBeNull()
 })
 
 test('targets the centre of the bounds', () => {
   const parts = [board({ id: 'a' }), board({ id: 'b', position: { x: 500, y: 0, z: 0 } })]
-  const cam = fitCameraToParts(parts, 1.5, 45, ISO)!
+  const cam = fitCameraToParts(parts, 1.5, 45, ISO, NO_COMPONENTS)!
   expect(cam.target).toEqual({ x: 350, y: 50, z: 12.5 })
 })
 
 test('keeps the current bearing', () => {
   const parts = [board()]
-  const cam = fitCameraToParts(parts, 1.5, 45, ISO)!
+  const cam = fitCameraToParts(parts, 1.5, 45, ISO, NO_COMPONENTS)!
   const before = fitDirection(ISO)
   const after = fitDirection(cam)
   expect(after.x).toBeCloseTo(before.x, 10)
@@ -193,14 +196,14 @@ test('keeps the current bearing', () => {
 // The property that makes the result correct rather than merely plausible.
 test('every corner is inside the frustum after fitting', () => {
   const parts = [board({ length: 2400, width: 100, thickness: 20 })]
-  const cam = fitCameraToParts(parts, 1.5, 45, ISO)!
+  const cam = fitCameraToParts(parts, 1.5, 45, ISO, NO_COMPONENTS)!
   expect(worstOverflow(cam, parts, 1.5, 45)).toBeLessThanOrEqual(1)
 })
 
 // Without this, a distance of 1e6 would pass the previous test. Together they pin the fit as tight.
 test('the fit is tight — pulling in past the margin overflows', () => {
   const parts = [board({ length: 2400, width: 100, thickness: 20 })]
-  const cam = fitCameraToParts(parts, 1.5, 45, ISO)!
+  const cam = fitCameraToParts(parts, 1.5, 45, ISO, NO_COMPONENTS)!
   const d = fitDirection(cam)
   const closer = distanceOf(cam) / FIT_MARGIN - 1
   const pulled: CameraState = {
@@ -217,8 +220,8 @@ test('the fit is tight — pulling in past the margin overflows', () => {
 // A wide, short scene on a wide viewport is limited by the horizontal half-angle, not the vertical.
 test('the horizontal FOV constrains a wide scene', () => {
   const parts = [board({ length: 2400, width: 100, thickness: 20 })]
-  const wide = fitCameraToParts(parts, 3, 45, ISO)!
-  const narrow = fitCameraToParts(parts, 0.5, 45, ISO)!
+  const wide = fitCameraToParts(parts, 3, 45, ISO, NO_COMPONENTS)!
+  const narrow = fitCameraToParts(parts, 0.5, 45, ISO, NO_COMPONENTS)!
   expect(distanceOf(wide)).toBeLessThan(distanceOf(narrow))
   expect(worstOverflow(wide, parts, 3, 45)).toBeLessThanOrEqual(1)
   expect(worstOverflow(narrow, parts, 0.5, 45)).toBeLessThanOrEqual(1)
@@ -229,7 +232,7 @@ test('the horizontal FOV constrains a wide scene', () => {
 test('a top-down bearing still produces a finite camera', () => {
   const topDown: CameraState = { position: { x: 0, y: 0, z: 500 }, target: { x: 0, y: 0, z: 0 } }
   const parts = [board()]
-  const cam = fitCameraToParts(parts, 1.5, 45, topDown)!
+  const cam = fitCameraToParts(parts, 1.5, 45, topDown, NO_COMPONENTS)!
   expect(Number.isFinite(cam.position.x)).toBe(true)
   expect(Number.isFinite(cam.position.y)).toBe(true)
   expect(Number.isFinite(cam.position.z)).toBe(true)
@@ -239,14 +242,14 @@ test('a top-down bearing still produces a finite camera', () => {
 // A part mid-edit at 0 mm gives a degenerate AABB; without a floor the camera would land on the
 // target and leave OrbitControls with a zero-length offset.
 test('zero-extent bounds floor at MIN_FIT_DISTANCE', () => {
-  const cam = fitCameraToParts([board({ length: 0, width: 0, thickness: 0 })], 1.5, 45, ISO)!
+  const cam = fitCameraToParts([board({ length: 0, width: 0, thickness: 0 })], 1.5, 45, ISO, NO_COMPONENTS)!
   expect(distanceOf(cam)).toBeCloseTo(MIN_FIT_DISTANCE, 10)
 })
 
 test('a non-finite aspect is treated as 1', () => {
   const parts = [board()]
-  const nan = fitCameraToParts(parts, Number.NaN, 45, ISO)!
-  const one = fitCameraToParts(parts, 1, 45, ISO)!
+  const nan = fitCameraToParts(parts, Number.NaN, 45, ISO, NO_COMPONENTS)!
+  const one = fitCameraToParts(parts, 1, 45, ISO, NO_COMPONENTS)!
   expect(nan.position.x).toBeCloseTo(one.position.x, 10)
 })
 
@@ -255,9 +258,9 @@ test('a non-finite aspect is treated as 1', () => {
 // this is the case that renders a wide cabinet gone when Home is pressed.
 test('fitFarPlane covers every corner of a large scene', () => {
   const parts = [board({ length: 10000, width: 3000, thickness: 800 })]
-  const cam = fitCameraToParts(parts, 1.5, 45, ISO)!
-  const far = fitFarPlane(parts, cam)
-  const b = worldBounds(parts)!
+  const cam = fitCameraToParts(parts, 1.5, 45, ISO, NO_COMPONENTS)!
+  const far = fitFarPlane(parts, cam, NO_COMPONENTS)
+  const b = worldBounds(parts, NO_COMPONENTS)!
   for (const c of cornersOf(b.min, b.max)) {
     const dist = Math.hypot(c.x - cam.position.x, c.y - cam.position.y, c.z - cam.position.z)
     expect(far).toBeGreaterThanOrEqual(dist)
@@ -268,21 +271,21 @@ test('fitFarPlane covers every corner of a large scene', () => {
 // viewport that keeps the default would clip it.
 test('fitFarPlane exceeds the default far plane for a scene wider than the frustum reaches', () => {
   const parts = [board({ length: 10000, width: 3000, thickness: 800 })]
-  const cam = fitCameraToParts(parts, 1.5, 45, ISO)!
-  expect(fitFarPlane(parts, cam)).toBeGreaterThan(10000)
+  const cam = fitCameraToParts(parts, 1.5, 45, ISO, NO_COMPONENTS)!
+  expect(fitFarPlane(parts, cam, NO_COMPONENTS)).toBeGreaterThan(10000)
 })
 
 // A normal-sized scene needs nothing beyond the default, so the viewport keeps its default far
 // plane and near-plane precision is unaffected in the common case.
 test('fitFarPlane for a small scene stays well under the default far plane', () => {
   const parts = [board()]
-  const cam = fitCameraToParts(parts, 1.5, 45, ISO)!
-  expect(fitFarPlane(parts, cam)).toBeLessThan(10000)
+  const cam = fitCameraToParts(parts, 1.5, 45, ISO, NO_COMPONENTS)!
+  expect(fitFarPlane(parts, cam, NO_COMPONENTS)).toBeLessThan(10000)
 })
 
 test('fitFarPlane returns null when there is nothing to frame', () => {
-  expect(fitFarPlane([], ISO)).toBeNull()
-  expect(fitFarPlane([board({ visible: false })], ISO)).toBeNull()
+  expect(fitFarPlane([], ISO, NO_COMPONENTS)).toBeNull()
+  expect(fitFarPlane([board({ visible: false })], ISO, NO_COMPONENTS)).toBeNull()
 })
 
 // When fitFarPlane pushes the far plane out for a big scene, the near plane must rise with it so the

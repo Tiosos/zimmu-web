@@ -2928,6 +2928,10 @@ git commit -m "feat(scene): detach a driven part and map dimensions back to carc
 - Modify: `src/ui/EditPanel.tsx`
 - Test: `src/ui/EditPanel.test.tsx` (create if absent)
 
+Audit note (2026-08-20): `src/ui/DowelCutsPanel.tsx` also consumes `onUpdate`. It edits dowel cuts,
+not board dimensions, so the detach prompt does not apply to it — but if `onUpdate`'s signature
+changes rather than just its behaviour, that file is a call site.
+
 - [ ] **Step 1: Write the failing tests**
 
 ```tsx
@@ -3436,10 +3440,33 @@ In `src/scene/utils.ts`, add the branch to the board cut mapper:
             : `m:${c.end}|${c.axis}|${c.angle}`,
 ```
 
-- [ ] **Step 4: Run typecheck and fix the exhaustiveness failures**
+- [ ] **Step 4: Enumerate every discrimination site — do NOT rely on the compiler**
 
-Run: `pnpm typecheck`
-Expected: FAIL wherever `CutDef` is switched over exhaustively — `src/geom/occt.ts` (`makeShape`), `src/geom/drawing.ts`, `src/ui/EditPanel.tsx` (`CutRow`), `src/scene/cutFootprint.ts`. Each is handled in a later step of this phase; for now add an explicit early `continue`/`null` branch for `'hole-array'` at each site so the build is green, and leave a `// handled in Task 8.x` marker.
+**Audit finding, 2026-08-20.** The original wording of this step assumed `pnpm typecheck` would flag
+every site that discriminates on `CutDef`. **It will not.** Two shapes exist in this codebase and only
+one of them errors:
+
+| Shape | Example | Compiler catches a new member? |
+|---|---|---|
+| Property access in an `else` branch | `src/scene/utils.ts:9-11` — `c.kind === 'box' ? … : \`m:${c.end}…\`` | **Yes** — `c.end` does not exist on `HoleArrayCut` |
+| `filter` with a type predicate | `src/geom/drawing.ts:261-262` — `p.cuts.filter((c): c is BoxCut => c.kind === 'box')` | **No** — hole arrays are silently dropped from both lists |
+
+The second shape is the dangerous one: it compiles clean, and the symptom is a hole array that simply
+never appears in a shop drawing, with nothing to indicate why. Relying on the compiler here would have
+shipped that.
+
+So enumerate explicitly first:
+
+Run: `grep -rn "'box'\|'mitre'" src/ --include=*.ts --include=*.tsx | grep -v '\.test\.'`
+
+Expected: 15 production files. Most only *construct* cuts (`kind: 'box'`), which a widened union does
+not affect. Triage each hit into construct / discriminate-by-property / discriminate-by-filter, and
+list the result in your report. Then run `pnpm typecheck` and treat its output as a **subset** of the
+work, never the whole of it.
+
+For each discrimination site, add an explicit `'hole-array'` branch — `continue`, `null`, or an empty
+list as appropriate — and leave a `// handled in Task 8.x` marker where a later step owns the real
+behaviour. Never let a hole array fall into a `mitre` branch by default.
 
 - [ ] **Step 5: Run to confirm pass and commit**
 
@@ -3781,8 +3808,8 @@ git commit -m "feat(drawing): render shelf-pin hole arrays in views and exports"
 ## Task 9.1: Component column in `groupParts`
 
 **Files:**
-- Modify: `src/ui/buildCsv.ts`, `src/ui/CuttingList.tsx`
-- Test: `src/ui/buildCsv.test.ts`
+- Modify: `src/ui/buildCsv.ts`, `src/ui/CuttingList.tsx`, `src/ui/BomModal.tsx` (audit 2026-08-20: `BomModal` also calls `groupParts` and was missed in the original list)
+- Test: `src/ui/buildCsv.test.ts`, `src/ui/CuttingList.test.tsx`
 
 - [ ] **Step 1: Write the failing tests**
 

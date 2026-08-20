@@ -404,7 +404,7 @@ test('a board reports every candidate joint, not a truncated few', () => {
 test('faceHitForDisplay keeps the local normal and adds the world normal', () => {
   // Unrotated: world normal equals local normal.
   const flat = board({ id: 'F' })
-  const hFlat = faceHitForDisplay(flat, '+X')
+  const hFlat = faceHitForDisplay(flat, '+X', NO_COMPONENTS)
   expect(hFlat.partId).toBe('F')
   expect(hFlat.localFaceNormal).toEqual({ x: 1, y: 0, z: 0 })
   expect(hFlat.faceNormal.x).toBeCloseTo(1)
@@ -414,7 +414,7 @@ test('faceHitForDisplay keeps the local normal and adds the world normal', () =>
   // Rotated Ry=-90: local +X maps to world +Z. This is the case that catches the bug —
   // an unrotated board cannot distinguish a world normal from a local one.
   const spun = board({ id: 'R', rotation: { x: 0, y: -90, z: 0 } })
-  const hSpun = faceHitForDisplay(spun, '+X')
+  const hSpun = faceHitForDisplay(spun, '+X', NO_COMPONENTS)
   expect(hSpun.localFaceNormal).toEqual({ x: 1, y: 0, z: 0 })
   expect(hSpun.faceNormal.x).toBeCloseTo(0)
   expect(hSpun.faceNormal.y).toBeCloseTo(0)

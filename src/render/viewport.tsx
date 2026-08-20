@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import Stats from 'stats.js'
-import type { Part, PartId, CameraState } from '../scene/types'
+import type { Component, ComponentId, Part, PartId, CameraState } from '../scene/types'
 import type { FaceHit } from '../scene/types'
 import type { Outline } from '../scene/suggestionOutline'
 import {
@@ -15,6 +15,7 @@ import { fitCameraToParts, fitFarPlane, nearPlaneForFar } from '../scene/fitCame
 
 interface ViewportProps {
   parts: Part[]
+  componentMap: Map<ComponentId, Component>
   geometries: Map<PartId, THREE.BufferGeometry>
   selectedId: PartId | null
   onPartClick: (id: PartId | null) => void
@@ -55,6 +56,7 @@ const emptyGeo = () => {
 
 export function Viewport({
   parts,
+  componentMap,
   geometries,
   selectedId,
   onPartClick,
@@ -441,10 +443,16 @@ export function Viewport({
     const camera = cameraRef.current
     const controls = controlsRef.current
     if (!camera || !controls) return
-    const next = fitCameraToParts(parts, camera.aspect, camera.fov, {
-      position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
-      target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
-    })
+    const next = fitCameraToParts(
+      parts,
+      camera.aspect,
+      camera.fov,
+      {
+        position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+        target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
+      },
+      componentMap,
+    )
     if (!next) return
     camera.position.set(next.position.x, next.position.y, next.position.z)
     controls.target.set(next.target.x, next.target.y, next.target.z)
@@ -452,7 +460,7 @@ export function Viewport({
     // so the fit we just solved would render clipped. Raise the plane to reach them, lift the near
     // plane in step so the depth-buffer ratio stays put, and drop both back to their defaults when a
     // smaller scene no longer needs the extra range.
-    const required = fitFarPlane(parts, next)
+    const required = fitFarPlane(parts, next, componentMap)
     const far = required === null ? DEFAULT_FAR_PLANE : Math.max(DEFAULT_FAR_PLANE, required)
     const near = nearPlaneForFar(far, DEFAULT_NEAR_PLANE, DEFAULT_FAR_PLANE)
     if (camera.far !== far || camera.near !== near) {

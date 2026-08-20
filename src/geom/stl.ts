@@ -1,6 +1,6 @@
 import * as THREE from 'three'
-import type { Part, PartId } from '../scene/types'
-import { composeWorldMatrix, applyMatrixToPoint } from './transform'
+import type { Component, ComponentId, Part, PartId } from '../scene/types'
+import { resolveWorldMatrix, applyMatrixToPoint } from './transform'
 
 type Vec = [number, number, number]
 
@@ -22,6 +22,7 @@ function facetNormal(a: Vec, b: Vec, c: Vec): Vec {
 export function buildBinaryStl(
   parts: Part[],
   geometries: Map<PartId, THREE.BufferGeometry>,
+  byId: Map<ComponentId, Component>,
 ): ArrayBuffer {
   const tris: number[] = [] // per triangle: nx,ny,nz, ax,ay,az, bx,by,bz, cx,cy,cz
   let count = 0
@@ -30,7 +31,7 @@ export function buildBinaryStl(
     if (!geo) continue
     const pos = geo.getAttribute('position')
     if (!pos) continue
-    const m = composeWorldMatrix(part)
+    const m = resolveWorldMatrix(part, byId)
     for (let i = 0; i < pos.count; i += 3) {
       const a = applyMatrixToPoint(m, pos.getX(i), pos.getY(i), pos.getZ(i))
       const b = applyMatrixToPoint(m, pos.getX(i + 1), pos.getY(i + 1), pos.getZ(i + 1))

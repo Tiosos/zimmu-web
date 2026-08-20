@@ -1,5 +1,5 @@
-import type { CameraState, Part, Vec3 } from './types'
-import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
+import type { CameraState, Component, ComponentId, Part, Vec3 } from './types'
+import { resolveWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 
 // The app's opening view direction (viewport.tsx:200). Used only when the current camera has no
 // bearing to preserve.
@@ -54,7 +54,7 @@ function localBox(part: Part): Bounds {
   }
 }
 
-export function worldBounds(parts: Part[]): Bounds | null {
+export function worldBounds(parts: Part[], byId: Map<ComponentId, Component>): Bounds | null {
   let minX = Infinity
   let minY = Infinity
   let minZ = Infinity
@@ -66,7 +66,7 @@ export function worldBounds(parts: Part[]): Bounds | null {
   for (const part of parts) {
     if (!part.visible) continue
     found = true
-    const m = composeWorldMatrix(part)
+    const m = resolveWorldMatrix(part, byId)
     const { min, max } = localBox(part)
     for (const x of [min.x, max.x]) {
       for (const y of [min.y, max.y]) {
@@ -111,8 +111,9 @@ export function fitCameraToParts(
   aspect: number,
   fovDeg: number,
   current: CameraState,
+  byId: Map<ComponentId, Component>,
 ): CameraState | null {
-  const bounds = worldBounds(parts)
+  const bounds = worldBounds(parts, byId)
   if (bounds === null) return null
 
   const centre: Vec3 = {
@@ -152,8 +153,12 @@ export function fitCameraToParts(
 // distance to a corner is never smaller than its depth, so reaching the farthest corner by straight
 // distance guarantees no corner is clipped — without needing the camera's basis here. The viewport's
 // default far plane is a fixed 10 000 mm (viewport.tsx), which a scene wider than ~7 m overruns.
-export function fitFarPlane(parts: Part[], camera: CameraState): number | null {
-  const bounds = worldBounds(parts)
+export function fitFarPlane(
+  parts: Part[],
+  camera: CameraState,
+  byId: Map<ComponentId, Component>,
+): number | null {
+  const bounds = worldBounds(parts, byId)
   if (bounds === null) return null
   let far = 0
   for (const x of [bounds.min.x, bounds.max.x]) {

@@ -29,11 +29,15 @@ function board(parts: Part[], id: string) {
 
 // Whole-face outlines — what every suggestion drew before footprints existed. Now only a fallback
 // for a joint deriveJoint declines to resolve; half-lap has no faces to fall back to.
-function faceOutlines(s: JointSuggestion, parts: Part[]): Outline[] {
+function faceOutlines(
+  s: JointSuggestion,
+  parts: Part[],
+  byId: Map<ComponentId, Component>,
+): Outline[] {
   return suggestionFaceRefs(s).flatMap((ref) => {
     const p = board(parts, ref.partId)
     if (!p) return []
-    const hit = faceHitForDisplay(p, ref.face)
+    const hit = faceHitForDisplay(p, ref.face, byId)
     return [{ corners: computeFaceCorners(hit, p), normal: hit.faceNormal }]
   })
 }
@@ -64,8 +68,8 @@ function cutOutlines(
     const face = faceOf ? faceOf(p, cut) : cut.face
     return [
       {
-        corners: cutFootprintCorners(p, { ...cut, face }),
-        normal: faceHitForDisplay(p, face).faceNormal,
+        corners: cutFootprintCorners(p, { ...cut, face }, byId),
+        normal: faceHitForDisplay(p, face, byId).faceNormal,
       },
     ]
   })
@@ -103,14 +107,14 @@ export function suggestionOutlines(
       PREVIEW_LABEL,
       byId,
     )
-    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts)
+    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts, byId)
   }
   if (s.kind === 'finger') {
     const a = board(parts, s.partAId)
     const b = board(parts, s.partBId)
     if (!a || !b) return []
     const joint = defaultFingerJoint(a, b, s.endA, s.endB, PREVIEW_ID, PREVIEW_LABEL)
-    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts)
+    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts, byId)
   }
   if (s.kind === 'tongue-groove') {
     const groove = board(parts, s.groovePartId)
@@ -124,7 +128,7 @@ export function suggestionOutlines(
       PREVIEW_ID,
       PREVIEW_LABEL,
     )
-    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts)
+    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts, byId)
   }
   if (s.kind === 'mortise-tenon') {
     const mortise = board(parts, s.mortisePartId)
@@ -139,7 +143,7 @@ export function suggestionOutlines(
       PREVIEW_LABEL,
       byId,
     )
-    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts)
+    return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts, byId)
   }
-  return faceOutlines(s, parts)
+  return faceOutlines(s, parts, byId)
 }
