@@ -2062,3 +2062,140 @@ describe('selection of parts and components', () => {
     expect(componentSel.current.selection).toEqual({ kind: 'component', id: 'cmp_1' })
   })
 })
+
+describe('component CRUD', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
+  })
+
+  const halfLap = (id: string, partAId: string, partBId: string): HalfLapJoint => ({
+    kind: 'halflap',
+    id,
+    label: id,
+    driven: false,
+    partAId,
+    partBId,
+    split: 0.5,
+    clearance: 0,
+  })
+
+  it('adds a group component at top level', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    expect(result.current.scene.components).toHaveLength(1)
+    expect(result.current.scene.components[0].parentId).toBeNull()
+    expect(result.current.scene.components[0].kind).toBe('group')
+  })
+
+  it('nests a component under a parent', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const parentId = result.current.scene.components[0].id
+    act(() => result.current.onAddComponent(parentId))
+    expect(result.current.scene.components[1].parentId).toBe(parentId)
+  })
+
+  it('deletes driven descendants but promotes detached ones to top level', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    const seed = result.current.scene.parts[0]
+    act(() =>
+      result.current.replaceScene({
+        ...result.current.scene,
+        parts: [
+          { ...seed, id: 'driven1', parentId: cmpId, driven: true },
+          { ...seed, id: 'mine1', parentId: cmpId, driven: false },
+        ],
+      }),
+    )
+    act(() => result.current.onRemoveComponent(cmpId))
+
+    const ids = result.current.scene.parts.map((p) => p.id)
+    expect(ids).not.toContain('driven1')
+    expect(ids).toContain('mine1')
+    expect(result.current.scene.parts.find((p) => p.id === 'mine1')?.parentId).toBeNull()
+  })
+
+  it('deletes nested child components too', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const a = result.current.scene.components[0].id
+    act(() => result.current.onAddComponent(a))
+    act(() => result.current.onRemoveComponent(a))
+    expect(result.current.scene.components).toHaveLength(0)
+  })
+
+  it('drops joints the deleted component sourced, and joints left dangling, but keeps hand-made ones', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    const seed = result.current.scene.parts[0]
+    act(() =>
+      result.current.replaceScene({
+        ...result.current.scene,
+        parts: [
+          { ...seed, id: 'driven1', parentId: cmpId, driven: true },
+          { ...seed, id: 'mine1', parentId: cmpId, driven: false },
+          { ...seed, id: 'outside1', parentId: null, driven: false },
+        ],
+        joints: [
+          { ...halfLap('j_sourced', 'mine1', 'outside1'), sourceComponentId: cmpId },
+          halfLap('j_dangling', 'driven1', 'outside1'),
+          halfLap('j_handmade', 'mine1', 'outside1'),
+        ],
+      }),
+    )
+    act(() => result.current.onRemoveComponent(cmpId))
+
+    expect(result.current.scene.joints.map((j) => j.id)).toEqual(['j_handmade'])
+  })
+
+  it('refuses a reparent that would create a cycle', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const a = result.current.scene.components[0].id
+    act(() => result.current.onAddComponent(a))
+    const b = result.current.scene.components[1].id
+
+    act(() => result.current.onReparentComponent(a, b))
+
+    expect(result.current.scene.components.find((c) => c.id === a)?.parentId).toBeNull()
+  })
+
+  it('undoes a component deletion, restoring its driven parts', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const id = result.current.scene.components[0].id
+    const seed = result.current.scene.parts[0]
+    act(() =>
+      result.current.replaceScene({
+        ...result.current.scene,
+        parts: [{ ...seed, id: 'driven1', parentId: id, driven: true }],
+      }),
+    )
+    act(() => result.current.onRemoveComponent(id))
+    expect(result.current.scene.components).toHaveLength(0)
+
+    act(() => result.current.undo())
+    expect(result.current.scene.components.map((c) => c.id)).toEqual([id])
+    expect(result.current.scene.parts.map((p) => p.id)).toContain('driven1')
+  })
+
+  it('coalesces consecutive edits to the same component into one undo entry', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const id = result.current.scene.components[0].id
+    act(() => result.current.onUpdateComponent(id, (c) => ({ ...c, label: 'A' })))
+    act(() => result.current.onUpdateComponent(id, (c) => ({ ...c, label: 'AB' })))
+    act(() => result.current.onUpdateComponent(id, (c) => ({ ...c, label: 'ABC' })))
+
+    act(() => result.current.undo())
+    // one undo returns to the pre-edit label, not to 'AB'
+    expect(result.current.scene.components[0].label).toBe('Group')
+  })
+})

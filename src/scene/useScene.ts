@@ -5,6 +5,9 @@ import type { OcctWorkerApi, BuildSpec } from '../geom/occt.worker'
 import type { ExportSpec } from '../geom/occt'
 import type {
   BoardPart,
+  Component,
+  ComponentId,
+  GroupComponent,
   HardwareItem,
   MaterialDef,
   Part,
@@ -19,7 +22,7 @@ import type {
 import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
-import { componentsById } from './componentTree'
+import { componentsById, descendantIds, wouldCycle } from './componentTree'
 import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
@@ -110,6 +113,10 @@ export interface UseSceneResult {
   onAddMortiseTenon: (mortiseHit: FaceHit, tenonHit: FaceHit) => void
   onAddFingerJoint: (hitA: FaceHit, hitB: FaceHit) => void
   onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
+  onAddComponent: (parentId: ComponentId | null) => void
+  onRemoveComponent: (id: ComponentId) => void
+  onReparentComponent: (id: ComponentId, newParentId: ComponentId | null) => void
+  onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
   onSelect: (next: Selection | null) => void
@@ -1098,6 +1105,96 @@ export function useScene(): UseSceneResult {
     [push],
   )
 
+  const onAddComponent = useCallback(
+    (parentId: ComponentId | null) => {
+      const component: GroupComponent = {
+        kind: 'group',
+        id: `cmp_${crypto.randomUUID()}`,
+        label: 'Group',
+        parentId,
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        rotationOrder: 'XYZ',
+        visible: true,
+      }
+      setScene((prev) => ({ ...prev, components: [...prev.components, component] }))
+      push({
+        label: 'Add group',
+        undo: () =>
+          setScene((prev) => ({
+            ...prev,
+            components: prev.components.filter((c) => c.id !== component.id),
+          })),
+        redo: () => setScene((prev) => ({ ...prev, components: [...prev.components, component] })),
+      })
+    },
+    [push],
+  )
+
+  const onRemoveComponent = useCallback(
+    (id: ComponentId) => {
+      commitReconciled((before) => {
+        const { componentIds, partIds } = descendantIds(id, before.components, before.parts)
+        const doomedComponents = new Set([id, ...componentIds])
+        const doomedParts = before.parts
+          .filter((p) => p.driven && partIds.includes(p.id))
+          .map((p) => p.id)
+
+        return {
+          ...before,
+          components: before.components.filter((c) => !doomedComponents.has(c.id)),
+          // A detached part is the user's, not the component's: it survives its container
+          // and returns to top level rather than being deleted with it.
+          parts: before.parts
+            .filter((p) => !doomedParts.includes(p.id))
+            .map((p) =>
+              p.parentId !== null && doomedComponents.has(p.parentId) ? { ...p, parentId: null } : p,
+            ),
+          joints: before.joints.filter(
+            (j) =>
+              (j.sourceComponentId === undefined || !doomedComponents.has(j.sourceComponentId)) &&
+              !doomedParts.some((partId) => jointInvolves(j, partId)),
+          ),
+        }
+      }, 'Delete component')
+    },
+    [commitReconciled],
+  )
+
+  const onReparentComponent = useCallback(
+    (id: ComponentId, newParentId: ComponentId | null) => {
+      const before = sceneRef.current
+      if (wouldCycle(before.components, id, newParentId)) return
+      const after: Scene = {
+        ...before,
+        components: before.components.map((c) =>
+          c.id === id ? { ...c, parentId: newParentId } : c,
+        ),
+      }
+      setScene(after)
+      push({ label: 'Move component', undo: () => setScene(before), redo: () => setScene(after) })
+    },
+    [push],
+  )
+
+  const onUpdateComponent = useCallback(
+    (id: ComponentId, updater: (c: Component) => Component) => {
+      const before = sceneRef.current
+      const after: Scene = {
+        ...before,
+        components: before.components.map((c) => (c.id === id ? updater(c) : c)),
+      }
+      setScene(after)
+      push({
+        label: 'Edit component',
+        coalesceKey: `component-${id}`,
+        undo: () => setScene(before),
+        redo: () => setScene(after),
+      })
+    },
+    [push],
+  )
+
   const replaceScene = useCallback((next: Scene) => {
     for (const geo of geometriesRef.current.values()) geo.dispose()
     geometriesRef.current.clear()
@@ -1163,6 +1260,10 @@ export function useScene(): UseSceneResult {
     onAddMortiseTenon,
     onAddFingerJoint,
     onAddTongueGroove,
+    onAddComponent,
+    onRemoveComponent,
+    onReparentComponent,
+    onUpdateComponent,
     onUpdateJoint,
     onRemoveJoint,
     onSelect,
