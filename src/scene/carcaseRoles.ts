@@ -116,6 +116,19 @@ export function validateCarcaseParams(p: CarcaseParams): string[] {
   if (p.dividers.some((d, i) => i > 0 && d <= p.dividers[i - 1])) {
     errors.push('dividers must be ascending')
   }
+  // A divider is centred on its fraction and is T wide, so `0 < d < 1` is not enough: at d = 0.02
+  // on a 600mm carcase it spans x[3,21] and runs straight through the left side at x[0,18].
+  if (p.dividers.some((d) => p.width * d - p.thickness / 2 <= p.thickness)) {
+    errors.push('dividers must clear the side panels')
+  }
+  if (p.dividers.some((d) => p.width * d + p.thickness / 2 >= p.width - p.thickness)) {
+    errors.push('dividers must clear the side panels')
+  }
+  // Ascending is not enough either — two dividers can be ordered and still overlap, or leave a
+  // bay too narrow to hold anything.
+  if (p.dividers.some((d, i) => i > 0 && p.width * (d - p.dividers[i - 1]) <= p.thickness)) {
+    errors.push('dividers must leave a bay between them')
+  }
   return errors
 }
 

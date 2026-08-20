@@ -2177,7 +2177,7 @@ describe('carcaseRoles', () => {
       'top',
       'back',
       'toe-kick',
-      'shelf-fixed-0',
+      'shelf-0-0',
     ])
   })
 
@@ -2211,20 +2211,20 @@ describe('carcaseRoles', () => {
   })
 
   it('stops shelves short of a captured back', () => {
-    const s = roleBox(carcaseRoles(base), 'shelf-fixed-0')
+    const s = roleBox(carcaseRoles(base), 'shelf-0-0')
     expect(s.max.y).toBeCloseTo(548, 9)
   })
 
   it('centres one fixed shelf in the internal height', () => {
-    const s = roleBox(carcaseRoles(base), 'shelf-fixed-0')
+    const s = roleBox(carcaseRoles(base), 'shelf-0-0')
     // internal bay is z 118..702; one shelf splits it into two equal bays
     expect(s.min.z).toBeCloseTo(118 + (702 - 118 - 18) / 2, 6)
   })
 
   it('spaces two fixed shelves into three equal bays', () => {
     const roles = carcaseRoles({ ...base, fixedShelves: 2 })
-    const a = roleBox(roles, 'shelf-fixed-0')
-    const b = roleBox(roles, 'shelf-fixed-1')
+    const a = roleBox(roles, 'shelf-0-0')
+    const b = roleBox(roles, 'shelf-0-1')
     const bay1 = a.min.z - 118
     const bay2 = b.min.z - a.max.z
     expect(bay2).toBeCloseTo(bay1, 6)
@@ -2237,7 +2237,7 @@ describe('carcaseRoles', () => {
   it('omits the back and lets shelves run full depth when backMode is none', () => {
     const roles = carcaseRoles({ ...base, backMode: 'none' })
     expect(roles.map((r) => r.role)).not.toContain('back')
-    expect(roleBox(roles, 'shelf-fixed-0').max.y).toBeCloseTo(560, 9)
+    expect(roleBox(roles, 'shelf-0-0').max.y).toBeCloseTo(560, 9)
   })
 
   it('drops the carcase to the floor when baseMode is none', () => {
@@ -2345,7 +2345,7 @@ export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
   for (let i = 0; i < p.fixedShelves; i++) {
     const z0 = bayZ0 + (i + 1) * bay + i * T
     add(
-      `shelf-fixed-${i}`,
+      `shelf-${b}-${i}`,
       `Shelf ${i + 1}`,
       { x0: T, x1: W - T, y0: 0, y1: shelfBackY, z0, z1: z0 + T },
       'z',
@@ -2421,7 +2421,7 @@ describe('regenerateComponents', () => {
   it('creates one part per role, all driven and parented to the carcase', () => {
     const out = regenerateComponents(empty)
     const roles = partsOf(out).map((p) => p.role)
-    expect(roles).toEqual(['left-side', 'right-side', 'bottom', 'top', 'back', 'shelf-fixed-0'])
+    expect(roles).toEqual(['left-side', 'right-side', 'bottom', 'top', 'back', 'shelf-0-0'])
     expect(partsOf(out).every((p) => p.driven)).toBe(true)
   })
 
@@ -2456,14 +2456,14 @@ describe('regenerateComponents', () => {
     const detached = {
       ...first,
       parts: first.parts.map((p) =>
-        p.role === 'shelf-fixed-0' ? { ...p, driven: false, position: { x: 0, y: 0, z: 999 } } : p,
+        p.role === 'shelf-0-0' ? { ...p, driven: false, position: { x: 0, y: 0, z: 999 } } : p,
       ),
     }
     const second = regenerateComponents({
       ...detached,
       components: [{ ...cabinet, params: { ...params, height: 900 } }],
     })
-    const shelf = partsOf(second).find((p) => p.id === detached.parts.find((q) => q.role === 'shelf-fixed-0')!.id)
+    const shelf = partsOf(second).find((p) => p.id === detached.parts.find((q) => q.role === 'shelf-0-0')!.id)
 
     expect(shelf?.position.z).toBe(999)
     expect(shelf?.driven).toBe(false)
@@ -3078,7 +3078,7 @@ describe('detach', () => {
   it('detaches a driven part and stops regenerating it', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-    const shelf = result.current.scene.parts.find((p) => p.role === 'shelf-fixed-0')!
+    const shelf = result.current.scene.parts.find((p) => p.role === 'shelf-0-0')!
 
     act(() => result.current.onDetachPart(shelf.id))
     expect(result.current.scene.parts.find((p) => p.id === shelf.id)!.driven).toBe(false)
@@ -3097,7 +3097,7 @@ describe('detach', () => {
   it('undoes a detach', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-    const id = result.current.scene.parts.find((p) => p.role === 'shelf-fixed-0')!.id
+    const id = result.current.scene.parts.find((p) => p.role === 'shelf-0-0')!.id
     act(() => result.current.onDetachPart(id))
     act(() => result.current.undo())
     expect(result.current.scene.parts.find((p) => p.id === id)!.driven).toBe(true)
@@ -3118,7 +3118,7 @@ describe('detach', () => {
   it('returns null for a dimension no parameter controls', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-    const shelf = result.current.scene.parts.find((p) => p.role === 'shelf-fixed-0')!
+    const shelf = result.current.scene.parts.find((p) => p.role === 'shelf-0-0')!
     expect(result.current.parameterFor(shelf.id, 'thickness')).toBe('thickness')
     expect(result.current.parameterFor(shelf.id, 'width')).toBeNull()
   })
@@ -3152,7 +3152,7 @@ export function parameterForRole(
   dimension: 'length' | 'width' | 'thickness',
 ): keyof CarcaseParams | null {
   if (role === undefined) return null
-  if (role.startsWith('shelf-fixed-') || role.startsWith('divider-')) {
+  if (role.startsWith('shelf-') || role.startsWith('divider-')) {
     return dimension === 'thickness' ? 'thickness' : null
   }
   return DIMENSION_PARAM[role]?.[dimension] ?? null
@@ -3301,7 +3301,7 @@ git commit -m "feat(ui): inline change-the-cabinet or detach prompt on a driven 
 
 | Housing | Housed | Joint |
 |---|---|---|
-| `left-side` | `bottom`, `top`, `back`, every `shelf-fixed-*`, every `divider-*` | dado |
+| `left-side` | `bottom`, `top`, `back`, every `shelf-*-*`, every `divider-*` | dado |
 | `right-side` | same set | dado |
 | `back` | `bottom`, `top` | dado |
 | `left-side`, `right-side` | `toe-kick` | dado |
@@ -3367,7 +3367,7 @@ export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescr
 
   const roles = carcaseRoles(p).map((r) => r.role)
   const has = (r: string) => roles.includes(r)
-  const shelves = roles.filter((r) => r.startsWith('shelf-fixed-'))
+  const shelves = roles.filter((r) => r.startsWith('shelf-'))
   const dividers = roles.filter((r) => r.startsWith('divider-'))
   const corners = new Set(['left-side:top', 'left-side:bottom', 'right-side:top', 'right-side:bottom'])
 
@@ -4254,7 +4254,7 @@ test('a cabinet regenerates on a depth change and leaves a detached part alone',
   const width = page.getByLabelText('Width')
   await width.fill('400')
   await page.getByRole('button', { name: 'Detach this part' }).click()
-  await expect(page.getByTestId('node-shelf-fixed-0')).toHaveAttribute('data-driven', 'false')
+  await expect(page.getByTestId('node-shelf-0-0')).toHaveAttribute('data-driven', 'false')
 
   // Workflow C: change the cabinet depth two days before docs are due.
   await page.getByText('Base 600').click()

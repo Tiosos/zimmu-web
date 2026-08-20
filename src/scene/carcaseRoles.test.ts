@@ -496,3 +496,52 @@ describe('carcaseRoles', () => {
     }
   })
 })
+
+describe('dividers must clear the side panels and each other', () => {
+  it('rejects a divider that overlaps the left side', () => {
+    // W*0.02 - T/2 = 3, so the divider spans x[3,21] and the left side spans x[0,18].
+    // `0 < d < 1` passes this, which is why the pairwise-overlap test never saw it — no
+    // fixture used a divider that close to an edge.
+    expect(validateCarcaseParams({ ...base, dividers: [0.02] })).toContain(
+      'dividers must clear the side panels',
+    )
+  })
+
+  it('rejects a divider that overlaps the right side', () => {
+    expect(validateCarcaseParams({ ...base, dividers: [0.98] })).toContain(
+      'dividers must clear the side panels',
+    )
+  })
+
+  it('rejects two dividers too close to leave a bay between them', () => {
+    // Ascending, both in range, but only 6mm apart on an 18mm stock.
+    expect(validateCarcaseParams({ ...base, dividers: [0.5, 0.51] })).toContain(
+      'dividers must leave a bay between them',
+    )
+  })
+
+  it('accepts dividers that clear the sides and each other', () => {
+    expect(validateCarcaseParams({ ...base, dividers: [0.34, 0.67] })).toEqual([])
+    expect(validateCarcaseParams({ ...base, dividers: [0.5] })).toEqual([])
+  })
+
+  it('produces no overlapping panels for every divider set it accepts', () => {
+    for (const dividers of [[0.05], [0.5], [0.34, 0.67], [0.25, 0.5, 0.75]]) {
+      const params = { ...base, dividers }
+      expect(validateCarcaseParams(params)).toEqual([])
+      const roles = carcaseRoles(params)
+      for (let i = 0; i < roles.length; i++) {
+        for (let j = i + 1; j < roles.length; j++) {
+          const a = aabb(roles[i].panel)
+          const b = aabb(roles[j].panel)
+          const shares = (ax: 'x' | 'y' | 'z') =>
+            Math.min(a.max[ax], b.max[ax]) - Math.max(a.min[ax], b.min[ax]) > 1e-6
+          expect(
+            shares('x') && shares('y') && shares('z'),
+            `${roles[i].role} overlaps ${roles[j].role} with dividers ${JSON.stringify(dividers)}`,
+          ).toBe(false)
+        }
+      }
+    }
+  })
+})
