@@ -6,6 +6,7 @@ import {
   applyInverseToPoint,
   multiplyMatrix,
   resolveWorldMatrix,
+  ancestorWorldMatrix,
   localDirToWorld,
 } from './transform'
 import { componentsById } from '../scene/componentTree'
@@ -231,6 +232,32 @@ describe('resolveWorldMatrix', () => {
     for (let i = 0; i < 16; i++) {
       expect(got[i]).toBeCloseTo(op.matrixWorld.elements[i], 9)
     }
+  })
+})
+
+describe('ancestorWorldMatrix', () => {
+  it('is the identity for a top-level node', () => {
+    const m = ancestorWorldMatrix(treePart(null, [7, 8, 9], [10, 20, 30]), componentsById([]))
+    const I = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+    for (let i = 0; i < 16; i++) expect(m[i]).toBeCloseTo(I[i], 12)
+  })
+
+  it('excludes the node own local matrix', () => {
+    const cab = comp('a', null, [100, 0, 0], [0, 0, 45])
+    const p = treePart('a', [5, 6, 7], [0, 15, 0])
+    const anc = ancestorWorldMatrix(p, componentsById([cab]))
+    const cabOwn = composeWorldMatrix(cab)
+    for (let i = 0; i < 16; i++) expect(anc[i]).toBeCloseTo(cabOwn[i], 12)
+  })
+
+  it('composed with the node local matrix equals resolveWorldMatrix', () => {
+    const cab = comp('a', null, [100, -50, 20], [12, -34, 56])
+    const inner = comp('b', 'a', [3, 4, 5], [7, 8, 9])
+    const p = treePart('b', [5, 6, 7], [11, 12, 13])
+    const byId = componentsById([cab, inner])
+    const got = multiplyMatrix(ancestorWorldMatrix(p, byId), composeWorldMatrix(p))
+    const expected = resolveWorldMatrix(p, byId)
+    for (let i = 0; i < 16; i++) expect(got[i]).toBeCloseTo(expected[i], 12)
   })
 })
 

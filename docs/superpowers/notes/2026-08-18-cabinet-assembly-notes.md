@@ -468,8 +468,8 @@ body, not just its name.
 | `tonguegroove.ts:40` `localDirToWorld` | ✅ |
 | `fingerjoint.ts:40` `localDirToWorld` | ✅ |
 | `snapMath.ts:101` `computeFaceCorners` | ✅ uses `resolveWorldMatrix` |
-| `snapMath.ts:134` `computeSnapTransform` | ⏳ Task 2.5b |
-| `snapMath.ts:223` `computeDowelSnapTransform` | ⏳ Task 2.5b |
+| `snapMath.ts:134` `computeSnapTransform` | ✅ Task 2.5b |
+| `snapMath.ts:223` `computeDowelSnapTransform` | ✅ Task 2.5b |
 
 All four copies hashed identically (`d0bd753…`) — no divergence had crept in, which is mild luck given
 they were copy-pasted four times.
@@ -508,3 +508,57 @@ Lint caught a real omission the tests did not: the viewport highlight `useEffect
 in its dependency array. A stale closure there would have frozen face highlights at the previous
 tree — the kind of bug that survives a green suite and shows up as "the outline is in the wrong place
 sometimes".
+
+## 2026-08-20 — Task 2.5b: the snap transforms now round-trip through the parent frame
+
+`grep -rn 'setFromEuler' src/geom/ src/scene/ --include=*.ts | grep -v '\.test\.'` now returns a
+single hit — `localQuaternion` in `snapMath.ts`, which is by construction *one node's local*
+rotation and is only ever consumed by `worldQuaternion`'s ancestor loop. No site left in `geom/` or
+`scene/` builds a world pose from a bare Euler triple. That closes the seven-site finding.
+
+### The bug had two halves, and only one of them was visible
+
+`computeSnapTransform` read `sourcePart.rotation` (parent-local) into a variable commented "current
+**world** rotation". That was the half everybody looked at. The other half was on the way out: the
+function computes a world placement from world-space `FaceHit` data and returned it straight into
+`part.position`/`part.rotation`, which are parent-local. Fixing only the input would have produced a
+*more* wrong answer than leaving both broken, since the two errors partly cancel for a
+translation-only ancestor. Both conversions had to land in the same commit.
+
+Evidence of the partial cancellation: the "returns a parent-local placement, not a world one" test
+(cabinet translated 500mm, no rotation) **passed against the unfixed code**. `computeFaceCorners`
+already resolved through ancestors, so the `sourcePart.position + target − c` formula happened to
+subtract the parent translation back out. Only the rotated-ancestor tests actually failed. A
+translation-only fixture would have certified the bug as fixed.
+
+### Why the round-trip is quaternion-side on the way in but matrix-side on the way out
+
+The natural implementation resolves the incoming rotation with
+`new THREE.Matrix4().fromArray(resolveWorldMatrix(part, byId)).decompose(…)`. It is correct, and it
+shifts a top-level part's result by one ULP (`39.72128732801056` → `…57`), because
+`Euler → quaternion` and `Euler → matrix → quaternion` are different code paths. Phase 2's contract
+is that a top-level part behaves *identically*, so `worldQuaternion` composes ancestor quaternions
+directly: with no ancestors the loop body never runs and the expression is literally the old one.
+
+The way out can use the matrix, because `ancestorWorldMatrix` returns the exact identity for a
+top-level node and `decompose` of the identity yields exactly `(0,0,0)` / `(0,0,0,1)`; inverting and
+applying that perturbs nothing. Verified, not assumed: both functions have a test asserting `toBe`
+(Object.is) against values captured from the pre-change implementation.
+
+### `ancestorWorldMatrix` deliberately does not become the basis of `resolveWorldMatrix`
+
+`resolveWorldMatrix(node) === multiplyMatrix(ancestorWorldMatrix(node), composeWorldMatrix(node))`
+is now a test, but the refactor it invites was rejected. `composeWorldMatrix` emits `-0` for several
+rotation entries (`r01 = -cy * sz` at zero yaw), and multiplying by the identity turns `-0` into
+`+0` — which `toBe`/`Object.is` distinguishes. It would break the exact-equality test that pins
+"top-level resolves to exactly `composeWorldMatrix`" for some inputs and not others.
+
+### The nesting test asserts an equivalence, not an Euler triple
+
+The obvious test — "snap a nested board, expect the same world pose as snapping the flat board" — is
+wrong, and it took writing it to see why. Re-parenting a board under a yawed cabinet changes its
+*world* rotation, and the roll-snap in step 3 deliberately preserves the part's existing roll to the
+nearest 90°. So the world outcome legitimately differs. The test that means something is: snapping a
+nested part must land in exactly the world pose that snapping an **unparented part at the same
+resolved world pose** lands in. Nesting is then provably a no-op on the geometry, and the returned
+Euler triple is never asserted directly — it is only defined up to equivalent representations.

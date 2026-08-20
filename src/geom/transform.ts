@@ -110,6 +110,20 @@ export function resolveWorldMatrix(
   return m
 }
 
+// The frame a node's local position/rotation are expressed IN — the product of its ancestors,
+// excluding its own local matrix. Identity for a top-level node, which is why a top-level part's
+// local values are also its world values.
+export function ancestorWorldMatrix(
+  node: Part | Component,
+  byId: Map<ComponentId, Component>,
+): Float64Array {
+  let m: Float64Array = new Float64Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+  for (const ancestor of ancestorsOf(node, byId)) {
+    m = multiplyMatrix(composeWorldMatrix(ancestor), m)
+  }
+  return m
+}
+
 // A direction expressed in a node's local frame, rotated into world space. Reads the rotation
 // block of the resolved matrix, so it picks up ancestor rotation without re-deriving Euler order —
 // and deliberately skips the translation column, which a direction must not receive.

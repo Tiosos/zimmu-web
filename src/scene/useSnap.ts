@@ -73,7 +73,7 @@ export function useSnap(params: {
 
       const { position, rotation } =
         srcPart.kind === 'cylinder'
-          ? computeDowelSnapTransform(srcFace, hit, srcPart, targetPart.kind === 'cylinder')
+          ? computeDowelSnapTransform(srcFace, hit, srcPart, targetPart.kind === 'cylinder', byId)
           : computeSnapTransform(srcFace, hit, srcPart, byId)
 
       const noMove =
