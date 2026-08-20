@@ -32,6 +32,7 @@ function App() {
     occtReady,
     nextLabel,
     onAdd,
+    onAddComponent,
     onRemove,
     onDuplicate,
     onUpdate,
@@ -407,6 +408,7 @@ function App() {
           pendingIds={pendingIds}
           nextLabel={nextLabel}
           onAdd={onAdd}
+          onAddComponent={onAddComponent}
           onRemove={onRemove}
           onDuplicate={onDuplicate}
           onUpdate={onUpdate}

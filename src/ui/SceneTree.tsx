@@ -75,6 +75,7 @@ export function SceneTree({
         key={part.id}
         data-testid={`node-${part.id}`}
         data-driven={String(part.driven)}
+        data-selected={String(selection?.kind === 'part' && selection.id === part.id)}
         className={cn(
           ROW_CLASS,
           selection?.kind === 'part' && selection.id === part.id
@@ -146,6 +147,7 @@ export function SceneTree({
       <div key={component.id} data-testid={`subtree-${component.id}`}>
         <div
           data-testid={`node-${component.id}`}
+          data-selected={String(selection?.kind === 'component' && selection.id === component.id)}
           className={cn(
             ROW_CLASS,
             selection?.kind === 'component' && selection.id === component.id

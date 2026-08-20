@@ -1,4 +1,4 @@
-import type { CutDef, CutId, Joint, Part, PartId, Scene, Selection } from '../scene/types'
+import type { CutDef, CutId, Joint, Part, PartId, Scene, Selection, ComponentId } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
 import type { JointSuggestion } from '../scene/suggestJoints'
 import type { InteractionMode, UseInteractionModeResult } from '../scene/useInteractionMode'
@@ -16,6 +16,7 @@ interface SidebarProps {
   pendingIds: Set<PartId>
   nextLabel: string
   onAdd: (kind: 'board' | 'cylinder') => void
+  onAddComponent: (parentId: ComponentId | null) => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
@@ -50,6 +51,7 @@ export function Sidebar({
   pendingIds,
   nextLabel,
   onAdd,
+  onAddComponent,
   onRemove,
   onDuplicate,
   onUpdate,
@@ -240,6 +242,14 @@ export function Sidebar({
             className="flex-1 text-xs"
           >
             + Board
+          </Button>
+          <Button
+            onClick={() => onAddComponent(null)}
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs"
+          >
+            + Group
           </Button>
           <Button
             onClick={() => onAdd('cylinder')}

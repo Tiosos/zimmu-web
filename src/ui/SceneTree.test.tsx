@@ -176,3 +176,27 @@ describe('SceneTree', () => {
     expect(screen.getByTestId('node-board_t1').className).toContain('bg-secondary')
   })
 })
+
+describe('selection is exposed for assertion, not only styled', () => {
+  afterEach(cleanup)
+
+  it('marks the selected component row', () => {
+    renderTree({
+      components: [makeGroup()],
+      parts: [makeBoard({ id: 'loose' })],
+      selection: { kind: 'component', id: 'cmp_1' },
+    })
+    expect(screen.getByTestId('node-cmp_1').getAttribute('data-selected')).toBe('true')
+    expect(screen.getByTestId('node-loose').getAttribute('data-selected')).toBe('false')
+  })
+
+  it('marks the selected part row', () => {
+    renderTree({
+      components: [makeGroup()],
+      parts: [makeBoard({ id: 'loose' })],
+      selection: { kind: 'part', id: 'loose' },
+    })
+    expect(screen.getByTestId('node-loose').getAttribute('data-selected')).toBe('true')
+    expect(screen.getByTestId('node-cmp_1').getAttribute('data-selected')).toBe('false')
+  })
+})

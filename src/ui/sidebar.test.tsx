@@ -67,6 +67,7 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     pendingIds: new Set<PartId>(),
     nextLabel: 'Board 2',
     onAdd: vi.fn(),
+  onAddComponent: vi.fn(),
     onRemove: vi.fn(),
     onDuplicate: vi.fn(),
     onUpdate: vi.fn(),
