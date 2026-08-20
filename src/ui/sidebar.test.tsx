@@ -4,6 +4,8 @@ import { Sidebar } from './sidebar'
 import type { BoardPart, BoxCut, CutId, CylinderPart, Part, PartId } from '../scene/types'
 import { PART_COLORS } from '../scene/palette'
 
+const partSel = (id: PartId) => ({ kind: 'part', id }) as const
+
 function makeCut(overrides: Partial<BoxCut> = {}): BoxCut {
   return {
     id: 'cut_1',
@@ -74,7 +76,7 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     onLinkCuts: vi.fn(),
     onUnlinkCuts: vi.fn(),
     lastPlacedCutId: null as CutId | null,
-    selectedId: null,
+    selection: null,
     onSelect: vi.fn(),
     snapActive: false,
     snapPhase: 'idle' as const,
@@ -135,7 +137,7 @@ describe('Sidebar', () => {
     const onSelect = vi.fn()
     render(<Sidebar {...props({ onSelect })} />)
     fireEvent.click(screen.getByText('Board 1'))
-    expect(onSelect).toHaveBeenCalledWith('board_t1')
+    expect(onSelect).toHaveBeenCalledWith({ kind: 'part', id: 'board_t1' })
   })
 
   it('calls onAdd when + Board clicked', () => {
@@ -168,7 +170,7 @@ describe('Sidebar', () => {
     const onToggleVisible = vi.fn()
     render(<Sidebar {...props({ onToggleVisible })} />)
     fireEvent.click(screen.getByTitle('Hide'))
-    expect(onToggleVisible).toHaveBeenCalledWith('board_t1')
+    expect(onToggleVisible).toHaveBeenCalledWith({ kind: 'part', id: 'board_t1' })
   })
 
   it('shows hollow circle and Show title for hidden part', () => {
@@ -191,7 +193,7 @@ describe('Sidebar', () => {
   })
 
   it('shows edit panel when a part is selected', () => {
-    render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ selection: partSel('board_t1') })} />)
     expect(screen.getByText(/Shape/i)).toBeTruthy()
     expect(screen.getByText(/Position/i)).toBeTruthy()
     expect(screen.getByText(/Rotation/i)).toBeTruthy()
@@ -199,19 +201,19 @@ describe('Sidebar', () => {
 
   it('EditPanel delete button calls onRemove for the selected part', () => {
     const onRemove = vi.fn()
-    render(<Sidebar {...props({ selectedId: 'board_t1', onRemove })} />)
+    render(<Sidebar {...props({ selection: partSel('board_t1'), onRemove })} />)
     fireEvent.click(screen.getByTitle('Delete part'))
     expect(onRemove).toHaveBeenCalledWith('board_t1')
   })
 
   it('renders material input when a part is selected', () => {
-    render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ selection: partSel('board_t1') })} />)
     expect(screen.getByPlaceholderText('Material (optional)')).toBeTruthy()
   })
 
   it('material input change calls onUpdate with updated material', () => {
     const onUpdate = vi.fn()
-    render(<Sidebar {...props({ selectedId: 'board_t1', onUpdate })} />)
+    render(<Sidebar {...props({ selection: partSel('board_t1'), onUpdate })} />)
     const input = screen.getByPlaceholderText('Material (optional)')
     fireEvent.change(input, { target: { value: 'Plywood' } })
     expect(onUpdate).toHaveBeenCalledOnce()
@@ -221,7 +223,7 @@ describe('Sidebar', () => {
   })
 
   it('hides edit panel when nothing is selected', () => {
-    render(<Sidebar {...props({ selectedId: null })} />)
+    render(<Sidebar {...props({ selection: null })} />)
     expect(screen.queryByText('▾ Shape')).toBeNull()
   })
 
@@ -236,12 +238,12 @@ describe('Sidebar', () => {
   })
 
   it('shows Cuts section header when a part is selected', () => {
-    render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ selection: partSel('board_t1') })} />)
     expect(screen.getByText(/▾ Cuts/)).toBeTruthy()
   })
 
   it('shows "No cuts" placeholder when part has zero cuts', () => {
-    render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ selection: partSel('board_t1') })} />)
     expect(screen.getByText(/No cuts/i)).toBeTruthy()
   })
 
@@ -261,7 +263,7 @@ describe('Sidebar', () => {
       joints: [],
       components: [],
     }
-    render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ scene, selection: partSel('board_t1') })} />)
     expect(screen.getByText('Dado')).toBeTruthy()
   })
 
@@ -282,7 +284,7 @@ describe('Sidebar', () => {
       joints: [],
       components: [],
     }
-    render(<Sidebar {...props({ scene, selectedId: 'board_t1', onRemoveCut })} />)
+    render(<Sidebar {...props({ scene, selection: partSel('board_t1'), onRemoveCut })} />)
     fireEvent.click(screen.getByTitle('Delete cut'))
     expect(onRemoveCut).toHaveBeenCalledWith('board_t1', 'cut_1')
   })
@@ -296,7 +298,9 @@ describe('Sidebar', () => {
         hardware: [],
         joints: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: null })} />)
+      render(
+        <Sidebar {...props({ scene, selection: partSel('board_t1'), lastPlacedCutId: null })} />,
+      )
       expect(screen.queryByText('Size')).toBeNull()
     })
 
@@ -308,7 +312,9 @@ describe('Sidebar', () => {
         hardware: [],
         joints: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
+      render(
+        <Sidebar {...props({ scene, selection: partSel('board_t1'), lastPlacedCutId: 'cut_1' })} />,
+      )
       expect(screen.getByText('Size')).toBeTruthy()
     })
 
@@ -320,7 +326,9 @@ describe('Sidebar', () => {
         hardware: [],
         joints: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: null })} />)
+      render(
+        <Sidebar {...props({ scene, selection: partSel('board_t1'), lastPlacedCutId: null })} />,
+      )
       fireEvent.click(screen.getByText('Dado'))
       expect(screen.getByText('Size')).toBeTruthy()
     })
@@ -338,7 +346,9 @@ describe('Sidebar', () => {
         hardware: [],
         joints: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
+      render(
+        <Sidebar {...props({ scene, selection: partSel('board_t1'), lastPlacedCutId: 'cut_1' })} />,
+      )
       expect(screen.getByText('Link to cut…')).toBeTruthy()
     })
 
@@ -350,7 +360,9 @@ describe('Sidebar', () => {
         hardware: [],
         joints: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
+      render(
+        <Sidebar {...props({ scene, selection: partSel('board_t1'), lastPlacedCutId: 'cut_1' })} />,
+      )
       expect(screen.queryByText('Link to cut…')).toBeNull()
     })
 
@@ -370,7 +382,12 @@ describe('Sidebar', () => {
       }
       render(
         <Sidebar
-          {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1', onLinkCuts })}
+          {...props({
+            scene,
+            selection: partSel('board_t1'),
+            lastPlacedCutId: 'cut_1',
+            onLinkCuts,
+          })}
         />,
       )
       fireEvent.click(screen.getByText('Link to cut…').closest('button')!)
@@ -389,7 +406,9 @@ describe('Sidebar', () => {
         hardware: [],
         joints: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
+      render(
+        <Sidebar {...props({ scene, selection: partSel('board_t1'), lastPlacedCutId: 'cut_1' })} />,
+      )
       expect(screen.getByText(/↔ Board 2 › Shelf End/)).toBeTruthy()
     })
 
@@ -407,7 +426,12 @@ describe('Sidebar', () => {
       }
       render(
         <Sidebar
-          {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1', onUnlinkCuts })}
+          {...props({
+            scene,
+            selection: partSel('board_t1'),
+            lastPlacedCutId: 'cut_1',
+            onUnlinkCuts,
+          })}
         />,
       )
       fireEvent.click(screen.getByRole('button', { name: 'Unlink' }))
@@ -423,7 +447,9 @@ describe('Sidebar', () => {
         joints: [],
         components: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1' })} />)
+      render(
+        <Sidebar {...props({ scene, selection: partSel('board_t1'), lastPlacedCutId: 'cut_1' })} />,
+      )
       expect(screen.getByText(/Pair lost/)).toBeTruthy()
     })
 
@@ -439,7 +465,12 @@ describe('Sidebar', () => {
       }
       render(
         <Sidebar
-          {...props({ scene, selectedId: 'board_t1', lastPlacedCutId: 'cut_1', onUnlinkCuts })}
+          {...props({
+            scene,
+            selection: partSel('board_t1'),
+            lastPlacedCutId: 'cut_1',
+            onUnlinkCuts,
+          })}
         />,
       )
       fireEvent.click(screen.getByRole('button', { name: 'Unlink' }))
@@ -468,7 +499,7 @@ describe('Sidebar', () => {
         ],
         joints: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
+      render(<Sidebar {...props({ scene, selection: partSel('board_t1') })} />)
       expect(screen.queryByText(/▾ Hardware/)).toBeNull()
     })
 
@@ -492,7 +523,7 @@ describe('Sidebar', () => {
         ],
         joints: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
+      render(<Sidebar {...props({ scene, selection: partSel('board_t1') })} />)
       expect(screen.getByText(/▾ Hardware/)).toBeTruthy()
       expect(screen.getByText(/Corner bracket × 4 pcs/)).toBeTruthy()
     })
@@ -528,7 +559,7 @@ describe('Sidebar', () => {
         ],
         joints: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
+      render(<Sidebar {...props({ scene, selection: partSel('board_t1') })} />)
       expect(screen.getByText(/Hinge/)).toBeTruthy()
       expect(screen.queryByText(/Dowel × 6 pcs/)).toBeNull()
     })
@@ -543,7 +574,7 @@ describe('Sidebar', () => {
         joints: [],
         components: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'cyl_t1' })} />)
+      render(<Sidebar {...props({ scene, selection: partSel('cyl_t1') })} />)
       expect(screen.getByText('Ø')).toBeTruthy()
       expect(screen.queryByText('T')).toBeNull()
     })
@@ -557,7 +588,7 @@ describe('Sidebar', () => {
         joints: [],
         components: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'cyl_t1', onUpdate })} />)
+      render(<Sidebar {...props({ scene, selection: partSel('cyl_t1'), onUpdate })} />)
       const input = screen.getByDisplayValue('Dowel 1')
       fireEvent.change(input, { target: { value: '' } })
       fireEvent.blur(input)
@@ -575,18 +606,18 @@ describe('Sidebar', () => {
 
   describe('ColorControl', () => {
     it('renders the custom color input when a part is selected', () => {
-      render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+      render(<Sidebar {...props({ selection: partSel('board_t1') })} />)
       expect(screen.getByLabelText('Custom color')).toBeTruthy()
     })
 
     it('does not render the color control when nothing is selected', () => {
-      render(<Sidebar {...props({ selectedId: null })} />)
+      render(<Sidebar {...props({ selection: null })} />)
       expect(screen.queryByLabelText('Custom color')).toBeNull()
     })
 
     it('clicking a preset swatch calls onUpdate with that color', () => {
       const onUpdate = vi.fn()
-      render(<Sidebar {...props({ selectedId: 'board_t1', onUpdate })} />)
+      render(<Sidebar {...props({ selection: partSel('board_t1'), onUpdate })} />)
       fireEvent.click(screen.getByLabelText('Color #8ecae6'))
       expect(onUpdate).toHaveBeenCalledOnce()
       const [, updater] = onUpdate.mock.calls[0] as [PartId, (p: Part) => Part]
@@ -597,7 +628,7 @@ describe('Sidebar', () => {
 
     it('changing the native color input calls onUpdate with the new color', () => {
       const onUpdate = vi.fn()
-      render(<Sidebar {...props({ selectedId: 'board_t1', onUpdate })} />)
+      render(<Sidebar {...props({ selection: partSel('board_t1'), onUpdate })} />)
       fireEvent.change(screen.getByLabelText('Custom color'), {
         target: { value: '#123456' },
       })
@@ -609,7 +640,7 @@ describe('Sidebar', () => {
     })
 
     it('the swatch matching part.color shows a selected ring', () => {
-      render(<Sidebar {...props({ selectedId: 'board_t1' })} />)
+      render(<Sidebar {...props({ selection: partSel('board_t1') })} />)
       expect(screen.getByLabelText('Color #d4a373').className).toContain('ring-2')
     })
 
@@ -621,7 +652,7 @@ describe('Sidebar', () => {
         hardware: [],
         joints: [],
       }
-      render(<Sidebar {...props({ scene, selectedId: 'board_t1' })} />)
+      render(<Sidebar {...props({ scene, selection: partSel('board_t1') })} />)
       for (const c of PART_COLORS) {
         expect(screen.getByLabelText(`Color ${c}`).className).not.toContain('ring-2')
       }
@@ -663,24 +694,28 @@ describe('Sidebar joints panel — rabbeted', () => {
   })
 
   it('plain joint hides the tongue controls', () => {
-    render(<Sidebar {...props({ scene: jointScene('plain'), selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ scene: jointScene('plain'), selection: partSel('board_t1') })} />)
     expect(screen.queryByText('Tongue')).toBeNull()
   })
 
   it('rabbeted joint shows the tongue + rabbet-side controls', () => {
-    render(<Sidebar {...props({ scene: jointScene('rabbeted'), selectedId: 'board_t1' })} />)
+    render(
+      <Sidebar {...props({ scene: jointScene('rabbeted'), selection: partSel('board_t1') })} />,
+    )
     expect(screen.getByText('Tongue')).toBeTruthy()
     expect(screen.getByText('Rabbet')).toBeTruthy()
   })
 
   it('shows Stop A / Stop B inputs for the housing part (plain)', () => {
-    render(<Sidebar {...props({ scene: jointScene('plain'), selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ scene: jointScene('plain'), selection: partSel('board_t1') })} />)
     expect(screen.getByText('Stop A')).toBeTruthy()
     expect(screen.getByText('Stop B')).toBeTruthy()
   })
 
   it('keeps Stop A / Stop B visible for a rabbeted joint too', () => {
-    render(<Sidebar {...props({ scene: jointScene('rabbeted'), selectedId: 'board_t1' })} />)
+    render(
+      <Sidebar {...props({ scene: jointScene('rabbeted'), selection: partSel('board_t1') })} />,
+    )
     expect(screen.getByText('Stop A')).toBeTruthy()
     expect(screen.getByText('Stop B')).toBeTruthy()
   })
@@ -718,13 +753,13 @@ describe('Sidebar joints panel — half-lap', () => {
   })
 
   it('shows Split / Clear inputs for a board in a half-lap', () => {
-    render(<Sidebar {...props({ scene: lapScene(), selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ scene: lapScene(), selection: partSel('board_t1') })} />)
     expect(screen.getByText('Split')).toBeTruthy()
     expect(screen.getByText('Clear')).toBeTruthy()
   })
 
   it('shows the half-lap controls on the OTHER board too (symmetric)', () => {
-    render(<Sidebar {...props({ scene: lapScene(), selectedId: 'board_t2' })} />)
+    render(<Sidebar {...props({ scene: lapScene(), selection: partSel('board_t2') })} />)
     expect(screen.getByText('Split')).toBeTruthy()
   })
 })
@@ -762,7 +797,7 @@ describe('Sidebar joints panel — mortise & tenon', () => {
   })
 
   it('shows Length / Thk / Width / Through controls for the mortise board', () => {
-    render(<Sidebar {...props({ scene: mtScene(), selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ scene: mtScene(), selection: partSel('board_t1') })} />)
     expect(screen.getByText('Length')).toBeTruthy()
     expect(screen.getByText('Thk')).toBeTruthy()
     expect(screen.getByText('Width')).toBeTruthy()
@@ -770,7 +805,7 @@ describe('Sidebar joints panel — mortise & tenon', () => {
   })
 
   it('shows the tenon-side read-only hint on the other board', () => {
-    render(<Sidebar {...props({ scene: mtScene(), selectedId: 'board_t2' })} />)
+    render(<Sidebar {...props({ scene: mtScene(), selection: partSel('board_t2') })} />)
     expect(screen.getByText(/Edit from/)).toBeTruthy()
   })
 })
@@ -810,13 +845,13 @@ describe('Sidebar joints panel — finger joint', () => {
   })
 
   it('shows Fingers / Clear controls for the lead board', () => {
-    render(<Sidebar {...props({ scene: fjScene(), selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ scene: fjScene(), selection: partSel('board_t1') })} />)
     expect(screen.getByText('Fingers')).toBeTruthy()
     expect(screen.getByText('Clear')).toBeTruthy()
   })
 
   it('shows the read-only hint on the mating board', () => {
-    render(<Sidebar {...props({ scene: fjScene(), selectedId: 'board_t2' })} />)
+    render(<Sidebar {...props({ scene: fjScene(), selection: partSel('board_t2') })} />)
     expect(screen.getByText(/Edit from/)).toBeTruthy()
   })
 })
@@ -857,14 +892,14 @@ describe('Sidebar joints panel — tongue & groove', () => {
   })
 
   it('shows Thk / Depth / Clear controls for the groove board', () => {
-    render(<Sidebar {...props({ scene: tgScene(), selectedId: 'board_t1' })} />)
+    render(<Sidebar {...props({ scene: tgScene(), selection: partSel('board_t1') })} />)
     expect(screen.getByText('Thk')).toBeTruthy()
     expect(screen.getByText('Depth')).toBeTruthy()
     expect(screen.getByText('Clear')).toBeTruthy()
   })
 
   it('shows the read-only hint on the tongue board', () => {
-    render(<Sidebar {...props({ scene: tgScene(), selectedId: 'board_t2' })} />)
+    render(<Sidebar {...props({ scene: tgScene(), selection: partSel('board_t2') })} />)
     expect(screen.getByText(/Edit from/)).toBeTruthy()
   })
 })

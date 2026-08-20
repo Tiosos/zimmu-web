@@ -16,7 +16,7 @@ import { downloadBlob } from './ui/download'
 import { buildDrawingSheets } from './geom/drawing'
 import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
-import type { CameraState, PartId } from './scene/types'
+import type { CameraState, PartId, Selection } from './scene/types'
 
 const supported = 'showOpenFilePicker' in window
 
@@ -28,6 +28,7 @@ function App() {
     errors,
     pendingIds,
     selectedId,
+    selection,
     occtReady,
     nextLabel,
     onAdd,
@@ -48,6 +49,7 @@ function App() {
     onRemoveJoint,
     onSelect,
     onToggleVisible,
+    onUpdateComponent,
     canUndo,
     canRedo,
     undoLabel,
@@ -124,10 +126,22 @@ function App() {
     [],
   )
 
-  // The viewport and sidebar only ever select parts; components are addressed elsewhere.
+  // The viewport and the face-interaction hooks address parts by id: a mesh click can only ever
+  // land on a part, and nothing component-shaped is drawn in the 3D scene. The sidebar tree speaks
+  // Selection directly, so it needs no adapter.
   const onSelectPart = useCallback(
     (id: PartId | null) => onSelect(id === null ? null : { kind: 'part', id }),
     [onSelect],
+  )
+
+  // Part visibility is its own scene action; a component has no such action because its visibility
+  // is just a field on the component.
+  const handleToggleVisible = useCallback(
+    (s: Selection) => {
+      if (s.kind === 'part') onToggleVisible(s.id)
+      else onUpdateComponent(s.id, (c) => ({ ...c, visible: !c.visible }))
+    },
+    [onToggleVisible, onUpdateComponent],
   )
 
   const mode = useInteractionMode({
@@ -402,9 +416,9 @@ function App() {
           onLinkCuts={onLinkCuts}
           onUnlinkCuts={onUnlinkCuts}
           lastPlacedCutId={mode.lastPlacedCutId}
-          selectedId={selectedId}
-          onSelect={onSelectPart}
-          onToggleVisible={onToggleVisible}
+          selection={selection}
+          onSelect={onSelect}
+          onToggleVisible={handleToggleVisible}
           snapActive={mode.activeMode === 'snap'}
           snapPhase={mode.snapPhase}
           onSnapToggle={() => mode.setMode('snap')}

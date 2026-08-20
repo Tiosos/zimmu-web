@@ -1,11 +1,12 @@
-import type { CutDef, CutId, Joint, Part, PartId, Scene } from '../scene/types'
+import type { CutDef, CutId, Joint, Part, PartId, Scene, Selection } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
 import type { JointSuggestion } from '../scene/suggestJoints'
 import { EditPanel } from './EditPanel'
+import { SceneTree } from './SceneTree'
 import { SceneSuggestionsPanel } from './SceneSuggestionsPanel'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 interface SidebarProps {
   scene: Scene
@@ -23,14 +24,14 @@ interface SidebarProps {
   onLinkCuts: (partIdA: PartId, cutIdA: CutId, partIdB: PartId, cutIdB: CutId) => void
   onUnlinkCuts: (partId: PartId, cutId: CutId) => void
   lastPlacedCutId: CutId | null
-  selectedId: PartId | null
-  onSelect: (id: PartId | null) => void
+  selection: Selection | null
+  onSelect: (s: Selection | null) => void
   snapActive: boolean
   snapPhase: 'idle' | 'source-picked'
   onSnapToggle: () => void
   cutActive: boolean
   onCutToggle: () => void
-  onToggleVisible: (id: PartId) => void
+  onToggleVisible: (s: Selection) => void
   dowelTool: DowelCutTool | null
   armDowelTool: (tool: DowelCutTool) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
@@ -73,7 +74,7 @@ export function Sidebar({
   onLinkCuts,
   onUnlinkCuts,
   lastPlacedCutId,
-  selectedId,
+  selection,
   onSelect,
   snapActive,
   snapPhase,
@@ -106,7 +107,8 @@ export function Sidebar({
   onHoverSuggestion,
   onHoverPair,
 }: SidebarProps) {
-  const selectedPart = scene.parts.find((p) => p.id === selectedId) ?? null
+  const selectedPart =
+    selection?.kind === 'part' ? (scene.parts.find((p) => p.id === selection.id) ?? null) : null
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -203,99 +205,23 @@ export function Sidebar({
           </Button>
         </div>
 
-        {/* Parts list */}
         <ScrollArea className="flex-1">
-          {scene.parts.length === 0 ? (
+          {scene.parts.length === 0 && scene.components.length === 0 ? (
             <p className="p-4 text-muted-foreground text-xs text-center">
               No parts — add a part to start
             </p>
           ) : (
-            scene.parts.map((part) => {
-              const isPending = pendingIds.has(part.id)
-              const error = errors.get(part.id)
-              return (
-                <div
-                  key={part.id}
-                  className={`flex items-center gap-1.5 px-2 py-1.5 cursor-pointer select-none ${
-                    part.id === selectedId ? 'bg-secondary' : 'hover:bg-secondary/50'
-                  }`}
-                  onClick={() => onSelect(part.id)}
-                >
-                  {error ? (
-                    <span title={error} className="text-xs text-destructive-foreground">
-                      ⚠
-                    </span>
-                  ) : isPending ? (
-                    <span className="text-xs text-muted-foreground animate-spin inline-block">
-                      ⟳
-                    </span>
-                  ) : (
-                    <div
-                      className="w-3 h-3 rounded-sm flex-shrink-0"
-                      style={{ background: part.color }}
-                    />
-                  )}
-                  <span
-                    className={`flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-xs ${
-                      part.visible ? 'text-foreground' : 'text-muted-foreground'
-                    }`}
-                  >
-                    {part.label}
-                  </span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title={part.visible ? 'Hide' : 'Show'}
-                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onToggleVisible(part.id)
-                        }}
-                      >
-                        {part.visible ? '●' : '○'}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{part.visible ? 'Hide' : 'Show'}</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Duplicate"
-                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDuplicate(part.id)
-                        }}
-                      >
-                        ⧉
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Duplicate</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Delete"
-                        className="h-6 w-6 text-muted-foreground hover:text-destructive-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onRemove(part.id)
-                        }}
-                      >
-                        ✕
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Delete</TooltipContent>
-                  </Tooltip>
-                </div>
-              )
-            })
+            <SceneTree
+              components={scene.components}
+              parts={scene.parts}
+              selection={selection}
+              onSelect={onSelect}
+              onToggleVisible={onToggleVisible}
+              errors={errors}
+              pendingIds={pendingIds}
+              onDuplicate={onDuplicate}
+              onRemove={onRemove}
+            />
           )}
         </ScrollArea>
 
