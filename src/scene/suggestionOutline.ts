@@ -38,7 +38,7 @@ function faceOutlines(
     const p = board(parts, ref.partId)
     if (!p) return []
     const hit = faceHitForDisplay(p, ref.face, byId)
-    return [{ corners: computeFaceCorners(hit, p), normal: hit.faceNormal }]
+    return [{ corners: computeFaceCorners(hit, p, byId), normal: hit.faceNormal }]
   })
 }
 

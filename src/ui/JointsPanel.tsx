@@ -354,6 +354,7 @@ export function JointsPanel({
                 j.housingFace,
                 housed as BoardPart,
                 j.housedEnd,
+                componentMap,
               )
             : true
         return (

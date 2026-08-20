@@ -12,6 +12,9 @@ import {
   isSnapFace,
 } from './snapMath'
 import type { BoardPart, CylinderPart, Face, FaceHit, Vec3 } from './types'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 function face(
   partId: string,
@@ -169,13 +172,13 @@ describe('computeLocalFaceCenter', () => {
 describe('computeFaceCorners', () => {
   it('throws for unsupported part kind', () => {
     const badPart = { ...BOARD, kind: 'cylinder' as never }
-    expect(() => computeFaceCorners(makeFace(0, 0, 1), badPart)).toThrow(
+    expect(() => computeFaceCorners(makeFace(0, 0, 1), badPart, NO_COMPONENTS)).toThrow(
       "computeFaceCorners: unsupported kind 'cylinder'",
     )
   })
 
   it('face +Z: returns 4 corners at Z=25 spanning full XY face', () => {
-    const [c0, c1, c2, c3] = computeFaceCorners(makeFace(0, 0, 1), BOARD)
+    const [c0, c1, c2, c3] = computeFaceCorners(makeFace(0, 0, 1), BOARD, NO_COMPONENTS)
     // All corners at Z = 25
     expect(c0.z).toBeCloseTo(25)
     expect(c1.z).toBeCloseTo(25)
@@ -191,7 +194,7 @@ describe('computeFaceCorners', () => {
   })
 
   it('face +X: returns 4 corners at X=100 spanning full YZ face', () => {
-    const [c0, c1, c2, c3] = computeFaceCorners(makeFace(1, 0, 0), BOARD)
+    const [c0, c1, c2, c3] = computeFaceCorners(makeFace(1, 0, 0), BOARD, NO_COMPONENTS)
     expect(c0.x).toBeCloseTo(100)
     expect(c1.x).toBeCloseTo(100)
     expect(c2.x).toBeCloseTo(100)
@@ -225,6 +228,7 @@ describe('computeFaceCorners', () => {
           hitPoint: { x: 0, y: 0, z: 0 },
         },
         BOARD,
+        NO_COMPONENTS,
       )
       const center = computeLocalFaceCenter(fn, BOARD)
       for (const corner of corners) {
@@ -255,6 +259,7 @@ describe('computeFaceCorners', () => {
           hitPoint: { x: 0, y: 0, z: 0 },
         },
         BOARD,
+        NO_COMPONENTS,
       )
       const winding = cross(subV(c1, c0), subV(c2, c0))
       expect(dotV(winding, fn)).toBeGreaterThan(0)
@@ -282,6 +287,7 @@ describe('computeFaceCorners', () => {
           hitPoint: { x: 0, y: 0, z: 0 },
         },
         BOARD,
+        NO_COMPONENTS,
       )
       for (let i = 0; i < 4; i++) {
         for (let j = i + 1; j < 4; j++) {
@@ -301,8 +307,8 @@ describe('computeFaceCorners', () => {
       ...BOARD,
       position: { x: 10, y: 20, z: 30 },
     }
-    const base = computeFaceCorners(makeFace(0, 0, 1), BOARD)
-    const moved = computeFaceCorners(makeFace(0, 0, 1), translated)
+    const base = computeFaceCorners(makeFace(0, 0, 1), BOARD, NO_COMPONENTS)
+    const moved = computeFaceCorners(makeFace(0, 0, 1), translated, NO_COMPONENTS)
     for (let i = 0; i < 4; i++) {
       expect(moved[i].x).toBeCloseTo(base[i].x + 10, 4)
       expect(moved[i].y).toBeCloseTo(base[i].y + 20, 4)
@@ -398,7 +404,7 @@ describe('computeSnapTransform', () => {
       position: result.position,
       rotation: result.rotation,
     }
-    const corners = computeFaceCorners(sourceFace, snappedPart)
+    const corners = computeFaceCorners(sourceFace, snappedPart, NO_COMPONENTS)
     const cx = (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4
     const cy = (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4
     const cz = (corners[0].z + corners[1].z + corners[2].z + corners[3].z) / 4
@@ -450,7 +456,7 @@ describe('computeSnapTransform', () => {
       localHitPoint: { x: 0, y: 0, z: 0 },
       hitPoint: { x: 250, y: 50, z: 12.5 },
     }
-    const result = computeSnapTransform(srcFace, tgtFace, BOARD)
+    const result = computeSnapTransform(srcFace, tgtFace, BOARD, NO_COMPONENTS)
 
     expect(result.rotation.x).toBeCloseTo(0, 3)
     expect(result.rotation.y).toBeCloseTo(0, 3)
@@ -481,7 +487,7 @@ describe('computeSnapTransform', () => {
       localHitPoint: { x: 0, y: 0, z: 0 },
       hitPoint: { x: 50, y: 25, z: 125 },
     }
-    const result = computeSnapTransform(srcFace, tgtFace, BOARD)
+    const result = computeSnapTransform(srcFace, tgtFace, BOARD, NO_COMPONENTS)
     expectSnapped(result, srcFace, tgtFace.faceCenter, tgtFace.faceNormal, BOARD)
   })
 
@@ -504,7 +510,7 @@ describe('computeSnapTransform', () => {
       localHitPoint: { x: 0, y: 0, z: 0 },
       hitPoint: { x: 50, y: 25, z: 100 },
     }
-    const result = computeSnapTransform(srcFace, tgtFace, BOARD)
+    const result = computeSnapTransform(srcFace, tgtFace, BOARD, NO_COMPONENTS)
 
     expect(result.rotation.x).toBeCloseTo(0, 3)
     expect(result.rotation.y).toBeCloseTo(0, 3)
@@ -541,7 +547,7 @@ describe('computeSnapTransform', () => {
       localHitPoint: { x: 0, y: 0, z: 0 },
       hitPoint: { x: 50, y: 25, z: 100 },
     }
-    const result = computeSnapTransform(srcFace, tgtFace, BOARD_ROTATED)
+    const result = computeSnapTransform(srcFace, tgtFace, BOARD_ROTATED, NO_COMPONENTS)
 
     expect(result.rotation.x).toBeCloseTo(0, 3)
     expect(result.rotation.y).toBeCloseTo(0, 3)

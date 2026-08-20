@@ -5,6 +5,9 @@ import type { BoardPart, FaceHit } from './types'
 let mockValid = true
 vi.mock('../geom/dado', () => ({ isValidDadoSeat: () => mockValid }))
 import { useAddJoint } from './useAddJoint'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const board = (id: string): BoardPart => ({
   kind: 'board',
@@ -39,7 +42,7 @@ beforeEach(() => {
 
 test('first click stores the housing; second valid click calls onAddJoint', () => {
   const onAddJoint = vi.fn()
-  const { result } = renderHook(() => useAddJoint({ parts, onAddJoint }))
+  const { result } = renderHook(() => useAddJoint({ parts, byId: NO_COMPONENTS, onAddJoint }))
   act(() => result.current.activateJoint())
   act(() => result.current.onFaceClick(hit('A')))
   expect(result.current.pendingHousing?.partId).toBe('A')
@@ -51,7 +54,7 @@ test('first click stores the housing; second valid click calls onAddJoint', () =
 
 test('clicking the same part twice is rejected with a message', () => {
   const onAddJoint = vi.fn()
-  const { result } = renderHook(() => useAddJoint({ parts, onAddJoint }))
+  const { result } = renderHook(() => useAddJoint({ parts, byId: NO_COMPONENTS, onAddJoint }))
   act(() => result.current.activateJoint())
   act(() => result.current.onFaceClick(hit('A')))
   act(() => result.current.onFaceClick(hit('A')))
@@ -63,7 +66,7 @@ test('clicking the same part twice is rejected with a message', () => {
 test('an invalid seat is rejected with a message', () => {
   mockValid = false
   const onAddJoint = vi.fn()
-  const { result } = renderHook(() => useAddJoint({ parts, onAddJoint }))
+  const { result } = renderHook(() => useAddJoint({ parts, byId: NO_COMPONENTS, onAddJoint }))
   act(() => result.current.activateJoint())
   act(() => result.current.onFaceClick(hit('A')))
   act(() => result.current.onFaceClick(hit('B')))

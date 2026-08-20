@@ -6,6 +6,7 @@ import {
   applyInverseToPoint,
   multiplyMatrix,
   resolveWorldMatrix,
+  localDirToWorld,
 } from './transform'
 import { componentsById } from '../scene/componentTree'
 import type { BoardPart, Component, Part } from '../scene/types'
@@ -230,5 +231,32 @@ describe('resolveWorldMatrix', () => {
     for (let i = 0; i < 16; i++) {
       expect(got[i]).toBeCloseTo(op.matrixWorld.elements[i], 9)
     }
+  })
+})
+
+describe('localDirToWorld', () => {
+  it('applies an ancestor component rotation to the direction', () => {
+    const cab = comp('a', null, [0, 0, 0], [0, 0, 90])
+    const p = treePart('a', [0, 0, 0], [0, 0, 0])
+    // local +X under a 90 degree yaw becomes world +Y
+    const got = localDirToWorld(p, { x: 1, y: 0, z: 0 }, componentsById([cab]))
+    expect(got.x).toBeCloseTo(0, 9)
+    expect(got.y).toBeCloseTo(1, 9)
+  })
+
+  it('is unchanged for a top-level part', () => {
+    const p = treePart(null, [0, 0, 0], [0, 0, 90])
+    const got = localDirToWorld(p, { x: 1, y: 0, z: 0 }, componentsById([]))
+    expect(got.x).toBeCloseTo(0, 9)
+    expect(got.y).toBeCloseTo(1, 9)
+  })
+
+  it('ignores ancestor translation — a direction has no position', () => {
+    const cab = comp('a', null, [500, -300, 20], [0, 0, 0])
+    const p = treePart('a', [0, 0, 0], [0, 0, 0])
+    const got = localDirToWorld(p, { x: 0, y: 0, z: 1 }, componentsById([cab]))
+    expect(got.x).toBeCloseTo(0, 9)
+    expect(got.y).toBeCloseTo(0, 9)
+    expect(got.z).toBeCloseTo(1, 9)
   })
 })

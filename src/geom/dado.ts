@@ -13,13 +13,12 @@ import type {
   Vec3,
 } from '../scene/types'
 import { faceAxes, computeLocalFaceCenter } from '../scene/snapMath'
-import { resolveWorldMatrix, applyMatrixToPoint } from './transform'
+import { resolveWorldMatrix, applyMatrixToPoint, localDirToWorld } from './transform'
 import { deriveHalfLap } from './halflap'
 import { deriveMortiseTenon } from './mortisetenon'
 import { deriveFingerJoint } from './fingerjoint'
 import { deriveTongueGroove } from './tonguegroove'
 
-const DEG2RAD = Math.PI / 180
 type Axis = 'x' | 'y' | 'z'
 
 export type DerivedCut = { partId: PartId; cut: BoxCut }
@@ -42,16 +41,9 @@ function unitVec(axis: Axis): Vec3 {
   return { x: axis === 'x' ? 1 : 0, y: axis === 'y' ? 1 : 0, z: axis === 'z' ? 1 : 0 }
 }
 
-function localDirToWorld(part: BoardPart, dir: Vec3): THREE.Vector3 {
-  const q = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(
-      part.rotation.x * DEG2RAD,
-      part.rotation.y * DEG2RAD,
-      part.rotation.z * DEG2RAD,
-      part.rotationOrder,
-    ),
-  )
-  return new THREE.Vector3(dir.x, dir.y, dir.z).applyQuaternion(q)
+function worldDir(part: BoardPart, dir: Vec3, byId: Map<ComponentId, Component>): THREE.Vector3 {
+  const d = localDirToWorld(part, dir, byId)
+  return new THREE.Vector3(d.x, d.y, d.z)
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -63,9 +55,10 @@ export function isValidDadoSeat(
   housingFace: Face,
   housed: BoardPart,
   housedEnd: Face,
+  byId: Map<ComponentId, Component>,
 ): boolean {
-  const hn = localDirToWorld(housing, FACE_NORMALS[housingFace])
-  const en = localDirToWorld(housed, FACE_NORMALS[housedEnd])
+  const hn = worldDir(housing, FACE_NORMALS[housingFace], byId)
+  const en = worldDir(housed, FACE_NORMALS[housedEnd], byId)
   return hn.dot(en) < -0.99
 }
 
@@ -73,11 +66,12 @@ export function deriveDadoAxes(
   housing: BoardPart,
   housed: BoardPart,
   housingFace: Face,
+  byId: Map<ComponentId, Component>,
 ): { narrowAx: Axis; runAx: Axis } {
   const { u, v } = faceAxes(housingFace)
-  const thicknessWorld = localDirToWorld(housed, unitVec('z'))
-  const uWorld = localDirToWorld(housing, unitVec(u))
-  const vWorld = localDirToWorld(housing, unitVec(v))
+  const thicknessWorld = worldDir(housed, unitVec('z'), byId)
+  const uWorld = worldDir(housing, unitVec(u), byId)
+  const vWorld = worldDir(housing, unitVec(v), byId)
   const alignU = Math.abs(thicknessWorld.dot(uWorld))
   const alignV = Math.abs(thicknessWorld.dot(vWorld))
   return alignU >= alignV ? { narrowAx: u, runAx: v } : { narrowAx: v, runAx: u }
@@ -95,14 +89,14 @@ export function computeDadoOffset(
   housingFace: Face,
   byId: Map<ComponentId, Component>,
 ): number {
-  const { narrowAx } = deriveDadoAxes(housing, housed, housingFace)
+  const { narrowAx } = deriveDadoAxes(housing, housed, housingFace, byId)
   const [cx, cy, cz] = applyMatrixToPoint(
     resolveWorldMatrix(housed, byId),
     housed.length / 2,
     housed.width / 2,
     housed.thickness / 2,
   )
-  const narrowDir = localDirToWorld(housing, unitVec(narrowAx))
+  const narrowDir = worldDir(housing, unitVec(narrowAx), byId)
   const raw =
     (cx - housing.position.x) * narrowDir.x +
     (cy - housing.position.y) * narrowDir.y +
@@ -118,8 +112,13 @@ export function hasTongue(joint: DadoJoint): boolean {
   return joint.profile === 'rabbeted' && faceAxes(joint.housedEnd).depth !== 'z'
 }
 
-export function computeDadoGroove(housing: BoardPart, housed: BoardPart, joint: DadoJoint): BoxCut {
-  const { narrowAx, runAx } = deriveDadoAxes(housing, housed, joint.housingFace)
+export function computeDadoGroove(
+  housing: BoardPart,
+  housed: BoardPart,
+  joint: DadoJoint,
+  byId: Map<ComponentId, Component>,
+): BoxCut {
+  const { narrowAx, runAx } = deriveDadoAxes(housing, housed, joint.housingFace, byId)
   const dAx = faceAxes(joint.housingFace).depth
   const dim = boardDims(housing)
   const depth = clamp(joint.depth, 0.1, dim[dAx] - 1)
@@ -155,7 +154,7 @@ export function computeDadoSeat(
   joint: DadoJoint,
   byId: Map<ComponentId, Component>,
 ): { position: Vec3 } {
-  const { narrowAx } = deriveDadoAxes(housing, housed, joint.housingFace)
+  const { narrowAx } = deriveDadoAxes(housing, housed, joint.housingFace, byId)
   const dAx = faceAxes(joint.housingFace).depth
   const dim = boardDims(housing)
   const depth = clamp(joint.depth, 0.1, dim[dAx] - 1)
@@ -186,8 +185,8 @@ export function computeDadoSeat(
   const [gx, gy, gz] = applyMatrixToPoint(gM, centerLocal.x, centerLocal.y, centerLocal.z)
   const centerWorld = new THREE.Vector3(gx, gy, gz)
 
-  const faceN = localDirToWorld(housing, FACE_NORMALS[joint.housingFace])
-  const narrowDir = localDirToWorld(housing, unitVec(narrowAx))
+  const faceN = worldDir(housing, FACE_NORMALS[joint.housingFace], byId)
+  const narrowDir = worldDir(housing, unitVec(narrowAx), byId)
 
   const desired = endWorld.clone()
   desired.addScaledVector(faceN, bottomWorld.clone().sub(endWorld).dot(faceN))
@@ -237,6 +236,7 @@ export function computeNotch(
   housed: BoardPart,
   joint: DadoJoint,
   end: 'start' | 'end',
+  byId: Map<ComponentId, Component>,
 ): BoxCut {
   const dim = boardDims(housed)
   const seatAx = faceAxes(joint.housedEnd).depth
@@ -244,9 +244,9 @@ export function computeNotch(
   const d = clamp(joint.depth, 0.1, dim[seatAx] - 0.1) // notch-back distance = groove depth
   const stop = clamp(end === 'start' ? joint.stopStart : joint.stopEnd, 0.1, dim[widthAx] - 0.1)
 
-  const { runAx } = deriveDadoAxes(housing, housed, joint.housingFace)
+  const { runAx } = deriveDadoAxes(housing, housed, joint.housingFace, byId)
   const aligned =
-    localDirToWorld(housed, unitVec(widthAx)).dot(localDirToWorld(housing, unitVec(runAx))) > 0
+    worldDir(housed, unitVec(widthAx), byId).dot(worldDir(housing, unitVec(runAx), byId)) > 0
   const atLow = (end === 'start') === aligned // notch sits at housed widthAx 0 vs the far end
 
   const size: Vec3 = { x: 0, y: 0, z: 0 }
@@ -298,20 +298,20 @@ function deriveDadoJoint(
   const housing = parts.find((p) => p.id === joint.housingPartId)
   const housed = parts.find((p) => p.id === joint.housedPartId)
   if (housing?.kind !== 'board' || housed?.kind !== 'board') return null
-  if (!isValidDadoSeat(housing, joint.housingFace, housed, joint.housedEnd)) return null
+  if (!isValidDadoSeat(housing, joint.housingFace, housed, joint.housedEnd, byId)) return null
 
   const notchable = faceAxes(joint.housedEnd).depth !== 'z' // housed seats on a length/width end
   const cuts: DerivedCut[] = [
-    { partId: housing.id, cut: computeDadoGroove(housing, housed, joint) },
+    { partId: housing.id, cut: computeDadoGroove(housing, housed, joint, byId) },
   ]
   if (hasTongue(joint)) {
     cuts.push({ partId: housed.id, cut: computeRabbet(housing, housed, joint) })
   }
   if (notchable && joint.stopStart > 0) {
-    cuts.push({ partId: housed.id, cut: computeNotch(housing, housed, joint, 'start') })
+    cuts.push({ partId: housed.id, cut: computeNotch(housing, housed, joint, 'start', byId) })
   }
   if (notchable && joint.stopEnd > 0) {
-    cuts.push({ partId: housed.id, cut: computeNotch(housing, housed, joint, 'end') })
+    cuts.push({ partId: housed.id, cut: computeNotch(housing, housed, joint, 'end', byId) })
   }
   const seat = {
     partId: housed.id,

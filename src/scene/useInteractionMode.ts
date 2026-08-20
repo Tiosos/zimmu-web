@@ -55,9 +55,9 @@ export interface UseInteractionModeResult {
 
 export function useInteractionMode(params: UseInteractionModeParams): UseInteractionModeResult {
   const { parts, byId, onUpdate, onSelect, onRotationSnap } = params
-  const snap = useSnap({ parts, onUpdate, onRotationSnap })
+  const snap = useSnap({ parts, byId, onUpdate, onRotationSnap })
   const cut = useAddCut({ parts, onUpdate, onSelect })
-  const joint = useAddJoint({ parts, onAddJoint: params.onAddJoint })
+  const joint = useAddJoint({ parts, byId, onAddJoint: params.onAddJoint })
   const halfLap = useAddHalfLap({ parts, onAddHalfLap: params.onAddHalfLap })
   const mortiseTenon = useAddMortiseTenon({
     parts,

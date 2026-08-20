@@ -11,10 +11,9 @@ import type {
 } from '../scene/types'
 import type { TongueGrooveJoint } from '../scene/types'
 import type { DeriveResult, DerivedCut } from './dado'
-import { applyMatrixToPoint, resolveWorldMatrix } from './transform'
+import { applyMatrixToPoint, resolveWorldMatrix, localDirToWorld } from './transform'
 import { faceAxes, computeLocalFaceCenter } from '../scene/snapMath'
 
-const DEG2RAD = Math.PI / 180
 type Axis = 'x' | 'y' | 'z'
 const EPS = 1e-4
 const THICK_EPS = 0.01
@@ -37,16 +36,9 @@ function boardDims(b: BoardPart): Record<Axis, number> {
 function unitVec(a: Axis): Vec3 {
   return { x: a === 'x' ? 1 : 0, y: a === 'y' ? 1 : 0, z: a === 'z' ? 1 : 0 }
 }
-function localDirToWorld(part: BoardPart, dir: Vec3): THREE.Vector3 {
-  const q = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(
-      part.rotation.x * DEG2RAD,
-      part.rotation.y * DEG2RAD,
-      part.rotation.z * DEG2RAD,
-      part.rotationOrder,
-    ),
-  )
-  return new THREE.Vector3(dir.x, dir.y, dir.z).applyQuaternion(q)
+function worldDir(part: BoardPart, dir: Vec3, byId: Map<ComponentId, Component>): THREE.Vector3 {
+  const d = localDirToWorld(part, dir, byId)
+  return new THREE.Vector3(d.x, d.y, d.z)
 }
 function isAxisAligned(b: BoardPart, byId: Map<ComponentId, Component>): boolean {
   const m = resolveWorldMatrix(b, byId)
@@ -73,12 +65,12 @@ export function isValidTongueGroove(
   // Both faces must be long edges (their depth axis is width = local Y).
   if (faceAxes(grooveEdge).depth !== 'y' || faceAxes(tongueEdge).depth !== 'y') return false
   // Edges must face each other (anti-parallel world normals).
-  const nG = localDirToWorld(groove, FACE_NORMALS[grooveEdge])
-  const nT = localDirToWorld(tongue, FACE_NORMALS[tongueEdge])
+  const nG = worldDir(groove, FACE_NORMALS[grooveEdge], byId)
+  const nT = worldDir(tongue, FACE_NORMALS[tongueEdge], byId)
   if (nG.dot(nT) > -(1 - EPS)) return false
   // Boards must be coplanar: thickness axes parallel (else it's a T-meeting, not a glue-up).
-  const zG = localDirToWorld(groove, unitVec('z'))
-  const zT = localDirToWorld(tongue, unitVec('z'))
+  const zG = worldDir(groove, unitVec('z'), byId)
+  const zT = worldDir(tongue, unitVec('z'), byId)
   if (Math.abs(zG.dot(zT)) < 1 - EPS) return false
   // A centered tongue only meets a centered groove when thicknesses match.
   return Math.abs(groove.thickness - tongue.thickness) < THICK_EPS
@@ -149,8 +141,8 @@ export function computeTongueGrooveSeat(
   const mT = resolveWorldMatrix(tongue, byId)
   const depth = clamp(joint.tongueDepth, 0.1, groove.width - 1)
 
-  const nG = localDirToWorld(groove, FACE_NORMALS[joint.grooveEdge]) // groove edge normal (world)
-  const tG = localDirToWorld(groove, unitVec('z')) // groove thickness normal (world)
+  const nG = worldDir(groove, FACE_NORMALS[joint.grooveEdge], byId) // groove edge normal (world)
+  const tG = worldDir(groove, unitVec('z'), byId) // groove thickness normal (world)
 
   const gEdgeCenter = worldPoint(mG, computeLocalFaceCenter(FACE_NORMALS[joint.grooveEdge], groove))
   const gCenter = worldPoint(mG, {

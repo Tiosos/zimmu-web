@@ -187,6 +187,7 @@ test('every emitted suggestion round-trips through its validity gate', () => {
             s.housingFace,
             asBoard(parts, s.housedPartId),
             s.housedEnd,
+            NO_COMPONENTS,
           ),
         ).toBe(true)
       } else if (s.kind === 'mortise-tenon') {

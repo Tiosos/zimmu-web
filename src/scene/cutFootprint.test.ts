@@ -115,6 +115,7 @@ test('a dado footprint spans the housing board where a mortise footprint does no
     housing,
     housed,
     defaultDadoJoint(housing, housed, '+Z', '-X', 'j_dado', 'Dado 1', NO_COMPONENTS),
+    NO_COMPONENTS,
   )
   const pocket = computeMortisePocket(
     housing,
@@ -128,6 +129,7 @@ test('a dado footprint spans the housing board where a mortise footprint does no
       'Mortise & tenon 1',
       NO_COMPONENTS,
     ),
+    NO_COMPONENTS,
   )
 
   // Side lengths of the footprint rectangle, ascending. Which local axis each side falls on

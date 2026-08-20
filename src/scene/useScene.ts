@@ -905,9 +905,9 @@ export function useScene(): UseSceneResult {
       if (housing?.kind !== 'board' || housed?.kind !== 'board' || housing.id === housed.id) return
       const housingFace = localNormalToFaceString(housingHit.localFaceNormal)
       const housedEnd = localNormalToFaceString(housedHit.localFaceNormal)
-      if (!isValidDadoSeat(housing, housingFace, housed, housedEnd)) return
-
       const byId = componentsById(s.components)
+      if (!isValidDadoSeat(housing, housingFace, housed, housedEnd, byId)) return
+
       const n = s.joints.filter((j) => j.kind === 'dado').length + 1
       const joint: Joint = defaultDadoJoint(
         housing,

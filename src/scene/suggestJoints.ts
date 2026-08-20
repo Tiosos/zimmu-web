@@ -326,7 +326,7 @@ function suggestForOrderedPair(
       const housingFace = sBroad ? faceA : faceB
       const housed = sBroad ? t : s
       const housedEnd = sBroad ? faceB : faceA
-      if (isValidDadoSeat(housing, housingFace, housed, housedEnd)) {
+      if (isValidDadoSeat(housing, housingFace, housed, housedEnd, byId)) {
         out.push({
           kind: 'dado',
           neighborId: t.id,

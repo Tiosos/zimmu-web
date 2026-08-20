@@ -1,6 +1,16 @@
 // Three.js math types run in Node/happy-dom without browser mocks needed.
 import * as THREE from 'three'
-import type { BoardPart, CylinderPart, Face, FaceHit, Part, Vec3 } from './types'
+import type {
+  BoardPart,
+  Component,
+  ComponentId,
+  CylinderPart,
+  Face,
+  FaceHit,
+  Part,
+  Vec3,
+} from './types'
+import { resolveWorldMatrix } from '../geom/transform'
 
 const DEG2RAD = Math.PI / 180
 
@@ -67,11 +77,15 @@ function halfExtent(axis: THREE.Vector3, length: number, width: number, thicknes
   return thickness / 2
 }
 
-export function computeFaceCorners(face: FaceHit, part: Part): [Vec3, Vec3, Vec3, Vec3] {
+export function computeFaceCorners(
+  face: FaceHit,
+  part: Part,
+  byId: Map<ComponentId, Component>,
+): [Vec3, Vec3, Vec3, Vec3] {
   if (part.kind !== 'board') {
     throw new Error(`computeFaceCorners: unsupported kind '${part.kind}'`)
   }
-  const { length, width, thickness, position, rotation, rotationOrder } = part
+  const { length, width, thickness } = part
   const { localFaceNormal: lfn } = face
 
   const localCenter = computeLocalFaceCenter(lfn, part)
@@ -92,17 +106,7 @@ export function computeFaceCorners(face: FaceHit, part: Part): [Vec3, Vec3, Vec3
     lc.clone().addScaledVector(u, hU).addScaledVector(v, -hV),
   ]
 
-  const euler = new THREE.Euler(
-    rotation.x * DEG2RAD,
-    rotation.y * DEG2RAD,
-    rotation.z * DEG2RAD,
-    rotationOrder,
-  )
-  const matrix = new THREE.Matrix4().compose(
-    new THREE.Vector3(position.x, position.y, position.z),
-    new THREE.Quaternion().setFromEuler(euler),
-    new THREE.Vector3(1, 1, 1),
-  )
+  const matrix = new THREE.Matrix4().fromArray(resolveWorldMatrix(part, byId))
 
   const [c0, c1, c2, c3] = localCorners.map((c) => {
     c.applyMatrix4(matrix)
@@ -124,6 +128,7 @@ export function computeSnapTransform(
   sourceFace: FaceHit,
   targetFace: FaceHit,
   sourcePart: BoardPart,
+  byId: Map<ComponentId, Component>,
 ): { position: Vec3; rotation: Vec3 } {
   // Step 1: current world rotation as quaternion
   const Q_current = new THREE.Quaternion().setFromEuler(
@@ -194,7 +199,7 @@ export function computeSnapTransform(
   // Step 5: find new position — compute where source face centre lands at new rotation,
   // then translate so it coincides with target face centre
   const tempPart: BoardPart = { ...sourcePart, rotation: newRotation }
-  const corners = computeFaceCorners(sourceFace, tempPart)
+  const corners = computeFaceCorners(sourceFace, tempPart, byId)
   const cx = (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4
   const cy = (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4
   const cz = (corners[0].z + corners[1].z + corners[2].z + corners[3].z) / 4

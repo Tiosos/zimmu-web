@@ -73,21 +73,24 @@ const joint: DadoJoint = {
 }
 
 test('isValidDadoSeat: perpendicular end opposing the face is valid', () => {
-  expect(isValidDadoSeat(housing, '+Z', housed, '+X')).toBe(true)
+  expect(isValidDadoSeat(housing, '+Z', housed, '+X', NO_COMPONENTS)).toBe(true)
 })
 
 test('isValidDadoSeat: a non-opposing end is invalid', () => {
   const flat: BoardPart = { ...housed, rotation: { x: 0, y: 0, z: 0 } }
-  expect(isValidDadoSeat(housing, '+Z', flat, '+X')).toBe(false)
+  expect(isValidDadoSeat(housing, '+Z', flat, '+X', NO_COMPONENTS)).toBe(false)
 })
 
 test('deriveDadoAxes: narrow axis follows the housed thickness direction', () => {
   // housed thickness (local Z) → world +X → housing u ('x' for +Z face).
-  expect(deriveDadoAxes(housing, housed, '+Z')).toEqual({ narrowAx: 'x', runAx: 'y' })
+  expect(deriveDadoAxes(housing, housed, '+Z', NO_COMPONENTS)).toEqual({
+    narrowAx: 'x',
+    runAx: 'y',
+  })
 })
 
 test('computeDadoGroove: full-width channel, thickness-wide, depth-deep from the face', () => {
-  const cut = computeDadoGroove(housing, housed, joint)
+  const cut = computeDadoGroove(housing, housed, joint, NO_COMPONENTS)
   expect(cut.kind).toBe('box')
   expect(cut.sourceJointId).toBe('j1')
   expect(cut.face).toBe('+Z')
@@ -96,12 +99,12 @@ test('computeDadoGroove: full-width channel, thickness-wide, depth-deep from the
 })
 
 test('computeDadoGroove: depth clamps below the housing thickness', () => {
-  const deep = computeDadoGroove(housing, housed, { ...joint, depth: 999 })
+  const deep = computeDadoGroove(housing, housed, { ...joint, depth: 999 }, NO_COMPONENTS)
   expect(deep.size.z).toBe(24) // thickness - 1
 })
 
 test('computeDadoGroove: stopStart insets the run-axis start; length shrinks', () => {
-  const cut = computeDadoGroove(housing, housed, { ...joint, stopStart: 10 })
+  const cut = computeDadoGroove(housing, housed, { ...joint, stopStart: 10 }, NO_COMPONENTS)
   expect(cut.position.y).toBe(10)
   expect(cut.size.y).toBe(90) // 100 − 10
   expect(cut.size.x).toBe(18) // narrow width unchanged
@@ -109,13 +112,23 @@ test('computeDadoGroove: stopStart insets the run-axis start; length shrinks', (
 })
 
 test('computeDadoGroove: both stops inset both ends', () => {
-  const cut = computeDadoGroove(housing, housed, { ...joint, stopStart: 10, stopEnd: 15 })
+  const cut = computeDadoGroove(
+    housing,
+    housed,
+    { ...joint, stopStart: 10, stopEnd: 15 },
+    NO_COMPONENTS,
+  )
   expect(cut.position.y).toBe(10)
   expect(cut.size.y).toBe(75) // 100 − 10 − 15
 })
 
 test('computeDadoGroove: combined stops clamp to leave ≥ 1 mm of groove', () => {
-  const cut = computeDadoGroove(housing, housed, { ...joint, stopStart: 200, stopEnd: 200 })
+  const cut = computeDadoGroove(
+    housing,
+    housed,
+    { ...joint, stopStart: 200, stopEnd: 200 },
+    NO_COMPONENTS,
+  )
   expect(cut.position.y).toBe(99) // ss clamped to dim − 1
   expect(cut.size.y).toBe(1) // never below 1 mm
 })
@@ -159,7 +172,7 @@ const rabbeted = {
 }
 
 test('computeDadoGroove: rabbeted groove width = tongueThickness (+clearance), narrower than plain', () => {
-  expect(computeDadoGroove(housing, housed, rabbeted).size.x).toBe(8) // vs 18 for plain
+  expect(computeDadoGroove(housing, housed, rabbeted, NO_COMPONENTS).size.x).toBe(8) // vs 18 for plain
 })
 
 test('computeRabbet: removes T−t from the +Z face over the last `depth` mm, full width', () => {
@@ -178,7 +191,7 @@ test('computeRabbet: rabbetFace −Z removes the low face instead', () => {
 })
 
 test('computeNotch: start-end corner box — depth deep into the end, stop wide, full thickness', () => {
-  const cut = computeNotch(housing, housed, { ...joint, stopStart: 10 }, 'start')
+  const cut = computeNotch(housing, housed, { ...joint, stopStart: 10 }, 'start', NO_COMPONENTS)
   expect(cut.size).toEqual({ x: 8, y: 10, z: 18 }) // d=depth, stop, full thickness
   expect(cut.position).toEqual({ x: 112, y: 0, z: 0 }) // flush at +X end, low width end
   expect(cut.id).toBe('cut_j1_notch0')
@@ -188,20 +201,20 @@ test('computeNotch: start-end corner box — depth deep into the end, stop wide,
 })
 
 test('computeNotch: end-end corner box sits at the far width end', () => {
-  const cut = computeNotch(housing, housed, { ...joint, stopEnd: 15 }, 'end')
+  const cut = computeNotch(housing, housed, { ...joint, stopEnd: 15 }, 'end', NO_COMPONENTS)
   expect(cut.size).toEqual({ x: 8, y: 15, z: 18 })
   expect(cut.position).toEqual({ x: 112, y: 85, z: 0 }) // width − stop = 100 − 15
   expect(cut.id).toBe('cut_j1_notch1')
 })
 
 test('computeNotch: stop width clamps below the housed width', () => {
-  const cut = computeNotch(housing, housed, { ...joint, stopStart: 999 }, 'start')
+  const cut = computeNotch(housing, housed, { ...joint, stopStart: 999 }, 'start', NO_COMPONENTS)
   expect(cut.size.y).toBeCloseTo(100 - 0.1, 6)
 })
 
 test('computeNotch: when the housed width axis opposes the housing run axis, the start notch flips to the far width end', () => {
   const flipped = { ...housed, rotation: { x: 180, y: 90, z: 0 } }
-  const cut = computeNotch(housing, flipped, { ...joint, stopStart: 10 }, 'start')
+  const cut = computeNotch(housing, flipped, { ...joint, stopStart: 10 }, 'start', NO_COMPONENTS)
   expect(cut.position.y).toBe(90) // width − stop = 100 − 10 (far end, because aligned is false)
   expect(cut.size).toEqual({ x: 8, y: 10, z: 18 })
 })
@@ -363,12 +376,12 @@ test('deriveJoint dispatches a finger joint to the finger deriver', () => {
 test('computeDadoGroove: rabbeted with a thickness-end housedEnd keeps the full-thickness groove (no tongue → no narrowing)', () => {
   const thicknessEnd = { ...rabbeted, housedEnd: '+Z' as const }
   // hasTongue is false (housedEnd depth axis is 'z'), so no narrowing.
-  expect(computeDadoGroove(housing, housed, thicknessEnd).size.x).toBe(18)
+  expect(computeDadoGroove(housing, housed, thicknessEnd, NO_COMPONENTS).size.x).toBe(18)
 })
 
 test('computeDadoGroove: rabbeted groove width clamps tongueThickness to < housed thickness', () => {
   const wide = { ...rabbeted, tongueThickness: 999 }
-  expect(computeDadoGroove(housing, housed, wide).size.x).toBeCloseTo(18 - 0.1, 6)
+  expect(computeDadoGroove(housing, housed, wide, NO_COMPONENTS).size.x).toBeCloseTo(18 - 0.1, 6)
 })
 
 test('deriveJoint: rabbeted with a thickness-end housedEnd emits only the groove, full-width', () => {

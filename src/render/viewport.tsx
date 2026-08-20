@@ -597,7 +597,11 @@ export function Viewport({
         loop.visible = false
         return
       }
-      drawLoop(loop, { corners: computeFaceCorners(face, part), normal: face.faceNormal }, color)
+      drawLoop(
+        loop,
+        { corners: computeFaceCorners(face, part, componentMap), normal: face.faceNormal },
+        color,
+      )
     }
 
     updateHighlight(sourceHighlightRef.current, sourceFace, 0xfbbf24)
@@ -620,7 +624,7 @@ export function Viewport({
     for (let i = 0; i < pool.length; i++) {
       drawLoop(pool[i], sf[i] ?? null, SUGGESTION_OUTLINE_COLOR)
     }
-  }, [sourceFace, hoveredFace, snapPhase, parts, suggestionOutlines])
+  }, [sourceFace, hoveredFace, snapPhase, parts, componentMap, suggestionOutlines])
 
   // Ghost mesh — semi-transparent preview of the source part at its snapped destination
   useEffect(() => {
@@ -640,7 +644,7 @@ export function Viewport({
       ghost.visible = false
       return
     }
-    const { position, rotation } = computeSnapTransform(sourceFace, hoveredFace, src)
+    const { position, rotation } = computeSnapTransform(sourceFace, hoveredFace, src, componentMap)
     ghost.geometry = geo
     ghost.matrixAutoUpdate = false
     ghost.matrix.fromArray(resolveWorldMatrix({ ...src, position, rotation }, componentMap))

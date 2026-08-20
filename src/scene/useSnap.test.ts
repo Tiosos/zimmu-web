@@ -19,6 +19,9 @@ vi.mock('./snapMath', () => ({
 }))
 
 import { useSnap } from './useSnap'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const partA: Part = {
   kind: 'board',
@@ -116,7 +119,9 @@ describe('useSnap', () => {
   })
 
   it('initial state: inactive, idle phase, no faces', () => {
-    const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+    const { result } = renderHook(() =>
+      useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+    )
     expect(result.current.snapActive).toBe(false)
     expect(result.current.snapPhase).toBe('idle')
     expect(result.current.sourceFace).toBeNull()
@@ -125,7 +130,9 @@ describe('useSnap', () => {
 
   describe('activateSnap', () => {
     it('activates snap and sets phase to idle', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -134,7 +141,9 @@ describe('useSnap', () => {
     })
 
     it('toggles off when called while active (button toggle)', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -150,7 +159,9 @@ describe('useSnap', () => {
 
   describe('cancelSnap', () => {
     it('from idle-active: resets all four fields to initial values', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -164,7 +175,9 @@ describe('useSnap', () => {
     })
 
     it('from source-picked: resets all four fields', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -184,7 +197,9 @@ describe('useSnap', () => {
 
   describe('onFaceHover in idle phase', () => {
     it('is a no-op — hoveredFace stays null', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -197,7 +212,9 @@ describe('useSnap', () => {
 
   describe('onFaceClick in idle phase', () => {
     it('records source face and transitions to source-picked', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -210,7 +227,9 @@ describe('useSnap', () => {
     })
 
     it('is a no-op when snap is inactive', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.onFaceClick(faceOnA)
       })
@@ -221,7 +240,9 @@ describe('useSnap', () => {
 
   describe('onFaceClick in source-picked phase', () => {
     it('valid target: calls onUpdate once, resets to active-idle', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -240,7 +261,9 @@ describe('useSnap', () => {
     })
 
     it('onUpdate receives correct updater: applies position and rotation from computeSnapTransform', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -263,7 +286,9 @@ describe('useSnap', () => {
     })
 
     it('onUpdate receives history label "Snap Board A to Board B"', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -288,7 +313,9 @@ describe('useSnap', () => {
         faceNormal: { x: 0, y: 0, z: -1 },
         localFaceNormal: { x: 0, y: 0, z: -1 },
       }
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -305,7 +332,9 @@ describe('useSnap', () => {
 
   describe('onFaceHover in source-picked phase', () => {
     it('sets hoveredFace for valid target', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -319,7 +348,9 @@ describe('useSnap', () => {
     })
 
     it('same-part guard: hoveredFace stays null when hovering source part', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -333,7 +364,9 @@ describe('useSnap', () => {
     })
 
     it('null hit clears hoveredFace', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => {
         result.current.activateSnap()
       })
@@ -353,7 +386,7 @@ describe('useSnap', () => {
   describe('source part deletion', () => {
     it('cancels snap when source part is removed from parts', () => {
       const { result, rerender } = renderHook(
-        ({ parts }: { parts: Part[] }) => useSnap({ parts, onUpdate }),
+        ({ parts }: { parts: Part[] }) => useSnap({ parts, byId: NO_COMPONENTS, onUpdate }),
         { initialProps: { parts: [partA, partB] } },
       )
       act(() => {
@@ -374,7 +407,9 @@ describe('useSnap', () => {
 
   describe('dowel snap routing', () => {
     it('dowel source cap → board face: routes to computeDowelSnapTransform with coaxial=false', () => {
-      const { result } = renderHook(() => useSnap({ parts: [dowelD, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [dowelD, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => result.current.activateSnap())
       act(() => result.current.onFaceClick(capOnD)) // source = dowel cap
       act(() => result.current.onFaceClick(faceOnB)) // target = board face (not a cap)
@@ -391,7 +426,9 @@ describe('useSnap', () => {
         faceNormal: { x: 0, y: 0, z: -1 },
         localFaceNormal: { x: 0, y: 0, z: -1 },
       }
-      const { result } = renderHook(() => useSnap({ parts: [dowelD, dowelE], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [dowelD, dowelE], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => result.current.activateSnap())
       act(() => result.current.onFaceClick(capOnD))
       act(() => result.current.onFaceClick(capOnE))
@@ -401,7 +438,9 @@ describe('useSnap', () => {
     })
 
     it('board source → dowel cap: bidirectional, uses board transform', () => {
-      const { result } = renderHook(() => useSnap({ parts: [partA, dowelD], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [partA, dowelD], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => result.current.activateSnap())
       act(() => result.current.onFaceClick(faceOnA)) // source = board face
       act(() => result.current.onFaceClick(capOnD)) // target = dowel cap
@@ -411,7 +450,9 @@ describe('useSnap', () => {
     })
 
     it('dowel lateral face is rejected as a source (no source set)', () => {
-      const { result } = renderHook(() => useSnap({ parts: [dowelD, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [dowelD, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => result.current.activateSnap())
       act(() => result.current.onFaceClick(lateralOnD)) // lateral → not a snap face
       expect(result.current.snapPhase).toBe('idle')
@@ -419,7 +460,9 @@ describe('useSnap', () => {
     })
 
     it('dowel lateral face is rejected as a target (no snap applied)', () => {
-      const { result } = renderHook(() => useSnap({ parts: [dowelD, partB], onUpdate }))
+      const { result } = renderHook(() =>
+        useSnap({ parts: [dowelD, partB], byId: NO_COMPONENTS, onUpdate }),
+      )
       act(() => result.current.activateSnap())
       act(() => result.current.onFaceClick(faceOnB)) // source = board face (valid)
       act(() => result.current.onFaceClick(lateralOnD)) // target lateral → rejected

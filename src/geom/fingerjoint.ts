@@ -11,10 +11,9 @@ import type {
 } from '../scene/types'
 import type { FingerJoint } from '../scene/types'
 import type { DeriveResult, DerivedCut } from './dado'
-import { applyMatrixToPoint, resolveWorldMatrix } from './transform'
+import { applyMatrixToPoint, resolveWorldMatrix, localDirToWorld } from './transform'
 import { faceAxes, computeLocalFaceCenter } from '../scene/snapMath'
 
-const DEG2RAD = Math.PI / 180
 type Axis = 'x' | 'y' | 'z'
 const EPS = 1e-4
 const WIDTH_EPS = 0.01
@@ -37,16 +36,9 @@ function boardDims(b: BoardPart): Record<Axis, number> {
 function unitVec(a: Axis): Vec3 {
   return { x: a === 'x' ? 1 : 0, y: a === 'y' ? 1 : 0, z: a === 'z' ? 1 : 0 }
 }
-function localDirToWorld(part: BoardPart, dir: Vec3): THREE.Vector3 {
-  const q = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(
-      part.rotation.x * DEG2RAD,
-      part.rotation.y * DEG2RAD,
-      part.rotation.z * DEG2RAD,
-      part.rotationOrder,
-    ),
-  )
-  return new THREE.Vector3(dir.x, dir.y, dir.z).applyQuaternion(q)
+function worldDir(part: BoardPart, dir: Vec3, byId: Map<ComponentId, Component>): THREE.Vector3 {
+  const d = localDirToWorld(part, dir, byId)
+  return new THREE.Vector3(d.x, d.y, d.z)
 }
 function isAxisAligned(b: BoardPart, byId: Map<ComponentId, Component>): boolean {
   const m = resolveWorldMatrix(b, byId)
@@ -75,11 +67,11 @@ export function isValidFingerJoint(
 ): boolean {
   if (!isAxisAligned(a, byId) || !isAxisAligned(b, byId)) return false
   if (faceAxes(endA).depth === 'z' || faceAxes(endB).depth === 'z') return false
-  const nA = localDirToWorld(a, FACE_NORMALS[endA])
-  const nB = localDirToWorld(b, FACE_NORMALS[endB])
+  const nA = worldDir(a, FACE_NORMALS[endA], byId)
+  const nB = worldDir(b, FACE_NORMALS[endB], byId)
   if (Math.abs(nA.dot(nB)) > EPS) return false // ends must be perpendicular (90° corner)
-  const fA = localDirToWorld(a, unitVec(fingerAxisOf(endA)))
-  const fB = localDirToWorld(b, unitVec(fingerAxisOf(endB)))
+  const fA = worldDir(a, unitVec(fingerAxisOf(endA)), byId)
+  const fB = worldDir(b, unitVec(fingerAxisOf(endB)), byId)
   if (Math.abs(fA.dot(fB)) < 1 - EPS) return false // finger axes must be parallel (shared edge)
   return Math.abs(boardDims(a)[fingerAxisOf(endA)] - boardDims(b)[fingerAxisOf(endB)]) < WIDTH_EPS
 }
@@ -143,9 +135,9 @@ export function computeFingerSeat(
   const mB = resolveWorldMatrix(b, byId)
   const Tb = b.thickness
 
-  const nA = localDirToWorld(a, FACE_NORMALS[joint.endA]) // A's end normal
-  const fA = localDirToWorld(a, unitVec(fingerAxisOf(joint.endA))) // A's width
-  const tA = localDirToWorld(a, unitVec('z')) // A's thickness normal
+  const nA = worldDir(a, FACE_NORMALS[joint.endA], byId) // A's end normal
+  const fA = worldDir(a, unitVec(fingerAxisOf(joint.endA)), byId) // A's width
+  const tA = worldDir(a, unitVec('z'), byId) // A's thickness normal
 
   const aEndCenter = worldPoint(mA, computeLocalFaceCenter(FACE_NORMALS[joint.endA], a))
   const aCenter = worldPoint(mA, { x: a.length / 2, y: a.width / 2, z: a.thickness / 2 })
@@ -183,8 +175,8 @@ export function deriveFingerJoint(
   const b = parts.find((p) => p.id === joint.partBId)
   if (a?.kind !== 'board' || b?.kind !== 'board') return null
   if (!isValidFingerJoint(a, joint.endA, b, joint.endB, byId)) return null
-  const fA = localDirToWorld(a, unitVec(fingerAxisOf(joint.endA)))
-  const fB = localDirToWorld(b, unitVec(fingerAxisOf(joint.endB)))
+  const fA = worldDir(a, unitVec(fingerAxisOf(joint.endA)), byId)
+  const fB = worldDir(b, unitVec(fingerAxisOf(joint.endB)), byId)
   const flip = fA.dot(fB) < 0
   const cuts: DerivedCut[] = [
     ...computeFingerCuts(a, joint.endA, joint, b.thickness, 1, false).map((cut) => ({

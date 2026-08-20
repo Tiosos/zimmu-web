@@ -109,13 +109,13 @@ test('computeTenonShoulders: full-width tenon drops the width shoulders (2 strip
 })
 
 test('computeMortisePocket: blind pocket sized + oriented to the tenon, centered on the offset', () => {
-  const cut = computeMortisePocket(M, T, joint)
+  const cut = computeMortisePocket(M, T, joint, NO_COMPONENTS)
   expect(cut.id).toBe('cut_j1_mortise')
   expect(cut.position).toEqual({ x: 95, y: 30, z: 13 })
   expect(cut.size).toEqual({ x: 10, y: 40, z: 27 })
 })
 test('computeMortisePocket: through pocket spans the full thickness', () => {
-  const cut = computeMortisePocket(M, T, { ...joint, through: true })
+  const cut = computeMortisePocket(M, T, { ...joint, through: true }, NO_COMPONENTS)
   expect(cut.position.z).toBe(0)
   expect(cut.size.z).toBe(40)
 })

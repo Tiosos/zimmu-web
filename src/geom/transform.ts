@@ -1,4 +1,4 @@
-import type { Component, ComponentId, Part } from '../scene/types'
+import type { Component, ComponentId, Part, Vec3 } from '../scene/types'
 import { ancestorsOf } from '../scene/componentTree'
 
 const DEG2RAD = Math.PI / 180
@@ -108,4 +108,20 @@ export function resolveWorldMatrix(
     m = multiplyMatrix(composeWorldMatrix(ancestor), m)
   }
   return m
+}
+
+// A direction expressed in a node's local frame, rotated into world space. Reads the rotation
+// block of the resolved matrix, so it picks up ancestor rotation without re-deriving Euler order —
+// and deliberately skips the translation column, which a direction must not receive.
+export function localDirToWorld(
+  node: Part | Component,
+  dir: Vec3,
+  byId: Map<ComponentId, Component>,
+): Vec3 {
+  const m = resolveWorldMatrix(node, byId)
+  return {
+    x: m[0] * dir.x + m[4] * dir.y + m[8] * dir.z,
+    y: m[1] * dir.x + m[5] * dir.y + m[9] * dir.z,
+    z: m[2] * dir.x + m[6] * dir.y + m[10] * dir.z,
+  }
 }

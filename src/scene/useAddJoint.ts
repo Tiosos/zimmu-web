@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { FaceHit, Part } from './types'
+import type { Component, ComponentId, FaceHit, Part } from './types'
 import { isValidDadoSeat } from '../geom/dado'
 import { localNormalToFaceString } from './snapMath'
 
@@ -16,9 +16,10 @@ export interface AddJointState {
 
 export function useAddJoint(params: {
   parts: Part[]
+  byId: Map<ComponentId, Component>
   onAddJoint: (housingHit: FaceHit, housedHit: FaceHit) => void
 }): AddJointState {
-  const { parts, onAddJoint } = params
+  const { parts, byId, onAddJoint } = params
   const [jointActive, setJointActive] = useState(false)
   const [pendingHousing, setPendingHousing] = useState<FaceHit | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
@@ -61,7 +62,7 @@ export function useAddJoint(params: {
       }
       const housingFace = localNormalToFaceString(pendingHousing.localFaceNormal)
       const housedEnd = localNormalToFaceString(hit.localFaceNormal)
-      if (!isValidDadoSeat(housing, housingFace, part, housedEnd)) {
+      if (!isValidDadoSeat(housing, housingFace, part, housedEnd, byId)) {
         setStatusMessage('Housed board must be perpendicular to the housing face')
         setPendingHousing(null)
         return
@@ -72,7 +73,7 @@ export function useAddJoint(params: {
       setJointActive(false)
       setHoveredFace(null)
     },
-    [parts, pendingHousing, onAddJoint],
+    [parts, byId, pendingHousing, onAddJoint],
   )
 
   const onFaceHover = useCallback(
