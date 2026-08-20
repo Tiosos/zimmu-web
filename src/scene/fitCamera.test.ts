@@ -43,16 +43,19 @@ test('a board at the origin spans [0..length] x [0..width] x [0..thickness]', ()
 })
 
 test('bounds cover every part', () => {
-  const b = worldBounds([board({ id: 'a' }), board({ id: 'b', position: { x: 500, y: 0, z: 0 } })], NO_COMPONENTS)
+  const b = worldBounds(
+    [board({ id: 'a' }), board({ id: 'b', position: { x: 500, y: 0, z: 0 } })],
+    NO_COMPONENTS,
+  )
   expect(b!.min.x).toBe(0)
   expect(b!.max.x).toBe(700)
 })
 
 test('hidden parts are excluded', () => {
-  const b = worldBounds([
-    board({ id: 'a' }),
-    board({ id: 'b', position: { x: 500, y: 0, z: 0 }, visible: false }),
-  ], NO_COMPONENTS)
+  const b = worldBounds(
+    [board({ id: 'a' }), board({ id: 'b', position: { x: 500, y: 0, z: 0 }, visible: false })],
+    NO_COMPONENTS,
+  )
   expect(b!.max.x).toBe(200)
 })
 
@@ -242,7 +245,13 @@ test('a top-down bearing still produces a finite camera', () => {
 // A part mid-edit at 0 mm gives a degenerate AABB; without a floor the camera would land on the
 // target and leave OrbitControls with a zero-length offset.
 test('zero-extent bounds floor at MIN_FIT_DISTANCE', () => {
-  const cam = fitCameraToParts([board({ length: 0, width: 0, thickness: 0 })], 1.5, 45, ISO, NO_COMPONENTS)!
+  const cam = fitCameraToParts(
+    [board({ length: 0, width: 0, thickness: 0 })],
+    1.5,
+    45,
+    ISO,
+    NO_COMPONENTS,
+  )!
   expect(distanceOf(cam)).toBeCloseTo(MIN_FIT_DISTANCE, 10)
 })
 

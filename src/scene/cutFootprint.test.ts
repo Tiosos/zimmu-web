@@ -37,7 +37,11 @@ const dist = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 
 test('maps a +Z cut onto the board top face in local axis order', () => {
   const b = board({})
-  const corners = cutFootprintCorners(b, cut('+Z', { x: 10, y: 5, z: 8 }, { x: 20, y: 10, z: 10 }), NO_COMPONENTS)
+  const corners = cutFootprintCorners(
+    b,
+    cut('+Z', { x: 10, y: 5, z: 8 }, { x: 20, y: 10, z: 10 }),
+    NO_COMPONENTS,
+  )
   // faceAxes('+Z') = { depth: 'z', u: 'x', v: 'y' }; the plane is the board top, z = thickness.
   expect(corners).toEqual([
     { x: 10, y: 5, z: 18 },
@@ -49,7 +53,11 @@ test('maps a +Z cut onto the board top face in local axis order', () => {
 
 test('a negative face sits on the zero plane, spanning that face two axes', () => {
   const b = board({})
-  const corners = cutFootprintCorners(b, cut('-X', { x: 0, y: 5, z: 2 }, { x: 5, y: 10, z: 6 }), NO_COMPONENTS)
+  const corners = cutFootprintCorners(
+    b,
+    cut('-X', { x: 0, y: 5, z: 2 }, { x: 5, y: 10, z: 6 }),
+    NO_COMPONENTS,
+  )
   // faceAxes('-X') = { depth: 'x', u: 'y', v: 'z' }; the plane is x = 0.
   expect(corners).toEqual([
     { x: 0, y: 5, z: 2 },
@@ -134,5 +142,7 @@ test('a dado footprint spans the housing board where a mortise footprint does no
   expect(sides(pocket)[1]).toBeLessThan(100)
 
   // And the two footprints are genuinely different rectangles — the whole point.
-  expect(cutFootprintCorners(housing, groove, NO_COMPONENTS)).not.toEqual(cutFootprintCorners(housing, pocket, NO_COMPONENTS))
+  expect(cutFootprintCorners(housing, groove, NO_COMPONENTS)).not.toEqual(
+    cutFootprintCorners(housing, pocket, NO_COMPONENTS),
+  )
 })
