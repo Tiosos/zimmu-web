@@ -676,3 +676,70 @@ the array existing.
 The tree renders `scene.components`, but nothing in the sidebar calls `onAddComponent` — components
 only enter a scene from a `.zimmu` file today. Adding a "+ Group" button was outside this task; it
 belongs with the carcase-creation UI that needs it.
+
+## 2026-08-20 — Phase 4: the role table was wrong three times, and how that was found
+
+Tasks 4.1–4.4 landed the generator. Four defects surfaced, **all of them in the specification rather
+than the implementation**, and the way each was found is the transferable part.
+
+### The tests that found them checked the system against itself
+
+Every assertion I wrote by hand compared a panel against numbers I had supplied — so my arithmetic
+errors were baked into the code *and* its tests, and agreed with each other. The defects were found by
+two tests that don't work that way:
+
+- **Pairwise overlap** — no two panel AABBs may share volume. Solid objects don't interpenetrate, and
+  no amount of consistent-but-wrong arithmetic satisfies that.
+- **Feasibility, reasoning forward** — assert the generator's inputs leave room for what it must
+  build, rather than backward from the rules that happen to exist.
+
+| Defect | Found by | What it was |
+|---|---|---|
+| Infeasible test fixture (4.1) | implementer reading it | a thickness guard looping 3 axes against a box thin on 1 — no implementation could pass |
+| No interior bay (4.2) | feasibility test | `H=130, KH=100, T=18` passed every rule, left −6 mm of bay |
+| Divider × shelf (4.3) | overlap test | full-height divider vs full-width shelf: 18 × 548 × 18 shared volume, unfixable by arithmetic |
+| Ladder inside carcase (4.3) | overlap test | prose said "frame *under* the carcase", formula left `floor` at 0 |
+| Divider through side panel (4.3b) | **neither** | `dividers:[0.02]` → x[3,21] through a side at x[0,18]; `0 < d < 1` passed it |
+
+That last row is the important one: the overlap test **structurally could not** find it, because no
+fixture placed a divider near an edge. The fix was to assert the overlap property across *every
+divider set the validator accepts*, not across a hand-picked list. **Fixture tests find the cases you
+thought of; property tests find the ones you didn't.**
+
+### Two rows were individually sensible and jointly impossible
+
+Dividers ran the full internal height; shelves ran the full internal width. Each row read fine alone.
+Reviewing rows one at a time cannot catch that class of error — only checking them against each other
+can. Shelves are now emitted **per vertical bay**, and `fixedShelves` means shelves *per bay*, which is
+what a cabinetmaker means by it.
+
+### Clearing `role` is load-bearing, not tidying
+
+The reconciliation table says a detached part whose role disappears keeps its part and "clears its
+`role`". That reads like metadata housekeeping. It is **the only thing preventing a later
+regeneration from reclaiming the part.**
+
+**Invariant: a detached part must never carry a role key.** If someone later keeps the role "so the
+user can see what it used to be", the detach guarantee silently breaks and exactly one test catches
+it. Recorded here because the rule's importance is invisible at its call site.
+
+### An accepted UX consequence, not a bug
+
+Turn `hasTop` off with the top detached, then on again: the user gets their ex-top **and** a fresh
+driven top, geometrically coincident. That follows from the table, and every alternative is worse —
+reclaiming violates the contract, refusing to create leaves the cabinet topless for no visible reason.
+
+But a checkbox toggled twice producing a duplicate board is a real outcome someone will hit. The
+mitigation is UI, not geometry: **Phase 6 must make detached parts visually obvious**, or the
+duplicate shows up first as a mystery line in the cutting list. Phase 3 left `data-driven` on tree
+rows with no visual treatment; this is the reason to finish that.
+
+### Judgement calls the table did not cover
+
+- **`visible` and `cuts` survive regeneration** on a driven part, alongside id/colour/label. Hiding a
+  board is a user action; wiping cuts would destroy the last-good cuts `reconcileJoints` deliberately
+  preserves when `deriveJoint` returns null.
+- **`material` is overwritten** — it is a carcase-level parameter, so a driven part cannot own it.
+- **Colour is `PART_COLORS[roleIndex % 8]`**, deterministic so idempotence holds. Consequence: adding
+  a divider shifts the colour of every shelf after it. Harmless; hash the role key instead if it ever
+  grates.
