@@ -743,3 +743,46 @@ rows with no visual treatment; this is the reason to finish that.
 - **Colour is `PART_COLORS[roleIndex % 8]`**, deterministic so idempotence holds. Consequence: adding
   a divider shifts the colour of every shelf after it. Harmless; hash the role key instead if it ever
   grates.
+
+## 2026-08-20 — Task 4.5: two owners of cuts, and a convention split worth knowing
+
+The toe-kick notch is trivial geometry with a structural purpose: it is the first cut placed by a
+**component** rather than derived from a **joint**, so two independent stages now write cuts onto the
+same part.
+
+| Owner field | Written by | Stripped by |
+|---|---|---|
+| `sourceJointId` | `reconcileJoints` | `reconcileJoints` |
+| `sourceComponentId` | `regenerateComponents` | `regenerateComponents` |
+| neither | the user, by hand | nobody |
+
+**Neither stage may strip the other's cuts.** Audited rather than assumed: both filters in
+`reconcileJoints.ts` test `sourceJointId` specifically (`c.sourceJointId !== undefined && !jointIds.has(...)`
+and `c.sourceJointId === joint.id`), never a bare "has an owner" check, so a component-owned cut
+short-circuits out of both. No defect found; the file was not modified.
+
+The test that matters is not the notch geometry — it is the one asserting a side panel ends up
+carrying **both** kinds of cut after the real pipeline order (`regenerateComponents` then
+`reconcileJoints`), plus a hand-made cut owned by nobody. It is deliberately non-vacuous: the injected
+joint cut is `cut_stale`, and the post-reconcile assertion demands `cut_j1` — the id
+`computeDadoGroove` mints — so it only passes if `deriveJoint` genuinely re-derived the groove through
+the strip-and-scatter path while the notch rode through untouched.
+
+### The codebase now has two conventions for a through-cut
+
+Worth recording because both apparently work, and a future reader will find the disagreement:
+
+- **`computeFingerSlots` (`geom/fingerjoint.ts`)** — exactly coplanar: `position.z = 0`,
+  `size.z = dim.z`. The tool's faces sit precisely on the part's faces.
+- **`carcaseCuts` (the toe-kick notch)** — overshoots: `position.z = -T/2`, `size.z = 2T`, straddling
+  both thickness faces.
+
+Coplanar boolean faces are classically unreliable in OCCT, which is why the notch overshoots. But the
+finger joint has shipped and works, so this is not a live bug — it is an undocumented divergence. Not
+unified, because changing working joint geometry without evidence of a defect is churn; recorded so
+that whoever *does* hit a ragged boolean knows both conventions exist and which one is defensive.
+
+Related and also left alone: the notch's `x = 0` and `y = 0` tool faces **are** coplanar with the
+panel's `-X` end and `-Y` edge, because overshooting there would break the "sized to setback × kick
+height" contract. If the notch ever renders ragged at the front-bottom corner, that is the first place
+to look.
