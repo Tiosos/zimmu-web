@@ -125,7 +125,7 @@ test('defaultDadoDepth: ~thickness/3, clamped', () => {
 })
 
 test('computeDadoSeat: housed end lands on the groove bottom, centered on offset', () => {
-  const seat = computeDadoSeat(housing, housed, joint)
+  const seat = computeDadoSeat(housing, housed, joint, NO_COMPONENTS)
   const seated: BoardPart = { ...housed, position: seat.position }
   const endLocal = computeLocalFaceCenter({ x: 1, y: 0, z: 0 }, seated) // +X end center
   const [wx, , wz] = applyMatrixToPoint(
@@ -139,8 +139,13 @@ test('computeDadoSeat: housed end lands on the groove bottom, centered on offset
 })
 
 test('computeDadoSeat is idempotent (re-seating a seated board is a no-op)', () => {
-  const once = computeDadoSeat(housing, housed, joint)
-  const twice = computeDadoSeat(housing, { ...housed, position: once.position }, joint)
+  const once = computeDadoSeat(housing, housed, joint, NO_COMPONENTS)
+  const twice = computeDadoSeat(
+    housing,
+    { ...housed, position: once.position },
+    joint,
+    NO_COMPONENTS,
+  )
   expect(twice.position.x).toBeCloseTo(once.position.x, 6)
   expect(twice.position.y).toBeCloseTo(once.position.y, 6)
   expect(twice.position.z).toBeCloseTo(once.position.z, 6)
@@ -202,8 +207,8 @@ test('computeNotch: when the housed width axis opposes the housing run axis, the
 })
 
 test('computeDadoSeat: rabbeted centers the tongue (not the board) on the groove; seating depth unchanged', () => {
-  const plainSeat = computeDadoSeat(housing, housed, { ...joint, profile: 'plain' })
-  const rabSeat = computeDadoSeat(housing, housed, rabbeted)
+  const plainSeat = computeDadoSeat(housing, housed, { ...joint, profile: 'plain' }, NO_COMPONENTS)
+  const rabSeat = computeDadoSeat(housing, housed, rabbeted, NO_COMPONENTS)
   // narrow axis is world X here; shift = (T−t)/2 = (18−8)/2 = 5
   expect(Math.abs(rabSeat.position.x - plainSeat.position.x)).toBeCloseTo(5, 6)
   // face-normal (world Z) and run (world Y) components unchanged
@@ -214,8 +219,8 @@ test('computeDadoSeat: rabbeted centers the tongue (not the board) on the groove
 test('computeDadoSeat: rabbeted with a thickness-end housedEnd falls back to plain (no tongue shift)', () => {
   const thicknessEnd = { ...rabbeted, housedEnd: '+Z' as const }
   const plainEnd = { ...joint, profile: 'plain' as const, housedEnd: '+Z' as const }
-  const rab = computeDadoSeat(housing, housed, thicknessEnd)
-  const plain = computeDadoSeat(housing, housed, plainEnd)
+  const rab = computeDadoSeat(housing, housed, thicknessEnd, NO_COMPONENTS)
+  const plain = computeDadoSeat(housing, housed, plainEnd, NO_COMPONENTS)
   expect(rab.position.x).toBeCloseTo(plain.position.x, 6)
   expect(rab.position.y).toBeCloseTo(plain.position.y, 6)
   expect(rab.position.z).toBeCloseTo(plain.position.z, 6)

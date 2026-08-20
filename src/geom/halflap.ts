@@ -9,12 +9,7 @@ import type {
   Vec3,
 } from '../scene/types'
 import type { DeriveResult } from './dado'
-import {
-  applyInverseToPoint,
-  applyMatrixToPoint,
-  composeWorldMatrix,
-  resolveWorldMatrix,
-} from './transform'
+import { applyInverseToPoint, applyMatrixToPoint, resolveWorldMatrix } from './transform'
 
 type Axis = 'x' | 'y' | 'z'
 const AXES: Axis[] = ['x', 'y', 'z']
@@ -69,8 +64,8 @@ export function worldAabb(
   return box
 }
 
-export function stackAxis(b: BoardPart): Axis {
-  const m = composeWorldMatrix(b)
+export function stackAxis(b: BoardPart, byId: Map<ComponentId, Component>): Axis {
+  const m = resolveWorldMatrix(b, byId)
   const ax = Math.abs(m[8])
   const ay = Math.abs(m[9])
   const az = Math.abs(m[10])
@@ -79,8 +74,8 @@ export function stackAxis(b: BoardPart): Axis {
   return 'x'
 }
 
-function isAxisAligned(b: BoardPart): boolean {
-  const m = composeWorldMatrix(b)
+function isAxisAligned(b: BoardPart, byId: Map<ComponentId, Component>): boolean {
+  const m = resolveWorldMatrix(b, byId)
   const cols = [
     [m[0], m[1], m[2]],
     [m[4], m[5], m[6]],
@@ -94,9 +89,9 @@ export function isValidHalfLap(
   b: BoardPart,
   byId: Map<ComponentId, Component>,
 ): boolean {
-  if (!isAxisAligned(a) || !isAxisAligned(b)) return false
-  const s = stackAxis(a)
-  if (stackAxis(b) !== s) return false
+  if (!isAxisAligned(a, byId) || !isAxisAligned(b, byId)) return false
+  const s = stackAxis(a, byId)
+  if (stackAxis(b, byId) !== s) return false
   const A = worldAabb(a, byId)
   const B = worldAabb(b, byId)
   if (Math.abs(A.min[s] - B.min[s]) > EPS || Math.abs(A.max[s] - B.max[s]) > EPS) return false
@@ -116,8 +111,9 @@ function worldBoxToLocalCut(
   id: CutId,
   label: string,
   jointId: string,
+  byId: Map<ComponentId, Component>,
 ): BoxCut {
-  const m = composeWorldMatrix(b)
+  const m = resolveWorldMatrix(b, byId)
   const min: Vec3 = { x: Infinity, y: Infinity, z: Infinity }
   const max: Vec3 = { x: -Infinity, y: -Infinity, z: -Infinity }
   for (const px of [wmin.x, wmax.x]) {
@@ -154,7 +150,7 @@ export function deriveHalfLap(
   if (a?.kind !== 'board' || b?.kind !== 'board') return null
   if (!isValidHalfLap(a, b, byId)) return null
 
-  const s = stackAxis(a)
+  const s = stackAxis(a, byId)
   const A = worldAabb(a, byId)
   const B = worldAabb(b, byId)
   const s0 = A.min[s]
@@ -185,6 +181,7 @@ export function deriveHalfLap(
     `cut_${joint.id}_lapA` as CutId,
     `${joint.label} lap A`,
     joint.id,
+    byId,
   )
   const cutB = worldBoxToLocalCut(
     b,
@@ -193,6 +190,7 @@ export function deriveHalfLap(
     `cut_${joint.id}_lapB` as CutId,
     `${joint.label} lap B`,
     joint.id,
+    byId,
   )
   return {
     cuts: [

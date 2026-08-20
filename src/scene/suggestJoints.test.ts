@@ -196,11 +196,18 @@ test('every emitted suggestion round-trips through its validity gate', () => {
             s.mortiseFace,
             asBoard(parts, s.tenonPartId),
             s.tenonEnd,
+            NO_COMPONENTS,
           ),
         ).toBe(true)
       } else if (s.kind === 'finger') {
         expect(
-          isValidFingerJoint(asBoard(parts, s.partAId), s.endA, asBoard(parts, s.partBId), s.endB),
+          isValidFingerJoint(
+            asBoard(parts, s.partAId),
+            s.endA,
+            asBoard(parts, s.partBId),
+            s.endB,
+            NO_COMPONENTS,
+          ),
         ).toBe(true)
       } else if (s.kind === 'tongue-groove') {
         expect(
@@ -209,6 +216,7 @@ test('every emitted suggestion round-trips through its validity gate', () => {
             s.grooveEdge,
             asBoard(parts, s.tonguePartId),
             s.tongueEdge,
+            NO_COMPONENTS,
           ),
         ).toBe(true)
       } else {

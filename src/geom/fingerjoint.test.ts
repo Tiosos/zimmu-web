@@ -7,6 +7,9 @@ import {
   deriveFingerJoint,
 } from './fingerjoint'
 import { applyMatrixToPoint, composeWorldMatrix } from './transform'
+import { componentsById } from '../scene/componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const A: BoardPart = {
   kind: 'board',
@@ -57,19 +60,23 @@ const joint: FingerJoint = {
 }
 
 test('isValidFingerJoint: axis-aligned equal-width right-angle corner is valid', () => {
-  expect(isValidFingerJoint(A, '+X', B, '+X')).toBe(true)
+  expect(isValidFingerJoint(A, '+X', B, '+X', NO_COMPONENTS)).toBe(true)
 })
 test('isValidFingerJoint: a non-axis-aligned board is invalid', () => {
-  expect(isValidFingerJoint(A, '+X', { ...B, rotation: { x: 0, y: 45, z: 0 } }, '+X')).toBe(false)
+  expect(
+    isValidFingerJoint(A, '+X', { ...B, rotation: { x: 0, y: 45, z: 0 } }, '+X', NO_COMPONENTS),
+  ).toBe(false)
 })
 test('isValidFingerJoint: a thickness (z) end is invalid', () => {
-  expect(isValidFingerJoint(A, '+X', B, '+Z')).toBe(false)
+  expect(isValidFingerJoint(A, '+X', B, '+Z', NO_COMPONENTS)).toBe(false)
 })
 test('isValidFingerJoint: parallel (non-perpendicular) ends are invalid', () => {
-  expect(isValidFingerJoint(A, '+X', { ...B, rotation: { x: 0, y: 0, z: 0 } }, '+X')).toBe(false)
+  expect(
+    isValidFingerJoint(A, '+X', { ...B, rotation: { x: 0, y: 0, z: 0 } }, '+X', NO_COMPONENTS),
+  ).toBe(false)
 })
 test('isValidFingerJoint: unequal joint widths are invalid', () => {
-  expect(isValidFingerJoint(A, '+X', { ...B, width: 60 }, '+X')).toBe(false)
+  expect(isValidFingerJoint(A, '+X', { ...B, width: 60 }, '+X', NO_COMPONENTS)).toBe(false)
 })
 
 test('computeFingerCuts: A removes world-odd segments (1,3) full-depth full-thickness', () => {
@@ -103,18 +110,18 @@ test('computeFingerCuts: N < 2 yields no cuts (defensive)', () => {
 })
 
 test('computeFingerSeat: seats B into a flush corner at (182,0,200), idempotent', () => {
-  const seat = computeFingerSeat(A, B, joint)
+  const seat = computeFingerSeat(A, B, joint, NO_COMPONENTS)
   expect(seat.position.x).toBeCloseTo(182, 6)
   expect(seat.position.y).toBeCloseTo(0, 6)
   expect(seat.position.z).toBeCloseTo(200, 6)
-  const again = computeFingerSeat(A, { ...B, position: seat.position }, joint)
+  const again = computeFingerSeat(A, { ...B, position: seat.position }, joint, NO_COMPONENTS)
   expect(again.position.x).toBeCloseTo(182, 6)
   expect(again.position.y).toBeCloseTo(0, 6)
   expect(again.position.z).toBeCloseTo(200, 6)
 })
 
 test('deriveFingerJoint: 4 cuts split across both boards + a seat on B', () => {
-  const r = deriveFingerJoint(joint, parts)
+  const r = deriveFingerJoint(joint, parts, NO_COMPONENTS)
   expect(r).not.toBeNull()
   expect(r!.seat!.partId).toBe('B')
   expect(r!.cuts).toHaveLength(4)
@@ -122,7 +129,7 @@ test('deriveFingerJoint: 4 cuts split across both boards + a seat on B', () => {
   expect(r!.cuts.filter((c) => c.partId === 'B')).toHaveLength(2)
 })
 test('deriveFingerJoint: A and B cover complementary world-Y bands (interlock)', () => {
-  const r = deriveFingerJoint(joint, parts)!
+  const r = deriveFingerJoint(joint, parts, NO_COMPONENTS)!
   const aSlots = r.cuts
     .filter((c) => c.partId === 'A')
     .map((c) => c.cut.position.y)
@@ -137,14 +144,16 @@ test('deriveFingerJoint: A and B cover complementary world-Y bands (interlock)',
 test('deriveFingerJoint: unequal thickness → asymmetric slot depths', () => {
   const a2: BoardPart = { ...A, thickness: 12 }
   const b2: BoardPart = { ...B, thickness: 24 }
-  const r = deriveFingerJoint(joint, [a2, b2])!
+  const r = deriveFingerJoint(joint, [a2, b2], NO_COMPONENTS)!
   const aCut = r.cuts.find((c) => c.partId === 'A')!.cut
   const bCut = r.cuts.find((c) => c.partId === 'B')!.cut
   expect(aCut.size.x).toBe(24)
   expect(bCut.size.x).toBe(12)
 })
 test('deriveFingerJoint: stale (non-axis-aligned) returns null', () => {
-  expect(deriveFingerJoint(joint, [A, { ...B, rotation: { x: 0, y: 45, z: 0 } }])).toBeNull()
+  expect(
+    deriveFingerJoint(joint, [A, { ...B, rotation: { x: 0, y: 45, z: 0 } }], NO_COMPONENTS),
+  ).toBeNull()
 })
 
 test('deriveFingerJoint: genuinely anti-parallel board triggers flip=true and world-interlocks', () => {
@@ -154,11 +163,11 @@ test('deriveFingerJoint: genuinely anti-parallel board triggers flip=true and wo
   const Bflip: BoardPart = { ...B, rotation: { x: 180, y: 90, z: 0 } }
 
   // Confirm the two preconditions the flip decision hinges on, at runtime.
-  expect(isValidFingerJoint(A, '+X', Bflip, '+X')).toBe(true)
+  expect(isValidFingerJoint(A, '+X', Bflip, '+X', NO_COMPONENTS)).toBe(true)
   const fAdotFB = composeWorldMatrix(Bflip)[5] // fA = world +Y; local +Y column's y-component = fA·fB
   expect(fAdotFB).toBeLessThan(0)
 
-  const r = deriveFingerJoint(joint, [A, Bflip])!
+  const r = deriveFingerJoint(joint, [A, Bflip], NO_COMPONENTS)!
   const bIds = r.cuts
     .filter((c) => c.partId === 'B')
     .map((c) => c.cut.id)

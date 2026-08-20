@@ -287,7 +287,7 @@ function suggestForOrderedPair(
     // A right-angle corner is neither an anti-parallel face contact nor a coplanar cross, so it is
     // detected on its own rather than through the contactPair classification below.
     const corner = cornerPair(s, t, byId)
-    if (corner && isValidFingerJoint(s, corner.endA, t, corner.endB)) {
+    if (corner && isValidFingerJoint(s, corner.endA, t, corner.endB, byId)) {
       out.push({
         kind: 'finger',
         neighborId: t.id,
@@ -322,7 +322,7 @@ function suggestForOrderedPair(
           housedEnd,
         })
       }
-      if (isValidMortiseTenon(housing, housingFace, housed, housedEnd)) {
+      if (isValidMortiseTenon(housing, housingFace, housed, housedEnd, byId)) {
         out.push({
           kind: 'mortise-tenon',
           neighborId: t.id,
@@ -334,7 +334,7 @@ function suggestForOrderedPair(
       }
     } else if (dS === 'y' && dT === 'y') {
       // Both contact faces are long edges (depth 'y') => coplanar edge glue-up.
-      if (isValidTongueGroove(s, faceA, t, faceB)) {
+      if (isValidTongueGroove(s, faceA, t, faceB, byId)) {
         out.push({
           kind: 'tongue-groove',
           neighborId: t.id,

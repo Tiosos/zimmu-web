@@ -13,7 +13,7 @@ import type {
   Vec3,
 } from '../scene/types'
 import { faceAxes, computeLocalFaceCenter } from '../scene/snapMath'
-import { composeWorldMatrix, applyMatrixToPoint } from './transform'
+import { resolveWorldMatrix, applyMatrixToPoint } from './transform'
 import { deriveHalfLap } from './halflap'
 import { deriveMortiseTenon } from './mortisetenon'
 import { deriveFingerJoint } from './fingerjoint'
@@ -93,10 +93,11 @@ export function computeDadoOffset(
   housing: BoardPart,
   housed: BoardPart,
   housingFace: Face,
+  byId: Map<ComponentId, Component>,
 ): number {
   const { narrowAx } = deriveDadoAxes(housing, housed, housingFace)
   const [cx, cy, cz] = applyMatrixToPoint(
-    composeWorldMatrix(housed),
+    resolveWorldMatrix(housed, byId),
     housed.length / 2,
     housed.width / 2,
     housed.thickness / 2,
@@ -152,6 +153,7 @@ export function computeDadoSeat(
   housing: BoardPart,
   housed: BoardPart,
   joint: DadoJoint,
+  byId: Map<ComponentId, Component>,
 ): { position: Vec3 } {
   const { narrowAx } = deriveDadoAxes(housing, housed, joint.housingFace)
   const dAx = faceAxes(joint.housingFace).depth
@@ -164,14 +166,14 @@ export function computeDadoSeat(
     endLocal.z = joint.rabbetFace === '+Z' ? t / 2 : housed.thickness - t / 2
   }
   const [ex, ey, ez] = applyMatrixToPoint(
-    composeWorldMatrix(housed),
+    resolveWorldMatrix(housed, byId),
     endLocal.x,
     endLocal.y,
     endLocal.z,
   )
   const endWorld = new THREE.Vector3(ex, ey, ez)
 
-  const gM = composeWorldMatrix(housing)
+  const gM = resolveWorldMatrix(housing, byId)
   const faceCenter = computeLocalFaceCenter(FACE_NORMALS[joint.housingFace], housing)
 
   const bottomLocal: Vec3 = { ...faceCenter }
@@ -274,21 +276,25 @@ export function deriveJoint(
 ): DeriveResult | null {
   switch (joint.kind) {
     case 'dado':
-      return deriveDadoJoint(joint, parts)
+      return deriveDadoJoint(joint, parts, byId)
     case 'halflap':
       return deriveHalfLap(joint, parts, byId)
     case 'mortise-tenon':
-      return deriveMortiseTenon(joint, parts)
+      return deriveMortiseTenon(joint, parts, byId)
     case 'finger':
-      return deriveFingerJoint(joint, parts)
+      return deriveFingerJoint(joint, parts, byId)
     case 'tongue-groove':
-      return deriveTongueGroove(joint, parts)
+      return deriveTongueGroove(joint, parts, byId)
   }
 }
 
 // Returns null when the joint is stale/invalid (missing/non-board parts, or a
 // non-perpendicular seat); the caller preserves last-good geometry.
-function deriveDadoJoint(joint: DadoJoint, parts: Part[]): DeriveResult | null {
+function deriveDadoJoint(
+  joint: DadoJoint,
+  parts: Part[],
+  byId: Map<ComponentId, Component>,
+): DeriveResult | null {
   const housing = parts.find((p) => p.id === joint.housingPartId)
   const housed = parts.find((p) => p.id === joint.housedPartId)
   if (housing?.kind !== 'board' || housed?.kind !== 'board') return null
@@ -307,6 +313,9 @@ function deriveDadoJoint(joint: DadoJoint, parts: Part[]): DeriveResult | null {
   if (notchable && joint.stopEnd > 0) {
     cuts.push({ partId: housed.id, cut: computeNotch(housing, housed, joint, 'end') })
   }
-  const seat = { partId: housed.id, position: computeDadoSeat(housing, housed, joint).position }
+  const seat = {
+    partId: housed.id,
+    position: computeDadoSeat(housing, housed, joint, byId).position,
+  }
   return { cuts, seat }
 }

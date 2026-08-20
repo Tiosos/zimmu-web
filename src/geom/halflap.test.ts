@@ -42,7 +42,7 @@ const joint: HalfLapJoint = {
 }
 
 test('stackAxis / worldAabb for an axis-aligned board', () => {
-  expect(stackAxis(A)).toBe('z')
+  expect(stackAxis(A, NO_COMPONENTS)).toBe('z')
   expect(worldAabb(A, NO_COMPONENTS)).toEqual({
     min: { x: 0, y: 0, z: 0 },
     max: { x: 200, y: 40, z: 20 },
@@ -51,7 +51,7 @@ test('stackAxis / worldAabb for an axis-aligned board', () => {
 
 test('worldAabb / stackAxis for a Rz=90 board', () => {
   const C: BoardPart = { ...A, id: 'C', rotation: { x: 0, y: 0, z: 90 } }
-  expect(stackAxis(C)).toBe('z')
+  expect(stackAxis(C, NO_COMPONENTS)).toBe('z')
   const bb = worldAabb(C, NO_COMPONENTS)
   expect(bb.min.x).toBeCloseTo(-40, 6)
   expect(bb.max.x).toBeCloseTo(0, 6)

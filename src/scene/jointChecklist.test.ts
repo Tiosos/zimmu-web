@@ -68,7 +68,7 @@ test('a touching pair with offers and no joint is open', () => {
 })
 
 test('a pair carrying a joint is jointed, and carries no options', () => {
-  const joint = defaultDadoJoint(teeH, teeD, '+Z', '-X', 'joint_1', 'Dado 1')
+  const joint = defaultDadoJoint(teeH, teeD, '+Z', '-X', 'joint_1', 'Dado 1', NO_COMPONENTS)
   const c = build([teeH, teeD], [joint])
   expect(c.rows).toHaveLength(1)
   expect(c.rows[0].state).toBe('jointed')
@@ -115,7 +115,7 @@ test('an AABB-only false positive is dropped from the no-offer group', () => {
 // reconcileJoints preserves a joint whose deriveJoint returns null, so a joint outlives its boards
 // being moved apart. Gating rows on adjacency alone would drop it and silently decrement the count.
 test('a jointed pair whose boards no longer touch still produces a jointed row', () => {
-  const joint = defaultDadoJoint(teeH, teeD, '+Z', '-X', 'joint_1', 'Dado 1')
+  const joint = defaultDadoJoint(teeH, teeD, '+Z', '-X', 'joint_1', 'Dado 1', NO_COMPONENTS)
   const moved = { ...teeD, position: { x: 5000, y: 0, z: 0 } }
   const c = build([teeH, moved], [joint])
   expect(c.rows).toHaveLength(1)
@@ -126,7 +126,7 @@ test('a jointed pair whose boards no longer touch still produces a jointed row',
 // The stacked pair is parked well clear of the tee: at the origin it would touch teeD's standing
 // end and quietly become a second *open* row, which is not what this test is measuring.
 test('counts exclude no-offer rows so 100% stays reachable', () => {
-  const joint = defaultDadoJoint(teeH, teeD, '+Z', '-X', 'joint_1', 'Dado 1')
+  const joint = defaultDadoJoint(teeH, teeD, '+Z', '-X', 'joint_1', 'Dado 1', NO_COMPONENTS)
   const farLower = { ...stackLower, position: { x: 0, y: 1000, z: 0 } }
   const farUpper = { ...stackUpper, position: { x: 0, y: 1000, z: 18 } }
   const c = build([teeH, teeD, farLower, farUpper], [joint])
@@ -176,7 +176,7 @@ test('rows are ordered by pair centre distance, nearest first', () => {
 test('a row keeps its position when it flips from open to jointed', () => {
   const parts = [shelf, upFar, upNear]
   const before = build(parts)
-  const joint = defaultDadoJoint(shelf, upNear, '+Z', '-X', 'joint_1', 'Dado 1')
+  const joint = defaultDadoJoint(shelf, upNear, '+Z', '-X', 'joint_1', 'Dado 1', NO_COMPONENTS)
   const after = build(parts, [joint])
 
   expect(after.rows.map((r) => r.key)).toEqual(before.rows.map((r) => r.key))

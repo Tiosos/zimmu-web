@@ -1,5 +1,7 @@
 import type {
   BoardPart,
+  Component,
+  ComponentId,
   DadoJoint,
   Face,
   FingerJoint,
@@ -27,6 +29,7 @@ export function defaultDadoJoint(
   housedEnd: Face,
   id: string,
   label: string,
+  byId: Map<ComponentId, Component>,
 ): DadoJoint {
   return {
     kind: 'dado',
@@ -37,7 +40,7 @@ export function defaultDadoJoint(
     housingFace,
     housedPartId: housed.id,
     housedEnd,
-    offset: computeDadoOffset(housing, housed, housingFace),
+    offset: computeDadoOffset(housing, housed, housingFace, byId),
     depth: defaultDadoDepth(housing, housingFace),
     clearance: 0,
     profile: 'plain',
@@ -73,9 +76,10 @@ export function defaultMortiseTenonJoint(
   tenonEnd: Face,
   id: string,
   label: string,
+  byId: Map<ComponentId, Component>,
 ): MortiseTenonJoint {
   const tenonThickness = Math.round(tenon.thickness / 3)
-  const { offsetU, offsetV } = computeMortiseOffset(mortise, tenon, mortiseFace)
+  const { offsetU, offsetV } = computeMortiseOffset(mortise, tenon, mortiseFace, byId)
   return {
     kind: 'mortise-tenon',
     id,

@@ -4,6 +4,9 @@ import { cutFootprintCorners } from './cutFootprint'
 import { defaultDadoJoint, defaultMortiseTenonJoint } from './defaultJoint'
 import { computeDadoGroove } from '../geom/dado'
 import { computeMortisePocket } from '../geom/mortisetenon'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 function board(over: Partial<BoardPart>): BoardPart {
   return {
@@ -101,12 +104,20 @@ test('a dado footprint spans the housing board where a mortise footprint does no
   const groove = computeDadoGroove(
     housing,
     housed,
-    defaultDadoJoint(housing, housed, '+Z', '-X', 'j_dado', 'Dado 1'),
+    defaultDadoJoint(housing, housed, '+Z', '-X', 'j_dado', 'Dado 1', NO_COMPONENTS),
   )
   const pocket = computeMortisePocket(
     housing,
     housed,
-    defaultMortiseTenonJoint(housing, housed, '+Z', '-X', 'j_mt', 'Mortise & tenon 1'),
+    defaultMortiseTenonJoint(
+      housing,
+      housed,
+      '+Z',
+      '-X',
+      'j_mt',
+      'Mortise & tenon 1',
+      NO_COMPONENTS,
+    ),
   )
 
   // Side lengths of the footprint rectangle, ascending. Which local axis each side falls on

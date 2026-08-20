@@ -1,8 +1,17 @@
 import * as THREE from 'three'
-import type { BoardPart, BoxCut, CutId, Face, Part, Vec3 } from '../scene/types'
+import type {
+  BoardPart,
+  BoxCut,
+  Component,
+  ComponentId,
+  CutId,
+  Face,
+  Part,
+  Vec3,
+} from '../scene/types'
 import type { TongueGrooveJoint } from '../scene/types'
 import type { DeriveResult, DerivedCut } from './dado'
-import { applyMatrixToPoint, composeWorldMatrix } from './transform'
+import { applyMatrixToPoint, resolveWorldMatrix } from './transform'
 import { faceAxes, computeLocalFaceCenter } from '../scene/snapMath'
 
 const DEG2RAD = Math.PI / 180
@@ -39,8 +48,8 @@ function localDirToWorld(part: BoardPart, dir: Vec3): THREE.Vector3 {
   )
   return new THREE.Vector3(dir.x, dir.y, dir.z).applyQuaternion(q)
 }
-function isAxisAligned(b: BoardPart): boolean {
-  const m = composeWorldMatrix(b)
+function isAxisAligned(b: BoardPart, byId: Map<ComponentId, Component>): boolean {
+  const m = resolveWorldMatrix(b, byId)
   const cols = [
     [m[0], m[1], m[2]],
     [m[4], m[5], m[6]],
@@ -58,8 +67,9 @@ export function isValidTongueGroove(
   grooveEdge: Face,
   tongue: BoardPart,
   tongueEdge: Face,
+  byId: Map<ComponentId, Component>,
 ): boolean {
-  if (!isAxisAligned(groove) || !isAxisAligned(tongue)) return false
+  if (!isAxisAligned(groove, byId) || !isAxisAligned(tongue, byId)) return false
   // Both faces must be long edges (their depth axis is width = local Y).
   if (faceAxes(grooveEdge).depth !== 'y' || faceAxes(tongueEdge).depth !== 'y') return false
   // Edges must face each other (anti-parallel world normals).
@@ -133,9 +143,10 @@ export function computeTongueGrooveSeat(
   groove: BoardPart,
   tongue: BoardPart,
   joint: TongueGrooveJoint,
+  byId: Map<ComponentId, Component>,
 ): { position: Vec3 } {
-  const mG = composeWorldMatrix(groove)
-  const mT = composeWorldMatrix(tongue)
+  const mG = resolveWorldMatrix(groove, byId)
+  const mT = resolveWorldMatrix(tongue, byId)
   const depth = clamp(joint.tongueDepth, 0.1, groove.width - 1)
 
   const nG = localDirToWorld(groove, FACE_NORMALS[joint.grooveEdge]) // groove edge normal (world)
@@ -166,18 +177,22 @@ export function computeTongueGrooveSeat(
   }
 }
 
-export function deriveTongueGroove(joint: TongueGrooveJoint, parts: Part[]): DeriveResult | null {
+export function deriveTongueGroove(
+  joint: TongueGrooveJoint,
+  parts: Part[],
+  byId: Map<ComponentId, Component>,
+): DeriveResult | null {
   const groove = parts.find((p) => p.id === joint.groovePartId)
   const tongue = parts.find((p) => p.id === joint.tonguePartId)
   if (groove?.kind !== 'board' || tongue?.kind !== 'board') return null
-  if (!isValidTongueGroove(groove, joint.grooveEdge, tongue, joint.tongueEdge)) return null
+  if (!isValidTongueGroove(groove, joint.grooveEdge, tongue, joint.tongueEdge, byId)) return null
   const cuts: DerivedCut[] = [
     { partId: groove.id, cut: computeGrooveCut(groove, joint) },
     ...computeTongueShoulders(tongue, joint).map((cut) => ({ partId: tongue.id, cut })),
   ]
   const seat = {
     partId: tongue.id,
-    position: computeTongueGrooveSeat(groove, tongue, joint).position,
+    position: computeTongueGrooveSeat(groove, tongue, joint, byId).position,
   }
   return { cuts, seat }
 }

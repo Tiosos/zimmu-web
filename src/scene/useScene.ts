@@ -18,6 +18,7 @@ import type {
 import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
+import { componentsById } from './componentTree'
 import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
@@ -906,6 +907,7 @@ export function useScene(): UseSceneResult {
       const housedEnd = localNormalToFaceString(housedHit.localFaceNormal)
       if (!isValidDadoSeat(housing, housingFace, housed, housedEnd)) return
 
+      const byId = componentsById(s.components)
       const n = s.joints.filter((j) => j.kind === 'dado').length + 1
       const joint: Joint = defaultDadoJoint(
         housing,
@@ -914,6 +916,7 @@ export function useScene(): UseSceneResult {
         housedEnd,
         `joint_${crypto.randomUUID()}`,
         `Dado ${n}`,
+        byId,
       )
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add dado')
       setSelectedId(housing.id)
@@ -948,7 +951,8 @@ export function useScene(): UseSceneResult {
       if (mortise?.kind !== 'board' || tenon?.kind !== 'board' || mortise.id === tenon.id) return
       const mortiseFace = localNormalToFaceString(mortiseHit.localFaceNormal)
       const tenonEnd = localNormalToFaceString(tenonHit.localFaceNormal)
-      if (!isValidMortiseTenon(mortise, mortiseFace, tenon, tenonEnd)) return
+      const byId = componentsById(s.components)
+      if (!isValidMortiseTenon(mortise, mortiseFace, tenon, tenonEnd, byId)) return
       const n = s.joints.filter((j) => j.kind === 'mortise-tenon').length + 1
       const joint: Joint = defaultMortiseTenonJoint(
         mortise,
@@ -957,6 +961,7 @@ export function useScene(): UseSceneResult {
         tenonEnd,
         `joint_${crypto.randomUUID()}`,
         `Mortise & tenon ${n}`,
+        byId,
       )
       commitReconciled(
         (prev) => ({ ...prev, joints: [...prev.joints, joint] }),
@@ -975,7 +980,7 @@ export function useScene(): UseSceneResult {
       if (a?.kind !== 'board' || b?.kind !== 'board' || a.id === b.id) return
       const endA = localNormalToFaceString(hitA.localFaceNormal)
       const endB = localNormalToFaceString(hitB.localFaceNormal)
-      if (!isValidFingerJoint(a, endA, b, endB)) return
+      if (!isValidFingerJoint(a, endA, b, endB, componentsById(s.components))) return
       const n = s.joints.filter((j) => j.kind === 'finger').length + 1
       const joint: Joint = defaultFingerJoint(
         a,
@@ -999,7 +1004,8 @@ export function useScene(): UseSceneResult {
       if (groove?.kind !== 'board' || tongue?.kind !== 'board' || groove.id === tongue.id) return
       const grooveEdge = localNormalToFaceString(grooveHit.localFaceNormal)
       const tongueEdge = localNormalToFaceString(tongueHit.localFaceNormal)
-      if (!isValidTongueGroove(groove, grooveEdge, tongue, tongueEdge)) return
+      const byId = componentsById(s.components)
+      if (!isValidTongueGroove(groove, grooveEdge, tongue, tongueEdge, byId)) return
       const n = s.joints.filter((j) => j.kind === 'tongue-groove').length + 1
       const joint: Joint = defaultTongueGrooveJoint(
         groove,

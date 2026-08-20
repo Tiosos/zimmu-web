@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import type { FaceHit, Part, PartId, CutId } from './types'
+import type { Component, ComponentId, FaceHit, Part, PartId, CutId } from './types'
 import { useSnap } from './useSnap'
 import { useAddCut } from './useAddCut'
 import type { DowelCutTool } from './useAddCut'
@@ -21,6 +21,7 @@ export type InteractionMode =
 
 export interface UseInteractionModeParams {
   parts: Part[]
+  byId: Map<ComponentId, Component>
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
   onSelect: (id: PartId | null) => void
   onRotationSnap: (id: PartId) => void
@@ -53,15 +54,20 @@ export interface UseInteractionModeResult {
 }
 
 export function useInteractionMode(params: UseInteractionModeParams): UseInteractionModeResult {
-  const { parts, onUpdate, onSelect, onRotationSnap } = params
+  const { parts, byId, onUpdate, onSelect, onRotationSnap } = params
   const snap = useSnap({ parts, onUpdate, onRotationSnap })
   const cut = useAddCut({ parts, onUpdate, onSelect })
   const joint = useAddJoint({ parts, onAddJoint: params.onAddJoint })
   const halfLap = useAddHalfLap({ parts, onAddHalfLap: params.onAddHalfLap })
-  const mortiseTenon = useAddMortiseTenon({ parts, onAddMortiseTenon: params.onAddMortiseTenon })
-  const finger = useAddFingerJoint({ parts, onAddFingerJoint: params.onAddFingerJoint })
+  const mortiseTenon = useAddMortiseTenon({
+    parts,
+    byId,
+    onAddMortiseTenon: params.onAddMortiseTenon,
+  })
+  const finger = useAddFingerJoint({ parts, byId, onAddFingerJoint: params.onAddFingerJoint })
   const tongueGroove = useAddTongueGroove({
     parts,
+    byId,
     onAddTongueGroove: params.onAddTongueGroove,
   })
 

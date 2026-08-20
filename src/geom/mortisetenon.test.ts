@@ -10,6 +10,9 @@ import {
   computeMortiseOffset,
   deriveMortiseTenon,
 } from './mortisetenon'
+import { componentsById } from '../scene/componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const M: BoardPart = {
   kind: 'board',
@@ -65,18 +68,24 @@ const joint: MortiseTenonJoint = {
 }
 
 test('isValidMortiseTenon: perpendicular, axis-aligned, length/width-end seat is valid', () => {
-  expect(isValidMortiseTenon(M, '+Z', T, '+X')).toBe(true)
+  expect(isValidMortiseTenon(M, '+Z', T, '+X', NO_COMPONENTS)).toBe(true)
 })
 test('isValidMortiseTenon: a non-perpendicular seat is invalid', () => {
-  expect(isValidMortiseTenon(M, '+Z', { ...T, rotation: { x: 0, y: 0, z: 0 } }, '+X')).toBe(false)
+  expect(
+    isValidMortiseTenon(M, '+Z', { ...T, rotation: { x: 0, y: 0, z: 0 } }, '+X', NO_COMPONENTS),
+  ).toBe(false)
 })
 test('isValidMortiseTenon: a thickness-end tenon is invalid (perpendicular but seatAx z)', () => {
   // Unrotated tenon, tenonEnd '-Z': perpendicular to M's '+Z' (dot −1), axis-aligned,
   // but faceAxes('-Z').depth === 'z' — so only the thickness-end guard rejects it.
-  expect(isValidMortiseTenon(M, '+Z', { ...T, rotation: { x: 0, y: 0, z: 0 } }, '-Z')).toBe(false)
+  expect(
+    isValidMortiseTenon(M, '+Z', { ...T, rotation: { x: 0, y: 0, z: 0 } }, '-Z', NO_COMPONENTS),
+  ).toBe(false)
 })
 test('isValidMortiseTenon: a non-axis-aligned tenon board is invalid', () => {
-  expect(isValidMortiseTenon(M, '+Z', { ...T, rotation: { x: 0, y: 45, z: 0 } }, '+X')).toBe(false)
+  expect(
+    isValidMortiseTenon(M, '+Z', { ...T, rotation: { x: 0, y: 45, z: 0 } }, '+X', NO_COMPONENTS),
+  ).toBe(false)
 })
 
 test('computeTenonShoulders: 4 centered shoulder strips over the tenon length', () => {
@@ -112,7 +121,7 @@ test('computeMortisePocket: through pocket spans the full thickness', () => {
 })
 
 test('computeMortiseTenonSeat: tongue tip on the pocket bottom, centered on the mortise', () => {
-  const seat = computeMortiseTenonSeat(M, T, joint)
+  const seat = computeMortiseTenonSeat(M, T, joint, NO_COMPONENTS)
   const seated: BoardPart = { ...T, position: seat.position }
   const endLocal = computeLocalFaceCenter({ x: 1, y: 0, z: 0 }, seated)
   const [wx, wy, wz] = applyMatrixToPoint(
@@ -127,13 +136,13 @@ test('computeMortiseTenonSeat: tongue tip on the pocket bottom, centered on the 
 })
 
 test('computeMortiseOffset: projects the tenon board center onto the mortise face axes', () => {
-  const { offsetU, offsetV } = computeMortiseOffset(M, T, '+Z')
+  const { offsetU, offsetV } = computeMortiseOffset(M, T, '+Z', NO_COMPONENTS)
   expect(offsetU).toBeCloseTo(15, 6)
   expect(offsetV).toBeCloseTo(30, 6)
 })
 
 test('deriveMortiseTenon: 4 shoulders (tenon) + 1 pocket (mortise) + a seat', () => {
-  const r = deriveMortiseTenon(joint, parts)
+  const r = deriveMortiseTenon(joint, parts, NO_COMPONENTS)
   expect(r).not.toBeNull()
   expect(r!.seat!.partId).toBe('T')
   expect(r!.cuts).toHaveLength(5)
@@ -141,5 +150,7 @@ test('deriveMortiseTenon: 4 shoulders (tenon) + 1 pocket (mortise) + a seat', ()
   expect(r!.cuts.filter((c) => c.partId === 'M')).toHaveLength(1)
 })
 test('deriveMortiseTenon: stale (non-perpendicular) returns null', () => {
-  expect(deriveMortiseTenon(joint, [M, { ...T, rotation: { x: 0, y: 0, z: 0 } }])).toBeNull()
+  expect(
+    deriveMortiseTenon(joint, [M, { ...T, rotation: { x: 0, y: 0, z: 0 } }], NO_COMPONENTS),
+  ).toBeNull()
 })

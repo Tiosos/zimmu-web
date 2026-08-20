@@ -126,6 +126,7 @@ function App() {
 
   const mode = useInteractionMode({
     parts: scene.parts,
+    byId: componentMap,
     onUpdate,
     onSelect,
     onRotationSnap: handleRotationSnap,

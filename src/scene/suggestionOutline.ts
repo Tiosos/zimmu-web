@@ -101,6 +101,7 @@ export function suggestionOutlines(
       s.housedEnd,
       PREVIEW_ID,
       PREVIEW_LABEL,
+      byId,
     )
     return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts)
   }
@@ -136,6 +137,7 @@ export function suggestionOutlines(
       s.tenonEnd,
       PREVIEW_ID,
       PREVIEW_LABEL,
+      byId,
     )
     return cutOutlines(joint, parts, byId) ?? faceOutlines(s, parts)
   }

@@ -1,8 +1,17 @@
 import * as THREE from 'three'
-import type { BoardPart, BoxCut, CutId, Face, Part, Vec3 } from '../scene/types'
+import type {
+  BoardPart,
+  BoxCut,
+  Component,
+  ComponentId,
+  CutId,
+  Face,
+  Part,
+  Vec3,
+} from '../scene/types'
 import type { FingerJoint } from '../scene/types'
 import type { DeriveResult, DerivedCut } from './dado'
-import { applyMatrixToPoint, composeWorldMatrix } from './transform'
+import { applyMatrixToPoint, resolveWorldMatrix } from './transform'
 import { faceAxes, computeLocalFaceCenter } from '../scene/snapMath'
 
 const DEG2RAD = Math.PI / 180
@@ -39,8 +48,8 @@ function localDirToWorld(part: BoardPart, dir: Vec3): THREE.Vector3 {
   )
   return new THREE.Vector3(dir.x, dir.y, dir.z).applyQuaternion(q)
 }
-function isAxisAligned(b: BoardPart): boolean {
-  const m = composeWorldMatrix(b)
+function isAxisAligned(b: BoardPart, byId: Map<ComponentId, Component>): boolean {
+  const m = resolveWorldMatrix(b, byId)
   const cols = [
     [m[0], m[1], m[2]],
     [m[4], m[5], m[6]],
@@ -57,8 +66,14 @@ function worldPoint(m: Float64Array, p: Vec3): THREE.Vector3 {
   return new THREE.Vector3(x, y, z)
 }
 
-export function isValidFingerJoint(a: BoardPart, endA: Face, b: BoardPart, endB: Face): boolean {
-  if (!isAxisAligned(a) || !isAxisAligned(b)) return false
+export function isValidFingerJoint(
+  a: BoardPart,
+  endA: Face,
+  b: BoardPart,
+  endB: Face,
+  byId: Map<ComponentId, Component>,
+): boolean {
+  if (!isAxisAligned(a, byId) || !isAxisAligned(b, byId)) return false
   if (faceAxes(endA).depth === 'z' || faceAxes(endB).depth === 'z') return false
   const nA = localDirToWorld(a, FACE_NORMALS[endA])
   const nB = localDirToWorld(b, FACE_NORMALS[endB])
@@ -122,9 +137,10 @@ export function computeFingerSeat(
   a: BoardPart,
   b: BoardPart,
   joint: FingerJoint,
+  byId: Map<ComponentId, Component>,
 ): { position: Vec3 } {
-  const mA = composeWorldMatrix(a)
-  const mB = composeWorldMatrix(b)
+  const mA = resolveWorldMatrix(a, byId)
+  const mB = resolveWorldMatrix(b, byId)
   const Tb = b.thickness
 
   const nA = localDirToWorld(a, FACE_NORMALS[joint.endA]) // A's end normal
@@ -158,11 +174,15 @@ export function computeFingerSeat(
   }
 }
 
-export function deriveFingerJoint(joint: FingerJoint, parts: Part[]): DeriveResult | null {
+export function deriveFingerJoint(
+  joint: FingerJoint,
+  parts: Part[],
+  byId: Map<ComponentId, Component>,
+): DeriveResult | null {
   const a = parts.find((p) => p.id === joint.partAId)
   const b = parts.find((p) => p.id === joint.partBId)
   if (a?.kind !== 'board' || b?.kind !== 'board') return null
-  if (!isValidFingerJoint(a, joint.endA, b, joint.endB)) return null
+  if (!isValidFingerJoint(a, joint.endA, b, joint.endB, byId)) return null
   const fA = localDirToWorld(a, unitVec(fingerAxisOf(joint.endA)))
   const fB = localDirToWorld(b, unitVec(fingerAxisOf(joint.endB)))
   const flip = fA.dot(fB) < 0
@@ -176,6 +196,6 @@ export function deriveFingerJoint(joint: FingerJoint, parts: Part[]): DeriveResu
       cut,
     })),
   ]
-  const seat = { partId: b.id, position: computeFingerSeat(a, b, joint).position }
+  const seat = { partId: b.id, position: computeFingerSeat(a, b, joint, byId).position }
   return { cuts, seat }
 }

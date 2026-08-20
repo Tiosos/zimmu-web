@@ -8,6 +8,9 @@ import {
   deriveTongueGroove,
 } from './tonguegroove'
 import { applyMatrixToPoint, composeWorldMatrix } from './transform'
+import { componentsById } from '../scene/componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 // Groove board: 800×150×18 at origin, unrotated. Its +Y long edge (world y=150) carries the groove.
 const GROOVE: BoardPart = {
@@ -50,29 +53,43 @@ const joint: TongueGrooveJoint = {
 }
 
 test('isValidTongueGroove: coplanar equal-thickness facing long edges are valid', () => {
-  expect(isValidTongueGroove(GROOVE, '+Y', TONGUE, '-Y')).toBe(true)
+  expect(isValidTongueGroove(GROOVE, '+Y', TONGUE, '-Y', NO_COMPONENTS)).toBe(true)
 })
 test('isValidTongueGroove: a non-edge face (end +X) is invalid', () => {
-  expect(isValidTongueGroove(GROOVE, '+X', TONGUE, '-Y')).toBe(false)
+  expect(isValidTongueGroove(GROOVE, '+X', TONGUE, '-Y', NO_COMPONENTS)).toBe(false)
 })
 test('isValidTongueGroove: a broad face (+Z) is invalid', () => {
-  expect(isValidTongueGroove(GROOVE, '+Y', TONGUE, '+Z')).toBe(false)
+  expect(isValidTongueGroove(GROOVE, '+Y', TONGUE, '+Z', NO_COMPONENTS)).toBe(false)
 })
 test('isValidTongueGroove: parallel (non-facing) edges are invalid', () => {
-  expect(isValidTongueGroove(GROOVE, '+Y', TONGUE, '+Y')).toBe(false)
+  expect(isValidTongueGroove(GROOVE, '+Y', TONGUE, '+Y', NO_COMPONENTS)).toBe(false)
 })
 test('isValidTongueGroove: unequal thickness is invalid', () => {
-  expect(isValidTongueGroove(GROOVE, '+Y', { ...TONGUE, thickness: 20 }, '-Y')).toBe(false)
+  expect(isValidTongueGroove(GROOVE, '+Y', { ...TONGUE, thickness: 20 }, '-Y', NO_COMPONENTS)).toBe(
+    false,
+  )
 })
 test('isValidTongueGroove: a non-axis-aligned board is invalid', () => {
   expect(
-    isValidTongueGroove(GROOVE, '+Y', { ...TONGUE, rotation: { x: 0, y: 0, z: 30 } }, '-Y'),
+    isValidTongueGroove(
+      GROOVE,
+      '+Y',
+      { ...TONGUE, rotation: { x: 0, y: 0, z: 30 } },
+      '-Y',
+      NO_COMPONENTS,
+    ),
   ).toBe(false)
 })
 test('isValidTongueGroove: perpendicular thickness axes (rotated y:90) is invalid', () => {
   // local -Y still → world -Y (facing), but local Z (thickness) → world X, not coplanar with groove.
   expect(
-    isValidTongueGroove(GROOVE, '+Y', { ...TONGUE, rotation: { x: 0, y: 90, z: 0 } }, '-Y'),
+    isValidTongueGroove(
+      GROOVE,
+      '+Y',
+      { ...TONGUE, rotation: { x: 0, y: 90, z: 0 } },
+      '-Y',
+      NO_COMPONENTS,
+    ),
   ).toBe(false)
 })
 
@@ -103,16 +120,21 @@ test('computeTongueShoulders: two symmetric shoulders leave a centered tongue', 
 })
 
 test('computeTongueGrooveSeat: seats the tongue 8mm into the groove, idempotent', () => {
-  const seat = computeTongueGrooveSeat(GROOVE, TONGUE, joint)
+  const seat = computeTongueGrooveSeat(GROOVE, TONGUE, joint, NO_COMPONENTS)
   expect(seat.position.x).toBeCloseTo(0, 6)
   expect(seat.position.y).toBeCloseTo(142, 6) // tongue -Y edge lands at the groove bottom (150-8)
   expect(seat.position.z).toBeCloseTo(0, 6)
-  const again = computeTongueGrooveSeat(GROOVE, { ...TONGUE, position: seat.position }, joint)
+  const again = computeTongueGrooveSeat(
+    GROOVE,
+    { ...TONGUE, position: seat.position },
+    joint,
+    NO_COMPONENTS,
+  )
   expect(again.position.y).toBeCloseTo(142, 6)
 })
 
 test('deriveTongueGroove: 3 cuts (1 groove + 2 shoulders) split across both boards + a seat', () => {
-  const r = deriveTongueGroove(joint, parts)
+  const r = deriveTongueGroove(joint, parts, NO_COMPONENTS)
   expect(r).not.toBeNull()
   expect(r!.cuts).toHaveLength(3)
   expect(r!.cuts.filter((c) => c.partId === 'G')).toHaveLength(1)
@@ -120,7 +142,9 @@ test('deriveTongueGroove: 3 cuts (1 groove + 2 shoulders) split across both boar
   expect(r!.seat!.partId).toBe('T')
 })
 test('deriveTongueGroove: stale (unequal thickness) returns null', () => {
-  expect(deriveTongueGroove(joint, [GROOVE, { ...TONGUE, thickness: 20 }])).toBeNull()
+  expect(
+    deriveTongueGroove(joint, [GROOVE, { ...TONGUE, thickness: 20 }], NO_COMPONENTS),
+  ).toBeNull()
 })
 
 test('deriveTongueGroove: rotated tongue board (z:180, anti-parallel length) still closes the joint', () => {
@@ -128,8 +152,8 @@ test('deriveTongueGroove: rotated tongue board (z:180, anti-parallel length) sti
   // so tongueEdge must be '+Y' to face the groove board's +Y edge; local X (length) → world -X.
   const Trot: BoardPart = { ...TONGUE, rotation: { x: 0, y: 0, z: 180 } }
   const jrot: TongueGrooveJoint = { ...joint, tongueEdge: '+Y' }
-  expect(isValidTongueGroove(GROOVE, '+Y', Trot, '+Y')).toBe(true)
-  const r = deriveTongueGroove(jrot, [GROOVE, Trot])
+  expect(isValidTongueGroove(GROOVE, '+Y', Trot, '+Y', NO_COMPONENTS)).toBe(true)
+  const r = deriveTongueGroove(jrot, [GROOVE, Trot], NO_COMPONENTS)
   expect(r).not.toBeNull()
   expect(r!.cuts).toHaveLength(3)
   // The seated tongue-edge face center must land at the groove bottom (world y=142) and the groove
