@@ -2107,20 +2107,53 @@ git commit -m "feat(scene): validateCarcaseParams accumulates every problem"
 **Files:**
 - Modify: `src/scene/carcaseRoles.ts`, `src/scene/carcaseRoles.test.ts`
 
-**The role table.** All values are carcase-local. `T` = `thickness`, `W`/`H`/`D` = width/height/depth, `BT` = `backThickness`, `KH`/`KS` = toe-kick height/setback. `floor` = `baseMode === 'toe-kick' ? KH : 0`. `innerTop` = `hasTop ? H - T : H`. `backY0` = `backMode === 'captured' ? D - BT : D`.
+**The role table.** All values are carcase-local. `T` = `thickness`, `W`/`H`/`D` = width/height/depth, `BT` = `backThickness`, `KH`/`KS` = toe-kick height/setback. `carcaseZ0` = `baseMode === 'ladder' ? KH : 0` — where the *carcase box* starts. `floor` = `baseMode === 'toe-kick' ? KH : carcaseZ0` — where the bottom panel sits. `innerTop` = `hasTop ? H - T : H`. `backY0` = `backMode === 'captured' ? D - BT : D`. `H` is the **total** height from the ground, base included, in every mode.
 
 | Role key | Box | thickness axis |
 |---|---|---|
-| `left-side` | `x:[0,T] y:[0,D] z:[0,H]` | `x` |
-| `right-side` | `x:[W-T,W] y:[0,D] z:[0,H]` | `x` |
+| `left-side` | `x:[0,T] y:[0,D] z:[carcaseZ0,H]` | `x` |
+| `right-side` | `x:[W-T,W] y:[0,D] z:[carcaseZ0,H]` | `x` |
 | `bottom` | `x:[T,W-T] y:[0,D] z:[floor,floor+T]` | `z` |
 | `top` (iff `hasTop`) | `x:[T,W-T] y:[0,D] z:[H-T,H]` | `z` |
 | `back` (iff `backMode !== 'none'`) | `x:[T,W-T] y:[backY0,backY0+BT] z:[floor+T,innerTop]` | `y` |
 | `toe-kick` (iff `baseMode === 'toe-kick'`) | `x:[T,W-T] y:[KS,KS+T] z:[0,floor]` | `y` |
 | `divider-{i}` | `x:[W·d-T/2, W·d+T/2] y:[0,backY0] z:[floor+T,innerTop]` | `x` |
-| `shelf-fixed-{i}` | `x:[T,W-T] y:[0,backY0] z:[zi,zi+T]` where `zi` divides `[floor+T, innerTop]` into `fixedShelves+1` equal bays | `z` |
+| `shelf-{b}-{i}` | `x:[bayX0(b),bayX1(b)] y:[0,backY0] z:[zi,zi+T]` where `zi` divides `[floor+T, innerTop]` into `fixedShelves+1` equal bays | `z` |
+
+### Two corrections, 2026-08-20 — found by the pairwise-overlap test
+
+**Shelves are per vertical bay.** The first draft ran every shelf the full internal width,
+`x:[T,W-T]`, while a divider ran the full internal height. Those two rows **interpenetrate by
+construction** — a `dividers: [0.5]` carcase produced an 18 × 548 × 18 shared volume, and no
+arithmetic in either row can separate them. A divider splits the carcase into vertical bays and
+shelves live *inside* a bay; that is what a bookcase with a centre upright is. So:
+
+```
+bayEdges = [T, ...dividers.flatMap((d) => [W * d - T / 2, W * d + T / 2]), W - T]
+// consecutive pairs are the bays: (bayEdges[0], bayEdges[1]), (bayEdges[2], bayEdges[3]), …
+```
+
+`fixedShelves` therefore means **shelves per bay**, not shelves in total — the reading a cabinetmaker
+expects, and the one that keeps a divided carcase symmetrical. With no dividers there is exactly one
+bay, `[T, W-T]`, so an undivided carcase is unchanged apart from the role key.
+
+**Ladder mode raises the carcase.** The prose below called the ladder "a frame *under* the carcase"
+while the formula left `floor` at 0 for that mode, so the rails at `z:[0,KH]` sat *inside* the sides
+at `z:[0,H]` — an 18 × 18 × 100 shared volume per corner. Prose and formula disagreed and the prose
+was right; `carcaseZ0` is the fix.
 
 `baseMode: 'legs'` and `'none'` emit no extra part and put `floor` at 0. `baseMode: 'ladder'` emits four roles — `ladder-front`, `ladder-back`, `ladder-left`, `ladder-right` — forming a frame under the carcase: front/back are `x:[0,W] y:[KS,KS+T]` and `x:[0,W] y:[D-T,D]`, left/right are `x:[0,T] y:[KS+T,D-T]` and `x:[W-T,W] y:[KS+T,D-T]`, all `z:[0,KH]`, all thickness axis `y` for front/back and `x` for left/right.
+
+**A third defect, same family.** `ladder-left`/`ladder-right` span `y:[KS+T, D-T]`, which **inverts**
+when `KS + 2T >= D` — `depth: 100, toeKickSetback: 70, thickness: 18` yields `y:[88, 82]`, a negative
+extent reaching OCCT as a degenerate solid. Validation only checks `KS < depth`. Add to
+`validateCarcaseParams`, scoped to ladder mode since it is the only mode with side rails:
+
+```ts
+if (p.baseMode === 'ladder' && p.toeKickSetback + 2 * p.thickness >= p.depth) {
+  errors.push('toeKickSetback leaves no room for the ladder side rails')
+}
+```
 
 **Order matters** — the returned array's order is the build sequence the deliverables project will consume. Emit in the order of the table.
 
