@@ -1588,6 +1588,18 @@ git commit -m "feat(scene): component add, remove, reparent and update with undo
 
 ## Task 3.4: `SceneTree` and the `activeMode` cleanup
 
+**Scope note added 2026-08-20**, from Task 3.1's report. `SidebarProps` currently carries **49 props**,
+including six near-identical `xActive` / `onXToggle` / `xStatus` triples — one per joint tool. The
+seven-boolean collapse below is the minimum; if the triples are still shaped that way when you get
+here, replacing the block with a single `tools` array is the same change done once instead of six
+times, and Phase 5 adds another entry to it.
+
+Separately: `EditPanel`'s inline prop type re-declares **19 fields** that `SidebarProps` also declares,
+with identical signatures. Now that `EditPanel` is its own module, exporting an `EditPanelProps` and
+having `SidebarProps` `Pick<>` from it removes a drift-prone duplication. Do this only if it stays
+mechanical — it is a tidy-up, not the task.
+
+
 **Files:**
 - Create: `src/ui/SceneTree.tsx`, `src/ui/SceneTree.test.tsx`
 - Modify: `src/ui/sidebar.tsx`, `src/App.tsx:373-415`
