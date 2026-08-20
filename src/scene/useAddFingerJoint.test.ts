@@ -2,6 +2,9 @@ import { test, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import type { FaceHit, Part } from './types'
 import { useAddFingerJoint } from './useAddFingerJoint'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const a: Part = {
   kind: 'board',
@@ -17,6 +20,8 @@ const a: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const b: Part = { ...a, id: 'B', rotation: { x: 0, y: 90, z: 0 } }
 const hit = (partId: string, n: { x: number; y: number; z: number }): FaceHit => ({
@@ -30,7 +35,9 @@ const hit = (partId: string, n: { x: number; y: number; z: number }): FaceHit =>
 
 test('two perpendicular equal-width ends create a finger joint', () => {
   const onAddFingerJoint = vi.fn()
-  const { result } = renderHook(() => useAddFingerJoint({ parts: [a, b], onAddFingerJoint }))
+  const { result } = renderHook(() =>
+    useAddFingerJoint({ parts: [a, b], byId: NO_COMPONENTS, onAddFingerJoint }),
+  )
   act(() => result.current.activateFingerJoint())
   act(() => result.current.onFaceClick(hit('A', { x: 1, y: 0, z: 0 })))
   expect(onAddFingerJoint).not.toHaveBeenCalled()
@@ -40,7 +47,9 @@ test('two perpendicular equal-width ends create a finger joint', () => {
 
 test('a second click on the same board does not create a joint', () => {
   const onAddFingerJoint = vi.fn()
-  const { result } = renderHook(() => useAddFingerJoint({ parts: [a, b], onAddFingerJoint }))
+  const { result } = renderHook(() =>
+    useAddFingerJoint({ parts: [a, b], byId: NO_COMPONENTS, onAddFingerJoint }),
+  )
   act(() => result.current.activateFingerJoint())
   act(() => result.current.onFaceClick(hit('A', { x: 1, y: 0, z: 0 })))
   act(() => result.current.onFaceClick(hit('A', { x: 1, y: 0, z: 0 })))
@@ -52,7 +61,9 @@ test('a second click on the same board does not create a joint', () => {
 test('a non-corner second hit (parallel ends) does not create a joint', () => {
   const onAddFingerJoint = vi.fn()
   const flat: Part = { ...b, rotation: { x: 0, y: 0, z: 0 } } // +X end now world +X, not a corner
-  const { result } = renderHook(() => useAddFingerJoint({ parts: [a, flat], onAddFingerJoint }))
+  const { result } = renderHook(() =>
+    useAddFingerJoint({ parts: [a, flat], byId: NO_COMPONENTS, onAddFingerJoint }),
+  )
   act(() => result.current.activateFingerJoint())
   act(() => result.current.onFaceClick(hit('A', { x: 1, y: 0, z: 0 })))
   act(() => result.current.onFaceClick(hit('B', { x: 1, y: 0, z: 0 })))

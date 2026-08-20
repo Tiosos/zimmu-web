@@ -18,6 +18,8 @@ const housing: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const housed: BoardPart = {
   kind: 'board',
@@ -33,11 +35,14 @@ const housed: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const joint: DadoJoint = {
   kind: 'dado',
   id: 'j1',
   label: 'Dado 1',
+  driven: false,
   housingPartId: 'H',
   housingFace: '+Z',
   housedPartId: 'D',
@@ -54,6 +59,7 @@ const joint: DadoJoint = {
 const scene = (): Scene => ({
   parts: [structuredClone(housing), structuredClone(housed)],
   materials: {},
+  components: [],
   hardware: [],
   joints: [structuredClone(joint)],
 })
@@ -189,6 +195,8 @@ test('half-lap joint materializes one lap cut on each board; removal strips both
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   }
   const lb: BoardPart = {
     ...la,
@@ -201,6 +209,7 @@ test('half-lap joint materializes one lap cut on each board; removal strips both
     kind: 'halflap' as const,
     id: 'jl',
     label: 'Half-lap 1',
+    driven: false,
     partAId: 'LA',
     partBId: 'LB',
     split: 0.5,
@@ -209,6 +218,7 @@ test('half-lap joint materializes one lap cut on each board; removal strips both
   const s: Scene = {
     parts: [structuredClone(la), structuredClone(lb)],
     materials: {},
+    components: [],
     hardware: [],
     joints: [lap],
   }

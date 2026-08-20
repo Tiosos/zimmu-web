@@ -20,6 +20,8 @@ const parts: Part[] = [
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   },
 ]
 
@@ -193,6 +195,8 @@ describe('BomModal', () => {
       rotationOrder: 'XYZ',
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     render(<BomModal {...baseProps} parts={[...parts, dowelPart]} />)
     fireEvent.click(screen.getByRole('tab', { name: 'Dowels' }))
@@ -213,6 +217,8 @@ describe('BomModal', () => {
       rotationOrder: 'XYZ',
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     render(
       <BomModal

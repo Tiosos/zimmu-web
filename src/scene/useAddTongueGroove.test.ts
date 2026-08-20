@@ -2,6 +2,9 @@ import { test, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import type { FaceHit, Part } from './types'
 import { useAddTongueGroove } from './useAddTongueGroove'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const groove: Part = {
   kind: 'board',
@@ -17,6 +20,8 @@ const groove: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const tongue: Part = { ...groove, id: 'T', position: { x: 0, y: 160, z: 0 } }
 const hit = (partId: string, n: { x: number; y: number; z: number }): FaceHit => ({
@@ -31,7 +36,7 @@ const hit = (partId: string, n: { x: number; y: number; z: number }): FaceHit =>
 test('two facing long edges create a tongue & groove joint', () => {
   const onAddTongueGroove = vi.fn()
   const { result } = renderHook(() =>
-    useAddTongueGroove({ parts: [groove, tongue], onAddTongueGroove }),
+    useAddTongueGroove({ parts: [groove, tongue], byId: NO_COMPONENTS, onAddTongueGroove }),
   )
   act(() => result.current.activateTongueGroove())
   act(() => result.current.onFaceClick(hit('G', { x: 0, y: 1, z: 0 })))
@@ -43,7 +48,7 @@ test('two facing long edges create a tongue & groove joint', () => {
 test('a second click on the same board does not create a joint', () => {
   const onAddTongueGroove = vi.fn()
   const { result } = renderHook(() =>
-    useAddTongueGroove({ parts: [groove, tongue], onAddTongueGroove }),
+    useAddTongueGroove({ parts: [groove, tongue], byId: NO_COMPONENTS, onAddTongueGroove }),
   )
   act(() => result.current.activateTongueGroove())
   act(() => result.current.onFaceClick(hit('G', { x: 0, y: 1, z: 0 })))
@@ -56,7 +61,7 @@ test('a second click on the same board does not create a joint', () => {
 test('a non-facing second edge (parallel end) does not create a joint', () => {
   const onAddTongueGroove = vi.fn()
   const { result } = renderHook(() =>
-    useAddTongueGroove({ parts: [groove, tongue], onAddTongueGroove }),
+    useAddTongueGroove({ parts: [groove, tongue], byId: NO_COMPONENTS, onAddTongueGroove }),
   )
   act(() => result.current.activateTongueGroove())
   act(() => result.current.onFaceClick(hit('G', { x: 0, y: 1, z: 0 })))

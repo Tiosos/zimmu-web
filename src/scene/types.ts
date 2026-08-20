@@ -18,6 +18,7 @@ export interface BoxCut {
   size: Vec3
   pairedCutId?: string // "{partId}:{cutId}"
   sourceJointId?: string // set on cuts generated & owned by a Joint (read-only in UI)
+  sourceComponentId?: string // set on cuts a component places directly (e.g. toe-kick notch)
 }
 
 export interface MitreCut {
@@ -86,6 +87,9 @@ export interface BoardPart {
   rotationOrder: 'XYZ'
   cuts: CutDef[]
   visible: boolean
+  parentId: ComponentId | null
+  driven: boolean
+  role?: string // set only on driven parts; the regeneration identity key
 }
 
 export interface CylinderPart {
@@ -101,6 +105,9 @@ export interface CylinderPart {
   rotationOrder: 'XYZ'
   cuts: DowelCut[]
   visible: boolean
+  parentId: ComponentId | null
+  driven: boolean
+  role?: string // set only on driven parts; the regeneration identity key
 }
 
 export type Part = BoardPart | CylinderPart
@@ -122,10 +129,65 @@ export interface HardwareItem {
   linkedPartIds: string[] // reserved for future 3D linkage
 }
 
+export type ComponentId = string
+
+export interface CarcaseParams {
+  width: number
+  height: number
+  depth: number
+  material: string
+  thickness: number
+  hasTop: boolean
+  backMode: 'captured' | 'applied' | 'none'
+  backThickness: number
+  baseMode: 'toe-kick' | 'ladder' | 'legs' | 'none'
+  toeKickHeight: number
+  toeKickSetback: number
+  fixedShelves: number
+  adjustableShelves: {
+    rows: 1 | 2
+    pitch: 32 // literal, not number: 32 mm *is* the system being modelled
+    setback: number
+    startHeight: number
+    count: number
+  }
+  jointMethod: 'dado-rabbet' | 'finger' | 'dowel' | 'butt-screw' | 'confirmat'
+  dividers: number[] // fractions of width, 0..1, ascending
+}
+
+export interface GroupComponent {
+  kind: 'group'
+  id: ComponentId // "cmp_<uuid>"
+  label: string
+  parentId: ComponentId | null
+  position: Vec3
+  rotation: Vec3
+  rotationOrder: 'XYZ'
+  visible: boolean
+}
+
+export interface CarcaseComponent {
+  kind: 'carcase'
+  id: ComponentId // "cmp_<uuid>"
+  label: string
+  parentId: ComponentId | null
+  position: Vec3
+  rotation: Vec3
+  rotationOrder: 'XYZ'
+  visible: boolean
+  params: CarcaseParams
+}
+
+export type Component = GroupComponent | CarcaseComponent
+
+export type Selection = { kind: 'part'; id: PartId } | { kind: 'component'; id: ComponentId }
+
 export interface DadoJoint {
   kind: 'dado'
   id: string // "joint_<uuid>"
   label: string // "Dado 1"
+  sourceComponentId?: string
+  driven: boolean
   housingPartId: PartId // board that carries the groove
   housingFace: Face // face the groove is cut into
   housedPartId: PartId // board that seats into the groove
@@ -144,6 +206,8 @@ export interface HalfLapJoint {
   kind: 'halflap'
   id: string // "joint_<uuid>"
   label: string // "Half-lap 1"
+  sourceComponentId?: string
+  driven: boolean
   partAId: PartId // the two lapping boards — A/B is just an ordering
   partBId: PartId
   split: number // 0..1 — fraction of thickness board A keeps (default 0.5 = true half-lap)
@@ -154,6 +218,8 @@ export interface MortiseTenonJoint {
   kind: 'mortise-tenon'
   id: string // "joint_<uuid>"
   label: string // "Mortise & tenon 1"
+  sourceComponentId?: string
+  driven: boolean
   mortisePartId: PartId // board that carries the pocket
   mortiseFace: Face // face the pocket is cut into
   tenonPartId: PartId // board whose end becomes the tenon
@@ -171,6 +237,8 @@ export interface FingerJoint {
   kind: 'finger'
   id: string // "joint_<uuid>"
   label: string // "Finger joint 1"
+  sourceComponentId?: string
+  driven: boolean
   partAId: PartId // lead board — keeps EVEN world-segments; stays put
   endA: Face // A's joined end (a non-thickness end)
   partBId: PartId // mating board — keeps ODD world-segments; auto-seats into the corner
@@ -183,6 +251,8 @@ export interface TongueGrooveJoint {
   kind: 'tongue-groove'
   id: string // "joint_<uuid>"
   label: string // "Tongue & groove 1"
+  sourceComponentId?: string
+  driven: boolean
   groovePartId: PartId // board carrying the groove — stays put (first click)
   grooveEdge: Face // the long edge (±Y) the groove is cut into
   tonguePartId: PartId // board carrying the centered tongue — auto-seats (second click)
@@ -199,6 +269,7 @@ export interface Scene {
   materials: Record<string, MaterialDef> // keyed by material name string
   hardware: HardwareItem[]
   joints: Joint[]
+  components: Component[]
 }
 
 export interface FaceHit {

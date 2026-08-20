@@ -1,11 +1,19 @@
 import * as THREE from 'three'
-import type { BoardPart, BoxCut, CutId, Face, Part, Vec3 } from '../scene/types'
+import type {
+  BoardPart,
+  BoxCut,
+  Component,
+  ComponentId,
+  CutId,
+  Face,
+  Part,
+  Vec3,
+} from '../scene/types'
 import type { MortiseTenonJoint } from '../scene/types'
 import type { DeriveResult, DerivedCut } from './dado'
-import { applyMatrixToPoint, composeWorldMatrix } from './transform'
+import { applyMatrixToPoint, resolveWorldMatrix, localDirToWorld } from './transform'
 import { faceAxes, computeLocalFaceCenter } from '../scene/snapMath'
 
-const DEG2RAD = Math.PI / 180
 type Axis = 'x' | 'y' | 'z'
 const EPS = 1e-4
 
@@ -27,19 +35,12 @@ function boardDims(b: BoardPart): Record<Axis, number> {
 function unitVec(a: Axis): Vec3 {
   return { x: a === 'x' ? 1 : 0, y: a === 'y' ? 1 : 0, z: a === 'z' ? 1 : 0 }
 }
-function localDirToWorld(part: BoardPart, dir: Vec3): THREE.Vector3 {
-  const q = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(
-      part.rotation.x * DEG2RAD,
-      part.rotation.y * DEG2RAD,
-      part.rotation.z * DEG2RAD,
-      part.rotationOrder,
-    ),
-  )
-  return new THREE.Vector3(dir.x, dir.y, dir.z).applyQuaternion(q)
+function worldDir(part: BoardPart, dir: Vec3, byId: Map<ComponentId, Component>): THREE.Vector3 {
+  const d = localDirToWorld(part, dir, byId)
+  return new THREE.Vector3(d.x, d.y, d.z)
 }
-function isAxisAligned(b: BoardPart): boolean {
-  const m = composeWorldMatrix(b)
+function isAxisAligned(b: BoardPart, byId: Map<ComponentId, Component>): boolean {
+  const m = resolveWorldMatrix(b, byId)
   const cols = [
     [m[0], m[1], m[2]],
     [m[4], m[5], m[6]],
@@ -52,10 +53,11 @@ function isPerpendicularSeat(
   mortiseFace: Face,
   tenon: BoardPart,
   tenonEnd: Face,
+  byId: Map<ComponentId, Component>,
 ): boolean {
   return (
-    localDirToWorld(mortise, FACE_NORMALS[mortiseFace]).dot(
-      localDirToWorld(tenon, FACE_NORMALS[tenonEnd]),
+    worldDir(mortise, FACE_NORMALS[mortiseFace], byId).dot(
+      worldDir(tenon, FACE_NORMALS[tenonEnd], byId),
     ) < -0.99
   )
 }
@@ -65,9 +67,10 @@ export function isValidMortiseTenon(
   mortiseFace: Face,
   tenon: BoardPart,
   tenonEnd: Face,
+  byId: Map<ComponentId, Component>,
 ): boolean {
-  if (!isAxisAligned(mortise) || !isAxisAligned(tenon)) return false
-  if (!isPerpendicularSeat(mortise, mortiseFace, tenon, tenonEnd)) return false
+  if (!isAxisAligned(mortise, byId) || !isAxisAligned(tenon, byId)) return false
+  if (!isPerpendicularSeat(mortise, mortiseFace, tenon, tenonEnd, byId)) return false
   return faceAxes(tenonEnd).depth !== 'z'
 }
 
@@ -125,13 +128,14 @@ export function computeMortisePocket(
   mortise: BoardPart,
   tenon: BoardPart,
   joint: MortiseTenonJoint,
+  byId: Map<ComponentId, Component>,
 ): BoxCut {
   const dAx = faceAxes(joint.mortiseFace).depth
   const { u, v } = faceAxes(joint.mortiseFace)
   const dim = boardDims(mortise)
-  const thicknessWorld = localDirToWorld(tenon, unitVec('z'))
-  const uWorld = localDirToWorld(mortise, unitVec(u))
-  const vWorld = localDirToWorld(mortise, unitVec(v))
+  const thicknessWorld = worldDir(tenon, unitVec('z'), byId)
+  const uWorld = worldDir(mortise, unitVec(u), byId)
+  const vWorld = worldDir(mortise, unitVec(v), byId)
   const thkAx: Axis =
     Math.abs(thicknessWorld.dot(uWorld)) >= Math.abs(thicknessWorld.dot(vWorld)) ? u : v
   const wAx: Axis = thkAx === u ? v : u
@@ -162,18 +166,19 @@ export function computeMortiseOffset(
   mortise: BoardPart,
   tenon: BoardPart,
   mortiseFace: Face,
+  byId: Map<ComponentId, Component>,
 ): { offsetU: number; offsetV: number } {
   const { u, v } = faceAxes(mortiseFace)
   const dim = boardDims(mortise)
   const [cx, cy, cz] = applyMatrixToPoint(
-    composeWorldMatrix(tenon),
+    resolveWorldMatrix(tenon, byId),
     tenon.length / 2,
     tenon.width / 2,
     tenon.thickness / 2,
   )
   const rel = { x: cx - mortise.position.x, y: cy - mortise.position.y, z: cz - mortise.position.z }
-  const uDir = localDirToWorld(mortise, unitVec(u))
-  const vDir = localDirToWorld(mortise, unitVec(v))
+  const uDir = worldDir(mortise, unitVec(u), byId)
+  const vDir = worldDir(mortise, unitVec(v), byId)
   return {
     offsetU: clamp(rel.x * uDir.x + rel.y * uDir.y + rel.z * uDir.z, 0, dim[u]),
     offsetV: clamp(rel.x * vDir.x + rel.y * vDir.y + rel.z * vDir.z, 0, dim[v]),
@@ -184,6 +189,7 @@ export function computeMortiseTenonSeat(
   mortise: BoardPart,
   tenon: BoardPart,
   joint: MortiseTenonJoint,
+  byId: Map<ComponentId, Component>,
 ): { position: Vec3 } {
   const dAx = faceAxes(joint.mortiseFace).depth
   const { u, v } = faceAxes(joint.mortiseFace)
@@ -192,14 +198,14 @@ export function computeMortiseTenonSeat(
 
   const endLocal = computeLocalFaceCenter(FACE_NORMALS[joint.tenonEnd], tenon)
   const [ex, ey, ez] = applyMatrixToPoint(
-    composeWorldMatrix(tenon),
+    resolveWorldMatrix(tenon, byId),
     endLocal.x,
     endLocal.y,
     endLocal.z,
   )
   const endWorld = new THREE.Vector3(ex, ey, ez)
 
-  const mM = composeWorldMatrix(mortise)
+  const mM = resolveWorldMatrix(mortise, byId)
   const faceCenter = computeLocalFaceCenter(FACE_NORMALS[joint.mortiseFace], mortise)
   const bottomLocal: Vec3 = { ...faceCenter }
   bottomLocal[dAx] = joint.mortiseFace.startsWith('+') ? dim[dAx] - d : d
@@ -212,9 +218,9 @@ export function computeMortiseTenonSeat(
   const [gx, gy, gz] = applyMatrixToPoint(mM, centerLocal.x, centerLocal.y, centerLocal.z)
   const centerWorld = new THREE.Vector3(gx, gy, gz)
 
-  const faceN = localDirToWorld(mortise, FACE_NORMALS[joint.mortiseFace])
-  const uDir = localDirToWorld(mortise, unitVec(u))
-  const vDir = localDirToWorld(mortise, unitVec(v))
+  const faceN = worldDir(mortise, FACE_NORMALS[joint.mortiseFace], byId)
+  const uDir = worldDir(mortise, unitVec(u), byId)
+  const vDir = worldDir(mortise, unitVec(v), byId)
 
   const desired = endWorld.clone()
   desired.addScaledVector(faceN, bottomWorld.clone().sub(endWorld).dot(faceN))
@@ -230,18 +236,22 @@ export function computeMortiseTenonSeat(
   }
 }
 
-export function deriveMortiseTenon(joint: MortiseTenonJoint, parts: Part[]): DeriveResult | null {
+export function deriveMortiseTenon(
+  joint: MortiseTenonJoint,
+  parts: Part[],
+  byId: Map<ComponentId, Component>,
+): DeriveResult | null {
   const mortise = parts.find((p) => p.id === joint.mortisePartId)
   const tenon = parts.find((p) => p.id === joint.tenonPartId)
   if (mortise?.kind !== 'board' || tenon?.kind !== 'board') return null
-  if (!isValidMortiseTenon(mortise, joint.mortiseFace, tenon, joint.tenonEnd)) return null
+  if (!isValidMortiseTenon(mortise, joint.mortiseFace, tenon, joint.tenonEnd, byId)) return null
   const cuts: DerivedCut[] = [
     ...computeTenonShoulders(tenon, joint).map((cut) => ({ partId: tenon.id, cut })),
-    { partId: mortise.id, cut: computeMortisePocket(mortise, tenon, joint) },
+    { partId: mortise.id, cut: computeMortisePocket(mortise, tenon, joint, byId) },
   ]
   const seat = {
     partId: tenon.id,
-    position: computeMortiseTenonSeat(mortise, tenon, joint).position,
+    position: computeMortiseTenonSeat(mortise, tenon, joint, byId).position,
   }
   return { cuts, seat }
 }

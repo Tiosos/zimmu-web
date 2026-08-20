@@ -16,6 +16,8 @@ const board: BoardPart = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 
 describe('shapeKey', () => {
@@ -214,6 +216,8 @@ describe('shapeKey', () => {
       rotationOrder: 'XYZ',
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     expect(shapeKey(dowel)).toBe('cylinder|8|100|')
   })
@@ -233,6 +237,8 @@ function dowel(over: Partial<CylinderPart> = {}): CylinderPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...over,
   }
 }

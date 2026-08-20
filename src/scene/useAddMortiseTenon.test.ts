@@ -2,6 +2,9 @@ import { test, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import type { FaceHit, Part } from './types'
 import { useAddMortiseTenon } from './useAddMortiseTenon'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const mortise: Part = {
   kind: 'board',
@@ -17,6 +20,8 @@ const mortise: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const tenon: Part = {
   ...mortise,
@@ -38,7 +43,7 @@ const hit = (partId: string, n: { x: number; y: number; z: number }): FaceHit =>
 test('mortise face + perpendicular tenon end create a mortise & tenon', () => {
   const onAddMortiseTenon = vi.fn()
   const { result } = renderHook(() =>
-    useAddMortiseTenon({ parts: [mortise, tenon], onAddMortiseTenon }),
+    useAddMortiseTenon({ parts: [mortise, tenon], byId: NO_COMPONENTS, onAddMortiseTenon }),
   )
   act(() => result.current.activateMortiseTenon())
   act(() => result.current.onFaceClick(hit('M', { x: 0, y: 0, z: 1 }))) // +Z mortise face
@@ -51,7 +56,7 @@ test('a non-perpendicular second hit does not create a joint', () => {
   const onAddMortiseTenon = vi.fn()
   const flat: Part = { ...tenon, rotation: { x: 0, y: 0, z: 0 } } // +X end now points world +X, not −Z
   const { result } = renderHook(() =>
-    useAddMortiseTenon({ parts: [mortise, flat], onAddMortiseTenon }),
+    useAddMortiseTenon({ parts: [mortise, flat], byId: NO_COMPONENTS, onAddMortiseTenon }),
   )
   act(() => result.current.activateMortiseTenon())
   act(() => result.current.onFaceClick(hit('M', { x: 0, y: 0, z: 1 })))
@@ -66,7 +71,7 @@ test('a thickness-face tenon end (a face, not a board end) does not create a joi
   // check passes) but it is a thickness face, not a length/width end — an invalid tenon.
   const flat: Part = { ...tenon, rotation: { x: 0, y: 0, z: 0 } }
   const { result } = renderHook(() =>
-    useAddMortiseTenon({ parts: [mortise, flat], onAddMortiseTenon }),
+    useAddMortiseTenon({ parts: [mortise, flat], byId: NO_COMPONENTS, onAddMortiseTenon }),
   )
   act(() => result.current.activateMortiseTenon())
   act(() => result.current.onFaceClick(hit('M', { x: 0, y: 0, z: 1 })))
@@ -78,7 +83,7 @@ test('a thickness-face tenon end (a face, not a board end) does not create a joi
 test('a second click on the same board does not create a joint', () => {
   const onAddMortiseTenon = vi.fn()
   const { result } = renderHook(() =>
-    useAddMortiseTenon({ parts: [mortise, tenon], onAddMortiseTenon }),
+    useAddMortiseTenon({ parts: [mortise, tenon], byId: NO_COMPONENTS, onAddMortiseTenon }),
   )
   act(() => result.current.activateMortiseTenon())
   act(() => result.current.onFaceClick(hit('M', { x: 0, y: 0, z: 1 })))

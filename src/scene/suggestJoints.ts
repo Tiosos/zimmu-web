@@ -1,5 +1,15 @@
-import type { BoardPart, Face, FaceHit, Joint, Part, PartId, Vec3 } from './types'
-import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
+import type {
+  BoardPart,
+  Component,
+  ComponentId,
+  Face,
+  FaceHit,
+  Joint,
+  Part,
+  PartId,
+  Vec3,
+} from './types'
+import { resolveWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 import { worldAabb, isValidHalfLap } from '../geom/halflap'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
@@ -7,6 +17,7 @@ import { isValidTongueGroove } from '../geom/tonguegroove'
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { faceAxes, computeLocalFaceCenter } from './snapMath'
 import { jointInvolves } from './jointInvolves'
+import { isNodeVisible } from './componentTree'
 
 const ZERO: Vec3 = { x: 0, y: 0, z: 0 }
 
@@ -101,8 +112,8 @@ const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
 type WorldAxis = 'x' | 'y' | 'z'
 const WORLD_AXES: WorldAxis[] = ['x', 'y', 'z']
 
-function worldFaceNormal(b: BoardPart, f: Face): Vec3 {
-  const m = composeWorldMatrix(b)
+function worldFaceNormal(b: BoardPart, f: Face, byId: Map<ComponentId, Component>): Vec3 {
+  const m = resolveWorldMatrix(b, byId)
   const col = f.includes('X')
     ? [m[0], m[1], m[2]]
     : f.includes('Y')
@@ -115,10 +126,14 @@ function worldFaceNormal(b: BoardPart, f: Face): Vec3 {
 // Render-ready hit: computeFaceCorners reads localFaceNormal, while updateHighlight's 1mm
 // clearance offset reads faceNormal and needs it in WORLD space. synthHit sets both to the
 // local normal, which is correct for the onAdd* creators but wrong for drawing.
-export function faceHitForDisplay(part: BoardPart, face: Face): FaceHit {
+export function faceHitForDisplay(
+  part: BoardPart,
+  face: Face,
+  byId: Map<ComponentId, Component>,
+): FaceHit {
   return {
     partId: part.id,
-    faceNormal: worldFaceNormal(part, face),
+    faceNormal: worldFaceNormal(part, face, byId),
     faceCenter: ZERO,
     localFaceNormal: FACE_NORMALS[face],
     localHitPoint: ZERO,
@@ -126,9 +141,14 @@ export function faceHitForDisplay(part: BoardPart, face: Face): FaceHit {
   }
 }
 
-function faceTowardWorld(b: BoardPart, ax: WorldAxis, sign: number): Face | null {
+function faceTowardWorld(
+  b: BoardPart,
+  ax: WorldAxis,
+  sign: number,
+  byId: Map<ComponentId, Component>,
+): Face | null {
   for (const f of FACES) {
-    const n = worldFaceNormal(b, f)
+    const n = worldFaceNormal(b, f, byId)
     if (n[ax] * sign > 1 - EPS) return f
   }
   return null
@@ -138,21 +158,29 @@ function faceTowardWorld(b: BoardPart, ax: WorldAxis, sign: number): Face | null
 // checklist (jointChecklist.ts), which needs exactly the engine's own notion of "touching" for its
 // denominator. contactPair deliberately keeps its own fused copy — it derives contactAx and bestGap
 // from the same iteration, so delegating here would walk the axes twice for no gain.
-export function boardsTouch(a: BoardPart, b: BoardPart): boolean {
-  const A = worldAabb(a)
-  const B = worldAabb(b)
+export function boardsTouch(
+  a: BoardPart,
+  b: BoardPart,
+  byId: Map<ComponentId, Component>,
+): boolean {
+  const A = worldAabb(a, byId)
+  const B = worldAabb(b, byId)
   for (const ax of WORLD_AXES) {
     if (Math.max(A.min[ax], B.min[ax]) - Math.min(A.max[ax], B.max[ax]) > TOUCH_TOL) return false
   }
   return true
 }
 
-export function contactPair(a: BoardPart, b: BoardPart): { faceA: Face; faceB: Face } | null {
+export function contactPair(
+  a: BoardPart,
+  b: BoardPart,
+  byId: Map<ComponentId, Component>,
+): { faceA: Face; faceB: Face } | null {
   // Separation is decided once, in boardsTouch. worldAabb is memoized, so re-reading the two boxes
   // below is a cache hit — the contact axis still needs the per-axis gaps that boardsTouch discards.
-  if (!boardsTouch(a, b)) return null
-  const A = worldAabb(a)
-  const B = worldAabb(b)
+  if (!boardsTouch(a, b, byId)) return null
+  const A = worldAabb(a, byId)
+  const B = worldAabb(b, byId)
   let contactAx: WorldAxis = WORLD_AXES[0]
   let bestGap = -Infinity
   for (const ax of WORLD_AXES) {
@@ -165,8 +193,8 @@ export function contactPair(a: BoardPart, b: BoardPart): { faceA: Face; faceB: F
   const aMid = (A.min[contactAx] + A.max[contactAx]) / 2
   const bMid = (B.min[contactAx] + B.max[contactAx]) / 2
   const sign = bMid >= aMid ? 1 : -1
-  const faceA = faceTowardWorld(a, contactAx, sign)
-  const faceB = faceTowardWorld(b, contactAx, -sign)
+  const faceA = faceTowardWorld(a, contactAx, sign, byId)
+  const faceB = faceTowardWorld(b, contactAx, -sign, byId)
   return faceA && faceB ? { faceA, faceB } : null
 }
 
@@ -180,7 +208,12 @@ function aabbCenter(box: { min: Vec3; max: Vec3 }): Vec3 {
   }
 }
 
-function endTowardPoint(b: BoardPart, selfCenter: Vec3, target: Vec3): Face | null {
+function endTowardPoint(
+  b: BoardPart,
+  selfCenter: Vec3,
+  target: Vec3,
+  byId: Map<ComponentId, Component>,
+): Face | null {
   const d = {
     x: target.x - selfCenter.x,
     y: target.y - selfCenter.y,
@@ -189,7 +222,7 @@ function endTowardPoint(b: BoardPart, selfCenter: Vec3, target: Vec3): Face | nu
   let best: Face | null = null
   let bestDot = 0 // strictly positive: the end must actually face the other board
   for (const f of NON_BROAD_FACES) {
-    const n = worldFaceNormal(b, f)
+    const n = worldFaceNormal(b, f, byId)
     const dot = n.x * d.x + n.y * d.y + n.z * d.z
     if (dot > bestDot) {
       bestDot = dot
@@ -199,30 +232,34 @@ function endTowardPoint(b: BoardPart, selfCenter: Vec3, target: Vec3): Face | nu
   return best
 }
 
-function endFaceCenterWorld(b: BoardPart, f: Face): Vec3 {
+function endFaceCenterWorld(b: BoardPart, f: Face, byId: Map<ComponentId, Component>): Vec3 {
   const local = computeLocalFaceCenter(FACE_NORMALS[f], b)
-  const [x, y, z] = applyMatrixToPoint(composeWorldMatrix(b), local.x, local.y, local.z)
+  const [x, y, z] = applyMatrixToPoint(resolveWorldMatrix(b, byId), local.x, local.y, local.z)
   return { x, y, z }
 }
 
 // Position-only: finds which ends meet, but does NOT verify they are perpendicular — collinear
 // boards butted end-to-end also return a pair. Always compose with isValidFingerJoint before
 // treating the result as a corner.
-export function cornerPair(a: BoardPart, b: BoardPart): { endA: Face; endB: Face } | null {
-  if (!boardsTouch(a, b)) return null
-  const A = worldAabb(a)
-  const B = worldAabb(b)
+export function cornerPair(
+  a: BoardPart,
+  b: BoardPart,
+  byId: Map<ComponentId, Component>,
+): { endA: Face; endB: Face } | null {
+  if (!boardsTouch(a, b, byId)) return null
+  const A = worldAabb(a, byId)
+  const B = worldAabb(b, byId)
   const ca = aabbCenter(A)
   const cb = aabbCenter(B)
-  const endA = endTowardPoint(a, ca, cb)
-  const endB = endTowardPoint(b, cb, ca)
+  const endA = endTowardPoint(a, ca, cb, byId)
+  const endB = endTowardPoint(b, cb, ca, byId)
   if (!endA || !endB) return null
 
   // Orientation alone is not enough: a board standing on A's broad face, merely off-centre toward
   // A's +X, would otherwise be reported as being at A's +X end. In a flush corner the two end
   // centres are offset by about (Ta/2, Tb/2), so their distance never exceeds (Ta + Tb) / 2.
-  const pa = endFaceCenterWorld(a, endA)
-  const pb = endFaceCenterWorld(b, endB)
+  const pa = endFaceCenterWorld(a, endA, byId)
+  const pb = endFaceCenterWorld(b, endB, byId)
   const d = Math.hypot(pa.x - pb.x, pa.y - pb.y, pa.z - pb.z)
   if (d > (a.thickness + b.thickness) / 2 + TOUCH_TOL) return null
 
@@ -237,9 +274,13 @@ const KIND_PRIORITY: JointSuggestion['kind'][] = [
   'tongue-groove',
 ]
 
-export function aabbCenterDist(a: BoardPart, b: BoardPart): number {
-  const ca = aabbCenter(worldAabb(a))
-  const cb = aabbCenter(worldAabb(b))
+export function aabbCenterDist(
+  a: BoardPart,
+  b: BoardPart,
+  byId: Map<ComponentId, Component>,
+): number {
+  const ca = aabbCenter(worldAabb(a, byId))
+  const cb = aabbCenter(worldAabb(b, byId))
   let sum = 0
   for (const ax of WORLD_AXES) sum += (ca[ax] - cb[ax]) * (ca[ax] - cb[ax])
   return Math.sqrt(sum)
@@ -247,17 +288,21 @@ export function aabbCenterDist(a: BoardPart, b: BoardPart): number {
 
 // Suggestions for the ordered pair (s, t): what joints s could form with t, with s in the role the
 // caller's selection implies. Ordered, not symmetric — see ORIENTATION_MATTERS.
-function suggestForOrderedPair(s: BoardPart, t: BoardPart): JointSuggestion[] {
+function suggestForOrderedPair(
+  s: BoardPart,
+  t: BoardPart,
+  byId: Map<ComponentId, Component>,
+): JointSuggestion[] {
   const out: JointSuggestion[] = []
   {
-    if (isValidHalfLap(s, t)) {
+    if (isValidHalfLap(s, t, byId)) {
       out.push({ kind: 'halflap', neighborId: t.id, partAId: s.id, partBId: t.id })
     }
 
     // A right-angle corner is neither an anti-parallel face contact nor a coplanar cross, so it is
     // detected on its own rather than through the contactPair classification below.
-    const corner = cornerPair(s, t)
-    if (corner && isValidFingerJoint(s, corner.endA, t, corner.endB)) {
+    const corner = cornerPair(s, t, byId)
+    if (corner && isValidFingerJoint(s, corner.endA, t, corner.endB, byId)) {
       out.push({
         kind: 'finger',
         neighborId: t.id,
@@ -268,7 +313,7 @@ function suggestForOrderedPair(s: BoardPart, t: BoardPart): JointSuggestion[] {
       })
     }
 
-    const pair = contactPair(s, t)
+    const pair = contactPair(s, t, byId)
     if (!pair) return out
     const { faceA, faceB } = pair
     const dS = faceAxes(faceA).depth
@@ -282,7 +327,7 @@ function suggestForOrderedPair(s: BoardPart, t: BoardPart): JointSuggestion[] {
       const housingFace = sBroad ? faceA : faceB
       const housed = sBroad ? t : s
       const housedEnd = sBroad ? faceB : faceA
-      if (isValidDadoSeat(housing, housingFace, housed, housedEnd)) {
+      if (isValidDadoSeat(housing, housingFace, housed, housedEnd, byId)) {
         out.push({
           kind: 'dado',
           neighborId: t.id,
@@ -292,7 +337,7 @@ function suggestForOrderedPair(s: BoardPart, t: BoardPart): JointSuggestion[] {
           housedEnd,
         })
       }
-      if (isValidMortiseTenon(housing, housingFace, housed, housedEnd)) {
+      if (isValidMortiseTenon(housing, housingFace, housed, housedEnd, byId)) {
         out.push({
           kind: 'mortise-tenon',
           neighborId: t.id,
@@ -304,7 +349,7 @@ function suggestForOrderedPair(s: BoardPart, t: BoardPart): JointSuggestion[] {
       }
     } else if (dS === 'y' && dT === 'y') {
       // Both contact faces are long edges (depth 'y') => coplanar edge glue-up.
-      if (isValidTongueGroove(s, faceA, t, faceB)) {
+      if (isValidTongueGroove(s, faceA, t, faceB, byId)) {
         out.push({
           kind: 'tongue-groove',
           neighborId: t.id,
@@ -324,21 +369,22 @@ export function suggestJointsFor(
   selectedId: PartId | null,
   parts: Part[],
   joints: Joint[],
+  byId: Map<ComponentId, Component>,
 ): JointSuggestion[] {
   if (selectedId == null) return []
   const s = parts.find((p) => p.id === selectedId)
-  if (!s || s.kind !== 'board' || !s.visible) return []
+  if (!s || s.kind !== 'board' || !isNodeVisible(s, byId)) return []
 
   const out: JointSuggestion[] = []
   for (const t of parts) {
-    if (t.id === s.id || t.kind !== 'board' || !t.visible) continue
+    if (t.id === s.id || t.kind !== 'board' || !isNodeVisible(t, byId)) continue
     if (joints.some((j) => jointInvolves(j, s.id) && jointInvolves(j, t.id))) continue
-    out.push(...suggestForOrderedPair(s, t))
+    out.push(...suggestForOrderedPair(s, t, byId))
   }
 
   const distOf = (id: PartId) => {
     const t = parts.find((p) => p.id === id)
-    return t && t.kind === 'board' ? aabbCenterDist(s, t) : Infinity
+    return t && t.kind === 'board' ? aabbCenterDist(s, t, byId) : Infinity
   }
   // Nearest neighbour first, so the most likely joint is at the top. The list is not truncated:
   // it is bounded by how many boards actually touch the selection, and a hidden row is
@@ -368,8 +414,12 @@ const ORIENTATION_MATTERS: ReadonlySet<JointSuggestion['kind']> = new Set([
 // unordered pair; the reverse direction contributes only the kinds whose orientation is a real
 // choice (see ORIENTATION_MATTERS), which is what keeps dado and mortise-tenon from appearing twice
 // while still offering both ways round for finger and tongue & groove.
-export function suggestJointsForScene(parts: Part[], joints: Joint[]): JointSuggestion[] {
-  const boards = parts.filter((p): p is BoardPart => p.kind === 'board' && p.visible)
+export function suggestJointsForScene(
+  parts: Part[],
+  joints: Joint[],
+  byId: Map<ComponentId, Component>,
+): JointSuggestion[] {
+  const boards = parts.filter((p): p is BoardPart => p.kind === 'board' && isNodeVisible(p, byId))
   const out: JointSuggestion[] = []
 
   for (let i = 0; i < boards.length; i++) {
@@ -377,8 +427,10 @@ export function suggestJointsForScene(parts: Part[], joints: Joint[]): JointSugg
       const a = boards[i]
       const b = boards[j]
       if (joints.some((joint) => jointInvolves(joint, a.id) && jointInvolves(joint, b.id))) continue
-      out.push(...suggestForOrderedPair(a, b))
-      out.push(...suggestForOrderedPair(b, a).filter((sug) => ORIENTATION_MATTERS.has(sug.kind)))
+      out.push(...suggestForOrderedPair(a, b, byId))
+      out.push(
+        ...suggestForOrderedPair(b, a, byId).filter((sug) => ORIENTATION_MATTERS.has(sug.kind)),
+      )
     }
   }
 
@@ -389,7 +441,7 @@ export function suggestJointsForScene(parts: Part[], joints: Joint[]): JointSugg
     const ids = pairIdsOf(sug)
     const x = board(ids[0])
     const y = board(ids[1])
-    return x && y ? aabbCenterDist(x, y) : Infinity
+    return x && y ? aabbCenterDist(x, y, byId) : Infinity
   }
   out.sort((x, y) => {
     const d = pairDist(x) - pairDist(y)

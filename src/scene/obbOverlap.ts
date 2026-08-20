@@ -1,5 +1,5 @@
-import type { BoardPart, Vec3 } from './types'
-import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
+import type { BoardPart, Component, ComponentId, Vec3 } from './types'
+import { resolveWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 
 // Matches boardsTouch, so a pair a hair apart still counts as overlapping. Applied to the radius sum
 // on every candidate axis; on the face axes (unit length) it is an exact millimetre, on the nine
@@ -17,8 +17,8 @@ interface Obb {
   e: [number, number, number] // half-extents along u
 }
 
-function boardObb(b: BoardPart): Obb {
-  const m = composeWorldMatrix(b)
+function boardObb(b: BoardPart, byId: Map<ComponentId, Component>): Obb {
+  const m = resolveWorldMatrix(b, byId)
   // A board's local box is corner-origin [0,L]×[0,W]×[0,T], so its centre is the half-extent point.
   const [cx, cy, cz] = applyMatrixToPoint(m, b.length / 2, b.width / 2, b.thickness / 2)
   return {
@@ -37,9 +37,13 @@ const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z
 // Do the two boards' oriented boxes overlap (within TOUCH_TOL)? The separating-axis test, exact for
 // oriented boxes where the world-AABB test over-reports — a diagonal corner-kiss, or a rotated board
 // whose axis-aligned bounds balloon well past its actual footprint. Ericson RTCD §4.4.1.
-export function obbOverlap(ba: BoardPart, bb: BoardPart): boolean {
-  const a = boardObb(ba)
-  const b = boardObb(bb)
+export function obbOverlap(
+  ba: BoardPart,
+  bb: BoardPart,
+  byId: Map<ComponentId, Component>,
+): boolean {
+  const a = boardObb(ba, byId)
+  const b = boardObb(bb, byId)
 
   const R = [
     [0, 0, 0],

@@ -21,12 +21,12 @@ const FIXTURE: ZimmuFile = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T12:00:00.000Z',
   camera: CAMERA,
-  scene: { parts: [], materials: {}, hardware: [], joints: [] },
+  scene: { parts: [], materials: {}, hardware: [], joints: [], components: [] },
 }
 
 function makeInput(overrides?: Partial<Parameters<typeof useFile>[0]>) {
   return {
-    scene: { parts: [], materials: {}, hardware: [], joints: [] },
+    scene: { parts: [], materials: {}, hardware: [], joints: [], components: [] },
     getCameraState: () => CAMERA,
     onFileLoaded: vi.fn(),
     ...overrides,
@@ -177,18 +177,28 @@ describe('useFile', () => {
       rotationOrder: 'XYZ' as const,
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
       {
         initialProps: {
-          scene: { parts: [] as Scene['parts'], materials: {}, hardware: [], joints: [] },
+          scene: {
+            parts: [] as Scene['parts'],
+            materials: {},
+            hardware: [],
+            joints: [],
+            components: [],
+          },
         },
       },
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
-    rerender({ scene: { parts: [mockPart], materials: {}, hardware: [], joints: [] } })
+    rerender({
+      scene: { parts: [mockPart], materials: {}, hardware: [], joints: [], components: [] },
+    })
     await waitFor(() => expect(result.current.isDirty).toBe(true))
 
     await act(async () => {
@@ -225,18 +235,28 @@ describe('useFile', () => {
       rotationOrder: 'XYZ' as const,
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     const { result, rerender } = renderHook(
       ({ scene }) => useFile({ scene, getCameraState: () => CAMERA, onFileLoaded }),
       {
         initialProps: {
-          scene: { parts: [] as Scene['parts'], materials: {}, hardware: [], joints: [] },
+          scene: {
+            parts: [] as Scene['parts'],
+            materials: {},
+            hardware: [],
+            joints: [],
+            components: [],
+          },
         },
       },
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
-    rerender({ scene: { parts: [mockPart], materials: {}, hardware: [], joints: [] } })
+    rerender({
+      scene: { parts: [mockPart], materials: {}, hardware: [], joints: [], components: [] },
+    })
     await waitFor(() => expect(result.current.isDirty).toBe(true))
 
     await act(async () => {
@@ -343,9 +363,15 @@ describe('useFile', () => {
       rotationOrder: 'XYZ' as const,
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     const { result } = renderHook(() =>
-      useFile(makeInput({ scene: { parts: [part], materials: {}, hardware: [], joints: [] } })),
+      useFile(
+        makeInput({
+          scene: { parts: [part], materials: {}, hardware: [], joints: [], components: [] },
+        }),
+      ),
     )
     await waitFor(() => expect(result.current.fileReady).toBe(true))
 
@@ -487,6 +513,8 @@ describe('useFile', () => {
             rotation: { x: 0, y: 0, z: 0 },
             rotationOrder: 'XYZ',
             visible: true,
+            parentId: null,
+            driven: false,
           },
         ],
         materials: {},
@@ -566,6 +594,7 @@ describe('useFile', () => {
           } as unknown as Part,
         ],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       },
@@ -610,6 +639,7 @@ describe('useFile', () => {
           } as unknown as Part,
         ],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       },
@@ -654,6 +684,7 @@ describe('useFile', () => {
           } as unknown as Part,
         ],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       },
@@ -700,6 +731,8 @@ describe('useFile', () => {
             rotationOrder: 'XYZ',
             material: '',
             visible: true,
+            parentId: null,
+            driven: false,
             cuts: [
               {
                 id: 'cut_1',
@@ -746,6 +779,8 @@ describe('useFile', () => {
             rotationOrder: 'XYZ',
             material: '',
             visible: true,
+            parentId: null,
+            driven: false,
             cuts: [{ kind: 'mitre', id: 'm1', label: 'Mitre', end: '+X', axis: 'Z', angle: 45 }],
           },
         ],
@@ -778,6 +813,7 @@ describe('useFile', () => {
             kind: 'dado',
             id: 'j1',
             label: 'Dado 1',
+            driven: false,
             housingPartId: 'H',
             housingFace: '+Z',
             housedPartId: 'D',
@@ -813,6 +849,7 @@ describe('useFile', () => {
             kind: 'dado',
             id: 'j1',
             label: 'Dado 1',
+            driven: false,
             housingPartId: 'H',
             housingFace: '+Z',
             housedPartId: 'D',
@@ -850,6 +887,7 @@ describe('useFile', () => {
             kind: 'dado',
             id: 'j1',
             label: 'Dado 1',
+            driven: false,
             housingPartId: 'H',
             housingFace: '+Z',
             housedPartId: 'D',
@@ -904,9 +942,12 @@ describe('useFile', () => {
             cuts: [],
             material: '',
             visible: false,
+            parentId: null,
+            driven: false,
           },
         ],
         materials: {},
+        components: [],
         hardware: [],
         joints: [],
       },
@@ -927,5 +968,254 @@ describe('useFile', () => {
 
     const loaded = vi.mocked(onFileLoaded).mock.calls[0][0] as ZimmuFile
     expect(loaded.scene.parts[0].visible).toBe(false)
+  })
+})
+
+describe('v10 → v11 migration', () => {
+  it('defaults components, parentId and driven on a v10 file', () => {
+    const v10 = JSON.stringify({
+      version: 10,
+      name: 'Old',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [
+          {
+            kind: 'board',
+            id: 'b1',
+            label: 'Board 1',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            material: '',
+            color: '#c8a97e',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            cuts: [],
+            visible: true,
+          },
+        ],
+        materials: {},
+        hardware: [],
+        joints: [
+          {
+            kind: 'halflap',
+            id: 'j1',
+            label: 'Half-lap 1',
+            partAId: 'b1',
+            partBId: 'b1',
+            split: 0.5,
+            clearance: 0,
+          },
+        ],
+      },
+    })
+
+    const parsed = parseFile(v10)
+
+    expect(parsed.scene.components).toEqual([])
+    expect(parsed.scene.parts[0].parentId).toBeNull()
+    expect(parsed.scene.parts[0].driven).toBe(false)
+    expect(parsed.scene.joints[0].driven).toBe(false)
+  })
+
+  it('preserves an explicit v11 tree', () => {
+    const v11 = JSON.stringify({
+      version: 11,
+      name: 'New',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [
+          {
+            id: 'cmp_1',
+            kind: 'carcase',
+            label: 'Base Cabinet',
+            parentId: null,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            visible: true,
+          },
+        ],
+      },
+    })
+
+    expect(parseFile(v11).scene.components[0].label).toBe('Base Cabinet')
+  })
+
+  it('promotes a part whose parentId names a component that is not in the file', () => {
+    const broken = JSON.stringify({
+      version: 11,
+      name: 'Broken',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [
+          {
+            kind: 'board',
+            id: 'b1',
+            label: 'Orphan',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            material: '',
+            color: '#c8a97e',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            cuts: [],
+            visible: true,
+            parentId: 'ghost',
+            driven: false,
+          },
+        ],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [],
+      },
+    })
+
+    const parsed = parseFile(broken)
+    expect(parsed.scene.parts).toHaveLength(1)
+    expect(parsed.scene.parts[0].parentId).toBeNull()
+  })
+
+  // The invariant this migration exists for: downstream transform code walks parentId chains
+  // with `=== null` root checks, so an absent key reaching a Part is a placement bug, not a
+  // cosmetic one. Asserted per-branch (board AND cylinder) and via own-property presence so
+  // that deleting the default from either mapper branch fails here.
+  it('leaves no part with an undefined parentId or driven after loading a v10 file', () => {
+    const v10 = JSON.stringify({
+      version: 10,
+      name: 'Legacy',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [
+          {
+            kind: 'board',
+            id: 'b1',
+            label: 'Board 1',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            material: '',
+            color: '#c8a97e',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            cuts: [],
+            visible: true,
+          },
+          {
+            kind: 'cylinder',
+            id: 'c1',
+            label: 'Dowel 1',
+            diameter: 8,
+            length: 40,
+            material: '',
+            color: '#c8a97e',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            cuts: [],
+            visible: true,
+          },
+        ],
+        materials: {},
+        hardware: [],
+        joints: [],
+      },
+    })
+
+    const parts = parseFile(v10).scene.parts
+    expect(parts.map((p) => p.kind)).toEqual(['board', 'cylinder'])
+    for (const part of parts) {
+      const own = Object.prototype.hasOwnProperty.bind(part)
+      expect(own('parentId')).toBe(true)
+      expect(own('driven')).toBe(true)
+      expect(part.parentId).not.toBe(undefined)
+      expect(part.driven).not.toBe(undefined)
+      expect(part.parentId).toBeNull()
+      expect(part.driven).toBe(false)
+    }
+  })
+})
+
+describe('v11 loader repairs a structurally broken file', () => {
+  const envelope = (components: unknown[]) =>
+    JSON.stringify({
+      version: 11,
+      name: 'Broken',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: { parts: [], materials: {}, hardware: [], joints: [], components },
+    })
+
+  const cmp = (id: string, parentId: string | null, extra: Record<string, unknown> = {}) => ({
+    id,
+    kind: 'group',
+    label: id,
+    parentId,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    ...extra,
+  })
+
+  it('roots a component cycle rather than loading a scene that throws on render', () => {
+    const parsed = parseFile(envelope([cmp('a', 'b'), cmp('b', 'a')]))
+    expect(parsed.scene.components).toHaveLength(2)
+    expect(parsed.scene.components.some((c) => c.parentId === null)).toBe(true)
+  })
+
+  it('demotes a carcase carrying no params to a group', () => {
+    const parsed = parseFile(envelope([cmp('a', null, { kind: 'carcase' })]))
+    expect(parsed.scene.components[0].kind).toBe('group')
+  })
+
+  it('keeps a carcase that does carry params', () => {
+    const params = {
+      width: 600,
+      height: 720,
+      depth: 560,
+      material: '',
+      thickness: 18,
+      hasTop: true,
+      backMode: 'captured',
+      backThickness: 12,
+      baseMode: 'none',
+      toeKickHeight: 100,
+      toeKickSetback: 60,
+      fixedShelves: 1,
+      adjustableShelves: { rows: 1, pitch: 32, setback: 37, startHeight: 200, count: 0 },
+      jointMethod: 'dado-rabbet',
+      dividers: [],
+    }
+    const parsed = parseFile(envelope([cmp('a', null, { kind: 'carcase', params })]))
+    expect(parsed.scene.components[0].kind).toBe('carcase')
   })
 })

@@ -3,6 +3,9 @@ import type { BoardPart, Part } from './types'
 import { suggestJointsFor } from './suggestJoints'
 import type { JointSuggestion } from './suggestJoints'
 import { suggestionOutlines } from './suggestionOutline'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 function board(over: Partial<BoardPart>): BoardPart {
   return {
@@ -19,6 +22,8 @@ function board(over: Partial<BoardPart>): BoardPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...over,
   }
 }
@@ -68,9 +73,9 @@ const edgeE = board({
 const parts: Part[] = [teeH, teeD, edgeG, edgeE]
 
 function of(kind: JointSuggestion['kind'], selected: string, scope: Part[]) {
-  const s = suggestJointsFor(selected, scope, []).find((x) => x.kind === kind)
+  const s = suggestJointsFor(selected, scope, [], NO_COMPONENTS).find((x) => x.kind === kind)
   expect(s, `expected a ${kind} suggestion`).toBeDefined()
-  return suggestionOutlines(s!, scope)
+  return suggestionOutlines(s!, scope, NO_COMPONENTS)
 }
 
 test('a dado previews the groove it would cut, not the whole housing face', () => {
@@ -143,11 +148,12 @@ test('the two lap outlines sit on opposite sides, not both on top', () => {
 })
 
 test('a suggestion naming a missing part yields nothing rather than throwing', () => {
-  const s = suggestJointsFor('H', [teeH, teeD], []).find((x) => x.kind === 'dado')!
+  const s = suggestJointsFor('H', [teeH, teeD], [], NO_COMPONENTS).find((x) => x.kind === 'dado')!
   expect(
     suggestionOutlines(
       s,
       parts.filter((p) => p.id !== 'D'),
+      NO_COMPONENTS,
     ),
   ).toEqual([])
 })

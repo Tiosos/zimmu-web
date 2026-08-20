@@ -2,6 +2,9 @@ import { test, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import type { FaceHit, Part } from './types'
 import { useInteractionMode } from './useInteractionMode'
+import { componentsById } from './componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 const boardA: Part = {
   kind: 'board',
@@ -17,6 +20,8 @@ const boardA: Part = {
   rotationOrder: 'XYZ',
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 const boardB: Part = { ...boardA, id: 'B', rotation: { x: 0, y: 90, z: 0 } }
 const hit = (partId: string, n: { x: number; y: number; z: number }): FaceHit => ({
@@ -33,6 +38,7 @@ const setup = (parts: Part[] = [boardA, boardB]) => {
   const r = renderHook(() =>
     useInteractionMode({
       parts,
+      byId: NO_COMPONENTS,
       onUpdate: vi.fn(),
       onSelect: vi.fn(),
       onRotationSnap: vi.fn(),

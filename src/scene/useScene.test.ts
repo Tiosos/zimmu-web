@@ -35,6 +35,8 @@ vi.stubGlobal(
 )
 
 import { useScene, buildSpecForPart } from './useScene'
+import { resolveWorldMatrix } from '../geom/transform'
+import { componentsById } from './componentTree'
 
 describe('useScene', () => {
   beforeEach(() => {
@@ -242,7 +244,7 @@ describe('useScene', () => {
       result.current.onAdd('board')
     })
     act(() => {
-      result.current.onSelect(result.current.scene.parts[1].id)
+      result.current.onSelect({ kind: 'part', id: result.current.scene.parts[1].id })
     })
 
     const replacement = {
@@ -261,9 +263,12 @@ describe('useScene', () => {
           rotationOrder: 'XYZ' as const,
           cuts: [],
           visible: true,
+          parentId: null,
+          driven: false,
         },
       ],
       materials: {},
+      components: [],
       hardware: [],
       joints: [],
     }
@@ -280,7 +285,13 @@ describe('useScene', () => {
   it('replaceScene with empty parts resets labelCounter to 1', () => {
     const { result } = renderHook(() => useScene())
     act(() => {
-      result.current.replaceScene({ parts: [], materials: {}, hardware: [], joints: [] })
+      result.current.replaceScene({
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [],
+      })
     })
     expect(result.current.scene.parts).toHaveLength(0)
     expect(result.current.nextLabel).toBe('Board 1')
@@ -574,7 +585,13 @@ describe('useScene', () => {
       })
       expect(result.current.canUndo).toBe(true)
       act(() => {
-        result.current.replaceScene({ parts: [], materials: {}, hardware: [], joints: [] })
+        result.current.replaceScene({
+          parts: [],
+          materials: {},
+          hardware: [],
+          joints: [],
+          components: [],
+        })
       })
       expect(result.current.canUndo).toBe(false)
       expect(result.current.canRedo).toBe(false)
@@ -587,7 +604,13 @@ describe('useScene', () => {
         result.current.onAdd('board')
       })
       act(() => {
-        result.current.replaceScene({ parts: [], materials: {}, hardware: [], joints: [] })
+        result.current.replaceScene({
+          parts: [],
+          materials: {},
+          hardware: [],
+          joints: [],
+          components: [],
+        })
       })
       expect(() => {
         act(() => {
@@ -1456,6 +1479,8 @@ describe('buildSpecForPart — cylinder cuts', () => {
         { kind: 'end', id: 'c1', label: 'End 1', end: '+Z', offset: 0, angle: 45, azimuth: 0 },
       ],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     const spec = buildSpecForPart(part)
     expect(spec.kind).toBe('cylinder')
@@ -1539,6 +1564,7 @@ describe('useScene — joints', () => {
       kind: 'dado',
       id: '<uuid>',
       label: 'Dado 1',
+      driven: false,
       housingPartId: Hid,
       housingFace: '+Z',
       housedPartId: Did,
@@ -1704,6 +1730,7 @@ describe('useScene — joints', () => {
       kind: 'halflap',
       id: '<uuid>',
       label: 'Half-lap 1',
+      driven: false,
       partAId: P.id,
       partBId: Q.id,
       split: 0.5, // a true half-lap: each board keeps half its thickness
@@ -1788,6 +1815,7 @@ describe('useScene — joints', () => {
       kind: 'mortise-tenon',
       id: '<uuid>',
       label: 'Mortise & tenon 1',
+      driven: false,
       mortisePartId: Mb.id,
       mortiseFace: '+Z',
       tenonPartId: Tb.id,
@@ -1905,6 +1933,7 @@ describe('useScene — joints', () => {
       kind: 'finger',
       id: '<uuid>',
       label: 'Finger joint 1',
+      driven: false,
       partAId: Ab.id,
       endA: '+X',
       partBId: Bb.id,
@@ -1974,6 +2003,7 @@ describe('useScene — joints', () => {
       kind: 'tongue-groove',
       id: '<uuid>',
       label: 'Tongue & groove 1',
+      driven: false,
       groovePartId: Gb.id,
       grooveEdge: '+Y',
       tonguePartId: Tb.id,
@@ -1986,5 +2016,295 @@ describe('useScene — joints', () => {
     await act(async () => result.current.undo())
     expect(result.current.scene.joints).toHaveLength(0)
     expect(jointCuts()).toBe(0)
+  })
+})
+
+describe('selection of parts and components', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
+  })
+
+  it('selects a component and reports its kind', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onSelect({ kind: 'component', id: 'cmp_1' }))
+    expect(result.current.selection).toEqual({ kind: 'component', id: 'cmp_1' })
+  })
+
+  it('exposes selectedId for a part selection and null for a component selection', () => {
+    const { result } = renderHook(() => useScene())
+    const partId = result.current.scene.parts[0].id
+    act(() => result.current.onSelect({ kind: 'part', id: partId }))
+    expect(result.current.selectedId).toBe(partId)
+    act(() => result.current.onSelect({ kind: 'component', id: 'cmp_1' }))
+    expect(result.current.selectedId).toBeNull()
+  })
+
+  it('clears both on a null selection', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onSelect({ kind: 'part', id: result.current.scene.parts[0].id }))
+    act(() => result.current.onSelect(null))
+    expect(result.current.selection).toBeNull()
+    expect(result.current.selectedId).toBeNull()
+  })
+
+  it('onRemove clears a part selection for the removed part but leaves a component selection', () => {
+    const partSel = renderHook(() => useScene()).result
+    const partId = partSel.current.scene.parts[0].id
+    act(() => partSel.current.onSelect({ kind: 'part', id: partId }))
+    act(() => partSel.current.onRemove(partId))
+    expect(partSel.current.selection).toBeNull()
+
+    const componentSel = renderHook(() => useScene()).result
+    act(() => componentSel.current.onSelect({ kind: 'component', id: 'cmp_1' }))
+    act(() => componentSel.current.onRemove(componentSel.current.scene.parts[0].id))
+    expect(componentSel.current.selection).toEqual({ kind: 'component', id: 'cmp_1' })
+  })
+})
+
+describe('component CRUD', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
+  })
+
+  const halfLap = (id: string, partAId: string, partBId: string): HalfLapJoint => ({
+    kind: 'halflap',
+    id,
+    label: id,
+    driven: false,
+    partAId,
+    partBId,
+    split: 0.5,
+    clearance: 0,
+  })
+
+  it('adds a group component at top level', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    expect(result.current.scene.components).toHaveLength(1)
+    expect(result.current.scene.components[0].parentId).toBeNull()
+    expect(result.current.scene.components[0].kind).toBe('group')
+  })
+
+  it('nests a component under a parent', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const parentId = result.current.scene.components[0].id
+    act(() => result.current.onAddComponent(parentId))
+    expect(result.current.scene.components[1].parentId).toBe(parentId)
+  })
+
+  it('deletes driven descendants but promotes detached ones to top level', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    const seed = result.current.scene.parts[0]
+    act(() =>
+      result.current.replaceScene({
+        ...result.current.scene,
+        parts: [
+          { ...seed, id: 'driven1', parentId: cmpId, driven: true },
+          { ...seed, id: 'mine1', parentId: cmpId, driven: false },
+        ],
+      }),
+    )
+    act(() => result.current.onRemoveComponent(cmpId))
+
+    const ids = result.current.scene.parts.map((p) => p.id)
+    expect(ids).not.toContain('driven1')
+    expect(ids).toContain('mine1')
+    expect(result.current.scene.parts.find((p) => p.id === 'mine1')?.parentId).toBeNull()
+  })
+
+  it('deletes nested child components too', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const a = result.current.scene.components[0].id
+    act(() => result.current.onAddComponent(a))
+    act(() => result.current.onRemoveComponent(a))
+    expect(result.current.scene.components).toHaveLength(0)
+  })
+
+  it('drops joints the deleted component sourced, and joints left dangling, but keeps hand-made ones', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    const seed = result.current.scene.parts[0]
+    act(() =>
+      result.current.replaceScene({
+        ...result.current.scene,
+        parts: [
+          { ...seed, id: 'driven1', parentId: cmpId, driven: true },
+          { ...seed, id: 'mine1', parentId: cmpId, driven: false },
+          { ...seed, id: 'outside1', parentId: null, driven: false },
+        ],
+        joints: [
+          { ...halfLap('j_sourced', 'mine1', 'outside1'), sourceComponentId: cmpId },
+          halfLap('j_dangling', 'driven1', 'outside1'),
+          halfLap('j_handmade', 'mine1', 'outside1'),
+        ],
+      }),
+    )
+    act(() => result.current.onRemoveComponent(cmpId))
+
+    expect(result.current.scene.joints.map((j) => j.id)).toEqual(['j_handmade'])
+  })
+
+  it('refuses a reparent that would create a cycle', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const a = result.current.scene.components[0].id
+    act(() => result.current.onAddComponent(a))
+    const b = result.current.scene.components[1].id
+
+    act(() => result.current.onReparentComponent(a, b))
+
+    expect(result.current.scene.components.find((c) => c.id === a)?.parentId).toBeNull()
+  })
+
+  it('undoes a component deletion, restoring its driven parts', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const id = result.current.scene.components[0].id
+    const seed = result.current.scene.parts[0]
+    act(() =>
+      result.current.replaceScene({
+        ...result.current.scene,
+        parts: [{ ...seed, id: 'driven1', parentId: id, driven: true }],
+      }),
+    )
+    act(() => result.current.onRemoveComponent(id))
+    expect(result.current.scene.components).toHaveLength(0)
+
+    act(() => result.current.undo())
+    expect(result.current.scene.components.map((c) => c.id)).toEqual([id])
+    expect(result.current.scene.parts.map((p) => p.id)).toContain('driven1')
+  })
+
+  it('coalesces consecutive edits to the same component into one undo entry', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const id = result.current.scene.components[0].id
+    act(() => result.current.onUpdateComponent(id, (c) => ({ ...c, label: 'A' })))
+    act(() => result.current.onUpdateComponent(id, (c) => ({ ...c, label: 'AB' })))
+    act(() => result.current.onUpdateComponent(id, (c) => ({ ...c, label: 'ABC' })))
+
+    act(() => result.current.undo())
+    // one undo returns to the pre-edit label, not to 'AB'
+    expect(result.current.scene.components[0].label).toBe('Group 1')
+  })
+
+  it('numbers component labels from the highest existing number', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    act(() => result.current.onAddComponent(null))
+    expect(result.current.scene.components.map((c) => c.label)).toEqual(['Group 1', 'Group 2'])
+  })
+
+  it('clears the selection when the selected component is deleted', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    act(() => result.current.onSelect({ kind: 'component', id: cmpId }))
+    act(() => result.current.onRemoveComponent(cmpId))
+    expect(result.current.selection).toBeNull()
+  })
+
+  it('clears a selection pointing at a deleted descendant component', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const parentId = result.current.scene.components[0].id
+    act(() => result.current.onAddComponent(parentId))
+    const childId = result.current.scene.components[1].id
+    act(() => result.current.onSelect({ kind: 'component', id: childId }))
+    act(() => result.current.onRemoveComponent(parentId))
+    expect(result.current.selection).toBeNull()
+  })
+
+  it('keeps a part selection when a component is deleted', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    const partId = result.current.scene.parts[0].id
+    act(() => result.current.onSelect({ kind: 'part', id: partId }))
+    act(() => result.current.onRemoveComponent(cmpId))
+    expect(result.current.selection).toEqual({ kind: 'part', id: partId })
+  })
+})
+
+describe('deleting a component preserves where detached parts are', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0]),
+      normals: new Float32Array([0, 0, 1]),
+    })
+  })
+
+  it('bakes the lost ancestor placement into a promoted part so it does not move', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    const seed = result.current.scene.parts[0]
+
+    act(() =>
+      result.current.replaceScene({
+        ...result.current.scene,
+        components: [
+          {
+            ...result.current.scene.components[0],
+            position: { x: 500, y: -200, z: 30 },
+            rotation: { x: 0, y: 0, z: 90 },
+          },
+        ],
+        parts: [
+          {
+            ...seed,
+            id: 'mine1',
+            parentId: cmpId,
+            driven: false,
+            position: { x: 10, y: 20, z: 0 },
+          },
+        ],
+      }),
+    )
+
+    const before = resolveWorldMatrix(
+      result.current.scene.parts.find((p) => p.id === 'mine1')!,
+      componentsById(result.current.scene.components),
+    )
+
+    act(() => result.current.onRemoveComponent(cmpId))
+
+    const kept = result.current.scene.parts.find((p) => p.id === 'mine1')!
+    expect(kept.parentId).toBeNull()
+    const after = resolveWorldMatrix(kept, componentsById(result.current.scene.components))
+    for (let i = 0; i < 16; i++) expect(after[i]).toBeCloseTo(before[i], 6)
+  })
+
+  it('leaves a top-level detached part untouched', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    const seed = result.current.scene.parts[0]
+    act(() =>
+      result.current.replaceScene({
+        ...result.current.scene,
+        parts: [
+          { ...seed, id: 'inside', parentId: cmpId, driven: false },
+          { ...seed, id: 'outside', parentId: null, driven: false, position: { x: 7, y: 8, z: 9 } },
+        ],
+      }),
+    )
+    act(() => result.current.onRemoveComponent(cmpId))
+    const outside = result.current.scene.parts.find((p) => p.id === 'outside')!
+    expect(outside.position).toEqual({ x: 7, y: 8, z: 9 })
   })
 })

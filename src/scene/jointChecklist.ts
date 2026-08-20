@@ -1,8 +1,9 @@
-import type { BoardPart, Joint, Part, PartId } from './types'
+import type { BoardPart, Component, ComponentId, Joint, Part, PartId } from './types'
 import type { JointSuggestion } from './suggestJoints'
 import { boardsTouch, aabbCenterDist } from './suggestJoints'
 import { obbOverlap } from './obbOverlap'
 import { groupByPair } from './groupSuggestions'
+import { isNodeVisible } from './componentTree'
 
 // Two runaway guards, sized to their lists rather than sharing one number. Actionable rows (jointed
 // + open) are all real decisions, so their cap is generous — it only exists to bound a pathological
@@ -68,10 +69,11 @@ export function buildJointChecklist(
   parts: Part[],
   joints: Joint[],
   suggestions: JointSuggestion[],
+  byId: Map<ComponentId, Component>,
 ): JointChecklist {
   // The same filter suggestJointsForScene uses. Any divergence would produce rows for pairs the
   // engine never considered.
-  const boards = parts.filter((p): p is BoardPart => p.kind === 'board' && p.visible)
+  const boards = parts.filter((p): p is BoardPart => p.kind === 'board' && isNodeVisible(p, byId))
 
   const groups = new Map(groupByPair(suggestions).map((g) => [g.key, g]))
   const jointsByKey = new Map<string, Joint[]>()
@@ -95,8 +97,8 @@ export function buildJointChecklist(
       // A recorded joint admits the row on its own. reconcileJoints preserves a stale joint, so a
       // joint outlives its boards being moved apart; gating on adjacency alone would drop the row
       // and silently decrement jointedCount.
-      if (!js && !boardsTouch(a, b)) continue
-      const dist = aabbCenterDist(a, b)
+      if (!js && !boardsTouch(a, b, byId)) continue
+      const dist = aabbCenterDist(a, b, byId)
       if (js) {
         rows.push({ key, aId: a.id, bId: b.id, state: 'jointed', options: [], joints: js, dist })
         continue
@@ -112,7 +114,7 @@ export function buildJointChecklist(
           joints: [],
           dist,
         })
-      } else if (obbOverlap(a, b)) {
+      } else if (obbOverlap(a, b, byId)) {
         // boardsTouch is an AABB test — it over-reports for a diagonal corner-kiss or a rotated
         // board whose axis-aligned bounds balloon past its footprint. The oriented-box check keeps
         // the muted group honest: a pair that only overlaps as loose bounding boxes gets no row at

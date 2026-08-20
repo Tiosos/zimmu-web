@@ -19,6 +19,8 @@ function scene(): Scene {
     rotationOrder: 'XYZ' as const,
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   }
   return {
     parts: [
@@ -27,6 +29,7 @@ function scene(): Scene {
       { ...base, id: 'C', label: 'Rail 3' },
     ],
     materials: {},
+    components: [],
     hardware: [],
     joints: [],
   }

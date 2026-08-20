@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { FaceHit, Part, PartId } from './types'
+import type { Component, ComponentId, FaceHit, Part, PartId } from './types'
 import { computeSnapTransform, computeDowelSnapTransform, isSnapFace } from './snapMath'
 
 export interface SnapState {
@@ -15,10 +15,11 @@ export interface SnapState {
 
 export function useSnap(params: {
   parts: Part[]
+  byId: Map<ComponentId, Component>
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel: string) => void
   onRotationSnap?: (id: PartId) => void
 }): SnapState {
-  const { parts, onUpdate, onRotationSnap } = params
+  const { parts, byId, onUpdate, onRotationSnap } = params
 
   const [snapActive, setSnapActive] = useState(false)
   const [snapPhase, setSnapPhase] = useState<'idle' | 'source-picked'>('idle')
@@ -72,8 +73,8 @@ export function useSnap(params: {
 
       const { position, rotation } =
         srcPart.kind === 'cylinder'
-          ? computeDowelSnapTransform(srcFace, hit, srcPart, targetPart.kind === 'cylinder')
-          : computeSnapTransform(srcFace, hit, srcPart)
+          ? computeDowelSnapTransform(srcFace, hit, srcPart, targetPart.kind === 'cylinder', byId)
+          : computeSnapTransform(srcFace, hit, srcPart, byId)
 
       const noMove =
         Math.abs(position.x - srcPart.position.x) < 0.001 &&
@@ -105,7 +106,7 @@ export function useSnap(params: {
       setSnapPhase('idle')
       // snapActive stays true — chained snaps
     },
-    [snapActive, snapPhase, sourceFace, parts, onUpdate, onRotationSnap],
+    [snapActive, snapPhase, sourceFace, parts, byId, onUpdate, onRotationSnap],
   )
 
   const onFaceHover = useCallback(

@@ -1,8 +1,17 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile, Joint } from './types'
+import type {
+  Part,
+  CutDef,
+  MaterialDef,
+  Scene,
+  CameraState,
+  ZimmuFile,
+  Joint,
+} from './types'
 import * as idb from './idb'
+import { breakComponentCycles, promoteOrphans } from './componentTree'
 
-export const FILE_FORMAT_VERSION = 10
+export const FILE_FORMAT_VERSION = 11
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -49,75 +58,111 @@ export function parseFile(text: string): ZimmuFile {
     }
     return true
   })
-  return {
-    ...raw,
-    scene: {
-      parts: parts.map((p) =>
-        p.kind === 'board'
-          ? {
-              ...p,
-              // v2→v3: cuts gained a discriminated `kind`; legacy cuts are box cuts.
-              cuts: ((p.cuts ?? []) as unknown as Array<Record<string, unknown>>).map((c) =>
-                'kind' in c ? c : { ...c, kind: 'box' },
-              ) as unknown as CutDef[],
-              visible: p.visible ?? true,
-              material: p.material ?? '',
-            }
-          : {
-              ...p,
-              cuts: Array.isArray(p.cuts) ? p.cuts : [],
-              visible: p.visible ?? true,
-              material: p.material ?? '',
-            },
-      ),
-      materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
-      hardware: raw.scene.hardware ?? [],
-      // v4→v5: profile (+ tongueThickness/rabbetFace). v5→v6: stopStart/stopEnd.
-      // v6→v7: half-lap joints (kind 'halflap'); legacy joints are all dados.
-      // v7→v8: mortise-tenon joints (kind 'mortise-tenon').
-      // v8→v9: finger joints (kind 'finger').
-      // v9→v10: tongue-groove joints (kind 'tongue-groove').
-      joints: ((raw.scene.joints ?? []) as unknown as Array<Record<string, unknown>>)
-        // Dropped the way an unknown part kind is, rather than kept verbatim. A newer file version
-        // only warns above and parses on, so without this a joint kind from a future release reaches
-        // the render path, where the exhaustiveness guard in jointChecklist's jointPairIds throws
-        // and blanks the app instead of degrading. Pre-v7 joints carry no kind at all and are
-        // dados — those must survive.
-        .filter((j) => {
-          if (j.kind === undefined || KNOWN_JOINT_KINDS.includes(j.kind as string)) return true
-          console.warn(`zimmu: unknown joint kind "${j.kind as string}" — skipped`)
-          return false
-        })
-        .map((j) =>
-          j.kind === 'tongue-groove'
-            ? ({ tongueThickness: 6, tongueDepth: 8, clearance: 0, ...j } as unknown as Joint)
-            : j.kind === 'finger'
-              ? ({ fingerCount: 0, clearance: 0, ...j } as unknown as Joint)
-              : j.kind === 'mortise-tenon'
-                ? ({
-                    tenonLength: 0,
-                    tenonThickness: 0,
-                    tenonWidth: 0,
-                    clearance: 0,
-                    through: false,
-                    offsetU: 0,
-                    offsetV: 0,
+  const scene: Scene = {
+    parts: parts.map((p) =>
+      p.kind === 'board'
+        ? {
+            ...p,
+            // v2→v3: cuts gained a discriminated `kind`; legacy cuts are box cuts.
+            cuts: ((p.cuts ?? []) as unknown as Array<Record<string, unknown>>).map((c) =>
+              'kind' in c ? c : { ...c, kind: 'box' },
+            ) as unknown as CutDef[],
+            visible: p.visible ?? true,
+            material: p.material ?? '',
+            parentId: p.parentId ?? null,
+            driven: p.driven ?? false,
+          }
+        : {
+            ...p,
+            cuts: Array.isArray(p.cuts) ? p.cuts : [],
+            visible: p.visible ?? true,
+            material: p.material ?? '',
+            parentId: p.parentId ?? null,
+            driven: p.driven ?? false,
+          },
+    ),
+    materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
+    hardware: raw.scene.hardware ?? [],
+    // v4→v5: profile (+ tongueThickness/rabbetFace). v5→v6: stopStart/stopEnd.
+    // v6→v7: half-lap joints (kind 'halflap'); legacy joints are all dados.
+    // v7→v8: mortise-tenon joints (kind 'mortise-tenon').
+    // v8→v9: finger joints (kind 'finger').
+    // v9→v10: tongue-groove joints (kind 'tongue-groove').
+    joints: ((raw.scene.joints ?? []) as unknown as Array<Record<string, unknown>>)
+      // Dropped the way an unknown part kind is, rather than kept verbatim. A newer file version
+      // only warns above and parses on, so without this a joint kind from a future release reaches
+      // the render path, where the exhaustiveness guard in jointChecklist's jointPairIds throws
+      // and blanks the app instead of degrading. Pre-v7 joints carry no kind at all and are
+      // dados — those must survive.
+      .filter((j) => {
+        if (j.kind === undefined || KNOWN_JOINT_KINDS.includes(j.kind as string)) return true
+        console.warn(`zimmu: unknown joint kind "${j.kind as string}" — skipped`)
+        return false
+      })
+      .map((j) =>
+        j.kind === 'tongue-groove'
+          ? ({
+              tongueThickness: 6,
+              tongueDepth: 8,
+              clearance: 0,
+              driven: false,
+              ...j,
+            } as unknown as Joint)
+          : j.kind === 'finger'
+            ? ({ fingerCount: 0, clearance: 0, driven: false, ...j } as unknown as Joint)
+            : j.kind === 'mortise-tenon'
+              ? ({
+                  tenonLength: 0,
+                  tenonThickness: 0,
+                  tenonWidth: 0,
+                  clearance: 0,
+                  through: false,
+                  offsetU: 0,
+                  offsetV: 0,
+                  driven: false,
+                  ...j,
+                } as unknown as Joint)
+              : j.kind === 'halflap'
+                ? ({ split: 0.5, clearance: 0, driven: false, ...j } as unknown as Joint)
+                : ({
+                    kind: 'dado' as const,
+                    profile: 'plain' as const,
+                    tongueThickness: 6,
+                    rabbetFace: '+Z' as const,
+                    stopStart: 0,
+                    stopEnd: 0,
+                    driven: false,
                     ...j,
-                  } as unknown as Joint)
-                : j.kind === 'halflap'
-                  ? ({ split: 0.5, clearance: 0, ...j } as unknown as Joint)
-                  : ({
-                      kind: 'dado' as const,
-                      profile: 'plain' as const,
-                      tongueThickness: 6,
-                      rabbetFace: '+Z' as const,
-                      stopStart: 0,
-                      stopEnd: 0,
-                      ...j,
-                    } as unknown as Joint),
-        ),
-    },
+                  } as unknown as Joint),
+      ),
+    // v10→v11: component tree. Legacy files have no components and no parentage.
+    components: (raw.scene.components ?? []).map((c) => {
+      const base = {
+        ...c,
+        parentId: c.parentId ?? null,
+        visible: c.visible ?? true,
+        rotationOrder: 'XYZ' as const,
+      }
+      // `CarcaseComponent` declares `params` required, so a carcase without them is a shape the
+      // type says cannot exist. Demote rather than fabricate defaults: a group keeps the label,
+      // the placement and every child part, and loses only the ability to regenerate.
+      if (base.kind === 'carcase' && base.params === undefined) {
+        console.warn(`zimmu: carcase "${base.id}" has no params — loaded as a group`)
+        return {
+          kind: 'group' as const,
+          id: base.id,
+          label: base.label,
+          parentId: base.parentId,
+          position: base.position,
+          rotation: base.rotation,
+          rotationOrder: base.rotationOrder,
+          visible: base.visible,
+        }
+      }
+      return base
+    }),
   }
+  return { ...raw, scene: breakComponentCycles(promoteOrphans(scene)) }
 }
 
 export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): UseFileResult {
@@ -295,7 +340,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       createdAt: now,
       updatedAt: now,
       camera: getCameraStateRef.current(),
-      scene: { parts: [], materials: {}, hardware: [], joints: [] },
+      scene: { parts: [], materials: {}, hardware: [], joints: [], components: [] },
     }
     handleRef.current = null
     createdAtRef.current = null
@@ -305,6 +350,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       materials: {},
       hardware: [],
       joints: [],
+      components: [],
     })
     lastSavedProjectNameRef.current = 'Untitled'
     isDirtyRef.current = false

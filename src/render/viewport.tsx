@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import Stats from 'stats.js'
-import type { Part, PartId, CameraState } from '../scene/types'
+import type { Component, ComponentId, Part, PartId, CameraState } from '../scene/types'
 import type { FaceHit } from '../scene/types'
 import type { Outline } from '../scene/suggestionOutline'
 import {
@@ -12,9 +12,12 @@ import {
   computeSnapTransform,
 } from '../scene/snapMath'
 import { fitCameraToParts, fitFarPlane, nearPlaneForFar } from '../scene/fitCamera'
+import { resolveWorldMatrix } from '../geom/transform'
+import { isNodeVisible } from '../scene/componentTree'
 
 interface ViewportProps {
   parts: Part[]
+  componentMap: Map<ComponentId, Component>
   geometries: Map<PartId, THREE.BufferGeometry>
   selectedId: PartId | null
   onPartClick: (id: PartId | null) => void
@@ -55,6 +58,7 @@ const emptyGeo = () => {
 
 export function Viewport({
   parts,
+  componentMap,
   geometries,
   selectedId,
   onPartClick,
@@ -441,10 +445,16 @@ export function Viewport({
     const camera = cameraRef.current
     const controls = controlsRef.current
     if (!camera || !controls) return
-    const next = fitCameraToParts(parts, camera.aspect, camera.fov, {
-      position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
-      target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
-    })
+    const next = fitCameraToParts(
+      parts,
+      camera.aspect,
+      camera.fov,
+      {
+        position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+        target: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
+      },
+      componentMap,
+    )
     if (!next) return
     camera.position.set(next.position.x, next.position.y, next.position.z)
     controls.target.set(next.target.x, next.target.y, next.target.z)
@@ -452,7 +462,7 @@ export function Viewport({
     // so the fit we just solved would render clipped. Raise the plane to reach them, lift the near
     // plane in step so the depth-buffer ratio stays put, and drop both back to their defaults when a
     // smaller scene no longer needs the extra range.
-    const required = fitFarPlane(parts, next)
+    const required = fitFarPlane(parts, next, componentMap)
     const far = required === null ? DEFAULT_FAR_PLANE : Math.max(DEFAULT_FAR_PLANE, required)
     const near = nearPlaneForFar(far, DEFAULT_NEAR_PLANE, DEFAULT_FAR_PLANE)
     if (camera.far !== far || camera.near !== near) {
@@ -469,7 +479,6 @@ export function Viewport({
     const scene = sceneRef.current
     if (!scene) return
 
-    const deg2rad = Math.PI / 180
     const partMap = new Map(parts.map((p) => [p.id, p]))
 
     // Remove meshes for deleted parts
@@ -495,10 +504,6 @@ export function Viewport({
       const geo = geometries.get(part.id)
       if (!geo) continue
 
-      const rx = part.rotation.x * deg2rad
-      const ry = part.rotation.y * deg2rad
-      const rz = part.rotation.z * deg2rad
-
       const existing = meshes.current.get(part.id)
       if (!existing) {
         const mat = new THREE.MeshStandardMaterial({
@@ -508,19 +513,25 @@ export function Viewport({
           flatShading: true,
         })
         const mesh = new THREE.Mesh(geo, mat)
-        mesh.position.set(part.position.x, part.position.y, part.position.z)
-        mesh.rotation.set(rx, ry, rz, part.rotationOrder)
+        // Placement comes from the component tree, not from position/rotation, so the local matrix
+        // is written directly. With matrixAutoUpdate off Three never calls updateMatrix(), which is
+        // what normally raises matrixWorldNeedsUpdate — so each assignment must raise it itself or
+        // matrixWorld (which the raycaster reads) goes stale.
+        mesh.matrixAutoUpdate = false
+        mesh.matrix.fromArray(resolveWorldMatrix(part, componentMap))
+        mesh.matrixWorldNeedsUpdate = true
         scene.add(mesh)
         meshes.current.set(part.id, mesh)
-        mesh.visible = part.visible
+        mesh.visible = isNodeVisible(part, componentMap)
 
         const edgeMat = new THREE.LineBasicMaterial({ color: 0x1a1a1d })
         const el = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 15), edgeMat)
-        el.position.copy(mesh.position)
-        el.rotation.copy(mesh.rotation)
+        el.matrixAutoUpdate = false
+        el.matrix.copy(mesh.matrix)
+        el.matrixWorldNeedsUpdate = true
         scene.add(el)
         edgeLines.current.set(part.id, el)
-        el.visible = part.visible
+        el.visible = isNodeVisible(part, componentMap)
       } else {
         if (existing.geometry !== geo) {
           existing.geometry = geo
@@ -528,13 +539,13 @@ export function Viewport({
           el.geometry.dispose()
           el.geometry = new THREE.EdgesGeometry(geo, 15)
         }
-        existing.position.set(part.position.x, part.position.y, part.position.z)
-        existing.rotation.set(rx, ry, rz, part.rotationOrder)
+        existing.matrix.fromArray(resolveWorldMatrix(part, componentMap))
+        existing.matrixWorldNeedsUpdate = true
         const el = edgeLines.current.get(part.id)!
-        el.position.copy(existing.position)
-        el.rotation.copy(existing.rotation)
-        existing.visible = part.visible
-        el.visible = part.visible
+        el.matrix.copy(existing.matrix)
+        el.matrixWorldNeedsUpdate = true
+        existing.visible = isNodeVisible(part, componentMap)
+        el.visible = isNodeVisible(part, componentMap)
         ;(existing.material as THREE.MeshStandardMaterial).color.set(part.color)
       }
     }
@@ -551,7 +562,7 @@ export function Viewport({
         id === selectedId ? 0x222244 : 0x000000,
       )
     }
-  }, [parts, geometries, selectedId, highlightedIds])
+  }, [parts, componentMap, geometries, selectedId, highlightedIds])
 
   // Snap highlight update — rebuilds LineLoop geometry when faces change
   useEffect(() => {
@@ -587,7 +598,11 @@ export function Viewport({
         loop.visible = false
         return
       }
-      drawLoop(loop, { corners: computeFaceCorners(face, part), normal: face.faceNormal }, color)
+      drawLoop(
+        loop,
+        { corners: computeFaceCorners(face, part, componentMap), normal: face.faceNormal },
+        color,
+      )
     }
 
     updateHighlight(sourceHighlightRef.current, sourceFace, 0xfbbf24)
@@ -610,7 +625,7 @@ export function Viewport({
     for (let i = 0; i < pool.length; i++) {
       drawLoop(pool[i], sf[i] ?? null, SUGGESTION_OUTLINE_COLOR)
     }
-  }, [sourceFace, hoveredFace, snapPhase, parts, suggestionOutlines])
+  }, [sourceFace, hoveredFace, snapPhase, parts, componentMap, suggestionOutlines])
 
   // Ghost mesh — semi-transparent preview of the source part at its snapped destination
   useEffect(() => {
@@ -630,20 +645,14 @@ export function Viewport({
       ghost.visible = false
       return
     }
-    const { position, rotation } = computeSnapTransform(sourceFace, hoveredFace, src)
+    const { position, rotation } = computeSnapTransform(sourceFace, hoveredFace, src, componentMap)
     ghost.geometry = geo
-    ghost.position.set(position.x, position.y, position.z)
-    ghost.setRotationFromEuler(
-      new THREE.Euler(
-        rotation.x * THREE.MathUtils.DEG2RAD,
-        rotation.y * THREE.MathUtils.DEG2RAD,
-        rotation.z * THREE.MathUtils.DEG2RAD,
-        src.rotationOrder,
-      ),
-    )
+    ghost.matrixAutoUpdate = false
+    ghost.matrix.fromArray(resolveWorldMatrix({ ...src, position, rotation }, componentMap))
+    ghost.matrixWorldNeedsUpdate = true
     ;(ghost.material as THREE.MeshStandardMaterial).color.set(src.color)
     ghost.visible = true
-  }, [snapPhase, sourceFace, hoveredFace, parts, geometries])
+  }, [snapPhase, sourceFace, hoveredFace, parts, componentMap, geometries])
 
   useEffect(() => {
     const mount = mountRef.current

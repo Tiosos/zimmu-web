@@ -5,6 +5,9 @@ import type { OcctWorkerApi, BuildSpec } from '../geom/occt.worker'
 import type { ExportSpec } from '../geom/occt'
 import type {
   BoardPart,
+  Component,
+  ComponentId,
+  GroupComponent,
   HardwareItem,
   MaterialDef,
   Part,
@@ -14,10 +17,12 @@ import type {
   CutId,
   Joint,
   FaceHit,
+  Selection,
 } from './types'
 import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
+import { componentsById, descendantIds, wouldCycle } from './componentTree'
 import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
@@ -31,7 +36,7 @@ import {
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidTongueGroove } from '../geom/tonguegroove'
 import { PART_COLORS } from './palette'
-import { composeWorldMatrix } from '../geom/transform'
+import { decomposeMatrix, resolveWorldMatrix } from '../geom/transform'
 
 interface HistoryEntry {
   label: string
@@ -77,6 +82,8 @@ function makeDefaultBoard(): BoardPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   }
 }
 
@@ -86,6 +93,7 @@ export interface UseSceneResult {
   errors: Map<PartId, string>
   pendingIds: Set<PartId>
   selectedId: PartId | null
+  selection: Selection | null
   occtReady: boolean
   nextLabel: string
   onAdd: (kind: 'board' | 'cylinder') => void
@@ -105,9 +113,13 @@ export interface UseSceneResult {
   onAddMortiseTenon: (mortiseHit: FaceHit, tenonHit: FaceHit) => void
   onAddFingerJoint: (hitA: FaceHit, hitB: FaceHit) => void
   onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
+  onAddComponent: (parentId: ComponentId | null) => void
+  onRemoveComponent: (id: ComponentId) => void
+  onReparentComponent: (id: ComponentId, newParentId: ComponentId | null) => void
+  onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
-  onSelect: (id: PartId | null) => void
+  onSelect: (next: Selection | null) => void
   replaceScene: (next: Scene) => void
   exportStep: (parts: Part[]) => Promise<string>
   canUndo: boolean
@@ -137,11 +149,13 @@ export function useScene(): UseSceneResult {
     materials: {},
     hardware: [],
     joints: [],
+    components: [],
   }))
   const [geometries, setGeometries] = useState<Map<PartId, THREE.BufferGeometry>>(new Map())
   const [errors, setErrors] = useState<Map<PartId, string>>(new Map())
   const [pendingIds, setPendingIds] = useState<Set<PartId>>(new Set())
-  const [selectedId, setSelectedId] = useState<PartId | null>(null)
+  const [selection, setSelection] = useState<Selection | null>(null)
+  const selectedId = selection?.kind === 'part' ? selection.id : null
   const [occtReady, setOcctReady] = useState(false)
 
   const prevShapeKeys = useRef<Map<PartId, string>>(new Map())
@@ -155,6 +169,13 @@ export function useScene(): UseSceneResult {
       return match ? Math.max(m, parseInt(match[1], 10)) : m
     }, 0)
     return max > 0 ? max : scene.parts.length
+  }, [scene])
+  const componentLabelCounter = useMemo(() => {
+    const max = scene.components.reduce((m, c) => {
+      const match = /Group (\d+)/.exec(c.label)
+      return match ? Math.max(m, parseInt(match[1], 10)) : m
+    }, 0)
+    return max > 0 ? max : scene.components.length
   }, [scene])
   const colorIndex = useRef(0)
 
@@ -324,6 +345,8 @@ export function useScene(): UseSceneResult {
           rotationOrder: 'XYZ',
           cuts: [],
           visible: true,
+          parentId: null,
+          driven: false,
         }
       } else {
         const dowelMax = sceneRef.current.parts.reduce((m, p) => {
@@ -343,19 +366,21 @@ export function useScene(): UseSceneResult {
           rotationOrder: 'XYZ',
           cuts: [],
           visible: true,
+          parentId: null,
+          driven: false,
         }
       }
       setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
-      setSelectedId(part.id)
+      setSelection({ kind: 'part', id: part.id })
       push({
         label: `Add ${part.label}`,
         undo: () => {
           setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== part.id) }))
-          setSelectedId((prev) => (prev === part.id ? null : prev))
+          setSelection((prev) => (prev?.kind === 'part' && prev.id === part.id ? null : prev))
         },
         redo: () => {
           setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
-          setSelectedId(part.id)
+          setSelection({ kind: 'part', id: part.id })
         },
       })
     },
@@ -378,16 +403,16 @@ export function useScene(): UseSceneResult {
         joints: before.joints.filter((j) => !jointInvolves(j, id)),
       })
       setScene(after)
-      setSelectedId((prev) => (prev === id ? null : prev))
+      setSelection((prev) => (prev?.kind === 'part' && prev.id === id ? null : prev))
       push({
         label: `Remove ${part.label}`,
         undo: () => {
           setScene(before)
-          setSelectedId(id)
+          setSelection({ kind: 'part', id })
         },
         redo: () => {
           setScene(after)
-          setSelectedId((prev) => (prev === id ? null : prev))
+          setSelection((prev) => (prev?.kind === 'part' && prev.id === id ? null : prev))
         },
       })
     },
@@ -435,12 +460,14 @@ export function useScene(): UseSceneResult {
         parts.splice(idx + 1, 0, clone)
         return { ...prev, parts }
       })
-      setSelectedId(clone.id)
+      setSelection({ kind: 'part', id: clone.id })
       push({
         label: `Duplicate ${orig.label}`,
         undo: () => {
           setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== clone.id) }))
-          setSelectedId((prev) => (prev === clone.id ? id : prev))
+          setSelection((prev) =>
+            prev?.kind === 'part' && prev.id === clone.id ? { kind: 'part', id } : prev,
+          )
         },
         redo: () => {
           setScene((prev) => {
@@ -450,7 +477,7 @@ export function useScene(): UseSceneResult {
             parts.splice(idx + 1, 0, clone)
             return { ...prev, parts }
           })
-          setSelectedId(clone.id)
+          setSelection({ kind: 'part', id: clone.id })
         },
       })
     },
@@ -897,7 +924,8 @@ export function useScene(): UseSceneResult {
       if (housing?.kind !== 'board' || housed?.kind !== 'board' || housing.id === housed.id) return
       const housingFace = localNormalToFaceString(housingHit.localFaceNormal)
       const housedEnd = localNormalToFaceString(housedHit.localFaceNormal)
-      if (!isValidDadoSeat(housing, housingFace, housed, housedEnd)) return
+      const byId = componentsById(s.components)
+      if (!isValidDadoSeat(housing, housingFace, housed, housedEnd, byId)) return
 
       const n = s.joints.filter((j) => j.kind === 'dado').length + 1
       const joint: Joint = defaultDadoJoint(
@@ -907,9 +935,10 @@ export function useScene(): UseSceneResult {
         housedEnd,
         `joint_${crypto.randomUUID()}`,
         `Dado ${n}`,
+        byId,
       )
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add dado')
-      setSelectedId(housing.id)
+      setSelection({ kind: 'part', id: housing.id })
     },
     [commitReconciled],
   )
@@ -928,7 +957,7 @@ export function useScene(): UseSceneResult {
         `Half-lap ${n}`,
       )
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add half-lap')
-      setSelectedId(a.id)
+      setSelection({ kind: 'part', id: a.id })
     },
     [commitReconciled],
   )
@@ -941,7 +970,8 @@ export function useScene(): UseSceneResult {
       if (mortise?.kind !== 'board' || tenon?.kind !== 'board' || mortise.id === tenon.id) return
       const mortiseFace = localNormalToFaceString(mortiseHit.localFaceNormal)
       const tenonEnd = localNormalToFaceString(tenonHit.localFaceNormal)
-      if (!isValidMortiseTenon(mortise, mortiseFace, tenon, tenonEnd)) return
+      const byId = componentsById(s.components)
+      if (!isValidMortiseTenon(mortise, mortiseFace, tenon, tenonEnd, byId)) return
       const n = s.joints.filter((j) => j.kind === 'mortise-tenon').length + 1
       const joint: Joint = defaultMortiseTenonJoint(
         mortise,
@@ -950,12 +980,13 @@ export function useScene(): UseSceneResult {
         tenonEnd,
         `joint_${crypto.randomUUID()}`,
         `Mortise & tenon ${n}`,
+        byId,
       )
       commitReconciled(
         (prev) => ({ ...prev, joints: [...prev.joints, joint] }),
         'Add mortise & tenon',
       )
-      setSelectedId(mortise.id)
+      setSelection({ kind: 'part', id: mortise.id })
     },
     [commitReconciled],
   )
@@ -968,7 +999,7 @@ export function useScene(): UseSceneResult {
       if (a?.kind !== 'board' || b?.kind !== 'board' || a.id === b.id) return
       const endA = localNormalToFaceString(hitA.localFaceNormal)
       const endB = localNormalToFaceString(hitB.localFaceNormal)
-      if (!isValidFingerJoint(a, endA, b, endB)) return
+      if (!isValidFingerJoint(a, endA, b, endB, componentsById(s.components))) return
       const n = s.joints.filter((j) => j.kind === 'finger').length + 1
       const joint: Joint = defaultFingerJoint(
         a,
@@ -979,7 +1010,7 @@ export function useScene(): UseSceneResult {
         `Finger joint ${n}`,
       )
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add finger joint')
-      setSelectedId(a.id)
+      setSelection({ kind: 'part', id: a.id })
     },
     [commitReconciled],
   )
@@ -992,7 +1023,8 @@ export function useScene(): UseSceneResult {
       if (groove?.kind !== 'board' || tongue?.kind !== 'board' || groove.id === tongue.id) return
       const grooveEdge = localNormalToFaceString(grooveHit.localFaceNormal)
       const tongueEdge = localNormalToFaceString(tongueHit.localFaceNormal)
-      if (!isValidTongueGroove(groove, grooveEdge, tongue, tongueEdge)) return
+      const byId = componentsById(s.components)
+      if (!isValidTongueGroove(groove, grooveEdge, tongue, tongueEdge, byId)) return
       const n = s.joints.filter((j) => j.kind === 'tongue-groove').length + 1
       const joint: Joint = defaultTongueGrooveJoint(
         groove,
@@ -1006,7 +1038,7 @@ export function useScene(): UseSceneResult {
         (prev) => ({ ...prev, joints: [...prev.joints, joint] }),
         'Add tongue & groove',
       )
-      setSelectedId(groove.id)
+      setSelection({ kind: 'part', id: groove.id })
     },
     [commitReconciled],
   )
@@ -1048,8 +1080,8 @@ export function useScene(): UseSceneResult {
     [commitReconciled],
   )
 
-  const onSelect = useCallback((id: PartId | null) => {
-    setSelectedId(id)
+  const onSelect = useCallback((next: Selection | null) => {
+    setSelection(next)
   }, [])
 
   const onUpdateMaterial = useCallback(
@@ -1080,6 +1112,112 @@ export function useScene(): UseSceneResult {
     [push],
   )
 
+  const onAddComponent = useCallback(
+    (parentId: ComponentId | null) => {
+      const component: GroupComponent = {
+        kind: 'group',
+        id: `cmp_${crypto.randomUUID()}`,
+        label: `Group ${componentLabelCounter + 1}`,
+        parentId,
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        rotationOrder: 'XYZ',
+        visible: true,
+      }
+      setScene((prev) => ({ ...prev, components: [...prev.components, component] }))
+      push({
+        label: 'Add group',
+        undo: () =>
+          setScene((prev) => ({
+            ...prev,
+            components: prev.components.filter((c) => c.id !== component.id),
+          })),
+        redo: () => setScene((prev) => ({ ...prev, components: [...prev.components, component] })),
+      })
+    },
+    [componentLabelCounter, push],
+  )
+
+  const onRemoveComponent = useCallback(
+    (id: ComponentId) => {
+      const doomed = new Set<ComponentId>([
+        id,
+        ...descendantIds(id, sceneRef.current.components, sceneRef.current.parts).componentIds,
+      ])
+      commitReconciled((before) => {
+        const { componentIds, partIds } = descendantIds(id, before.components, before.parts)
+        const doomedComponents = new Set([id, ...componentIds])
+        // Built from the pre-delete component list: the parts being promoted still reference
+        // components that are about to be removed, so their world placement must be resolved
+        // against the tree as it stands now, not as it will be.
+        const doomedById = componentsById(before.components)
+        const doomedParts = before.parts
+          .filter((p) => p.driven && partIds.includes(p.id))
+          .map((p) => p.id)
+
+        return {
+          ...before,
+          components: before.components.filter((c) => !doomedComponents.has(c.id)),
+          // A detached part is the user's, not the component's: it survives its container
+          // and returns to top level rather than being deleted with it.
+          parts: before.parts
+            .filter((p) => !doomedParts.includes(p.id))
+            .map((p) => {
+              if (p.parentId === null || !doomedComponents.has(p.parentId)) return p
+              // A detached part survives its container, and must survive it in place: its local
+              // placement was relative to a component that no longer exists, so bake the resolved
+              // world placement in rather than letting the part jump by the lost transform.
+              const { position, rotation } = decomposeMatrix(resolveWorldMatrix(p, doomedById))
+              return { ...p, parentId: null, position, rotation }
+            }),
+          joints: before.joints.filter(
+            (j) =>
+              (j.sourceComponentId === undefined || !doomedComponents.has(j.sourceComponentId)) &&
+              !doomedParts.some((partId) => jointInvolves(j, partId)),
+          ),
+        }
+      }, 'Delete component')
+      // A selection pointing at a component that is gone is a dangling reference the panel would
+      // try to render. A part selection is left alone: the part itself may well have survived.
+      setSelection((prev) => (prev?.kind === 'component' && doomed.has(prev.id) ? null : prev))
+    },
+    [commitReconciled],
+  )
+
+  const onReparentComponent = useCallback(
+    (id: ComponentId, newParentId: ComponentId | null) => {
+      const before = sceneRef.current
+      if (wouldCycle(before.components, id, newParentId)) return
+      const after: Scene = {
+        ...before,
+        components: before.components.map((c) =>
+          c.id === id ? { ...c, parentId: newParentId } : c,
+        ),
+      }
+      setScene(after)
+      push({ label: 'Move component', undo: () => setScene(before), redo: () => setScene(after) })
+    },
+    [push],
+  )
+
+  const onUpdateComponent = useCallback(
+    (id: ComponentId, updater: (c: Component) => Component) => {
+      const before = sceneRef.current
+      const after: Scene = {
+        ...before,
+        components: before.components.map((c) => (c.id === id ? updater(c) : c)),
+      }
+      setScene(after)
+      push({
+        label: 'Edit component',
+        coalesceKey: `component-${id}`,
+        undo: () => setScene(before),
+        redo: () => setScene(after),
+      })
+    },
+    [push],
+  )
+
   const replaceScene = useCallback((next: Scene) => {
     for (const geo of geometriesRef.current.values()) geo.dispose()
     geometriesRef.current.clear()
@@ -1089,12 +1227,13 @@ export function useScene(): UseSceneResult {
     futureRef.current = []
     setUndoState({ canUndo: false, canRedo: false, undoLabel: null, redoLabel: null })
     setScene(reconcileJoints(next))
-    setSelectedId(null)
+    setSelection(null)
     setPendingIds(new Set())
     setGeometries(new Map())
   }, [])
 
   const exportStep = useCallback(async (parts: Part[]): Promise<string> => {
+    const byId = componentsById(sceneRef.current.components)
     const specs: ExportSpec[] = parts.map((p) =>
       p.kind === 'board'
         ? {
@@ -1104,7 +1243,7 @@ export function useScene(): UseSceneResult {
             width: p.width,
             thickness: p.thickness,
             cuts: p.cuts,
-            matrix: Array.from(composeWorldMatrix(p)),
+            matrix: Array.from(resolveWorldMatrix(p, byId)),
           }
         : {
             kind: 'cylinder',
@@ -1112,7 +1251,7 @@ export function useScene(): UseSceneResult {
             diameter: p.diameter,
             length: p.length,
             cuts: p.cuts,
-            matrix: Array.from(composeWorldMatrix(p)),
+            matrix: Array.from(resolveWorldMatrix(p, byId)),
           },
     )
     return getOcct().exportStep(specs)
@@ -1124,6 +1263,7 @@ export function useScene(): UseSceneResult {
     errors,
     pendingIds,
     selectedId,
+    selection,
     occtReady,
     nextLabel: `Board ${labelCounter + 1}`,
     onAdd,
@@ -1143,6 +1283,10 @@ export function useScene(): UseSceneResult {
     onAddMortiseTenon,
     onAddFingerJoint,
     onAddTongueGroove,
+    onAddComponent,
+    onRemoveComponent,
+    onReparentComponent,
+    onUpdateComponent,
     onUpdateJoint,
     onRemoveJoint,
     onSelect,

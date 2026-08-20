@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { FaceHit, Part } from './types'
+import type { Component, ComponentId, FaceHit, Part } from './types'
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { localNormalToFaceString } from './snapMath'
 
@@ -16,9 +16,10 @@ export interface AddFingerJointState {
 
 export function useAddFingerJoint(params: {
   parts: Part[]
+  byId: Map<ComponentId, Component>
   onAddFingerJoint: (hitA: FaceHit, hitB: FaceHit) => void
 }): AddFingerJointState {
-  const { parts, onAddFingerJoint } = params
+  const { parts, byId, onAddFingerJoint } = params
   const [fingerJointActive, setActive] = useState(false)
   const [pendingA, setPending] = useState<FaceHit | null>(null)
   const [statusMessage, setStatus] = useState<string | null>(null)
@@ -58,7 +59,7 @@ export function useAddFingerJoint(params: {
       }
       const endA = localNormalToFaceString(pendingA.localFaceNormal)
       const endB = localNormalToFaceString(hit.localFaceNormal)
-      if (!isValidFingerJoint(a, endA, part, endB)) {
+      if (!isValidFingerJoint(a, endA, part, endB, byId)) {
         setStatus('Both ends must form a right-angle corner of equal width')
         setPending(null)
         return
@@ -68,7 +69,7 @@ export function useAddFingerJoint(params: {
       setActive(false)
       setHovered(null)
     },
-    [parts, pendingA, onAddFingerJoint],
+    [parts, byId, pendingA, onAddFingerJoint],
   )
 
   const onFaceHover = useCallback(

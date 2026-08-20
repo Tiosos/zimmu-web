@@ -4,6 +4,7 @@ import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
 import { suggestJointsFor, suggestJointsForScene, synthHit, pairIdsOf } from './scene/suggestJoints'
 import { suggestionOutlines } from './scene/suggestionOutline'
+import { componentsById, isNodeVisible } from './scene/componentTree'
 import type { JointSuggestion } from './scene/suggestJoints'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
@@ -15,7 +16,7 @@ import { downloadBlob } from './ui/download'
 import { buildDrawingSheets } from './geom/drawing'
 import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
-import type { CameraState, PartId } from './scene/types'
+import type { CameraState, PartId, Selection } from './scene/types'
 
 const supported = 'showOpenFilePicker' in window
 
@@ -27,9 +28,11 @@ function App() {
     errors,
     pendingIds,
     selectedId,
+    selection,
     occtReady,
     nextLabel,
     onAdd,
+    onAddComponent,
     onRemove,
     onDuplicate,
     onUpdate,
@@ -47,6 +50,7 @@ function App() {
     onRemoveJoint,
     onSelect,
     onToggleVisible,
+    onUpdateComponent,
     canUndo,
     canRedo,
     undoLabel,
@@ -58,14 +62,16 @@ function App() {
     onUpdateHardware,
   } = useScene()
 
+  const componentMap = useMemo(() => componentsById(scene.components), [scene.components])
+
   const suggestions = useMemo(
-    () => suggestJointsFor(selectedId, scene.parts, scene.joints),
-    [selectedId, scene.parts, scene.joints],
+    () => suggestJointsFor(selectedId, scene.parts, scene.joints, componentMap),
+    [selectedId, scene.parts, scene.joints, componentMap],
   )
 
   const sceneSuggestions = useMemo(
-    () => suggestJointsForScene(scene.parts, scene.joints),
-    [scene.parts, scene.joints],
+    () => suggestJointsForScene(scene.parts, scene.joints, componentMap),
+    [scene.parts, scene.joints, componentMap],
   )
 
   const [hoveredSuggestion, setHoveredSuggestion] = useState<JointSuggestion | null>(null)
@@ -81,8 +87,9 @@ function App() {
     [hoveredSuggestion, hoveredPair],
   )
   const hoveredOutlines = useMemo(
-    () => (hoveredSuggestion ? suggestionOutlines(hoveredSuggestion, scene.parts) : null),
-    [hoveredSuggestion, scene.parts],
+    () =>
+      hoveredSuggestion ? suggestionOutlines(hoveredSuggestion, scene.parts, componentMap) : null,
+    [hoveredSuggestion, scene.parts, componentMap],
   )
   const applySuggestion = useCallback(
     (s: JointSuggestion) => {
@@ -120,10 +127,29 @@ function App() {
     [],
   )
 
+  // The viewport and the face-interaction hooks address parts by id: a mesh click can only ever
+  // land on a part, and nothing component-shaped is drawn in the 3D scene. The sidebar tree speaks
+  // Selection directly, so it needs no adapter.
+  const onSelectPart = useCallback(
+    (id: PartId | null) => onSelect(id === null ? null : { kind: 'part', id }),
+    [onSelect],
+  )
+
+  // Part visibility is its own scene action; a component has no such action because its visibility
+  // is just a field on the component.
+  const handleToggleVisible = useCallback(
+    (s: Selection) => {
+      if (s.kind === 'part') onToggleVisible(s.id)
+      else onUpdateComponent(s.id, (c) => ({ ...c, visible: !c.visible }))
+    },
+    [onToggleVisible, onUpdateComponent],
+  )
+
   const mode = useInteractionMode({
     parts: scene.parts,
+    byId: componentMap,
     onUpdate,
-    onSelect,
+    onSelect: onSelectPart,
     onRotationSnap: handleRotationSnap,
     onAddJoint,
     onAddHalfLap,
@@ -165,7 +191,7 @@ function App() {
     },
   })
 
-  const visibleParts = scene.parts.filter((p) => p.visible)
+  const visibleParts = scene.parts.filter((p) => isNodeVisible(p, componentMap))
   const canExport = visibleParts.length > 0
   const closeDrawings = useCallback(() => setDrawingsOpen(false), [])
 
@@ -175,8 +201,12 @@ function App() {
   }, [visibleParts, projectName])
 
   const handleExportStl = useCallback(() => {
-    downloadBlob(buildBinaryStl(visibleParts, geometries), `${projectName}.stl`, 'model/stl')
-  }, [visibleParts, geometries, projectName])
+    downloadBlob(
+      buildBinaryStl(visibleParts, geometries, componentMap),
+      `${projectName}.stl`,
+      'model/stl',
+    )
+  }, [visibleParts, geometries, componentMap, projectName])
 
   const handleExportStep = useCallback(() => {
     void (async () => {
@@ -354,9 +384,10 @@ function App() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Viewport
           parts={scene.parts}
+          componentMap={componentMap}
           geometries={geometries}
           selectedId={selectedId}
-          onPartClick={onSelect}
+          onPartClick={onSelectPart}
           cameraStateRef={cameraStateRef}
           loadedCamera={loadedCamera}
           fitRequest={fitRequest}
@@ -377,6 +408,7 @@ function App() {
           pendingIds={pendingIds}
           nextLabel={nextLabel}
           onAdd={onAdd}
+          onAddComponent={onAddComponent}
           onRemove={onRemove}
           onDuplicate={onDuplicate}
           onUpdate={onUpdate}
@@ -386,33 +418,17 @@ function App() {
           onLinkCuts={onLinkCuts}
           onUnlinkCuts={onUnlinkCuts}
           lastPlacedCutId={mode.lastPlacedCutId}
-          selectedId={selectedId}
+          selection={selection}
           onSelect={onSelect}
-          onToggleVisible={onToggleVisible}
-          snapActive={mode.activeMode === 'snap'}
+          onToggleVisible={handleToggleVisible}
+          activeMode={mode.activeMode}
+          onSetMode={mode.setMode}
+          statuses={mode.statuses}
           snapPhase={mode.snapPhase}
-          onSnapToggle={() => mode.setMode('snap')}
-          cutActive={mode.activeMode === 'cut'}
-          onCutToggle={() => mode.setMode('cut')}
           dowelTool={mode.dowelTool}
           armDowelTool={mode.armDowelTool}
           onUpdateJoint={onUpdateJoint}
           onRemoveJoint={onRemoveJoint}
-          jointActive={mode.activeMode === 'dado'}
-          onJointToggle={() => mode.setMode('dado')}
-          jointStatus={mode.statuses.dado}
-          halfLapActive={mode.activeMode === 'halflap'}
-          onHalfLapToggle={() => mode.setMode('halflap')}
-          halfLapStatus={mode.statuses.halflap}
-          mortiseTenonActive={mode.activeMode === 'mortiseTenon'}
-          onMortiseTenonToggle={() => mode.setMode('mortiseTenon')}
-          mortiseTenonStatus={mode.statuses.mortiseTenon}
-          fingerJointActive={mode.activeMode === 'finger'}
-          onFingerJointToggle={() => mode.setMode('finger')}
-          fingerJointStatus={mode.statuses.finger}
-          tongueGrooveActive={mode.activeMode === 'tongueGroove'}
-          onTongueGrooveToggle={() => mode.setMode('tongueGroove')}
-          tongueGrooveStatus={mode.statuses.tongueGroove}
           suggestions={suggestions}
           sceneSuggestions={sceneSuggestions}
           onApplySuggestion={applySuggestion}

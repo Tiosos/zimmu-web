@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { FaceHit, Part } from './types'
+import type { Component, ComponentId, FaceHit, Part } from './types'
 import { isValidMortiseTenon } from '../geom/mortisetenon'
 import { localNormalToFaceString } from './snapMath'
 
@@ -16,9 +16,10 @@ export interface AddMortiseTenonState {
 
 export function useAddMortiseTenon(params: {
   parts: Part[]
+  byId: Map<ComponentId, Component>
   onAddMortiseTenon: (mortiseHit: FaceHit, tenonHit: FaceHit) => void
 }): AddMortiseTenonState {
-  const { parts, onAddMortiseTenon } = params
+  const { parts, byId, onAddMortiseTenon } = params
   const [mortiseTenonActive, setActive] = useState(false)
   const [pendingMortise, setPending] = useState<FaceHit | null>(null)
   const [statusMessage, setStatus] = useState<string | null>(null)
@@ -58,7 +59,7 @@ export function useAddMortiseTenon(params: {
       }
       const mortiseFace = localNormalToFaceString(pendingMortise.localFaceNormal)
       const tenonEnd = localNormalToFaceString(hit.localFaceNormal)
-      if (!isValidMortiseTenon(mortise, mortiseFace, part, tenonEnd)) {
+      if (!isValidMortiseTenon(mortise, mortiseFace, part, tenonEnd, byId)) {
         setStatus('Tenon end must be a board end perpendicular to the mortise face')
         setPending(null)
         return
@@ -68,7 +69,7 @@ export function useAddMortiseTenon(params: {
       setActive(false)
       setHovered(null)
     },
-    [parts, pendingMortise, onAddMortiseTenon],
+    [parts, byId, pendingMortise, onAddMortiseTenon],
   )
 
   const onFaceHover = useCallback(

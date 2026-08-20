@@ -18,6 +18,8 @@ const base = {
   rotationOrder: 'XYZ' as const,
   cuts: [],
   visible: true,
+  parentId: null,
+  driven: false,
 }
 
 // All three boards sit at the origin, so every pair touches. That is what lets these fixtures drive
@@ -30,6 +32,7 @@ function scene(): Scene {
       { ...base, id: 'C', label: 'Top' },
     ],
     materials: {},
+    components: [],
     hardware: [],
     joints: [],
   }
@@ -57,6 +60,7 @@ const dadoJoint = (housing: PartId, housed: PartId): DadoJoint => ({
   kind: 'dado',
   id: 'joint_1',
   label: 'Dado 1',
+  driven: false,
   housingPartId: housing,
   housingFace: '+Z',
   housedPartId: housed,

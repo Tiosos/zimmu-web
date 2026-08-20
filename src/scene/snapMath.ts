@@ -1,8 +1,69 @@
 // Three.js math types run in Node/happy-dom without browser mocks needed.
 import * as THREE from 'three'
-import type { BoardPart, CylinderPart, Face, FaceHit, Part, Vec3 } from './types'
+import type {
+  BoardPart,
+  Component,
+  ComponentId,
+  CylinderPart,
+  Face,
+  FaceHit,
+  Part,
+  Vec3,
+} from './types'
+import { ancestorWorldMatrix, resolveWorldMatrix } from '../geom/transform'
+import { ancestorsOf } from './componentTree'
 
 const DEG2RAD = Math.PI / 180
+
+function localQuaternion(node: Part | Component): THREE.Quaternion {
+  return new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(
+      node.rotation.x * DEG2RAD,
+      node.rotation.y * DEG2RAD,
+      node.rotation.z * DEG2RAD,
+      node.rotationOrder,
+    ),
+  )
+}
+
+// A part's orientation in world space. rotation/rotationOrder are parent-local, so a snap — whose
+// FaceHit inputs are all world-space — must resolve them through the ancestor chain first.
+// Composed quaternion-side rather than decomposed out of resolveWorldMatrix so a top-level part,
+// which has no ancestors, is left with the exact quaternion the pre-component-tree code produced.
+function worldQuaternion(part: Part, byId: Map<ComponentId, Component>): THREE.Quaternion {
+  const q = localQuaternion(part)
+  for (const ancestor of ancestorsOf(part, byId)) q.premultiply(localQuaternion(ancestor))
+  return q
+}
+
+// A world placement re-expressed in the frame part.position/part.rotation are stored in — the
+// parent's. The ancestor frame is the identity for a top-level part, so this leaves such a part's
+// values untouched, which is why every snap was correct before components existed.
+function toParentFrame(
+  part: Part,
+  byId: Map<ComponentId, Component>,
+  worldPosition: Vec3,
+  worldQuat: THREE.Quaternion,
+): { position: Vec3; rotation: Vec3 } {
+  const parent = new THREE.Matrix4().fromArray(ancestorWorldMatrix(part, byId))
+  const parentPos = new THREE.Vector3()
+  const parentQuat = new THREE.Quaternion()
+  parent.decompose(parentPos, parentQuat, new THREE.Vector3())
+  const invParent = parentQuat.invert()
+
+  const localPos = new THREE.Vector3(
+    worldPosition.x - parentPos.x,
+    worldPosition.y - parentPos.y,
+    worldPosition.z - parentPos.z,
+  ).applyQuaternion(invParent)
+  const localQuat = invParent.clone().multiply(worldQuat)
+  const euler = new THREE.Euler().setFromQuaternion(localQuat, part.rotationOrder)
+
+  return {
+    position: { x: localPos.x, y: localPos.y, z: localPos.z },
+    rotation: { x: euler.x / DEG2RAD, y: euler.y / DEG2RAD, z: euler.z / DEG2RAD },
+  }
+}
 
 type FaceAxis = 'x' | 'y' | 'z'
 
@@ -67,11 +128,15 @@ function halfExtent(axis: THREE.Vector3, length: number, width: number, thicknes
   return thickness / 2
 }
 
-export function computeFaceCorners(face: FaceHit, part: Part): [Vec3, Vec3, Vec3, Vec3] {
+export function computeFaceCorners(
+  face: FaceHit,
+  part: Part,
+  byId: Map<ComponentId, Component>,
+): [Vec3, Vec3, Vec3, Vec3] {
   if (part.kind !== 'board') {
     throw new Error(`computeFaceCorners: unsupported kind '${part.kind}'`)
   }
-  const { length, width, thickness, position, rotation, rotationOrder } = part
+  const { length, width, thickness } = part
   const { localFaceNormal: lfn } = face
 
   const localCenter = computeLocalFaceCenter(lfn, part)
@@ -92,17 +157,7 @@ export function computeFaceCorners(face: FaceHit, part: Part): [Vec3, Vec3, Vec3
     lc.clone().addScaledVector(u, hU).addScaledVector(v, -hV),
   ]
 
-  const euler = new THREE.Euler(
-    rotation.x * DEG2RAD,
-    rotation.y * DEG2RAD,
-    rotation.z * DEG2RAD,
-    rotationOrder,
-  )
-  const matrix = new THREE.Matrix4().compose(
-    new THREE.Vector3(position.x, position.y, position.z),
-    new THREE.Quaternion().setFromEuler(euler),
-    new THREE.Vector3(1, 1, 1),
-  )
+  const matrix = new THREE.Matrix4().fromArray(resolveWorldMatrix(part, byId))
 
   const [c0, c1, c2, c3] = localCorners.map((c) => {
     c.applyMatrix4(matrix)
@@ -124,16 +179,10 @@ export function computeSnapTransform(
   sourceFace: FaceHit,
   targetFace: FaceHit,
   sourcePart: BoardPart,
+  byId: Map<ComponentId, Component>,
 ): { position: Vec3; rotation: Vec3 } {
   // Step 1: current world rotation as quaternion
-  const Q_current = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(
-      sourcePart.rotation.x * DEG2RAD,
-      sourcePart.rotation.y * DEG2RAD,
-      sourcePart.rotation.z * DEG2RAD,
-      sourcePart.rotationOrder,
-    ),
-  )
+  const Q_current = worldQuaternion(sourcePart, byId)
 
   // Step 2: minimum rotation to align source normal with -target normal
   const srcNormal = new THREE.Vector3(
@@ -183,29 +232,32 @@ export function computeSnapTransform(
   // 3e. Compose: Q_final = Q_roll × Q_normal × Q_current
   const Q_final = new THREE.Quaternion().copy(Q_roll).multiply(Q_normal).multiply(Q_current)
 
-  // Step 4: convert to Euler degrees
+  // Step 4: convert to world Euler degrees
   const euler = new THREE.Euler().setFromQuaternion(Q_final, sourcePart.rotationOrder)
-  const newRotation: Vec3 = {
+  const worldRotation: Vec3 = {
     x: euler.x / DEG2RAD,
     y: euler.y / DEG2RAD,
     z: euler.z / DEG2RAD,
   }
 
-  // Step 5: find new position — compute where source face centre lands at new rotation,
-  // then translate so it coincides with target face centre
-  const tempPart: BoardPart = { ...sourcePart, rotation: newRotation }
-  const corners = computeFaceCorners(sourceFace, tempPart)
+  // Step 5: find new world position — compute where source face centre lands at the new rotation,
+  // then translate so it coincides with target face centre. The temp part is unparented on
+  // purpose: worldRotation is already world, so resolving it through the ancestors again would
+  // count them twice. sourcePart.position then cancels between the two terms below, leaving the
+  // world placement targetFace.faceCenter − (rotated local face centre).
+  const tempPart: BoardPart = { ...sourcePart, rotation: worldRotation, parentId: null }
+  const corners = computeFaceCorners(sourceFace, tempPart, byId)
   const cx = (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4
   const cy = (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4
   const cz = (corners[0].z + corners[1].z + corners[2].z + corners[3].z) / 4
 
-  const newPosition: Vec3 = {
+  const worldPosition: Vec3 = {
     x: sourcePart.position.x + targetFace.faceCenter.x - cx,
     y: sourcePart.position.y + targetFace.faceCenter.y - cy,
     z: sourcePart.position.z + targetFace.faceCenter.z - cz,
   }
 
-  return { position: newPosition, rotation: newRotation }
+  return toParentFrame(sourcePart, byId, worldPosition, Q_final)
 }
 
 export function computeDowelSnapTransform(
@@ -213,16 +265,10 @@ export function computeDowelSnapTransform(
   targetFace: FaceHit,
   sourceDowel: CylinderPart,
   coaxial: boolean,
+  byId: Map<ComponentId, Component>,
 ): { position: Vec3; rotation: Vec3 } {
   // Current world rotation as a quaternion
-  const Q_current = new THREE.Quaternion().setFromEuler(
-    new THREE.Euler(
-      sourceDowel.rotation.x * DEG2RAD,
-      sourceDowel.rotation.y * DEG2RAD,
-      sourceDowel.rotation.z * DEG2RAD,
-      sourceDowel.rotationOrder,
-    ),
-  )
+  const Q_current = worldQuaternion(sourceDowel, byId)
 
   // Recompute the cap's outward world normal from the dowel rotation (do NOT trust
   // sourceFace.faceNormal, which the raycaster may have axis-rounded).
@@ -240,13 +286,6 @@ export function computeDowelSnapTransform(
   // No roll-snap — a cylinder is rotationally symmetric about its axis.
   const Q_final = new THREE.Quaternion().copy(Q_normal).multiply(Q_current)
 
-  const euler = new THREE.Euler().setFromQuaternion(Q_final, sourceDowel.rotationOrder)
-  const newRotation: Vec3 = {
-    x: euler.x / DEG2RAD,
-    y: euler.y / DEG2RAD,
-    z: euler.z / DEG2RAD,
-  }
-
   // Cap center in the local frame: +Z cap is at (0,0,length), -Z cap at (0,0,0).
   const capLocal = computeDowelLocalFaceCenter(sourceFace.localFaceNormal, sourceDowel)
   const capWorldOffset = new THREE.Vector3(capLocal.x, capLocal.y, capLocal.z).applyQuaternion(
@@ -255,11 +294,11 @@ export function computeDowelSnapTransform(
 
   // Landing point: target face center (coaxial cap-to-cap) or the clicked hit point.
   const landing = coaxial ? targetFace.faceCenter : targetFace.hitPoint
-  const newPosition: Vec3 = {
+  const worldPosition: Vec3 = {
     x: landing.x - capWorldOffset.x,
     y: landing.y - capWorldOffset.y,
     z: landing.z - capWorldOffset.z,
   }
 
-  return { position: newPosition, rotation: newRotation }
+  return toParentFrame(sourceDowel, byId, worldPosition, Q_final)
 }

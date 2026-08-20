@@ -19,6 +19,8 @@ function dowel(id: string, material: string): Part {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
   }
 }
 

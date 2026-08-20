@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { FaceHit, Part } from './types'
+import type { Component, ComponentId, FaceHit, Part } from './types'
 import { isValidTongueGroove } from '../geom/tonguegroove'
 import { localNormalToFaceString } from './snapMath'
 
@@ -16,9 +16,10 @@ export interface AddTongueGrooveState {
 
 export function useAddTongueGroove(params: {
   parts: Part[]
+  byId: Map<ComponentId, Component>
   onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
 }): AddTongueGrooveState {
-  const { parts, onAddTongueGroove } = params
+  const { parts, byId, onAddTongueGroove } = params
   const [tongueGrooveActive, setActive] = useState(false)
   const [pendingA, setPending] = useState<FaceHit | null>(null)
   const [statusMessage, setStatus] = useState<string | null>(null)
@@ -58,7 +59,7 @@ export function useAddTongueGroove(params: {
       }
       const grooveEdge = localNormalToFaceString(pendingA.localFaceNormal)
       const tongueEdge = localNormalToFaceString(hit.localFaceNormal)
-      if (!isValidTongueGroove(groove, grooveEdge, part, tongueEdge)) {
+      if (!isValidTongueGroove(groove, grooveEdge, part, tongueEdge, byId)) {
         setStatus('Edges must be facing long edges of equal-thickness boards')
         setPending(null)
         return
@@ -68,7 +69,7 @@ export function useAddTongueGroove(params: {
       setActive(false)
       setHovered(null)
     },
-    [parts, pendingA, onAddTongueGroove],
+    [parts, byId, pendingA, onAddTongueGroove],
   )
 
   const onFaceHover = useCallback(

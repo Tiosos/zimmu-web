@@ -19,6 +19,8 @@ function makePart(overrides: Partial<BoardPart> = {}): BoardPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...overrides,
   }
 }
@@ -354,6 +356,8 @@ describe('CuttingList', () => {
       rotationOrder: 'XYZ',
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     render(
       <CuttingList
@@ -382,6 +386,8 @@ describe('CuttingList', () => {
       rotationOrder: 'XYZ',
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     render(<CuttingList parts={[part]} projectName="Test" onClose={vi.fn()} />)
     // should show — for both cost columns
@@ -406,6 +412,8 @@ describe('CuttingList', () => {
       rotationOrder: 'XYZ',
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     render(
       <CuttingList
@@ -462,6 +470,8 @@ describe('CuttingList', () => {
       rotationOrder: 'XYZ',
       cuts: [],
       visible: true,
+      parentId: null,
+      driven: false,
     }
     render(
       <CuttingList

@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { buildBinaryStl } from './stl'
 import type { BoardPart, PartId } from '../scene/types'
+import { componentsById } from '../scene/componentTree'
+
+const NO_COMPONENTS = componentsById([])
 
 function part(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
@@ -18,6 +21,8 @@ function part(overrides: Partial<BoardPart> = {}): BoardPart {
     rotationOrder: 'XYZ',
     cuts: [],
     visible: true,
+    parentId: null,
+    driven: false,
     ...overrides,
   }
 }
@@ -32,14 +37,14 @@ function oneTriangleGeo(): THREE.BufferGeometry {
 
 describe('buildBinaryStl', () => {
   it('empty scene -> 84-byte buffer, count 0', () => {
-    const buf = buildBinaryStl([], new Map())
+    const buf = buildBinaryStl([], new Map(), NO_COMPONENTS)
     expect(buf.byteLength).toBe(84)
     expect(new DataView(buf).getUint32(80, true)).toBe(0)
   })
 
   it('one triangle -> count 1, correct size, facet normal +Z', () => {
     const geos = new Map<PartId, THREE.BufferGeometry>([['p1', oneTriangleGeo()]])
-    const buf = buildBinaryStl([part()], geos)
+    const buf = buildBinaryStl([part()], geos, NO_COMPONENTS)
     expect(buf.byteLength).toBe(84 + 50)
     const dv = new DataView(buf)
     expect(dv.getUint32(80, true)).toBe(1)
@@ -53,7 +58,7 @@ describe('buildBinaryStl', () => {
 
   it('applies the part world translation to vertices', () => {
     const geos = new Map<PartId, THREE.BufferGeometry>([['p1', oneTriangleGeo()]])
-    const buf = buildBinaryStl([part({ position: { x: 10, y: 20, z: 30 } })], geos)
+    const buf = buildBinaryStl([part({ position: { x: 10, y: 20, z: 30 } })], geos, NO_COMPONENTS)
     const dv = new DataView(buf)
     expect(dv.getFloat32(96, true)).toBeCloseTo(10, 4)
     expect(dv.getFloat32(100, true)).toBeCloseTo(20, 4)
@@ -65,13 +70,13 @@ describe('buildBinaryStl', () => {
       ['p1', oneTriangleGeo()],
       ['p2', oneTriangleGeo()],
     ])
-    const buf = buildBinaryStl([part(), part({ id: 'p2' })], geos)
+    const buf = buildBinaryStl([part(), part({ id: 'p2' })], geos, NO_COMPONENTS)
     expect(new DataView(buf).getUint32(80, true)).toBe(2)
   })
 
   it('skips a part with no geometry entry', () => {
     const geos = new Map<PartId, THREE.BufferGeometry>([['p1', oneTriangleGeo()]])
-    const buf = buildBinaryStl([part(), part({ id: 'missing' })], geos)
+    const buf = buildBinaryStl([part(), part({ id: 'missing' })], geos, NO_COMPONENTS)
     expect(new DataView(buf).getUint32(80, true)).toBe(1)
   })
 })
