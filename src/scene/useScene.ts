@@ -530,9 +530,13 @@ export function useScene(): UseSceneResult {
       const afterPart = updater(beforePart)
       const label = historyLabel ?? `Update ${afterPart.label}`
       const coalesceKey = historyLabel !== undefined ? undefined : `update-${id}`
-      const participates = before.joints.some((j) => jointInvolves(j, id))
+      // A driven part's dimensions are owned by its carcase, so an edit to one has to go through
+      // the pipeline that regenerates it. Skipping it here would leave the scene in a state where
+      // a part disagrees with the parameters that produced it until some unrelated mutation
+      // happens to reconcile it — and exports and the geometry cache would capture the disagreement.
+      const needsPipeline = before.joints.some((j) => jointInvolves(j, id)) || beforePart.driven
 
-      if (participates) {
+      if (needsPipeline) {
         const after = applyPipeline({
           ...before,
           parts: before.parts.map((p) => (p.id === id ? afterPart : p)),

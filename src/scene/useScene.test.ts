@@ -2427,3 +2427,51 @@ describe('carcase generation', () => {
     )
   })
 })
+
+describe('a driven part edit is reconciled immediately', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0]),
+      normals: new Float32Array([0, 0, 1]),
+    })
+  })
+
+  it('does not leave a driven part disagreeing with the parameters that own it', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+    if (side.kind !== 'board') throw new Error('expected a board')
+    const generated = side.length
+
+    // The cabinet owns a driven part's dimensions. Editing one directly must not persist — Phase 6
+    // intercepts this with a "change the cabinet or detach" prompt, but until then the scene must
+    // never be left in a state where a part's size disagrees with the params that generated it.
+    act(() =>
+      result.current.onUpdate(side.id, (p) =>
+        p.kind === 'board' ? { ...p, length: p.length + 137 } : p,
+      ),
+    )
+
+    const after = result.current.scene.parts.find((p) => p.id === side.id)!
+    if (after.kind !== 'board') throw new Error('expected a board')
+    expect(after.length).toBe(generated)
+  })
+
+  it('still lets a detached part keep a hand edit', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+    act(() => result.current.onUpdate(side.id, (p) => ({ ...p, driven: false, role: undefined })))
+
+    act(() =>
+      result.current.onUpdate(side.id, (p) =>
+        p.kind === 'board' ? { ...p, length: 999 } : p,
+      ),
+    )
+
+    const after = result.current.scene.parts.find((p) => p.id === side.id)!
+    if (after.kind !== 'board') throw new Error('expected a board')
+    expect(after.length).toBe(999)
+  })
+})
