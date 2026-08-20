@@ -401,3 +401,60 @@ non-null somewhere before they can be tested, so they are gated on Phase 3.
 `suggestJoints.ts` is already clear of this: `worldFaceNormal(part, face, byId)` (`suggestJoints.ts:135`)
 takes the component map and resolves through the tree, and its synthetic hits set `faceCenter` and
 `hitPoint` to zero rather than to an unresolved placement.
+
+## 2026-08-20 — Phase 2 is complete by its stated test, and incomplete by its intent
+
+Task 2.3b's success criterion was a command:
+
+```
+grep -rn 'composeWorldMatrix(' src/ --include=*.ts --include=*.tsx | grep -v '\.test\.' | grep -v 'transform.ts'
+```
+
+It returns nothing. That is real and worth having — but it proves less than it appears to. Task 2.4's
+implementer found `computeFaceCorners` (`snapMath.ts:101`) building
+`new THREE.Matrix4().compose(position, quaternionFromEuler(rotation))` by hand: `composeWorldMatrix`
+inlined, character for character, under a different name. Searching for it found the symbol's callers,
+not the computation's.
+
+A sweep for the computation rather than the symbol finds **seven** sites, none of which resolve
+through ancestors:
+
+| Site | Shape | Consequence once parts nest |
+|---|---|---|
+| `snapMath.ts:101` `computeFaceCorners` | full `Matrix4.compose` | face-highlight loops and `suggestionOutline` draw at the un-nested pose |
+| `snapMath.ts:129` `computeSnapTransform` | rotation quaternion | snap target computed from the wrong orientation |
+| `snapMath.ts:218` `computeDowelSnapTransform` | rotation quaternion | same, for dowels |
+| `dado.ts:45` `localDirToWorld` | rotation quaternion | face direction wrong ⇒ groove cut on the wrong side |
+| `mortisetenon.ts:39` `localDirToWorld` | rotation quaternion | same |
+| `tonguegroove.ts:40` `localDirToWorld` | rotation quaternion | same |
+| `fingerjoint.ts:40` `localDirToWorld` | rotation quaternion | same |
+
+All seven are **correct today** — every part is top-level, so the ancestor product is the identity —
+which is why the full suite and all 8 e2e specs pass. They become wrong the moment Phase 3 lets a user
+nest a part, and they fail silently: geometry lands in a plausible-but-wrong place rather than throwing.
+
+Note the four `localDirToWorld` copies are in the four modules Task 2.3a migrated. That task replaced
+every `composeWorldMatrix(` call in those files and left a private function computing the rotation half
+of the same thing three lines above. The grep was satisfied; the file was not.
+
+**Recommendation: a Task 2.5 before Phase 3 starts.** It is behaviour-neutral under the same
+conditions as the rest of Phase 2, so it verifies identically — unit counts unchanged, e2e green — and
+doing it now keeps the "no behaviour change" evidence available. Deferring it means Phase 3 ships
+nesting on top of seven known-wrong paths, and the first symptom is a misplaced dado in a cabinet
+rather than a test failure.
+
+The natural shape is `localDirToWorld(part, dir, byId)` delegating to a shared helper in
+`transform.ts` (the four copies are identical), and `computeFaceCorners` / the two snap transforms
+taking `byId` and calling `resolveWorldMatrix`.
+
+### The generalised lesson, third instance
+
+This is the same failure mode as the Phase 8 audit finding, in a different costume:
+
+- A **`filter` with a type predicate** silently drops a new union member — the compiler is blind to it.
+- A **hand-inlined computation** silently keeps the old semantics — a symbol grep is blind to it.
+
+Both look complete by the check that was chosen. For a migration, the check has to target the
+*semantics* being migrated, not the name they happen to be spelled with. The cheap version: before
+declaring a symbol migration done, grep for the two or three distinctive lines of the symbol's own
+body, not just its name.
