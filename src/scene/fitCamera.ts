@@ -1,5 +1,6 @@
 import type { CameraState, Component, ComponentId, Part, Vec3 } from './types'
 import { resolveWorldMatrix, applyMatrixToPoint } from '../geom/transform'
+import { isNodeVisible } from './componentTree'
 
 // The app's opening view direction (viewport.tsx:200). Used only when the current camera has no
 // bearing to preserve.
@@ -64,7 +65,7 @@ export function worldBounds(parts: Part[], byId: Map<ComponentId, Component>): B
   let found = false
 
   for (const part of parts) {
-    if (!part.visible) continue
+    if (!isNodeVisible(part, byId)) continue
     found = true
     const m = resolveWorldMatrix(part, byId)
     const { min, max } = localBox(part)

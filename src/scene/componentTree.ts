@@ -111,3 +111,13 @@ export function breakComponentCycles(scene: Scene): Scene {
     components: scene.components.map((c) => (cyclic.has(c.id) ? { ...c, parentId: null } : c)),
   }
 }
+
+// Visibility composes down the tree the same way placement does: hiding a cabinet must hide the
+// boards inside it. A node's own flag is necessary but not sufficient — any hidden ancestor wins.
+export function isNodeVisible(
+  node: Part | Component,
+  byId: Map<ComponentId, Component>,
+): boolean {
+  if (!node.visible) return false
+  return ancestorsOf(node, byId).every((a) => a.visible)
+}

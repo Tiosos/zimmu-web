@@ -4,7 +4,7 @@ import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
 import { suggestJointsFor, suggestJointsForScene, synthHit, pairIdsOf } from './scene/suggestJoints'
 import { suggestionOutlines } from './scene/suggestionOutline'
-import { componentsById } from './scene/componentTree'
+import { componentsById, isNodeVisible } from './scene/componentTree'
 import type { JointSuggestion } from './scene/suggestJoints'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
@@ -190,7 +190,7 @@ function App() {
     },
   })
 
-  const visibleParts = scene.parts.filter((p) => p.visible)
+  const visibleParts = scene.parts.filter((p) => isNodeVisible(p, componentMap))
   const canExport = visibleParts.length > 0
   const closeDrawings = useCallback(() => setDrawingsOpen(false), [])
 

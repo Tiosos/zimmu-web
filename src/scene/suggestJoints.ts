@@ -17,6 +17,7 @@ import { isValidTongueGroove } from '../geom/tonguegroove'
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { faceAxes, computeLocalFaceCenter } from './snapMath'
 import { jointInvolves } from './jointInvolves'
+import { isNodeVisible } from './componentTree'
 
 const ZERO: Vec3 = { x: 0, y: 0, z: 0 }
 
@@ -372,11 +373,11 @@ export function suggestJointsFor(
 ): JointSuggestion[] {
   if (selectedId == null) return []
   const s = parts.find((p) => p.id === selectedId)
-  if (!s || s.kind !== 'board' || !s.visible) return []
+  if (!s || s.kind !== 'board' || !isNodeVisible(s, byId)) return []
 
   const out: JointSuggestion[] = []
   for (const t of parts) {
-    if (t.id === s.id || t.kind !== 'board' || !t.visible) continue
+    if (t.id === s.id || t.kind !== 'board' || !isNodeVisible(t, byId)) continue
     if (joints.some((j) => jointInvolves(j, s.id) && jointInvolves(j, t.id))) continue
     out.push(...suggestForOrderedPair(s, t, byId))
   }
@@ -418,7 +419,7 @@ export function suggestJointsForScene(
   joints: Joint[],
   byId: Map<ComponentId, Component>,
 ): JointSuggestion[] {
-  const boards = parts.filter((p): p is BoardPart => p.kind === 'board' && p.visible)
+  const boards = parts.filter((p): p is BoardPart => p.kind === 'board' && isNodeVisible(p, byId))
   const out: JointSuggestion[] = []
 
   for (let i = 0; i < boards.length; i++) {

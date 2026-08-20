@@ -13,6 +13,7 @@ import {
 } from '../scene/snapMath'
 import { fitCameraToParts, fitFarPlane, nearPlaneForFar } from '../scene/fitCamera'
 import { resolveWorldMatrix } from '../geom/transform'
+import { isNodeVisible } from '../scene/componentTree'
 
 interface ViewportProps {
   parts: Part[]
@@ -521,7 +522,7 @@ export function Viewport({
         mesh.matrixWorldNeedsUpdate = true
         scene.add(mesh)
         meshes.current.set(part.id, mesh)
-        mesh.visible = part.visible
+        mesh.visible = isNodeVisible(part, componentMap)
 
         const edgeMat = new THREE.LineBasicMaterial({ color: 0x1a1a1d })
         const el = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 15), edgeMat)
@@ -530,7 +531,7 @@ export function Viewport({
         el.matrixWorldNeedsUpdate = true
         scene.add(el)
         edgeLines.current.set(part.id, el)
-        el.visible = part.visible
+        el.visible = isNodeVisible(part, componentMap)
       } else {
         if (existing.geometry !== geo) {
           existing.geometry = geo
@@ -543,8 +544,8 @@ export function Viewport({
         const el = edgeLines.current.get(part.id)!
         el.matrix.copy(existing.matrix)
         el.matrixWorldNeedsUpdate = true
-        existing.visible = part.visible
-        el.visible = part.visible
+        existing.visible = isNodeVisible(part, componentMap)
+        el.visible = isNodeVisible(part, componentMap)
         ;(existing.material as THREE.MeshStandardMaterial).color.set(part.color)
       }
     }

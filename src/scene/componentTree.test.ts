@@ -7,6 +7,7 @@ import {
   wouldCycle,
   promoteOrphans,
   breakComponentCycles,
+  isNodeVisible,
 } from './componentTree'
 
 function cmp(id: string, parentId: string | null): Component {
@@ -190,5 +191,37 @@ describe('breakComponentCycles', () => {
     }
     const out = breakComponentCycles(scene)
     expect(out.components[0].parentId).toBeNull()
+  })
+})
+
+describe('isNodeVisible', () => {
+  it('is true for a visible top-level part', () => {
+    expect(isNodeVisible(board('p', null), componentsById([]))).toBe(true)
+  })
+
+  it('is false for a part hidden in its own right', () => {
+    expect(isNodeVisible({ ...board('p', null), visible: false }, componentsById([]))).toBe(false)
+  })
+
+  it('is false for a visible part inside a hidden component', () => {
+    const hidden = { ...cmp('a', null), visible: false }
+    expect(isNodeVisible(board('p', 'a'), componentsById([hidden]))).toBe(false)
+  })
+
+  it('is false when any ancestor in the chain is hidden, not just the nearest', () => {
+    const outer = { ...cmp('a', null), visible: false }
+    const inner = cmp('b', 'a')
+    expect(isNodeVisible(board('p', 'b'), componentsById([outer, inner]))).toBe(false)
+  })
+
+  it('is true when every ancestor is visible', () => {
+    expect(isNodeVisible(board('p', 'b'), componentsById([cmp('a', null), cmp('b', 'a')]))).toBe(
+      true,
+    )
+  })
+
+  it('applies to a component itself, not only a part', () => {
+    const outer = { ...cmp('a', null), visible: false }
+    expect(isNodeVisible(cmp('b', 'a'), componentsById([outer, cmp('b', 'a')]))).toBe(false)
   })
 })

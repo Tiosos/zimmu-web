@@ -3,6 +3,7 @@ import type { JointSuggestion } from './suggestJoints'
 import { boardsTouch, aabbCenterDist } from './suggestJoints'
 import { obbOverlap } from './obbOverlap'
 import { groupByPair } from './groupSuggestions'
+import { isNodeVisible } from './componentTree'
 
 // Two runaway guards, sized to their lists rather than sharing one number. Actionable rows (jointed
 // + open) are all real decisions, so their cap is generous — it only exists to bound a pathological
@@ -72,7 +73,7 @@ export function buildJointChecklist(
 ): JointChecklist {
   // The same filter suggestJointsForScene uses. Any divergence would produce rows for pairs the
   // engine never considered.
-  const boards = parts.filter((p): p is BoardPart => p.kind === 'board' && p.visible)
+  const boards = parts.filter((p): p is BoardPart => p.kind === 'board' && isNodeVisible(p, byId))
 
   const groups = new Map(groupByPair(suggestions).map((g) => [g.key, g]))
   const jointsByKey = new Map<string, Joint[]>()
