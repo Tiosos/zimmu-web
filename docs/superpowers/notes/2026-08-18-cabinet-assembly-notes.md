@@ -458,3 +458,53 @@ Both look complete by the check that was chosen. For a migration, the check has 
 *semantics* being migrated, not the name they happen to be spelled with. The cheap version: before
 declaring a symbol migration done, grep for the two or three distinctive lines of the symbol's own
 body, not just its name.
+
+## 2026-08-20 — Task 2.5a: five of seven hand-inlined sites closed
+
+| Site | Status |
+|---|---|
+| `dado.ts:45` `localDirToWorld` | ✅ deleted, delegates to shared helper |
+| `mortisetenon.ts:39` `localDirToWorld` | ✅ |
+| `tonguegroove.ts:40` `localDirToWorld` | ✅ |
+| `fingerjoint.ts:40` `localDirToWorld` | ✅ |
+| `snapMath.ts:101` `computeFaceCorners` | ✅ uses `resolveWorldMatrix` |
+| `snapMath.ts:134` `computeSnapTransform` | ⏳ Task 2.5b |
+| `snapMath.ts:223` `computeDowelSnapTransform` | ⏳ Task 2.5b |
+
+All four copies hashed identically (`d0bd753…`) — no divergence had crept in, which is mild luck given
+they were copy-pasted four times.
+
+### `localDirToWorld` returns `Vec3`, not `THREE.Vector3` — and that was the interesting call
+
+The obvious implementation returns a `THREE.Vector3`, since all ~30 downstream uses want `.dot()` and
+`.addScaledVector()`. That would have meant importing `three` into `transform.ts`.
+
+Rejected, because CLAUDE.md describes `composeWorldMatrix` as "THREE-free, element-wise parity-tested
+against `THREE.Matrix4`" — and **the parity test only means anything because the module derives the
+matrix independently**. Importing THREE to build the thing you then compare against THREE would quietly
+turn a real cross-check into a tautology. The four joint modules keep a 3-line `worldDir` adapter that
+wraps the `Vec3`; the adapter carries no convention knowledge, so rotation order and ancestor
+resolution still live in exactly one place.
+
+Worth recording as a general shape: **a module kept free of a dependency on purpose will look like it
+"just needs" that dependency the first time something convenient requires it.** Check why it was free
+before adding it.
+
+### A latent inconsistency the deletion removed
+
+The four deleted copies passed `part.rotationOrder` into their Euler, while `composeWorldMatrix`
+hardcodes XYZ. Harmless today — `rotationOrder` is the literal type `'XYZ'` everywhere — but the two
+would have diverged the moment that literal widened, in opposite directions, in code that looks
+identical. Consolidation removed a trap nobody had noticed.
+
+### Scope, again
+
+Nine functions and two hooks gained a `byId` parameter beyond the five named sites, all
+compiler-forced pass-through. Notably `computeSnapTransform` now **already takes `byId` and only
+forwards it** to `computeFaceCorners` — so Task 2.5b must consume the existing parameter rather than
+add one.
+
+Lint caught a real omission the tests did not: the viewport highlight `useEffect` needed `componentMap`
+in its dependency array. A stale closure there would have frozen face highlights at the previous
+tree — the kind of bug that survives a green suite and shows up as "the outline is in the wrong place
+sometimes".
