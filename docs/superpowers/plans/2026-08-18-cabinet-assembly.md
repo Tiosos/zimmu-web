@@ -1898,9 +1898,20 @@ describe('orientedPanel', () => {
     expect(b.min.z).toBeCloseTo(100, 9); expect(b.max.z).toBeCloseTo(700, 9)
   })
 
+  // Corrected 2026-08-20. The first draft looped all three axes against the single shared `box`,
+  // which is thin on X only — so asking it for 'y' or 'z' correctly returns a 560 or 720 mm
+  // thickness and the assertion is false about the input, not about the function. A test that no
+  // implementation can pass is a fixture defect. Each axis needs a box whose thin dimension is the
+  // one being named; these three are the panels from the tests above.
+  const thinBox = {
+    x: box, // side panel
+    y: { x0: 18, x1: 582, y0: 548, y1: 560, z0: 100, z1: 700 }, // back panel
+    z: { x0: 0, x1: 600, y0: 0, y1: 560, z0: 100, z1: 118 }, // shelf
+  }
+
   it('never reports a panel whose thickness is a face dimension', () => {
     for (const axis of ['x', 'y', 'z'] as const) {
-      const p = orientedPanel(box, axis)
+      const p = orientedPanel(thinBox[axis], axis)
       expect(p.thickness).toBeLessThan(p.length)
       expect(p.thickness).toBeLessThan(p.width)
     }
