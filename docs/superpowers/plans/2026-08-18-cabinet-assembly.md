@@ -943,21 +943,70 @@ git add src/geom/halflap.ts src/geom/halflap.test.ts
 git commit -m "fix(geom): validate the worldAabb memo against the resolved matrix"
 ```
 
-## Task 2.3: Swap every `composeWorldMatrix` consumer
+## Task 2.3a: Swap the joint-geometry modules
 
 **Files:**
-- Modify: `src/geom/stl.ts:33`, `src/scene/suggestJoints.ts:105,204`, `src/scene/cutFootprint.ts:36`, `src/scene/obbOverlap.ts:21`, `src/scene/fitCamera.ts:69`, `src/scene/useScene.ts:1107,1115`
+- Modify: `src/geom/dado.ts` (3 calls), `src/geom/mortisetenon.ts` (4), `src/geom/tonguegroove.ts` (3), `src/geom/fingerjoint.ts` (3), `src/geom/halflap.ts` (3 remaining: `stackAxis`, `isAxisAligned`, `worldBoxToLocalCut`)
 
-- [ ] **Step 1: Confirm the exact consumer list before editing**
+**Plan correction (2026-08-20).** The original Task 2.3 listed six consumer files. The true count is
+eleven: the five joint-geometry modules above were missed entirely — 16 call sites. They are split
+out here because they share one entry point (`deriveJoint` → `reconcileJoints`), which already holds
+the whole `Scene`, so the threading terminates immediately.
 
-Run: `grep -rn 'composeWorldMatrix' src/ --include=*.ts --include=*.tsx | grep -v '\.test\.'`
-Expected output names exactly these files: `stl.ts`, `suggestJoints.ts`, `cutFootprint.ts`, `obbOverlap.ts`, `fitCamera.ts`, `useScene.ts`, `halflap.ts` (already done in 2.2), and the definition in `transform.ts`. If a file appears that is not on this list, stop and add it to the plan before proceeding.
+**Why these genuinely need it, despite appearing not to.** Each of these derives cut geometry by
+mapping between two parts' local frames through their world matrices. When both parts share the same
+ancestors — every joint inside one carcase — the ancestor transforms cancel and `composeWorldMatrix`
+gives the right answer *by accident*. It stops being right the moment the two parts have different
+ancestry: a joint between two cabinets, or between a detached top-level part and a still-nested mate.
+Phase 3 lets a user nest anything, so this cannot be deferred past Phase 2.
+
+**A trap specific to `halflap.ts`.** Task 2.2 converted `worldAabb` to `resolveWorldMatrix` but left
+its three siblings on `composeWorldMatrix`. The file is therefore internally inconsistent right now:
+a nested board gets an ancestor-aware AABB and a top-level-only stack axis. Fixing all three is the
+point of this task — do not leave one behind.
+
+- [ ] **Step 1: Confirm the call sites before editing**
+
+Run: `grep -n 'composeWorldMatrix(' src/geom/dado.ts src/geom/mortisetenon.ts src/geom/tonguegroove.ts src/geom/fingerjoint.ts src/geom/halflap.ts`
+Expected: 16 hits. If the count differs, stop and reconcile before editing.
+
+- [ ] **Step 2: Thread `byId` through each module**
+
+In each file, replace `composeWorldMatrix(x)` with `resolveWorldMatrix(x, byId)` and add
+`byId: Map<ComponentId, Component>` to the enclosing exported function. The `deriveX` functions all
+take `(joint, parts)` — add `byId` as a third parameter.
+
+`deriveJoint` in `src/geom/dado.ts` dispatches to all five, so it gains `byId` and forwards it.
+`reconcileJoints(scene)` in `src/scene/reconcileJoints.ts` is the single caller and already holds the
+scene: it builds `componentsById(scene.components)` once, outside its joint loop, and passes it down.
+
+- [ ] **Step 3: Verify no behaviour changed**
+
+Run: `pnpm typecheck && pnpm lint && pnpm test`
+Expected: PASS with **no edited expectations**. Call-site updates in test files are expected and fine;
+a changed expected VALUE is a real finding — stop and report it.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "refactor(geom): resolve joint geometry through the component tree"
+```
+
+## Task 2.3b: Swap the scene and export consumers
+
+**Files:**
+- Modify: `src/geom/stl.ts` (1), `src/scene/suggestJoints.ts` (2), `src/scene/cutFootprint.ts` (1), `src/scene/obbOverlap.ts` (1), `src/scene/fitCamera.ts` (1), `src/scene/useScene.ts` (2, the STEP export path)
+
+- [ ] **Step 1: Confirm the call sites**
+
+Run: `grep -rn 'composeWorldMatrix' src/ --include=*.ts --include=*.tsx | grep -v '\.test\.' | grep -v 'transform.ts'`
+Expected: only the six files above. Anything else means Task 2.3a left work behind.
 
 - [ ] **Step 2: Thread `byId` through each consumer**
 
-In each file, replace `composeWorldMatrix(x)` with `resolveWorldMatrix(x, byId)` and add `byId: Map<ComponentId, Component>` as a parameter to the enclosing exported function. Update the import line in each file from `composeWorldMatrix` to `resolveWorldMatrix`.
-
-For `src/scene/useScene.ts:1107,1115` (the STEP export path), build the index once at the top of the enclosing callback:
+Same mechanical change. For `src/scene/useScene.ts` (the STEP export callback), build the index once
+at the top of the callback:
 
 ```ts
     const byId = componentsById(sceneRef.current.components)
@@ -965,21 +1014,21 @@ For `src/scene/useScene.ts:1107,1115` (the STEP export path), build the index on
 
 and use it in both `matrix: Array.from(resolveWorldMatrix(p, byId))` lines.
 
-- [ ] **Step 3: Fix the call sites the compiler flags**
+- [ ] **Step 3: Verify**
 
-Run: `pnpm typecheck`
-Expected: FAIL, listing every caller that now needs a `byId` argument — including test files. Pass `componentsById(scene.components)` at each application call site, and `componentsById([])` in tests whose fixtures are flat.
+Run: `pnpm typecheck && pnpm lint && pnpm test`
+Expected: PASS, no edited expectations.
 
-- [ ] **Step 4: Verify no behaviour changed**
+Then confirm the swap is total:
 
-Run: `pnpm test`
-Expected: PASS with the same test count as before this phase. **Every existing assertion must hold unchanged** — that is the proof the swap is behaviour-preserving. If any test needs its expected values edited, stop: the identity property has been broken and the cause must be found before continuing.
+Run: `grep -rn 'composeWorldMatrix' src/ --include=*.ts --include=*.tsx | grep -v '\.test\.' | grep -v 'transform.ts'`
+Expected: **no output.** `composeWorldMatrix` is now an implementation detail of `transform.ts`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/
-git commit -m "refactor(geom): resolve world placement through the component tree everywhere"
+git add -A
+git commit -m "refactor(scene): resolve world placement through the component tree everywhere"
 ```
 
 ## Task 2.4: Viewport places meshes by resolved matrix
