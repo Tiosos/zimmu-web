@@ -195,6 +195,31 @@ describe('validateCarcaseParams', () => {
     ])
   })
 
+  // Defect 3: the side rails run y:[KS+T, D-T], so they invert one thickness before the front
+  // rail alone would run out of depth — 70 + 18 = 88 clears a 100 deep cabinet, 70 + 36 does not.
+  it('rejects a ladder setback that inverts the side rails', () => {
+    const shallow: CarcaseParams = { ...base, baseMode: 'ladder', depth: 100, toeKickSetback: 70 }
+    expect(shallow.toeKickSetback + shallow.thickness).toBeLessThan(shallow.depth)
+    expect(validateCarcaseParams(shallow)).toEqual([
+      'toeKickSetback leaves no room for the ladder side rails',
+    ])
+    expect(carcaseRoles(shallow)).toEqual([])
+
+    // Scoped to ladder mode: a toe kick is a single panel and the old rule already covers it.
+    expect(validateCarcaseParams({ ...base, depth: 100, toeKickSetback: 70 })).toEqual([])
+  })
+
+  // Follows from defect 2: a ladder base now lifts the whole carcase, so toeKickHeight spends the
+  // same height budget it spends under a toe kick and needs the same rules.
+  it('charges a ladder base against the height budget', () => {
+    expect(validateCarcaseParams({ ...base, baseMode: 'ladder', height: 130 })).toContain(
+      'toeKickHeight leaves no room between top and bottom',
+    )
+    expect(validateCarcaseParams({ ...base, baseMode: 'ladder', height: 90 })).toContain(
+      'toeKickHeight must be less than height',
+    )
+  })
+
   it('accepts every plausible real cabinet', () => {
     const cabinets: Record<string, CarcaseParams> = {
       '300 wall unit': { ...base, width: 300, height: 720, depth: 300, baseMode: 'none' },
@@ -247,6 +272,7 @@ const variations: Record<string, CarcaseParams> = {
   'applied back': { ...base, backMode: 'applied' },
   'no base': { ...base, baseMode: 'none' },
   ladder: { ...base, baseMode: 'ladder' },
+  'ladder, divided, shelved': { ...base, baseMode: 'ladder', dividers: [0.5], fixedShelves: 2 },
   legs: { ...base, baseMode: 'legs' },
   'two shelves': { ...base, fixedShelves: 2 },
   'no shelves': { ...base, fixedShelves: 0 },
@@ -262,7 +288,7 @@ describe('carcaseRoles', () => {
       'top',
       'back',
       'toe-kick',
-      'shelf-fixed-0',
+      'shelf-0-0',
     ])
   })
 
@@ -306,12 +332,12 @@ describe('carcaseRoles', () => {
 
   it('stops shelves short of a captured back', () => {
     const roles = carcaseRoles(base)
-    expect(roleBox(roles, 'shelf-fixed-0').max.y).toBeCloseTo(roleBox(roles, 'back').min.y, 9)
+    expect(roleBox(roles, 'shelf-0-0').max.y).toBeCloseTo(roleBox(roles, 'back').min.y, 9)
   })
 
   it('centres a single fixed shelf in the internal height', () => {
     const roles = carcaseRoles(base)
-    const shelf = roleBox(roles, 'shelf-fixed-0')
+    const shelf = roleBox(roles, 'shelf-0-0')
     const below = shelf.min.z - roleBox(roles, 'bottom').max.z
     const above = roleBox(roles, 'top').min.z - shelf.max.z
     expect(below).toBeCloseTo(above, 9)
@@ -320,8 +346,8 @@ describe('carcaseRoles', () => {
 
   it('splits the internal height into equal bays for two fixed shelves', () => {
     const roles = carcaseRoles({ ...base, fixedShelves: 2 })
-    const lower = roleBox(roles, 'shelf-fixed-0')
-    const upper = roleBox(roles, 'shelf-fixed-1')
+    const lower = roleBox(roles, 'shelf-0-0')
+    const upper = roleBox(roles, 'shelf-0-1')
     const bays = [
       lower.min.z - roleBox(roles, 'bottom').max.z,
       upper.min.z - lower.max.z,
@@ -341,7 +367,7 @@ describe('carcaseRoles', () => {
   it('omits the back and runs shelves full depth when backMode is none', () => {
     const roles = carcaseRoles({ ...base, backMode: 'none' })
     expect(roles.map((r) => r.role)).not.toContain('back')
-    expect(roleBox(roles, 'shelf-fixed-0').max.y).toBeCloseTo(560, 9)
+    expect(roleBox(roles, 'shelf-0-0').max.y).toBeCloseTo(560, 9)
   })
 
   it('drops the bottom to the floor when baseMode is none', () => {
@@ -352,7 +378,7 @@ describe('carcaseRoles', () => {
     expect(bottom.max.z).toBeCloseTo(18, 9)
   })
 
-  it('emits four ladder rails under the carcase', () => {
+  it('emits four ladder rails and stands the carcase on top of them', () => {
     const roles = carcaseRoles({ ...base, baseMode: 'ladder' })
     for (const key of ['ladder-front', 'ladder-back', 'ladder-left', 'ladder-right']) {
       const b = roleBox(roles, key)
@@ -363,6 +389,50 @@ describe('carcaseRoles', () => {
     expect(roleBox(roles, 'ladder-back').max.y).toBeCloseTo(560, 9)
     expect(roleBox(roles, 'ladder-left').max.x).toBeCloseTo(18, 9)
     expect(roleBox(roles, 'ladder-right').min.x).toBeCloseTo(582, 9)
+
+    // Defect 2: the sides used to start at z=0 in every mode, so they ran through the rails.
+    // Height is total height from the ground, so the carcase is 620 tall on a 100 mm frame.
+    expect(roleBox(roles, 'left-side').min.z).toBeCloseTo(100, 9)
+    expect(roleBox(roles, 'right-side').min.z).toBeCloseTo(100, 9)
+    expect(roleBox(roles, 'left-side').max.z).toBeCloseTo(720, 9)
+    expect(roleBox(roles, 'bottom').min.z).toBeCloseTo(100, 9)
+    expect(roleBox(roles, 'bottom').max.z).toBeCloseTo(118, 9)
+  })
+
+  // Defect 1: a divider spans the full internal height and a shelf used to span the full internal
+  // width, so the two rows shared volume by construction. Shelves belong to a bay.
+  it('emits fixed shelves per bay, each stopping at the divider', () => {
+    const roles = carcaseRoles({ ...base, dividers: [0.5], fixedShelves: 2 })
+    expect(roles.filter((r) => r.role.startsWith('shelf-')).map((r) => r.role)).toEqual([
+      'shelf-0-0',
+      'shelf-0-1',
+      'shelf-1-0',
+      'shelf-1-1',
+    ])
+    const divider = roleBox(roles, 'divider-0')
+    const left = roleBox(roles, 'shelf-0-0')
+    const right = roleBox(roles, 'shelf-1-0')
+    expect(left.min.x).toBeCloseTo(18, 9)
+    expect(left.max.x).toBeCloseTo(divider.min.x, 9)
+    expect(right.min.x).toBeCloseTo(divider.max.x, 9)
+    expect(right.max.x).toBeCloseTo(582, 9)
+    expect(right.min.z).toBeCloseTo(left.min.z, 9)
+  })
+
+  // `fixedShelves` counts shelves per bay, so two dividers triple the shelf count and the carcase
+  // stays symmetrical.
+  it('repeats the shelf count in every bay', () => {
+    const roles = carcaseRoles({ ...base, dividers: [0.33, 0.66], fixedShelves: 2 })
+    expect(roles.filter((r) => r.role.startsWith('shelf-')).length).toBe(6)
+  })
+
+  it('names shelves by bay only when the carcase has more than one bay', () => {
+    expect(carcaseRoles(base).find((r) => r.role === 'shelf-0-0')?.label).toBe('Shelf 1')
+    const divided = carcaseRoles({ ...base, dividers: [0.5] })
+    expect(divided.filter((r) => r.role.startsWith('shelf-')).map((r) => r.label)).toEqual([
+      'Bay 1 Shelf 1',
+      'Bay 2 Shelf 1',
+    ])
   })
 
   it('centres a divider on its width fraction', () => {
@@ -386,21 +456,21 @@ describe('carcaseRoles', () => {
   })
 
   // Checks the panels against each other rather than against numbers copied from the spec: an
-  // arithmetic slip in one row of the table shows up as two boards occupying the same volume.
-  // Two combinations are deliberately absent because the role table itself makes them cross, and
-  // no arithmetic here can separate them: a divider spans the full internal height while a fixed
-  // shelf spans the full internal width, and a ladder base occupies z 0..toeKickHeight while the
-  // sides and bottom still start at z=0 (floor only rises for a toe kick). Both are gaps in the
-  // table, recorded rather than papered over.
+  // arithmetic slip in one row of the table shows up as two boards occupying the same volume. It
+  // is what caught all three of the geometry defects the table used to carry.
   it('never lets two panels share volume', () => {
     const cases: Record<string, CarcaseParams> = {
       base,
-      divided: { ...base, dividers: [0.35, 0.7], fixedShelves: 0 },
-      'two shelves': { ...base, fixedShelves: 2 },
-      'open, topless': { ...base, backMode: 'none', hasTop: false, baseMode: 'none' },
+      divided: { ...base, dividers: [0.5] },
+      'divided, two shelves': { ...base, dividers: [0.35, 0.7], fixedShelves: 2 },
+      ladder: { ...base, baseMode: 'ladder' },
+      'ladder, divided, shelved': { ...base, baseMode: 'ladder', dividers: [0.5], fixedShelves: 2 },
+      'open, topless, on legs': { ...base, hasTop: false, backMode: 'none', baseMode: 'legs' },
+      'no shelves': { ...base, fixedShelves: 0 },
     }
     for (const [name, params] of Object.entries(cases)) {
       const boxes = carcaseRoles(params).map((r) => ({ role: r.role, box: aabb(r.panel) }))
+      expect(boxes.length, name).toBeGreaterThan(0)
       for (let i = 0; i < boxes.length; i++) {
         for (let j = i + 1; j < boxes.length; j++) {
           expect(
