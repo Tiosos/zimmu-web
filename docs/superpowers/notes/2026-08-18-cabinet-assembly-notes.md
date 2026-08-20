@@ -343,3 +343,61 @@ grepping for direct consumers of the symbol being changed, which finds the first
 ring above it. `worldAabb` → `suggestJoints` was obvious; `suggestJoints` → `jointChecklist` →
 `SceneSuggestionsPanel` was not. For any future signature change, the list should be built by
 following the compiler out to a fixpoint on a scratch branch, not by grepping once.
+
+## 2026-08-20 — Task 2.4: the viewport, and the frame mismatches it exposed
+
+### The viewport needed a different edit from the other 24 call sites
+
+`viewport.tsx` never called `composeWorldMatrix`, so the grep that built Phase 2's consumer list
+missed it entirely. It set `mesh.position` / `mesh.rotation` straight from the part, which is the
+same composition written a different way. It is now placed by `mesh.matrix.fromArray(resolveWorldMatrix(part, componentMap))`
+with `matrixAutoUpdate = false`.
+
+One non-obvious consequence of that flag: Three raises `matrixWorldNeedsUpdate` inside
+`Object3D.updateMatrix()`, and `updateMatrixWorld()` only recomputes `matrixWorld` when that flag
+is set or `force` is passed. With `matrixAutoUpdate = false` nothing calls `updateMatrix()`, so
+every manual `matrix` write must raise `matrixWorldNeedsUpdate` itself or `matrixWorld` silently
+keeps its previous value — and `matrixWorld` is what the raycaster reads to build a `FaceHit`.
+Stale-matrix bugs here would look like "clicking a board picks the wrong face", not like a crash.
+The three placement sites (mesh, edge lines, snap ghost) all set the flag.
+
+An upside worth recording: because the raycaster derives `localHitPoint` / `localFaceNormal` by
+inverting `mesh.matrixWorld`, those two fields become correct for nested parts for free, and every
+consumer that reads only them (`useAddCut` and the dowel-cut tools) is already frame-correct.
+
+### Frame mismatch: world-space FaceHits feeding parent-local part fields
+
+Recorded, deliberately NOT fixed — it is outside Phase 2's no-behaviour-change contract.
+
+`FaceHit.faceNormal`, `faceCenter` and `hitPoint` are **world** space (the raycaster builds them by
+applying `mesh.matrixWorld`). `Part.position` and `Part.rotation` are **parent-local** as of Phase 1.
+Three functions bridge those frames without converting:
+
+- `computeSnapTransform` (`snapMath.ts:123`) mixes `sourceFace`/`targetFace` world data with
+  `sourcePart.position`/`rotation` read as if world, and returns a `{position, rotation}` that
+  `useSnap` (`useSnap.ts:93-96`) writes straight into `part.position`/`part.rotation`.
+- `computeDowelSnapTransform` (`snapMath.ts:211`) does the same, landing on `targetFace.faceCenter`
+  or `targetFace.hitPoint`.
+- `computeFaceCorners` (`snapMath.ts:70`) composes a matrix from `part.position`/`rotation` alone,
+  ignoring `parentId` — it is `composeWorldMatrix` inlined by hand, which is why the Phase 2 grep
+  missed it too. Its corners feed the viewport's snap/hover `LineLoop`s and `suggestionOutline.ts`,
+  all of which are unparented scene objects drawn in world space.
+
+All three are correct **today** only because every part has `parentId === null`, which makes the
+parent-local frame and the world frame the same frame. Once a part is nested under a component with
+a non-identity placement:
+
+- snapping a nested board would write a world position into a local field, so the board would jump
+  by the component's transform (doubly displaced once the component transform is applied on render);
+- its snap ghost, highlight loops and suggestion outlines would draw at the un-parented location,
+  i.e. the preview and the result would disagree in the same way.
+
+The fix belongs to a later phase and has a clear shape: convert the FaceHit world data into the
+source part's parent frame before the math (or do the math in world and convert the result back
+with the inverse of the parent chain), and give `computeFaceCorners` the `componentMap` so it goes
+through `resolveWorldMatrix` like every other consumer. Both need `Part.parentId` to actually be
+non-null somewhere before they can be tested, so they are gated on Phase 3.
+
+`suggestJoints.ts` is already clear of this: `worldFaceNormal(part, face, byId)` (`suggestJoints.ts:135`)
+takes the component map and resolves through the tree, and its synthetic hits set `faceCenter` and
+`hitPoint` to zero rather than to an unresolved placement.

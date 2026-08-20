@@ -12,6 +12,7 @@ import {
   computeSnapTransform,
 } from '../scene/snapMath'
 import { fitCameraToParts, fitFarPlane, nearPlaneForFar } from '../scene/fitCamera'
+import { resolveWorldMatrix } from '../geom/transform'
 
 interface ViewportProps {
   parts: Part[]
@@ -477,7 +478,6 @@ export function Viewport({
     const scene = sceneRef.current
     if (!scene) return
 
-    const deg2rad = Math.PI / 180
     const partMap = new Map(parts.map((p) => [p.id, p]))
 
     // Remove meshes for deleted parts
@@ -503,10 +503,6 @@ export function Viewport({
       const geo = geometries.get(part.id)
       if (!geo) continue
 
-      const rx = part.rotation.x * deg2rad
-      const ry = part.rotation.y * deg2rad
-      const rz = part.rotation.z * deg2rad
-
       const existing = meshes.current.get(part.id)
       if (!existing) {
         const mat = new THREE.MeshStandardMaterial({
@@ -516,16 +512,22 @@ export function Viewport({
           flatShading: true,
         })
         const mesh = new THREE.Mesh(geo, mat)
-        mesh.position.set(part.position.x, part.position.y, part.position.z)
-        mesh.rotation.set(rx, ry, rz, part.rotationOrder)
+        // Placement comes from the component tree, not from position/rotation, so the local matrix
+        // is written directly. With matrixAutoUpdate off Three never calls updateMatrix(), which is
+        // what normally raises matrixWorldNeedsUpdate — so each assignment must raise it itself or
+        // matrixWorld (which the raycaster reads) goes stale.
+        mesh.matrixAutoUpdate = false
+        mesh.matrix.fromArray(resolveWorldMatrix(part, componentMap))
+        mesh.matrixWorldNeedsUpdate = true
         scene.add(mesh)
         meshes.current.set(part.id, mesh)
         mesh.visible = part.visible
 
         const edgeMat = new THREE.LineBasicMaterial({ color: 0x1a1a1d })
         const el = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 15), edgeMat)
-        el.position.copy(mesh.position)
-        el.rotation.copy(mesh.rotation)
+        el.matrixAutoUpdate = false
+        el.matrix.copy(mesh.matrix)
+        el.matrixWorldNeedsUpdate = true
         scene.add(el)
         edgeLines.current.set(part.id, el)
         el.visible = part.visible
@@ -536,11 +538,11 @@ export function Viewport({
           el.geometry.dispose()
           el.geometry = new THREE.EdgesGeometry(geo, 15)
         }
-        existing.position.set(part.position.x, part.position.y, part.position.z)
-        existing.rotation.set(rx, ry, rz, part.rotationOrder)
+        existing.matrix.fromArray(resolveWorldMatrix(part, componentMap))
+        existing.matrixWorldNeedsUpdate = true
         const el = edgeLines.current.get(part.id)!
-        el.position.copy(existing.position)
-        el.rotation.copy(existing.rotation)
+        el.matrix.copy(existing.matrix)
+        el.matrixWorldNeedsUpdate = true
         existing.visible = part.visible
         el.visible = part.visible
         ;(existing.material as THREE.MeshStandardMaterial).color.set(part.color)
@@ -559,7 +561,7 @@ export function Viewport({
         id === selectedId ? 0x222244 : 0x000000,
       )
     }
-  }, [parts, geometries, selectedId, highlightedIds])
+  }, [parts, componentMap, geometries, selectedId, highlightedIds])
 
   // Snap highlight update — rebuilds LineLoop geometry when faces change
   useEffect(() => {
@@ -640,18 +642,12 @@ export function Viewport({
     }
     const { position, rotation } = computeSnapTransform(sourceFace, hoveredFace, src)
     ghost.geometry = geo
-    ghost.position.set(position.x, position.y, position.z)
-    ghost.setRotationFromEuler(
-      new THREE.Euler(
-        rotation.x * THREE.MathUtils.DEG2RAD,
-        rotation.y * THREE.MathUtils.DEG2RAD,
-        rotation.z * THREE.MathUtils.DEG2RAD,
-        src.rotationOrder,
-      ),
-    )
+    ghost.matrixAutoUpdate = false
+    ghost.matrix.fromArray(resolveWorldMatrix({ ...src, position, rotation }, componentMap))
+    ghost.matrixWorldNeedsUpdate = true
     ;(ghost.material as THREE.MeshStandardMaterial).color.set(src.color)
     ghost.visible = true
-  }, [snapPhase, sourceFace, hoveredFace, parts, geometries])
+  }, [snapPhase, sourceFace, hoveredFace, parts, componentMap, geometries])
 
   useEffect(() => {
     const mount = mountRef.current
