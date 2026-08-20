@@ -1110,6 +1110,183 @@ git add src/render/viewport.tsx src/App.tsx
 git commit -m "refactor(viewport): place meshes by resolved world matrix"
 ```
 
+## Task 2.5a: Consolidate the four hand-inlined `localDirToWorld` copies
+
+**Added 2026-08-20.** Task 2.3b's success grep — no `composeWorldMatrix` callers outside
+`transform.ts` — passes, but it proves less than it appears to. A sweep for the *computation* rather
+than the symbol finds seven sites that compose a world pose by hand and therefore ignore ancestors.
+Five are mechanical; they are this task. The two snap transforms need an inverse and are Task 2.5b.
+
+Four of the five sit in the very files Task 2.3a "finished": it replaced every `composeWorldMatrix(`
+call and left a private function computing the rotation half of the same thing three lines above.
+
+**Files:**
+- Modify: `src/geom/transform.ts` (add the shared helper), `src/geom/dado.ts`, `src/geom/mortisetenon.ts`, `src/geom/tonguegroove.ts`, `src/geom/fingerjoint.ts`, `src/scene/snapMath.ts` (`computeFaceCorners` only)
+
+- [ ] **Step 1: Confirm the four copies are identical**
+
+Run: `for f in dado mortisetenon tonguegroove fingerjoint; do sed -n '/function localDirToWorld/,/^}/p' src/geom/$f.ts | md5sum; done`
+Expected: four identical hashes. If they differ, diff them before consolidating — a divergence is a finding.
+
+- [ ] **Step 2: Write the failing test**
+
+Append to `src/geom/transform.test.ts`. A direction transformed under a rotated ancestor must pick up
+that ancestor's rotation:
+
+```ts
+describe('localDirToWorld', () => {
+  it('applies an ancestor component rotation to the direction', () => {
+    const cab = comp('a', null, [0, 0, 0], [0, 0, 90])
+    const p = part('a', [0, 0, 0], [0, 0, 0])
+    // local +X under a 90 degree yaw becomes world +Y
+    const got = localDirToWorld(p, { x: 1, y: 0, z: 0 }, componentsById([cab]))
+    expect(got.x).toBeCloseTo(0, 9)
+    expect(got.y).toBeCloseTo(1, 9)
+  })
+
+  it('is unchanged for a top-level part', () => {
+    const p = part(null, [0, 0, 0], [0, 0, 90])
+    const got = localDirToWorld(p, { x: 1, y: 0, z: 0 }, componentsById([]))
+    expect(got.x).toBeCloseTo(0, 9)
+    expect(got.y).toBeCloseTo(1, 9)
+  })
+})
+```
+
+Reuse the `comp`/`part` helpers already in that file.
+
+- [ ] **Step 3: Run and confirm failure**
+
+Run: `pnpm vitest run src/geom/transform.test.ts`
+Expected: FAIL — `localDirToWorld is not a function`.
+
+- [ ] **Step 4: Implement the shared helper**
+
+Add to `src/geom/transform.ts`. Derive the rotation from the resolved matrix rather than re-composing
+Euler angles, so there is exactly one place that knows the rotation convention:
+
+```ts
+// A direction expressed in a part's local frame, rotated into world space. Reads the rotation
+// block of the resolved matrix, so it picks up ancestor rotation without re-deriving Euler order.
+export function localDirToWorld(
+  node: Part | Component,
+  dir: Vec3,
+  byId: Map<ComponentId, Component>,
+): THREE.Vector3 {
+  const m = resolveWorldMatrix(node, byId)
+  return new THREE.Vector3(
+    m[0] * dir.x + m[4] * dir.y + m[8] * dir.z,
+    m[1] * dir.x + m[5] * dir.y + m[9] * dir.z,
+    m[2] * dir.x + m[6] * dir.y + m[10] * dir.z,
+  )
+}
+```
+
+Note this applies the rotation block only — no translation — which is what a direction requires.
+
+Delete the four private copies and import the shared one. Thread `byId` to each call site; the
+enclosing functions already have it from Task 2.3a.
+
+- [ ] **Step 5: `computeFaceCorners` takes `byId`**
+
+`src/scene/snapMath.ts:101` builds `new THREE.Matrix4().compose(position, quaternionFromEuler(rotation))`
+— `composeWorldMatrix` inlined by hand. Replace with `resolveWorldMatrix(part, byId)` and add `byId`
+to the signature. Follow the compiler to its callers (`viewport.tsx` highlight loops,
+`suggestionOutline.ts`); both already hold a component map.
+
+- [ ] **Step 6: Verify**
+
+Run: `pnpm typecheck && pnpm lint && pnpm test`
+Baseline **809 passed, 10 skipped**; expect 811 (your 2 new tests). No existing expectation may change.
+
+Run: `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e`
+Expected: 8 passed. `suggestion-highlight.spec.ts` exercises `computeFaceCorners` through the
+highlight outline, so it is the spec that would catch a regression here.
+
+- [ ] **Step 7: Commit** (explicit paths, never `git add -A`)
+
+```bash
+git add src/geom/transform.ts src/geom/transform.test.ts src/geom/dado.ts src/geom/mortisetenon.ts src/geom/tonguegroove.ts src/geom/fingerjoint.ts src/scene/snapMath.ts
+git commit -m "refactor(geom): one localDirToWorld that resolves through the component tree"
+```
+
+## Task 2.5b: Snap transforms round-trip through the parent frame
+
+**The deeper half of the same finding.** `computeSnapTransform` and `computeDowelSnapTransform` read
+`sourcePart.rotation` — a **parent-local** value — under a comment calling it "current world
+rotation", compute a world-space placement from world-space `FaceHit`s, and return it to be written
+straight back into `part.position`/`part.rotation`, which are parent-local.
+
+Every one of those steps is correct today because a top-level part's local frame *is* the world frame.
+Under nesting, snapping a board inside a cabinet would write world coordinates into a local field and
+the board would jump by the cabinet's transform.
+
+**Files:**
+- Modify: `src/scene/snapMath.ts`, `src/scene/useSnap.ts` (call sites)
+- Test: `src/scene/snapMath.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+describe('computeSnapTransform under a transformed ancestor', () => {
+  it('returns a parent-local placement, not a world one', () => {
+    // Cabinet translated 500mm in x. A snap that puts the board at world x=500
+    // must return local x=0, because the parent already supplies the 500.
+    const cab = comp('cmp_1', null, [500, 0, 0], [0, 0, 0])
+    const byId = componentsById([cab])
+    const nested = { ...boardFixture, parentId: 'cmp_1' }
+
+    const flat = computeSnapTransform(sourceFace, targetFace, boardFixture, componentsById([]))
+    const under = computeSnapTransform(sourceFace, targetFace, nested, byId)
+
+    expect(under.position.x).toBeCloseTo(flat.position.x - 500, 6)
+  })
+
+  it('is identical to today for a top-level part', () => {
+    const got = computeSnapTransform(sourceFace, targetFace, boardFixture, componentsById([]))
+    expect(got).toEqual(computeSnapTransformLegacyExpectation)
+  })
+})
+```
+
+Build the fixtures from the file's existing ones. The second test is the Phase 2 contract restated:
+for a top-level part the function must return exactly what it returns today.
+
+- [ ] **Step 2: Run and confirm failure**
+
+Expected: arity error, then a failing `flat.position.x - 500` assertion once the parameter exists.
+
+- [ ] **Step 3: Implement the round-trip**
+
+Read through the tree, then convert the world result back into the parent's frame before returning:
+
+```ts
+  const parentWorld = ancestorWorldMatrix(sourcePart, byId) // identity when parentId === null
+  const localMatrix = new THREE.Matrix4()
+    .copy(new THREE.Matrix4().fromArray(Array.from(parentWorld)))
+    .invert()
+    .multiply(worldResult)
+```
+
+then `decompose` into position and quaternion, and `Euler.setFromQuaternion(q, 'XYZ')` for the
+returned degrees. Add `ancestorWorldMatrix(node, byId)` to `transform.ts` — the product of the
+ancestors *excluding* the node's own local matrix — since both this task and any future local↔world
+conversion need it, and `resolveWorldMatrix` can then be expressed in terms of it.
+
+Apply the identical treatment to `computeDowelSnapTransform`.
+
+- [ ] **Step 4: Verify**
+
+Run: `pnpm typecheck && pnpm lint && pnpm test` — no edited expectations.
+Run the e2e suite; snapping is exercised by the smoke specs.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/scene/snapMath.ts src/scene/snapMath.test.ts src/scene/useSnap.ts
+git commit -m "fix(scene): snap transforms return a parent-local placement"
+```
+
 ## Phase 2 verification
 
 - [ ] `pnpm typecheck && pnpm lint && pnpm test` — green, **with the same test count and no edited expectations** versus Phase 1.
