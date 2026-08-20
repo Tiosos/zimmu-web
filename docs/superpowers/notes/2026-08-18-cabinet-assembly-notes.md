@@ -610,3 +610,69 @@ pinning it. No dangling-selection bug to fix. The new behaviour needed is the co
 selection must survive the removal of a part — which is why every part-scoped clear is now
 `prev?.kind === 'part' && prev.id === id ? null : prev`. Without the `kind` guard, deleting any board
 would silently deselect the cabinet you were editing.
+
+## 2026-08-20 — Task 3.4, the tree on screen
+
+### `SceneTree` takes four props beyond the five the plan named
+
+The plan's signature was `components / parts / selection / onSelect / onToggleVisible`. Implemented
+verbatim, replacing the flat list would have **deleted** four things the flat list had: the ⚠ error
+badge (with the OCCT message as its `title`), the ⟳ pending spinner, and the per-row Duplicate and
+Delete buttons. Four existing `sidebar.test.tsx` tests pin exactly those, and `step-export.spec.ts`
+/ `smoke.spec.ts` assert `⚠` has count 0 — an assertion that would have silently become vacuous
+rather than failing loudly.
+
+So `SceneTree` also takes `errors`, `pendingIds`, `onDuplicate`, `onRemove`, and part rows keep the
+markup they had. The specified five props are unchanged; this is a superset, not a substitution.
+Dropping a row affordance is a product decision, not a side effect of moving the list.
+
+### Component visibility is a field, part visibility is an action
+
+`onToggleVisible` on the tree takes a `Selection`, but `useScene` has no component-visibility action
+and does not need one: a component's `visible` is just a field, so `App` toggles it through
+`onUpdateComponent`. Parts keep `onToggleVisible(id)` because hiding a board is its own undo entry
+with its own label.
+
+**Known gap:** `viewport.tsx` reads `part.visible` only, so hiding a *component* currently greys its
+row in the tree and persists to the file, but does not hide its parts in 3D. Resolving visibility
+through ancestors is the same shape of change Phase 2 made for placement, and belongs with whatever
+task takes it on — not smuggled into the tree.
+
+### `onSelectPart` survives, deliberately, for the viewport only
+
+Task 3.2 recorded the adapter as a stopgap to be deleted here. It is gone from the **sidebar** path:
+`Sidebar` now speaks `Selection` end to end. It stays for `Viewport` and `useInteractionMode`, both
+of which address parts by id because a mesh click can only ever land on a part and nothing
+component-shaped is drawn in the 3D scene. Widening them would cascade into `useAddCut` for no gain.
+
+### Changed expectations, and why each is legitimate
+
+Phase 3 changes behaviour, so these are not regressions:
+
+- `sidebar.test.tsx`: `expect(onSelect).toHaveBeenCalledWith('board_t1')` →
+  `…toHaveBeenCalledWith({ kind: 'part', id: 'board_t1' })`, same for `onToggleVisible`. The sidebar
+  now reports a `Selection`, which is the whole point of the task.
+- `sidebar.test.tsx`: every `selectedId: 'x'` prop became `selection: partSel('x')`. Prop shape, not
+  a changed expected value.
+- `useScene.test.ts`: the component-coalescing test expected the pre-edit label `'Group'` and now
+  expects `'Group 1'`, because `onAddComponent` numbers labels (B3).
+
+### B4: the seven booleans went; the `tools` array did not
+
+`activeMode` replaces the seven `*Active` booleans as required. The seven `onXToggle` callbacks
+collapse to one `onSetMode`, and the five `*Status` strings to the existing `statuses` object from
+`useInteractionMode` — 49 props down to 31, with every button's markup untouched.
+
+The data-driven `tools` array was **not** built. The six buttons are not interchangeable: Add Cut is
+a single-line `h-8` button with no status line at all, Snap derives its sub-label from `snapPhase`
+rather than a status string, and only the five joint tools share the `status ?? fallback` shape.
+Rendering them from one array means either three branches inside the map — no simpler than the JSX
+it replaces — or flattening Cut and Snap into a shape they do not have, which is a visual change
+smuggled in as a refactor. Phase 5's extra entry is a joint tool, so it can join the five without
+the array existing.
+
+### No UI entry point creates a component yet
+
+The tree renders `scene.components`, but nothing in the sidebar calls `onAddComponent` — components
+only enter a scene from a `.zimmu` file today. Adding a "+ Group" button was outside this task; it
+belongs with the carcase-creation UI that needs it.

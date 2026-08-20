@@ -170,6 +170,13 @@ export function useScene(): UseSceneResult {
     }, 0)
     return max > 0 ? max : scene.parts.length
   }, [scene])
+  const componentLabelCounter = useMemo(() => {
+    const max = scene.components.reduce((m, c) => {
+      const match = /Group (\d+)/.exec(c.label)
+      return match ? Math.max(m, parseInt(match[1], 10)) : m
+    }, 0)
+    return max > 0 ? max : scene.components.length
+  }, [scene])
   const colorIndex = useRef(0)
 
   const pastRef = useRef<HistoryEntry[]>([])
@@ -1110,7 +1117,7 @@ export function useScene(): UseSceneResult {
       const component: GroupComponent = {
         kind: 'group',
         id: `cmp_${crypto.randomUUID()}`,
-        label: 'Group',
+        label: `Group ${componentLabelCounter + 1}`,
         parentId,
         position: { x: 0, y: 0, z: 0 },
         rotation: { x: 0, y: 0, z: 0 },
@@ -1128,11 +1135,15 @@ export function useScene(): UseSceneResult {
         redo: () => setScene((prev) => ({ ...prev, components: [...prev.components, component] })),
       })
     },
-    [push],
+    [componentLabelCounter, push],
   )
 
   const onRemoveComponent = useCallback(
     (id: ComponentId) => {
+      const doomed = new Set<ComponentId>([
+        id,
+        ...descendantIds(id, sceneRef.current.components, sceneRef.current.parts).componentIds,
+      ])
       commitReconciled((before) => {
         const { componentIds, partIds } = descendantIds(id, before.components, before.parts)
         const doomedComponents = new Set([id, ...componentIds])
@@ -1166,6 +1177,9 @@ export function useScene(): UseSceneResult {
           ),
         }
       }, 'Delete component')
+      // A selection pointing at a component that is gone is a dangling reference the panel would
+      // try to render. A part selection is left alone: the part itself may well have survived.
+      setSelection((prev) => (prev?.kind === 'component' && doomed.has(prev.id) ? null : prev))
     },
     [commitReconciled],
   )

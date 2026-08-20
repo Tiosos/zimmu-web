@@ -1,6 +1,7 @@
 import type { CutDef, CutId, Joint, Part, PartId, Scene, Selection } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
 import type { JointSuggestion } from '../scene/suggestJoints'
+import type { InteractionMode, UseInteractionModeResult } from '../scene/useInteractionMode'
 import { EditPanel } from './EditPanel'
 import { SceneTree } from './SceneTree'
 import { SceneSuggestionsPanel } from './SceneSuggestionsPanel'
@@ -26,31 +27,15 @@ interface SidebarProps {
   lastPlacedCutId: CutId | null
   selection: Selection | null
   onSelect: (s: Selection | null) => void
-  snapActive: boolean
+  activeMode: InteractionMode
+  onSetMode: (mode: InteractionMode) => void
+  statuses: UseInteractionModeResult['statuses']
   snapPhase: 'idle' | 'source-picked'
-  onSnapToggle: () => void
-  cutActive: boolean
-  onCutToggle: () => void
   onToggleVisible: (s: Selection) => void
   dowelTool: DowelCutTool | null
   armDowelTool: (tool: DowelCutTool) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
-  jointActive: boolean
-  onJointToggle: () => void
-  jointStatus: string | null
-  halfLapActive: boolean
-  onHalfLapToggle: () => void
-  halfLapStatus: string | null
-  mortiseTenonActive: boolean
-  onMortiseTenonToggle: () => void
-  mortiseTenonStatus: string | null
-  fingerJointActive: boolean
-  onFingerJointToggle: () => void
-  fingerJointStatus: string | null
-  tongueGrooveActive: boolean
-  onTongueGrooveToggle: () => void
-  tongueGrooveStatus: string | null
   suggestions: JointSuggestion[]
   sceneSuggestions: JointSuggestion[]
   onApplySuggestion: (s: JointSuggestion) => void
@@ -76,31 +61,15 @@ export function Sidebar({
   lastPlacedCutId,
   selection,
   onSelect,
-  snapActive,
+  activeMode,
+  onSetMode,
+  statuses,
   snapPhase,
-  onSnapToggle,
-  cutActive,
-  onCutToggle,
   onToggleVisible,
   dowelTool,
   armDowelTool,
   onUpdateJoint,
   onRemoveJoint,
-  jointActive,
-  onJointToggle,
-  jointStatus,
-  halfLapActive,
-  onHalfLapToggle,
-  halfLapStatus,
-  mortiseTenonActive,
-  onMortiseTenonToggle,
-  mortiseTenonStatus,
-  fingerJointActive,
-  onFingerJointToggle,
-  fingerJointStatus,
-  tongueGrooveActive,
-  onTongueGrooveToggle,
-  tongueGrooveStatus,
   suggestions,
   sceneSuggestions,
   onApplySuggestion,
@@ -116,21 +85,21 @@ export function Sidebar({
         {/* Mode buttons */}
         <div className="p-2 pb-0 flex flex-col gap-1">
           <Button
-            variant={cutActive ? 'secondary' : 'outline'}
+            variant={activeMode === 'cut' ? 'secondary' : 'outline'}
             size="sm"
-            onClick={onCutToggle}
-            className={`w-full text-xs h-8 ${cutActive ? 'border-blue-700/50 text-blue-300' : 'text-muted-foreground'}`}
+            onClick={() => onSetMode('cut')}
+            className={`w-full text-xs h-8 ${activeMode === 'cut' ? 'border-blue-700/50 text-blue-300' : 'text-muted-foreground'}`}
           >
-            {cutActive ? 'Adding Cut' : 'Add Cut'}
+            {activeMode === 'cut' ? 'Adding Cut' : 'Add Cut'}
           </Button>
           <Button
-            variant={snapActive ? 'secondary' : 'outline'}
+            variant={activeMode === 'snap' ? 'secondary' : 'outline'}
             size="sm"
-            onClick={onSnapToggle}
-            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${snapActive ? 'border-green-700/50 text-green-300' : 'text-muted-foreground'}`}
+            onClick={() => onSetMode('snap')}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${activeMode === 'snap' ? 'border-green-700/50 text-green-300' : 'text-muted-foreground'}`}
           >
-            <span>{snapActive ? 'Snapping' : 'Snap faces'}</span>
-            {snapActive && (
+            <span>{activeMode === 'snap' ? 'Snapping' : 'Snap faces'}</span>
+            {activeMode === 'snap' && (
               <span className="text-[10px] text-muted-foreground font-normal">
                 {snapPhase === 'idle'
                   ? 'Click a face · Esc to cancel'
@@ -139,67 +108,67 @@ export function Sidebar({
             )}
           </Button>
           <Button
-            variant={jointActive ? 'secondary' : 'outline'}
+            variant={activeMode === 'dado' ? 'secondary' : 'outline'}
             size="sm"
-            onClick={onJointToggle}
-            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${jointActive ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
+            onClick={() => onSetMode('dado')}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${activeMode === 'dado' ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
           >
-            <span>{jointActive ? 'Dado joint' : 'Add Dado'}</span>
-            {jointActive && (
+            <span>{activeMode === 'dado' ? 'Dado joint' : 'Add Dado'}</span>
+            {activeMode === 'dado' && (
               <span className="text-[10px] text-muted-foreground font-normal">
-                {jointStatus ?? 'Click housing face, then housed end · Esc to cancel'}
+                {statuses.dado ?? 'Click housing face, then housed end · Esc to cancel'}
               </span>
             )}
           </Button>
           <Button
-            variant={halfLapActive ? 'secondary' : 'outline'}
+            variant={activeMode === 'halflap' ? 'secondary' : 'outline'}
             size="sm"
-            onClick={onHalfLapToggle}
-            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${halfLapActive ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
+            onClick={() => onSetMode('halflap')}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${activeMode === 'halflap' ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
           >
-            <span>{halfLapActive ? 'Half-lap joint' : 'Add Half-lap'}</span>
-            {halfLapActive && (
+            <span>{activeMode === 'halflap' ? 'Half-lap joint' : 'Add Half-lap'}</span>
+            {activeMode === 'halflap' && (
               <span className="text-[10px] text-muted-foreground font-normal">
-                {halfLapStatus ?? 'Click first board, then second board · Esc to cancel'}
+                {statuses.halflap ?? 'Click first board, then second board · Esc to cancel'}
               </span>
             )}
           </Button>
           <Button
-            variant={mortiseTenonActive ? 'secondary' : 'outline'}
+            variant={activeMode === 'mortiseTenon' ? 'secondary' : 'outline'}
             size="sm"
-            onClick={onMortiseTenonToggle}
-            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${mortiseTenonActive ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
+            onClick={() => onSetMode('mortiseTenon')}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${activeMode === 'mortiseTenon' ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
           >
-            <span>{mortiseTenonActive ? 'Mortise & tenon' : 'Add Mortise & tenon'}</span>
-            {mortiseTenonActive && (
+            <span>{activeMode === 'mortiseTenon' ? 'Mortise & tenon' : 'Add Mortise & tenon'}</span>
+            {activeMode === 'mortiseTenon' && (
               <span className="text-[10px] text-muted-foreground font-normal">
-                {mortiseTenonStatus ?? 'Click mortise board, then tenon board · Esc to cancel'}
+                {statuses.mortiseTenon ?? 'Click mortise board, then tenon board · Esc to cancel'}
               </span>
             )}
           </Button>
           <Button
-            variant={fingerJointActive ? 'secondary' : 'outline'}
+            variant={activeMode === 'finger' ? 'secondary' : 'outline'}
             size="sm"
-            onClick={onFingerJointToggle}
-            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${fingerJointActive ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
+            onClick={() => onSetMode('finger')}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${activeMode === 'finger' ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
           >
-            <span>{fingerJointActive ? 'Finger joint' : 'Add Finger joint'}</span>
-            {fingerJointActive && (
+            <span>{activeMode === 'finger' ? 'Finger joint' : 'Add Finger joint'}</span>
+            {activeMode === 'finger' && (
               <span className="text-[10px] text-muted-foreground font-normal">
-                {fingerJointStatus ?? 'Click first board, then second board · Esc to cancel'}
+                {statuses.finger ?? 'Click first board, then second board · Esc to cancel'}
               </span>
             )}
           </Button>
           <Button
-            variant={tongueGrooveActive ? 'secondary' : 'outline'}
+            variant={activeMode === 'tongueGroove' ? 'secondary' : 'outline'}
             size="sm"
-            onClick={onTongueGrooveToggle}
-            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${tongueGrooveActive ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
+            onClick={() => onSetMode('tongueGroove')}
+            className={`w-full text-xs h-auto py-1.5 flex flex-col gap-0.5 ${activeMode === 'tongueGroove' ? 'border-amber-700/50 text-amber-300' : 'text-muted-foreground'}`}
           >
-            <span>{tongueGrooveActive ? 'Tongue & groove' : 'Add Tongue & groove'}</span>
-            {tongueGrooveActive && (
+            <span>{activeMode === 'tongueGroove' ? 'Tongue & groove' : 'Add Tongue & groove'}</span>
+            {activeMode === 'tongueGroove' && (
               <span className="text-[10px] text-muted-foreground font-normal">
-                {tongueGrooveStatus ?? 'Click groove edge, then tongue edge · Esc to cancel'}
+                {statuses.tongueGroove ?? 'Click groove edge, then tongue edge · Esc to cancel'}
               </span>
             )}
           </Button>

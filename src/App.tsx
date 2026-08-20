@@ -419,30 +419,14 @@ function App() {
           selection={selection}
           onSelect={onSelect}
           onToggleVisible={handleToggleVisible}
-          snapActive={mode.activeMode === 'snap'}
+          activeMode={mode.activeMode}
+          onSetMode={mode.setMode}
+          statuses={mode.statuses}
           snapPhase={mode.snapPhase}
-          onSnapToggle={() => mode.setMode('snap')}
-          cutActive={mode.activeMode === 'cut'}
-          onCutToggle={() => mode.setMode('cut')}
           dowelTool={mode.dowelTool}
           armDowelTool={mode.armDowelTool}
           onUpdateJoint={onUpdateJoint}
           onRemoveJoint={onRemoveJoint}
-          jointActive={mode.activeMode === 'dado'}
-          onJointToggle={() => mode.setMode('dado')}
-          jointStatus={mode.statuses.dado}
-          halfLapActive={mode.activeMode === 'halflap'}
-          onHalfLapToggle={() => mode.setMode('halflap')}
-          halfLapStatus={mode.statuses.halflap}
-          mortiseTenonActive={mode.activeMode === 'mortiseTenon'}
-          onMortiseTenonToggle={() => mode.setMode('mortiseTenon')}
-          mortiseTenonStatus={mode.statuses.mortiseTenon}
-          fingerJointActive={mode.activeMode === 'finger'}
-          onFingerJointToggle={() => mode.setMode('finger')}
-          fingerJointStatus={mode.statuses.finger}
-          tongueGrooveActive={mode.activeMode === 'tongueGroove'}
-          onTongueGrooveToggle={() => mode.setMode('tongueGroove')}
-          tongueGrooveStatus={mode.statuses.tongueGroove}
           suggestions={suggestions}
           sceneSuggestions={sceneSuggestions}
           onApplySuggestion={applySuggestion}

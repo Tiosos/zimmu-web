@@ -453,6 +453,8 @@
 ├── render/
 │   └── viewport.tsx
 ├── scene/
+│   ├── componentTree.test.ts
+│   ├── componentTree.ts
 │   ├── cutFootprint.test.ts
 │   ├── cutFootprint.ts
 │   ├── defaultJoint.ts
@@ -523,6 +525,7 @@
 │   ├── download.ts
 │   ├── DrawingViewer.test.tsx
 │   ├── DrawingViewer.tsx
+│   ├── EditPanel.tsx
 │   ├── FileMenu.test.tsx
 │   ├── FileMenu.tsx
 │   ├── HardwareEditPanel.test.tsx
@@ -533,6 +536,8 @@
 │   ├── NumberField.tsx
 │   ├── SceneSuggestionsPanel.test.tsx
 │   ├── SceneSuggestionsPanel.tsx
+│   ├── SceneTree.test.tsx
+│   ├── SceneTree.tsx
 │   ├── sidebar.test.tsx
 │   ├── sidebar.tsx
 │   ├── SuggestionsPanel.test.tsx
@@ -939,7 +944,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->52<!-- /AUTOGEN:test-file-count --> test files (co-located <code>*.test.ts</code> / <code>*.test.tsx</code>); live-OCCT specs skipped in Node</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->54<!-- /AUTOGEN:test-file-count --> test files (co-located <code>*.test.ts</code> / <code>*.test.tsx</code>); live-OCCT specs skipped in Node</p>
     </section>
 
     <!-- HOOKS -->
@@ -1055,7 +1060,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-07-26-tongue-groove-joint-notes.md
     │   ├── 2026-08-07-scene-wide-suggestions-notes.md
     │   ├── 2026-08-16-zoom-to-fit-notes.md
-    │   └── 2026-08-17-joint-checklist-notes.md
+    │   ├── 2026-08-17-joint-checklist-notes.md
+    │   └── 2026-08-18-cabinet-assembly-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1075,7 +1081,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-07-16-joints.md
     │   ├── 2026-07-25-interaction-mode-refactor.md
     │   ├── 2026-07-26-joint-suggestions.md
-    │   └── 2026-08-16-zoom-to-fit.md
+    │   ├── 2026-08-16-zoom-to-fit.md
+    │   └── 2026-08-18-cabinet-assembly.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1112,7 +1119,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-08-07-scene-wide-suggestions-design.md
         ├── 2026-08-09-scene-suggestions-pair-grouping-design.md
         ├── 2026-08-16-zoom-to-fit-design.md
-        └── 2026-08-17-joint-checklist-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-08-17-joint-checklist-design.md
+        └── 2026-08-18-cabinet-assembly-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->

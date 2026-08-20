@@ -2198,7 +2198,44 @@ describe('component CRUD', () => {
 
     act(() => result.current.undo())
     // one undo returns to the pre-edit label, not to 'AB'
-    expect(result.current.scene.components[0].label).toBe('Group')
+    expect(result.current.scene.components[0].label).toBe('Group 1')
+  })
+
+  it('numbers component labels from the highest existing number', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    act(() => result.current.onAddComponent(null))
+    expect(result.current.scene.components.map((c) => c.label)).toEqual(['Group 1', 'Group 2'])
+  })
+
+  it('clears the selection when the selected component is deleted', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    act(() => result.current.onSelect({ kind: 'component', id: cmpId }))
+    act(() => result.current.onRemoveComponent(cmpId))
+    expect(result.current.selection).toBeNull()
+  })
+
+  it('clears a selection pointing at a deleted descendant component', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const parentId = result.current.scene.components[0].id
+    act(() => result.current.onAddComponent(parentId))
+    const childId = result.current.scene.components[1].id
+    act(() => result.current.onSelect({ kind: 'component', id: childId }))
+    act(() => result.current.onRemoveComponent(parentId))
+    expect(result.current.selection).toBeNull()
+  })
+
+  it('keeps a part selection when a component is deleted', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    const partId = result.current.scene.parts[0].id
+    act(() => result.current.onSelect({ kind: 'part', id: partId }))
+    act(() => result.current.onRemoveComponent(cmpId))
+    expect(result.current.selection).toEqual({ kind: 'part', id: partId })
   })
 })
 
@@ -2227,7 +2264,15 @@ describe('deleting a component preserves where detached parts are', () => {
             rotation: { x: 0, y: 0, z: 90 },
           },
         ],
-        parts: [{ ...seed, id: 'mine1', parentId: cmpId, driven: false, position: { x: 10, y: 20, z: 0 } }],
+        parts: [
+          {
+            ...seed,
+            id: 'mine1',
+            parentId: cmpId,
+            driven: false,
+            position: { x: 10, y: 20, z: 0 },
+          },
+        ],
       }),
     )
 
