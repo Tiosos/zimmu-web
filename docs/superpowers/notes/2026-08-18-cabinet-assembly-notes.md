@@ -562,3 +562,51 @@ nearest 90°. So the world outcome legitimately differs. The test that means som
 nested part must land in exactly the world pose that snapping an **unparented part at the same
 resolved world pose** lands in. Nesting is then provably a no-op on the geometry, and the returned
 Euler triple is never asserted directly — it is only defined up to equivalent representations.
+
+## 2026-08-20 — Task 3.2, and an audit that erred the *other* way
+
+Every previous scoping correction in this project was an under-count. This one was an over-count, and
+the reason is worth keeping.
+
+The audit predicted four consumer files for the selection widening: `useScene.ts`, `App.tsx`,
+`viewport.tsx`, `sidebar.tsx`. The compiler named **three** source files — `types.ts`, `useScene.ts`,
+`App.tsx`. `sidebar.tsx` and `viewport.tsx` never needed touching, because they declare their **own**
+prop types (`onSelect: (id: PartId | null) => void`, `onPartClick: (id: PartId | null) => void`) that
+are structurally decoupled from `UseSceneResult`. They consume a *shape*, not the hook's type.
+
+So the audit counted **mentions of a name**, when what governs blast radius is **type dependency**.
+That over-counts where props are locally typed and under-counts where a computation is inlined by
+hand (the Phase 2 finding). Both errors have the same root: grep sees text, the compiler sees types.
+The reliable method remains "change it and let `tsc` walk the graph", with greps used only to *predict*
+effort, never to bound it.
+
+### Widening those prop types would have been actively wrong
+
+Had the implementer "completed" the migration by widening `Sidebar`/`Viewport` to speak `Selection`,
+it would have cascaded to `useInteractionMode` and `useAddCut` (both declare their own
+`onSelect: (id: PartId) => void`), and forced `sidebar.test.tsx`'s
+`expect(onSelect).toHaveBeenCalledWith('board_t1')` to become an object literal — a changed **expected
+value**, which the phase contract forbids. The narrow reading was also the correct one.
+
+Containment instead lives in one adapter in `App.tsx`:
+
+```ts
+// The viewport and sidebar only ever select parts; components are addressed elsewhere.
+const onSelectPart = useCallback(
+  (id: PartId | null) => onSelect(id === null ? null : { kind: 'part', id }),
+  [onSelect],
+)
+```
+
+**`onSelectPart` is deliberately a stopgap.** Task 3.4 makes components selectable from the tree, and
+at that point `Sidebar` should speak `Selection` directly and this adapter should disappear rather
+than accumulate a second caller. Recorded so it is removed on purpose rather than surviving by
+inertia.
+
+### Confirmed, not assumed: deleting a selected part already clears the selection
+
+`onRemove` has always done `setSelectedId(prev => prev === id ? null : prev)`, with an existing test
+pinning it. No dangling-selection bug to fix. The new behaviour needed is the converse — a **component**
+selection must survive the removal of a part — which is why every part-scoped clear is now
+`prev?.kind === 'part' && prev.id === id ? null : prev`. Without the `kind` guard, deleting any board
+would silently deselect the cabinet you were editing.
