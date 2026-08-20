@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { orientedPanel } from './carcaseRoles'
+import { orientedPanel, validateCarcaseParams } from './carcaseRoles'
+import type { CarcaseParams } from './types'
 import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 
 // World AABB of a panel spec, in carcase-local space. This is the assertion surface: it pins
@@ -101,6 +102,112 @@ describe('orientedPanel', () => {
       const b = thinBox[axis]
       const p = orientedPanel(b, axis)
       expect(p.position).toEqual({ x: b.x0, y: b.y0, z: b.z0 })
+    }
+  })
+})
+
+const base: CarcaseParams = {
+  width: 600,
+  height: 720,
+  depth: 560,
+  material: '18mm Ply',
+  thickness: 18,
+  hasTop: true,
+  backMode: 'captured',
+  backThickness: 12,
+  baseMode: 'toe-kick',
+  toeKickHeight: 100,
+  toeKickSetback: 60,
+  fixedShelves: 1,
+  adjustableShelves: { rows: 2, pitch: 32, setback: 37, startHeight: 200, count: 10 },
+  jointMethod: 'dado-rabbet',
+  dividers: [],
+}
+
+describe('validateCarcaseParams', () => {
+  it('accepts a sane base cabinet', () => {
+    expect(validateCarcaseParams(base)).toEqual([])
+  })
+
+  it('rejects a carcase narrower than two side panels', () => {
+    expect(validateCarcaseParams({ ...base, width: 30 })).toContain(
+      'width must exceed 2 × thickness',
+    )
+  })
+
+  it('rejects a toe kick taller than the carcase', () => {
+    expect(validateCarcaseParams({ ...base, toeKickHeight: 800 })).toContain(
+      'toeKickHeight must be less than height',
+    )
+  })
+
+  it('rejects negative shelf counts', () => {
+    expect(validateCarcaseParams({ ...base, fixedShelves: -1 })).toContain(
+      'fixedShelves must be 0 or more',
+    )
+  })
+
+  it('rejects dividers outside 0..1 or out of order', () => {
+    expect(validateCarcaseParams({ ...base, dividers: [1.5] })).toContain(
+      'dividers must lie strictly between 0 and 1',
+    )
+    expect(validateCarcaseParams({ ...base, dividers: [0.6, 0.3] })).toContain(
+      'dividers must be ascending',
+    )
+  })
+
+  it('rejects a back thicker than the depth it sits in', () => {
+    expect(validateCarcaseParams({ ...base, backThickness: 600 })).toContain(
+      'backThickness must be less than depth',
+    )
+  })
+
+  it('accumulates every problem rather than stopping at the first', () => {
+    expect(validateCarcaseParams({ ...base, width: 10, fixedShelves: -2 }).length).toBeGreaterThan(
+      1,
+    )
+  })
+
+  // Reasons forward from what the generator needs rather than backward from the rules that exist:
+  // every box it builds must be non-degenerate, and the interior bay (between the bottom panel
+  // sitting on the toe kick and the top panel) is the one whose height three parameters conspire
+  // to consume. `toeKickHeight < height` alone does not protect it.
+  it('rejects a toe kick that leaves no interior bay', () => {
+    const bay = (p: CarcaseParams) => p.height - p.toeKickHeight - 2 * p.thickness
+    expect(bay(base)).toBeGreaterThan(0)
+
+    const squashed: CarcaseParams = { ...base, height: 130, toeKickHeight: 100 }
+    expect(bay(squashed)).toBeLessThanOrEqual(0)
+    expect(validateCarcaseParams(squashed)).toContain(
+      'toeKickHeight leaves no room between top and bottom',
+    )
+  })
+
+  it('accepts every plausible real cabinet', () => {
+    const cabinets: Record<string, CarcaseParams> = {
+      '300 wall unit': { ...base, width: 300, height: 720, depth: 300, baseMode: 'none' },
+      '900 base unit': {
+        ...base,
+        width: 900,
+        height: 870,
+        depth: 600,
+        toeKickHeight: 150,
+        toeKickSetback: 75,
+        dividers: [0.5],
+      },
+      '2100 tall unit': {
+        ...base,
+        width: 600,
+        height: 2100,
+        depth: 600,
+        fixedShelves: 3,
+        dividers: [0.33, 0.66],
+      },
+      'open-backed': { ...base, backMode: 'none', depth: 300, backThickness: 12 },
+      'on legs': { ...base, baseMode: 'legs', toeKickHeight: 120, hasTop: false },
+    }
+    for (const [name, params] of Object.entries(cabinets)) {
+      expect(validateCarcaseParams(params), name).toEqual([])
     }
   })
 })

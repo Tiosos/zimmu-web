@@ -1,4 +1,4 @@
-import type { Vec3 } from './types'
+import type { CarcaseParams, Vec3 } from './types'
 
 export interface LocalBox {
   x0: number
@@ -58,4 +58,38 @@ export function orientedPanel(b: LocalBox, thicknessAxis: 'x' | 'y' | 'z'): Pane
     rotation: { x: -90, y: 0, z: -90 },
     rotationOrder,
   }
+}
+
+// Total and side-effect free by contract: the generator calls this on every keystroke and emits
+// nothing when it returns errors, so the last-good parts survive transient states like a width of
+// `6` on the way to `600`. Every problem is collected — a panel that reported one at a time would
+// turn fixing three mistakes into three round trips.
+export function validateCarcaseParams(p: CarcaseParams): string[] {
+  const errors: string[] = []
+  if (p.thickness <= 0) errors.push('thickness must be positive')
+  if (p.width <= 2 * p.thickness) errors.push('width must exceed 2 × thickness')
+  if (p.height <= 2 * p.thickness) errors.push('height must exceed 2 × thickness')
+  if (p.depth <= p.thickness) errors.push('depth must exceed thickness')
+  if (p.baseMode === 'toe-kick') {
+    if (p.toeKickHeight >= p.height) {
+      errors.push('toeKickHeight must be less than height')
+    } else if (p.toeKickHeight + 2 * p.thickness >= p.height) {
+      errors.push('toeKickHeight leaves no room between top and bottom')
+    }
+    if (p.toeKickSetback >= p.depth) {
+      errors.push('toeKickSetback must be less than depth')
+    }
+  }
+  if (p.backMode !== 'none' && p.backThickness >= p.depth) {
+    errors.push('backThickness must be less than depth')
+  }
+  if (p.fixedShelves < 0) errors.push('fixedShelves must be 0 or more')
+  if (p.adjustableShelves.count < 0) errors.push('adjustable shelf count must be 0 or more')
+  if (p.dividers.some((d) => d <= 0 || d >= 1)) {
+    errors.push('dividers must lie strictly between 0 and 1')
+  }
+  if (p.dividers.some((d, i) => i > 0 && d <= p.dividers[i - 1])) {
+    errors.push('dividers must be ascending')
+  }
+  return errors
 }
