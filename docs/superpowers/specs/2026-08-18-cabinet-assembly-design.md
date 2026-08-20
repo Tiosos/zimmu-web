@@ -144,17 +144,35 @@ and `suggestJointsForScene` already skips jointed pairs, so duplicate offers are
 ## Data model
 
 ```ts
-export interface Component {
-  id: string                       // "cmp_<uuid>"
-  kind: 'group' | 'carcase'        // 'group' = plain container, no generator
+// Amended 2026-08-20 during implementation. The first draft declared one interface with
+// `params?: CarcaseParams` and a comment reading "present iff kind === 'carcase'". That invariant
+// is exactly what a discriminated union states in the type system, and Part, CutDef and Joint are
+// already modelled that way in this codebase — so the original shape was the one inconsistent with
+// the repo's own idiom, and it pushed a `params!` non-null assertion into every consumer.
+export interface GroupComponent {
+  kind: 'group'                    // plain container, no generator
+  id: ComponentId                  // "cmp_<uuid>"
   label: string
-  parentId: string | null          // null = top level
+  parentId: ComponentId | null     // null = top level
   position: Vec3                   // relative to parent
   rotation: Vec3
   rotationOrder: 'XYZ'
   visible: boolean
-  params?: CarcaseParams           // present iff kind === 'carcase'
 }
+
+export interface CarcaseComponent {
+  kind: 'carcase'
+  id: ComponentId
+  label: string
+  parentId: ComponentId | null
+  position: Vec3
+  rotation: Vec3
+  rotationOrder: 'XYZ'
+  visible: boolean
+  params: CarcaseParams            // required — a carcase without parameters cannot exist
+}
+
+export type Component = GroupComponent | CarcaseComponent
 
 export interface CarcaseParams {
   width: number
@@ -379,6 +397,9 @@ returns null rather than deleting. The same philosophy applies throughout.
 |---|---|
 | Cycle in `parentId` (component reparented into its own descendant) | Rejected at the reparent operation. `resolveWorldMatrix` additionally depth-caps and throws rather than looping |
 | Dangling `parentId` on load | Node is **promoted to top level**, never dropped. A corrupt tree costs hierarchy, never parts |
+| Component cycle on load (added 2026-08-20) | `breakComponentCycles` roots every component that can reach itself. `promoteOrphans` cannot catch this — every id resolves, so nothing looks dangling — but `ancestorsOf` would throw at render time. Flattens the cycle rather than guessing which edge was intended |
+| Carcase with no `params` on load (added 2026-08-20) | **Demoted to a `group`**, keeping label, placement and every child part; it loses only the ability to regenerate. Consequence of making `params` required: fabricating default dimensions would invent geometry the user never specified |
+| A `parentId` of `undefined` rather than `null` | Normalised once at the deserialisation boundary in `parseFile`, never by `?? null` at read sites. The type claims `ComponentId \| null`; the loader is what must make that true |
 | Invalid params (`depth < 2 × thickness`, shelves that do not fit, negative counts) | `validateCarcaseParams` returns errors; the generator emits nothing and **preserves last-good parts**, mirroring `deriveJoint` returning null. Panel shows the error inline |
 | Deleting a component | Driven descendants deleted with it; **detached descendants promoted to top level and kept** |
 | Regeneration non-idempotent | Property test: `regen(regen(s))` deep-equals `regen(s)` |
@@ -408,7 +429,7 @@ Steps 1–2 are pure refactors with no observable behaviour change: the structur
 before any feature rides on it.
 
 1. `Component` type, flat storage, v11 migration — no UI
-2. `multiplyMatrix` + `resolveWorldMatrix`, swap all consumers — behaviour identical, tree-capable
+2. `multiplyMatrix` + `resolveWorldMatrix`, swap all **eleven** consumer files — behaviour identical, tree-capable
 3. `SceneTree` + selection model + `EditPanel` extraction
 4. `regenerateCarcase` pure function + `validateCarcaseParams` — TDD, largest single chunk
 5. `CarcasePanel` + create-cabinet menu + presets
