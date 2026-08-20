@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { carcaseRoles, orientedPanel, validateCarcaseParams } from './carcaseRoles'
+import { carcaseCuts, carcaseRoles, orientedPanel, validateCarcaseParams } from './carcaseRoles'
 import type { RoleSpec } from './carcaseRoles'
-import type { CarcaseParams } from './types'
+import type { BoxCut, CarcaseParams } from './types'
 import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 
 // World AABB of a panel spec, in carcase-local space. This is the assertion surface: it pins
@@ -543,5 +543,110 @@ describe('dividers must clear the side panels and each other', () => {
         }
       }
     }
+  })
+})
+
+describe('carcaseCuts', () => {
+  const panelOf = (p: CarcaseParams, role: string) =>
+    carcaseRoles(p).find((r) => r.role === role)!.panel
+
+  // World AABB of a board-local box carried by a panel, expressed in carcase space. The notch is
+  // stated in board-local coordinates, so this is the only assertion that pins it to the physical
+  // toe recess rather than to a claim about which local axis is which.
+  function cutAabb(panel: ReturnType<typeof orientedPanel>, cut: BoxCut) {
+    const m = composeWorldMatrix({
+      ...panel,
+      kind: 'board',
+      id: 'x',
+      label: 'x',
+      material: '',
+      color: '#fff',
+      cuts: [],
+      visible: true,
+      parentId: null,
+      driven: true,
+    })
+    const min = { x: Infinity, y: Infinity, z: Infinity }
+    const max = { x: -Infinity, y: -Infinity, z: -Infinity }
+    for (const cx of [cut.position.x, cut.position.x + cut.size.x])
+      for (const cy of [cut.position.y, cut.position.y + cut.size.y])
+        for (const cz of [cut.position.z, cut.position.z + cut.size.z]) {
+          const [wx, wy, wz] = applyMatrixToPoint(m, cx, cy, cz)
+          min.x = Math.min(min.x, wx)
+          max.x = Math.max(max.x, wx)
+          min.y = Math.min(min.y, wy)
+          max.y = Math.max(max.y, wy)
+          min.z = Math.min(min.z, wz)
+          max.z = Math.max(max.z, wz)
+        }
+    return { min, max }
+  }
+
+  it('notches both side panels when the base is a toe kick', () => {
+    expect(carcaseCuts(base, 'left-side')).toHaveLength(1)
+    expect(carcaseCuts(base, 'right-side')).toHaveLength(1)
+  })
+
+  it('sizes the notch to the setback by the kick height at the panel origin', () => {
+    const [notch] = carcaseCuts(base, 'left-side')
+    expect(notch.size.x).toBeCloseTo(base.toeKickSetback, 9)
+    expect(notch.size.y).toBeCloseTo(base.toeKickHeight, 9)
+    expect(notch.position.x).toBeCloseTo(0, 9)
+    expect(notch.position.y).toBeCloseTo(0, 9)
+  })
+
+  // A tool face coplanar with the face it subtracts from is resolved unreliably by OCCT, so the
+  // notch overshoots both thickness faces instead of ending on them.
+  it('cuts through the full thickness rather than pocketing it', () => {
+    const panel = panelOf(base, 'left-side')
+    const [notch] = carcaseCuts(base, 'left-side')
+    expect(notch.size.z).toBeGreaterThanOrEqual(panel.thickness)
+    expect(notch.position.z).toBeLessThan(0)
+    expect(notch.position.z + notch.size.z).toBeGreaterThan(panel.thickness)
+  })
+
+  it('removes exactly the toe recess from each side panel in carcase space', () => {
+    const { width: W, thickness: T, toeKickSetback: KS, toeKickHeight: KH } = base
+    for (const [role, x0, x1] of [
+      ['left-side', 0, T],
+      ['right-side', W - T, W],
+    ] as const) {
+      const b = cutAabb(panelOf(base, role), carcaseCuts(base, role)[0])
+      // Depth: from the front face back to the toe-kick rail, which stands at y:[KS, KS+T].
+      expect(b.min.y, role).toBeCloseTo(0, 9)
+      expect(b.max.y, role).toBeCloseTo(KS, 9)
+      // Height: from the floor up to the underside of the bottom panel, which sits at z:[KH, KH+T].
+      expect(b.min.z, role).toBeCloseTo(0, 9)
+      expect(b.max.z, role).toBeCloseTo(KH, 9)
+      // Thickness: clear through the panel, overshooting both faces.
+      expect(b.min.x, role).toBeLessThan(x0)
+      expect(b.max.x, role).toBeGreaterThan(x1)
+    }
+  })
+
+  it('emits no notch for a base mode that does not recess the sides', () => {
+    for (const baseMode of ['none', 'legs', 'ladder'] as const) {
+      const p = { ...base, baseMode }
+      expect(validateCarcaseParams(p), baseMode).toEqual([])
+      expect(carcaseCuts(p, 'left-side'), baseMode).toEqual([])
+      expect(carcaseCuts(p, 'right-side'), baseMode).toEqual([])
+    }
+  })
+
+  it('emits no notch for a role that is not a side panel', () => {
+    for (const role of ['bottom', 'top', 'back', 'toe-kick', 'shelf-0-0']) {
+      expect(
+        carcaseRoles(base).some((r) => r.role === role),
+        role,
+      ).toBe(true)
+      expect(carcaseCuts(base, role), role).toEqual([])
+    }
+  })
+
+  // carcaseCuts is not told which component it is generating for; regenerateComponents stamps the
+  // owner. Leaving a placeholder here would make an unowned cut look component-owned.
+  it('leaves the owner unset', () => {
+    expect(carcaseCuts(base, 'left-side')[0].sourceComponentId).toBeUndefined()
+    expect(carcaseCuts(base, 'left-side')[0].sourceJointId).toBeUndefined()
   })
 })

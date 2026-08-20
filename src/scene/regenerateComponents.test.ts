@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { regenerateComponents } from './regenerateComponents'
-import type { BoardPart, CarcaseComponent, CarcaseParams, Part, Scene } from './types'
+import { reconcileJoints } from './reconcileJoints'
+import type {
+  BoardPart,
+  BoxCut,
+  CarcaseComponent,
+  CarcaseParams,
+  DadoJoint,
+  Part,
+  Scene,
+} from './types'
 
 const params: CarcaseParams = {
   width: 600,
@@ -220,5 +229,113 @@ describe('regenerateComponents', () => {
     }
 
     expect([...seen]).toEqual([sideId])
+  })
+})
+
+// The cabinet gave one part two independent cut owners: regenerateComponents re-derives cuts
+// carrying sourceComponentId, reconcileJoints re-derives cuts carrying sourceJointId, and a cut
+// with neither belongs to the user. Each stage stripping only its own is what keeps a toe-kick
+// notch from vanishing when a dado is edited, and vice versa.
+describe('cut ownership', () => {
+  const toeKick: CarcaseComponent = {
+    ...cabinet,
+    params: { ...params, baseMode: 'toe-kick' },
+  }
+  const toeKickScene: Scene = { ...empty, components: [toeKick] }
+
+  const handMade: BoxCut = {
+    kind: 'box',
+    id: 'cut_by_hand',
+    label: 'Hand Notch',
+    face: '+Z',
+    position: { x: 300, y: 300, z: 0 },
+    size: { x: 20, y: 20, z: 30 },
+  }
+
+  it('notches each side panel with a component-owned cut', () => {
+    const out = regenerateComponents(toeKickScene)
+    for (const role of ['left-side', 'right-side']) {
+      const side = partsOf(out).find((p) => p.role === role) as BoardPart
+      expect(side.cuts).toHaveLength(1)
+      expect(side.cuts[0].kind === 'box' && side.cuts[0].sourceComponentId).toBe('cmp_1')
+    }
+  })
+
+  it('re-derives its own cuts without duplicating them', () => {
+    const once = regenerateComponents(toeKickScene)
+    const twice = regenerateComponents(once)
+    expect(twice).toEqual(once)
+
+    const wider = regenerateComponents({
+      ...once,
+      components: [{ ...toeKick, params: { ...toeKick.params, toeKickSetback: 90 } }],
+    })
+    const side = partsOf(wider).find((p) => p.role === 'left-side') as BoardPart
+    expect(side.cuts).toHaveLength(1)
+    expect(side.cuts[0].kind === 'box' && side.cuts[0].size.x).toBeCloseTo(90, 9)
+  })
+
+  it('keeps component-owned and joint-owned cuts on the same part', () => {
+    const first = regenerateComponents(toeKickScene)
+    const side = partsOf(first).find((p) => p.role === 'left-side') as BoardPart
+    const bottom = partsOf(first).find((p) => p.role === 'bottom') as BoardPart
+
+    // A real dado: the bottom panel seats into the left side's inner face. The side is the
+    // housing, so the groove — a joint-owned cut — lands on the panel that carries the notch.
+    const joint: DadoJoint = {
+      kind: 'dado',
+      id: 'j1',
+      label: 'Dado 1',
+      driven: false,
+      housingPartId: side.id,
+      housingFace: '+Z',
+      housedPartId: bottom.id,
+      housedEnd: '-X',
+      offset: 200,
+      depth: 6,
+      clearance: 0,
+      profile: 'plain',
+      tongueThickness: 6,
+      rabbetFace: '+Z',
+      stopStart: 0,
+      stopEnd: 0,
+    }
+    const staleGroove: BoxCut = {
+      kind: 'box',
+      id: 'cut_stale',
+      label: 'Dado 1',
+      face: '+Z',
+      position: { x: 0, y: 0, z: 12 },
+      size: { x: 560, y: 18, z: 6 },
+      sourceJointId: 'j1',
+    }
+    const withJoint: Scene = {
+      ...first,
+      joints: [joint],
+      parts: first.parts.map((p) =>
+        p.id === side.id ? { ...(p as BoardPart), cuts: [...side.cuts, staleGroove, handMade] } : p,
+      ),
+    }
+
+    const regenerated = regenerateComponents(withJoint)
+    const afterRegen = regenerated.parts.find((p) => p.id === side.id) as BoardPart
+    expect(
+      afterRegen.cuts.filter((c) => c.kind === 'box' && c.sourceComponentId === 'cmp_1'),
+    ).toHaveLength(1)
+    expect(
+      afterRegen.cuts.filter((c) => c.kind === 'box' && c.sourceJointId === 'j1'),
+    ).toHaveLength(1)
+    expect(afterRegen.cuts.some((c) => c.id === handMade.id)).toBe(true)
+
+    // The real pipeline order. reconcileJoints strips and re-derives the groove (cut_stale is
+    // replaced by cut_j1) — the component-owned notch and the hand-made cut must ride through it.
+    const reconciled = reconcileJoints(regenerated)
+    const afterJoints = reconciled.parts.find((p) => p.id === side.id) as BoardPart
+    const owned = (f: 'sourceComponentId' | 'sourceJointId') =>
+      afterJoints.cuts.filter((c) => c.kind === 'box' && c[f] !== undefined)
+
+    expect(owned('sourceComponentId').map((c) => c.id)).toEqual([`cut_toekick_left-side`])
+    expect(owned('sourceJointId').map((c) => c.id)).toEqual(['cut_j1'])
+    expect(afterJoints.cuts.some((c) => c.id === handMade.id)).toBe(true)
   })
 })

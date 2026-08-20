@@ -1,4 +1,4 @@
-import type { CarcaseParams, Vec3 } from './types'
+import type { BoxCut, CarcaseParams, Vec3 } from './types'
 
 export interface LocalBox {
   x0: number
@@ -266,4 +266,29 @@ export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
   }
 
   return roles
+}
+
+// Cuts a carcase places on its own panels, independent of any joint. With a toe kick the sides run
+// to the floor while the bottom sits on top of the kick, so the recess is blocked by the sides
+// themselves until each is notched at the front bottom corner.
+//
+// The panel's board frame comes from orientedPanel(..., 'x'): board x runs the carcase depth axis,
+// board y the height axis, board z the material thickness.
+export function carcaseCuts(p: CarcaseParams, role: string): BoxCut[] {
+  if (p.baseMode !== 'toe-kick') return []
+  if (role !== 'left-side' && role !== 'right-side') return []
+
+  return [
+    {
+      kind: 'box',
+      id: `cut_toekick_${role}`,
+      label: 'Toe Kick Notch',
+      // The notch passes clear through the thickness, so it reads on the Face view.
+      face: '-Z',
+      // A tool face coplanar with the face it subtracts from is resolved unreliably by OCCT;
+      // overshooting both thickness faces keeps it an unambiguous through-cut.
+      position: { x: 0, y: 0, z: -p.thickness / 2 },
+      size: { x: p.toeKickSetback, y: p.toeKickHeight, z: p.thickness * 2 },
+    },
+  ]
 }

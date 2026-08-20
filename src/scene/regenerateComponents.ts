@@ -1,5 +1,5 @@
 import type { BoardPart, CarcaseComponent, Part, Scene } from './types'
-import { carcaseRoles } from './carcaseRoles'
+import { carcaseCuts, carcaseRoles } from './carcaseRoles'
 import { PART_COLORS } from './palette'
 
 function regenerateOne(component: CarcaseComponent, parts: Part[]): Part[] {
@@ -28,6 +28,12 @@ function regenerateOne(component: CarcaseComponent, parts: Part[]): Part[] {
     const existing = byRole.get(r.role)
     if (existing !== undefined && !existing.driven) return existing
 
+    const componentCuts = carcaseCuts(component.params, r.role).map((c) => ({
+      ...c,
+      sourceComponentId: component.id,
+    }))
+    const existingCuts = existing?.kind === 'board' ? existing.cuts : []
+
     const board: BoardPart = {
       kind: 'board',
       id: existing?.id ?? `board_${crypto.randomUUID()}`,
@@ -40,9 +46,13 @@ function regenerateOne(component: CarcaseComponent, parts: Part[]): Part[] {
       position: r.panel.position,
       rotation: r.panel.rotation,
       rotationOrder: r.panel.rotationOrder,
-      // Joint-derived cuts belong to reconcileJoints, which runs next and preserves its own
-      // last-good state; dropping them here would defeat that.
-      cuts: existing?.kind === 'board' ? existing.cuts : [],
+      // Two owners write cuts on the same part and neither may strip the other's. Only
+      // component-owned cuts are ours to re-derive; joint-owned cuts belong to reconcileJoints,
+      // which runs next and preserves its own last-good state, and unowned cuts are the user's.
+      cuts: [
+        ...existingCuts.filter((c) => !(c.kind === 'box' && c.sourceComponentId !== undefined)),
+        ...componentCuts,
+      ],
       visible: existing?.visible ?? true,
       parentId: component.id,
       driven: true,
