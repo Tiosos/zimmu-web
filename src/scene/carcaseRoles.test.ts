@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { orientedPanel, validateCarcaseParams } from './carcaseRoles'
+import { carcaseRoles, orientedPanel, validateCarcaseParams } from './carcaseRoles'
+import type { RoleSpec } from './carcaseRoles'
 import type { CarcaseParams } from './types'
 import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 
@@ -183,6 +184,17 @@ describe('validateCarcaseParams', () => {
     )
   })
 
+  // Deferred from Task 4.2 until the shelf layout math existed. Height 160 clears every existing
+  // rule (the toe kick leaves 160 - 100 - 36 = 24 mm), but three 18 mm shelves cannot occupy a
+  // 24 mm bay: the table computes a negative bay and places shelf 0 at z=110.5, 7.5 mm inside the
+  // bottom panel, with the shelves overlapping each other 10.5 mm apart.
+  it('rejects fixed shelves that do not fit the internal height', () => {
+    const squeezed: CarcaseParams = { ...base, height: 160, fixedShelves: 3 }
+    expect(validateCarcaseParams(squeezed)).toEqual([
+      'fixedShelves do not fit in the internal height',
+    ])
+  })
+
   it('accepts every plausible real cabinet', () => {
     const cabinets: Record<string, CarcaseParams> = {
       '300 wall unit': { ...base, width: 300, height: 720, depth: 300, baseMode: 'none' },
@@ -208,6 +220,209 @@ describe('validateCarcaseParams', () => {
     }
     for (const [name, params] of Object.entries(cabinets)) {
       expect(validateCarcaseParams(params), name).toEqual([])
+    }
+  })
+})
+
+function roleBox(roles: RoleSpec[], key: string) {
+  const r = roles.find((x) => x.role === key)
+  if (!r) throw new Error(`no role ${key} in [${roles.map((x) => x.role).join(', ')}]`)
+  return aabb(r.panel)
+}
+
+type Aabb = ReturnType<typeof aabb>
+
+// Shared faces are how a carcase is built, so touching is not overlap; only a shared volume is.
+function interpenetrates(a: Aabb, b: Aabb): boolean {
+  const eps = 1e-6
+  const on = (axis: 'x' | 'y' | 'z') =>
+    Math.min(a.max[axis], b.max[axis]) - Math.max(a.min[axis], b.min[axis]) > eps
+  return on('x') && on('y') && on('z')
+}
+
+const variations: Record<string, CarcaseParams> = {
+  base,
+  'no top': { ...base, hasTop: false },
+  'no back': { ...base, backMode: 'none' },
+  'applied back': { ...base, backMode: 'applied' },
+  'no base': { ...base, baseMode: 'none' },
+  ladder: { ...base, baseMode: 'ladder' },
+  legs: { ...base, baseMode: 'legs' },
+  'two shelves': { ...base, fixedShelves: 2 },
+  'no shelves': { ...base, fixedShelves: 0 },
+  divided: { ...base, dividers: [0.5] },
+}
+
+describe('carcaseRoles', () => {
+  it('emits the Base 600 roles in build order', () => {
+    expect(carcaseRoles(base).map((r) => r.role)).toEqual([
+      'left-side',
+      'right-side',
+      'bottom',
+      'top',
+      'back',
+      'toe-kick',
+      'shelf-fixed-0',
+    ])
+  })
+
+  it('stands the sides flush with the envelope, full height', () => {
+    const roles = carcaseRoles(base)
+    const left = roleBox(roles, 'left-side')
+    expect(left.min.x).toBeCloseTo(0, 9)
+    expect(left.min.y).toBeCloseTo(0, 9)
+    expect(left.min.z).toBeCloseTo(0, 9)
+    expect(left.max.x).toBeCloseTo(18, 9)
+    expect(left.max.y).toBeCloseTo(560, 9)
+    expect(left.max.z).toBeCloseTo(720, 9)
+
+    const right = roleBox(roles, 'right-side')
+    expect(right.min.x).toBeCloseTo(582, 9)
+    expect(right.max.x).toBeCloseTo(600, 9)
+    expect(right.min.z).toBeCloseTo(0, 9)
+    expect(right.max.z).toBeCloseTo(720, 9)
+  })
+
+  it('seats the bottom on the toe kick, between the sides', () => {
+    const roles = carcaseRoles(base)
+    const bottom = roleBox(roles, 'bottom')
+    const kick = roleBox(roles, 'toe-kick')
+    expect(bottom.min.x).toBeCloseTo(18, 9)
+    expect(bottom.max.x).toBeCloseTo(582, 9)
+    expect(bottom.min.z).toBeCloseTo(100, 9)
+    expect(bottom.max.z).toBeCloseTo(118, 9)
+    expect(kick.max.z).toBeCloseTo(bottom.min.z, 9)
+    expect(kick.min.y).toBeCloseTo(60, 9)
+    expect(kick.max.y).toBeCloseTo(78, 9)
+  })
+
+  it('captures the back at the rear, spanning bay to inner top', () => {
+    const back = roleBox(carcaseRoles(base), 'back')
+    expect(back.min.y).toBeCloseTo(548, 9)
+    expect(back.max.y).toBeCloseTo(560, 9)
+    expect(back.min.z).toBeCloseTo(118, 9)
+    expect(back.max.z).toBeCloseTo(702, 9)
+  })
+
+  it('stops shelves short of a captured back', () => {
+    const roles = carcaseRoles(base)
+    expect(roleBox(roles, 'shelf-fixed-0').max.y).toBeCloseTo(roleBox(roles, 'back').min.y, 9)
+  })
+
+  it('centres a single fixed shelf in the internal height', () => {
+    const roles = carcaseRoles(base)
+    const shelf = roleBox(roles, 'shelf-fixed-0')
+    const below = shelf.min.z - roleBox(roles, 'bottom').max.z
+    const above = roleBox(roles, 'top').min.z - shelf.max.z
+    expect(below).toBeCloseTo(above, 9)
+    expect(below).toBeGreaterThan(0)
+  })
+
+  it('splits the internal height into equal bays for two fixed shelves', () => {
+    const roles = carcaseRoles({ ...base, fixedShelves: 2 })
+    const lower = roleBox(roles, 'shelf-fixed-0')
+    const upper = roleBox(roles, 'shelf-fixed-1')
+    const bays = [
+      lower.min.z - roleBox(roles, 'bottom').max.z,
+      upper.min.z - lower.max.z,
+      roleBox(roles, 'top').min.z - upper.max.z,
+    ]
+    expect(bays[1]).toBeCloseTo(bays[0], 9)
+    expect(bays[2]).toBeCloseTo(bays[0], 9)
+    expect(bays[0]).toBeGreaterThan(0)
+  })
+
+  it('omits the top when hasTop is false and runs the back to full height', () => {
+    const roles = carcaseRoles({ ...base, hasTop: false })
+    expect(roles.map((r) => r.role)).not.toContain('top')
+    expect(roleBox(roles, 'back').max.z).toBeCloseTo(720, 9)
+  })
+
+  it('omits the back and runs shelves full depth when backMode is none', () => {
+    const roles = carcaseRoles({ ...base, backMode: 'none' })
+    expect(roles.map((r) => r.role)).not.toContain('back')
+    expect(roleBox(roles, 'shelf-fixed-0').max.y).toBeCloseTo(560, 9)
+  })
+
+  it('drops the bottom to the floor when baseMode is none', () => {
+    const roles = carcaseRoles({ ...base, baseMode: 'none' })
+    expect(roles.map((r) => r.role)).not.toContain('toe-kick')
+    const bottom = roleBox(roles, 'bottom')
+    expect(bottom.min.z).toBeCloseTo(0, 9)
+    expect(bottom.max.z).toBeCloseTo(18, 9)
+  })
+
+  it('emits four ladder rails under the carcase', () => {
+    const roles = carcaseRoles({ ...base, baseMode: 'ladder' })
+    for (const key of ['ladder-front', 'ladder-back', 'ladder-left', 'ladder-right']) {
+      const b = roleBox(roles, key)
+      expect(b.min.z).toBeCloseTo(0, 9)
+      expect(b.max.z).toBeCloseTo(100, 9)
+    }
+    expect(roleBox(roles, 'ladder-front').min.y).toBeCloseTo(60, 9)
+    expect(roleBox(roles, 'ladder-back').max.y).toBeCloseTo(560, 9)
+    expect(roleBox(roles, 'ladder-left').max.x).toBeCloseTo(18, 9)
+    expect(roleBox(roles, 'ladder-right').min.x).toBeCloseTo(582, 9)
+  })
+
+  it('centres a divider on its width fraction', () => {
+    const roles = carcaseRoles({ ...base, dividers: [0.5] })
+    const d = roleBox(roles, 'divider-0')
+    expect(d.min.x).toBeCloseTo(291, 9)
+    expect(d.max.x).toBeCloseTo(309, 9)
+    expect(d.min.z).toBeCloseTo(118, 9)
+    expect(d.max.z).toBeCloseTo(702, 9)
+    expect(d.max.y).toBeCloseTo(548, 9)
+  })
+
+  it('emits nothing for invalid params', () => {
+    expect(carcaseRoles({ ...base, width: 10 })).toEqual([])
+  })
+
+  it('returns a stable order across repeated calls', () => {
+    const keys = () =>
+      carcaseRoles({ ...base, dividers: [0.4], fixedShelves: 2 }).map((r) => r.role)
+    expect(keys()).toEqual(keys())
+  })
+
+  // Checks the panels against each other rather than against numbers copied from the spec: an
+  // arithmetic slip in one row of the table shows up as two boards occupying the same volume.
+  // Two combinations are deliberately absent because the role table itself makes them cross, and
+  // no arithmetic here can separate them: a divider spans the full internal height while a fixed
+  // shelf spans the full internal width, and a ladder base occupies z 0..toeKickHeight while the
+  // sides and bottom still start at z=0 (floor only rises for a toe kick). Both are gaps in the
+  // table, recorded rather than papered over.
+  it('never lets two panels share volume', () => {
+    const cases: Record<string, CarcaseParams> = {
+      base,
+      divided: { ...base, dividers: [0.35, 0.7], fixedShelves: 0 },
+      'two shelves': { ...base, fixedShelves: 2 },
+      'open, topless': { ...base, backMode: 'none', hasTop: false, baseMode: 'none' },
+    }
+    for (const [name, params] of Object.entries(cases)) {
+      const boxes = carcaseRoles(params).map((r) => ({ role: r.role, box: aabb(r.panel) }))
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          expect(
+            interpenetrates(boxes[i].box, boxes[j].box),
+            `${name}: ${boxes[i].role} overlaps ${boxes[j].role}`,
+          ).toBe(false)
+        }
+      }
+    }
+  })
+
+  // A zero or negative extent reaches OCCT as a degenerate solid and fails in the kernel, far from
+  // the arithmetic that produced it.
+  it('emits no degenerate panel for any mode', () => {
+    for (const [name, params] of Object.entries(variations)) {
+      const roles = carcaseRoles(params)
+      expect(roles.length, name).toBeGreaterThan(0)
+      for (const r of roles) {
+        expect(r.panel.length, `${name}/${r.role} length`).toBeGreaterThan(0)
+        expect(r.panel.width, `${name}/${r.role} width`).toBeGreaterThan(0)
+        expect(r.panel.thickness, `${name}/${r.role} thickness`).toBeGreaterThan(0)
+      }
     }
   })
 })
