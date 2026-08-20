@@ -14,6 +14,7 @@ import type {
   CutId,
   Joint,
   FaceHit,
+  Selection,
 } from './types'
 import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
@@ -89,6 +90,7 @@ export interface UseSceneResult {
   errors: Map<PartId, string>
   pendingIds: Set<PartId>
   selectedId: PartId | null
+  selection: Selection | null
   occtReady: boolean
   nextLabel: string
   onAdd: (kind: 'board' | 'cylinder') => void
@@ -110,7 +112,7 @@ export interface UseSceneResult {
   onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
-  onSelect: (id: PartId | null) => void
+  onSelect: (next: Selection | null) => void
   replaceScene: (next: Scene) => void
   exportStep: (parts: Part[]) => Promise<string>
   canUndo: boolean
@@ -145,7 +147,8 @@ export function useScene(): UseSceneResult {
   const [geometries, setGeometries] = useState<Map<PartId, THREE.BufferGeometry>>(new Map())
   const [errors, setErrors] = useState<Map<PartId, string>>(new Map())
   const [pendingIds, setPendingIds] = useState<Set<PartId>>(new Set())
-  const [selectedId, setSelectedId] = useState<PartId | null>(null)
+  const [selection, setSelection] = useState<Selection | null>(null)
+  const selectedId = selection?.kind === 'part' ? selection.id : null
   const [occtReady, setOcctReady] = useState(false)
 
   const prevShapeKeys = useRef<Map<PartId, string>>(new Map())
@@ -354,16 +357,16 @@ export function useScene(): UseSceneResult {
         }
       }
       setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
-      setSelectedId(part.id)
+      setSelection({ kind: 'part', id: part.id })
       push({
         label: `Add ${part.label}`,
         undo: () => {
           setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== part.id) }))
-          setSelectedId((prev) => (prev === part.id ? null : prev))
+          setSelection((prev) => (prev?.kind === 'part' && prev.id === part.id ? null : prev))
         },
         redo: () => {
           setScene((prev) => ({ ...prev, parts: [...prev.parts, part] }))
-          setSelectedId(part.id)
+          setSelection({ kind: 'part', id: part.id })
         },
       })
     },
@@ -386,16 +389,16 @@ export function useScene(): UseSceneResult {
         joints: before.joints.filter((j) => !jointInvolves(j, id)),
       })
       setScene(after)
-      setSelectedId((prev) => (prev === id ? null : prev))
+      setSelection((prev) => (prev?.kind === 'part' && prev.id === id ? null : prev))
       push({
         label: `Remove ${part.label}`,
         undo: () => {
           setScene(before)
-          setSelectedId(id)
+          setSelection({ kind: 'part', id })
         },
         redo: () => {
           setScene(after)
-          setSelectedId((prev) => (prev === id ? null : prev))
+          setSelection((prev) => (prev?.kind === 'part' && prev.id === id ? null : prev))
         },
       })
     },
@@ -443,12 +446,14 @@ export function useScene(): UseSceneResult {
         parts.splice(idx + 1, 0, clone)
         return { ...prev, parts }
       })
-      setSelectedId(clone.id)
+      setSelection({ kind: 'part', id: clone.id })
       push({
         label: `Duplicate ${orig.label}`,
         undo: () => {
           setScene((prev) => ({ ...prev, parts: prev.parts.filter((p) => p.id !== clone.id) }))
-          setSelectedId((prev) => (prev === clone.id ? id : prev))
+          setSelection((prev) =>
+            prev?.kind === 'part' && prev.id === clone.id ? { kind: 'part', id } : prev,
+          )
         },
         redo: () => {
           setScene((prev) => {
@@ -458,7 +463,7 @@ export function useScene(): UseSceneResult {
             parts.splice(idx + 1, 0, clone)
             return { ...prev, parts }
           })
-          setSelectedId(clone.id)
+          setSelection({ kind: 'part', id: clone.id })
         },
       })
     },
@@ -919,7 +924,7 @@ export function useScene(): UseSceneResult {
         byId,
       )
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add dado')
-      setSelectedId(housing.id)
+      setSelection({ kind: 'part', id: housing.id })
     },
     [commitReconciled],
   )
@@ -938,7 +943,7 @@ export function useScene(): UseSceneResult {
         `Half-lap ${n}`,
       )
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add half-lap')
-      setSelectedId(a.id)
+      setSelection({ kind: 'part', id: a.id })
     },
     [commitReconciled],
   )
@@ -967,7 +972,7 @@ export function useScene(): UseSceneResult {
         (prev) => ({ ...prev, joints: [...prev.joints, joint] }),
         'Add mortise & tenon',
       )
-      setSelectedId(mortise.id)
+      setSelection({ kind: 'part', id: mortise.id })
     },
     [commitReconciled],
   )
@@ -991,7 +996,7 @@ export function useScene(): UseSceneResult {
         `Finger joint ${n}`,
       )
       commitReconciled((prev) => ({ ...prev, joints: [...prev.joints, joint] }), 'Add finger joint')
-      setSelectedId(a.id)
+      setSelection({ kind: 'part', id: a.id })
     },
     [commitReconciled],
   )
@@ -1019,7 +1024,7 @@ export function useScene(): UseSceneResult {
         (prev) => ({ ...prev, joints: [...prev.joints, joint] }),
         'Add tongue & groove',
       )
-      setSelectedId(groove.id)
+      setSelection({ kind: 'part', id: groove.id })
     },
     [commitReconciled],
   )
@@ -1061,8 +1066,8 @@ export function useScene(): UseSceneResult {
     [commitReconciled],
   )
 
-  const onSelect = useCallback((id: PartId | null) => {
-    setSelectedId(id)
+  const onSelect = useCallback((next: Selection | null) => {
+    setSelection(next)
   }, [])
 
   const onUpdateMaterial = useCallback(
@@ -1102,7 +1107,7 @@ export function useScene(): UseSceneResult {
     futureRef.current = []
     setUndoState({ canUndo: false, canRedo: false, undoLabel: null, redoLabel: null })
     setScene(reconcileJoints(next))
-    setSelectedId(null)
+    setSelection(null)
     setPendingIds(new Set())
     setGeometries(new Map())
   }, [])
@@ -1138,6 +1143,7 @@ export function useScene(): UseSceneResult {
     errors,
     pendingIds,
     selectedId,
+    selection,
     occtReady,
     nextLabel: `Board ${labelCounter + 1}`,
     onAdd,

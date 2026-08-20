@@ -180,6 +180,8 @@ export interface CarcaseComponent {
 
 export type Component = GroupComponent | CarcaseComponent
 
+export type Selection = { kind: 'part'; id: PartId } | { kind: 'component'; id: ComponentId }
+
 export interface DadoJoint {
   kind: 'dado'
   id: string // "joint_<uuid>"

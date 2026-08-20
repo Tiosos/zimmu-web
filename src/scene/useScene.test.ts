@@ -242,7 +242,7 @@ describe('useScene', () => {
       result.current.onAdd('board')
     })
     act(() => {
-      result.current.onSelect(result.current.scene.parts[1].id)
+      result.current.onSelect({ kind: 'part', id: result.current.scene.parts[1].id })
     })
 
     const replacement = {
@@ -2014,5 +2014,51 @@ describe('useScene — joints', () => {
     await act(async () => result.current.undo())
     expect(result.current.scene.joints).toHaveLength(0)
     expect(jointCuts()).toBe(0)
+  })
+})
+
+describe('selection of parts and components', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
+  })
+
+  it('selects a component and reports its kind', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onSelect({ kind: 'component', id: 'cmp_1' }))
+    expect(result.current.selection).toEqual({ kind: 'component', id: 'cmp_1' })
+  })
+
+  it('exposes selectedId for a part selection and null for a component selection', () => {
+    const { result } = renderHook(() => useScene())
+    const partId = result.current.scene.parts[0].id
+    act(() => result.current.onSelect({ kind: 'part', id: partId }))
+    expect(result.current.selectedId).toBe(partId)
+    act(() => result.current.onSelect({ kind: 'component', id: 'cmp_1' }))
+    expect(result.current.selectedId).toBeNull()
+  })
+
+  it('clears both on a null selection', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onSelect({ kind: 'part', id: result.current.scene.parts[0].id }))
+    act(() => result.current.onSelect(null))
+    expect(result.current.selection).toBeNull()
+    expect(result.current.selectedId).toBeNull()
+  })
+
+  it('onRemove clears a part selection for the removed part but leaves a component selection', () => {
+    const partSel = renderHook(() => useScene()).result
+    const partId = partSel.current.scene.parts[0].id
+    act(() => partSel.current.onSelect({ kind: 'part', id: partId }))
+    act(() => partSel.current.onRemove(partId))
+    expect(partSel.current.selection).toBeNull()
+
+    const componentSel = renderHook(() => useScene()).result
+    act(() => componentSel.current.onSelect({ kind: 'component', id: 'cmp_1' }))
+    act(() => componentSel.current.onRemove(componentSel.current.scene.parts[0].id))
+    expect(componentSel.current.selection).toEqual({ kind: 'component', id: 'cmp_1' })
   })
 })

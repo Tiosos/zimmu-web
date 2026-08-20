@@ -124,11 +124,17 @@ function App() {
     [],
   )
 
+  // The viewport and sidebar only ever select parts; components are addressed elsewhere.
+  const onSelectPart = useCallback(
+    (id: PartId | null) => onSelect(id === null ? null : { kind: 'part', id }),
+    [onSelect],
+  )
+
   const mode = useInteractionMode({
     parts: scene.parts,
     byId: componentMap,
     onUpdate,
-    onSelect,
+    onSelect: onSelectPart,
     onRotationSnap: handleRotationSnap,
     onAddJoint,
     onAddHalfLap,
@@ -366,7 +372,7 @@ function App() {
           componentMap={componentMap}
           geometries={geometries}
           selectedId={selectedId}
-          onPartClick={onSelect}
+          onPartClick={onSelectPart}
           cameraStateRef={cameraStateRef}
           loadedCamera={loadedCamera}
           fitRequest={fitRequest}
@@ -397,7 +403,7 @@ function App() {
           onUnlinkCuts={onUnlinkCuts}
           lastPlacedCutId={mode.lastPlacedCutId}
           selectedId={selectedId}
-          onSelect={onSelect}
+          onSelect={onSelectPart}
           onToggleVisible={onToggleVisible}
           snapActive={mode.activeMode === 'snap'}
           snapPhase={mode.snapPhase}
