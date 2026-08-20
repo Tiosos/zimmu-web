@@ -8,6 +8,7 @@ import {
   resolveWorldMatrix,
   ancestorWorldMatrix,
   localDirToWorld,
+  decomposeMatrix,
 } from './transform'
 import { componentsById } from '../scene/componentTree'
 import type { BoardPart, Component, Part } from '../scene/types'
@@ -285,5 +286,51 @@ describe('localDirToWorld', () => {
     expect(got.x).toBeCloseTo(0, 9)
     expect(got.y).toBeCloseTo(0, 9)
     expect(got.z).toBeCloseTo(1, 9)
+  })
+})
+
+describe('decomposeMatrix', () => {
+  it('inverts composeWorldMatrix for a rotated, translated node', () => {
+    const p = treePart(null, [13, -27, 41], [23, -41, 67])
+    const got = decomposeMatrix(composeWorldMatrix(p))
+    expect(got.position.x).toBeCloseTo(13, 9)
+    expect(got.position.y).toBeCloseTo(-27, 9)
+    expect(got.position.z).toBeCloseTo(41, 9)
+    expect(got.rotation.x).toBeCloseTo(23, 9)
+    expect(got.rotation.y).toBeCloseTo(-41, 9)
+    expect(got.rotation.z).toBeCloseTo(67, 9)
+  })
+
+  it('matches THREE Euler extraction for the same matrix', () => {
+    const p = treePart(null, [0, 0, 0], [12, 34, 56])
+    const m = composeWorldMatrix(p)
+    const expected = new THREE.Euler().setFromRotationMatrix(
+      new THREE.Matrix4().fromArray(m),
+      'XYZ',
+    )
+    const got = decomposeMatrix(m)
+    expect(got.rotation.x).toBeCloseTo((expected.x * 180) / Math.PI, 9)
+    expect(got.rotation.y).toBeCloseTo((expected.y * 180) / Math.PI, 9)
+    expect(got.rotation.z).toBeCloseTo((expected.z * 180) / Math.PI, 9)
+  })
+
+  it('round-trips a resolved world matrix back into a placement', () => {
+    const cab = comp('a', null, [500, -200, 30], [0, 0, 90])
+    const p = treePart('a', [10, 20, 30], [0, 15, 0])
+    const world = resolveWorldMatrix(p, componentsById([cab]))
+    const baked = decomposeMatrix(world)
+    // A part re-parented to the world with the baked placement must not move.
+    const after = resolveWorldMatrix(
+      { ...p, parentId: null, position: baked.position, rotation: baked.rotation },
+      componentsById([]),
+    )
+    for (let i = 0; i < 16; i++) expect(after[i]).toBeCloseTo(world[i], 9)
+  })
+
+  it('handles the gimbal case where the Y rotation is 90 degrees', () => {
+    const p = treePart(null, [1, 2, 3], [0, 90, 0])
+    const baked = decomposeMatrix(composeWorldMatrix(p))
+    const after = composeWorldMatrix({ ...p, position: baked.position, rotation: baked.rotation })
+    for (let i = 0; i < 16; i++) expect(after[i]).toBeCloseTo(composeWorldMatrix(p)[i], 9)
   })
 })

@@ -36,7 +36,7 @@ import {
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidTongueGroove } from '../geom/tonguegroove'
 import { PART_COLORS } from './palette'
-import { resolveWorldMatrix } from '../geom/transform'
+import { decomposeMatrix, resolveWorldMatrix } from '../geom/transform'
 
 interface HistoryEntry {
   label: string
@@ -1136,6 +1136,10 @@ export function useScene(): UseSceneResult {
       commitReconciled((before) => {
         const { componentIds, partIds } = descendantIds(id, before.components, before.parts)
         const doomedComponents = new Set([id, ...componentIds])
+        // Built from the pre-delete component list: the parts being promoted still reference
+        // components that are about to be removed, so their world placement must be resolved
+        // against the tree as it stands now, not as it will be.
+        const doomedById = componentsById(before.components)
         const doomedParts = before.parts
           .filter((p) => p.driven && partIds.includes(p.id))
           .map((p) => p.id)
@@ -1147,9 +1151,14 @@ export function useScene(): UseSceneResult {
           // and returns to top level rather than being deleted with it.
           parts: before.parts
             .filter((p) => !doomedParts.includes(p.id))
-            .map((p) =>
-              p.parentId !== null && doomedComponents.has(p.parentId) ? { ...p, parentId: null } : p,
-            ),
+            .map((p) => {
+              if (p.parentId === null || !doomedComponents.has(p.parentId)) return p
+              // A detached part survives its container, and must survive it in place: its local
+              // placement was relative to a component that no longer exists, so bake the resolved
+              // world placement in rather than letting the part jump by the lost transform.
+              const { position, rotation } = decomposeMatrix(resolveWorldMatrix(p, doomedById))
+              return { ...p, parentId: null, position, rotation }
+            }),
           joints: before.joints.filter(
             (j) =>
               (j.sourceComponentId === undefined || !doomedComponents.has(j.sourceComponentId)) &&

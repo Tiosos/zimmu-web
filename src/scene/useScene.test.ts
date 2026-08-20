@@ -35,6 +35,8 @@ vi.stubGlobal(
 )
 
 import { useScene, buildSpecForPart } from './useScene'
+import { resolveWorldMatrix } from '../geom/transform'
+import { componentsById } from './componentTree'
 
 describe('useScene', () => {
   beforeEach(() => {
@@ -2197,5 +2199,67 @@ describe('component CRUD', () => {
     act(() => result.current.undo())
     // one undo returns to the pre-edit label, not to 'AB'
     expect(result.current.scene.components[0].label).toBe('Group')
+  })
+})
+
+describe('deleting a component preserves where detached parts are', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0]),
+      normals: new Float32Array([0, 0, 1]),
+    })
+  })
+
+  it('bakes the lost ancestor placement into a promoted part so it does not move', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    const seed = result.current.scene.parts[0]
+
+    act(() =>
+      result.current.replaceScene({
+        ...result.current.scene,
+        components: [
+          {
+            ...result.current.scene.components[0],
+            position: { x: 500, y: -200, z: 30 },
+            rotation: { x: 0, y: 0, z: 90 },
+          },
+        ],
+        parts: [{ ...seed, id: 'mine1', parentId: cmpId, driven: false, position: { x: 10, y: 20, z: 0 } }],
+      }),
+    )
+
+    const before = resolveWorldMatrix(
+      result.current.scene.parts.find((p) => p.id === 'mine1')!,
+      componentsById(result.current.scene.components),
+    )
+
+    act(() => result.current.onRemoveComponent(cmpId))
+
+    const kept = result.current.scene.parts.find((p) => p.id === 'mine1')!
+    expect(kept.parentId).toBeNull()
+    const after = resolveWorldMatrix(kept, componentsById(result.current.scene.components))
+    for (let i = 0; i < 16; i++) expect(after[i]).toBeCloseTo(before[i], 6)
+  })
+
+  it('leaves a top-level detached part untouched', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddComponent(null))
+    const cmpId = result.current.scene.components[0].id
+    const seed = result.current.scene.parts[0]
+    act(() =>
+      result.current.replaceScene({
+        ...result.current.scene,
+        parts: [
+          { ...seed, id: 'inside', parentId: cmpId, driven: false },
+          { ...seed, id: 'outside', parentId: null, driven: false, position: { x: 7, y: 8, z: 9 } },
+        ],
+      }),
+    )
+    act(() => result.current.onRemoveComponent(cmpId))
+    const outside = result.current.scene.parts.find((p) => p.id === 'outside')!
+    expect(outside.position).toEqual({ x: 7, y: 8, z: 9 })
   })
 })

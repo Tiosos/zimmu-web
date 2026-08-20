@@ -139,3 +139,32 @@ export function localDirToWorld(
     z: m[2] * dir.x + m[6] * dir.y + m[10] * dir.z,
   }
 }
+
+// The inverse of composeWorldMatrix: a rigid, unit-scale matrix back into position and Euler XYZ
+// degrees. Kept THREE-free like the rest of this module, so the parity test against
+// THREE.Euler.setFromRotationMatrix stays a real cross-check rather than a tautology.
+//
+// Needed when a node is re-parented and must not move: its new local placement is its old world
+// placement, expressed in the new parent's frame.
+export function decomposeMatrix(m: Float64Array): { position: Vec3; rotation: Vec3 } {
+  // Column-major: element (row, col) is m[col * 4 + row]. For R = Rx·Ry·Rz, r02 = sin(y).
+  const sy = Math.max(-1, Math.min(1, m[8]))
+  const y = Math.asin(sy)
+
+  let x: number
+  let z: number
+  if (Math.abs(sy) < 0.9999999) {
+    x = Math.atan2(-m[9], m[10])
+    z = Math.atan2(-m[4], m[0])
+  } else {
+    // Gimbal lock: x and z become a single degree of freedom. Attribute all of it to x, matching
+    // THREE's convention, so a round trip through this function is stable.
+    x = Math.atan2(m[6], m[5])
+    z = 0
+  }
+
+  return {
+    position: { x: m[12], y: m[13], z: m[14] },
+    rotation: { x: x / DEG2RAD, y: y / DEG2RAD, z: z / DEG2RAD },
+  }
+}
