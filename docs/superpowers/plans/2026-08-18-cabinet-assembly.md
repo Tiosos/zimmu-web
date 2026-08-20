@@ -1424,14 +1424,14 @@ git commit -m "feat(scene): selection addresses a part or a component"
 describe('component CRUD', () => {
   it('adds a group component at top level', () => {
     const { result } = renderHook(() => useScene())
-    act(() => result.current.onAddComponent('group', null))
+    act(() => result.current.onAddComponent(null))
     expect(result.current.scene.components).toHaveLength(1)
     expect(result.current.scene.components[0].parentId).toBeNull()
   })
 
   it('deletes driven descendants but promotes detached ones', () => {
     const { result } = renderHook(() => useScene())
-    act(() => result.current.onAddComponent('group', null))
+    act(() => result.current.onAddComponent(null))
     const cmpId = result.current.scene.components[0].id
     act(() =>
       result.current.replaceScene({
@@ -1452,9 +1452,9 @@ describe('component CRUD', () => {
 
   it('refuses a reparent that would create a cycle', () => {
     const { result } = renderHook(() => useScene())
-    act(() => result.current.onAddComponent('group', null))
+    act(() => result.current.onAddComponent(null))
     const a = result.current.scene.components[0].id
-    act(() => result.current.onAddComponent('group', a))
+    act(() => result.current.onAddComponent(a))
     const b = result.current.scene.components[1].id
 
     act(() => result.current.onReparentComponent(a, b))
@@ -1464,7 +1464,7 @@ describe('component CRUD', () => {
 
   it('undoes a component deletion', () => {
     const { result } = renderHook(() => useScene())
-    act(() => result.current.onAddComponent('group', null))
+    act(() => result.current.onAddComponent(null))
     const id = result.current.scene.components[0].id
     act(() => result.current.onRemoveComponent(id))
     expect(result.current.scene.components).toHaveLength(0)
@@ -1481,15 +1481,25 @@ Expected: FAIL — `onAddComponent is not a function`.
 
 - [ ] **Step 3: Implement**
 
+**Corrected 2026-08-20.** The first draft of this snippet took a `kind: Component['kind']` parameter
+and built a single object literal. That **does not typecheck**: `Component` became a discriminated
+union during Phase 1, and `CarcaseComponent` requires `params: CarcaseParams` — 17 fields with no
+defaults, since `CARCASE_PRESETS` does not exist until Phase 4. A `kind` parameter could therefore
+only ever be passed `'group'`, leaving a permanently unreachable branch, which the repo's own rule
+forbids ("no error handling for cases that cannot occur").
+
+Carcase creation has its own entry point by design — `onAddCarcase(preset)` in Task 4.6 — so this
+function creates groups only and takes no `kind`.
+
 Add to `src/scene/useScene.ts`, following the existing `onAdd`/`onRemove` closure-history pattern:
 
 ```ts
   const onAddComponent = useCallback(
-    (kind: Component['kind'], parentId: ComponentId | null) => {
-      const component: Component = {
+    (parentId: ComponentId | null) => {
+      const component: GroupComponent = {
+        kind: 'group',
         id: `cmp_${crypto.randomUUID()}`,
-        kind,
-        label: kind === 'carcase' ? 'Cabinet' : 'Group',
+        label: nextComponentLabel,
         parentId,
         position: { x: 0, y: 0, z: 0 },
         rotation: { x: 0, y: 0, z: 0 },
@@ -1587,6 +1597,38 @@ git commit -m "feat(scene): component add, remove, reparent and update with undo
 ```
 
 ## Task 3.4: `SceneTree` and the `activeMode` cleanup
+
+### Four items carried into this task
+
+Earlier Phase 3 tasks each left something that only becomes reachable once the tree exists. They are
+requirements of this task, not optional tidy-ups:
+
+1. **Deleting a selected component must clear the selection.** `onRemove` already clears a *part*
+   selection; `onRemoveComponent` deliberately does not, because until now no UI could select a
+   component. The tree makes it reachable, and a `selection` pointing at a deleted component is a
+   dangling reference the panel will try to render. Add the clear to `onRemoveComponent`, guarded on
+   `kind === 'component'` so deleting a cabinet does not deselect a part, and test both directions.
+
+2. **`onSelectPart` in `App.tsx` should disappear.** Task 3.2 introduced it as a deliberate stopgap:
+   `Sidebar` and `Viewport` speak `PartId`, so `App` adapts. Once `SceneTree` selects components,
+   `Sidebar` must speak `Selection` directly. Note this cascades — `sidebar.test.tsx` has
+   `expect(onSelect).toHaveBeenCalledWith('board_t1')`, which becomes an object literal. **That is a
+   legitimate expected-value change**: Phase 3 changes behaviour, unlike Phases 1–2. The
+   no-edited-expectations rule does not apply here. Leave `Viewport` on `PartId` — clicking a mesh
+   selects a part, and there is no component to click in the 3D scene.
+
+3. **Components need numbered labels.** Every group is currently `'Group'`; two of them in a tree are
+   indistinguishable. Boards use a `labelCounter` derived from existing labels (`/Board (\d+)/`) —
+   mirror it for components rather than inventing a second scheme.
+
+4. **`SidebarProps` is 49 props**, including six near-identical `xActive` / `onXToggle` / `xStatus`
+   triples, one per joint tool. The seven-boolean collapse below is the minimum; replacing the block
+   with a single `tools` array is the same change done once instead of six times, and Phase 5 adds
+   another entry. Do this only if it stays mechanical.
+
+Separately: `EditPanel`'s inline prop type re-declares **19 fields** that `SidebarProps` also
+declares, with identical signatures. Exporting an `EditPanelProps` and having `SidebarProps`
+`Pick<>` from it removes a drift-prone duplication — again, only if mechanical.
 
 **Scope note added 2026-08-20**, from Task 3.1's report. `SidebarProps` currently carries **49 props**,
 including six near-identical `xActive` / `onXToggle` / `xStatus` triples — one per joint tool. The
