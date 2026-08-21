@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { carcaseCuts, carcaseRoles, orientedPanel, validateCarcaseParams } from './carcaseRoles'
+import { carcaseCuts, carcaseRoles, orientedPanel, validateCarcaseParams, parameterForRole } from './carcaseRoles'
 import type { RoleSpec } from './carcaseRoles'
 import type { BoxCut, CarcaseParams } from './types'
 import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
@@ -648,5 +648,46 @@ describe('carcaseCuts', () => {
   it('leaves the owner unset', () => {
     expect(carcaseCuts(base, 'left-side')[0].sourceComponentId).toBeUndefined()
     expect(carcaseCuts(base, 'left-side')[0].sourceJointId).toBeUndefined()
+  })
+})
+
+describe('parameterForRole', () => {
+  it('maps a side panel length to depth and thickness to thickness', () => {
+    expect(parameterForRole('left-side', 'length', base)).toBe('depth')
+    expect(parameterForRole('left-side', 'thickness', base)).toBe('thickness')
+    expect(parameterForRole('right-side', 'length', base)).toBe('depth')
+  })
+
+  it('maps a side panel width to height only when the carcase starts on the ground', () => {
+    expect(parameterForRole('left-side', 'width', base)).toBe('height')
+    // Under a ladder base the side spans height - toeKickHeight, so its width is not the height
+    // parameter and pushing an edit there would silently change the wrong thing.
+    expect(parameterForRole('left-side', 'width', { ...base, baseMode: 'ladder' })).toBeNull()
+  })
+
+  it('maps a back panel thickness to backThickness, not thickness', () => {
+    expect(parameterForRole('back', 'thickness', base)).toBe('backThickness')
+  })
+
+  it('maps top and bottom width to depth', () => {
+    expect(parameterForRole('bottom', 'width', base)).toBe('depth')
+    expect(parameterForRole('top', 'width', base)).toBe('depth')
+  })
+
+  it('returns null for a dimension no single parameter controls', () => {
+    // A bottom panel's length is width - 2*thickness: two parameters, so there is nothing to push.
+    expect(parameterForRole('bottom', 'length', base)).toBeNull()
+  })
+
+  it('maps every shelf and divider thickness to thickness, whatever their bay', () => {
+    expect(parameterForRole('shelf-0-0', 'thickness', base)).toBe('thickness')
+    expect(parameterForRole('shelf-2-1', 'thickness', base)).toBe('thickness')
+    expect(parameterForRole('divider-0', 'thickness', base)).toBe('thickness')
+    expect(parameterForRole('shelf-0-0', 'width', base)).toBeNull()
+  })
+
+  it('returns null for an unknown or absent role', () => {
+    expect(parameterForRole(undefined, 'length', base)).toBeNull()
+    expect(parameterForRole('not-a-role', 'length', base)).toBeNull()
   })
 })

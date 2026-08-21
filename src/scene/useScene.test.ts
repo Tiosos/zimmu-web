@@ -2475,3 +2475,63 @@ describe('a driven part edit is reconciled immediately', () => {
     expect(after.length).toBe(999)
   })
 })
+
+describe('detach', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0]),
+      normals: new Float32Array([0, 0, 1]),
+    })
+  })
+
+  it('detaches a driven part and stops regenerating it', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const shelf = result.current.scene.parts.find((p) => p.role?.startsWith('shelf-'))!
+    const cmpId = result.current.scene.components[0].id
+
+    act(() => result.current.onDetachPart(shelf.id))
+    const detached = result.current.scene.parts.find((p) => p.id === shelf.id)!
+    expect(detached.driven).toBe(false)
+    expect(detached.role).toBeUndefined()
+
+    // A parameter change that would have moved it must now leave it alone.
+    act(() =>
+      result.current.onUpdateComponent(cmpId, (c) =>
+        c.kind === 'carcase' ? { ...c, params: { ...c.params, height: 900 } } : c,
+      ),
+    )
+    const after = result.current.scene.parts.find((p) => p.id === shelf.id)!
+    expect(after.position).toEqual(detached.position)
+  })
+
+  it('undoes a detach', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const id = result.current.scene.parts.find((p) => p.role === 'left-side')!.id
+    act(() => result.current.onDetachPart(id))
+    expect(result.current.scene.parts.find((p) => p.id === id)!.driven).toBe(false)
+    act(() => result.current.undo())
+    expect(result.current.scene.parts.find((p) => p.id === id)!.driven).toBe(true)
+  })
+
+  it('reports the parameter a driven dimension maps to, and null where there is none', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+    expect(result.current.parameterFor(side.id, 'length')).toBe('depth')
+    expect(result.current.parameterFor(side.id, 'thickness')).toBe('thickness')
+
+    const bottom = result.current.scene.parts.find((p) => p.role === 'bottom')!
+    expect(result.current.parameterFor(bottom.id, 'length')).toBeNull()
+  })
+
+  it('reports null for a part that is not driven', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+    act(() => result.current.onDetachPart(side.id))
+    expect(result.current.parameterFor(side.id, 'length')).toBeNull()
+  })
+})

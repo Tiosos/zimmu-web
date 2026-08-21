@@ -19,6 +19,7 @@ import type {
   Joint,
   FaceHit,
   Selection,
+  CarcaseParams,
 } from './types'
 import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
@@ -40,6 +41,7 @@ import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidTongueGroove } from '../geom/tonguegroove'
 import { PART_COLORS } from './palette'
 import { decomposeMatrix, resolveWorldMatrix } from '../geom/transform'
+import { parameterForRole } from './carcaseRoles'
 
 interface HistoryEntry {
   label: string
@@ -125,6 +127,11 @@ export interface UseSceneResult {
   onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
   onAddComponent: (parentId: ComponentId | null) => void
   onAddCarcase: (preset: CarcasePreset) => void
+  onDetachPart: (id: PartId) => void
+  parameterFor: (
+    id: PartId,
+    dimension: 'length' | 'width' | 'thickness',
+  ) => keyof CarcaseParams | null
   onRemoveComponent: (id: ComponentId) => void
   onReparentComponent: (id: ComponentId, newParentId: ComponentId | null) => void
   onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
@@ -1153,6 +1160,34 @@ export function useScene(): UseSceneResult {
     [componentLabelCounter, push],
   )
 
+  const onDetachPart = useCallback(
+    (id: PartId) => {
+      const before = sceneRef.current
+      // Clearing `role` is the load-bearing half: it is the only thing that stops a later
+      // regeneration from reclaiming the part when its role comes back.
+      const after: Scene = {
+        ...before,
+        parts: before.parts.map((p) =>
+          p.id === id ? { ...p, driven: false, role: undefined } : p,
+        ),
+      }
+      setScene(after)
+      push({ label: 'Detach part', undo: () => setScene(before), redo: () => setScene(after) })
+    },
+    [push],
+  )
+
+  const parameterFor = useCallback(
+    (id: PartId, dimension: 'length' | 'width' | 'thickness'): keyof CarcaseParams | null => {
+      const part = sceneRef.current.parts.find((p) => p.id === id)
+      if (!part || !part.driven || part.parentId === null) return null
+      const owner = sceneRef.current.components.find((c) => c.id === part.parentId)
+      if (owner?.kind !== 'carcase') return null
+      return parameterForRole(part.role, dimension, owner.params)
+    },
+    [],
+  )
+
   const onAddCarcase = useCallback(
     (preset: CarcasePreset) => {
       const component: CarcaseComponent = {
@@ -1318,6 +1353,8 @@ export function useScene(): UseSceneResult {
     onAddTongueGroove,
     onAddComponent,
     onAddCarcase,
+    onDetachPart,
+    parameterFor,
     onRemoveComponent,
     onReparentComponent,
     onUpdateComponent,
