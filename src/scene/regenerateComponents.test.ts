@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { regenerateComponents } from './regenerateComponents'
 import { reconcileJoints } from './reconcileJoints'
+import { CARCASE_PRESETS } from './carcasePresets'
 import type {
   BoardPart,
   BoxCut,
   CarcaseComponent,
   CarcaseParams,
   DadoJoint,
+  Joint,
   Part,
   Scene,
 } from './types'
@@ -335,7 +337,139 @@ describe('cut ownership', () => {
       afterJoints.cuts.filter((c) => c.kind === 'box' && c[f] !== undefined)
 
     expect(owned('sourceComponentId').map((c) => c.id)).toEqual([`cut_toekick_left-side`])
-    expect(owned('sourceJointId').map((c) => c.id)).toEqual(['cut_j1'])
+    // The carcase houses five panels in this side, so its own dados land here too. What matters
+    // is that the hand-made joint's groove is re-derived among them and the stale one is not.
+    expect(owned('sourceJointId').map((c) => c.id)).toContain('cut_j1')
+    expect(owned('sourceJointId').map((c) => c.id)).not.toContain('cut_stale')
     expect(afterJoints.cuts.some((c) => c.id === handMade.id)).toBe(true)
+  })
+})
+
+// Every fixture below is whatever the generator actually produces for a shipped preset: a
+// hand-written cabinet is how a wrong joint count survives a phase.
+describe('joint emission', () => {
+  const presetParams = CARCASE_PRESETS[0].params
+  const preset: CarcaseComponent = { ...cabinet, params: presetParams }
+  const presetScene: Scene = { ...empty, components: [preset] }
+
+  function withPresetParams(s: Scene, overrides: Partial<CarcaseParams>): Scene {
+    return regenerateComponents({
+      ...s,
+      components: [{ ...preset, params: { ...presetParams, ...overrides } }],
+    })
+  }
+
+  function ownedJoints(s: Scene): Joint[] {
+    return s.joints.filter((j) => j.sourceComponentId === 'cmp_1')
+  }
+
+  it('creates twelve driven joints for a base cabinet', () => {
+    const out = regenerateComponents(presetScene)
+
+    expect(ownedJoints(out)).toHaveLength(12)
+    expect(out.joints).toHaveLength(12)
+    expect(out.joints.every((j) => j.driven)).toBe(true)
+  })
+
+  it('points each joint at the parts carrying its roles, labelled from the roles', () => {
+    const out = regenerateComponents(presetScene)
+    const roleOf = new Map(out.parts.map((p) => [p.id, p.role]))
+    const dado = out.joints.find((j) => j.id === 'joint_cmp_1_left-side__bottom') as DadoJoint
+
+    expect(dado).toBeDefined()
+    expect(roleOf.get(dado.housingPartId)).toBe('left-side')
+    expect(roleOf.get(dado.housedPartId)).toBe('bottom')
+    expect(dado.label).toBe('Dado — Left Side / Bottom')
+  })
+
+  it('keeps joint ids stable across a regeneration', () => {
+    const first = regenerateComponents(presetScene)
+    const before = first.joints.map((j) => j.id).sort()
+    const second = withPresetParams(first, { depth: 600 })
+
+    expect(before).toHaveLength(12)
+
+    expect(second.joints.map((j) => j.id).sort()).toEqual(before)
+  })
+
+  it('removes joints whose roles the params no longer imply', () => {
+    const first = regenerateComponents(presetScene)
+    const second = withPresetParams(first, { hasTop: false })
+
+    // Loses both side/top dados, the top/back dado and the top/divider row it never had: 12 → 9.
+    expect(ownedJoints(second)).toHaveLength(9)
+    expect(second.joints.some((j) => j.id.includes('top'))).toBe(false)
+  })
+
+  it('leaves hand-made joints alone', () => {
+    const first = regenerateComponents(presetScene)
+    const handMade: DadoJoint = {
+      ...(first.joints.find((j) => j.kind === 'dado') as DadoJoint),
+      id: 'j_hand',
+      label: 'Dado 1',
+      driven: false,
+      sourceComponentId: undefined,
+    }
+    const second = regenerateComponents({ ...first, joints: [...first.joints, handMade] })
+
+    expect(second.joints.find((j) => j.id === 'j_hand')).toEqual(handMade)
+    expect(ownedJoints(second)).toHaveLength(12)
+  })
+
+  it('preserves last-good joints when params are invalid', () => {
+    const first = regenerateComponents(presetScene)
+    const second = withPresetParams(first, { width: 5 })
+
+    expect(first.joints).toHaveLength(12)
+    expect(second.joints).toEqual(first.joints)
+  })
+
+  it('is idempotent over joints as well as parts', () => {
+    const once = regenerateComponents(presetScene)
+
+    expect(once.joints.length).toBeGreaterThan(0)
+    expect(regenerateComponents(once)).toEqual(once)
+  })
+})
+
+// The real pipeline is reconcileJoints(regenerateComponents(scene)): the joints emitted above are
+// handed straight to the stage that derives their cut geometry. A wrong housing face puts the
+// groove on the outside of the cabinet and nothing downstream objects.
+describe('emitted joints through reconcileJoints', () => {
+  const preset: CarcaseComponent = { ...cabinet, params: CARCASE_PRESETS[0].params }
+  const presetScene: Scene = { ...empty, components: [preset] }
+
+  it('cuts every derived groove into the housing panel', () => {
+    const regenerated = regenerateComponents(presetScene)
+    const out = reconcileJoints(regenerated)
+    const jointById = new Map(out.joints.map((j) => [j.id, j]))
+
+    const derived = out.parts.flatMap((p) =>
+      p.kind === 'board'
+        ? p.cuts.flatMap((c) =>
+            c.kind === 'box' && c.sourceJointId !== undefined ? [{ partId: p.id, cut: c }] : [],
+          )
+        : [],
+    )
+
+    expect(derived).toHaveLength(12)
+    for (const { partId, cut } of derived) {
+      const joint = jointById.get(cut.sourceJointId!) as DadoJoint
+      expect(joint).toBeDefined()
+      expect(partId).toBe(joint.housingPartId)
+    }
+  })
+
+  it('keeps the component-owned toe-kick notch through the joint stage', () => {
+    const out = reconcileJoints(regenerateComponents(presetScene))
+
+    for (const role of ['left-side', 'right-side']) {
+      const side = out.parts.find((p) => p.role === role) as BoardPart
+      expect(
+        side.cuts
+          .filter((c) => c.kind === 'box' && c.sourceComponentId === 'cmp_1')
+          .map((c) => c.id),
+      ).toEqual([`cut_toekick_${role}`])
+    }
   })
 })

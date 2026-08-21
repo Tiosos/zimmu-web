@@ -905,3 +905,32 @@ bottom), makes it fail. Verified by mutation, not by reading.
   `none` backs, and `hasTop: false` — measured the same way as the three headline presets. Left as a
   gap deliberately: inventing a rail joint table here would be the same reasoning-not-measuring
   mistake this phase exists to correct.
+
+## 2026-08-21 — Task 7.2 implemented (joints materialised in `regenerateComponents`)
+
+- **Joint ids are `joint_{componentId}_{housingRole}__{housedRole}`.** Derived, not looked up, so a
+  regeneration reproduces them without consulting the previous scene — which is also what makes the
+  whole pipeline idempotent. `regenerateOne` now returns `{ parts, joints }`.
+- **Deviation from the plan's wholesale replacement.** The plan replaced *every* component-owned
+  joint in the scene on each pass (`ownedIds = joints with a sourceComponentId`). Implemented
+  per-component instead — each carcase replaces only `sourceComponentId === its own id` — and, like
+  the parts path, a carcase whose params are transiently invalid keeps its last-good joints.
+  Wholesale replacement would have deleted the joints of an invalid carcase while keeping its parts,
+  and `reconcileJoints` step 1 would then strip every groove until the parameter became valid again:
+  a visible flicker on the way from a width of `6` to `600`. Orphan joints of a *deleted* component
+  are already removed by `onDeleteComponent`, so nothing needs the wholesale sweep.
+- **Labels come from the role labels** (`"Dado — Left Side / Bottom"`), and the finger variant reads
+  `"Finger joint — …"` to match the hand-made creator's `Finger joint N`.
+- **Verified through `reconcileJoints`, not by reading.** A base cabinet's 12 emitted dados derive
+  12 grooves, every one on its housing panel, on the panel's *inner* face (left side: board `+Z` at
+  z 12–18 = carcase x 12–18) and aligned with the panel it houses (bottom groove at board y 100–118
+  = the bottom panel's z 100–118). The component-owned toe-kick notch and hand-made cuts ride
+  through the joint stage untouched. `reconcileJoints(regenerateComponents(s))` is idempotent.
+- **Known gap found by that probe: the seat displaces every housed panel by the dado depth.** Panel
+  lengths still come from `carcaseRoles` (`bottom.length = W - 2T`), which assumes a butt fit, but a
+  dado seats the housed end at the groove *floor*. With two housings per panel the second seat wins,
+  so the bottom, top, back, toe kick and shelves all shift +6 mm in carcase x: the right end sits
+  6 mm into the right side's groove and a 6 mm gap opens at the left. To fix, panels housed at both
+  ends need `length += 2 × depth` (and their position pulled back by `depth`) — the generator, not
+  the joint stage. Out of scope for 7.2 and not mentioned anywhere in Phase 7; it is only visible
+  once real joints exist, which is now.
