@@ -1,8 +1,20 @@
 import { describe, it, expect } from 'vitest'
-import { carcaseCuts, carcaseRoles, orientedPanel, validateCarcaseParams, parameterForRole } from './carcaseRoles'
-import type { RoleSpec } from './carcaseRoles'
-import type { BoxCut, CarcaseParams } from './types'
+import {
+  carcaseContactPairs,
+  carcaseCuts,
+  carcaseJoints,
+  carcaseRoles,
+  orientedPanel,
+  validateCarcaseParams,
+  parameterForRole,
+} from './carcaseRoles'
+import type { PanelSpec, RoleSpec } from './carcaseRoles'
+import type { BoardPart, BoxCut, CarcaseComponent, CarcaseParams, Face, Scene, Vec3 } from './types'
 import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
+import { componentsById } from './componentTree'
+import { regenerateComponents } from './regenerateComponents'
+import { boardsTouch } from './suggestJoints'
+import { CARCASE_PRESETS } from './carcasePresets'
 
 // World AABB of a panel spec, in carcase-local space. This is the assertion surface: it pins
 // position and rotation together and is indifferent to which equivalent Euler triple the
@@ -689,5 +701,249 @@ describe('parameterForRole', () => {
   it('returns null for an unknown or absent role', () => {
     expect(parameterForRole(undefined, 'length', base)).toBeNull()
     expect(parameterForRole('not-a-role', 'length', base)).toBeNull()
+  })
+})
+
+// A board built from a panel spec, so a panel's rotation can be pushed through the same matrix the
+// app uses. Face directions come out of that matrix rather than out of a table, which is the whole
+// point: a face-mapping table restated here could only ever agree with itself.
+function boardOf(p: PanelSpec) {
+  return {
+    ...p,
+    kind: 'board' as const,
+    id: 'x',
+    label: 'x',
+    material: '',
+    color: '#fff',
+    cuts: [],
+    visible: true,
+    parentId: null,
+    driven: true,
+  }
+}
+
+function centreOf(p: PanelSpec): Vec3 {
+  const b = aabb(p)
+  return {
+    x: (b.min.x + b.max.x) / 2,
+    y: (b.min.y + b.max.y) / 2,
+    z: (b.min.z + b.max.z) / 2,
+  }
+}
+
+function faceDirInCarcase(p: PanelSpec, face: Face): Vec3 {
+  const m = composeWorldMatrix(boardOf(p))
+  const sign = face[0] === '+' ? 1 : -1
+  const unit = {
+    X: [sign, 0, 0],
+    Y: [0, sign, 0],
+    Z: [0, 0, sign],
+  }[face[1] as 'X' | 'Y' | 'Z']
+  const o = applyMatrixToPoint(m, 0, 0, 0)
+  const q = applyMatrixToPoint(m, unit[0], unit[1], unit[2])
+  return { x: q[0] - o[0], y: q[1] - o[1], z: q[2] - o[2] }
+}
+
+function dot(a: Vec3, b: Vec3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z
+}
+
+const pairKey = (a: string, b: string) => [a, b].sort().join('|')
+
+function sceneFor(params: CarcaseParams): Scene {
+  const cabinet: CarcaseComponent = {
+    kind: 'carcase',
+    id: 'cmp_1',
+    label: 'Cabinet',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    params,
+  }
+  return regenerateComponents({
+    parts: [],
+    materials: {},
+    hardware: [],
+    joints: [],
+    components: [cabinet],
+  })
+}
+
+// The denominator the joint checklist uses: every board pair the suggestion engine calls touching.
+function touchingPairs(params: CarcaseParams): string[] {
+  const scene = sceneFor(params)
+  const byId = componentsById(scene.components)
+  const boards = scene.parts.filter(
+    (p): p is BoardPart & { role: string } => p.kind === 'board' && p.role !== undefined,
+  )
+  const out: string[] = []
+  for (let i = 0; i < boards.length; i++) {
+    for (let j = i + 1; j < boards.length; j++) {
+      if (boardsTouch(boards[i], boards[j], byId)) out.push(pairKey(boards[i].role, boards[j].role))
+    }
+  }
+  return out.sort()
+}
+
+describe('carcaseJoints', () => {
+  // Self-checking: a housing face must point *at* the part it houses, and the housed end must point
+  // back at the housing. Asserting the letters from the plan's table would only prove the table
+  // matches itself.
+  it('points every joint face at the part it joins', () => {
+    const cases: Record<string, CarcaseParams> = {
+      base,
+      'base, fingered': { ...base, jointMethod: 'finger' },
+      wall: { ...base, baseMode: 'none' },
+      'wall, fingered': { ...base, baseMode: 'none', jointMethod: 'finger' },
+      divided: { ...base, dividers: [0.5] },
+      'two dividers, two shelves': { ...base, dividers: [0.34, 0.67], fixedShelves: 2 },
+      'no top, no back': { ...base, hasTop: false, backMode: 'none' },
+      'applied back': { ...base, backMode: 'applied' },
+    }
+    for (const [name, p] of Object.entries(cases)) {
+      const panels = new Map(carcaseRoles(p).map((r) => [r.role, r.panel]))
+      const joints = carcaseJoints(p, 'cmp_1')
+      expect(joints.length, name).toBeGreaterThan(0)
+      for (const d of joints) {
+        const housing = panels.get(d.housingRole)
+        const housed = panels.get(d.housedRole)
+        const where = `${name}: ${d.housingRole} houses ${d.housedRole}`
+        expect(housing, where).toBeDefined()
+        expect(housed, where).toBeDefined()
+        if (housing === undefined || housed === undefined) continue
+        const a = centreOf(housing)
+        const b = centreOf(housed)
+        const toHoused = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }
+        expect(dot(faceDirInCarcase(housing, d.housingFace), toHoused), where).toBeGreaterThan(0)
+        expect(dot(faceDirInCarcase(housed, d.housedEnd), toHoused), where).toBeLessThan(0)
+      }
+    }
+  })
+
+  it('emits twelve joints and two contact pairs for a base cabinet', () => {
+    expect(carcaseJoints(base, 'cmp_1')).toHaveLength(12)
+    expect(carcaseContactPairs(base)).toHaveLength(2)
+  })
+
+  // The completeness check: every pair the engine calls touching is accounted for exactly once,
+  // and nothing is claimed for panels that do not meet.
+  it('covers every touching pair exactly once, as either a joint or a contact pair', () => {
+    const cases: [string, CarcaseParams, number, number][] = [
+      ['Base 600', CARCASE_PRESETS[0].params, 12, 2],
+      ['Wall 600', CARCASE_PRESETS[1].params, 10, 1],
+      ['Base 600 + divider', { ...CARCASE_PRESETS[0].params, dividers: [0.5] }, 16, 4],
+    ]
+    for (const [name, p, jointCount, contactCount] of cases) {
+      const joints = carcaseJoints(p, 'cmp_1')
+      const contacts = carcaseContactPairs(p)
+      expect(joints, name).toHaveLength(jointCount)
+      expect(contacts, name).toHaveLength(contactCount)
+
+      const covered = [
+        ...joints.map((d) => pairKey(d.housingRole, d.housedRole)),
+        ...contacts.map(([a, b]) => pairKey(a, b)),
+      ]
+      expect(new Set(covered).size, `${name}: no pair covered twice`).toBe(covered.length)
+      expect(covered.sort(), name).toEqual(touchingPairs(p))
+    }
+  })
+
+  it('houses dividers in the bottom and top, never in a side', () => {
+    const withDivider = { ...base, dividers: [0.5] }
+    const ds = carcaseJoints(withDivider, 'cmp_1').filter((d) =>
+      d.housedRole.startsWith('divider-'),
+    )
+    expect(ds.map((d) => d.housingRole).sort()).toEqual(['bottom', 'top'])
+    expect(
+      carcaseJoints(withDivider, 'cmp_1').some((d) => d.housingRole.startsWith('divider-')),
+    ).toBe(true)
+  })
+
+  it('houses each shelf in its own bay edges, not in both sides', () => {
+    const withDivider = { ...base, dividers: [0.5] }
+    const js = carcaseJoints(withDivider, 'cmp_1')
+    const housingsOf = (role: string) =>
+      js
+        .filter((d) => d.housedRole === role)
+        .map((d) => d.housingRole)
+        .sort()
+    expect(housingsOf('shelf-0-0')).toEqual(['divider-0', 'left-side'])
+    expect(housingsOf('shelf-1-0')).toEqual(['divider-0', 'right-side'])
+  })
+
+  it('houses a middle bay shelf in the two dividers that bound it', () => {
+    const p = { ...base, dividers: [0.34, 0.67] }
+    const js = carcaseJoints(p, 'cmp_1')
+    const housingsOf = (role: string) =>
+      js
+        .filter((d) => d.housedRole === role)
+        .map((d) => d.housingRole)
+        .sort()
+    expect(housingsOf('shelf-1-0')).toEqual(['divider-0', 'divider-1'])
+  })
+
+  it('tags every joint with the owning component and marks it driven', () => {
+    const joints = carcaseJoints(base, 'cmp_2')
+    expect(joints.every((j) => j.sourceComponentId === 'cmp_2')).toBe(true)
+    expect(joints.every((j) => j.driven)).toBe(true)
+  })
+
+  it('fingers only the flush corners: two on a toe-kick base, four on a wall unit', () => {
+    const kick = carcaseJoints({ ...base, jointMethod: 'finger' }, 'cmp_1')
+    expect(kick.filter((j) => j.kind === 'finger')).toHaveLength(2)
+    expect(kick.filter((j) => j.kind === 'finger').map((j) => j.housedRole)).toEqual(['top', 'top'])
+    const wall = carcaseJoints({ ...CARCASE_PRESETS[1].params, jointMethod: 'finger' }, 'cmp_1')
+    expect(wall.filter((j) => j.kind === 'finger')).toHaveLength(4)
+    // Same pair set either way: finger replaces the dado at a flush corner, it does not add a pair.
+    expect(carcaseJoints({ ...base, jointMethod: 'finger' }, 'cmp_1')).toHaveLength(
+      carcaseJoints(base, 'cmp_1').length,
+    )
+  })
+
+  it('emits nothing for fastener methods', () => {
+    for (const m of ['dowel', 'butt-screw', 'confirmat'] as const) {
+      expect(carcaseJoints({ ...base, jointMethod: m }, 'cmp_1'), m).toEqual([])
+    }
+  })
+
+  it('emits nothing for invalid parameters', () => {
+    expect(carcaseJoints({ ...base, width: 10 }, 'cmp_1')).toEqual([])
+  })
+
+  it('scales with shelf count', () => {
+    const one = carcaseJoints(base, 'cmp_1').length
+    const three = carcaseJoints({ ...base, fixedShelves: 3 }, 'cmp_1').length
+    expect(three - one).toBe(4)
+  })
+})
+
+describe('carcaseContactPairs', () => {
+  it('declares the kick against the bottom and every shelf against the back', () => {
+    expect(
+      carcaseContactPairs(base)
+        .map(([a, b]) => pairKey(a, b))
+        .sort(),
+    ).toEqual(['back|shelf-0-0', 'bottom|toe-kick'])
+  })
+
+  it('declares dividers against the back too', () => {
+    const pairs = carcaseContactPairs({ ...base, dividers: [0.5] }).map(([a, b]) => pairKey(a, b))
+    expect(pairs).toContain('back|divider-0')
+  })
+
+  it('declares the same pairs whatever fastens the cabinet', () => {
+    for (const m of ['dowel', 'butt-screw', 'confirmat', 'finger'] as const) {
+      expect(carcaseContactPairs({ ...base, jointMethod: m }), m).toEqual(carcaseContactPairs(base))
+    }
+  })
+
+  it('declares nothing against a back that does not exist', () => {
+    expect(carcaseContactPairs({ ...base, backMode: 'none' })).toEqual([['bottom', 'toe-kick']])
+  })
+
+  it('emits nothing for invalid parameters', () => {
+    expect(carcaseContactPairs({ ...base, width: 10 })).toEqual([])
   })
 })

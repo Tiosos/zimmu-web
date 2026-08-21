@@ -1,4 +1,4 @@
-import type { BoxCut, CarcaseParams, Vec3 } from './types'
+import type { BoxCut, CarcaseParams, Face, Vec3 } from './types'
 
 export interface LocalBox {
   x0: number
@@ -64,6 +64,13 @@ export function orientedPanel(b: LocalBox, thicknessAxis: 'x' | 'y' | 'z'): Pane
 // never computed against a floor the generator does not use.
 function floorZ(p: CarcaseParams): number {
   return p.baseMode === 'toe-kick' || p.baseMode === 'ladder' ? p.toeKickHeight : 0
+}
+
+// Dividers cut the carcase into vertical bays and a bay is a consecutive pair of edges. Shared by
+// the role table and the joint table so a change to bay layout cannot desynchronise the two.
+function bayEdges(p: CarcaseParams): number[] {
+  const { width: W, thickness: T } = p
+  return [T, ...p.dividers.flatMap((d) => [W * d - T / 2, W * d + T / 2]), W - T]
 }
 
 // Total and side-effect free by contract: the generator calls this on every keystroke and emits
@@ -247,18 +254,18 @@ export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
     })
   })
 
-  // Dividers cut the carcase into vertical bays and shelves live inside a bay — a bookcase with a
-  // centre upright — so `fixedShelves` is a count per bay. Consecutive edges are one bay.
-  const bayEdges = [T, ...p.dividers.flatMap((d) => [W * d - T / 2, W * d + T / 2]), W - T]
+  // Shelves live inside a bay — a bookcase with a centre upright — so `fixedShelves` is a count
+  // per bay.
+  const edges = bayEdges(p)
   const shelfGap = (innerTop - bayZ0 - p.fixedShelves * T) / (p.fixedShelves + 1)
-  for (let b = 0; b < bayEdges.length / 2; b++) {
+  for (let b = 0; b < edges.length / 2; b++) {
     for (let i = 0; i < p.fixedShelves; i++) {
       const z0 = bayZ0 + (i + 1) * shelfGap + i * T
       roles.push({
         role: `shelf-${b}-${i}`,
         label: p.dividers.length > 0 ? `Bay ${b + 1} Shelf ${i + 1}` : `Shelf ${i + 1}`,
         panel: orientedPanel(
-          { x0: bayEdges[b * 2], x1: bayEdges[b * 2 + 1], y0: 0, y1: shelfBackY, z0, z1: z0 + T },
+          { x0: edges[b * 2], x1: edges[b * 2 + 1], y0: 0, y1: shelfBackY, z0, z1: z0 + T },
           'z',
         ),
       })
@@ -266,6 +273,120 @@ export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
   }
 
   return roles
+}
+
+export interface JointDescriptor {
+  kind: 'dado' | 'finger'
+  housingRole: string
+  housedRole: string
+  housingFace: Face
+  housedEnd: Face
+  sourceComponentId: string
+  driven: true
+}
+
+// Board-local faces, so they follow the panel's thickness axis. A side and a divider are both
+// thickness-on-x panels, which is why one pair of constants covers every housing here: an edge
+// facing carcase +x presents its board +Z, and the panel it houses meets it with its own -X (for
+// a thickness-on-z panel: bottom, top, shelf) or -Y (thickness-on-y: back, toe kick).
+const LEFT_EDGE_FACE: Face = '+Z'
+const RIGHT_EDGE_FACE: Face = '-Z'
+
+interface SideSpec {
+  role: string
+  inward: Face
+  endOfFlat: Face
+  endOfUpright: Face
+}
+
+const SIDES: SideSpec[] = [
+  { role: 'left-side', inward: LEFT_EDGE_FACE, endOfFlat: '-X', endOfUpright: '-Y' },
+  { role: 'right-side', inward: RIGHT_EDGE_FACE, endOfFlat: '+X', endOfUpright: '+Y' },
+]
+
+// The joints a carcase implies, keyed by role because part ids are only known after reconciliation.
+// Returns nothing for the three fastener methods: their geometry is hardware, not a cut.
+export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescriptor[] {
+  if (validateCarcaseParams(p).length > 0) return []
+  if (p.jointMethod !== 'dado-rabbet' && p.jointMethod !== 'finger') return []
+
+  const out: JointDescriptor[] = []
+  const add = (
+    kind: 'dado' | 'finger',
+    housingRole: string,
+    housedRole: string,
+    housingFace: Face,
+    housedEnd: Face,
+  ) => {
+    out.push({
+      kind,
+      housingRole,
+      housedRole,
+      housingFace,
+      housedEnd,
+      sourceComponentId: componentId,
+      driven: true,
+    })
+  }
+
+  // A corner takes fingers only when the two outer faces are coplanar. A toe kick insets the bottom
+  // while the sides still run to the floor, so that corner stays a dado — which is also the only
+  // thing the suggestion engine would offer there.
+  const finger = p.jointMethod === 'finger'
+  const fingerBottom = finger && p.baseMode !== 'toe-kick'
+
+  for (const s of SIDES) {
+    if (fingerBottom) add('finger', s.role, 'bottom', '-Y', s.endOfFlat)
+    else add('dado', s.role, 'bottom', s.inward, s.endOfFlat)
+    if (p.hasTop) {
+      if (finger) add('finger', s.role, 'top', '+Y', s.endOfFlat)
+      else add('dado', s.role, 'top', s.inward, s.endOfFlat)
+    }
+    if (p.backMode !== 'none') add('dado', s.role, 'back', s.inward, s.endOfUpright)
+    if (p.baseMode === 'toe-kick') add('dado', s.role, 'toe-kick', s.inward, s.endOfUpright)
+  }
+
+  // The back sits on the bottom and under the top, so they house it, not the other way round.
+  if (p.backMode !== 'none') {
+    add('dado', 'bottom', 'back', '+Z', '-X')
+    if (p.hasTop) add('dado', 'top', 'back', '-Z', '+X')
+  }
+
+  // A divider spans floor to ceiling of the bay and never reaches a side.
+  for (let i = 0; i < p.dividers.length; i++) {
+    add('dado', 'bottom', `divider-${i}`, '+Z', '-Y')
+    if (p.hasTop) add('dado', 'top', `divider-${i}`, '-Z', '+Y')
+  }
+
+  const bays = bayEdges(p).length / 2
+  for (let b = 0; b < bays; b++) {
+    const left = b === 0 ? 'left-side' : `divider-${b - 1}`
+    const right = b === bays - 1 ? 'right-side' : `divider-${b}`
+    for (let i = 0; i < p.fixedShelves; i++) {
+      add('dado', left, `shelf-${b}-${i}`, LEFT_EDGE_FACE, '-X')
+      add('dado', right, `shelf-${b}-${i}`, RIGHT_EDGE_FACE, '+X')
+    }
+  }
+
+  return out
+}
+
+// Role pairs that touch and are deliberately left unjointed: a shelf stops at the back, it is not
+// housed in it, and the kick carries the bottom rather than joining it. Independent of jointMethod —
+// they abut whatever fastens the cabinet.
+export function carcaseContactPairs(p: CarcaseParams): [string, string][] {
+  if (validateCarcaseParams(p).length > 0) return []
+
+  const pairs: [string, string][] = []
+  if (p.baseMode === 'toe-kick') pairs.push(['bottom', 'toe-kick'])
+  if (p.backMode !== 'none') {
+    for (let i = 0; i < p.dividers.length; i++) pairs.push(['back', `divider-${i}`])
+    const bays = bayEdges(p).length / 2
+    for (let b = 0; b < bays; b++) {
+      for (let i = 0; i < p.fixedShelves; i++) pairs.push(['back', `shelf-${b}-${i}`])
+    }
+  }
+  return pairs
 }
 
 // Cuts a carcase places on its own panels, independent of any joint. With a toe kick the sides run

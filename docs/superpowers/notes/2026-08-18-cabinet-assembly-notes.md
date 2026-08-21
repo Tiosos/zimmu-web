@@ -878,3 +878,30 @@ Task 4.3's role table, now three phases running. The corrected Task 7.1 therefor
 that checks each emitted face against the parts' actual positions (a housing face must point *at*
 what it houses) and one that demands joints ∪ contact pairs equals the measured touching set — both
 check the system against itself rather than against a table I wrote.
+
+## 2026-08-21 — Task 7.1 implemented (`carcaseJoints`, `carcaseContactPairs`)
+
+The two self-checking tests were written first and both agreed with the corrected Phase 7 tables:
+the measured touching sets (14 / 11 / 20 pairs) split exactly as 12 + 2, 10 + 1, 16 + 4, and every
+emitted face passes the "housing face points at what it houses" check. No further correction was
+needed — the first phase in four where the plan's table survived contact with the geometry.
+
+The self-check earns its keep: mutating any single face letter, or reverting any of the three rows
+the plan had corrected (sides housing dividers, shelves housing in both sides, back housing the
+bottom), makes it fail. Verified by mutation, not by reading.
+
+- **Fastener methods emit no joints.** `'dowel' | 'butt-screw' | 'confirmat'` return `[]` from
+  `carcaseJoints`; their geometry is hardware, and this slice does not model it. Contact pairs are
+  emitted regardless — a shelf abuts the back whatever holds the cabinet together.
+- **One face rule, not ten.** Sides and dividers are both thickness-on-x panels, so every housing in
+  the table reduces to: an edge facing carcase +x presents board `+Z`, and the panel it houses meets
+  it with its own `-X` (thickness-on-z: bottom, top, shelf) or `-Y` (thickness-on-y: back, toe kick).
+  The plan's ten-row face table is that rule enumerated.
+- **`bayEdges(p)` is now a shared module-private helper** used by both `carcaseRoles` and
+  `carcaseJoints`, so bay layout cannot desynchronise between the role table and the joint table.
+- **Known gap: a ladder base is not jointed.** `baseMode: 'ladder'` adds four rails and 14 touching
+  pairs (rail↔rail, rail↔side, rail↔bottom) that Phase 7 never enumerated, so a ladder cabinet will
+  read `10 / 24` rather than complete. Every other mode is exact — including `legs`, `applied` and
+  `none` backs, and `hasTop: false` — measured the same way as the three headline presets. Left as a
+  gap deliberately: inventing a rail joint table here would be the same reasoning-not-measuring
+  mistake this phase exists to correct.
