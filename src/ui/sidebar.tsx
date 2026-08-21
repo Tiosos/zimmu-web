@@ -8,6 +8,7 @@ import type {
   Selection,
   ComponentId,
   Component,
+  CarcaseParams,
 } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
 import type { JointSuggestion } from '../scene/suggestJoints'
@@ -31,6 +32,11 @@ interface SidebarProps {
   onAdd: (kind: 'board' | 'cylinder') => void
   onAddComponent: (parentId: ComponentId | null) => void
   onAddCarcase: (preset: CarcasePreset) => void
+  parameterFor: (
+    id: PartId,
+    dimension: 'length' | 'width' | 'thickness',
+  ) => keyof CarcaseParams | null
+  onDetachPart: (id: PartId, updater?: (p: Part) => Part) => void
   onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
@@ -68,6 +74,8 @@ export function Sidebar({
   onAdd,
   onAddComponent,
   onAddCarcase,
+  parameterFor,
+  onDetachPart,
   onUpdateComponent,
   onRemove,
   onDuplicate,
@@ -198,7 +206,9 @@ export function Sidebar({
           </Button>
         </div>
 
-        <ScrollArea className="flex-1">
+        {/* min-h keeps the tree reachable: a cabinet makes the edit panel tall enough to
+            squeeze a `flex-1` scroll area to nothing in a short window. */}
+        <ScrollArea className="flex-1 min-h-32">
           {scene.parts.length === 0 && scene.components.length === 0 ? (
             <p className="p-4 text-muted-foreground text-xs text-center">
               No parts — add a part to start
@@ -250,6 +260,9 @@ export function Sidebar({
             suggestions={suggestions}
             onApplySuggestion={onApplySuggestion}
             onHoverSuggestion={onHoverSuggestion}
+            parameterFor={parameterFor}
+            onDetachPart={onDetachPart}
+            onUpdateComponent={onUpdateComponent}
           />
         )}
 

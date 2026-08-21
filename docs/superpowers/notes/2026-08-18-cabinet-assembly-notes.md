@@ -786,3 +786,46 @@ Related and also left alone: the notch's `x = 0` and `y = 0` tool faces **are** 
 panel's `-X` end and `-Y` edge, because overshooting there would break the "sized to setback × kick
 height" contract. If the notch ever renders ragged at the front-bottom corner, that is the first place
 to look.
+
+## Task 6.2 — two defects the unit tests structurally could not see
+
+### `sceneRef` is one render behind, so detach-then-edit undid the detach
+
+`EditPanel.detachAndApply` originally called `onDetachPart(id)` and then
+`onUpdate(id, ...)` from the same click handler. Every `useScene` mutator reads its `before`
+from `sceneRef.current`, which a `useLayoutEffect` only refreshes **after** render. So the second
+call read a scene in which the part was still `driven` with its `role` intact, took the
+`needsPipeline` branch, and regenerated the detachment away. The user's edit landed on a part that
+the cabinet immediately reclaimed — the detach button did nothing at all.
+
+Both unit tests passed throughout. `useScene.test.ts` only ever called `onDetachPart` alone, inside
+its own `act()`, so the ref was always current. `EditPanel.test.tsx` mocked both callbacks and
+asserted only that each was called — a mock cannot express "the second call reads state the first
+one wrote." **Neither test was wrong; the bug lived in the seam between them**, and only the e2e
+exercised the two real implementations in one tick.
+
+Fixed by making the operation atomic rather than by chasing ref staleness:
+`onDetachPart(id, updater?)` applies the updater and clears `driven`/`role` in a single
+transition, with a single history entry. That also fixes an undo bug nobody had noticed — the old
+two-call form pushed two entries, so one Ctrl+Z left the part detached at its new size.
+
+The general hazard remains: *any* two `useScene` mutators called from one handler have this
+problem. Not fixed globally, because making `sceneRef` write-through would put it out of step with
+the `setScene((prev) => …)` functional-updater call sites. Recorded so the next person composing
+two mutators knows to fold them into one instead.
+
+### The edit panel collapsed the scene tree to zero height
+
+With a cabinet selected, the sidebar's fixed stack of seven joint buttons plus an unbounded
+`EditPanel` consumed the whole 720px column, squeezing the `flex-1` ScrollArea to nothing. The e2e
+failed with "subtree intercepts pointer events" — the tree row was technically in the DOM and
+"visible" to Playwright, but had no space to be clicked in.
+
+This is the same shape as the Task 5.2 CarcasePanel finding, and the second time a pure-layout
+defect has been invisible to jsdom: happy-dom has no layout engine, so a panel covering a tree is
+literally unrepresentable in a unit test. **Sidebar height budget is e2e-only territory.**
+
+Fix: `max-h-[55%] overflow-y-auto` on the EditPanel root (bounded, but *not* `shrink-0` — it must
+still yield), plus `min-h-32` on the ScrollArea so the tree keeps a floor. Note the asymmetry with
+CarcasePanel, which does carry `shrink-0`: only one of the two panels is ever mounted, so they do
+not compete, but a future third panel would need the same "bounded and shrinkable" treatment.

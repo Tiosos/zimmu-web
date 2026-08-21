@@ -2465,9 +2465,7 @@ describe('a driven part edit is reconciled immediately', () => {
     act(() => result.current.onUpdate(side.id, (p) => ({ ...p, driven: false, role: undefined })))
 
     act(() =>
-      result.current.onUpdate(side.id, (p) =>
-        p.kind === 'board' ? { ...p, length: 999 } : p,
-      ),
+      result.current.onUpdate(side.id, (p) => (p.kind === 'board' ? { ...p, length: 999 } : p)),
     )
 
     const after = result.current.scene.parts.find((p) => p.id === side.id)!
@@ -2504,6 +2502,25 @@ describe('detach', () => {
     )
     const after = result.current.scene.parts.find((p) => p.id === shelf.id)!
     expect(after.position).toEqual(detached.position)
+  })
+
+  it('applies the edit that prompted the detach in the same transition', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+
+    act(() => result.current.onDetachPart(side.id, (p) => ({ ...p, length: 999 }) as Part))
+
+    const after = result.current.scene.parts.find((p) => p.id === side.id)!
+    expect(after.driven).toBe(false)
+    expect(after.role).toBeUndefined()
+    expect(after.kind === 'board' && after.length).toBe(999)
+
+    // One user action, one history entry: a single undo puts the part back under its cabinet.
+    act(() => result.current.undo())
+    const restored = result.current.scene.parts.find((p) => p.id === side.id)!
+    expect(restored.driven).toBe(true)
+    expect(restored.kind === 'board' && restored.length).toBe(side.kind === 'board' && side.length)
   })
 
   it('undoes a detach', () => {

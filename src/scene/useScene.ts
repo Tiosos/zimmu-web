@@ -127,7 +127,7 @@ export interface UseSceneResult {
   onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
   onAddComponent: (parentId: ComponentId | null) => void
   onAddCarcase: (preset: CarcasePreset) => void
-  onDetachPart: (id: PartId) => void
+  onDetachPart: (id: PartId, updater?: (p: Part) => Part) => void
   parameterFor: (
     id: PartId,
     dimension: 'length' | 'width' | 'thickness',
@@ -1161,14 +1161,18 @@ export function useScene(): UseSceneResult {
   )
 
   const onDetachPart = useCallback(
-    (id: PartId) => {
+    (id: PartId, updater?: (p: Part) => Part) => {
       const before = sceneRef.current
+      // The edit that prompted the detach has to land in this same transition. `sceneRef` only
+      // catches up after render, so a separate `onUpdate` call from the same handler would read
+      // the still-driven part and regenerate the detachment away.
+      //
       // Clearing `role` is the load-bearing half: it is the only thing that stops a later
       // regeneration from reclaiming the part when its role comes back.
       const after: Scene = {
         ...before,
         parts: before.parts.map((p) =>
-          p.id === id ? { ...p, driven: false, role: undefined } : p,
+          p.id === id ? { ...(updater ? updater(p) : p), driven: false, role: undefined } : p,
         ),
       }
       setScene(after)

@@ -9,6 +9,9 @@ import type {
   Part,
   PartId,
   Scene,
+  CarcaseParams,
+  Component,
+  ComponentId,
 } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
 import type { JointSuggestion } from '../scene/suggestJoints'
@@ -405,9 +408,18 @@ export function EditPanel({
   suggestions,
   onApplySuggestion,
   onHoverSuggestion,
+  parameterFor,
+  onDetachPart,
+  onUpdateComponent,
 }: {
   part: Part
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
+  parameterFor: (
+    id: PartId,
+    dimension: 'length' | 'width' | 'thickness',
+  ) => keyof CarcaseParams | null
+  onDetachPart: (id: PartId, updater?: (p: Part) => Part) => void
+  onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
   onRemove: (id: PartId) => void
   onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
   onAddMitre: (partId: PartId) => void
@@ -437,8 +449,48 @@ export function EditPanel({
     if (!labelFocused.current) setLabelValue(part.label)
   }, [part.label])
 
+  // A driven part's dimensions belong to its cabinet, so an edit here is a question, not a
+  // command: push it up to the parameter, or take ownership of the part. Holding the value
+  // instead of applying it is what keeps the cabinet from silently reverting the user.
+  const [pending, setPending] = useState<{
+    dimension: 'length' | 'width' | 'thickness'
+    value: number
+    param: keyof CarcaseParams | null
+  } | null>(null)
+
+  const commitDimension = (dimension: 'length' | 'width' | 'thickness', value: number) => {
+    if (!part.driven) {
+      onUpdate(part.id, (p) => ({ ...p, [dimension]: value }) as Part)
+      return
+    }
+    setPending({ dimension, value, param: parameterFor(part.id, dimension) })
+  }
+
+  const applyToCabinet = () => {
+    if (!pending || pending.param === null || part.parentId === null) return
+    const { param, value } = pending
+    onUpdateComponent(part.parentId, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, [param]: value } } : c,
+    )
+    setPending(null)
+  }
+
+  const detachAndApply = () => {
+    if (!pending) return
+    const { dimension, value } = pending
+    onDetachPart(part.id, (p) => ({ ...p, [dimension]: value }) as Part)
+    setPending(null)
+  }
+
+  const ownerLabel =
+    part.parentId === null
+      ? ''
+      : (scene.components.find((c) => c.id === part.parentId)?.label ?? '')
+
+  // Bounded and scrollable for the same reason CarcasePanel is: with a cabinet in the tree the
+  // panel's content is tall enough to overflow the sidebar and cover the rows above it.
   return (
-    <div className="p-2 border-t border-border">
+    <div className="p-2 border-t border-border max-h-[55%] overflow-y-auto">
       {/* Label input + delete */}
       <div className="mb-2 flex gap-1">
         <Input
@@ -509,20 +561,37 @@ export function EditPanel({
                 label="L"
                 value={part.length}
                 suffix="mm"
-                onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, length: v }))}
+                onCommit={(v) => commitDimension('length', v)}
               />
               <DimInput
                 label="W"
                 value={part.width}
                 suffix="mm"
-                onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, width: v }))}
+                onCommit={(v) => commitDimension('width', v)}
               />
               <DimInput
                 label="T"
                 value={part.thickness}
                 suffix="mm"
-                onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, thickness: v }))}
+                onCommit={(v) => commitDimension('thickness', v)}
               />
+              {pending && (
+                <div className="mt-1 rounded border border-amber-700/50 bg-amber-950/30 px-2 py-1.5">
+                  <div className="mb-1.5 text-[11px] text-amber-200">
+                    {part.label} is driven by {ownerLabel}.
+                  </div>
+                  <div className="flex gap-1.5">
+                    {pending.param !== null && (
+                      <Button size="sm" variant="secondary" onClick={applyToCabinet}>
+                        Change the cabinet
+                      </Button>
+                    )}
+                    <Button size="sm" variant="secondary" onClick={detachAndApply}>
+                      Detach this part
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <>
