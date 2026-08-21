@@ -3290,34 +3290,124 @@ The manual `pnpm dev` walkthroughs were replaced by the automated equivalents ab
 
 # Phase 7 — The carcase emits real joints
 
-**Outcome:** a dropped cabinet reads as `12 / 12` on the joint checklist, and the checklist stays readable with six cabinets in the scene.
+**Outcome:** a dropped Base 600 reads as `12 / 12` on the joint checklist, and the checklist stays readable with six cabinets in the scene.
+
+> **This phase was re-derived against the running generator on 2026-08-21, before implementation.** The original text asserted a joint table and a `12 / 12` count from reasoning alone; probing `regenerateComponents` + `buildJointChecklist` showed a Base 600 has **14** touching pairs, not 12, and that four of the table's rows were geometrically impossible. The corrected table, the two product decisions behind it, and the empirical pair lists are below. Do not re-derive them from the old text — it is gone.
 
 **Scope note, stated because it will look like an omission:** this phase emits joint *geometry* for `jointMethod: 'dado-rabbet'` and `'finger'` only. `'dowel'`, `'butt-screw'` and `'confirmat'` are fastener methods whose geometry is hardware (dowel pins, screws, cam locks) — they emit no joints in this slice and the checklist correctly shows those pairs as open. Record this in the notes file when you implement it.
 
-## Task 7.1: `carcaseJoints`
+## Ground truth: what actually touches
+
+Measured, not reasoned. Reproduce by regenerating a preset and running `boardsTouch` over every board pair.
+
+| Cabinet | Parts | Touching pairs | Joints | Contact-only |
+|---|---|---|---|---|
+| Base 600 (toe kick, 1 shelf) | 7 | 14 | 12 | 2 |
+| Wall 600 (no base, 1 shelf) | 6 | 11 | 10 | 1 |
+| Base 600 + 1 divider | 9 | 20 | 16 | 4 |
+
+**Two decisions taken with the user, 2026-08-21:**
+
+1. **Contact pairs are declared, not jointed.** The toe kick's top edge meets the bottom panel's underside, and a shelf's (or divider's) rear edge meets the back panel's front face. Both touch; neither is joinery — a shelf stops at the back, it is not housed in it. The carcase declares these pairs deliberately unjointed and the checklist renders them muted as "no joint needed", excluded from the count. This is what makes `12 / 12` true rather than `12 / 14`.
+2. **Finger joints go only at genuinely flush corners.** A corner is flush when the two panels' outer faces are coplanar. `left-side`/`right-side` × `top` always is. × `bottom` is flush only when `baseMode !== 'toe-kick'` — a toe kick insets the bottom to `z ∈ [toeKickHeight, toeKickHeight + T]` while the sides still run to the floor. So a wall unit gets four finger corners and a toe-kick base gets two; the rest stay dado. The suggestion engine already refuses to offer `finger` for the inset pairs, so this keeps the generator and the panel in agreement instead of emitting two joints the panel would never have proposed.
+
+## The corrected joint table
+
+`P(role)` is the part carrying that role. Every row is a dado unless the finger rule above replaces it.
+
+| Housing | Housed | Why it is this way round |
+|---|---|---|
+| `left-side`, `right-side` | `bottom`, `top`, `back`, `toe-kick` | sides are the outer shell; everything lands in them |
+| `left-side`, `right-side` | the bay-edge shelves only (see below) | |
+| `bottom`, `top` | `back` | the back sits **on** the bottom (`z0 = floor + T`) and **under** the top (`z1 = H - T`), so they house it — **not** the other way round, which is what the original table said |
+| `bottom`, `top` | every `divider-*` | a divider spans `bayZ0 → innerTop`, floor to ceiling of the bay. **It never touches a side**, so the original "sides house every divider" row is impossible |
+| `divider-(b-1)` | shelves of bay `b`, at their `-x` edge | |
+| `divider-b` | shelves of bay `b`, at their `+x` edge | |
+
+**Shelves are housed in their bay's two edges, not in both sides.** `bayEdges = [T, ...dividers.flatMap(d => [W*d - T/2, W*d + T/2]), W - T]`. For bay `b` the left edge is `left-side` when `b === 0` and `divider-(b-1)` otherwise; the right edge is `right-side` in the last bay and `divider-b` otherwise. With no dividers there is one bay and every shelf is housed in both sides — which is why the original table looked right and was still wrong.
+
+**Contact pairs (declared, never jointed):** `bottom`↔`toe-kick`, `back`↔ every `shelf-*-*`, `back`↔ every `divider-*`.
+
+### The faces, and where they come from
+
+`defaultDadoJoint` needs a `housingFace` and a `housedEnd`; `defaultFingerJoint` needs `endA` and `endB`. The original `JointDescriptor` carried neither — it had role names only, and would not have compiled against either creator. Faces are **board-local**, so they depend on the panel's `thicknessAxis`. From `orientedPanel`, carcase direction → board face:
+
+| thicknessAxis | +x | +y | +z |
+|---|---|---|---|
+| `'z'` (bottom, top, shelves) | `+X` | `+Y` | `+Z` |
+| `'x'` (sides, dividers) | `+Z` | `+X` | `+Y` |
+| `'y'` (back, toe kick) | `+Y` | `+Z` | `+X` |
+
+Negate the board face for a negative carcase direction. Applying that:
+
+| Pair | housingFace | housedEnd |
+|---|---|---|
+| `left-side` houses a `'z'` panel (bottom/top/shelf) | `+Z` | `-X` |
+| `left-side` houses a `'y'` panel (back/toe-kick) | `+Z` | `-Y` |
+| `right-side` houses a `'z'` panel | `-Z` | `+X` |
+| `right-side` houses a `'y'` panel | `-Z` | `+Y` |
+| `bottom` houses `back` | `+Z` | `-X` |
+| `top` houses `back` | `-Z` | `+X` |
+| `bottom` houses a divider | `+Z` | `-Y` |
+| `top` houses a divider | `-Z` | `+Y` |
+| `divider` houses a shelf on its `-x` side | `-Z` | `+X` |
+| `divider` houses a shelf on its `+x` side | `+Z` | `-X` |
+
+Finger corners: `side.endA` is the side's own end at that corner — `+Y` at the top, `-Y` at the bottom (sides are `'x'`). `top.endB` / `bottom.endB` is `-X` for the left side and `+X` for the right.
+
+**Do not trust this table either.** Step 1 below tests it against the parts' actual positions rather than against these letters; that test is the reason a fourth defect would be caught.
+
+## Task 7.1: `carcaseJoints` and `carcaseContactPairs`
 
 **Files:**
 - Modify: `src/scene/carcaseRoles.ts`, `src/scene/carcaseRoles.test.ts`
 
-**The joint table for `dado-rabbet`,** where `P(role)` is the part carrying that role:
-
-| Housing | Housed | Joint |
-|---|---|---|
-| `left-side` | `bottom`, `top`, `back`, every `shelf-*-*`, every `divider-*` | dado |
-| `right-side` | same set | dado |
-| `back` | `bottom`, `top` | dado |
-| `left-side`, `right-side` | `toe-kick` | dado |
-
-For a Base 600 (parts: 2 sides, bottom, top, back, toe-kick, 1 shelf) that is `4 + 4 + 2 + 2 = 12` joints — the number the spec's `12 / 12` claim rests on.
-
-For `finger`, the four carcase corners (`left-side`+`top`, `left-side`+`bottom`, `right-side`+`top`, `right-side`+`bottom`) become `FingerJoint`s; everything else stays dado.
-
 - [ ] **Step 1: Write the failing tests**
+
+The first test is the important one: it checks the emitted faces against geometry, so it fails if the face table above is wrong, rather than agreeing with it.
 
 ```ts
 describe('carcaseJoints', () => {
-  it('emits twelve joints for a base cabinet with dado-rabbet', () => {
+  const base = CARCASE_PRESETS[0].params
+
+  // Self-checking: a housing face must point *at* the part it houses, and the housed end must
+  // point back. Asserting the letters from the table would only prove the table matches itself.
+  it('points every joint face at the part it joins', () => {
+    const roles = new Map(carcaseRoles(base).map((r) => [r.role, r.panel]))
+    const centre = (s: PanelSpec) => /* box centre in carcase coords */
+    for (const d of carcaseJoints(base, 'cmp_1')) {
+      const housing = roles.get(d.housingRole)!
+      const housed = roles.get(d.housedRole)!
+      const toHoused = sub(centre(housed), centre(housing))
+      expect(dot(faceDirInCarcase(housing, d.housingFace), toHoused)).toBeGreaterThan(0)
+      expect(dot(faceDirInCarcase(housed, d.housedEnd), toHoused)).toBeLessThan(0)
+    }
+  })
+
+  it('emits twelve joints and two contact pairs for a base cabinet', () => {
     expect(carcaseJoints(base, 'cmp_1')).toHaveLength(12)
+    expect(carcaseContactPairs(base)).toHaveLength(2)
+  })
+
+  it('covers every touching pair exactly once, as either a joint or a contact pair', () => {
+    // The completeness check. Regenerate the cabinet, find every pair boardsTouch reports, and
+    // demand the union of joints and contact pairs equals it — no pair unaccounted for, none
+    // invented for panels that do not meet. This is what catches a missing divider row.
+  })
+
+  it('houses dividers in the bottom and top, never in a side', () => {
+    const withDivider = { ...base, dividers: [0.5] }
+    const ds = carcaseJoints(withDivider, 'cmp_1').filter((d) => d.housedRole.startsWith('divider-'))
+    expect(ds.map((d) => d.housingRole).sort()).toEqual(['bottom', 'top'])
+  })
+
+  it('houses each shelf in its own bay edges, not in both sides', () => {
+    const withDivider = { ...base, dividers: [0.5] }
+    const js = carcaseJoints(withDivider, 'cmp_1')
+    const housingsOf = (role: string) =>
+      js.filter((d) => d.housedRole === role).map((d) => d.housingRole).sort()
+    expect(housingsOf('shelf-0-0')).toEqual(['divider-0', 'left-side'])
+    expect(housingsOf('shelf-1-0')).toEqual(['divider-0', 'right-side'])
   })
 
   it('tags every joint with the owning component and marks it driven', () => {
@@ -3326,9 +3416,11 @@ describe('carcaseJoints', () => {
     expect(joints.every((j) => j.driven)).toBe(true)
   })
 
-  it('uses finger joints at the four corners when jointMethod is finger', () => {
-    const joints = carcaseJoints({ ...base, jointMethod: 'finger' }, 'cmp_1')
-    expect(joints.filter((j) => j.kind === 'finger')).toHaveLength(4)
+  it('fingers only the flush corners: two on a toe-kick base, four on a wall unit', () => {
+    const kick = carcaseJoints({ ...base, jointMethod: 'finger' }, 'cmp_1')
+    expect(kick.filter((j) => j.kind === 'finger')).toHaveLength(2)
+    const wall = carcaseJoints({ ...CARCASE_PRESETS[1].params, jointMethod: 'finger' }, 'cmp_1')
+    expect(wall.filter((j) => j.kind === 'finger')).toHaveLength(4)
   })
 
   it('emits nothing for fastener methods', () => {
@@ -3340,7 +3432,7 @@ describe('carcaseJoints', () => {
   it('scales with shelf count', () => {
     const one = carcaseJoints(base, 'cmp_1').length
     const three = carcaseJoints({ ...base, fixedShelves: 3 }, 'cmp_1').length
-    expect(three - one).toBe(4) // two extra shelves, each housed in both sides
+    expect(three - one).toBe(4) // two extra shelves, each housed in both sides (no dividers)
   })
 })
 ```
@@ -3352,48 +3444,21 @@ Expected: FAIL — `carcaseJoints is not a function`.
 
 - [ ] **Step 3: Implement**
 
-`carcaseJoints(params, componentId)` returns joint *descriptors* keyed by role pair rather than part id, because part ids are only known after reconciliation:
-
 ```ts
 export interface JointDescriptor {
   kind: 'dado' | 'finger'
   housingRole: string
   housedRole: string
+  housingFace: Face
+  housedEnd: Face
   sourceComponentId: string
   driven: true
 }
-
-export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescriptor[] {
-  if (p.jointMethod !== 'dado-rabbet' && p.jointMethod !== 'finger') return []
-  if (validateCarcaseParams(p).length > 0) return []
-
-  const roles = carcaseRoles(p).map((r) => r.role)
-  const has = (r: string) => roles.includes(r)
-  const shelves = roles.filter((r) => r.startsWith('shelf-'))
-  const dividers = roles.filter((r) => r.startsWith('divider-'))
-  const corners = new Set(['left-side:top', 'left-side:bottom', 'right-side:top', 'right-side:bottom'])
-
-  const out: JointDescriptor[] = []
-  const add = (housingRole: string, housedRole: string) => {
-    const kind =
-      p.jointMethod === 'finger' && corners.has(`${housingRole}:${housedRole}`) ? 'finger' : 'dado'
-    out.push({ kind, housingRole, housedRole, sourceComponentId: componentId, driven: true })
-  }
-
-  for (const side of ['left-side', 'right-side']) {
-    for (const housed of ['bottom', 'top', 'back', ...shelves, ...dividers]) {
-      if (has(housed)) add(side, housed)
-    }
-  }
-  if (has('back')) {
-    for (const housed of ['bottom', 'top']) if (has(housed)) add('back', housed)
-  }
-  if (has('toe-kick')) {
-    for (const side of ['left-side', 'right-side']) add(side, 'toe-kick')
-  }
-  return out
-}
 ```
+
+Descriptors are keyed by **role**, not part id, because part ids are only known after reconciliation. Both functions return `[]` when `validateCarcaseParams(p).length > 0`, matching `carcaseRoles`, so a transient invalid state emits nothing rather than garbage. `carcaseJoints` additionally returns `[]` for the three fastener methods; **`carcaseContactPairs` does not** — a shelf still merely abuts the back whatever holds the cabinet together.
+
+Derive the bay edges with the same expression `carcaseRoles` uses (`bayEdges`), so a change to bay layout cannot desynchronise the two. Do not copy the literal — export it from a shared helper if that is what it takes.
 
 - [ ] **Step 4: Run to confirm pass, then commit**
 
@@ -3415,16 +3480,12 @@ git commit -m "feat(scene): carcaseJoints describes the joint set a carcase impl
 ```ts
 describe('joint emission', () => {
   it('creates twelve driven joints for a base cabinet', () => {
-    const withKick = {
-      ...empty,
-      components: [{ ...cabinet, params: { ...params, baseMode: 'toe-kick' as const } }],
-    }
-    const out = regenerateComponents(withKick)
+    const out = regenerateComponents(baseScene)
     expect(out.joints.filter((j) => j.sourceComponentId === 'cmp_1')).toHaveLength(12)
   })
 
   it('keeps joint ids stable across a regeneration', () => {
-    const first = regenerateComponents(empty)
+    const first = regenerateComponents(baseScene)
     const before = first.joints.map((j) => j.id).sort()
     const second = regenerateComponents({
       ...first,
@@ -3434,7 +3495,7 @@ describe('joint emission', () => {
   })
 
   it('removes joints whose roles the params no longer imply', () => {
-    const first = regenerateComponents(empty)
+    const first = regenerateComponents(baseScene)
     const second = regenerateComponents({
       ...first,
       components: [{ ...cabinet, params: { ...params, hasTop: false } }],
@@ -3442,9 +3503,11 @@ describe('joint emission', () => {
     expect(second.joints.length).toBeLessThan(first.joints.length)
   })
 
-  it('leaves hand-made joints alone', () => {
-    const handMade = { ...empty, joints: [{ kind: 'halflap', id: 'mine', label: 'Mine', partAId: 'a', partBId: 'b', split: 0.5, clearance: 0, driven: false }] } as Scene
-    expect(regenerateComponents(handMade).joints.some((j) => j.id === 'mine')).toBe(true)
+  it('leaves hand-made joints alone', () => { /* as before */ })
+
+  it('is idempotent over joints as well as parts', () => {
+    const once = regenerateComponents(baseScene)
+    expect(regenerateComponents(once)).toEqual(once)
   })
 })
 ```
@@ -3456,16 +3519,18 @@ Expected: FAIL — no joints emitted.
 
 - [ ] **Step 3: Implement**
 
-Extend `regenerateOne` to return `{ parts, joints }`, and give joints a **deterministic id derived from the component and role pair** so stability needs no lookup:
+Extend `regenerateOne` to return `{ parts, joints }`, with a **deterministic id derived from the component and role pair** so stability needs no lookup:
 
 ```ts
 const jointId = (componentId: string, d: JointDescriptor) =>
   `joint_${componentId}_${d.housingRole}__${d.housedRole}`
 ```
 
-Build each joint through the existing creators in `src/scene/defaultJoint.ts` (`defaultDadoJoint`, `defaultFingerJoint`) so parameter seeding stays in one place, passing the generated id and a label like `"Dado — Left Side / Bottom"`. Set `sourceComponentId` and `driven: true` on the result. Skip a descriptor whose housing or housed part is missing from the reconciled part list.
+Build each joint through `defaultDadoJoint` / `defaultFingerJoint` in `src/scene/defaultJoint.ts` so parameter seeding stays in one place. Note their real signatures — both take the **reconciled `BoardPart`s**, the faces, then `id` and `label`; `defaultDadoJoint` also takes `byId: Map<ComponentId, Component>` because `computeDadoOffset` resolves world placement. Set `sourceComponentId` and override `driven: true` on the result (both creators hardcode `driven: false`). Skip a descriptor whose housing or housed part is missing from the reconciled list.
 
-In `regenerateComponents`, replace the component's previous driven joints wholesale:
+Label them `"Dado — Left Side / Bottom"` using the roles' `label` fields, not their keys.
+
+Replace the component's previous driven joints wholesale:
 
 ```ts
   const ownedIds = new Set(
@@ -3474,10 +3539,12 @@ In `regenerateComponents`, replace the component's previous driven joints wholes
   const joints = [...scene.joints.filter((j) => !ownedIds.has(j.id)), ...emitted]
 ```
 
+**Pipeline order matters here.** `applyPipeline = reconcileJoints(regenerateComponents(scene))`, so the joints emitted in this step are handed straight to `reconcileJoints`, which derives their cut geometry. That is why the faces must be right: a wrong `housingFace` produces a groove on the outside of the cabinet, and nothing downstream will object.
+
 - [ ] **Step 4: Run to confirm pass**
 
 Run: `pnpm vitest run src/scene/regenerateComponents.test.ts`
-Expected: PASS — 13 tests, including the still-passing idempotence case. If idempotence now fails, the joint ids are not deterministic — check `jointId`.
+Expected: PASS. If idempotence fails, the joint ids are not deterministic — check `jointId`.
 
 - [ ] **Step 5: Commit**
 
@@ -3486,102 +3553,56 @@ git add src/scene/regenerateComponents.ts src/scene/regenerateComponents.test.ts
 git commit -m "feat(scene): carcases emit driven joints with deterministic ids"
 ```
 
-## Task 7.3: Group the joint checklist by component
+## Task 7.3: Contact rows and grouping by component
 
 **Files:**
 - Modify: `src/scene/jointChecklist.ts`, `src/ui/SceneSuggestionsPanel.tsx`
 - Test: `src/scene/jointChecklist.test.ts`
 
+**The signature does not change.** The original plan said `buildJointChecklist` takes two arguments and proposed widening it to `(parts, joints, components)`. It already takes four — `(parts, joints, suggestions, byId)` — and dropping `suggestions` would strip every row's `options`. `byId` already carries the components, and parts carry `role` and `parentId`, so contact pairs and groups both resolve from what is in hand.
+
 - [ ] **Step 1: Write the failing tests**
 
 ```ts
-// Fixtures. `cabinetScene()` reuses the generator so the group under test is the real one.
-import { regenerateComponents } from './regenerateComponents'
-import { CARCASE_PRESETS } from './carcasePresets'
-
-function cabinetScene(id = 'cmp_1', xOffset = 0) {
-  const component: Component = {
-    id,
-    kind: 'carcase',
-    label: `Cabinet ${id}`,
-    parentId: null,
-    position: { x: xOffset, y: 0, z: 0 },
-    rotation: { x: 0, y: 0, z: 0 },
-    rotationOrder: 'XYZ',
-    visible: true,
-    params: CARCASE_PRESETS[0].params,
-  }
-  return regenerateComponents({
-    parts: [],
-    materials: {},
-    hardware: [],
-    joints: [],
-    components: [component],
+describe('contact rows', () => {
+  it('marks a shelf against the back as contact, not open', () => {
+    const row = rowFor('back', 'shelf-0-0')
+    expect(row.state).toBe('contact')
   })
-}
 
-const one = cabinetScene()
-const parts = one.parts
-const joints = one.joints
-const components = one.components
+  it('leaves a fully jointed base cabinet reading 12 / 12', () => {
+    const cl = buildJointChecklist(parts, joints, sugg, byId)
+    expect(cl.jointedCount).toBe(12)
+    expect(cl.actionableTotal).toBe(12)
+  })
 
-// Two cabinets side by side: cab2's left side touches cab1's right side at x = 600.
-const twoCabs = (() => {
-  const a = cabinetScene('cmp_1', 0)
-  const b = cabinetScene('cmp_2', 600)
-  return {
-    parts: [...a.parts, ...b.parts],
-    components: [...a.components, ...b.components],
-  }
-})()
-const partsTwoCabinetsTouching = twoCabs.parts
-
-// Two touching top-level boards, owned by nothing.
-const partsWithTwoLooseBoards = [
-  { ...parts[0], id: 'loose-a', parentId: null, driven: false, role: undefined, position: { x: 0, y: 0, z: 0 } },
-  { ...parts[0], id: 'loose-b', parentId: null, driven: false, role: undefined, position: { x: 0, y: 0, z: 18 } },
-]
+  it('still marks contact pairs when the cabinet uses a fastener method', () => {
+    // carcaseContactPairs ignores jointMethod: the shelf abuts the back either way.
+  })
+})
 
 describe('checklist grouping by component', () => {
-  it('groups rows whose both parts belong to the same component', () => {
-    const groups = buildJointChecklist(parts, joints, components).groups
-    expect(groups.map((g) => g.componentId)).toContain('cmp_1')
-    expect(groups.find((g) => g.componentId === 'cmp_1')!.rows).toHaveLength(12)
-  })
-
-  it('reports a fully jointed group as complete', () => {
-    const g = buildJointChecklist(parts, joints, components).groups.find(
-      (x) => x.componentId === 'cmp_1',
-    )!
-    expect(g.complete).toBe(true)
-    expect(g.jointedCount).toBe(g.rows.length)
-  })
-
-  it('keeps a cross-component pair at top level, not inside either group', () => {
-    const out = buildJointChecklist(partsTwoCabinetsTouching, [], twoCabs.components)
-    const nearest = (id: string) =>
-      partsTwoCabinetsTouching.find((p) => p.id === id)!.parentId
-    expect(
-      out.ungrouped.some((r) => nearest(r.aId) !== nearest(r.bId)),
-    ).toBe(true)
-  })
-
-  it('keeps a loose part pair at top level', () => {
-    const out = buildJointChecklist(partsWithTwoLooseBoards, [], [])
-    expect(out.groups).toHaveLength(0)
-    expect(out.ungrouped).toHaveLength(1)
-  })
+  it('groups rows whose both parts belong to the same component', () => { /* 12 rows under cmp_1 */ })
+  it('reports a fully jointed group as complete', () => { /* complete === true, jointedCount === rows.length */ })
+  it('keeps a cross-component pair at top level, not inside either group', () => { /* two cabinets touching at x = 600 */ })
+  it('keeps a loose part pair at top level', () => { /* groups empty, one ungrouped row */ })
 })
 ```
 
+Build fixtures by calling `regenerateComponents` on a real preset — never by hand-writing parts. A hand-written fixture is how the original `12` survived this long.
+
 - [ ] **Step 2: Run to confirm failure**
 
-Run: `pnpm vitest run src/scene/jointChecklist.test.ts -t 'grouping by component'`
-Expected: FAIL — `buildJointChecklist` takes two arguments and returns no `groups`.
+Run: `pnpm vitest run src/scene/jointChecklist.test.ts -t 'contact rows'`
+Expected: FAIL — no `contact` state, no `groups`.
 
 - [ ] **Step 3: Implement**
 
-Widen `buildJointChecklist(parts, joints, components)` to return:
+Add `'contact'` to `PairState` and a `contact: ChecklistRow[]` bucket beside `unresolved`. A pair is contact when both parts share a carcase parent and their `{role, role}` pair is in that carcase's `carcaseContactPairs`. Classify **before** the `groups.get(key)` lookup, so a contact pair never becomes an open row. Contact rows are excluded from `actionableTotal` and `jointedCount` — that exclusion is what makes `12 / 12` true.
+
+Do **not** reuse `'no-offer'`. It means "the engine has nothing to propose"; here the engine proposes a dado and the carcase declines it. Rendering them the same would be a lie the muted styling hides.
+
+Then add grouping:
 
 ```ts
 export interface ChecklistGroup {
@@ -3591,19 +3612,11 @@ export interface ChecklistGroup {
   jointedCount: number
   complete: boolean
 }
-
-export interface Checklist {
-  groups: ChecklistGroup[]
-  ungrouped: ChecklistRow[]
-  noOffer: ChecklistRow[]
-  jointedCount: number
-  total: number
-}
 ```
 
-A row belongs to a group when **both** parts resolve to the same nearest component ancestor (use `ancestorsOf(...)[0]`). Everything else — cross-component pairs and loose parts — goes to `ungrouped`. Keep the existing distance ordering within each bucket, and keep `MAX_ACTIONABLE_ROWS` / `MAX_NOOFFER_ROWS` applying to `ungrouped` and `noOffer` respectively; a complete group is one collapsed line, so it does not consume that budget.
+A row belongs to a group when **both** parts resolve to the same nearest component ancestor (`ancestorsOf(...)[0]`). Everything else — cross-component pairs and loose parts — stays in `rows`. Keep the existing distance ordering within each bucket, and keep `MAX_ACTIONABLE_ROWS` / `MAX_NOOFFER_ROWS` applying to the ungrouped rows and `unresolved`; a complete group is one collapsed line, so it does not consume that budget.
 
-In `SceneSuggestionsPanel.tsx`, render each group as a `Collapsible`, **defaulted closed when `complete`** and open otherwise, with a header like `✓ Base Cabinet 600 — 12 / 12`.
+In `SceneSuggestionsPanel.tsx`, render each group as a `Collapsible`, **defaulted closed when `complete`** and open otherwise, header `✓ Base 600 — 12 / 12`.
 
 - [ ] **Step 4: Run to confirm pass, then full suite**
 
@@ -3614,17 +3627,18 @@ Expected: all pass.
 
 ```bash
 git add src/scene/jointChecklist.ts src/scene/jointChecklist.test.ts src/ui/SceneSuggestionsPanel.tsx
-git commit -m "feat(scene): group the joint checklist by owning component"
+git commit -m "feat(scene): contact rows and per-component joint checklist groups"
 ```
 
 ## Phase 7 verification
 
 - [ ] `pnpm typecheck && pnpm lint && pnpm test` — green.
-- [ ] `pnpm dev`: drop Base 600. The joints panel shows one collapsed line, `✓ Base 600 — 12 / 12`.
-- [ ] Drop six cabinets. The panel shows six collapsed lines, not ~72 rows.
-- [ ] Add two loose boards that touch. Their pair appears at top level, not inside any cabinet group.
-- [ ] Switch a cabinet's joint method to **Finger**; the four corner joints change kind and the viewport shows meshing fingers.
-- [ ] Switch to **Dowel**; the cabinet's checklist group drops to `0 / 12` open — the documented, intended behaviour for fastener methods.
+- [ ] Base 600 reads `✓ Base 600 — 12 / 12` as one collapsed line, with two muted "no joint needed" rows for the kick-to-bottom and shelf-to-back pairs.
+- [ ] Wall 600 reads `10 / 10`; Base 600 with one divider reads `16 / 16`. These three numbers are the measured pair counts minus the contact pairs — if any disagrees, the joint table is wrong, not the number.
+- [ ] Six cabinets show six collapsed lines, not ~72 rows.
+- [ ] Two loose touching boards appear at top level, not inside any cabinet group.
+- [ ] Switch a Base 600 to **Finger**: two corner joints change kind (the top pair), the bottom pair stays dado, and the viewport shows meshing fingers. A Wall 600 changes all four.
+- [ ] Switch to **Dowel**: the group drops to `0 / 12` open, contact rows unchanged — the documented, intended behaviour for fastener methods.
 
 ---
 

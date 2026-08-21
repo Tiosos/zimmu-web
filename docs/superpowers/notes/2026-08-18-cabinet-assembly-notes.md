@@ -829,3 +829,52 @@ Fix: `max-h-[55%] overflow-y-auto` on the EditPanel root (bounded, but *not* `sh
 still yield), plus `min-h-32` on the ScrollArea so the tree keeps a floor. Note the asymmetry with
 CarcasePanel, which does carry `shrink-0`: only one of the two panels is ever mounted, so they do
 not compete, but a future third panel would need the same "bounded and shrinkable" treatment.
+
+## Phase 7 — the plan's joint table was re-derived before a line was written
+
+The plan asserted a joint table and a `12 / 12` headline from reasoning alone. Probing the running
+generator (regenerate a preset, run `boardsTouch` over every board pair, then `buildJointChecklist`)
+showed four things wrong at once:
+
+- **A Base 600 has 14 touching pairs, not 12.** The panel would have read `12 / 14`, and no test in
+  the plan would have noticed, because every one of them asserted against the number 12.
+- **Dividers are never housed in the sides.** A divider spans `bayZ0 → innerTop` at `x ≈ W·d`; the
+  sides are nowhere near it. It is housed in the bottom and the top. Confirmed by the probe:
+  `bottom↔divider-0`, `top↔divider-0`, and no side pair at all.
+- **A shelf is housed in its bay's edges, not in both sides.** With one divider the probe reports
+  `left-side↔shelf-0-0` and `right-side↔shelf-1-0` — each shelf meets one side and the divider.
+  With no dividers there is one bay and both edges *are* the sides, which is exactly why the wrong
+  rule looked right.
+- **`back` housing `bottom`/`top` is inverted.** The back's `z0 = bayZ0 = floor + T` — it sits *on*
+  the bottom panel and *under* the top, so those two house it.
+
+Two more gaps: `JointDescriptor` carried no faces, so it could not have been passed to
+`defaultDadoJoint` (which needs `housingFace`, `housedEnd`, and a `byId` map) or `defaultFingerJoint`
+(`endA`, `endB`) — the plan would have failed at its own step 3. And `buildJointChecklist` already
+takes four arguments, not the two the plan claimed; its proposed replacement signature dropped
+`suggestions`, which supplies every row's `options`.
+
+### Two decisions taken with the user
+
+**Contact pairs are declared, not jointed.** `bottom↔toe-kick` and `back↔shelf` touch but are not
+joinery — a shelf stops at the back, it is not housed in it. Rather than emit dados nobody would cut
+(`14 / 14`) or leave the cabinet permanently incomplete (`12 / 14`), the carcase declares those pairs
+deliberately unjointed and the checklist renders them muted, excluded from the count. Deliberately a
+**new `'contact'` state rather than reusing `'no-offer'`**: no-offer means the engine has nothing to
+propose, whereas here it proposes a dado and the carcase declines it. Same muted styling, different
+fact — collapsing them would have hidden the distinction behind identical pixels.
+
+**Finger joints only at flush corners.** A toe kick insets the bottom to `z ∈ [KH, KH + T]` while the
+sides run to the floor, so only the two top corners are true corners. The suggestion engine already
+refuses to offer `finger` for the inset pairs — the plan's "always four" would have emitted two joints
+the panel would never have proposed, a disagreement between generator and UI over the same pair.
+
+### The transferable bit
+
+Every one of these was found the same way: **by asking the running system what is true instead of
+asking myself.** The probe was fifteen throwaway lines. The plan's own tests could not have found any
+of it, because they asserted the numbers the plan had already assumed — the same failure mode as
+Task 4.3's role table, now three phases running. The corrected Task 7.1 therefore leads with a test
+that checks each emitted face against the parts' actual positions (a housing face must point *at*
+what it houses) and one that demands joints ∪ contact pairs equals the measured touching set — both
+check the system against itself rather than against a table I wrote.
