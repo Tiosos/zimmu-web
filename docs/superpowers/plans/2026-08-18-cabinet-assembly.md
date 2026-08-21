@@ -3632,13 +3632,28 @@ git commit -m "feat(scene): contact rows and per-component joint checklist group
 
 ## Phase 7 verification
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` — green.
-- [ ] Base 600 reads `✓ Base 600 — 12 / 12` as one collapsed line, with two muted "no joint needed" rows for the kick-to-bottom and shelf-to-back pairs.
-- [ ] Wall 600 reads `10 / 10`; Base 600 with one divider reads `16 / 16`. These three numbers are the measured pair counts minus the contact pairs — if any disagrees, the joint table is wrong, not the number.
-- [ ] Six cabinets show six collapsed lines, not ~72 rows.
-- [ ] Two loose touching boards appear at top level, not inside any cabinet group.
-- [ ] Switch a Base 600 to **Finger**: two corner joints change kind (the top pair), the bottom pair stays dado, and the viewport shows meshing fingers. A Wall 600 changes all four.
-- [ ] Switch to **Dowel**: the group drops to `0 / 12` open, contact rows unchanged — the documented, intended behaviour for fastener methods.
+Verified 2026-08-21 by driving the real pipeline (`reconcileJoints(regenerateComponents(scene))`)
+and building the checklist from its output, not by reading code.
+
+- [x] `pnpm typecheck && pnpm lint && pnpm test` — green (60 files, 1011 passed, 10 skipped).
+- [x] Base 600 → header `12 / 12`, one group `12 / 12 ✓` (collapsed), 2 contact rows, 0 ungrouped, 0 no-offer.
+- [x] Wall 600 → `10 / 10`; Base 600 + one divider → `16 / 16`. Both match the measured touching sets minus their contact pairs.
+- [x] Six cabinets → six groups, every one `12 / 12 ✓` and collapsed. Not 72 rows.
+- [x] Two loose touching boards stay at top level, in no group (`jointChecklist.test.ts`).
+- [x] **Finger** → still `12 / 12`; the two flush corners change kind and the inset bottom pair stays dado (`carcaseRoles.test.ts`). The viewport's meshing fingers are the one item not automated.
+- [x] **Dowel** → group drops to `0 / 12` open, contact rows unchanged at 2 — the documented behaviour for fastener methods.
+
+### Open items carried out of Phase 7
+
+Neither blocks the phase; both are recorded so they are not rediscovered later.
+
+1. **A ladder base is not jointed.** `baseMode: 'ladder'` emits four rails and 25 touching pairs, of which 14 (rail↔rail, rail↔side, rail↔bottom) appear in neither the joint table nor the contact table, so a ladder cabinet reads `10 / 24`. Measured, not estimated. Every other mode is exact: toe-kick, none, applied back, no top, dividers. A rail joint table was deliberately **not** invented — that is the reason-instead-of-measure mistake this phase exists to correct. Derive it the same way: probe `boardsTouch` first, then write the self-checking coverage test.
+
+2. **Every housed panel sits 6 mm out, and the cutting list is short by `2 × depth`.** `deriveJoint` returns a `seat` that `reconcileJoints` applies by overwriting the housed part's position, one joint at a time; a panel housed at both ends gets seated twice and the last one wins. `defaultDadoDepth` is `round(housingThickness / 3)`, so an 18 mm side gives exactly 6. Measured on a Base 600: `bottom` goes from x 18 to x 24 with `length` unchanged at 564, so its right end seats correctly and its left end floats 6 mm proud.
+
+   The joint stage has always seated parts this way — what is new is that carcases now emit dados by default, so every carcase panel is affected, **including the cutting list a woodworker takes to a saw**.
+
+   The fix belongs in `carcaseRoles`, not the joint stage: emit each panel spanning **groove floor to groove floor** so both seats are already satisfied and become no-ops. The bottom becomes 576 long at x = 12. Two things make it more than a one-liner: the rule is per *edge* (the back is housed on all four and grows in two axes; a shelf grows only in x), and panel length becomes dependent on `jointMethod`, since a fastener method emits no joints and must keep butt lengths. The self-checking test writes itself — after the full pipeline every seat must be a no-op, and every housed end must reach its groove floor.
 
 ---
 
