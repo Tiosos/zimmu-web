@@ -33,6 +33,7 @@ function App() {
     nextLabel,
     onAdd,
     onAddComponent,
+    onAddCarcase,
     onRemove,
     onDuplicate,
     onUpdate,
@@ -409,6 +410,8 @@ function App() {
           nextLabel={nextLabel}
           onAdd={onAdd}
           onAddComponent={onAddComponent}
+          onAddCarcase={onAddCarcase}
+          onUpdateComponent={onUpdateComponent}
           onRemove={onRemove}
           onDuplicate={onDuplicate}
           onUpdate={onUpdate}

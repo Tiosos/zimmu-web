@@ -50,7 +50,7 @@ export function CarcasePanel({
   onUpdate: (updater: (c: Component) => Component) => void
 }) {
   const [sizeOpen, setSizeOpen] = useState(true)
-  const [structureOpen, setStructureOpen] = useState(true)
+  const [structureOpen, setStructureOpen] = useState(false)
   const [shelvingOpen, setShelvingOpen] = useState(false)
   const [joineryOpen, setJoineryOpen] = useState(false)
 
@@ -66,7 +66,10 @@ export function CarcasePanel({
     setParams({ adjustableShelves: { ...p.adjustableShelves, ...patch } })
 
   return (
-    <div className="text-xs">
+    // Matches EditPanel's container, and bounds its own height: with 17 fields an unbounded panel
+    // overflows the sidebar column and covers the scene tree, making boards unclickable while a
+    // cabinet is selected.
+    <div className="p-2 border-t border-border text-xs shrink-0 max-h-[45%] overflow-y-auto">
       {errors.length > 0 && (
         <div role="alert" className="mb-2 rounded bg-red-950/40 px-2 py-1 text-[11px] text-red-300">
           {errors.map((e) => (

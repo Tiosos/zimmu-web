@@ -1,8 +1,21 @@
-import type { CutDef, CutId, Joint, Part, PartId, Scene, Selection, ComponentId } from '../scene/types'
+import type {
+  CutDef,
+  CutId,
+  Joint,
+  Part,
+  PartId,
+  Scene,
+  Selection,
+  ComponentId,
+  Component,
+} from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
 import type { JointSuggestion } from '../scene/suggestJoints'
 import type { InteractionMode, UseInteractionModeResult } from '../scene/useInteractionMode'
 import { EditPanel } from './EditPanel'
+import { CarcasePanel } from './CarcasePanel'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { CARCASE_PRESETS, type CarcasePreset } from '../scene/carcasePresets'
 import { SceneTree } from './SceneTree'
 import { SceneSuggestionsPanel } from './SceneSuggestionsPanel'
 import { Button } from '@/components/ui/button'
@@ -17,6 +30,8 @@ interface SidebarProps {
   nextLabel: string
   onAdd: (kind: 'board' | 'cylinder') => void
   onAddComponent: (parentId: ComponentId | null) => void
+  onAddCarcase: (preset: CarcasePreset) => void
+  onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
@@ -52,6 +67,8 @@ export function Sidebar({
   nextLabel,
   onAdd,
   onAddComponent,
+  onAddCarcase,
+  onUpdateComponent,
   onRemove,
   onDuplicate,
   onUpdate,
@@ -80,6 +97,11 @@ export function Sidebar({
 }: SidebarProps) {
   const selectedPart =
     selection?.kind === 'part' ? (scene.parts.find((p) => p.id === selection.id) ?? null) : null
+  const selectedComponent =
+    selection?.kind === 'component'
+      ? (scene.components.find((c) => c.id === selection.id) ?? null)
+      : null
+  const selectedCarcase = selectedComponent?.kind === 'carcase' ? selectedComponent : null
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -196,6 +218,16 @@ export function Sidebar({
           )}
         </ScrollArea>
 
+        {/* Parameter panel for a selected carcase — a cabinet is edited by its parameters,
+            not by its generated boards. */}
+        {selectedCarcase && (
+          <CarcasePanel
+            key={selectedCarcase.id}
+            component={selectedCarcase}
+            onUpdate={(updater) => onUpdateComponent(selectedCarcase.id, updater)}
+          />
+        )}
+
         {/* Edit panel for selected part */}
         {selectedPart && (
           <EditPanel
@@ -251,6 +283,27 @@ export function Sidebar({
           >
             + Group
           </Button>
+          <Select
+            value=""
+            onValueChange={(name) => {
+              const preset = CARCASE_PRESETS.find((p) => p.name === name)
+              if (preset) onAddCarcase(preset)
+            }}
+          >
+            <SelectTrigger
+              aria-label="Add cabinet"
+              className="h-8 flex-1 text-xs justify-center gap-1"
+            >
+              + Cabinet
+            </SelectTrigger>
+            <SelectContent>
+              {CARCASE_PRESETS.map((p) => (
+                <SelectItem key={p.name} value={p.name}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             onClick={() => onAdd('cylinder')}
             disabled={!occtReady}
