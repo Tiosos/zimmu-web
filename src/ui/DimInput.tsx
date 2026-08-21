@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { useDebouncedCallback } from './useDebouncedCallback'
@@ -21,6 +21,9 @@ export function DimInput({
   suffix: string
   min?: number
 }) {
+  // Without an id/htmlFor pair the label is announced by nothing and queryable by nothing —
+  // an accessibility defect that also made the field untestable by its visible name.
+  const id = useId()
   const [localValue, setLocalValue] = useState(String(value))
   const isFocused = useRef(false)
   const debounced = useDebouncedCallback(onCommit, 150)
@@ -31,8 +34,11 @@ export function DimInput({
 
   return (
     <div className="flex items-center gap-1.5 mb-1">
-      <Label className="w-4 shrink-0 text-right">{label}</Label>
+      <Label htmlFor={id} className="w-4 shrink-0 text-right">
+        {label}
+      </Label>
       <Input
+        id={id}
         type="number"
         step="any"
         value={localValue}
