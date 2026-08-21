@@ -934,3 +934,28 @@ bottom), makes it fail. Verified by mutation, not by reading.
   ends need `length += 2 × depth` (and their position pulled back by `depth`) — the generator, not
   the joint stage. Out of scope for 7.2 and not mentioned anywhere in Phase 7; it is only visible
   once real joints exist, which is now.
+
+## 2026-08-21 — Task 7.3 implemented (contact rows, per-component groups)
+
+- **The three measured pair counts held exactly.** Base 600 → 14 touching = 12 joints + 2 contact;
+  Wall 600 → 11 = 10 + 1; Base 600 with one divider → 20 = 16 + 4. All three are asserted from
+  `regenerateComponents(CARCASE_PRESETS[...])` in `jointChecklist.test.ts`, not from hand-built parts.
+- **Groups partition the actionable rows only.** `contact` and `unresolved` stay flat top-level
+  buckets rather than nesting per component. That is what lets a group header read `12 / 12`: if the
+  two contact rows sat inside the group they would have to be either counted (`12 / 14`, the thing
+  this task removes) or silently subtracted from a list that renders them.
+- **Top-level `jointedCount` / `actionableTotal` span groups *and* ungrouped rows**, so the panel
+  header still totals the whole scene; only `rows` narrowed in meaning (it is now "actionable pairs
+  with no shared component"). `MAX_ACTIONABLE_ROWS` caps `rows` alone, as planned.
+- **Two cabinets at x = 0 and x = 600 produce exactly one cross-component pair**, cmp_1's right side
+  against cmp_2's left side — and it lands in `unresolved`, not in `rows`: two flush face-to-face
+  panels are a pair the engine has no offer for. The grouping rule is therefore also tested with an
+  actionable cross-component row (a loose board teed onto the cabinet top), which stays in `rows`.
+- **Group order is component order** (`byId` iteration), not distance. A group must not jump around
+  the list as its rows flip from open to jointed, which ordering by nearest row would do.
+- **Group open state defaults from `complete` and is overridden per component once touched**
+  (`openGroups[id] ?? !g.complete`), so finishing a cabinet collapses it but never re-collapses one
+  the user deliberately opened.
+- The muted "no joint available" section and the new "no joint needed" section are the same
+  component (`MutedSection`) with different titles; the row renderer is shared between grouped and
+  ungrouped rows (`Row`). Both extractions exist only because there are now two call sites.

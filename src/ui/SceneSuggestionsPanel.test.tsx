@@ -3,6 +3,8 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import type { DadoJoint, PartId, Scene } from '../scene/types'
 import type { JointSuggestion } from '../scene/suggestJoints'
 import { SceneSuggestionsPanel } from './SceneSuggestionsPanel'
+import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { regenerateComponents } from '../scene/regenerateComponents'
 
 afterEach(cleanup)
 
@@ -226,4 +228,46 @@ test('no-offer pairs live in their own section, closed by default', () => {
   expect(screen.queryByText('Left Side + Bottom')).toBeNull()
   fireEvent.click(screen.getByText(/No joint available/))
   expect(screen.getByText('Left Side + Bottom')).toBeTruthy()
+})
+
+// A generated cabinet, not a hand-built fixture: the 12 / 12 in the header is the real generator's
+// joint count, and the two contact pairs it declares are what keep it from reading 12 / 14.
+function cabinetScene(): Scene {
+  return regenerateComponents({
+    parts: [],
+    materials: {},
+    hardware: [],
+    joints: [],
+    components: [
+      {
+        kind: 'carcase',
+        id: 'cmp_1',
+        label: 'Base 600',
+        parentId: null,
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        rotationOrder: 'XYZ',
+        visible: true,
+        params: CARCASE_PRESETS[0].params,
+      },
+    ],
+  })
+}
+
+test('a fully jointed cabinet renders as one collapsed group line', () => {
+  panel({ suggestions: [], scene: cabinetScene() })
+  expect(screen.getByText(/Joints — 12 \/ 12/)).toBeTruthy()
+  expand()
+  expect(screen.getByText(/✓ Base 600 — 12 \/ 12/)).toBeTruthy()
+  expect(screen.queryByText(/Left Side \+ Bottom/)).toBeNull()
+  fireEvent.click(screen.getByText(/Base 600 — 12 \/ 12/))
+  expect(screen.getByText(/✓ Left Side \+ Bottom/)).toBeTruthy()
+})
+
+test('contact pairs are listed as needing no joint, not as unavailable', () => {
+  panel({ suggestions: [], scene: cabinetScene() })
+  expand()
+  expect(screen.getByText(/No joint needed \(2\)/)).toBeTruthy()
+  fireEvent.click(screen.getByText(/No joint needed/))
+  expect(screen.getByText('Bottom + Toe Kick')).toBeTruthy()
 })

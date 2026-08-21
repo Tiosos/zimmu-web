@@ -3,7 +3,8 @@ import type { JointSuggestion } from './suggestJoints'
 import { boardsTouch, aabbCenterDist } from './suggestJoints'
 import { obbOverlap } from './obbOverlap'
 import { groupByPair } from './groupSuggestions'
-import { isNodeVisible } from './componentTree'
+import { ancestorsOf, isNodeVisible } from './componentTree'
+import { carcaseContactPairs } from './carcaseRoles'
 
 // Two runaway guards, sized to their lists rather than sharing one number. Actionable rows (jointed
 // + open) are all real decisions, so their cap is generous — it only exists to bound a pathological
@@ -14,7 +15,9 @@ import { isNodeVisible } from './componentTree'
 export const MAX_ACTIONABLE_ROWS = 200
 export const MAX_NOOFFER_ROWS = 50
 
-export type PairState = 'jointed' | 'open' | 'no-offer'
+// 'contact' is not 'no-offer': the engine would happily offer a dado for a shelf against a back,
+// and it is the carcase that declines it. Same muted rendering, different fact.
+export type PairState = 'jointed' | 'open' | 'no-offer' | 'contact'
 
 export interface ChecklistRow {
   key: string
@@ -28,9 +31,20 @@ export interface ChecklistRow {
   dist: number
 }
 
-export interface JointChecklist {
+export interface ChecklistGroup {
+  componentId: ComponentId
+  label: string
   rows: ChecklistRow[]
+  jointedCount: number
+  complete: boolean
+}
+
+export interface JointChecklist {
+  // Actionable rows whose two parts do not share a component: cross-carcase pairs and loose boards.
+  rows: ChecklistRow[]
+  groups: ChecklistGroup[]
   unresolved: ChecklistRow[]
+  contact: ChecklistRow[]
   jointedCount: number
   actionableTotal: number
 }
@@ -39,7 +53,7 @@ export interface JointChecklist {
 // bit, and falling through to the key tiebreak is what keeps the list stable across rebuilds.
 const DIST_EPS = 1e-4
 
-function pairKey(x: PartId, y: PartId): string {
+function pairKey(x: string, y: string): string {
   return x < y ? `${x}|${y}` : `${y}|${x}`
 }
 
@@ -75,7 +89,7 @@ export function buildJointChecklist(
   // engine never considered.
   const boards = parts.filter((p): p is BoardPart => p.kind === 'board' && isNodeVisible(p, byId))
 
-  const groups = new Map(groupByPair(suggestions).map((g) => [g.key, g]))
+  const offers = new Map(groupByPair(suggestions).map((g) => [g.key, g]))
   const jointsByKey = new Map<string, Joint[]>()
   for (const j of joints) {
     const [x, y] = jointPairIds(j)
@@ -85,8 +99,42 @@ export function buildJointChecklist(
     else jointsByKey.set(k, [j])
   }
 
+  const contactKeys = new Map<ComponentId, Set<string>>()
+  const declaredContact = (a: BoardPart, b: BoardPart): boolean => {
+    if (a.parentId === null || a.parentId !== b.parentId) return false
+    if (a.role === undefined || b.role === undefined) return false
+    const parent = byId.get(a.parentId)
+    if (parent === undefined || parent.kind !== 'carcase') return false
+    let keys = contactKeys.get(parent.id)
+    if (keys === undefined) {
+      keys = new Set(carcaseContactPairs(parent.params).map(([x, y]) => pairKey(x, y)))
+      contactKeys.set(parent.id, keys)
+    }
+    return keys.has(pairKey(a.role, b.role))
+  }
+
+  // A row groups under a component only when both its parts hang off that same component; a pair
+  // spanning two carcases belongs to neither.
+  const sharedComponent = (a: BoardPart, b: BoardPart): ComponentId | null => {
+    const ca = ancestorsOf(a, byId)[0]
+    return ca !== undefined && ca.id === ancestorsOf(b, byId)[0]?.id ? ca.id : null
+  }
+
   const rows: ChecklistRow[] = []
+  const grouped = new Map<ComponentId, ChecklistRow[]>()
   const unresolved: ChecklistRow[] = []
+  const contact: ChecklistRow[] = []
+
+  const addActionable = (a: BoardPart, b: BoardPart, row: ChecklistRow) => {
+    const componentId = sharedComponent(a, b)
+    if (componentId === null) {
+      rows.push(row)
+      return
+    }
+    const bucket = grouped.get(componentId)
+    if (bucket) bucket.push(row)
+    else grouped.set(componentId, [row])
+  }
 
   for (let i = 0; i < boards.length; i++) {
     for (let j = i + 1; j < boards.length; j++) {
@@ -100,12 +148,25 @@ export function buildJointChecklist(
       if (!js && !boardsTouch(a, b, byId)) continue
       const dist = aabbCenterDist(a, b, byId)
       if (js) {
-        rows.push({ key, aId: a.id, bId: b.id, state: 'jointed', options: [], joints: js, dist })
+        addActionable(a, b, {
+          key,
+          aId: a.id,
+          bId: b.id,
+          state: 'jointed',
+          options: [],
+          joints: js,
+          dist,
+        })
         continue
       }
-      const g = groups.get(key)
+      // Before the offer lookup: the carcase's refusal outranks whatever the engine would propose.
+      if (declaredContact(a, b)) {
+        contact.push({ key, aId: a.id, bId: b.id, state: 'contact', options: [], joints: [], dist })
+        continue
+      }
+      const g = offers.get(key)
       if (g) {
-        rows.push({
+        addActionable(a, b, {
           key,
           aId: g.aId,
           bId: g.bId,
@@ -140,13 +201,35 @@ export function buildJointChecklist(
   }
   rows.sort(byDistance)
   unresolved.sort(byDistance)
+  contact.sort(byDistance)
 
+  // Component order, so a group keeps its place as its rows flip from open to jointed.
+  const groups: ChecklistGroup[] = []
+  for (const [componentId, component] of byId) {
+    const groupRows = grouped.get(componentId)
+    if (groupRows === undefined) continue
+    groupRows.sort(byDistance)
+    const jointed = groupRows.filter((r) => r.state === 'jointed').length
+    groups.push({
+      componentId,
+      label: component.label,
+      rows: groupRows,
+      jointedCount: jointed,
+      complete: jointed === groupRows.length,
+    })
+  }
+
+  // The cap covers the ungrouped rows only: a complete group renders as one collapsed line, so it
+  // cannot be what makes the list long.
   const capped = rows.slice(0, MAX_ACTIONABLE_ROWS)
+  const sum = (pick: (g: ChecklistGroup) => number) => groups.reduce((n, g) => n + pick(g), 0)
   return {
     rows: capped,
+    groups,
     unresolved: unresolved.slice(0, MAX_NOOFFER_ROWS),
+    contact,
     // Counted from the capped rows, so the header can never claim more than is rendered.
-    jointedCount: capped.filter((r) => r.state === 'jointed').length,
-    actionableTotal: capped.length,
+    jointedCount: sum((g) => g.jointedCount) + capped.filter((r) => r.state === 'jointed').length,
+    actionableTotal: sum((g) => g.rows.length) + capped.length,
   }
 }
