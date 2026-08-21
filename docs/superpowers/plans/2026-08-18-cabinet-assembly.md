@@ -3279,10 +3279,12 @@ git commit -m "feat(ui): inline change-the-cabinet or detach prompt on a driven 
 
 ## Phase 6 verification
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` — green.
-- [ ] `pnpm dev`: drop Base 600, select the left side, change Length to 600 → "Change the cabinet" changes the whole cabinet's depth; **undo**; change it again → "Detach this part" leaves the other parts at 560 and marks the side detached in the tree.
-- [ ] After detaching, change the cabinet Depth: the detached side does not move; every other driven part does.
-- [ ] Delete the cabinet: the detached side survives at top level; the driven parts are gone.
+- [x] `pnpm typecheck && pnpm lint && pnpm test` — green (60 files, 975 passed, 10 skipped).
+- [x] Change a driven Length → the panel offers "Change the cabinet" / "Detach this part" rather than writing the value (`EditPanel.test.tsx`), and the tree marks the detached part (`SceneTree.test.tsx`).
+- [x] After detaching, change the cabinet Depth: the detached side keeps its own size; every other driven part follows. Covered end to end in a real browser by `e2e/carcase.spec.ts` — "a detached part keeps its own size when the cabinet changes".
+- [x] Delete the cabinet: the detached side survives at top level; the driven parts are gone (`useScene.test.ts`, "leaves a detached part behind when its cabinet is deleted").
+
+The manual `pnpm dev` walkthroughs were replaced by the automated equivalents above; the e2e is the one that matters, since both Phase 6 defects (see notes) were invisible to happy-dom.
 
 ---
 

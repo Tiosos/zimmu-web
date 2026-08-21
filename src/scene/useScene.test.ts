@@ -2523,6 +2523,22 @@ describe('detach', () => {
     expect(restored.kind === 'board' && restored.length).toBe(side.kind === 'board' && side.length)
   })
 
+  it('leaves a detached part behind when its cabinet is deleted', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const cmpId = result.current.scene.components[0].id
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+
+    act(() => result.current.onDetachPart(side.id))
+    act(() => result.current.onRemoveComponent(cmpId))
+
+    const survivor = result.current.scene.parts.find((p) => p.id === side.id)
+    expect(survivor).toBeDefined()
+    expect(survivor!.parentId).toBeNull()
+    // Every board the cabinet was still driving goes with it.
+    expect(result.current.scene.parts.filter((p) => p.driven)).toHaveLength(0)
+  })
+
   it('undoes a detach', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
