@@ -365,6 +365,19 @@ describe('contact rows', () => {
     expect(divided.actionableTotal).toBe(16)
     expect(divided.contact).toHaveLength(4)
   })
+
+  // 25 touching pairs: the four base-frame corners join, and the ten pairs across the plane the
+  // carcase is set down on are contact. Four of those ten had no offer at all, so before the ladder
+  // table this read 10 / 24 with four rows in the muted "no joint available" list.
+  test('leaves a fully jointed ladder cabinet reading 14 / 14 with nothing unresolved', () => {
+    const c = checklistOf(cabinetScene([carcase('cmp_1', 'Ladder 600', { baseMode: 'ladder' })]))
+    expect(c.jointedCount).toBe(14)
+    expect(c.actionableTotal).toBe(14)
+    expect(c.contact).toHaveLength(11)
+    expect(c.unresolved).toHaveLength(0)
+    expect(c.rows).toHaveLength(0)
+    expect(c.groups[0].complete).toBe(true)
+  })
 })
 
 describe('checklist grouping by component', () => {

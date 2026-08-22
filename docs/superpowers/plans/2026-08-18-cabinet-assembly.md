@@ -3645,20 +3645,29 @@ and building the checklist from its output, not by reading code.
 
 ### Open items carried out of Phase 7
 
-Neither blocks the phase; both are recorded so they are not rediscovered later.
+Items 1–3 are **resolved** by Tasks 7.4 and 7.5 (see the resolutions inline). Items 4–6 were found
+while fixing them and are **still open** — recorded so they are not rediscovered later.
 
-1. **A ladder base is not jointed.** `baseMode: 'ladder'` emits four rails and 25 touching pairs, of which 14 (rail↔rail, rail↔side, rail↔bottom) appear in neither the joint table nor the contact table, so a ladder cabinet reads `10 / 24`. Measured, not estimated. Every other mode is exact: toe-kick, none, applied back, no top, dividers. A rail joint table was deliberately **not** invented — that is the reason-instead-of-measure mistake this phase exists to correct. Derive it the same way: probe `boardsTouch` first, then write the self-checking coverage test.
+1. **RESOLVED by Task 7.5.** A ladder base was not jointed. `baseMode: 'ladder'` emits four rails and 25 touching pairs, of which 14 (rail↔rail, rail↔side, rail↔bottom) appear in neither the joint table nor the contact table, so a ladder cabinet reads `10 / 24`. Measured, not estimated. Every other mode is exact: toe-kick, none, applied back, no top, dividers. A rail joint table was deliberately **not** invented — that is the reason-instead-of-measure mistake this phase exists to correct. Derive it the same way: probe `boardsTouch` first, then write the self-checking coverage test.
 
-2. **Every housed panel sits 6 mm out, and the cutting list is short by `2 × depth`.** `deriveJoint` returns a `seat` that `reconcileJoints` applies by overwriting the housed part's position, one joint at a time; a panel housed at both ends gets seated twice and the last one wins. `defaultDadoDepth` is `round(housingThickness / 3)`, so an 18 mm side gives exactly 6. Measured on a Base 600: `bottom` goes from x 18 to x 24 with `length` unchanged at 564, so its right end seats correctly and its left end floats 6 mm proud.
+2. **RESOLVED by Task 7.4.** Every housed panel sat 6 mm out, and the cutting list is short by `2 × depth`.** `deriveJoint` returns a `seat` that `reconcileJoints` applies by overwriting the housed part's position, one joint at a time; a panel housed at both ends gets seated twice and the last one wins. `defaultDadoDepth` is `round(housingThickness / 3)`, so an 18 mm side gives exactly 6. Measured on a Base 600: `bottom` goes from x 18 to x 24 with `length` unchanged at 564, so its right end seats correctly and its left end floats 6 mm proud.
 
    The joint stage has always seated parts this way — what is new is that carcases now emit dados by default, so every carcase panel is affected, **including the cutting list a woodworker takes to a saw**.
 
    The fix belongs in `carcaseRoles`, not the joint stage. See Task 7.4.
 
-3. **Finger corners on a carcase interlock with nothing.** Measured on a Wall 600 with `jointMethod: 'finger'`: the top's finger slots land at carcase x 18–36, the left side's at x 0–18. Adjacent, never overlapping — so the joint removes material from both panels and leaves holes where an interlock should be. The finger seat is a *minimal* move and is already a no-op here, so "every seat is a no-op" would **not** have caught this.
+3. **RESOLVED by Task 7.4.** Finger corners on a carcase interlocked with nothing. Measured on a Wall 600 with `jointMethod: 'finger'`: the top's finger slots land at carcase x 18–36, the left side's at x 0–18. Adjacent, never overlapping — so the joint removes material from both panels and leaves holes where an interlock should be. The finger seat is a *minimal* move and is already a no-op here, so "every seat is a no-op" would **not** have caught this.
 
    Same root cause as item 2, one step worse: the role table sizes every panel for a butt fit regardless of the joinery. A dado edge is 6 mm short; a finger edge is a whole thickness short, which is the difference between a tight joint and a hole. Folded into Task 7.4.
 
+
+4. **An applied back is moved 12 mm by its own seat.** `computeDadoOffset` clamps the groove offset into the housing's span; an applied back sits *outside* the sides' depth, so the clamp drags it inward. Task 7.4 halved the move (24 → 12 mm) by fixing the x half. The real question is upstream and is a product one: an applied back is currently dado'd into the sides as if it were captured, which is not what "applied" means. Measured: `backMode: 'applied'` is the only configuration where any part still moves through the pipeline. Excluded from the seat-no-op fixtures for that reason.
+
+5. **A ladder base has no rungs.** It is a perimeter rectangle at every width, so the bottom panel is carried only on its four edges — and on just 6 mm of each side rail, since Task 7.4 dado-seats the bottom into the sides. Fine at 600 mm; a 1200 mm cabinet would have a 1164 × 464 unsupported span with no mid rail, which a real ladder base would not. A generator gap, not a joint-table gap.
+
+6. **`defaultDadoDepth` inverts its clamp below 4 mm stock.** `clamp(round(dim / 3), 3, dim - 1)` has `lo > hi` when `dim < 4`, so a 3 mm side is seeded with a depth the cut geometry then clamps differently. Pre-existing; now confined to `dadoDepthFor` in `src/geom/dado.ts`, which is the one place to fix it.
+
+7. **A rail's cutting-list dimensions read oddly:** `Base Front` comes out 100 × 600 × 18, its "length" being its height, because `orientedPanel` maps a `thicknessAxis: 'y'` panel's length to the vertical extent. Shared with the back and toe-kick panels. It is also precisely what makes the suggestion engine read a rail's top as an *end*, which is load-bearing for Task 7.5's contact decision — so any fix must re-check that.
 
 ## Task 7.4: Panel extents follow the joinery at each edge
 

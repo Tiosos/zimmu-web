@@ -813,6 +813,8 @@ describe('carcaseJoints', () => {
       'base, fingered': { ...base, jointMethod: 'finger' },
       wall: { ...base, baseMode: 'none' },
       'wall, fingered': { ...base, baseMode: 'none', jointMethod: 'finger' },
+      ladder: { ...base, baseMode: 'ladder' },
+      'ladder, fingered': { ...base, baseMode: 'ladder', jointMethod: 'finger' },
       divided: { ...base, dividers: [0.5] },
       'two dividers, two shelves': { ...base, dividers: [0.34, 0.67], fixedShelves: 2 },
       'no top, no back': { ...base, hasTop: false, backMode: 'none' },
@@ -850,6 +852,19 @@ describe('carcaseJoints', () => {
       ['Base 600', CARCASE_PRESETS[0].params, 12, 2],
       ['Wall 600', CARCASE_PRESETS[1].params, 10, 1],
       ['Base 600 + divider', { ...CARCASE_PRESETS[0].params, dividers: [0.5] }, 16, 4],
+      ['Ladder 600', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder' }, 14, 11],
+      [
+        'Ladder 600 + divider',
+        { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', dividers: [0.5] },
+        18,
+        13,
+      ],
+      [
+        'Ladder 600 + divider + two shelves per bay',
+        { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', dividers: [0.5], fixedShelves: 2 },
+        22,
+        15,
+      ],
     ]
     for (const [name, p, jointCount, contactCount] of cases) {
       const joints = carcaseJoints(p, 'cmp_1')
@@ -864,6 +879,23 @@ describe('carcaseJoints', () => {
       expect(new Set(covered).size, `${name}: no pair covered twice`).toBe(covered.length)
       expect(covered.sort(), name).toEqual(touchingPairs(p))
     }
+  })
+
+  it('joins the ladder frame at its own four corners and nowhere else', () => {
+    const rails = carcaseJoints({ ...base, baseMode: 'ladder' }, 'cmp_1').filter(
+      (d) => d.housingRole.startsWith('ladder-') || d.housedRole.startsWith('ladder-'),
+    )
+    expect(rails.map((d) => pairKey(d.housingRole, d.housedRole)).sort()).toEqual([
+      'ladder-back|ladder-left',
+      'ladder-back|ladder-right',
+      'ladder-front|ladder-left',
+      'ladder-front|ladder-right',
+    ])
+    // The full-width rails house the side rails, not the reverse: a side rail's end stops at the
+    // crossing rail's face.
+    expect(rails.every((d) => d.housedRole.endsWith('-left') || d.housedRole.endsWith('-right'))).toBe(
+      true,
+    )
   })
 
   it('houses dividers in the bottom and top, never in a side', () => {
@@ -955,6 +987,24 @@ describe('carcaseContactPairs', () => {
     }
   })
 
+  it('declares the whole set-down plane of a ladder base, and nothing across the carcase', () => {
+    const pairs = carcaseContactPairs({ ...base, baseMode: 'ladder', fixedShelves: 0 })
+      .map(([a, b]) => pairKey(a, b))
+      .sort()
+    expect(pairs).toEqual([
+      'bottom|ladder-back',
+      'bottom|ladder-front',
+      'bottom|ladder-left',
+      'bottom|ladder-right',
+      'ladder-back|left-side',
+      'ladder-back|right-side',
+      'ladder-front|left-side',
+      'ladder-front|right-side',
+      'ladder-left|left-side',
+      'ladder-right|right-side',
+    ])
+  })
+
   it('declares nothing against a back that does not exist', () => {
     expect(carcaseContactPairs({ ...base, backMode: 'none' })).toEqual([['bottom', 'toe-kick']])
   })
@@ -970,6 +1020,7 @@ const jointedCases: Record<string, CarcaseParams> = {
   'toe-kick base': base,
   'base on the floor': { ...base, baseMode: 'none' },
   'ladder base': { ...base, baseMode: 'ladder' },
+  'fingered ladder base': { ...base, baseMode: 'ladder', jointMethod: 'finger' },
   legs: { ...base, baseMode: 'legs' },
   'divided, two shelves': { ...base, dividers: [0.5], fixedShelves: 2 },
   'two dividers': { ...base, dividers: [0.34, 0.67], fixedShelves: 2 },

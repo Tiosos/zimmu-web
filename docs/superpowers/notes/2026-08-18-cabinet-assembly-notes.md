@@ -988,3 +988,51 @@ bottom), makes it fail. Verified by mutation, not by reading.
   drags it inside. This task halves the move (24 mm → 12 mm) by fixing the x half; the depth-axis
   half is a separate defect in how an applied back is jointed to the sides — it is dado'd into them
   as if it were captured. Not covered by any Phase 7 open item.
+
+## 2026-08-22 — Task 7.5 implemented (the ladder base joint table)
+
+- **The 14 uncovered pairs the plan listed were re-measured after Task 7.4 and are unchanged.**
+  Task 7.4's extents pass grows the bottom to `x[12, 588]` and the back in two axes, but no rail
+  moved, so the touching set was identical: 25 pairs for a plain ladder, 31 with a divider, 37 with
+  a divider and two shelves per bay.
+- **The frame joins itself; the plane where the carcase is set down on it does not.** Split
+  4 joints / 10 contacts:
+  - `ladder-front` and `ladder-back` each house `ladder-left` and `ladder-right` (dado). The side
+    rails run `y[KS+T, D-T]`, i.e. their ends stop *exactly* at the crossing rails' inner faces —
+    end into face. The suggestion engine independently offers a dado for these four pairs with the
+    same faces the table emits (`ladder-front:+Z → ladder-left:-X`, `ladder-back:-Z → …:+X`).
+  - Every pair across `z = toeKickHeight` is contact: `bottom` × all four rails, and each side ×
+    the front rail, the back rail and its own side rail. The carcase is built as a box and set down
+    on the frame's top plane; it is screwed through that plane, not joined into it.
+- **Why those six side↔rail pairs are contact and not joinery, in geometry rather than in taste.**
+  `orientedPanel` gives a `thicknessAxis: 'y'` rail `length = dz` — so a rail's *length axis is
+  vertical* and its top is an **end**, not a face. A side's bottom edge landing on it is end-to-end,
+  not end-into-face, and the suggestion engine offers **nothing** at all for
+  `ladder-front|left-side` and its three siblings (they sat in the checklist's `unresolved` list
+  before this task). For `ladder-left|left-side` the engine offers only tongue-groove — an
+  edge-to-edge joint, again not a housing. Declaring these as joints would have emitted joinery the
+  panel would never propose, which is the same trap the finger-corner rule was written to avoid.
+- **`bottom` × rails is the toe kick's case verbatim.** Identical geometry (`z[0, KH]` under
+  `z[KH, KH+T]`), identical board orientation, and `bottom|toe-kick` is already declared contact.
+  The engine *does* offer a dado here — because it reads the rail's vertical end as an end into the
+  bottom's broad underside — and it is declined for the same reason the toe kick's is.
+- **The frame corners stay dados under `jointMethod: 'finger'`.** They pass the flush-outer-faces
+  test and the engine does offer finger there, so fingering them would be defensible; dado was
+  chosen because it needs no second face table and because a fingered plinth is unusual joinery for
+  a part nobody sees. Revisit if a user asks for it — the pair set does not change either way.
+- **The rails seat like any other dado.** Task 7.4's extension pass needed no change: the side rails
+  grow to the groove floor at both ends (`y[78, 542] → y[72, 548]` on a Base 600), and
+  `seats every dado-housed end at the groove floor` plus `makes every seat a no-op through the full
+  pipeline` cover them because `jointedCases` already carried a ladder fixture. A fingered ladder
+  was added to that table so the interaction between a fingered carcase and a dadoed plinth is
+  measured too.
+- **Observed while probing, not fixed here — the "ladder" has no rungs.** The frame is a perimeter
+  rectangle whatever the cabinet's width, so the bottom panel is carried only on its four edges (and
+  on just 6 mm of each side rail, `x[12, 18]` and `x[582, 588]`, since the bottom is dado-seated into
+  the sides). A 600 mm cabinet is fine; a 1200 mm one would have a 1164 × 464 unsupported span with
+  no mid rail. A real ladder base has cross rails. Out of scope for a joint table, but the generator
+  is the place that would have to emit them.
+- **Also observed: a rail's cutting-list dimensions read oddly.** `Base Front` comes out
+  100 × 600 × 18 — length 100 (its height), width 600 — because `orientedPanel` maps
+  `thicknessAxis: 'y'` to `length = dz`. Pre-existing and shared with the back and toe-kick panels;
+  it is what makes the engine treat a rail's top as an end.

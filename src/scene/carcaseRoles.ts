@@ -401,6 +401,16 @@ export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescr
     if (p.baseMode === 'toe-kick') add('dado', s.role, 'toe-kick', s.inward, s.endOfUpright)
   }
 
+  // The base frame is joined to itself: each side rail's end lands in the inner face of the
+  // full-width rail crossing it. Nothing above the frame is jointed into it — the carcase is set
+  // down on the frame's top plane, which carcaseContactPairs declares.
+  if (p.baseMode === 'ladder') {
+    for (const rail of ['ladder-left', 'ladder-right']) {
+      add('dado', 'ladder-front', rail, '+Z', '-X')
+      add('dado', 'ladder-back', rail, '-Z', '+X')
+    }
+  }
+
   // The back sits on the bottom and under the top, so they house it, not the other way round.
   if (p.backMode !== 'none') {
     add('dado', 'bottom', 'back', '+Z', '-X')
@@ -434,6 +444,21 @@ export function carcaseContactPairs(p: CarcaseParams): [string, string][] {
 
   const pairs: [string, string][] = []
   if (p.baseMode === 'toe-kick') pairs.push(['bottom', 'toe-kick'])
+  // Everything the ladder frame meets, it meets across one plane: the carcase is built as a box and
+  // set down on the frame's top at z = toeKickHeight. The bottom lies flat on the rails exactly as
+  // it lies on a toe kick, and each side's bottom edge lands on a rail's top edge — end to end, not
+  // end into face. Screwed down through that plane, not joined into it.
+  if (p.baseMode === 'ladder') {
+    for (const rail of ['ladder-front', 'ladder-back', 'ladder-left', 'ladder-right']) {
+      pairs.push(['bottom', rail])
+    }
+    for (const [side, rail] of [
+      ['left-side', 'ladder-left'],
+      ['right-side', 'ladder-right'],
+    ] as const) {
+      pairs.push([side, 'ladder-front'], [side, 'ladder-back'], [side, rail])
+    }
+  }
   if (p.backMode !== 'none') {
     for (let i = 0; i < p.dividers.length; i++) pairs.push(['back', `divider-${i}`])
     const bays = bayEdges(p).length / 2
