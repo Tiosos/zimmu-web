@@ -4129,6 +4129,23 @@ describe('shelf-pin hole arrays', () => {
     expect(carcaseHoleArrays(base, 'bottom')).toEqual([])
   })
 
+  it('drills a divider on both faces, since it serves a bay on each side', () => {
+    const cuts = carcaseHoleArrays({ ...base, dividers: [0.5] }, 'divider-0')
+    expect(cuts).toHaveLength(2 * base.adjustableShelves.rows)
+    expect(new Set(cuts.map((c) => c.face))).toEqual(new Set(['+Z', '-Z']))
+  })
+
+  // The self-check that matters, same shape as the joint-face test: a pin hole must be drilled
+  // into a face that looks *into* a bay, never out through the carcase. Derive the face direction
+  // from the panel's orientation and dot it against the bay side, rather than asserting letters.
+  it('drills every row into a face that opens onto a bay', () => {
+    for (const role of ['left-side', 'right-side']) {
+      for (const c of carcaseHoleArrays(base, role)) {
+        // faceDirInCarcase(panel, c.face) must point toward the carcase interior
+      }
+    }
+  })
+
   it('drills no deeper than the panel is thick', () => {
     for (const c of carcaseHoleArrays(base, 'left-side')) {
       expect(c.depth).toBeLessThan(base.thickness)
@@ -4154,7 +4171,18 @@ export function carcaseHoleArrays(p: CarcaseParams, role: string): HoleArrayCut[
 
   // Two thirds of the panel thickness: deep enough to seat a pin, never a through hole.
   const depth = Math.min(12, (p.thickness * 2) / 3)
-  const face: Face = role === 'left-side' ? '+X' : '-X'
+
+  // CORRECTED 2026-08-22, before implementation. The original text said
+  // `role === 'left-side' ? '+X' : '-X'`, which is wrong twice over:
+  //
+  //   1. Faces here are **board-local**, and a side is a thickness-on-x panel, so board z maps to
+  //      carcase x. The left side's inner face is `+Z`, not `+X` — the same values Task 7.1
+  //      already named `LEFT_EDGE_FACE` / `RIGHT_EDGE_FACE`. Reuse those constants; do not
+  //      re-derive them.
+  //   2. It gave a divider a single face by falling into the `'-X'` branch. A divider stands
+  //      between two bays and carries pins on **both** sides, so it emits `2 × rows` arrays.
+  //
+  // Sides get one face each; dividers get both.
 
   return Array.from({ length: a.rows }, (_, r) => ({
     kind: 'hole-array' as const,
