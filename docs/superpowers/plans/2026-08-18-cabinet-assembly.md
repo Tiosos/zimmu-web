@@ -3640,7 +3640,7 @@ and building the checklist from its output, not by reading code.
 - [x] Wall 600 → `10 / 10`; Base 600 + one divider → `16 / 16`. Both match the measured touching sets minus their contact pairs.
 - [x] Six cabinets → six groups, every one `12 / 12 ✓` and collapsed. Not 72 rows.
 - [x] Two loose touching boards stay at top level, in no group (`jointChecklist.test.ts`).
-- [x] **Finger** → still `12 / 12`; the two flush corners change kind and the inset bottom pair stays dado (`carcaseRoles.test.ts`). The viewport's meshing fingers are the one item not automated.
+- [~] **Finger** → the checklist reads `12 / 12` and the two flush corners change kind (`carcaseRoles.test.ts`), but the **geometry is wrong** — see open item 3. This item was marked passing on the strength of the checklist; the unautomated half is exactly where the defect was.
 - [x] **Dowel** → group drops to `0 / 12` open, contact rows unchanged at 2 — the documented behaviour for fastener methods.
 
 ### Open items carried out of Phase 7
@@ -3653,7 +3653,115 @@ Neither blocks the phase; both are recorded so they are not rediscovered later.
 
    The joint stage has always seated parts this way — what is new is that carcases now emit dados by default, so every carcase panel is affected, **including the cutting list a woodworker takes to a saw**.
 
-   The fix belongs in `carcaseRoles`, not the joint stage: emit each panel spanning **groove floor to groove floor** so both seats are already satisfied and become no-ops. The bottom becomes 576 long at x = 12. Two things make it more than a one-liner: the rule is per *edge* (the back is housed on all four and grows in two axes; a shelf grows only in x), and panel length becomes dependent on `jointMethod`, since a fastener method emits no joints and must keep butt lengths. The self-checking test writes itself — after the full pipeline every seat must be a no-op, and every housed end must reach its groove floor.
+   The fix belongs in `carcaseRoles`, not the joint stage. See Task 7.4.
+
+3. **Finger corners on a carcase interlock with nothing.** Measured on a Wall 600 with `jointMethod: 'finger'`: the top's finger slots land at carcase x 18–36, the left side's at x 0–18. Adjacent, never overlapping — so the joint removes material from both panels and leaves holes where an interlock should be. The finger seat is a *minimal* move and is already a no-op here, so "every seat is a no-op" would **not** have caught this.
+
+   Same root cause as item 2, one step worse: the role table sizes every panel for a butt fit regardless of the joinery. A dado edge is 6 mm short; a finger edge is a whole thickness short, which is the difference between a tight joint and a hole. Folded into Task 7.4.
+
+
+## Task 7.4: Panel extents follow the joinery at each edge
+
+**Files:**
+- Modify: `src/scene/carcaseRoles.ts`, `src/scene/carcaseRoles.test.ts`
+- Possibly modify: `src/geom/dado.ts` (extract the depth formula)
+
+**The defect, in one sentence:** `carcaseRoles` sizes every panel face-to-face — a butt fit — while `reconcileJoints` then seats it according to the joint at its ends, so the panel and its joinery disagree at every housed edge.
+
+**Measured**, on a Base 600 (`W=600, H=720, D=560, T=18`) and a Wall 600 with finger joints:
+
+| Method | Panel | Generated | After pipeline | Correct |
+|---|---|---|---|---|
+| dado-rabbet | `bottom` | x 18, L 564 | x **24**, L 564 | x 12, L **576** |
+| dado-rabbet | `back` | x 18, z 118 | x **24**, z **124** | x 12, z 112 |
+| finger | `top` | x 18, L 564 | x 18 (seat is a no-op) | x **0**, L **600** |
+| dowel | any | x 18, L 564 | x 18, L 564 | unchanged — correct already |
+
+### The rule
+
+For each panel, for each of its four in-plane edges, extend by what the joint at that edge requires:
+
+| Joint at the edge | Extend by | Reaches |
+|---|---|---|
+| dado | `dadoDepth(housingThickness)` | the groove floor |
+| finger | the housing's full thickness | the housing's outer face, so the fingers have material to mesh in |
+| none (fastener method, or a free edge) | 0 | butt, unchanged |
+
+`defaultDadoDepth` is `clamp(round(dim / 3), 3, dim - 1)` over the housing's dimension along the face-depth axis. Every carcase housing is `p.thickness` thick, so one value covers the table — but **extract the scalar from `defaultDadoDepth` and call it** rather than re-deriving `round(T/3)` in the generator. Two copies of that formula would drift.
+
+**`carcaseJoints` already knows the joint at every edge.** Do not build a second table: generate the boxes, then extend them from the descriptors `carcaseJoints(p, …)` returns. That also makes the fastener case fall out for free — no descriptors, no extensions, butt lengths.
+
+This means `carcaseRoles` now depends on `carcaseJoints`, which depends on `carcaseRoles` for its role list. Break the cycle by splitting the box construction (`carcaseBoxes(p)`, role → `LocalBox` + thickness axis) from the extension pass; `carcaseJoints` needs only the role *names*, which `carcaseBoxes` supplies.
+
+- [ ] **Step 1: Write the failing tests**
+
+The contract test is **not** "every seat is a no-op" — that passes today for finger joints while the geometry is broken. It is: *each housed end reaches the plane its joint requires*.
+
+```ts
+describe('panel extents follow the joinery', () => {
+  it('seats every dado-housed end at the groove floor', () => {
+    // For each dado descriptor: the housed panel's end coordinate equals the housing's
+    // inner-face coordinate minus the dado depth. Derived from the boxes, not from literals.
+  })
+
+  it('runs every finger-jointed end to the housing outer face', () => {
+    // The top spans the full width: x0 === 0 and x1 === W.
+  })
+
+  it('leaves panels butt-sized when no joint is emitted', () => {
+    // dowel / butt-screw / confirmat: identical to today's output. Guards against the fix
+    // leaking into the fastener methods.
+  })
+
+  it('makes every seat a no-op through the full pipeline', () => {
+    // reconcileJoints(regenerateComponents(s)) must not move any part.
+    // Necessary but NOT sufficient — that is what the two tests above are for.
+  })
+
+  it('gives finger corners real overlapping material', () => {
+    // The interlock volume is non-empty: the top's box and the side's box share a region.
+    // This is the test the 'seat is a no-op' contract would have missed.
+  })
+})
+```
+
+Cover both base modes and the divider case; the back is the interesting panel because it is housed on all four edges and grows in two axes.
+
+- [ ] **Step 2: Run to confirm failure**
+
+Expect the dado test to fail by exactly `dadoDepth` per end and the finger test by a full thickness.
+
+- [ ] **Step 3: Implement**
+
+Split `carcaseBoxes` out, extend from the descriptors, then `orientedPanel` each result.
+
+**Check the validator still holds.** `validateCarcaseParams` reasons about panels at butt sizes — e.g. that a shelf budget fits between floor and inner top. Extending panels changes those spans. Re-run the feasibility test from Task 4.2 and widen it if a rule now rejects a cabinet that is actually buildable, or accepts one that is not.
+
+- [ ] **Step 4: Run the full suite**
+
+`pnpm typecheck && pnpm lint && pnpm test`. Expect changes in cutting-list and drawing tests: panel lengths are the point of this task. Every changed expectation must be justified by the table above — a panel that grew by something other than a depth or a thickness is a bug, not a new baseline.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/scene/carcaseRoles.ts src/scene/carcaseRoles.test.ts src/geom/dado.ts
+git commit -m "fix(scene): size carcase panels to their joinery, not to a butt fit"
+```
+
+## Task 7.5: The ladder base joint table
+
+**Files:**
+- Modify: `src/scene/carcaseRoles.ts`, `src/scene/carcaseRoles.test.ts`
+
+`baseMode: 'ladder'` emits `ladder-front`, `ladder-back`, `ladder-left`, `ladder-right` and 25 touching pairs, 14 of which no table covers, so the cabinet reads `10 / 24`.
+
+**Derive it in this order, and do not shortcut it:**
+
+1. Probe `boardsTouch` over a regenerated ladder cabinet and write down the 14 uncovered pairs.
+2. Decide, per pair, whether it is joinery or contact — a rail frame is genuinely joined (corner joints between rails), but a rail against the carcase bottom above it may be contact.
+3. Write the coverage test first, then the table.
+
+The completeness test from Task 7.1 already exists — extend its cases to include `baseMode: 'ladder'` and it will hold the table honest. Once Task 7.4 lands, the extents rule applies to rails too.
 
 ---
 
