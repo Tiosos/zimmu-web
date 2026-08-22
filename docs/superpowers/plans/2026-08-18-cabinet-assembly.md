@@ -3774,6 +3774,40 @@ The completeness test from Task 7.1 already exists — extend its cases to inclu
 
 ---
 
+## Task 7.6: An applied back is contact, not a dado
+
+**Files:** `src/scene/carcaseRoles.ts`, `src/scene/carcaseRoles.test.ts`
+
+Decided with the user 2026-08-22. `backMode: 'applied'` puts the back at `y ∈ [D, D + BT]` — **behind** the carcase, overlaying the rear edges of the sides, top and bottom. It is screwed on, not cut in. Today it is dado'd into the sides as if it were captured, which is both wrong joinery and the cause of the one remaining seat displacement in the whole generator (open item 4).
+
+- [ ] **Step 1** Extend the coverage test's cases with `backMode: 'applied'` on both base modes; it should fail by reporting the back's pairs as joints when they should be contact.
+- [ ] **Step 2** In `carcaseJoints`, emit no dado for the back when `backMode === 'applied'`; in `carcaseContactPairs`, declare `back` against every panel it overlays (both sides, `bottom`, and `top` when present). `backMode === 'captured'` keeps today's behaviour exactly.
+- [ ] **Step 3** Add `applied back` to the seat-no-op fixtures it is currently **excluded** from — that exclusion exists only because of this defect, and removing it is the proof the defect is gone.
+- [ ] **Step 4** Verify the checklist reads `N / N` for an applied-back cabinet with nothing unresolved, and that a captured-back cabinet is unchanged.
+
+Expect panel extents to change: with no dado housing it, the back stops growing by a depth at each edge and returns to its butt size. That is correct — an overlay back is exactly the size of the opening it covers.
+
+## Task 7.7: Mid rails for a wide ladder base
+
+**Files:** `src/scene/carcaseRoles.ts`, `src/scene/carcaseRoles.test.ts`
+
+Decided with the user 2026-08-22. A ladder base is a bare perimeter rectangle at every width, so the cabinet bottom is carried only on its four edges (open item 5).
+
+> **Stated assumption, because this is the one number in the plan not derived from the code.** The rule below keeps every clear span at or under **600 mm**, on the grounds that a 600 mm base unit is the span the existing four-edge frame already carries — so it is the widest span the design is known to tolerate, rather than an engineering claim about deflection. It is a parameter of the rule, not a fact: if the user wants 400 or 900, only the constant changes. Do not present it as a structural calculation.
+
+- [ ] **Step 1: Write the failing tests**
+  - A 600 mm ladder base emits exactly four rails — today's behaviour, unchanged.
+  - A 1200 mm ladder base emits a fifth rail, and no clear span between consecutive rails exceeds 600 mm.
+  - The span rule holds across a sweep of widths (600 → 2400 in 100 mm steps): compute the actual gaps from the emitted boxes and assert every one is within the limit. A property over the range, not three hand-picked widths.
+  - The coverage test (`joints ∪ contact === touching`) passes for a wide ladder base — mid rails add pairs and must be accounted for.
+
+- [ ] **Step 2: Implement.** A mid rail is a `ladder-mid-{i}` panel shaped exactly like `ladder-left`/`ladder-right` — `{x0: c - T/2, x1: c + T/2, y0: KS + T, y1: D - T, z0: 0, z1: KH}`, thickness axis `'x'` — at evenly spaced interior positions. Choose the count as the smallest `n` with `(W - 2T - nT) / (n + 1) <= 600`.
+
+- [ ] **Step 3: Extend the joint and contact tables.** A mid rail is housed in `ladder-front` and `ladder-back` exactly as the side rails are, so it reuses their faces. `bottom` × `ladder-mid-{i}` is contact, like every other carcase-to-rail pair (Task 7.5).
+
+- [ ] **Step 4** Full suite. The role index is part of the contract (`carcaseRoles` is documented as ordered), so check nothing downstream depends on the ladder roles' positions.
+
+
 # Phase 8 — Shelf-pin hole arrays
 
 **Outcome:** adjustable shelving works, and it does not make the app slow. The performance argument is the whole reason this is a new cut kind rather than N box cuts.
