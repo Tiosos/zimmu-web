@@ -77,10 +77,15 @@ export function deriveDadoAxes(
   return alignU >= alignV ? { narrowAx: u, runAx: v } : { narrowAx: v, runAx: u }
 }
 
+// The scalar behind defaultDadoDepth. Split out so a caller that knows only the housing's
+// thickness — the carcase role table, sizing a panel to the groove it will sit in — gets the same
+// number the joint will be seeded with instead of a second copy of the formula.
+export function dadoDepthFor(housingDim: number): number {
+  return clamp(Math.round(housingDim / 3), 3, housingDim - 1)
+}
+
 export function defaultDadoDepth(housing: BoardPart, housingFace: Face): number {
-  const dAx = faceAxes(housingFace).depth
-  const dim = boardDims(housing)
-  return clamp(Math.round(dim[dAx] / 3), 3, dim[dAx] - 1)
+  return dadoDepthFor(boardDims(housing)[faceAxes(housingFace).depth])
 }
 
 export function computeDadoOffset(

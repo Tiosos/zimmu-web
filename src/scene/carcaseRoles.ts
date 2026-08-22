@@ -1,4 +1,7 @@
 import type { BoxCut, CarcaseParams, Face, Vec3 } from './types'
+import { dadoDepthFor } from '../geom/dado'
+
+export type ThicknessAxis = 'x' | 'y' | 'z'
 
 export interface LocalBox {
   x0: number
@@ -21,7 +24,7 @@ export interface PanelSpec {
 // Every carcase part is an axis-aligned panel; only which axis carries the material thickness
 // differs. Each rotation maps all three board axes onto carcase axes positively, so the board's
 // local origin always lands on the box's min corner and `position` needs no compensation.
-export function orientedPanel(b: LocalBox, thicknessAxis: 'x' | 'y' | 'z'): PanelSpec {
+export function orientedPanel(b: LocalBox, thicknessAxis: ThicknessAxis): PanelSpec {
   const dx = b.x1 - b.x0
   const dy = b.y1 - b.y0
   const dz = b.z1 - b.z0
@@ -145,9 +148,20 @@ export interface RoleSpec {
   panel: PanelSpec
 }
 
+export interface RoleBox {
+  role: string
+  label: string
+  box: LocalBox
+  thicknessAxis: ThicknessAxis
+}
+
+// The carcase laid out face-to-face, before any joinery. Split from carcaseRoles because the
+// extension pass needs boxes it can still grow, and because a box carries its thickness axis —
+// the axis a joint at that panel's edge houses along.
+//
 // Ordered: the array is the build sequence downstream projects consume, so a role's index is part
 // of the contract, not an artefact of how the function is written.
-export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
+export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
   if (validateCarcaseParams(p).length > 0) return []
 
   const { width: W, height: H, depth: D, thickness: T, backThickness: BT } = p
@@ -161,96 +175,98 @@ export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
   const shelfBackY = p.backMode === 'captured' ? backY0 : D
   const bayZ0 = floor + T
 
-  const roles: RoleSpec[] = [
+  const boxes: RoleBox[] = [
     {
       role: 'left-side',
       label: 'Left Side',
-      panel: orientedPanel({ x0: 0, x1: T, y0: 0, y1: D, z0: carcaseZ0, z1: H }, 'x'),
+      box: { x0: 0, x1: T, y0: 0, y1: D, z0: carcaseZ0, z1: H },
+      thicknessAxis: 'x',
     },
     {
       role: 'right-side',
       label: 'Right Side',
-      panel: orientedPanel({ x0: W - T, x1: W, y0: 0, y1: D, z0: carcaseZ0, z1: H }, 'x'),
+      box: { x0: W - T, x1: W, y0: 0, y1: D, z0: carcaseZ0, z1: H },
+      thicknessAxis: 'x',
     },
     {
       role: 'bottom',
       label: 'Bottom',
-      panel: orientedPanel({ x0: T, x1: W - T, y0: 0, y1: D, z0: floor, z1: floor + T }, 'z'),
+      box: { x0: T, x1: W - T, y0: 0, y1: D, z0: floor, z1: floor + T },
+      thicknessAxis: 'z',
     },
   ]
 
   if (p.hasTop) {
-    roles.push({
+    boxes.push({
       role: 'top',
       label: 'Top',
-      panel: orientedPanel({ x0: T, x1: W - T, y0: 0, y1: D, z0: H - T, z1: H }, 'z'),
+      box: { x0: T, x1: W - T, y0: 0, y1: D, z0: H - T, z1: H },
+      thicknessAxis: 'z',
     })
   }
 
   if (p.backMode !== 'none') {
-    roles.push({
+    boxes.push({
       role: 'back',
       label: 'Back',
-      panel: orientedPanel(
-        { x0: T, x1: W - T, y0: backY0, y1: backY0 + BT, z0: bayZ0, z1: innerTop },
-        'y',
-      ),
+      box: { x0: T, x1: W - T, y0: backY0, y1: backY0 + BT, z0: bayZ0, z1: innerTop },
+      thicknessAxis: 'y',
     })
   }
 
   if (p.baseMode === 'toe-kick') {
-    roles.push({
+    boxes.push({
       role: 'toe-kick',
       label: 'Toe Kick',
-      panel: orientedPanel(
-        {
-          x0: T,
-          x1: W - T,
-          y0: p.toeKickSetback,
-          y1: p.toeKickSetback + T,
-          z0: 0,
-          z1: floor,
-        },
-        'y',
-      ),
+      box: {
+        x0: T,
+        x1: W - T,
+        y0: p.toeKickSetback,
+        y1: p.toeKickSetback + T,
+        z0: 0,
+        z1: floor,
+      },
+      thicknessAxis: 'y',
     })
   }
 
   if (p.baseMode === 'ladder') {
     const KS = p.toeKickSetback
     const KH = p.toeKickHeight
-    roles.push(
+    boxes.push(
       {
         role: 'ladder-front',
         label: 'Base Front',
-        panel: orientedPanel({ x0: 0, x1: W, y0: KS, y1: KS + T, z0: 0, z1: KH }, 'y'),
+        box: { x0: 0, x1: W, y0: KS, y1: KS + T, z0: 0, z1: KH },
+        thicknessAxis: 'y',
       },
       {
         role: 'ladder-back',
         label: 'Base Back',
-        panel: orientedPanel({ x0: 0, x1: W, y0: D - T, y1: D, z0: 0, z1: KH }, 'y'),
+        box: { x0: 0, x1: W, y0: D - T, y1: D, z0: 0, z1: KH },
+        thicknessAxis: 'y',
       },
       {
         role: 'ladder-left',
         label: 'Base Left',
-        panel: orientedPanel({ x0: 0, x1: T, y0: KS + T, y1: D - T, z0: 0, z1: KH }, 'x'),
+        box: { x0: 0, x1: T, y0: KS + T, y1: D - T, z0: 0, z1: KH },
+        thicknessAxis: 'x',
       },
       {
         role: 'ladder-right',
         label: 'Base Right',
-        panel: orientedPanel({ x0: W - T, x1: W, y0: KS + T, y1: D - T, z0: 0, z1: KH }, 'x'),
+        box: { x0: W - T, x1: W, y0: KS + T, y1: D - T, z0: 0, z1: KH },
+        thicknessAxis: 'x',
       },
     )
   }
 
   p.dividers.forEach((d, i) => {
-    roles.push({
+    boxes.push({
       role: `divider-${i}`,
       label: `Divider ${i + 1}`,
-      panel: orientedPanel(
-        { x0: W * d - T / 2, x1: W * d + T / 2, y0: 0, y1: shelfBackY, z0: bayZ0, z1: innerTop },
-        'x',
-      ),
+      box: { x0: W * d - T / 2, x1: W * d + T / 2, y0: 0, y1: shelfBackY, z0: bayZ0, z1: innerTop },
+      thicknessAxis: 'x',
     })
   })
 
@@ -261,18 +277,57 @@ export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
   for (let b = 0; b < edges.length / 2; b++) {
     for (let i = 0; i < p.fixedShelves; i++) {
       const z0 = bayZ0 + (i + 1) * shelfGap + i * T
-      roles.push({
+      boxes.push({
         role: `shelf-${b}-${i}`,
         label: p.dividers.length > 0 ? `Bay ${b + 1} Shelf ${i + 1}` : `Shelf ${i + 1}`,
-        panel: orientedPanel(
-          { x0: edges[b * 2], x1: edges[b * 2 + 1], y0: 0, y1: shelfBackY, z0, z1: z0 + T },
-          'z',
-        ),
+        box: { x0: edges[b * 2], x1: edges[b * 2 + 1], y0: 0, y1: shelfBackY, z0, z1: z0 + T },
+        thicknessAxis: 'z',
       })
     }
   }
 
-  return roles
+  return boxes
+}
+
+// A housing houses along its own thickness axis, and the panel it houses meets it end-on, so the
+// only question is how far past the housing's near face that end runs: to the groove floor for a
+// dado, clear through to the outer face for a finger corner, where the fingers need material on
+// both sides of the joint line to mesh into.
+function extendToward(housed: LocalBox, housing: LocalBox, ax: ThicknessAxis, into: number): void {
+  const lo = `${ax}0` as const
+  const hi = `${ax}1` as const
+  if (housing[lo] + housing[hi] < housed[lo] + housed[hi]) housed[lo] = housing[hi] - into
+  else housed[hi] = housing[lo] + into
+}
+
+// Face-to-face boxes plus what the joinery at each edge takes. Without this pass a panel is butt
+// sized while its own joint expects it to reach the groove floor, and reconcileJoints closes the
+// gap by *moving* the panel — twice, when both ends are housed, so one end ends up proud.
+export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
+  const boxes = carcaseBoxes(p)
+  const byRole = new Map(boxes.map((b) => [b.role, b]))
+
+  // The component id is only stamped on the descriptors; the extension reads their roles and kind.
+  for (const d of carcaseJoints(p, '')) {
+    // Both roles are always present: carcaseJoints derives its role names from the same parameters
+    // carcaseBoxes builds its boxes from.
+    const housing = byRole.get(d.housingRole)!
+    const housed = byRole.get(d.housedRole)!
+    const ax = housing.thicknessAxis
+    const thickness = housing.box[`${ax}1`] - housing.box[`${ax}0`]
+    extendToward(
+      housed.box,
+      housing.box,
+      ax,
+      d.kind === 'dado' ? dadoDepthFor(thickness) : thickness,
+    )
+  }
+
+  return boxes.map((b) => ({
+    role: b.role,
+    label: b.label,
+    panel: orientedPanel(b.box, b.thicknessAxis),
+  }))
 }
 
 export interface JointDescriptor {

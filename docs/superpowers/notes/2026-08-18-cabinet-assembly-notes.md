@@ -959,3 +959,32 @@ bottom), makes it fail. Verified by mutation, not by reading.
 - The muted "no joint available" section and the new "no joint needed" section are the same
   component (`MutedSection`) with different titles; the row renderer is shared between grouped and
   ungrouped rows (`Row`). Both extractions exist only because there are now two call sites.
+
+## 2026-08-22 — Task 7.4 implemented (panel extents follow the joinery)
+
+- **The circular dependency the plan warned about does not exist.** `carcaseJoints` never called
+  `carcaseRoles`; it derives its role *names* from the parameters directly (and shares `bayEdges`
+  with the box table). `carcaseBoxes` was still split out, but for the reason that actually applies:
+  the extension pass needs boxes it can still grow, and a box carries the thickness axis a joint at
+  that edge houses along. `carcaseRoles` calling `carcaseJoints(p, '')` is not a cycle.
+- **The extension axis is always the *housing's* thickness axis**, and a panel's own thickness axis
+  is never extended (housing and housed are perpendicular by construction). That is what makes the
+  pass order-independent: no extension can move a coordinate another extension reads.
+- **Extensions only grow boxes**, and every span they grow into is already validated non-degenerate,
+  so `validateCarcaseParams` needed **no widening**. The Task 4.2 feasibility test
+  (`accepts every plausible real cabinet`) and `emits no degenerate panel for any mode` both pass
+  unchanged, the latter now over the extended output.
+- **`never lets two panels share volume` had to be re-pointed at a fastener method.** A dado or a
+  finger corner is *deliberately* two panels sharing volume. The face-to-face table is still checked
+  for arithmetic slips (with `jointMethod: 'dowel'`), and the jointed output is held to exactly the
+  joinery by the new `shares volume only where a joint houses one panel in the other`.
+- **`defaultDadoDepth` inverts its clamp below 4 mm stock.** `clamp(round(dim/3), 3, dim - 1)` has
+  `lo > hi` when `dim < 4`, so a 3 mm side yields a depth of 3 while `computeDadoGroove` /
+  `computeDadoSeat` clamp the same joint to `dim - 1 = 2`. The extension uses the seeded depth, so a
+  3 mm carcase still seats 1 mm short (measured; it was 2 mm short before this task). Pre-existing
+  and out of scope — but `dadoDepthFor` is now the one place to fix it.
+- **An applied back is still moved 12 mm by its own seat.** `computeDadoOffset` clamps the groove
+  offset into the housing's span, and an applied back sits *outside* the sides' depth, so the clamp
+  drags it inside. This task halves the move (24 mm → 12 mm) by fixing the x half; the depth-axis
+  half is a separate defect in how an applied back is jointed to the sides — it is dado'd into them
+  as if it were captured. Not covered by any Phase 7 open item.

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  carcaseBoxes,
   carcaseContactPairs,
   carcaseCuts,
   carcaseJoints,
@@ -8,7 +9,9 @@ import {
   validateCarcaseParams,
   parameterForRole,
 } from './carcaseRoles'
-import type { PanelSpec, RoleSpec } from './carcaseRoles'
+import type { JointDescriptor, PanelSpec, RoleSpec } from './carcaseRoles'
+import { dadoDepthFor } from '../geom/dado'
+import { reconcileJoints } from './reconcileJoints'
 import type { BoardPart, BoxCut, CarcaseComponent, CarcaseParams, Face, Scene, Vec3 } from './types'
 import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 import { componentsById } from './componentTree'
@@ -325,8 +328,9 @@ describe('carcaseRoles', () => {
     const roles = carcaseRoles(base)
     const bottom = roleBox(roles, 'bottom')
     const kick = roleBox(roles, 'toe-kick')
-    expect(bottom.min.x).toBeCloseTo(18, 9)
-    expect(bottom.max.x).toBeCloseTo(582, 9)
+    // Not 18..582: each end runs the dado depth past the side's inner face, into its groove.
+    expect(bottom.min.x).toBeCloseTo(18 - dadoDepthFor(base.thickness), 9)
+    expect(bottom.max.x).toBeCloseTo(582 + dadoDepthFor(base.thickness), 9)
     expect(bottom.min.z).toBeCloseTo(100, 9)
     expect(bottom.max.z).toBeCloseTo(118, 9)
     expect(kick.max.z).toBeCloseTo(bottom.min.z, 9)
@@ -338,8 +342,9 @@ describe('carcaseRoles', () => {
     const back = roleBox(carcaseRoles(base), 'back')
     expect(back.min.y).toBeCloseTo(548, 9)
     expect(back.max.y).toBeCloseTo(560, 9)
-    expect(back.min.z).toBeCloseTo(118, 9)
-    expect(back.max.z).toBeCloseTo(702, 9)
+    // Not 118..702: the bay ends are dado floors inside the bottom and the top.
+    expect(back.min.z).toBeCloseTo(118 - dadoDepthFor(base.thickness), 9)
+    expect(back.max.z).toBeCloseTo(702 + dadoDepthFor(base.thickness), 9)
   })
 
   it('stops shelves short of a captured back', () => {
@@ -424,10 +429,12 @@ describe('carcaseRoles', () => {
     const divider = roleBox(roles, 'divider-0')
     const left = roleBox(roles, 'shelf-0-0')
     const right = roleBox(roles, 'shelf-1-0')
-    expect(left.min.x).toBeCloseTo(18, 9)
-    expect(left.max.x).toBeCloseTo(divider.min.x, 9)
-    expect(right.min.x).toBeCloseTo(divider.max.x, 9)
-    expect(right.max.x).toBeCloseTo(582, 9)
+    // Each shelf end stops a dado depth *inside* the panel that houses it, not on its face.
+    const depth = dadoDepthFor(base.thickness)
+    expect(left.min.x).toBeCloseTo(18 - depth, 9)
+    expect(left.max.x).toBeCloseTo(divider.min.x + depth, 9)
+    expect(right.min.x).toBeCloseTo(divider.max.x - depth, 9)
+    expect(right.max.x).toBeCloseTo(582 + depth, 9)
     expect(right.min.z).toBeCloseTo(left.min.z, 9)
   })
 
@@ -452,8 +459,9 @@ describe('carcaseRoles', () => {
     const d = roleBox(roles, 'divider-0')
     expect(d.min.x).toBeCloseTo(291, 9)
     expect(d.max.x).toBeCloseTo(309, 9)
-    expect(d.min.z).toBeCloseTo(118, 9)
-    expect(d.max.z).toBeCloseTo(702, 9)
+    // Housed in the bottom and the top, so it runs a dado depth into each.
+    expect(d.min.z).toBeCloseTo(118 - dadoDepthFor(base.thickness), 9)
+    expect(d.max.z).toBeCloseTo(702 + dadoDepthFor(base.thickness), 9)
     expect(d.max.y).toBeCloseTo(548, 9)
   })
 
@@ -470,6 +478,10 @@ describe('carcaseRoles', () => {
   // Checks the panels against each other rather than against numbers copied from the spec: an
   // arithmetic slip in one row of the table shows up as two boards occupying the same volume. It
   // is what caught all three of the geometry defects the table used to carry.
+  //
+  // Measured on a fastener method, which is the table face-to-face: a dado or a finger corner
+  // deliberately runs one panel into another, and 'shares volume only where a joint houses one
+  // panel in the other' is what holds that case to exactly the joinery.
   it('never lets two panels share volume', () => {
     const cases: Record<string, CarcaseParams> = {
       base,
@@ -481,7 +493,10 @@ describe('carcaseRoles', () => {
       'no shelves': { ...base, fixedShelves: 0 },
     }
     for (const [name, params] of Object.entries(cases)) {
-      const boxes = carcaseRoles(params).map((r) => ({ role: r.role, box: aabb(r.panel) }))
+      const boxes = carcaseRoles({ ...params, jointMethod: 'dowel' }).map((r) => ({
+        role: r.role,
+        box: aabb(r.panel),
+      }))
       expect(boxes.length, name).toBeGreaterThan(0)
       for (let i = 0; i < boxes.length; i++) {
         for (let j = i + 1; j < boxes.length; j++) {
@@ -539,7 +554,8 @@ describe('dividers must clear the side panels and each other', () => {
 
   it('produces no overlapping panels for every divider set it accepts', () => {
     for (const dividers of [[0.05], [0.5], [0.34, 0.67], [0.25, 0.5, 0.75]]) {
-      const params = { ...base, dividers }
+      // Face-to-face, as above: joinery extensions are checked against the joint table instead.
+      const params: CarcaseParams = { ...base, dividers, jointMethod: 'dowel' }
       expect(validateCarcaseParams(params)).toEqual([])
       const roles = carcaseRoles(params)
       for (let i = 0; i < roles.length; i++) {
@@ -945,5 +961,156 @@ describe('carcaseContactPairs', () => {
 
   it('emits nothing for invalid parameters', () => {
     expect(carcaseContactPairs({ ...base, width: 10 })).toEqual([])
+  })
+})
+
+type Axis = 'x' | 'y' | 'z'
+
+const jointedCases: Record<string, CarcaseParams> = {
+  'toe-kick base': base,
+  'base on the floor': { ...base, baseMode: 'none' },
+  'ladder base': { ...base, baseMode: 'ladder' },
+  legs: { ...base, baseMode: 'legs' },
+  'divided, two shelves': { ...base, dividers: [0.5], fixedShelves: 2 },
+  'two dividers': { ...base, dividers: [0.34, 0.67], fixedShelves: 2 },
+  'no top': { ...base, hasTop: false },
+  'fingered wall': { ...CARCASE_PRESETS[1].params, jointMethod: 'finger' },
+  'fingered base': { ...base, jointMethod: 'finger' },
+  'fingered on the floor': { ...base, baseMode: 'none', jointMethod: 'finger' },
+}
+
+function panelsByRole(p: CarcaseParams): Map<string, Aabb> {
+  return new Map(carcaseRoles(p).map((r) => [r.role, aabb(r.panel)]))
+}
+
+// Everything a joint descriptor implies about the two panels, read off the boxes rather than off
+// the plan's table: a housing houses along its own thickness axis, and the panel it houses meets
+// it end-on from whichever side it sits.
+function edgeOf(p: CarcaseParams, d: JointDescriptor) {
+  const thicknessAxis = new Map(carcaseBoxes(p).map((b) => [b.role, b.thicknessAxis]))
+  const panels = panelsByRole(p)
+  const ax = thicknessAxis.get(d.housingRole) as Axis
+  const housing = panels.get(d.housingRole) as Aabb
+  const housed = panels.get(d.housedRole) as Aabb
+  const mid = (b: Aabb) => (b.min[ax] + b.max[ax]) / 2
+  const low = mid(housing) < mid(housed)
+  return {
+    where: `${p.jointMethod}: ${d.housingRole} houses ${d.housedRole} on ${ax}`,
+    housingThickness: housing.max[ax] - housing.min[ax],
+    innerFace: low ? housing.max[ax] : housing.min[ax],
+    outerFace: low ? housing.min[ax] : housing.max[ax],
+    housedEnd: low ? housed.min[ax] : housed.max[ax],
+    sign: low ? -1 : 1,
+  }
+}
+
+describe('panel extents follow the joinery', () => {
+  it('seats every dado-housed end at the groove floor', () => {
+    for (const [name, p] of Object.entries(jointedCases)) {
+      const dados = carcaseJoints(p, 'cmp_1').filter((d) => d.kind === 'dado')
+      expect(dados.length, name).toBeGreaterThan(0)
+      for (const d of dados) {
+        const e = edgeOf(p, d)
+        const depth = dadoDepthFor(e.housingThickness)
+        expect(depth, `${name} — ${e.where}`).toBeGreaterThan(0)
+        expect(e.housedEnd, `${name} — ${e.where}`).toBeCloseTo(e.innerFace + e.sign * depth, 9)
+      }
+    }
+  })
+
+  it('runs every finger-jointed end to the housing outer face', () => {
+    for (const [name, p] of Object.entries(jointedCases)) {
+      for (const d of carcaseJoints(p, 'cmp_1').filter((x) => x.kind === 'finger')) {
+        const e = edgeOf(p, d)
+        expect(e.housedEnd, `${name} — ${e.where}`).toBeCloseTo(e.outerFace, 9)
+        expect(Math.abs(e.innerFace - e.housedEnd), `${name} — ${e.where}`).toBeCloseTo(
+          e.housingThickness,
+          9,
+        )
+      }
+    }
+  })
+
+  // The two-axis case: the back is housed on all four of its in-plane edges.
+  it('grows the back on every edge that houses it', () => {
+    const back = roleBox(carcaseRoles(base), 'back')
+    expect(back.min.x).toBeCloseTo(12, 9)
+    expect(back.max.x).toBeCloseTo(588, 9)
+    expect(back.min.z).toBeCloseTo(112, 9)
+    expect(back.max.z).toBeCloseTo(708, 9)
+    // Nothing houses the back on its thickness axis, so the depth it sits at is untouched.
+    expect(back.min.y).toBeCloseTo(548, 9)
+    expect(back.max.y).toBeCloseTo(560, 9)
+  })
+
+  it('leaves panels butt-sized when no joint is emitted', () => {
+    for (const method of ['dowel', 'butt-screw', 'confirmat'] as const) {
+      for (const [name, p] of Object.entries(variations)) {
+        const params = { ...p, jointMethod: method }
+        expect(carcaseJoints(params, 'cmp_1'), `${name}/${method}`).toEqual([])
+        expect(carcaseRoles(params), `${name}/${method}`).toEqual(
+          carcaseBoxes(params).map((b) => ({
+            role: b.role,
+            label: b.label,
+            panel: orientedPanel(b.box, b.thicknessAxis),
+          })),
+        )
+      }
+    }
+    // The face-to-face numbers themselves, so "butt" is pinned to the cabinet and not to the
+    // box table agreeing with itself.
+    const bottom = roleBox(carcaseRoles({ ...base, jointMethod: 'dowel' }), 'bottom')
+    expect(bottom.min.x).toBeCloseTo(18, 9)
+    expect(bottom.max.x).toBeCloseTo(582, 9)
+  })
+
+  it('gives finger corners real overlapping material', () => {
+    const p: CarcaseParams = { ...CARCASE_PRESETS[1].params, jointMethod: 'finger' }
+    const roles = carcaseRoles(p)
+    const fingers = carcaseJoints(p, 'cmp_1').filter((d) => d.kind === 'finger')
+    expect(fingers.length).toBe(4)
+    for (const d of fingers) {
+      const e = edgeOf(p, d)
+      expect(
+        interpenetrates(roleBox(roles, d.housingRole), roleBox(roles, d.housedRole)),
+        e.where,
+      ).toBe(true)
+    }
+    // The top runs the full carcase width — side outer face to side outer face.
+    const top = roleBox(roles, 'top')
+    expect(top.min.x).toBeCloseTo(0, 9)
+    expect(top.max.x).toBeCloseTo(p.width, 9)
+  })
+
+  it('shares volume only where a joint houses one panel in the other', () => {
+    for (const [name, p] of Object.entries(jointedCases)) {
+      const jointed = new Set(
+        carcaseJoints(p, 'cmp_1').map((d) => pairKey(d.housingRole, d.housedRole)),
+      )
+      const boxes = carcaseRoles(p).map((r) => ({ role: r.role, box: aabb(r.panel) }))
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          if (!interpenetrates(boxes[i].box, boxes[j].box)) continue
+          expect(
+            jointed.has(pairKey(boxes[i].role, boxes[j].role)),
+            `${name}: ${boxes[i].role} overlaps ${boxes[j].role} with no joint between them`,
+          ).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('makes every seat a no-op through the full pipeline', () => {
+    for (const [name, p] of Object.entries(jointedCases)) {
+      const generated = sceneFor(p)
+      const seated = reconcileJoints(generated)
+      expect(generated.parts.length, name).toBeGreaterThan(0)
+      for (const before of generated.parts) {
+        const after = seated.parts.find((q) => q.id === before.id) as BoardPart
+        expect(after.position.x, `${name}/${before.role} x`).toBeCloseTo(before.position.x, 6)
+        expect(after.position.y, `${name}/${before.role} y`).toBeCloseTo(before.position.y, 6)
+        expect(after.position.z, `${name}/${before.role} z`).toBeCloseTo(before.position.z, 6)
+      }
+    }
   })
 })
