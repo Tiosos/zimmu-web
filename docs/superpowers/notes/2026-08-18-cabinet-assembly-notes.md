@@ -1036,3 +1036,67 @@ bottom), makes it fail. Verified by mutation, not by reading.
   100 × 600 × 18 — length 100 (its height), width 600 — because `orientedPanel` maps
   `thicknessAxis: 'y'` to `length = dz`. Pre-existing and shared with the back and toe-kick panels;
   it is what makes the engine treat a rail's top as an end.
+
+## 2026-08-22 — Task 7.6 implemented (an applied back is contact, not a dado)
+
+- **The pair set does not change; the split does.** Measured on a Base 600 with
+  `backMode: 'applied'`: 14 touching pairs before and after. Four of them — `back` × `left-side`,
+  × `right-side`, × `bottom`, × `top` — move from the joint column to the contact column, so the
+  checklist headline goes from `12 / 12` to `8 / 8`. A smaller numerator is the point, not a
+  regression: an applied back is screwed on, so there is no joinery to check off. `captured` is
+  byte-for-byte unchanged (`12 / 12`, four back dados).
+- **The back returns to butt size**, as the plan predicted: `x[12, 588] → x[18, 582]`,
+  `z[112, 708] → z[118, 702]`, `y` untouched at `[560, 572]`.
+- **Open item 4 is closed.** `applied back` is now in `jointedCases`, so
+  `makes every seat a no-op through the full pipeline` covers it and the exclusion is gone. The
+  underlying `computeDadoOffset` clamp is *not* fixed — it still drags a housed panel inside a
+  housing that does not contain it. Nothing in the generator reaches it any more, which is exactly
+  why the defect stayed invisible until an applied back was dado'd into the sides.
+- **Contradiction found in the plan's own wording, recorded rather than smoothed over.** Task 7.6
+  says an applied back "overlays the rear edges of the sides, top and bottom" *and* that it should
+  come out "exactly the size of the opening it covers". Those are incompatible, and the second one
+  is what the box table produces: the back spans `x[T, W-T] × z[bayZ0, innerTop]`, which is the
+  opening, so it does not overlay anything. Measured overlaps of the applied back against each
+  panel it is declared contact with, in the `y = 560` plane:
+
+  | pair | overlap |
+  |---|---|
+  | `back` × `left-side` / `right-side` | `dx = 0`, `dz = 584` — a line |
+  | `back` × `bottom` / `top` | `dx = 564`, `dz = 0` — a line |
+  | `back` × `shelf-0-0` | `dx = 564`, `dz = 18` — a real face |
+
+  So four of the six contact pairs are edge-to-edge, not face-to-face. They are still declared,
+  because `boardsTouch` is an AABB test with a tolerance and reports them as touching — leaving
+  them undeclared would put four rows back in the checklist with nothing the user could do about
+  them. **If `boardsTouch` is ever tightened to require a shared area, revisit this:** those four
+  rows would vanish, and the honest fix would be upstream — size an applied back to the carcase
+  envelope (`x[0, W]`, `z[carcaseZ0, H]`) so it genuinely overlays. That is a product decision
+  about what "applied" means and was not in scope here.
+
+## 2026-08-22 — Task 7.7 implemented (mid rails for a wide ladder base)
+
+- **`MAX_LADDER_SPAN = 600` is a chosen parameter, not a calculation.** It is the span the existing
+  four-edge frame already carries at a standard 600 mm base unit, which makes it the widest span
+  the design is *known* to tolerate. No deflection figure, no standard, no species or thickness
+  enters it. Changing the constant changes the rail count and nothing else.
+- **Count rule:** the smallest `n` with `(W - 2T - nT) / (n + 1) <= MAX_LADDER_SPAN`, with the rails
+  evenly spaced across the interior. Measured: 600 → 0 rails (564 mm span), 900 → 1 (423),
+  1200 → 1 (573), 1800 → 2 (576), 2400 → 3 (577.5). The 900 mm case shows the rule is a ceiling and
+  not a target — one rail there gives a 423 mm span, because zero gives 864.
+- **A mid rail is a `ladder-left` in every respect but its x.** Same box shape, same
+  `thicknessAxis: 'x'`, housed in `ladder-front` and `ladder-back` with the same two faces
+  (`+Z → -X`, `-Z → +X`), and contact against `bottom` like every other carcase-to-rail pair. The
+  test asserts the mid rail's face list is *equal to* the side rail's rather than restating the
+  letters. Task 7.4's extension pass needed no change — the rails seat at the groove floors.
+- **Role order: mid rails are appended inside the ladder block, after `ladder-right`.** `carcaseRoles`
+  is documented as ordered, so this was checked: every downstream consumer keys by role *name*
+  (`regenerateComponents`' `byRole`/`seats` maps, `jointChecklist`'s `pairKey` set,
+  `parameterForRole`). The one index-sensitive line is
+  `color: PART_COLORS[i % PART_COLORS.length]` in `regenerateComponents`, so on a ladder wide enough
+  to earn a mid rail the dividers and shelves that follow it get a different preset swatch when
+  first generated. Cosmetic, applies only to freshly generated parts (an existing part keeps
+  `existing.color`), and no cabinet narrow enough to have no mid rails is affected at all.
+- **Checklist headlines, measured through `reconcileJoints(regenerateComponents(scene))`:**
+  Base 600 `12 / 12`, Wall 600 `10 / 10`, Ladder 600 `14 / 14`, applied back `8 / 8`, applied back
+  on a ladder `10 / 10`, Ladder 1200 `16 / 16`, Ladder 2400 `20 / 20` — all with `unresolved = 0`
+  and no open rows.

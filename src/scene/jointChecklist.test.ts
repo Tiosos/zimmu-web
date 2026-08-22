@@ -378,6 +378,31 @@ describe('contact rows', () => {
     expect(c.rows).toHaveLength(0)
     expect(c.groups[0].complete).toBe(true)
   })
+
+  // Same 14 pairs as a captured back; four of them move from the joint column to the contact
+  // column, because an applied back is screwed onto the rear edges rather than let into them.
+  test('leaves an applied-back cabinet reading 8 / 8 with nothing unresolved', () => {
+    const c = checklistOf(cabinetScene([carcase('cmp_1', 'Applied back', { backMode: 'applied' })]))
+    expect(c.jointedCount).toBe(8)
+    expect(c.actionableTotal).toBe(8)
+    expect(c.contact).toHaveLength(6)
+    expect(c.unresolved).toHaveLength(0)
+    expect(c.rows).toHaveLength(0)
+    expect(c.groups[0].complete).toBe(true)
+  })
+
+  // The mid rail adds three pairs: housed in the front and back rails, carrying the bottom.
+  test('leaves a wide ladder cabinet reading 16 / 16 with nothing unresolved', () => {
+    const c = checklistOf(
+      cabinetScene([carcase('cmp_1', 'Ladder 1200', { baseMode: 'ladder', width: 1200 })]),
+    )
+    expect(c.jointedCount).toBe(16)
+    expect(c.actionableTotal).toBe(16)
+    expect(c.contact).toHaveLength(12)
+    expect(c.unresolved).toHaveLength(0)
+    expect(c.rows).toHaveLength(0)
+    expect(c.groups[0].complete).toBe(true)
+  })
 })
 
 describe('checklist grouping by component', () => {

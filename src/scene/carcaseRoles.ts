@@ -142,6 +142,21 @@ export function validateCarcaseParams(p: CarcaseParams): string[] {
   return errors
 }
 
+// The widest clear span a ladder base is allowed to leave between two of its uprights. A chosen
+// parameter of the rule — the span the existing four-edge frame already carries at a standard
+// 600 mm base unit — not a figure derived from the material or from any deflection calculation.
+// Change it and the rail count follows.
+const MAX_LADDER_SPAN = 600
+
+// A perimeter rectangle carries the cabinet bottom on its four edges alone, which is fine at
+// 600 mm and not at 1200. The fewest mid rails that bring every clear span within the limit.
+// Shared by the box, joint and contact tables so none of them can disagree on how many there are.
+function ladderMidRails(p: CarcaseParams): string[] {
+  let n = 0
+  while ((p.width - 2 * p.thickness - n * p.thickness) / (n + 1) > MAX_LADDER_SPAN) n++
+  return Array.from({ length: n }, (_, i) => `ladder-mid-${i}`)
+}
+
 export interface RoleSpec {
   role: string
   label: string
@@ -259,6 +274,17 @@ export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
         thicknessAxis: 'x',
       },
     )
+    const mids = ladderMidRails(p)
+    const span = (W - 2 * T - mids.length * T) / (mids.length + 1)
+    mids.forEach((role, i) => {
+      const x0 = T + (i + 1) * span + i * T
+      boxes.push({
+        role,
+        label: `Base Mid Rail ${i + 1}`,
+        box: { x0, x1: x0 + T, y0: KS + T, y1: D - T, z0: 0, z1: KH },
+        thicknessAxis: 'x',
+      })
+    })
   }
 
   p.dividers.forEach((d, i) => {
@@ -397,7 +423,7 @@ export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescr
       if (finger) add('finger', s.role, 'top', '+Y', s.endOfFlat)
       else add('dado', s.role, 'top', s.inward, s.endOfFlat)
     }
-    if (p.backMode !== 'none') add('dado', s.role, 'back', s.inward, s.endOfUpright)
+    if (p.backMode === 'captured') add('dado', s.role, 'back', s.inward, s.endOfUpright)
     if (p.baseMode === 'toe-kick') add('dado', s.role, 'toe-kick', s.inward, s.endOfUpright)
   }
 
@@ -405,14 +431,15 @@ export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescr
   // full-width rail crossing it. Nothing above the frame is jointed into it — the carcase is set
   // down on the frame's top plane, which carcaseContactPairs declares.
   if (p.baseMode === 'ladder') {
-    for (const rail of ['ladder-left', 'ladder-right']) {
+    for (const rail of ['ladder-left', 'ladder-right', ...ladderMidRails(p)]) {
       add('dado', 'ladder-front', rail, '+Z', '-X')
       add('dado', 'ladder-back', rail, '-Z', '+X')
     }
   }
 
-  // The back sits on the bottom and under the top, so they house it, not the other way round.
-  if (p.backMode !== 'none') {
+  // A captured back sits on the bottom and under the top, so they house it, not the other way
+  // round. An applied back is screwed onto the rear edges instead — carcaseContactPairs declares it.
+  if (p.backMode === 'captured') {
     add('dado', 'bottom', 'back', '+Z', '-X')
     if (p.hasTop) add('dado', 'top', 'back', '-Z', '+X')
   }
@@ -449,7 +476,13 @@ export function carcaseContactPairs(p: CarcaseParams): [string, string][] {
   // it lies on a toe kick, and each side's bottom edge lands on a rail's top edge — end to end, not
   // end into face. Screwed down through that plane, not joined into it.
   if (p.baseMode === 'ladder') {
-    for (const rail of ['ladder-front', 'ladder-back', 'ladder-left', 'ladder-right']) {
+    for (const rail of [
+      'ladder-front',
+      'ladder-back',
+      'ladder-left',
+      'ladder-right',
+      ...ladderMidRails(p),
+    ]) {
       pairs.push(['bottom', rail])
     }
     for (const [side, rail] of [
@@ -458,6 +491,12 @@ export function carcaseContactPairs(p: CarcaseParams): [string, string][] {
     ] as const) {
       pairs.push([side, 'ladder-front'], [side, 'ladder-back'], [side, rail])
     }
+  }
+  // An applied back is screwed onto the back of the shell instead of being let into a groove in
+  // it, so every panel it meets there is a contact rather than joinery.
+  if (p.backMode === 'applied') {
+    pairs.push(['back', 'left-side'], ['back', 'right-side'], ['back', 'bottom'])
+    if (p.hasTop) pairs.push(['back', 'top'])
   }
   if (p.backMode !== 'none') {
     for (let i = 0; i < p.dividers.length; i++) pairs.push(['back', `divider-${i}`])

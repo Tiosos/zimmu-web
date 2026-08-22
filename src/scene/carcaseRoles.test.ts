@@ -416,6 +416,65 @@ describe('carcaseRoles', () => {
     expect(roleBox(roles, 'bottom').max.z).toBeCloseTo(118, 9)
   })
 
+  it('emits a bare perimeter frame at 600 and a mid rail at 1200', () => {
+    const railsOf = (width: number) =>
+      carcaseRoles({ ...base, baseMode: 'ladder', width })
+        .filter((r) => r.role.startsWith('ladder-'))
+        .map((r) => r.role)
+    expect(railsOf(600)).toEqual(['ladder-front', 'ladder-back', 'ladder-left', 'ladder-right'])
+    expect(railsOf(1200)).toEqual([
+      'ladder-front',
+      'ladder-back',
+      'ladder-left',
+      'ladder-right',
+      'ladder-mid-0',
+    ])
+  })
+
+  it('shapes a mid rail exactly like a side rail, centred between them', () => {
+    const roles = carcaseRoles({ ...base, baseMode: 'ladder', width: 1200 })
+    const left = roleBox(roles, 'ladder-left')
+    const mid = roleBox(roles, 'ladder-mid-0')
+    expect(mid.min.y).toBeCloseTo(left.min.y, 9)
+    expect(mid.max.y).toBeCloseTo(left.max.y, 9)
+    expect(mid.min.z).toBeCloseTo(left.min.z, 9)
+    expect(mid.max.z).toBeCloseTo(left.max.z, 9)
+    expect(mid.max.x - mid.min.x).toBeCloseTo(base.thickness, 9)
+    expect((mid.min.x + mid.max.x) / 2).toBeCloseTo(600, 9)
+  })
+
+  // A property over the whole width range rather than a few hand-picked cabinets: the rule is
+  // "no clear span exceeds the limit, using as few rails as achieves that", and both halves are
+  // measured from the boxes the generator actually emits.
+  it('keeps every clear span within the limit, with no rail to spare', () => {
+    for (let width = 600; width <= 2400; width += 100) {
+      const p: CarcaseParams = { ...base, baseMode: 'ladder', width }
+      expect(validateCarcaseParams(p), `${width}`).toEqual([])
+      const roles = carcaseRoles(p)
+      const uprights = roles
+        .filter((r) => /^ladder-(left|right|mid-\d+)$/.test(r.role))
+        .map((r) => aabb(r.panel))
+        .sort((a, b) => a.min.x - b.min.x)
+      const spans: number[] = []
+      for (let i = 1; i < uprights.length; i++) {
+        spans.push(uprights[i].min.x - uprights[i - 1].max.x)
+      }
+      expect(spans.length, `${width}`).toBe(uprights.length - 1)
+      for (const span of spans) {
+        expect(span, `${width}mm: span ${span}`).toBeGreaterThan(0)
+        expect(span, `${width}mm: span ${span}`).toBeLessThanOrEqual(600)
+      }
+      // One fewer rail would have to overrun, or the frame is carrying a rail it does not need.
+      const mids = uprights.length - 2
+      if (mids > 0) {
+        expect(
+          (width - 2 * base.thickness - (mids - 1) * base.thickness) / mids,
+          `${width}mm uses ${mids} mid rails where ${mids - 1} would do`,
+        ).toBeGreaterThan(600)
+      }
+    }
+  })
+
   // Defect 1: a divider spans the full internal height and a shelf used to span the full internal
   // width, so the two rows shared volume by construction. Shelves belong to a bay.
   it('emits fixed shelves per bay, each stopping at the divider', () => {
@@ -819,6 +878,8 @@ describe('carcaseJoints', () => {
       'two dividers, two shelves': { ...base, dividers: [0.34, 0.67], fixedShelves: 2 },
       'no top, no back': { ...base, hasTop: false, backMode: 'none' },
       'applied back': { ...base, backMode: 'applied' },
+      'applied back on a ladder base': { ...base, backMode: 'applied', baseMode: 'ladder' },
+      'wide ladder': { ...base, baseMode: 'ladder', width: 1200 },
     }
     for (const [name, p] of Object.entries(cases)) {
       const panels = new Map(carcaseRoles(p).map((r) => [r.role, r.panel]))
@@ -865,6 +926,17 @@ describe('carcaseJoints', () => {
         22,
         15,
       ],
+      // An applied back is screwed onto the back of the shell instead of being let into it, so
+      // its four panel pairs move from the joint column to the contact column without changing
+      // the total.
+      ['Applied back', { ...CARCASE_PRESETS[0].params, backMode: 'applied' }, 8, 6],
+      [
+        'Applied back on a ladder base',
+        { ...CARCASE_PRESETS[0].params, backMode: 'applied', baseMode: 'ladder' },
+        10,
+        15,
+      ],
+      ['Ladder 1200', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', width: 1200 }, 16, 12],
     ]
     for (const [name, p, jointCount, contactCount] of cases) {
       const joints = carcaseJoints(p, 'cmp_1')
@@ -893,9 +965,27 @@ describe('carcaseJoints', () => {
     ])
     // The full-width rails house the side rails, not the reverse: a side rail's end stops at the
     // crossing rail's face.
-    expect(rails.every((d) => d.housedRole.endsWith('-left') || d.housedRole.endsWith('-right'))).toBe(
-      true,
-    )
+    expect(
+      rails.every((d) => d.housedRole.endsWith('-left') || d.housedRole.endsWith('-right')),
+    ).toBe(true)
+  })
+
+  it('does not house an applied back — it is screwed on, not cut in', () => {
+    const applied = carcaseJoints({ ...base, backMode: 'applied' }, 'cmp_1')
+    expect(applied.some((d) => d.housedRole === 'back' || d.housingRole === 'back')).toBe(false)
+    // Captured is unchanged: both sides, the bottom and the top still house it.
+    expect(carcaseJoints(base, 'cmp_1').filter((d) => d.housedRole === 'back')).toHaveLength(4)
+  })
+
+  it('houses every mid rail in the front and back rails, exactly as it houses a side rail', () => {
+    const js = carcaseJoints({ ...base, baseMode: 'ladder', width: 1200 }, 'cmp_1')
+    const facesOf = (role: string) =>
+      js
+        .filter((d) => d.housedRole === role)
+        .map((d) => `${d.kind} ${d.housingRole} ${d.housingFace} ${d.housedEnd}`)
+        .sort()
+    expect(facesOf('ladder-mid-0')).toEqual(facesOf('ladder-left'))
+    expect(facesOf('ladder-mid-0')).toEqual(['dado ladder-back -Z +X', 'dado ladder-front +Z -X'])
   })
 
   it('houses dividers in the bottom and top, never in a side', () => {
@@ -1005,6 +1095,27 @@ describe('carcaseContactPairs', () => {
     ])
   })
 
+  it('declares an applied back against every panel it is screwed to', () => {
+    const pairs = carcaseContactPairs({ ...base, backMode: 'applied' })
+      .map(([a, b]) => pairKey(a, b))
+      .sort()
+    expect(pairs).toEqual([
+      'back|bottom',
+      'back|left-side',
+      'back|right-side',
+      'back|shelf-0-0',
+      'back|top',
+      'bottom|toe-kick',
+    ])
+  })
+
+  it('carries the bottom on the mid rails too', () => {
+    const pairs = carcaseContactPairs({ ...base, baseMode: 'ladder', width: 1200 }).map(([a, b]) =>
+      pairKey(a, b),
+    )
+    expect(pairs).toContain('bottom|ladder-mid-0')
+  })
+
   it('declares nothing against a back that does not exist', () => {
     expect(carcaseContactPairs({ ...base, backMode: 'none' })).toEqual([['bottom', 'toe-kick']])
   })
@@ -1020,7 +1131,11 @@ const jointedCases: Record<string, CarcaseParams> = {
   'toe-kick base': base,
   'base on the floor': { ...base, baseMode: 'none' },
   'ladder base': { ...base, baseMode: 'ladder' },
+  'wide ladder base': { ...base, baseMode: 'ladder', width: 1200 },
   'fingered ladder base': { ...base, baseMode: 'ladder', jointMethod: 'finger' },
+  // Excluded until Task 7.6: an applied back was dado'd into the sides as if it were captured,
+  // and its seat was the one part in the generator that still moved through the pipeline.
+  'applied back': { ...base, backMode: 'applied' },
   legs: { ...base, baseMode: 'legs' },
   'divided, two shelves': { ...base, dividers: [0.5], fixedShelves: 2 },
   'two dividers': { ...base, dividers: [0.34, 0.67], fixedShelves: 2 },
@@ -1092,6 +1207,19 @@ describe('panel extents follow the joinery', () => {
     // Nothing houses the back on its thickness axis, so the depth it sits at is untouched.
     expect(back.min.y).toBeCloseTo(548, 9)
     expect(back.max.y).toBeCloseTo(560, 9)
+  })
+
+  // The other half of the same rule: an applied back is housed by nothing, so it stays the size
+  // of the opening it overlays instead of growing a dado depth at each edge.
+  it('leaves an applied back at butt size', () => {
+    const back = roleBox(carcaseRoles({ ...base, backMode: 'applied' }), 'back')
+    expect(back.min.x).toBeCloseTo(18, 9)
+    expect(back.max.x).toBeCloseTo(582, 9)
+    expect(back.min.z).toBeCloseTo(118, 9)
+    expect(back.max.z).toBeCloseTo(702, 9)
+    // Applied means behind the carcase, not let into it.
+    expect(back.min.y).toBeCloseTo(560, 9)
+    expect(back.max.y).toBeCloseTo(572, 9)
   })
 
   it('leaves panels butt-sized when no joint is emitted', () => {
