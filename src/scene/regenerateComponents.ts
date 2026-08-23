@@ -64,8 +64,12 @@ function regenerateOne(
       // Two owners write cuts on the same part and neither may strip the other's. Only
       // component-owned cuts are ours to re-derive; joint-owned cuts belong to reconcileJoints,
       // which runs next and preserves its own last-good state, and unowned cuts are the user's.
+      // The tag alone decides that — naming the kinds as well silently exempted every kind added
+      // after 'box', leaving its stale cuts to pile up behind each freshly derived copy.
       cuts: [
-        ...existingCuts.filter((c) => !(c.kind === 'box' && c.sourceComponentId !== undefined)),
+        ...existingCuts.filter(
+          (c) => !('sourceComponentId' in c && c.sourceComponentId !== undefined),
+        ),
         ...componentCuts,
       ],
       visible: existing?.visible ?? true,

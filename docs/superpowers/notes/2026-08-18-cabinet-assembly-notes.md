@@ -1138,3 +1138,43 @@ bottom), makes it fail. Verified by mutation, not by reading.
   appends a fresh copy of each row on top of the old one. Task 8.3 must widen the predicate to
   `(c.kind === 'box' || c.kind === 'hole-array')` — it is not mentioned there. Left unchanged here
   because nothing emits a hole array yet.
+
+## The stale-cut filter, widened before Task 8.3 (2026-08-23)
+
+- **Keyed on the tag, not on the kind.** The filter is now
+  `!('sourceComponentId' in c && c.sourceComponentId !== undefined)` rather than an enumeration of
+  kinds. Checked against all three members of `CutDef` before making it total: `BoxCut` declares the
+  field, so its behaviour is bit-for-bit what it was; `MitreCut` does not declare it at all, so the
+  `in` test is false for every mitre at runtime and mitres stay unstrippable exactly as before;
+  `HoleArrayCut` declares it, which is the fix. The widening therefore changes behaviour for exactly
+  one kind — the broken one — and a fourth kind cannot go stale the same way, because a cut is
+  component-owned if and only if it carries the tag. The `in` operator is what keeps this typing:
+  `c.sourceComponentId` alone does not compile against a union whose `MitreCut` member lacks the
+  property.
+- **Reproducing the duplication before anything emits a hole array.** A test that merely attaches a
+  component-owned hole array and regenerates twice passes under the old filter as readily as the new
+  one — the count stops at one either way, because nothing re-adds it. The growth only appears once
+  the component emits the row on every pass, so `regenerateComponents.test.ts` stands that emission
+  up with a scoped `vi.doMock` of `carcaseCuts` (`vi.resetModules` + a dynamic import, undone in
+  `afterEach` so the rest of the file keeps the real module). Under the old filter it measured four
+  copies of one pin row after four regenerations; under the new one, one. The companion test
+  (`strips a stale component-owned cut whatever its kind`) needs no mock and pins the mechanism.
+
+## Task 7.8 — an applied back covers the carcase (2026-08-23)
+
+- **Envelope, not opening.** `carcaseBoxes` now sizes an applied back `x ∈ [0, W]`,
+  `z ∈ [carcaseZ0, H]`, `y ∈ [D, D + BT]`. A captured back is untouched. Base 600's back goes from
+  584 × 564 to 720 × 600 (length × width, thickness 12 unchanged) — the cutting list changes on
+  purpose.
+- **The new touching pair is `back | ladder-back`, and it is contact.** Re-running the coverage test
+  rather than assuming the pair set held was worth it: on an applied back over a ladder base the
+  back now starts at `carcaseZ0 = toeKickHeight`, where the back rail ends. Measured, back is
+  `x[0,600] y[560,572] z[100,720]` and the rail `x[0,600] y[542,560] z[0,100]`: they share a 600 mm
+  line at `y = 560, z = 100` — the back's bottom rear edge sitting on the rail's top rear edge, on
+  the same set-down plane the sides and the bottom already meet the frame across. Declared a contact
+  pair under the existing precedent (the frame joins itself; the plane the carcase is set down on is
+  contact), so the applied-back-on-a-ladder case goes 15 → 16 contact pairs with its joint count
+  unchanged at 10.
+- **Checklist headlines after the change:** applied back `8 / 8` (contact 6), applied back on a
+  ladder `10 / 10` (contact 16), Base 600 `12 / 12`, Wall 600 `10 / 10`, Ladder 600 `14 / 14`,
+  Ladder 1200 `16 / 16` — all `unresolved = 0`, no open rows, group complete.

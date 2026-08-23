@@ -930,11 +930,13 @@ describe('carcaseJoints', () => {
       // its four panel pairs move from the joint column to the contact column without changing
       // the total.
       ['Applied back', { ...CARCASE_PRESETS[0].params, backMode: 'applied' }, 8, 6],
+      // One more contact pair than a captured back on the same frame: covering the shell, the
+      // applied back reaches the top of the frame and lands on the back rail.
       [
         'Applied back on a ladder base',
         { ...CARCASE_PRESETS[0].params, backMode: 'applied', baseMode: 'ladder' },
         10,
-        15,
+        16,
       ],
       ['Ladder 1200', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', width: 1200 }, 16, 12],
     ]
@@ -1109,6 +1111,15 @@ describe('carcaseContactPairs', () => {
     ])
   })
 
+  it('declares an applied back against the ladder rail it comes down on', () => {
+    const pairs = carcaseContactPairs({ ...base, backMode: 'applied', baseMode: 'ladder' }).map(
+      ([a, b]) => pairKey(a, b),
+    )
+    expect(pairs).toContain('back|ladder-back')
+    // Only that rail: the side and front rails stand clear of the plane the back is screwed to.
+    expect(pairs.filter((k) => k.startsWith('back|ladder'))).toEqual(['back|ladder-back'])
+  })
+
   it('carries the bottom on the mid rails too', () => {
     const pairs = carcaseContactPairs({ ...base, baseMode: 'ladder', width: 1200 }).map(([a, b]) =>
       pairKey(a, b),
@@ -1126,6 +1137,11 @@ describe('carcaseContactPairs', () => {
 })
 
 type Axis = 'x' | 'y' | 'z'
+
+// How much of an axis two boxes have in common: negative is a gap, zero is a line or a plane.
+function shared(a: Aabb, b: Aabb, ax: Axis): number {
+  return Math.min(a.max[ax], b.max[ax]) - Math.max(a.min[ax], b.min[ax])
+}
 
 const jointedCases: Record<string, CarcaseParams> = {
   'toe-kick base': base,
@@ -1209,17 +1225,49 @@ describe('panel extents follow the joinery', () => {
     expect(back.max.y).toBeCloseTo(560, 9)
   })
 
-  // The other half of the same rule: an applied back is housed by nothing, so it stays the size
-  // of the opening it overlays instead of growing a dado depth at each edge.
-  it('leaves an applied back at butt size', () => {
+  // The other half of the same rule: an applied back is housed by nothing, so no edge of it grows
+  // a dado depth. It covers the shell rather than filling the opening — screwed to the rear edges,
+  // it has to land on them.
+  it('sizes an applied back to the carcase envelope', () => {
     const back = roleBox(carcaseRoles({ ...base, backMode: 'applied' }), 'back')
-    expect(back.min.x).toBeCloseTo(18, 9)
-    expect(back.max.x).toBeCloseTo(582, 9)
-    expect(back.min.z).toBeCloseTo(118, 9)
-    expect(back.max.z).toBeCloseTo(702, 9)
+    expect(back.min.x).toBeCloseTo(0, 9)
+    expect(back.max.x).toBeCloseTo(600, 9)
+    expect(back.min.z).toBeCloseTo(0, 9)
+    expect(back.max.z).toBeCloseTo(720, 9)
     // Applied means behind the carcase, not let into it.
     expect(back.min.y).toBeCloseTo(560, 9)
     expect(back.max.y).toBeCloseTo(572, 9)
+  })
+
+  // A ladder base is a frame *under* the carcase, so the envelope the back covers starts on top of
+  // it — the back is screwed to the shell, not to the frame.
+  it('starts an applied back at the top of a ladder base', () => {
+    const back = roleBox(carcaseRoles({ ...base, backMode: 'applied', baseMode: 'ladder' }), 'back')
+    expect(back.min.z).toBeCloseTo(100, 9)
+    expect(back.max.z).toBeCloseTo(720, 9)
+  })
+
+  // Face contact, not merely touching: sized to the opening, the back met each side along a line —
+  // dy = 0 and dx = 0 — which the adjacency test still calls touching because it is an AABB with a
+  // millimetre of tolerance. Every panel it is screwed to must share real area on the y = D plane.
+  it('lands an applied back on the rear edges with area, not along a line', () => {
+    const cases: Record<string, CarcaseParams> = {
+      'toe-kick base': { ...base, backMode: 'applied' },
+      'ladder base': { ...base, backMode: 'applied', baseMode: 'ladder' },
+      'on the floor': { ...base, backMode: 'applied', baseMode: 'none' },
+      'no top': { ...base, backMode: 'applied', hasTop: false },
+    }
+    for (const [name, p] of Object.entries(cases)) {
+      const roles = carcaseRoles(p)
+      const back = roleBox(roles, 'back')
+      const screwedTo = ['left-side', 'right-side', 'bottom', ...(p.hasTop ? ['top'] : [])]
+      for (const role of screwedTo) {
+        const panel = roleBox(roles, role)
+        const where = `${name}: back on ${role}`
+        expect(panel.max.y, where).toBeCloseTo(back.min.y, 9)
+        expect(shared(back, panel, 'x') * shared(back, panel, 'z'), where).toBeGreaterThan(0)
+      }
+    }
   })
 
   it('leaves panels butt-sized when no joint is emitted', () => {

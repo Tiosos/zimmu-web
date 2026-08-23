@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { regenerateComponents } from './regenerateComponents'
 import { reconcileJoints } from './reconcileJoints'
 import { CARCASE_PRESETS } from './carcasePresets'
@@ -7,7 +7,9 @@ import type {
   BoxCut,
   CarcaseComponent,
   CarcaseParams,
+  CutDef,
   DadoJoint,
+  HoleArrayCut,
   Joint,
   Part,
   Scene,
@@ -254,6 +256,20 @@ describe('cut ownership', () => {
     size: { x: 20, y: 20, z: 30 },
   }
 
+  const pinRow: HoleArrayCut = {
+    kind: 'hole-array',
+    id: 'cut_pins_left-side',
+    label: 'Shelf Pins',
+    face: '+Z',
+    axis: 'U',
+    start: { x: 37, y: 200, z: 0 },
+    pitch: 32,
+    count: 10,
+    diameter: 5,
+    depth: 12,
+    sourceComponentId: 'cmp_1',
+  }
+
   it('notches each side panel with a component-owned cut', () => {
     const out = regenerateComponents(toeKickScene)
     for (const role of ['left-side', 'right-side']) {
@@ -275,6 +291,23 @@ describe('cut ownership', () => {
     const side = partsOf(wider).find((p) => p.role === 'left-side') as BoardPart
     expect(side.cuts).toHaveLength(1)
     expect(side.cuts[0].kind === 'box' && side.cuts[0].size.x).toBeCloseTo(90, 9)
+  })
+
+  // Ownership is the property that decides who may strip a cut, and the tag carries it. Keying the
+  // filter on the kind as well left every kind added after 'box' un-strippable.
+  it('strips a stale component-owned cut whatever its kind', () => {
+    const first = regenerateComponents(toeKickScene)
+    const side = partsOf(first).find((p) => p.role === 'left-side') as BoardPart
+    const stale: Scene = {
+      ...first,
+      parts: first.parts.map((p) =>
+        p.id === side.id ? { ...(p as BoardPart), cuts: [...side.cuts, pinRow, handMade] } : p,
+      ),
+    }
+
+    const after = regenerateComponents(stale).parts.find((p) => p.id === side.id) as BoardPart
+    expect(after.cuts.filter((c) => c.kind === 'hole-array')).toEqual([])
+    expect(after.cuts.map((c) => c.id).sort()).toEqual(['cut_by_hand', 'cut_toekick_left-side'])
   })
 
   it('keeps component-owned and joint-owned cuts on the same part', () => {
@@ -471,5 +504,54 @@ describe('emitted joints through reconcileJoints', () => {
           .map((c) => c.id),
       ).toEqual([`cut_toekick_${role}`])
     }
+  })
+})
+
+// Task 8.3 attaches component-owned hole arrays. Nothing emits one yet, so the growth the stale-cut
+// filter exists to prevent cannot be watched happening without standing that emission up here — and
+// a filter that keeps a cut it should have stripped only shows itself once something re-adds it.
+describe('a component-owned cut of a new kind', () => {
+  const pinRow: HoleArrayCut = {
+    kind: 'hole-array',
+    id: 'cut_pins_left-side',
+    label: 'Shelf Pins',
+    face: '+Z',
+    axis: 'U',
+    start: { x: 37, y: 200, z: 0 },
+    pitch: 32,
+    count: 10,
+    diameter: 5,
+    depth: 12,
+  }
+
+  async function loadWithPinRowEmission(): Promise<(s: Scene) => Scene> {
+    vi.resetModules()
+    vi.doMock('./carcaseRoles', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('./carcaseRoles')>()
+      return {
+        ...actual,
+        carcaseCuts: (p: CarcaseParams, role: string): CutDef[] => [
+          ...actual.carcaseCuts(p, role),
+          ...(role === 'left-side' ? [pinRow] : []),
+        ],
+      }
+    })
+    return (await import('./regenerateComponents')).regenerateComponents
+  }
+
+  afterEach(() => {
+    vi.doUnmock('./carcaseRoles')
+    vi.resetModules()
+  })
+
+  it('is re-derived, not accumulated, on every regeneration', async () => {
+    const regenerate = await loadWithPinRowEmission()
+
+    let scene = regenerate(empty)
+    for (let i = 0; i < 3; i++) scene = regenerate(scene)
+
+    const side = scene.parts.find((p) => p.role === 'left-side') as BoardPart
+    expect(side.cuts.filter((c) => c.kind === 'hole-array')).toHaveLength(1)
+    expect(side.cuts.filter((c) => c.kind === 'hole-array')[0].sourceComponentId).toBe('cmp_1')
   })
 })

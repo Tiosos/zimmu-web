@@ -221,10 +221,16 @@ export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
   }
 
   if (p.backMode !== 'none') {
+    // A captured back fills the opening it is let into. An applied one is screwed to the rear
+    // edges, so it covers the shell instead: sized to the opening it would sit outside the carcase
+    // and meet each panel along a line, touching everything and overlaying nothing.
     boxes.push({
       role: 'back',
       label: 'Back',
-      box: { x0: T, x1: W - T, y0: backY0, y1: backY0 + BT, z0: bayZ0, z1: innerTop },
+      box:
+        p.backMode === 'applied'
+          ? { x0: 0, x1: W, y0: D, y1: D + BT, z0: carcaseZ0, z1: H }
+          : { x0: T, x1: W - T, y0: backY0, y1: backY0 + BT, z0: bayZ0, z1: innerTop },
       thicknessAxis: 'y',
     })
   }
@@ -497,6 +503,10 @@ export function carcaseContactPairs(p: CarcaseParams): [string, string][] {
   if (p.backMode === 'applied') {
     pairs.push(['back', 'left-side'], ['back', 'right-side'], ['back', 'bottom'])
     if (p.hasTop) pairs.push(['back', 'top'])
+    // Covering the shell, the back runs down to the top of a ladder frame, where its bottom edge
+    // lands on the back rail's top edge — the same set-down plane the sides and the bottom meet the
+    // frame across, and screwed down through it just the same.
+    if (p.baseMode === 'ladder') pairs.push(['back', 'ladder-back'])
   }
   if (p.backMode !== 'none') {
     for (let i = 0; i < p.dividers.length; i++) pairs.push(['back', `divider-${i}`])
