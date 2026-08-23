@@ -633,10 +633,15 @@ and does not need one: a component's `visible` is just a field, so `App` toggles
 `onUpdateComponent`. Parts keep `onToggleVisible(id)` because hiding a board is its own undo entry
 with its own label.
 
-**Known gap:** `viewport.tsx` reads `part.visible` only, so hiding a *component* currently greys its
-row in the tree and persists to the file, but does not hide its parts in 3D. Resolving visibility
-through ancestors is the same shape of change Phase 2 made for placement, and belongs with whatever
-task takes it on — not smuggled into the tree.
+**Known gap — CLOSED, verified 2026-08-22.** This said `viewport.tsx` reads `part.visible` only, so
+hiding a *component* would not hide its parts in 3D. A later task fixed it and this note was never
+updated. `viewport.tsx` now resolves `isNodeVisible(part, componentMap)` for meshes and edge lines,
+and `App.tsx` derives `visibleParts` the same way, which feeds STL, STEP and the shop drawings.
+
+One asymmetry survives and is deliberate-looking rather than deliberate: the **cutting list does
+not** filter on visibility (`BomModal` gets `scene.parts`, and `groupParts` filters only on
+`kind === 'board'`). Arguably right — you hide a panel to see past it, not to exclude it from the
+saw — but it is nowhere stated, and it disagrees with every other output.
 
 ### `onSelectPart` survives, deliberately, for the viewport only
 
@@ -1100,3 +1105,36 @@ bottom), makes it fail. Verified by mutation, not by reading.
   Base 600 `12 / 12`, Wall 600 `10 / 10`, Ladder 600 `14 / 14`, applied back `8 / 8`, applied back
   on a ladder `10 / 10`, Ladder 1200 `16 / 16`, Ladder 2400 `20 / 20` — all with `unresolved = 0`
   and no open rows.
+
+## Task 8.1 — widening `CutDef` with `HoleArrayCut` (2026-08-22)
+
+- **The union-widening audit, site by site.** `pnpm typecheck` flagged only three of them, so the
+  full list was enumerated by grep first and each site decided explicitly:
+  - `src/scene/utils.ts` `shapeKey` — **handles it**. `h:face|axis|start|pitch|count|diameter|depth`;
+    `label` and `sourceComponentId` are excluded, so renaming a row does not evict the geometry cache.
+  - `src/geom/occt.ts` `makeShape` — **explicit `continue`**, drilling arrives in Task 8.2. Caught by
+    the compiler (the `else` branch reads `cut.angle`).
+  - `src/geom/drawing.ts` `buildBoardSheet` — was two `filter`s with **type predicates**
+    (`(c): c is BoxCut => …`), which compile clean and silently drop a new member; a hole array would
+    simply have been missing from every drawing with nothing to say why. Replaced with one hand-rolled
+    partition carrying a `never` exhaustiveness check, so the *next* cut kind is a compile error.
+  - `src/ui/EditPanel.tsx` — the cut-row list now renders `null` for hole arrays (component-owned, no
+    editable fields yet). Also surfaced a **pre-existing latent bug**: `MitreRow`'s axis `Select`
+    called `onUpdateCut` with `(c) => ({ ...c, axis })` and no `kind` guard. It only compiled because
+    no other member had an `axis`; `HoleArrayCut` does, with a different literal union. Guarded to
+    match the `c.kind !== 'box' ? c : …` style the box rows already use. The sibling `end` and `angle`
+    setters are unguarded the same way and still compile — left alone as out of scope.
+  - Ignoring hole arrays is *correct* at these sites, verified rather than assumed:
+    `reconcileJoints.ts` and `useScene.ts`'s duplicate/link/unlink/remove paths all gate on
+    `kind === 'box' && sourceJointId/pairedCutId`, which a hole array (no such fields, never
+    joint-owned) simply falls past — it is retained by the strip filters and copied by duplicate.
+    `useFile.ts`'s v2→v3 migration passes any cut that already has a `kind` through untouched.
+    `suggestionOutline.ts` reads `deriveJoint` output, which is joint-derived box cuts only.
+    `buildSvg.ts` / `buildDxf.ts` consume `DrawingSheet`, not `CutDef`, so Task 8.4 reaches them.
+    `buildCsv.ts` counts `p.cuts.length`, which is right — a pin row is one cut on the cutting list.
+- **Defect the plan carries into Task 8.3.** `regenerateComponents.ts` strips stale component-owned
+  cuts with `!(c.kind === 'box' && c.sourceComponentId !== undefined)`. The moment Task 8.3 emits
+  hole arrays tagged with `sourceComponentId`, that filter stops matching them and every regeneration
+  appends a fresh copy of each row on top of the old one. Task 8.3 must widen the predicate to
+  `(c.kind === 'box' || c.kind === 'hole-array')` — it is not mentioned there. Left unchanged here
+  because nothing emits a hole array yet.
