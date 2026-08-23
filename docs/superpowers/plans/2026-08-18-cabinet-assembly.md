@@ -3827,6 +3827,59 @@ It overlays nothing. `boardsTouch` reports the pairs only because it is an AABB 
 - [ ] **Step 4** The cutting list changes: a Base 600's back goes from 564 × 584 to 600 × 720. That is the point, not a regression. State the before/after in the commit.
 
 
+## Task 7.9: Cut dimensions in the cutting list and the edit panel
+
+**Files:** `src/ui/buildCsv.ts`, `src/ui/buildCsv.test.ts`, `src/ui/CuttingList.tsx`, `src/ui/EditPanel.tsx`, and their tests.
+
+Decided with the user 2026-08-22. Measured on the generated cabinets:
+
+| role | stored | reads as |
+|---|---|---|
+| `left-side` | L=560 W=720 | "cut it 560 long" — it is a 720 mm tall panel |
+| `toe-kick` | L=100 W=576 | "cut it 100 long" |
+| `ladder-front` | L=100 W=600 | same |
+| `back` (1200 wide) | L=596 W=1176 | same |
+
+**This is not a rail quirk — it is every panel whose thickness is not on carcase z, which includes the sides of every single cabinet.** `orientedPanel` maps all three board axes onto carcase axes *positively* so `position` is always the box min corner. That parity constraint fixes which carcase axis board-x lands on, and it is unrelated to which dimension is longest. Getting length onto the long axis in the geometry would require an improper mapping — board x→x, y→z, z→y is a transposition, determinant −1, not a rotation — so it would mean giving up the min-corner invariant and compensating position on every such panel. **That is why this is fixed in the cutting list, not in the geometry.** The 3D model, the notch, the joint faces and the ladder contact decision are all untouched.
+
+### The seam
+
+One exported helper, so the rule lives in a single place and the grain work (Task 7.10) extends it rather than replacing it:
+
+```ts
+export interface CutDims { length: number; width: number; thickness: number }
+export function cutDimensions(p: BoardPart): CutDims
+```
+
+Rule **today**: thickness is unchanged; length is the larger of the two in-plane dimensions, width the smaller. Rule **once grain exists**: if the board declares a grain direction, that dimension is the length regardless of size, and the longest-first rule is the fallback for boards with no grain set. Write `cutDimensions` now so adding that branch is an `if`, not a rewrite.
+
+- [ ] **Step 1: Write the failing tests**
+  - `cutDimensions` puts the longer in-plane dimension first, for both orderings, and leaves thickness alone.
+  - **Grouping cannot split an identical piece.** Two boards of the same material and colour, one 600 × 100 and one 100 × 600, must collapse into one row of qty 2. Today `groupParts` keys on `${length}×${width}×${thickness}`, so they land in separate rows. This is the test that justifies the change — write it against `groupParts`, not the helper.
+  - The CSV's Length column carries the cut length, exercised through a generated carcase side (560 × 720 stored → 720 reported), not a hand-written fixture.
+  - Cost is unchanged: `length × width` is area, so normalising must not move any figure. Assert a generated cabinet's total cost before and after.
+
+- [ ] **Step 2: Implement.** `groupParts` keys on and reports `cutDimensions(p)`. `CuttingList.tsx` and the CSV follow automatically. Do not change what is stored on the part.
+
+- [ ] **Step 3: The edit panel shows both.** `L / W / T` stay editable and keep showing the stored values; add a read-only cut-size line beside them so the panel and the cutting list never appear to contradict each other. Render it only when it differs from the stored order, so the common case stays quiet.
+
+- [ ] **Step 4** Full suite. Expect cutting-list expectations to change for generated cabinets and **not** for hand-placed boards, which are already length-first.
+
+## Task 7.10: Grain direction as a real field
+
+Decided with the user 2026-08-22. **This one needs a design pass before implementation** — it is a data-model change with a product question at its centre, not a bug fix.
+
+Sketch of what it involves, so the size is visible:
+
+- `BoardPart` gains a grain direction (`'length' | 'width' | 'none'`, or an explicit axis).
+- `cutDimensions` consults it first, falling back to longest-first (Task 7.9 leaves the seam ready).
+- The file format must load older files without it — normalise once at the `parseFile` boundary, the precedent used for `parentId` and `backSetback`.
+- The edit panel needs a control; the cutting list needs a column or marker.
+- **The open product question:** what grain does a *generated* carcase panel have? A cabinet side's grain conventionally runs vertically, a shelf's along its length, a back's either way depending on the sheet. That is a per-role decision the carcase generator would have to make, and it interacts with sheet yield — which is the actual reason anyone models grain. Worth deciding whether this is about *labelling* grain or about *optimising a cutting layout*, because the second is a much larger feature.
+
+Write the spec before the plan.
+
+
 # Phase 8 — Shelf-pin hole arrays
 
 **Outcome:** adjustable shelving works, and it does not make the app slow. The performance argument is the whole reason this is a new cut kind rather than N box cuts.
