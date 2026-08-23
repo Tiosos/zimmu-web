@@ -3808,6 +3808,25 @@ Decided with the user 2026-08-22. A ladder base is a bare perimeter rectangle at
 - [ ] **Step 4** Full suite. The role index is part of the contract (`carcaseRoles` is documented as ordered), so check nothing downstream depends on the ladder roles' positions.
 
 
+## Task 7.8: An applied back covers the carcase
+
+**Files:** `src/scene/carcaseRoles.ts`, `src/scene/carcaseRoles.test.ts`
+
+Decided with the user 2026-08-22, after Task 7.6 exposed it. An applied back is currently sized to the *opening* but positioned *outside* the carcase, so it touches along four one-dimensional lines. Measured on a Base 600:
+
+| pair | applied (today) | captured |
+|---|---|---|
+| `back` × `left-side` | `dx=0, dy=0, dz=584` — a line | `dx=6, dy=12, dz=596` |
+| `back` × `bottom` | `dx=564, dy=0, dz=0` — a line | `dx=576, dy=12, dz=6` |
+
+It overlays nothing. `boardsTouch` reports the pairs only because it is an AABB test with tolerance.
+
+- [ ] **Step 1** Write a test asserting an applied back **face**-contacts what it is screwed to: the shared region with each side must have non-zero area on the `y = D` plane, not just non-zero extent along one axis. Fails today by `dy = 0`.
+- [ ] **Step 2** In `carcaseBoxes`, size an applied back to the carcase envelope: `x ∈ [0, W]`, `z ∈ [carcaseZ0, H]`, `y ∈ [D, D + BT]`. `captured` is untouched.
+- [ ] **Step 3** Re-run the coverage test. The pair *set* should not change — the same panels touch — but verify rather than assume; a full-height back may now touch a rail on a ladder base, which would be a new pair needing a decision.
+- [ ] **Step 4** The cutting list changes: a Base 600's back goes from 564 × 584 to 600 × 720. That is the point, not a regression. State the before/after in the commit.
+
+
 # Phase 8 — Shelf-pin hole arrays
 
 **Outcome:** adjustable shelving works, and it does not make the app slow. The performance argument is the whole reason this is a new cut kind rather than N box cuts.
@@ -3986,10 +4005,18 @@ test('a hole array removes material and stays one boolean operation', async ({ p
 })
 ```
 
+- [ ] **Step 1b: Measure, then set the budget** (decided with the user 2026-08-22)
+
+The phase claims hole arrays "do not make the app slow" — the whole reason this is one cut kind rather than N box cuts. That is unfalsifiable without a number, and the number must be **measured before it is committed to**, not guessed.
+
+In the same e2e, time `makeShape` for a realistic worst case — a six-cabinet scene's worth of side panels, two rows each — and record the result in the notes file. Compare against the same panels built with the array expanded to individual box cuts, so the ratio justifies the design rather than merely asserting it. Phase 10's baseline task then asserts against the recorded figure. Do **not** invent a threshold here; report what you measured.
+
 - [ ] **Step 2: Run to confirm failure**
 
-Run: `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e e2e/geom-kernel.spec.ts`
+Run: `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium pnpm test:e2e e2e/geom-kernel.spec.ts`
 Expected: FAIL — volumes are equal, because `makeShape` currently skips `'hole-array'`.
+
+**Embind suffixes are guesses until proven.** The snippet below uses `gp_Dir_4`, `gp_Pnt_3`, `gp_Ax2_3`, `BRepPrimAPI_MakeCylinder_3`. Per the `add-geometry` skill, the suffix does **not** track argument count — probe the live kernel for the right overload before trusting any of them. `BRepAlgoAPI_Cut_3(S1, S2)` runs the boolean in its constructor; there is no `Message_ProgressRange` in opencascade.js v1.1.1.
 
 - [ ] **Step 3: Implement**
 
@@ -4103,7 +4130,30 @@ git commit -m "feat(geom): drill a hole array as one boolean against a cylinder 
 ## Task 8.3: The carcase emits shelf-pin rows
 
 **Files:**
-- Modify: `src/scene/carcaseRoles.ts`, `src/scene/carcaseRoles.test.ts`, `src/scene/regenerateComponents.ts`
+- Modify: `src/scene/types.ts`, `src/scene/carcasePresets.ts`, `src/scene/useFile.ts`, `src/ui/CarcasePanel.tsx`, `src/scene/carcaseRoles.ts`, `src/scene/carcaseRoles.test.ts`, `src/scene/regenerateComponents.ts`
+
+### Widen the stale-cut filter FIRST, or every regeneration duplicates the pin rows
+
+Found during Task 8.1, and not mentioned anywhere else in this plan. `regenerateComponents.ts`
+strips stale component-owned cuts with:
+
+```ts
+!(c.kind === 'box' && c.sourceComponentId !== undefined)
+```
+
+The moment this task attaches hole arrays tagged with `sourceComponentId`, that filter stops
+matching them, so **every regeneration appends another copy of each pin row on top of the last** —
+unbounded growth on every keystroke in the parameter panel. Widen it to
+`(c.kind === 'box' || c.kind === 'hole-array')` **before** emitting anything, and write the test that
+proves it: regenerate twice and assert the hole-array count is unchanged.
+
+### The second pin row is a parameter (decided with the user 2026-08-22)
+
+`adjustableShelves` gains a `backSetback` field: the front row sits at `setback` from the front edge, the back row at `backSetback` from the **back** edge. This is the 18th carcase parameter, so it earns its keep by being user-controllable rather than a hidden convention.
+
+**Old files must keep loading.** A v11 file has `adjustableShelves` without the field. Follow the precedent set for `parentId`: normalise **once at the `parseFile` boundary** in `useFile.ts`, defaulting `backSetback` to the file's own `setback`, so no read site ever needs `?? 37`. Write a loader test that round-trips a file lacking the field and asserts the default landed. Decide whether `FILE_FORMAT_VERSION` needs a bump and justify either way — an old file that loads correctly under the new shape may not need one.
+
+Surface it in `CarcasePanel` beside `setback`, in the same section.
 
 - [ ] **Step 1: Write the failing tests**
 
