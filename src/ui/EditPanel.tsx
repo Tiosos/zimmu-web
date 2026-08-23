@@ -262,6 +262,15 @@ function CutRow({
   )
 }
 
+// Every mitre field setter spreads over whatever cut it is handed. Without a guard that spread
+// compiles against any CutDef member — the field simply lands on the wrong shape — which is how
+// the `axis` setter survived until HoleArrayCut arrived carrying an `axis` of its own. One helper
+// so the guard cannot be forgotten at a fourth call site.
+const mitrePatch =
+  (patch: Partial<MitreCut>) =>
+  (c: CutDef): CutDef =>
+    c.kind === 'mitre' ? { ...c, ...patch } : c
+
 function MitreRow({
   cut,
   partId,
@@ -306,7 +315,7 @@ function MitreRow({
             <Select
               value={cut.end}
               onValueChange={(v) =>
-                onUpdateCut(partId, cut.id, (c) => ({ ...c, end: v as MitreCut['end'] }))
+                onUpdateCut(partId, cut.id, mitrePatch({ end: v as MitreCut['end'] }))
               }
             >
               <SelectTrigger className="h-7 flex-1 text-[11px]">
@@ -323,9 +332,7 @@ function MitreRow({
             <Select
               value={cut.axis}
               onValueChange={(v) =>
-                onUpdateCut(partId, cut.id, (c) =>
-                  c.kind !== 'mitre' ? c : { ...c, axis: v as MitreCut['axis'] },
-                )
+                onUpdateCut(partId, cut.id, mitrePatch({ axis: v as MitreCut['axis'] }))
               }
             >
               <SelectTrigger className="h-7 flex-1 text-[11px]">
@@ -342,10 +349,7 @@ function MitreRow({
             value={cut.angle}
             suffix="°"
             onChange={(v) =>
-              onUpdateCut(partId, cut.id, (c) => ({
-                ...c,
-                angle: Math.max(0, Math.min(89, v)),
-              }))
+              onUpdateCut(partId, cut.id, mitrePatch({ angle: Math.max(0, Math.min(89, v)) }))
             }
           />
         </div>

@@ -4,7 +4,16 @@ import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { EditPanel } from './EditPanel'
 import { CARCASE_PRESETS } from '../scene/carcasePresets'
-import type { BoardPart, CarcaseComponent, Component, Scene } from '../scene/types'
+import type {
+  BoardPart,
+  CarcaseComponent,
+  Component,
+  CutDef,
+  CutId,
+  HoleArrayCut,
+  MitreCut,
+  Scene,
+} from '../scene/types'
 
 const cabinet: CarcaseComponent = {
   kind: 'carcase',
@@ -163,5 +172,49 @@ describe('EditPanel — editing a driven part', () => {
     await typeLength('600')
     await vi.waitFor(() => expect(h.onUpdate).toHaveBeenCalled())
     expect(screen.queryByRole('button', { name: 'Detach this part' })).toBeNull()
+  })
+})
+
+// Every mitre setter spreads `{ ...c }` over whatever cut it is handed. The `axis` one was found
+// unguarded while widening CutDef: it compiled only because no other member had an `axis`, and
+// HoleArrayCut does — with an incompatible literal union. All three now share one guarded helper,
+// so this exercises the guard through the one control Radix will operate in happy-dom; the other
+// two setters are the same call.
+describe('mitre setters refuse a cut that is not a mitre', () => {
+  const mitre: MitreCut = {
+    kind: 'mitre',
+    id: 'm1' as CutId,
+    label: 'Mitre',
+    end: '+X',
+    axis: 'Z',
+    angle: 45,
+  }
+  const holes: HoleArrayCut = {
+    kind: 'hole-array',
+    id: 'h1' as CutId,
+    label: 'Shelf pins',
+    face: '+Z',
+    axis: 'U',
+    start: { x: 0, y: 37, z: 18 },
+    pitch: 32,
+    count: 10,
+    diameter: 5,
+    depth: 12,
+  }
+
+  it('passes a hole array through untouched, and still patches a mitre', async () => {
+    const onUpdateCut = vi.fn()
+    renderPanel({ part: board({ cuts: [mitre] }), onUpdateCut })
+    // The row is collapsed until its header is clicked, and the angle input carries no
+    // accessible name, so it is found by the value it displays.
+    await userEvent.click(screen.getByText('Mitre'))
+    const angle = screen.getByDisplayValue('45')
+    await userEvent.clear(angle)
+    await userEvent.type(angle, '30')
+
+    await vi.waitFor(() => expect(onUpdateCut).toHaveBeenCalled())
+    const updater = onUpdateCut.mock.calls.at(-1)![2] as (c: CutDef) => CutDef
+    expect(updater(holes)).toEqual(holes)
+    expect((updater(mitre) as MitreCut).angle).toBe(30)
   })
 })

@@ -81,7 +81,15 @@ export function deriveDadoAxes(
 // thickness — the carcase role table, sizing a panel to the groove it will sit in — gets the same
 // number the joint will be seeded with instead of a second copy of the formula.
 export function dadoDepthFor(housingDim: number): number {
-  return clamp(Math.round(housingDim / 3), 3, housingDim - 1)
+  // The ceiling is applied last so it always wins. `clamp(v, 3, dim - 1)` inverted below 4 mm
+  // stock — the 3 mm floor exceeded the `dim - 1` ceiling, `Math.max` took the tie, and a 3 mm
+  // panel was seeded with a 3 mm groove. `computeDadoGroove` then clamped the cut to `dim - 1`
+  // while the generator had already grown the housed panel by the larger figure, so the two
+  // disagreed by the difference.
+  //
+  // `dim / 2` only takes over below 2 mm, where `dim - 1` stops leaving material behind. It keeps
+  // the function total rather than adding a guard for stock nobody cuts.
+  return Math.min(Math.max(Math.round(housingDim / 3), 3), Math.max(housingDim - 1, housingDim / 2))
 }
 
 export function defaultDadoDepth(housing: BoardPart, housingFace: Face): number {
