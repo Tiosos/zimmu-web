@@ -181,6 +181,8 @@ describe('EditPanel — editing a driven part', () => {
 // so this exercises the guard through the one control Radix will operate in happy-dom; the other
 // two setters are the same call.
 describe('mitre setters refuse a cut that is not a mitre', () => {
+  afterEach(cleanup)
+
   const mitre: MitreCut = {
     kind: 'mitre',
     id: 'm1' as CutId,
@@ -216,5 +218,25 @@ describe('mitre setters refuse a cut that is not a mitre', () => {
     const updater = onUpdateCut.mock.calls.at(-1)![2] as (c: CutDef) => CutDef
     expect(updater(holes)).toEqual(holes)
     expect((updater(mitre) as MitreCut).angle).toBe(30)
+  })
+})
+
+describe('EditPanel — cut size', () => {
+  afterEach(cleanup)
+
+  it('shows the cut size when the stored order is not the cutting order', () => {
+    renderPanel()
+    expect(screen.getByText('Cut size 720 × 560 × 18 mm')).toBeTruthy()
+  })
+
+  it('keeps L/W/T on the stored values so the part is still edited as stored', () => {
+    renderPanel()
+    expect(screen.getByLabelText('L')).toHaveProperty('value', '560')
+    expect(screen.getByLabelText('W')).toHaveProperty('value', '720')
+  })
+
+  it('stays quiet when the stored order is already the cutting order', () => {
+    renderPanel({ part: board({ length: 720, width: 560 }) })
+    expect(screen.queryByText(/^Cut size/)).toBeNull()
   })
 })

@@ -19,6 +19,7 @@ import { DowelCutsPanel } from './DowelCutsPanel'
 import { JointsPanel } from './JointsPanel'
 import { SuggestionsPanel } from './SuggestionsPanel'
 import { DimInput } from './DimInput'
+import { cutDimensions } from './buildCsv'
 import { faceAxes } from '../scene/snapMath'
 import { PART_COLORS } from '../scene/palette'
 import { Button } from '@/components/ui/button'
@@ -488,6 +489,15 @@ export function EditPanel({
     setPending(null)
   }
 
+  // The cutting list reports the long edge as the length; the stored order is whatever the
+  // generator's min-corner placement produced. Showing both stops the two from looking like a
+  // contradiction, and stays hidden when they agree.
+  const cut = part.kind === 'board' ? cutDimensions(part) : null
+  const cutSizeNote =
+    part.kind === 'board' && cut !== null && cut.length !== part.length
+      ? `Cut size ${cut.length} × ${cut.width} × ${cut.thickness} mm`
+      : null
+
   const ownerLabel =
     part.parentId === null
       ? ''
@@ -581,6 +591,9 @@ export function EditPanel({
                 suffix="mm"
                 onCommit={(v) => commitDimension('thickness', v)}
               />
+              {cutSizeNote && (
+                <div className="mt-1 text-[11px] text-muted-foreground">{cutSizeNote}</div>
+              )}
               {pending && (
                 <div className="mt-1 rounded border border-amber-700/50 bg-amber-950/30 px-2 py-1.5">
                   <div className="mb-1.5 text-[11px] text-amber-200">

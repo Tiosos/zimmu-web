@@ -1178,3 +1178,22 @@ bottom), makes it fail. Verified by mutation, not by reading.
 - **Checklist headlines after the change:** applied back `8 / 8` (contact 6), applied back on a
   ladder `10 / 10` (contact 16), Base 600 `12 / 12`, Wall 600 `10 / 10`, Ladder 600 `14 / 14`,
   Ladder 1200 `16 / 16` — all `unresolved = 0`, no open rows, group complete.
+
+## Task 7.9 — cut dimensions in the cutting list (2026-08-23)
+
+- **Measured, not assumed.** Regenerating `CARCASE_PRESETS[0]` (Base 600) and dumping every board:
+  `left-side` and `right-side` are stored 560 × 720, `toe-kick` 100 × 576. Those three are the only
+  panels whose stored order is not cutting order in this preset — `bottom`/`top` (576 × 560),
+  `back` (596 × 576) and `shelf-0-0` (576 × 548) are already length-first, so their rows do not move.
+- **Cost is provably unmoved, not merely believed to be.** `length × width` is area, so a swap
+  cannot change it. The guard in `buildCsv.test.ts` computes the expected total from the *stored*
+  dimensions and asserts `groupParts` still reaches it: Base 600 at $100/m² is 216.8064 both ways.
+- **The grouping test is the one that justifies the change.** Keying on stored dimensions splits a
+  600 × 100 board and a 100 × 600 board into two rows of the same physical piece. The helper alone
+  would not have caught that; the key had to be the assertion.
+- **`cutDimensions` takes a whole `BoardPart`, not three numbers**, so Task 7.10's grain branch is an
+  early `if` on a field of the same argument rather than a signature change and a caller sweep.
+- **Found in passing:** `EditPanel.test.tsx`'s `mitre setters refuse a cut that is not a mitre`
+  describe had no `afterEach(cleanup)`, so its rendered panel leaked into any later describe. It was
+  invisible until a later block queried by text. Added the missing `afterEach(cleanup)`; no
+  assertions changed.

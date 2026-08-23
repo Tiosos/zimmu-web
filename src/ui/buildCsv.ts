@@ -1,4 +1,17 @@
-import type { HardwareItem, MaterialDef, Part } from '../scene/types'
+import type { BoardPart, HardwareItem, MaterialDef, Part } from '../scene/types'
+
+export interface CutDims {
+  length: number
+  width: number
+  thickness: number
+}
+
+// What a woodworker cuts, which is not what the part stores: `orientedPanel` fixes which carcase
+// axis a board's x lands on to keep `position` the box min corner, so a 720 mm tall side is stored
+// length 560. Thickness is never in play — only the two in-plane dimensions are reordered.
+export function cutDimensions({ length, width, thickness }: BoardPart): CutDims {
+  return length >= width ? { length, width, thickness } : { length: width, width: length, thickness }
+}
 
 export interface GroupedRow {
   key: string
@@ -23,9 +36,10 @@ export function groupParts(
 
   for (const p of parts) {
     if (p.kind !== 'board') continue
-    const key = `${p.length}×${p.width}×${p.thickness}|${p.material}|${p.color}`
+    const dims = cutDimensions(p)
+    const key = `${dims.length}×${dims.width}×${dims.thickness}|${p.material}|${p.color}`
     const rate = materials[p.material]?.costPerM2
-    const costPerUnit = rate !== undefined ? ((p.length * p.width) / 1_000_000) * rate : null
+    const costPerUnit = rate !== undefined ? ((dims.length * dims.width) / 1_000_000) * rate : null
     const existing = map.get(key)
     if (existing) {
       existing.qty += 1
@@ -41,9 +55,9 @@ export function groupParts(
         labels: p.label,
         material: p.material,
         color: p.color,
-        length: p.length,
-        width: p.width,
-        thickness: p.thickness,
+        length: dims.length,
+        width: dims.width,
+        thickness: dims.thickness,
         cuts: p.cuts.length,
         costPerUnit,
         totalCost: costPerUnit,
