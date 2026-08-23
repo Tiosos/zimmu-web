@@ -323,7 +323,9 @@ function MitreRow({
             <Select
               value={cut.axis}
               onValueChange={(v) =>
-                onUpdateCut(partId, cut.id, (c) => ({ ...c, axis: v as MitreCut['axis'] }))
+                onUpdateCut(partId, cut.id, (c) =>
+                  c.kind !== 'mitre' ? c : { ...c, axis: v as MitreCut['axis'] },
+                )
               }
             >
               <SelectTrigger className="h-7 flex-1 text-[11px]">
@@ -707,6 +709,7 @@ export function EditPanel({
               + Mitre
             </Button>
           </div>
+          {/* Hole arrays get no row: they are component-owned and carry nothing editable yet. */}
           {part.cuts.length === 0 ? (
             <p className="text-[11px] text-muted-foreground py-0.5">No cuts</p>
           ) : (
@@ -720,7 +723,7 @@ export function EditPanel({
                   onRemoveCut={onRemoveCut}
                   defaultOpen={cut.id === lastPlacedCutId}
                 />
-              ) : cut.sourceJointId ? (
+              ) : cut.kind === 'hole-array' ? null : cut.sourceJointId ? (
                 <div
                   key={cut.id}
                   className="border-t border-border/30 py-1 flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground/70"

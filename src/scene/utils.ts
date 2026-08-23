@@ -8,7 +8,9 @@ export function shapeKey(part: Part): string {
       .map((c) =>
         c.kind === 'box'
           ? `b:${c.position.x},${c.position.y},${c.position.z}|${c.size.x},${c.size.y},${c.size.z}`
-          : `m:${c.end}|${c.axis}|${c.angle}`,
+          : c.kind === 'hole-array'
+            ? `h:${c.face}|${c.axis}|${c.start.x},${c.start.y},${c.start.z}|${c.pitch}|${c.count}|${c.diameter}|${c.depth}`
+            : `m:${c.end}|${c.axis}|${c.angle}`,
       )
       .join(';')
     return `board|${part.length}|${part.width}|${part.thickness}|${cutKey}`

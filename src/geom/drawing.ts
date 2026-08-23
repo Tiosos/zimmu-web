@@ -258,8 +258,27 @@ function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
   const { length: L, width: W, thickness: T } = p
   const scale = selectScale(L, W, T)
   const board = { length: L, width: W, thickness: T }
-  const boxCuts = p.cuts.filter((c): c is BoxCut => c.kind === 'box')
-  const mitres = p.cuts.filter((c): c is MitreCut => c.kind === 'mitre')
+  // Partitioned by hand rather than by two `filter`s with type predicates: a predicate makes a new
+  // CutDef member vanish from both lists with nothing to flag it, which is how a cut kind ends up
+  // silently missing from a drawing. The `never` check turns the next one into a compile error.
+  const boxCuts: BoxCut[] = []
+  const mitres: MitreCut[] = []
+  for (const c of p.cuts) {
+    switch (c.kind) {
+      case 'box':
+        boxCuts.push(c)
+        break
+      case 'mitre':
+        mitres.push(c)
+        break
+      case 'hole-array':
+        break // drawn as circles in Task 8.4
+      default: {
+        const _exhaustive: never = c
+        throw new Error(`unknown cut kind: ${(_exhaustive as { kind: string }).kind}`)
+      }
+    }
+  }
 
   const ox = MARGIN
   const oy = MARGIN

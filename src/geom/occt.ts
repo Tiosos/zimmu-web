@@ -322,6 +322,8 @@ export function makeShape(
     if (cut.kind === 'box') {
       if (cut.size.x <= 0.1 || cut.size.y <= 0.1 || cut.size.z <= 0.1) continue
       current = makeCut(oc, current, cut.position, cut.size)
+    } else if (cut.kind === 'hole-array') {
+      continue // drilled in Task 8.2; inert until then
     } else {
       if (cut.angle <= 0) continue
       current = makeMitreCut(oc, current, dims, cut)
