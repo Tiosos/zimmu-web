@@ -3,6 +3,7 @@ import {
   carcaseBoxes,
   carcaseContactPairs,
   carcaseCuts,
+  carcaseHoleArrays,
   carcaseJoints,
   carcaseRoles,
   orientedPanel,
@@ -12,7 +13,16 @@ import {
 import type { JointDescriptor, PanelSpec, RoleSpec } from './carcaseRoles'
 import { dadoDepthFor } from '../geom/dado'
 import { reconcileJoints } from './reconcileJoints'
-import type { BoardPart, BoxCut, CarcaseComponent, CarcaseParams, Face, Scene, Vec3 } from './types'
+import type {
+  BoardPart,
+  BoxCut,
+  CarcaseComponent,
+  CarcaseParams,
+  Face,
+  HoleArrayCut,
+  Scene,
+  Vec3,
+} from './types'
 import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 import { componentsById } from './componentTree'
 import { regenerateComponents } from './regenerateComponents'
@@ -135,7 +145,14 @@ const base: CarcaseParams = {
   toeKickHeight: 100,
   toeKickSetback: 60,
   fixedShelves: 1,
-  adjustableShelves: { rows: 2, pitch: 32, setback: 37, startHeight: 200, count: 10 },
+  adjustableShelves: {
+    rows: 2,
+    pitch: 32,
+    setback: 37,
+    backSetback: 37,
+    startHeight: 200,
+    count: 10,
+  },
   jointMethod: 'dado-rabbet',
   dividers: [],
 }
@@ -1339,5 +1356,221 @@ describe('panel extents follow the joinery', () => {
         expect(after.position.z, `${name}/${before.role} z`).toBeCloseTo(before.position.z, 6)
       }
     }
+  })
+})
+
+// A pin hole is placed by four numbers that no rendering test can separate: which face it is bored
+// into, which in-face axis the row marches along, where the first centre sits and how deep it goes.
+// These assert against the panel the row lands on, so a row that leaves the panel or faces the
+// wrong way fails here rather than in the kernel.
+describe('carcaseHoleArrays', () => {
+  const PIN_RADIUS = 2.5
+
+  const panelsOf = (p: CarcaseParams) => new Map(carcaseRoles(p).map((r) => [r.role, r.panel]))
+
+  // The kernel's reading of a HoleArrayCut, restated: the normal axis comes from `face`, and the
+  // row marches along the first (U) or second (V) of the remaining axes in x,y,z order. Written
+  // out here rather than imported because occt.ts only runs in a browser — and because a hole
+  // array is only correct relative to how the kernel reads it.
+  function centres(cut: HoleArrayCut): Vec3[] {
+    const normal = cut.face[1].toLowerCase() as 'x' | 'y' | 'z'
+    const inFace = (['x', 'y', 'z'] as const).filter((a) => a !== normal)
+    const axis = cut.axis === 'U' ? inFace[0] : inFace[1]
+    return Array.from({ length: cut.count }, (_, i) => ({
+      ...cut.start,
+      [axis]: cut.start[axis] + cut.pitch * i,
+    }))
+  }
+
+  function toCarcase(panel: PanelSpec, v: Vec3): Vec3 {
+    const [x, y, z] = applyMatrixToPoint(composeWorldMatrix(boardOf(panel)), v.x, v.y, v.z)
+    return { x, y, z }
+  }
+
+  const inside = (v: Vec3, b: { min: Vec3; max: Vec3 }) =>
+    v.x > b.min.x &&
+    v.x < b.max.x &&
+    v.y > b.min.y &&
+    v.y < b.max.y &&
+    v.z > b.min.z &&
+    v.z < b.max.z
+
+  it('puts two rows on each side panel', () => {
+    for (const role of ['left-side', 'right-side']) {
+      const cuts = carcaseHoleArrays(base, role)
+      expect(cuts, role).toHaveLength(2)
+      expect(cuts.every((c) => c.kind === 'hole-array')).toBe(true)
+    }
+  })
+
+  it('honours the configured count and pitch', () => {
+    const [row] = carcaseHoleArrays(base, 'left-side')
+    expect(row.count).toBe(10)
+    expect(row.pitch).toBe(32)
+  })
+
+  it('emits one row per configured row', () => {
+    const oneRow = { ...base, adjustableShelves: { ...base.adjustableShelves, rows: 1 as const } }
+    expect(carcaseHoleArrays(oneRow, 'left-side')).toHaveLength(1)
+  })
+
+  it('emits nothing when the adjustable count is zero', () => {
+    expect(
+      carcaseHoleArrays(
+        { ...base, adjustableShelves: { ...base.adjustableShelves, count: 0 } },
+        'left-side',
+      ),
+    ).toEqual([])
+  })
+
+  it('emits nothing for a role that is not a side or divider', () => {
+    for (const role of ['bottom', 'top', 'back', 'toe-kick', 'shelf-0-0', 'ladder-front']) {
+      expect(carcaseHoleArrays(base, role), role).toEqual([])
+    }
+  })
+
+  it('emits nothing for a carcase whose parameters do not build', () => {
+    expect(carcaseHoleArrays({ ...base, width: 20 }, 'left-side')).toEqual([])
+  })
+
+  it('drills a divider on both faces, since it serves a bay on each side', () => {
+    const divided = { ...base, dividers: [0.5] }
+    const cuts = carcaseHoleArrays(divided, 'divider-0')
+    expect(cuts).toHaveLength(2 * base.adjustableShelves.rows)
+    expect(new Set(cuts.map((c) => c.face)).size).toBe(2)
+  })
+
+  it('drills no deeper than the panel is thick', () => {
+    for (const p of [base, { ...base, thickness: 12 }, { ...base, thickness: 25 }]) {
+      for (const c of carcaseHoleArrays(p, 'left-side')) {
+        expect(c.depth).toBeLessThan(p.thickness)
+        expect(c.depth).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  // The self-check, same shape as the joint-face test: a pin hole must be bored into a face that
+  // looks *into* a bay. Asserting the letters '+Z'/'-Z' would only prove the table matches itself,
+  // so the board-local face is turned into a carcase-space direction and followed: one millimetre
+  // past the face there must be air, and it must be air inside the cabinet.
+  it('drills every row into a face that opens onto a bay', () => {
+    const cases: Record<string, CarcaseParams> = {
+      base,
+      wall: { ...base, baseMode: 'none' },
+      ladder: { ...base, baseMode: 'ladder' },
+      divided: { ...base, dividers: [0.5] },
+      'two dividers': { ...base, dividers: [0.34, 0.67] },
+      'applied back': { ...base, backMode: 'applied' },
+      'no top, no back': { ...base, hasTop: false, backMode: 'none' },
+    }
+    for (const [name, p] of Object.entries(cases)) {
+      const panels = panelsOf(p)
+      const envelopes = [...panels.values()].map(aabb)
+      const shell = {
+        min: {
+          x: Math.min(...envelopes.map((b) => b.min.x)),
+          y: Math.min(...envelopes.map((b) => b.min.y)),
+          z: Math.min(...envelopes.map((b) => b.min.z)),
+        },
+        max: {
+          x: Math.max(...envelopes.map((b) => b.max.x)),
+          y: Math.max(...envelopes.map((b) => b.max.y)),
+          z: Math.max(...envelopes.map((b) => b.max.z)),
+        },
+      }
+      const roles = [...panels.keys()].filter(
+        (r) => r === 'left-side' || r === 'right-side' || r.startsWith('divider-'),
+      )
+      expect(roles.length, name).toBeGreaterThan(0)
+      for (const role of roles) {
+        const panel = panels.get(role)!
+        const cuts = carcaseHoleArrays(p, role)
+        expect(cuts.length, `${name}: ${role}`).toBeGreaterThan(0)
+        for (const c of cuts) {
+          const dir = faceDirInCarcase(panel, c.face)
+          const start = toCarcase(panel, c.start)
+          const probe = { x: start.x + dir.x, y: start.y + dir.y, z: start.z + dir.z }
+          const where = `${name}: ${role} face ${c.face}`
+          expect(inside(probe, shell), `${where} bores out of the cabinet`).toBe(true)
+          for (const [otherRole, other] of panels) {
+            expect(inside(probe, aabb(other)), `${where} bores into ${otherRole}`).toBe(false)
+          }
+        }
+      }
+    }
+  })
+
+  // A row that runs off the end of the panel is a hole in nothing — or worse, a hole through the
+  // panel's edge. Swept rather than fixtured: the interesting failures are a cabinet too short to
+  // hold the configured count and a divider whose bay is shorter still.
+  it('keeps every hole inside the panel it drills', () => {
+    for (const height of [210, 300, 400, 720, 1200, 2100]) {
+      for (const count of [1, 5, 10, 40]) {
+        for (const startHeight of [120, 200, 400]) {
+          const p: CarcaseParams = {
+            ...base,
+            height,
+            dividers: [0.5],
+            fixedShelves: 0,
+            adjustableShelves: { ...base.adjustableShelves, count, startHeight },
+          }
+          if (validateCarcaseParams(p).length > 0) continue
+          const panels = panelsOf(p)
+          for (const role of ['left-side', 'right-side', 'divider-0']) {
+            const panel = panels.get(role)!
+            for (const c of carcaseHoleArrays(p, role)) {
+              const where = `h=${height} n=${count} z0=${startHeight} ${role}`
+              expect(c.count, where).toBeGreaterThan(0)
+              expect(c.count, where).toBeLessThanOrEqual(count)
+              expect(c.depth, where).toBeLessThan(panel.thickness)
+              const all = centres(c)
+              for (const v of [all[0], all[all.length - 1]]) {
+                expect(v.x - PIN_RADIUS, where).toBeGreaterThanOrEqual(0)
+                expect(v.x + PIN_RADIUS, where).toBeLessThanOrEqual(panel.length)
+                expect(v.y - PIN_RADIUS, where).toBeGreaterThanOrEqual(0)
+                expect(v.y + PIN_RADIUS, where).toBeLessThanOrEqual(panel.width)
+                expect(v.z, where).toBeGreaterThanOrEqual(0)
+                expect(v.z, where).toBeLessThanOrEqual(panel.thickness)
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+
+  // A shelf sits on four pins, two of them in a divider. Rows that start from each panel's own
+  // bottom edge would put the divider's pins 100 mm above the side's on a toe-kick cabinet, and
+  // every shelf in the cabinet would sit on a slope.
+  it('puts a divider’s pins at the same heights as the pins in the sides', () => {
+    for (const p of [
+      { ...base, dividers: [0.5] },
+      { ...base, dividers: [0.5], baseMode: 'ladder' as const },
+      { ...base, dividers: [0.5], height: 400 },
+    ]) {
+      const panels = panelsOf(p)
+      const heightsOf = (role: string) =>
+        carcaseHoleArrays(p, role).flatMap((c) =>
+          centres(c).map((v) => toCarcase(panels.get(role)!, v).z),
+        )
+      const side = new Set(heightsOf('left-side').map((z) => z.toFixed(6)))
+      const divider = heightsOf('divider-0')
+      expect(divider.length).toBeGreaterThan(0)
+      for (const z of divider)
+        expect(side.has(z.toFixed(6)), `${z} is not a side pin height`).toBe(true)
+    }
+  })
+
+  // `setback` and `backSetback` are two parameters, not one convention applied twice.
+  it('measures the front row from the front edge and the back row from the back edge', () => {
+    const p: CarcaseParams = {
+      ...base,
+      adjustableShelves: { ...base.adjustableShelves, setback: 37, backSetback: 60 },
+    }
+    const panel = panelsOf(p).get('left-side')!
+    const depths = carcaseHoleArrays(p, 'left-side').map((c) => centres(c)[0].x)
+    expect(depths.length).toBe(2)
+    expect(Math.min(...depths)).toBeCloseTo(37, 9)
+    expect(Math.max(...depths)).toBeCloseTo(panel.length - 60, 9)
   })
 })

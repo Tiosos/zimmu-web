@@ -1197,3 +1197,153 @@ bottom), makes it fail. Verified by mutation, not by reading.
   describe had no `afterEach(cleanup)`, so its rendered panel leaked into any later describe. It was
   invisible until a later block queried by text. Added the missing `afterEach(cleanup)`; no
   assertions changed.
+
+## Task 8.2 — one boolean per hole array in the kernel (2026-08-24)
+
+- **The plan's `makeHoleArrayCut` signature does not compile.** It is written as
+  `(oc, shape, dims, cut)`, but the body never reads `dims` and `noUnusedParameters` is on in
+  `tsconfig.app.json`, so `pnpm typecheck` fails with `TS6133: 'dims' is declared but its value is
+  never read`. Dropped the parameter — the call site in `makeShape` is `makeHoleArrayCut(oc, current,
+  cut)`. Nothing in the hole-array math needs the board envelope: the cut carries its own start
+  point, direction and depth. If a later task wants to clamp `depth` to the stock thickness, that is
+  when `dims` earns its place back.
+- **The plan's implementation snippet still passes `Message_ProgressRange`** (`new
+  O.BRepAlgoAPI_Cut_3(shape, compound, new O.Message_ProgressRange_1())` followed by
+  `op.Build(...)`). That class is absent in opencascade.js v1.1.1 and the snippet would have thrown
+  at runtime — the plan's own Step 2 warns about exactly this two paragraphs above the snippet that
+  ignores it. Used the two-argument `BRepAlgoAPI_Cut_3(S1, S2)` with no `Build()`, matching every
+  other boolean in `occt.ts`.
+- **The four embind overloads the plan flags as unverified are all correct** against the live
+  kernel: `gp_Pnt_3(x,y,z)`, `gp_Dir_4(x,y,z)`, `gp_Ax2_3(pnt,dir)`,
+  `BRepPrimAPI_MakeCylinder_3(ax2,R,H)`. Three of the four were already in use in `makeCylinderCut`.
+- **Volume alone cannot verify a hole array — measured, not argued.** A `600 × 560 × 18` panel with
+  ten ⌀5 × 12 holes was drilled four ways and the removed material isolated as its own solid
+  (`BRepAlgoAPI_Cut_3(plain, drilled)`), then measured:
+
+  | variant | removed volume | removed centroid | removed bbox |
+  |---|---|---|---|
+  | correct (`+Z`, axis `U`, pitch 32) | 2356.1945 | (194, 37, 12) | x 47.5–340.5, y 34.5–39.5, z 6–18 |
+  | wrong face (`-Z`) | 2356.1945 | (194, 37, **6**) | z **0–12** |
+  | wrong in-face axis (`V`) | 2356.1945 | (**50, 181**, 12) | x 47.5–**52.5**, y 34.5–**327.5** |
+  | wrong pitch (25) | 2356.1945 | (**162.5**, 37, 12) | x max **277.5** |
+
+  All four remove *identical* volume to four decimal places. A volume-delta assertion passes every
+  one of them. So the e2e asserts on the removed solid's centroid and bounding box instead, which
+  separate all four. Isolating the removed material first also matters: comparing the two panels'
+  own centroids would dilute a 2356 mm³ signal into a 6,048,000 mm³ body and shift it by under
+  0.1 mm, where OCCT integration noise lives. Against the removed solid the expected values come out
+  exact (194.000, 37.000, 12.000), so `toBeCloseTo(…, 1)` has real margin.
+
+- **Measured cost, no budget set.** Six cabinets' worth of side panels — 12 panels of
+  720 × 560 × 18, two shelf-pin rows of 20 holes each, 480 holes total — built through `makeShape`
+  in Chromium:
+
+  | approach | wall clock | per panel |
+  |---|---|---|
+  | one compound boolean per row (2 booleans/panel, 24 total) | **3388 ms** | 282 ms |
+  | one boolean per hole (40 booleans/panel, 480 total) | **55819 ms** | 4652 ms |
+
+  **Ratio 16.5×.** A second run measured 3578 / 58475 ms (16.3×), so the ratio is stable. This is
+  the number Phase 10's baseline task should assert against; it is deliberately *not* asserted here
+  — a wall-clock threshold in CI is flaky, and the budget is a decision to make from the figure
+  rather than a guess to bake in now.
+  - The comparison flatters the per-hole arm slightly: its tool is a 5 × 5 × 12 box, cheaper to
+    build and to intersect than a cylinder, and it removes 12000 mm³/panel against the array's
+    9424.8. So 16.5× understates the true saving of compounding.
+  - The cost is superlinear in booleans, not in holes: 20× the booleans costs 16.5× the time only
+    because each successive cut works against a shape with more faces. Halving the hole count would
+    not halve the per-hole arm.
+  - **Suite cost tradeoff, left open deliberately.** The per-hole arm alone takes ~56 s, so
+    `e2e/geom-kernel.spec.ts` went from ~16 s to ~80 s. Its timeout is raised to 600 s so a slower CI
+    box cannot turn the measurement into a flake. If that becomes too expensive, drop `PANELS` from
+    12 to 2 and scale — the ratio holds per panel — rather than deleting the comparison, which is
+    the only falsifiable form of the phase's "hole arrays do not make the app slow" claim.
+- **Compound lifetime.** The cylinder tool handles are deleted only after the boolean has consumed
+  the compound, following the precedent in `writeStep` (which adds transformed solids to a compound
+  and deletes the handles after `STEPControl_Writer` has transferred it).
+
+## Task 8.3 — shelf-pin rows on sides and dividers (2026-08-24)
+
+- **A third defect in the plan's snippet: `start` is in the wrong frame.** The plan had
+  `start: { x: 0, y: r === 0 ? a.setback : p.depth - a.setback, z: a.startHeight }`. A side is a
+  thickness-on-x panel, so its board frame is *x = carcase depth, y = carcase height, z = material
+  thickness* — the frame `carcaseCuts` already documents for the toe-kick notch. The setback is a
+  depth figure and belongs in `x`; the start height is a height and belongs in `y`; `z` is neither,
+  it is the face plane the drill starts from (`thickness` for a `+Z` face, `0` for `-Z`, matching
+  `faceDrillAxis`). Written as the plan had it, every hole would have been bored from the wrong
+  plane along the wrong edge. The two defects the plan itself flags (board-local faces, a divider
+  drilled on both faces) are real; this one it did not catch.
+- **`startHeight` is measured from the carcase floor, not from the panel's own bottom edge.**
+  Nothing in the spec said which. Panel-local is one subtraction cheaper and wrong: a divider's
+  board origin sits a bay above the floor (and a side's sits at `toeKickHeight` under a ladder
+  base), so pins measured from each panel's own edge land 100 mm apart across a single bay and
+  every shelf in a divided cabinet rests on a slope. `first = startHeight - panel.position.z`.
+  Covered by `puts a divider's pins at the same heights as the pins in the sides`.
+- **`backSetback` is measured from the panel's own back edge, not from the carcase back.** For a
+  side they are the same edge. For a divider under a captured back they are not: the divider stops
+  at `depth - backThickness`. Measuring from the carcase back would put the divider's back row
+  outside the panel entirely once `backThickness > backSetback - 2.5`, so the panel's own edge is
+  the only reading that keeps the hole in the material for every parameter set. The cost is that a
+  divider's back row sits `backThickness` forward of the sides' — the pins under one shelf are not
+  a rectangle. They are still at the same *height*, which is what keeps the shelf flat.
+- **The row count is clamped to what the panel can hold.** `count` is a user parameter and the
+  cabinet height is not: 10 pins at 32 mm from a 200 mm start need 488 mm of panel, which a 400 mm
+  cabinet does not have. The row is truncated to the holes that fit rather than boring off the end,
+  and a panel with room for none emits nothing. Found by the sweep, not by inspection.
+- **`pitch` cannot be swept.** `CarcaseParams['adjustableShelves'].pitch` is the literal type `32`,
+  so the "sweep count and pitch" the task asked for is a sweep of count, height and start height
+  only — a second pitch is not a state the type admits without a cast, and casting would test a
+  cabinet that cannot exist.
+- **The stale-cut filter needed no widening.** The plan opens this task with "widen it to
+  `(c.kind === 'box' || c.kind === 'hole-array')` **before** emitting anything". That is stale: the
+  filter landed in Task 8.1 keyed on `'sourceComponentId' in c` alone, which is both already correct
+  and strictly better than the fix the plan proposes — naming kinds is what left `'hole-array'`
+  exempt in the first place, and would exempt the kind after that. Verified by mutation rather than
+  by reading: restoring `c.kind === 'box' && …` makes four regenerations of a divided cabinet carry
+  16 hole arrays where one carries 4, and `re-derives its rows instead of accumulating them` fails
+  with `expected 16 to be 4`.
+- **`FILE_FORMAT_VERSION` bumped to 12.** A v11 file loads correctly under the new shape, so the
+  bump buys nothing at runtime — an older app reading a v12 file only prints the "newer than app
+  version" warning and parses on, because `backSetback` is additive. It was bumped anyway for one
+  reason: without it, `version: 11` names two different shapes forever, and the `// vN→vN+1`
+  comments in `parseFile` — the only migration log this format has — would have no boundary to
+  point at. Every prior additive field (`stopStart`/`stopEnd` at v6, the component tree at v11) took
+  a version with it.
+- **`carcaseHoleArrays` reads the reconciled panel, not the raw parameters.** It calls
+  `carcaseRoles(p)` and looks its own role up, so it sees the panel *after* the joinery extension
+  pass — a divider's real length and its real origin. Deriving the extents a second time from
+  `width`/`height`/`depth` would be the desynchronisation `bayEdges` exists to prevent. The cost is
+  that `regenerateComponents` recomputes the role table once per drilled role; at ~20 roles of pure
+  arithmetic that is not measurable next to the OCCT build it feeds.
+
+## Task 8.4 — pin rows in the shop drawings (2026-08-24)
+
+- **The edge-on views draw nothing.** A `+Z`-drilled row reads as circles only in the view whose
+  normal is the drill axis (the Face view for a side panel); the Edge and End views see the row
+  end-on. They get `circles: []` rather than dashed centre marks, for two reasons. The first is
+  consistency: a box cut already appears in exactly one view — `buildView` filters cuts by the
+  view's own face pair — and a shop reading this sheet already knows a feature absent from two
+  views is square to the third. The second is cost: `DrawingView` has no segment primitive (only
+  `DowelView` does), so centre marks would mean adding one plus its SVG and DXF paths to annotate a
+  row whose real position is already dimensioned in the view that shows it. Recorded here because
+  it is a deliberate omission, not an oversight — if a fabricator asks for the depth on the edge
+  view, the missing piece is `DrawingView.segments`, not the projection.
+- **A blind hole is dashed; a through hole is solid.** `dashed` is computed per array as
+  `depth < throughDepth`, where `throughDepth` is the board extent along that view's drill axis
+  (thickness for the Face view, width for Edge, length for End) — not hardcoded to the panel
+  thickness, so it stays right for a row drilled into an edge. Strict draughting would draw the
+  bore's own mouth solid, since it *is* visible from the face you drilled: the Face view is shared
+  by both `+Z` and `-Z` faces of one panel, and a solid circle there is the drawing's notation for
+  "this goes through". Dashing is the only cue on this sheet that separates a 12 mm pin bore from a
+  hole bored out the other side of an 18 mm panel, and that is the error that costs a panel.
+- **The projection is the cut projection.** `projectHoleArray` takes the same `uAxis`/`vAxis`,
+  `boardH`, `scale` and `flipV` that `projectCut` takes, so a hole centre and a cut rect cannot
+  drift apart. This works because `faceAxes` and `stepVector` (in `occt.ts`) order a face's two
+  in-face axes identically — x,y,z with the normal removed — so the array's `axis: 'U' | 'V'` is
+  the view's own U/V with no remapping. **If either ordering ever changes, they must change
+  together**, or the drawing will march the row along the wrong axis while the kernel drills it
+  correctly.
+- **Test expectations are derived, never written in millimetres.** The generated 560×720×18 side
+  lands at 1:10, so a ⌀5 hole is a 0.25 mm circle on the sheet; every assertion divides through the
+  sheet's own `scaleLabel`. The plan's original snippet asserted `r ≈ 2.5` and `gap ≈ 32` and would
+  have failed against a correct implementation.

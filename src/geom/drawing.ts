@@ -4,6 +4,7 @@ import type {
   CylinderPart,
   DowelCut,
   Face,
+  HoleArrayCut,
   MitreCut,
   Part,
 } from '../scene/types'
@@ -71,6 +72,7 @@ export interface DrawingView {
   boardRect: Rect2D
   boardOutline?: Point2D[] // when a mitre bevels this view, replaces boardRect
   cuts: Rect2D[]
+  circles: DrawCircle[] // hole-array bores, only in the view they are drilled square to
   cutLabels: CutLabel[]
   noteLabels: CutLabel[] // free-floating annotations (mitre angle)
   cutPosDims: DimLine[]
@@ -147,10 +149,33 @@ function projectCut(
   return { x, y, w: uSz * scale, h: vSz * scale }
 }
 
+// A row of bores reads as circles only in the view whose normal is the drill axis; the other two
+// see it edge-on and draw nothing. The row marches along one of the view's own two axes, so the
+// same `scale`/`flipV` that place a cut rect place every hole centre.
+function projectHoleArray(
+  h: HoleArrayCut,
+  uAxis: Axis,
+  vAxis: Axis,
+  boardH: number,
+  scale: number,
+  flipV: boolean,
+  dashed: boolean,
+): DrawCircle[] {
+  const stepU = h.axis === 'U' ? h.pitch : 0
+  const stepV = h.axis === 'V' ? h.pitch : 0
+  const r = (h.diameter / 2) * scale
+  return Array.from({ length: h.count }, (_, i) => {
+    const u = h.start[uAxis] + stepU * i
+    const v = h.start[vAxis] + stepV * i
+    return { cx: u * scale, cy: flipV ? (boardH - v) * scale : v * scale, r, dashed }
+  })
+}
+
 function buildView(
   viewLabel: 'Face' | 'Edge' | 'End',
   facePair: [Face, Face],
   cuts: BoxCut[],
+  holes: HoleArrayCut[],
   mitres: MitreCut[],
   outlineKind: 'Face' | 'Edge' | undefined,
   board: { length: number; width: number; thickness: number },
@@ -160,8 +185,9 @@ function buildView(
   flipV: boolean,
   boardDimValues: { h?: number; v?: number },
 ): Omit<DrawingView, 'placement'> {
-  const { u: uAxis, v: vAxis } = faceAxes(facePair[0])
+  const { depth: drillAxis, u: uAxis, v: vAxis } = faceAxes(facePair[0])
   const boardRect: Rect2D = { x: 0, y: 0, w: boardW * scale, h: boardH * scale }
+  const throughDepth = { x: board.length, y: board.width, z: board.thickness }[drillAxis]
 
   const relevantMitres =
     outlineKind === undefined
@@ -192,6 +218,10 @@ function buildView(
   }
 
   const viewCuts = cuts.filter((c) => c.face === facePair[0] || c.face === facePair[1])
+
+  const circles: DrawCircle[] = holes
+    .filter((h) => h.face === facePair[0] || h.face === facePair[1])
+    .flatMap((h) => projectHoleArray(h, uAxis, vAxis, boardH, scale, flipV, h.depth < throughDepth))
 
   const cutRects: Rect2D[] = viewCuts.map((c) => projectCut(c, uAxis, vAxis, boardH, scale, flipV))
 
@@ -247,6 +277,7 @@ function buildView(
     boardRect,
     boardOutline,
     cuts: cutRects,
+    circles,
     cutLabels,
     noteLabels,
     cutPosDims,
@@ -263,6 +294,7 @@ function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
   // silently missing from a drawing. The `never` check turns the next one into a compile error.
   const boxCuts: BoxCut[] = []
   const mitres: MitreCut[] = []
+  const holeArrays: HoleArrayCut[] = []
   for (const c of p.cuts) {
     switch (c.kind) {
       case 'box':
@@ -272,7 +304,8 @@ function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
         mitres.push(c)
         break
       case 'hole-array':
-        break // drawn as circles in Task 8.4
+        holeArrays.push(c)
+        break
       default: {
         const _exhaustive: never = c
         throw new Error(`unknown cut kind: ${(_exhaustive as { kind: string }).kind}`)
@@ -283,9 +316,9 @@ function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
   const ox = MARGIN
   const oy = MARGIN
 
-  const faceData = buildView('Face', ['+Z', '-Z'], boxCuts, mitres, 'Face', board, L, W, scale, false, { h: L, v: W }) // prettier-ignore
-  const edgeData = buildView('Edge', ['+Y', '-Y'], boxCuts, mitres, 'Edge', board, L, T, scale, true, { v: T }) // prettier-ignore
-  const endData = buildView('End', ['+X', '-X'], boxCuts, mitres, undefined, board, W, T, scale, true, {}) // prettier-ignore
+  const faceData = buildView('Face', ['+Z', '-Z'], boxCuts, holeArrays, mitres, 'Face', board, L, W, scale, false, { h: L, v: W }) // prettier-ignore
+  const edgeData = buildView('Edge', ['+Y', '-Y'], boxCuts, holeArrays, mitres, 'Edge', board, L, T, scale, true, { v: T }) // prettier-ignore
+  const endData = buildView('End', ['+X', '-X'], boxCuts, holeArrays, mitres, undefined, board, W, T, scale, true, {}) // prettier-ignore
 
   const faceView: DrawingView = { ...faceData, placement: { x: ox, y: oy } }
   const endView: DrawingView = {

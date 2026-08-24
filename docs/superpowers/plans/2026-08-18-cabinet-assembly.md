@@ -4071,7 +4071,7 @@ In the same e2e, time `makeShape` for a realistic worst case — a six-cabinet s
 Run: `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium pnpm test:e2e e2e/geom-kernel.spec.ts`
 Expected: FAIL — volumes are equal, because `makeShape` currently skips `'hole-array'`.
 
-**Embind suffixes are guesses until proven.** The snippet below uses `gp_Dir_4`, `gp_Pnt_3`, `gp_Ax2_3`, `BRepPrimAPI_MakeCylinder_3`. Per the `add-geometry` skill, the suffix does **not** track argument count — probe the live kernel for the right overload before trusting any of them. `BRepAlgoAPI_Cut_3(S1, S2)` runs the boolean in its constructor; there is no `Message_ProgressRange` in opencascade.js v1.1.1.
+**Embind suffixes were guesses; all four are now verified.** Probed against the live kernel on 2026-08-24: `gp_Pnt_3(x,y,z)`, `gp_Dir_4(x,y,z)`, `gp_Ax2_3(pnt,dir)` and `BRepPrimAPI_MakeCylinder_3(ax2,R,H)` all construct. `Message_ProgressRange` is `undefined`, as the `add-geometry` skill warns. Three of the four were already in use in `makeCylinderCut`, which is why they were right. `BRepAlgoAPI_Cut_3(S1, S2)` runs the boolean in its constructor; there is no `Message_ProgressRange` in opencascade.js v1.1.1.
 
 - [ ] **Step 3: Implement**
 
@@ -4081,10 +4081,12 @@ Add to `src/geom/occt.ts`:
 // One boolean, not N. A 720 mm side at 32 mm pitch is ~20 holes; two rows per side across six
 // cabinets is ~480 subtractions if each hole is its own operation. Compounding the cylinders first
 // turns that into one BRepAlgoAPI_Cut per array.
+// `dims` is deliberately absent: the hole-array maths needs no board envelope, since the cut
+// carries its own start, direction and depth. An earlier draft took it and never read it, which
+// does not compile under `noUnusedParameters`.
 export function makeHoleArrayCut(
   oc: OpenCascadeInstance,
   shape: TopoDS_Shape,
-  dims: { length: number; width: number; thickness: number },
   cut: HoleArrayCut,
 ): TopoDS_Shape {
   if (cut.count <= 0 || cut.diameter <= 0 || cut.depth <= 0) return shape
@@ -4117,8 +4119,10 @@ export function makeHoleArrayCut(
     axisDir.delete()
   }
 
-  const op = new O.BRepAlgoAPI_Cut_3(shape, compound, new O.Message_ProgressRange_1())
-  op.Build(new O.Message_ProgressRange_1())
+  // Two arguments, no Build(): BRepAlgoAPI_Cut_3 runs the boolean in its constructor, and
+  // Message_ProgressRange does not exist in opencascade.js v1.1.1. An earlier draft of this
+  // snippet passed one anyway, two paragraphs below the warning that it is absent.
+  const op = new O.BRepAlgoAPI_Cut_3(shape, compound)
   if (!op.IsDone()) {
     console.warn('makeHoleArrayCut: BRepAlgoAPI_Cut did not complete — returning input shape')
     op.delete()
@@ -4198,9 +4202,15 @@ strips stale component-owned cuts with:
 
 The moment this task attaches hole arrays tagged with `sourceComponentId`, that filter stops
 matching them, so **every regeneration appends another copy of each pin row on top of the last** —
-unbounded growth on every keystroke in the parameter panel. Widen it to
-`(c.kind === 'box' || c.kind === 'hole-array')` **before** emitting anything, and write the test that
-proves it: regenerate twice and assert the hole-array count is unchanged.
+unbounded growth on every keystroke in the parameter panel.
+
+**Already done, and not the way this paragraph says.** Task 8.1 landed the filter as
+`!('sourceComponentId' in c && c.sourceComponentId !== undefined)` — keyed on the ownership tag
+alone. Do not "widen it to `(c.kind === 'box' || c.kind === 'hole-array')`": naming kinds is the
+defect, and that spelling would exempt the kind added after `'hole-array'` exactly as the original
+exempted this one. The test still has to be written: regenerate twice and assert the hole-array
+count is unchanged. Confirmed by mutation on 2026-08-24 — restoring the box-only filter makes four
+regenerations carry 16 arrays where one carries 4.
 
 ### The second pin row is a parameter (decided with the user 2026-08-22)
 
@@ -4288,6 +4298,16 @@ export function carcaseHoleArrays(p: CarcaseParams, role: string): HoleArrayCut[
   //      between two bays and carries pins on **both** sides, so it emits `2 × rows` arrays.
   //
   // Sides get one face each; dividers get both.
+  //
+  // CORRECTED again 2026-08-24, during implementation. `start` below is in the wrong frame — a
+  // third defect, on top of the two above. The board frame of a thickness-on-x panel is
+  // *x = carcase depth, y = carcase height, z = material thickness* (the frame `carcaseCuts`
+  // already documents). So the setback is an **x**, the start height is a **y**, and **z** is
+  // neither: it is the plane the drill starts from — `panel.thickness` for a `+Z` face and `0` for
+  // a `-Z` one, matching `faceDrillAxis`. Two more things the snippet does not do and the landed
+  // code does: `startHeight` is measured from the carcase floor (`- panel.position.z`), or a
+  // divider's pins sit a bay higher than the sides' and every shelf slopes; and `count` is clamped
+  // to the holes the panel can hold, or a short cabinet bores off the end of the panel.
 
   return Array.from({ length: a.rows }, (_, r) => ({
     kind: 'hole-array' as const,
@@ -4325,69 +4345,63 @@ git commit -m "feat(scene): carcases drill shelf-pin rows into sides and divider
 - Modify: `src/geom/drawing.ts`, `src/ui/buildSvg.ts`, `src/ui/buildDxf.ts`
 - Test: `src/geom/drawing.test.ts`, `src/ui/buildSvg.test.ts`
 
+> **The original snippet here carried six defects and has been replaced (audited 2026-08-24).**
+> Listed so nobody reinstates them:
+> 1. `v.name === 'Face'` — `DrawingView`'s field is `label`, not `name`.
+> 2. `buildDrawingSheet(part)` — the exported function is **`buildDrawingSheets(parts, projectName)`**, plural, returning an array whose first entry is a cover sheet.
+> 3. `sheet.views` without narrowing — `DrawingSheet` is a discriminated union; `views` exists only on `kind: 'part'`, and its tuple type differs between `shape: 'board'` and `shape: 'dowel'`.
+> 4. **Assertions were in millimetres, but every view coordinate is scaled.** `selectScale` picks from `[1, 0.5, 0.2, 0.1, 0.05]`, and a 560 × 720 side lands well below 1:1 — so `r ≈ 2.5` and `gap ≈ 32` would fail against a *correct* implementation. Assert `r ≈ 2.5 × scale` and `gap ≈ 32 × scale`, or derive the expectation from the sheet's own `scale`.
+> 5. The fixture's `adjustableShelves` omits `backSetback`, required since Task 8.3, so it would not typecheck.
+> 6. It invents `{ cx, cy, r }`. **`DrawCircle` already exists** — `{ cx, cy, r, dashed }`, used by the dowel views. Reuse it; `dashed` distinguishes a hidden bore from a visible one, which is exactly the distinction a blind pin hole needs.
+
 - [ ] **Step 1: Write the failing tests**
 
-```ts
-// A side panel carrying one 10-hole pin row, built from the generator so the geometry is real.
-const sideWithPins = regenerateComponents({
-  parts: [],
-  materials: {},
-  hardware: [],
-  joints: [],
-  components: [
-    {
-      id: 'cmp_1',
-      kind: 'carcase',
-      label: 'Base 600',
-      parentId: null,
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      rotationOrder: 'XYZ',
-      visible: true,
-      params: { ...CARCASE_PRESETS[0].params, adjustableShelves: { rows: 1, pitch: 32, setback: 37, startHeight: 200, count: 10 } },
-    },
-  ],
-}).parts.find((p) => p.role === 'left-side')! as BoardPart
+Build the fixture from the generator (`regenerateComponents` over `CARCASE_PRESETS[0]`, taking the `left-side` part) so the geometry is real rather than hand-written. Derive expectations from the sheet's own `scale` rather than hardcoding scaled numbers — a hardcoded 0.5 would silently rot the day `selectScale`'s thresholds move.
 
-it('projects a hole array as one circle per hole in the face view', () => {
-  const sheet = buildDrawingSheet(sideWithPins)
-  const face = sheet.views.find((v) => v.name === 'Face')!
-  expect(face.circles).toHaveLength(10)
-  expect(face.circles[0].r).toBeCloseTo(2.5, 6)
-})
-
-it('spaces the projected circles by the pitch', () => {
-  const face = buildDrawingSheet(sideWithPins).views.find((v) => v.name === 'Face')!
-  const gap = Math.abs(face.circles[1].cy - face.circles[0].cy)
-  expect(gap).toBeCloseTo(32, 6)
-})
-```
+Cover:
+- one circle per hole in the view whose plane the row is drilled into;
+- circle radius equals half the hole diameter, scaled;
+- consecutive circle centres are one pitch apart, scaled;
+- **a blind hole is `dashed`** — a pin hole does not go through, and a drawing that shows it as a through hole is wrong at the saw;
+- a part with no hole arrays still produces views with an empty `circles` array, not `undefined`.
 
 - [ ] **Step 2: Run to confirm failure**
 
 Run: `pnpm vitest run src/geom/drawing.test.ts -t 'hole array'`
-Expected: FAIL — `face.circles` is undefined.
+Expected: FAIL — `DrawingView` has no `circles` field.
 
 - [ ] **Step 3: Implement**
 
-Add `circles: { cx: number; cy: number; r: number }[]` to `DrawingView`, populated from every `hole-array` cut on the part, projected into each view's plane. In `buildSvg.ts` emit `<circle>`; in `buildDxf.ts` emit `CIRCLE` entities. Replace the temporary `'hole-array'` skip added in Task 8.1.
+Add `circles: DrawCircle[]` to `DrawingView`, populated from every `hole-array` cut on the part and projected into each view's plane through the same `scale` and `flipV` the other projections use. **Replace the `break // drawn as circles in Task 8.4`** in `buildBoardSheet`'s partition — the `never` exhaustiveness check there means the compiler will not let the kind be forgotten, but it will happily let it stay skipped.
+
+Which view shows the row is a question to answer from the drill axis, not by assumption: a row drilled into a side's `+Z`/`-Z` board face appears as circles in the **Face** view, and edge-on in the others. Decide what the edge-on views should show — nothing, or dashed centre marks — and say which you chose.
+
+In `buildSvg.ts` emit `<circle>`; in `buildDxf.ts` emit `CIRCLE` entities. Both already render `DrawCircle` for dowel sheets, so follow that path rather than adding a second one.
 
 - [ ] **Step 4: Run to confirm pass and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
-```bash
-git add src/geom/drawing.ts src/geom/drawing.test.ts src/ui/buildSvg.ts src/ui/buildSvg.test.ts src/ui/buildDxf.ts
-git commit -m "feat(drawing): render shelf-pin hole arrays in views and exports"
-```
-
 ## Phase 8 verification
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` — green.
-- [ ] `PW_CHROMIUM_EXECUTABLE=… pnpm test:e2e` — all specs pass, including the new kernel volume check.
-- [ ] `pnpm dev`: drop Base 600, set adjustable shelf count to 20. Hole rows appear on both sides. **Dragging the count field feels responsive** — if it does not, confirm `makeHoleArrayCut` is being reached once per array, not once per hole, by adding a temporary counter.
-- [ ] Open shop drawings for a side panel: the pin rows render as circles at 32 mm spacing.
-- [ ] `grep -c 'BRepAlgoAPI_Cut' src/geom/occt.ts` — the hole-array path contributes exactly one.
+Verified 2026-08-24. Items 3 and 4 were written as `pnpm dev` walkthroughs; their substance was
+driven through the real generator and drawing pipeline instead, so the result is reproducible.
+
+- [x] `pnpm typecheck && pnpm lint && pnpm test` — green (60 files, 1089 passed, 10 skipped).
+- [x] `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium pnpm test:e2e` — **13 passed**, including both live-kernel specs and the new hole-array volume/placement check.
+- [x] Adjustable count 20 puts rows on **both** sides (2 rows each), and `shapeKey` changes with the count, so the geometry cache is invalidated and the panel rebuilds.
+
+      **The count comes back as 17, not 20 — that is correct.** A 720 mm cabinet cannot hold 20 pins at 32 mm pitch from a 200 mm start (`200 + 19 × 32 = 808`), so Task 8.3's clamp truncates the row to what fits. Anyone following the original wording literally would read 17 as a failure. It is the opposite.
+- [x] Shop drawings render the pin rows as circles: one column of 17 circles on the Face view, gaps measuring **exactly 32.0000 mm** once divided back through the sheet's 1:10 scale, and reaching both the SVG (`<circle>`) and the DXF (`CIRCLE`).
+- [x] `makeHoleArrayCut` contains exactly **one** `BRepAlgoAPI_Cut_3` (`src/geom/occt.ts:381`) — one boolean per array, not per hole. Measured cost over 480 holes: 4.1 s compounded against 65.3 s per-hole, a **16.1×** ratio, stable across four runs (16.8/16.3/16.5/16.1).
+
+### Open items carried out of Phase 8
+
+1. **The pin rows carry no dimension annotation.** No diameter or depth label on the drawing, so a fabricator reads circles at a spacing but must infer ⌀5 × 12 deep from elsewhere. Outside what Task 8.4 asked for; the missing piece is a `DrawingView.segments`/label path.
+2. **RESOLVED 2026-08-24.** The coupling between `faceAxes` (`src/scene/snapMath.ts`) and `stepVector` (`src/geom/occt.ts`) is now guarded: `occt.test.ts` asserts the two orderings agree on all six faces, and that neither ever steps along the face normal. Mutation-tested from both sides — swapping U/V in the kernel fails all six cases; swapping only `±Y` in `faceAxes` fails exactly those two, so a failure names the face that broke.
+
+   **The structural fix was considered and rejected.** One shared definition would remove the class of bug rather than test for it, but `snapMath.ts` imports THREE and `occt.ts` runs in the geometry worker, so the import would pull Three.js into the worker bundle. `stepVector` is exported solely for this guard, and says so. Revisit if `faceAxes` ever moves somewhere THREE-free.
+3. **`pitch` is typed as the literal `32`**, so the sweep in Task 8.3 covers count × height × startHeight only. A second pitch cannot be tested without a cast to a state the type forbids.
 
 ---
 
