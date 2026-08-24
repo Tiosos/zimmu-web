@@ -1,13 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import type {
-  Part,
-  CutDef,
-  MaterialDef,
-  Scene,
-  CameraState,
-  ZimmuFile,
-  Joint,
-} from './types'
+import type { Part, CutDef, MaterialDef, Scene, CameraState, ZimmuFile, Joint } from './types'
 import * as idb from './idb'
 import { breakComponentCycles, promoteOrphans } from './componentTree'
 
@@ -82,7 +74,13 @@ export function parseFile(text: string): ZimmuFile {
           },
     ),
     materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
-    hardware: raw.scene.hardware ?? [],
+    // Per-item so linkedPartIds/linkedComponentIds default to [] when absent — both are read
+    // unguarded (.includes) in the UI, so a file predating either field would otherwise crash.
+    hardware: (raw.scene.hardware ?? []).map((h) => ({
+      ...h,
+      linkedPartIds: h.linkedPartIds ?? [],
+      linkedComponentIds: h.linkedComponentIds ?? [],
+    })),
     // v4→v5: profile (+ tongueThickness/rabbetFace). v5→v6: stopStart/stopEnd.
     // v6→v7: half-lap joints (kind 'halflap'); legacy joints are all dados.
     // v7→v8: mortise-tenon joints (kind 'mortise-tenon').

@@ -179,6 +179,7 @@ describe('buildHardwareCsv', () => {
       unitCost: 2.5,
       notes: 'soft-close',
       linkedPartIds: [],
+      linkedComponentIds: [],
     },
   ]
 

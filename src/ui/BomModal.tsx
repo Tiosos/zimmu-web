@@ -218,7 +218,12 @@ export function BomModal({
               onMaterialCostChange={handleMaterialCostChange}
             />
           ) : tab === 'hardware' ? (
-            <HardwareTab hardware={hardware} parts={parts} onUpdateHardware={onUpdateHardware} />
+            <HardwareTab
+              hardware={hardware}
+              parts={parts}
+              components={components}
+              onUpdateHardware={onUpdateHardware}
+            />
           ) : (
             <LibraryTab library={library} onDelete={onDeleteLibraryEntry} />
           )}

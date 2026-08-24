@@ -141,6 +141,7 @@ export interface HardwareItem {
   unitCost: number // cost per single unit
   notes: string
   linkedPartIds: string[] // reserved for future 3D linkage
+  linkedComponentIds: string[] // cabinets/groups this item belongs to
 }
 
 export type ComponentId = string

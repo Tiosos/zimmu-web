@@ -1284,6 +1284,7 @@ describe('useScene', () => {
           unitCost: 0.5,
           notes: '',
           linkedPartIds: [],
+          linkedComponentIds: [],
         },
       ])
     })
@@ -1362,6 +1363,7 @@ describe('useScene', () => {
         unitCost: 2.5,
         notes: '',
         linkedPartIds: [],
+        linkedComponentIds: [],
       },
     ]
     act(() => {
@@ -1384,6 +1386,7 @@ describe('useScene', () => {
         unitCost: 2.5,
         notes: '',
         linkedPartIds: [],
+        linkedComponentIds: [],
       },
     ]
     act(() => {
@@ -1409,6 +1412,7 @@ describe('useScene', () => {
         unitCost: 2.5,
         notes: '',
         linkedPartIds: [],
+        linkedComponentIds: [],
       },
     ]
     act(() => {

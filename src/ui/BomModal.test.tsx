@@ -38,6 +38,7 @@ const hardware: HardwareItem[] = [
     unitCost: 2.5,
     notes: '',
     linkedPartIds: [],
+    linkedComponentIds: [],
   },
 ]
 

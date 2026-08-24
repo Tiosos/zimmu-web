@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { HardwareEditPanel } from './HardwareEditPanel'
-import type { BoardPart, HardwareItem, Part } from '../scene/types'
+import type { BoardPart, Component, HardwareItem, Part } from '../scene/types'
 
 const item: HardwareItem = {
   id: 'h1',
@@ -13,6 +13,7 @@ const item: HardwareItem = {
   unitCost: 2.5,
   notes: 'soft-close',
   linkedPartIds: [],
+  linkedComponentIds: [],
 }
 
 function baseItem(overrides: Partial<HardwareItem> = {}) {
@@ -27,13 +28,29 @@ function baseItem(overrides: Partial<HardwareItem> = {}) {
       unitCost: 0.05,
       notes: '',
       linkedPartIds: [],
+      linkedComponentIds: [],
       ...overrides,
     } as HardwareItem,
     parts: [] as Part[],
+    components: [] as Component[],
     onSave: vi.fn(),
     onCancel: vi.fn(),
     onDelete: vi.fn(),
   }
+}
+
+function makeComponent(overrides: Partial<Component> = {}): Component {
+  return {
+    kind: 'group',
+    id: 'cmp_1',
+    label: 'Base Cabinet 600',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    ...overrides,
+  } as Component
 }
 
 function makePart(overrides: Partial<BoardPart> = {}): BoardPart {
@@ -65,6 +82,7 @@ describe('HardwareEditPanel', () => {
       <HardwareEditPanel
         item={item}
         parts={[]}
+        components={[]}
         onSave={vi.fn()}
         onCancel={vi.fn()}
         onDelete={vi.fn()}
@@ -85,6 +103,7 @@ describe('HardwareEditPanel', () => {
       <HardwareEditPanel
         item={item}
         parts={[]}
+        components={[]}
         onSave={onSave}
         onCancel={vi.fn()}
         onDelete={vi.fn()}
@@ -101,6 +120,7 @@ describe('HardwareEditPanel', () => {
       <HardwareEditPanel
         item={item}
         parts={[]}
+        components={[]}
         onSave={vi.fn()}
         onCancel={onCancel}
         onDelete={vi.fn()}
@@ -115,6 +135,7 @@ describe('HardwareEditPanel', () => {
       <HardwareEditPanel
         item={item}
         parts={[]}
+        components={[]}
         onSave={vi.fn()}
         onCancel={vi.fn()}
         onDelete={vi.fn()}
@@ -130,6 +151,7 @@ describe('HardwareEditPanel', () => {
       <HardwareEditPanel
         item={item}
         parts={[]}
+        components={[]}
         onSave={vi.fn()}
         onCancel={vi.fn()}
         onDelete={onDelete}
@@ -191,6 +213,28 @@ describe('HardwareEditPanel', () => {
     it('renders "No parts in project" when parts is empty', () => {
       render(<HardwareEditPanel {...baseItem()} parts={[]} />)
       expect(screen.getByText('No parts in project')).toBeTruthy()
+    })
+  })
+
+  describe('Linked components section', () => {
+    it('links a hardware item to a component', () => {
+      const onSave = vi.fn()
+      const cabinet = makeComponent({ id: 'cmp_1', label: 'Base Cabinet 600' })
+      render(<HardwareEditPanel {...baseItem()} components={[cabinet]} onSave={onSave} />)
+      fireEvent.click(screen.getByLabelText('Base Cabinet 600'))
+      fireEvent.click(screen.getByRole('button', { name: /save/i }))
+      expect(onSave.mock.calls.at(-1)![0].linkedComponentIds).toEqual(['cmp_1'])
+    })
+
+    it('checkbox is checked when component id is in linkedComponentIds', () => {
+      const cabinet = makeComponent({ id: 'cmp_1', label: 'Base Cabinet 600' })
+      render(
+        <HardwareEditPanel
+          {...baseItem({ linkedComponentIds: ['cmp_1'] })}
+          components={[cabinet]}
+        />,
+      )
+      expect((screen.getByLabelText('Base Cabinet 600') as HTMLInputElement).checked).toBe(true)
     })
   })
 })
