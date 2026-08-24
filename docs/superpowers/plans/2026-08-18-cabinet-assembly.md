@@ -4345,61 +4345,42 @@ git commit -m "feat(scene): carcases drill shelf-pin rows into sides and divider
 - Modify: `src/geom/drawing.ts`, `src/ui/buildSvg.ts`, `src/ui/buildDxf.ts`
 - Test: `src/geom/drawing.test.ts`, `src/ui/buildSvg.test.ts`
 
+> **The original snippet here carried six defects and has been replaced (audited 2026-08-24).**
+> Listed so nobody reinstates them:
+> 1. `v.name === 'Face'` — `DrawingView`'s field is `label`, not `name`.
+> 2. `buildDrawingSheet(part)` — the exported function is **`buildDrawingSheets(parts, projectName)`**, plural, returning an array whose first entry is a cover sheet.
+> 3. `sheet.views` without narrowing — `DrawingSheet` is a discriminated union; `views` exists only on `kind: 'part'`, and its tuple type differs between `shape: 'board'` and `shape: 'dowel'`.
+> 4. **Assertions were in millimetres, but every view coordinate is scaled.** `selectScale` picks from `[1, 0.5, 0.2, 0.1, 0.05]`, and a 560 × 720 side lands well below 1:1 — so `r ≈ 2.5` and `gap ≈ 32` would fail against a *correct* implementation. Assert `r ≈ 2.5 × scale` and `gap ≈ 32 × scale`, or derive the expectation from the sheet's own `scale`.
+> 5. The fixture's `adjustableShelves` omits `backSetback`, required since Task 8.3, so it would not typecheck.
+> 6. It invents `{ cx, cy, r }`. **`DrawCircle` already exists** — `{ cx, cy, r, dashed }`, used by the dowel views. Reuse it; `dashed` distinguishes a hidden bore from a visible one, which is exactly the distinction a blind pin hole needs.
+
 - [ ] **Step 1: Write the failing tests**
 
-```ts
-// A side panel carrying one 10-hole pin row, built from the generator so the geometry is real.
-const sideWithPins = regenerateComponents({
-  parts: [],
-  materials: {},
-  hardware: [],
-  joints: [],
-  components: [
-    {
-      id: 'cmp_1',
-      kind: 'carcase',
-      label: 'Base 600',
-      parentId: null,
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      rotationOrder: 'XYZ',
-      visible: true,
-      params: { ...CARCASE_PRESETS[0].params, adjustableShelves: { rows: 1, pitch: 32, setback: 37, startHeight: 200, count: 10 } },
-    },
-  ],
-}).parts.find((p) => p.role === 'left-side')! as BoardPart
+Build the fixture from the generator (`regenerateComponents` over `CARCASE_PRESETS[0]`, taking the `left-side` part) so the geometry is real rather than hand-written. Derive expectations from the sheet's own `scale` rather than hardcoding scaled numbers — a hardcoded 0.5 would silently rot the day `selectScale`'s thresholds move.
 
-it('projects a hole array as one circle per hole in the face view', () => {
-  const sheet = buildDrawingSheet(sideWithPins)
-  const face = sheet.views.find((v) => v.name === 'Face')!
-  expect(face.circles).toHaveLength(10)
-  expect(face.circles[0].r).toBeCloseTo(2.5, 6)
-})
-
-it('spaces the projected circles by the pitch', () => {
-  const face = buildDrawingSheet(sideWithPins).views.find((v) => v.name === 'Face')!
-  const gap = Math.abs(face.circles[1].cy - face.circles[0].cy)
-  expect(gap).toBeCloseTo(32, 6)
-})
-```
+Cover:
+- one circle per hole in the view whose plane the row is drilled into;
+- circle radius equals half the hole diameter, scaled;
+- consecutive circle centres are one pitch apart, scaled;
+- **a blind hole is `dashed`** — a pin hole does not go through, and a drawing that shows it as a through hole is wrong at the saw;
+- a part with no hole arrays still produces views with an empty `circles` array, not `undefined`.
 
 - [ ] **Step 2: Run to confirm failure**
 
 Run: `pnpm vitest run src/geom/drawing.test.ts -t 'hole array'`
-Expected: FAIL — `face.circles` is undefined.
+Expected: FAIL — `DrawingView` has no `circles` field.
 
 - [ ] **Step 3: Implement**
 
-Add `circles: { cx: number; cy: number; r: number }[]` to `DrawingView`, populated from every `hole-array` cut on the part, projected into each view's plane. In `buildSvg.ts` emit `<circle>`; in `buildDxf.ts` emit `CIRCLE` entities. Replace the temporary `'hole-array'` skip added in Task 8.1.
+Add `circles: DrawCircle[]` to `DrawingView`, populated from every `hole-array` cut on the part and projected into each view's plane through the same `scale` and `flipV` the other projections use. **Replace the `break // drawn as circles in Task 8.4`** in `buildBoardSheet`'s partition — the `never` exhaustiveness check there means the compiler will not let the kind be forgotten, but it will happily let it stay skipped.
+
+Which view shows the row is a question to answer from the drill axis, not by assumption: a row drilled into a side's `+Z`/`-Z` board face appears as circles in the **Face** view, and edge-on in the others. Decide what the edge-on views should show — nothing, or dashed centre marks — and say which you chose.
+
+In `buildSvg.ts` emit `<circle>`; in `buildDxf.ts` emit `CIRCLE` entities. Both already render `DrawCircle` for dowel sheets, so follow that path rather than adding a second one.
 
 - [ ] **Step 4: Run to confirm pass and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
-
-```bash
-git add src/geom/drawing.ts src/geom/drawing.test.ts src/ui/buildSvg.ts src/ui/buildSvg.test.ts src/ui/buildDxf.ts
-git commit -m "feat(drawing): render shelf-pin hole arrays in views and exports"
-```
 
 ## Phase 8 verification
 
