@@ -4584,9 +4584,9 @@ serializer instead, so the result is reproducible; the browser BOM view is a thi
 ## Task 10.1: The standing end-to-end proof
 
 **Files:**
-- Create: `e2e/carcase.spec.ts`
+- Verify/extend: `e2e/carcase.spec.ts` (**already exists** — it carries the Workflow C and detach tests written in Phase 6; this task is not a create)
 
-This is Workflow C in one spec, and it is the test a regression in any of Phases 4–8 must fail.
+This is Workflow C, and it is the test a regression in any of Phases 4–8 must fail. The spec below was the *plan's* draft; the shipped spec uses the real selectors (`getByLabel('Add cabinet')` → `getByRole('option', …)`, `node-board_*` testids, single-letter `L`/`W` dimension labels). **Do not rewrite the working spec to match this draft** — verify the shipped one covers the workflow, and do the mutation check in Step 3 against it.
 
 - [ ] **Step 1: Write the spec**
 
@@ -4683,8 +4683,8 @@ git commit -m "chore(geom): instrument buildPart and record the first WASM basel
 
 Every one of these is currently wrong:
 
-- `README.md` and `joinery_3d_software_plan.md` say `FILE_FORMAT_VERSION = 2`. It is now **11**.
-- Both say "374 tests across 25 files". Get the real number from `pnpm test` and `find src e2e -name '*.test.ts*' -o -name '*.spec.ts' | wc -l`.
+- `README.md` and `joinery_3d_software_plan.md` say `FILE_FORMAT_VERSION = 2`. It is now **12** (v11 added the component tree; v12 added `backSetback`). Note the IDB `DB_VERSION` is separately 2 and correct — do not touch `Persistence | … IndexedDB v2`.
+- `joinery_3d_software_plan.md` says "25 test files, 374 tests". Measured 2026-08-24: **1105 tests passing (10 skipped) across 60 Vitest files**, and **68 test files total** including the 8 Playwright specs. Use these.
 - `CLAUDE.md`'s architecture tree predates the joint engine, the suggestion engine and the checklist, and describes `Scene` as parts + materials + hardware. It now has `joints` **and** `components`.
 
 - [ ] **Step 2: Document the new architecture**
@@ -4732,6 +4732,6 @@ Run all of these on the final branch before opening a PR:
 - [ ] `pnpm build` — production bundle succeeds.
 - [ ] **Workflow C by hand:** drop Base 600, detach one shelf, change depth 560 → 600, confirm the driven parts follow and the shelf does not, undo four times back to an empty scene, redo forward again.
 - [ ] **Round trip:** save, hard-reload, reopen. Tree, parameters, driven flags and detached parts all survive.
-- [ ] **Backward compatibility:** open a `.zimmu` file saved before Phase 1. It loads flat, renders identically, and saves back as v11.
+- [ ] **Backward compatibility:** open a `.zimmu` file saved before Phase 1. It loads flat, renders identically, and saves back as v12.
 - [ ] `wc -l src/ui/sidebar.tsx` — under 400.
 - [ ] The notes file has an entry for every place the implementation deviated from this plan.
