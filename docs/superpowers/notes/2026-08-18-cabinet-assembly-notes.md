@@ -1364,3 +1364,34 @@ claims. Proven by mutation: removing `role: undefined` (keeping the part's role)
 e2e fail with `toHaveCount` Expected 2 / Received 1 — the freed role's `byRole` entry now resolves to
 the detached part and returns it instead of generating a fresh Left Side, so there is one where the
 test wants two. Guard restored, green again. That is the mutation the plan should have named.
+
+## 2026-08-24 — Task 10.2: first WASM performance baseline
+
+`buildPart` in `occt.worker.ts` now logs `zimmu: buildPart <kind> (<n> cuts) <ms>` in DEV. The
+figures below were measured against the live kernel in a headless Chromium probe (median of 5 where
+noted), on the CI-class runner this session uses — treat them as an order-of-magnitude baseline, not
+a benchmark.
+
+| what | time |
+|---|---|
+| cold `initOCCT` (WASM boot) | **~2.6 s**, one-time |
+| `makeShape` — plain 600×560×18 panel | **~1 ms** |
+| `makeShape` — same panel, two 20-hole pin rows | **~260 ms** |
+| `regenerateComponents` — one Base 600 (pure) | **~3 ms** |
+| kernel build — one Base 600, 7 parts | **~710 ms** |
+| `regenerateComponents` — six cabinets (pure) | **~3 ms** |
+| kernel build — six cabinets, 42 parts | **~2.7 s** |
+
+**The whole cost is the drilling.** A plain panel is ~1 ms; drilling two rows of pins is ~260 ms —
+260×. So a cabinet's build time is dominated by its two drilled side panels (~520 ms of the ~710 ms).
+Six cabinets is ~2.7 s of kernel work on a cold drop.
+
+**Why this is acceptable, and where it would not be.** The generator is pure and instant (~3 ms even
+for 42 parts); the geometry cost is real but only paid for panels whose `shapeKey` changed. Dropping
+a cabinet or a scene of six is a deliberate action where a few seconds is tolerable. An *incremental*
+parameter change rebuilds only the parts whose dimensions moved — a depth change touches every panel,
+but a shelf-count change touches only the shelves. The number to watch is a depth change on a
+six-cabinet scene, which would rebuild all 42 including 12 drilled sides (~3 s). If that becomes the
+common edit, the fix is either caching the drilled compound across a dimension change or moving the
+drill off the rebuild path — not making the boolean faster, which Task 8.2 already showed is 16× off
+the naive floor.
