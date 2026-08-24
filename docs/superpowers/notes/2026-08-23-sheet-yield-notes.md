@@ -179,3 +179,107 @@ removing `ladder-mid` from `grainAxisOf` fails the totality test.
 
 Not done, and deliberately: grain in the shop drawings (`buildSvg`/`buildDxf` are untouched), and
 any change to `+ Board`'s `'free'` default. Both are deferred by the spec.
+
+## 2026-08-24 — Stage 2 planning found three errors in the spec's `occupancyMask` sketch
+
+**Plan:** `docs/superpowers/plans/2026-08-24-sheet-yield-stage-2-occupancy-mask.md`
+
+The spec describes `occupancyMask` in one paragraph: fill the cut-size rectangle at 1 mm, clear each
+box cut's footprint, apply mitre outlines, and reuse `cutFootprintCorners`. Checking each clause
+against the code before writing the plan:
+
+### `cutFootprintCorners` is the wrong seam
+
+It returns **world-space** corners (it calls `resolveWorldMatrix` internally), takes a **`BoxCut`
+only** where `CutDef` has three members, and needs a component map a pure mask function has no
+business knowing. `mitreFaceOutline` in `src/geom/mitre.ts` is the seam that actually fits: pure,
+board-local, in millimetres, min corner at the origin, already tested.
+
+### "Clear each box cut's footprint" would carve a cabinet side into ribbons
+
+**A dado is not a notch.** Measured on a Base 600 left side (560 × 720 × 18): the toe-kick notch
+spans z[−9, 27] — through the 18 mm and genuinely outline-changing — while all four dados span
+z[12, 18], a 6 mm groove that leaves the panel a full rectangle to cut around. Clearing all five
+would let the nester tuck a neighbour into a groove.
+
+A box cut removes outline material only when its z-span covers the whole thickness. Both live
+through-cut conventions satisfy that: `computeFingerSlots` is exactly flush (z 0 → thickness) and
+the toe-kick notch overshoots (−T/2 → 3T/2). See the cabinet-assembly notes for why both exist.
+
+### And a standing defect in the shop drawings, found on the way
+
+`BoxCut.position` is the box's **min corner**. `makeCut` builds `BRepPrimAPI_MakeBox_1(size)` — a box
+over [0, size] — and translates by `position`, so the tool occupies [position, position + size]. The
+generated cuts agree: a full-width dado on a 560-long panel is `position.x = 0, size.x = 560`.
+
+**`projectCut` in `src/geom/drawing.ts:135` uses the opposite convention**, `x = (uPos - uSz/2)`,
+treating `position` as the centre. Every Face-view cut rectangle on a Base 600 side is therefore
+drawn offset by half its own size in both in-plane axes — measured output, board rect 56 × 72 at 0.1
+scale, cut rects at x = −28, y = −36, x = −28, x = 54.2, x = 5.1, x = −28. All six outside the board.
+
+Only `projectCut` is affected. `projectHoleArray` reads `h.start` directly with no centring, which is
+why the hole-array e2e test passes and this went unnoticed.
+
+Out of scope for sheet yield, reported separately. Recorded here so nobody reuses `projectCut` as a
+reference for the mask.
+
+### Two decisions taken in the plan
+
+- **The mask stays in board-local axes**, not `cutDimensions`' grain-ordered pair. `cutDimensions`
+  answers "which dimension does the cutting list call the length"; the mask answers "what shape is
+  this on a sheet". Stage 3 reads `part.grain` to decide which rotations are allowed, and a
+  pre-transposed mask would make that decision twice.
+- **Rounding goes outward on dimensions and inward on the mitre polygon.** Opposite directions, same
+  principle: never claim material the part does not have.
+
+## 2026-08-24 — Stage 2 implemented
+
+### The first dilation was O(w·h·r), and the plan's own comment said otherwise
+
+The plan specified "a separable box dilation: one horizontal pass with a running window of `2r+1`,
+then one vertical pass. O(w·h) regardless of `r`." The first implementation wrote the vertical pass
+as an inner loop over the `2r+1` window, which is O(w·h·r) — and the monotonicity property, which
+sweeps clearance over `[0, 4, 14, 30]`, timed out. Rewritten with prefix sums, which is what
+"running window" actually requires.
+
+**Measured after the rewrite**, and flat in `r`, which is the proof it worked:
+
+| panel | clearance 0 | 14 | 30 |
+|---|---|---|---|
+| 600 × 300 | 0.7 ms | 4.6 ms | 2.8 ms |
+| 2100 × 560 | 2.2 ms | 17.6 ms | 18.2 ms |
+| 2440 × 1220 (a whole sheet) | 5.0 ms | 45.7 ms | 45.0 ms |
+
+**A realistic six-cabinet job — 46 boards — is 280 ms at a 14 mm clearance, ~6 ms per board.** Well
+inside a debounce, and it is a worker's job anyway from Stage 4. No budget is set beyond that: the
+number to watch is the per-board figure, not the total, since Stage 3's placement search will dwarf
+this.
+
+The square-vs-disc decision stands: a cell grows if any set cell lies within Chebyshev distance `r`,
+which over-reserves by up to r·(√2−1) mm at a 45° corner — always toward more clearance, never less.
+A disc is the "correct" structuring element; the square is the defensible one.
+
+### The property tests went from 59 s to 1.8 s, and got better in the process
+
+Two separate costs, both mine:
+
+- `expect(a.bits).toEqual(b.bits)` on a multi-million-cell `Uint8Array`. Vitest's deep equality was
+  timing the determinism test out rather than finding a difference. A hand loop instead.
+- Running the properties over **every** board the 96-case sweep emits — over a thousand, most of them
+  near duplicates. Now deduped to **one board per role family**, which is 13.
+
+The dedupe is better testing, not just cheaper: a family is the unit the mask rules are stated in, so
+covering each once is the meaningful coverage. It also gives a free assertion — `boards.length` is
+exactly 13, agreeing with the independent count in `grain.test.ts`.
+
+### What the mask does and does not model
+
+- **Only a through-cut clears material.** Confirmed against a Base 600: four dados span z[12, 18] on
+  an 18 mm panel and leave the outline whole; the toe-kick notch spans z[−9, 27] and removes exactly
+  60 × 100. A test asserts precisely that, per role, so loosening the rule fails loudly.
+- **`face` is not consulted.** A box cut is an axis-aligned box in board-local space, so its
+  footprint is its x-y span whichever face it was authored from.
+- **Hole arrays are ignored.** A drilled hole does not change the outline anyone cuts around.
+- **Only flat (`axis: 'Z'`) mitres shave the outline.** `mitreFaceOutline` filters the Face view's
+  own axis itself, so a bevel through the thickness correctly leaves the footprint square — the
+  widest section is what a nest must reserve.
