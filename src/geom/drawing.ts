@@ -144,8 +144,12 @@ function projectCut(
   const vPos = c.position[vAxis]
   const uSz = c.size[uAxis]
   const vSz = c.size[vAxis]
-  const x = (uPos - uSz / 2) * scale
-  const y = flipV ? (boardH - (vPos + vSz / 2)) * scale : (vPos - vSz / 2) * scale
+  // `position` is the cut box's MIN CORNER, not its centre — `makeCut` builds a box over
+  // [0, size] and translates it by `position`, so the tool occupies [position, position + size].
+  // Reading it as a centre drew every cut half its own size low and left, which put a full-width
+  // dado half off the sheet.
+  const x = uPos * scale
+  const y = flipV ? (boardH - (vPos + vSz)) * scale : vPos * scale
   return { x, y, w: uSz * scale, h: vSz * scale }
 }
 
