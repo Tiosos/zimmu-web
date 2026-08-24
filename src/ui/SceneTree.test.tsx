@@ -200,3 +200,27 @@ describe('selection is exposed for assertion, not only styled', () => {
     expect(screen.getByTestId('node-cmp_1').getAttribute('data-selected')).toBe('false')
   })
 })
+
+describe('driven and detached parts are visually distinguishable', () => {
+  afterEach(cleanup)
+
+  it('marks a part inside a component as driven or detached in the row', () => {
+    renderTree({
+      components: [makeGroup()],
+      parts: [
+        makeBoard({ id: 'owned', label: 'Left Side', parentId: 'cmp_1', driven: true }),
+        makeBoard({ id: 'mine', label: 'My Shelf', parentId: 'cmp_1', driven: false }),
+      ],
+    })
+    // A detached part carries a visible marker, not just an attribute: after a role disappears
+    // and returns, the user can end up with two coincident boards and needs to tell them apart.
+    expect(screen.getByTestId('node-mine').textContent).toContain('detached')
+    expect(screen.getByTestId('node-owned').textContent).not.toContain('detached')
+  })
+
+  it('does not mark a top-level part as detached', () => {
+    renderTree({ components: [], parts: [makeBoard({ id: 'loose', driven: false })] })
+    // "Detached" only means something relative to an owner; a loose board was never driven.
+    expect(screen.getByTestId('node-loose').textContent).not.toContain('detached')
+  })
+})

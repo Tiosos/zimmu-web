@@ -1,9 +1,21 @@
-import { test, expect } from 'vitest'
-import type { BoardPart, DadoJoint, Part } from './types'
+import { describe, test, expect } from 'vitest'
+import type {
+  BoardPart,
+  CarcaseComponent,
+  CarcaseParams,
+  ComponentId,
+  DadoJoint,
+  Part,
+  PartId,
+  Scene,
+} from './types'
 import { suggestJointsForScene } from './suggestJoints'
 import { defaultDadoJoint } from './defaultJoint'
+import type { ChecklistRow } from './jointChecklist'
 import { buildJointChecklist, MAX_NOOFFER_ROWS } from './jointChecklist'
 import { componentsById } from './componentTree'
+import { CARCASE_PRESETS } from './carcasePresets'
+import { regenerateComponents } from './regenerateComponents'
 
 const NO_COMPONENTS = componentsById([])
 
@@ -143,7 +155,14 @@ test('hidden and non-board parts produce no rows', () => {
 
 test('an empty scene produces empty arrays and zero counts', () => {
   const c = build([])
-  expect(c).toEqual({ rows: [], unresolved: [], jointedCount: 0, actionableTotal: 0 })
+  expect(c).toEqual({
+    rows: [],
+    groups: [],
+    unresolved: [],
+    contact: [],
+    jointedCount: 0,
+    actionableTotal: 0,
+  })
 })
 
 // Two uprights on one shelf, at different distances from it, so row order is non-trivial.
@@ -251,4 +270,205 @@ test('an open row inherits the group role order, not board-iteration order', () 
   if (dado?.kind !== 'dado') throw new Error('expected a dado suggestion for the tee fixture')
   expect(row.aId).toBe(dado.housingPartId)
   expect(row.bId).toBe(dado.housedPartId)
+})
+
+// Cabinet fixtures are generated, never hand-written: the pair counts asserted below are the
+// measured ground truth of the real generator, and a hand-built cabinet would only prove that the
+// fixture and the expectation agree with each other.
+function carcase(
+  id: ComponentId,
+  label: string,
+  over: Partial<CarcaseParams> = {},
+): CarcaseComponent {
+  return {
+    kind: 'carcase',
+    id,
+    label,
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    params: { ...CARCASE_PRESETS[0].params, ...over },
+  }
+}
+
+function cabinetScene(components: CarcaseComponent[]): Scene {
+  return regenerateComponents({
+    parts: [],
+    materials: {},
+    hardware: [],
+    joints: [],
+    components,
+  })
+}
+
+function checklistOf(scene: Scene) {
+  const byId = componentsById(scene.components)
+  return buildJointChecklist(
+    scene.parts,
+    scene.joints,
+    suggestJointsForScene(scene.parts, scene.joints, byId),
+    byId,
+  )
+}
+
+function idOfRole(scene: Scene, componentId: ComponentId, role: string): PartId {
+  const part = scene.parts.find((p) => p.parentId === componentId && p.role === role)
+  if (!part) throw new Error(`no part with role ${role} in ${componentId}`)
+  return part.id
+}
+
+function rowWith(rows: ChecklistRow[], a: PartId, b: PartId): ChecklistRow | undefined {
+  return rows.find((r) => (r.aId === a && r.bId === b) || (r.aId === b && r.bId === a))
+}
+
+describe('contact rows', () => {
+  test('marks a shelf against the back as contact, not open', () => {
+    const scene = cabinetScene([carcase('cmp_1', 'Base 600')])
+    const back = idOfRole(scene, 'cmp_1', 'back')
+    const shelf = idOfRole(scene, 'cmp_1', 'shelf-0-0')
+    const c = checklistOf(scene)
+
+    expect(rowWith(c.contact, back, shelf)?.state).toBe('contact')
+    expect(rowWith([...c.rows, ...c.groups.flatMap((g) => g.rows)], back, shelf)).toBeUndefined()
+    expect(rowWith(c.unresolved, back, shelf)).toBeUndefined()
+  })
+
+  // 14 touching pairs, 12 of them jointed: the two contact pairs are what would otherwise make this
+  // read 12 / 14 with nothing the user could ever do about the remaining two.
+  test('leaves a fully jointed base cabinet reading 12 / 12', () => {
+    const c = checklistOf(cabinetScene([carcase('cmp_1', 'Base 600')]))
+    expect(c.jointedCount).toBe(12)
+    expect(c.actionableTotal).toBe(12)
+    expect(c.contact).toHaveLength(2)
+  })
+
+  test('still marks contact pairs when the cabinet uses a fastener method', () => {
+    const c = checklistOf(cabinetScene([carcase('cmp_1', 'Base 600', { jointMethod: 'dowel' })]))
+    expect(c.contact).toHaveLength(2)
+    expect(c.contact.every((r) => r.state === 'contact')).toBe(true)
+    expect(c.jointedCount).toBe(0)
+    expect(c.actionableTotal).toBe(12)
+  })
+
+  test('matches the measured pair counts for the wall and divider cabinets', () => {
+    const wall = checklistOf(
+      cabinetScene([carcase('cmp_1', 'Wall 600', CARCASE_PRESETS[1].params)]),
+    )
+    expect(wall.jointedCount).toBe(10)
+    expect(wall.actionableTotal).toBe(10)
+    expect(wall.contact).toHaveLength(1)
+
+    const divided = checklistOf(cabinetScene([carcase('cmp_1', 'Base 600', { dividers: [0.5] })]))
+    expect(divided.jointedCount).toBe(16)
+    expect(divided.actionableTotal).toBe(16)
+    expect(divided.contact).toHaveLength(4)
+  })
+
+  // 25 touching pairs: the four base-frame corners join, and the ten pairs across the plane the
+  // carcase is set down on are contact. Four of those ten had no offer at all, so before the ladder
+  // table this read 10 / 24 with four rows in the muted "no joint available" list.
+  test('leaves a fully jointed ladder cabinet reading 14 / 14 with nothing unresolved', () => {
+    const c = checklistOf(cabinetScene([carcase('cmp_1', 'Ladder 600', { baseMode: 'ladder' })]))
+    expect(c.jointedCount).toBe(14)
+    expect(c.actionableTotal).toBe(14)
+    expect(c.contact).toHaveLength(11)
+    expect(c.unresolved).toHaveLength(0)
+    expect(c.rows).toHaveLength(0)
+    expect(c.groups[0].complete).toBe(true)
+  })
+
+  // Same 14 pairs as a captured back; four of them move from the joint column to the contact
+  // column, because an applied back is screwed onto the rear edges rather than let into them.
+  test('leaves an applied-back cabinet reading 8 / 8 with nothing unresolved', () => {
+    const c = checklistOf(cabinetScene([carcase('cmp_1', 'Applied back', { backMode: 'applied' })]))
+    expect(c.jointedCount).toBe(8)
+    expect(c.actionableTotal).toBe(8)
+    expect(c.contact).toHaveLength(6)
+    expect(c.unresolved).toHaveLength(0)
+    expect(c.rows).toHaveLength(0)
+    expect(c.groups[0].complete).toBe(true)
+  })
+
+  // The mid rail adds three pairs: housed in the front and back rails, carrying the bottom.
+  test('leaves a wide ladder cabinet reading 16 / 16 with nothing unresolved', () => {
+    const c = checklistOf(
+      cabinetScene([carcase('cmp_1', 'Ladder 1200', { baseMode: 'ladder', width: 1200 })]),
+    )
+    expect(c.jointedCount).toBe(16)
+    expect(c.actionableTotal).toBe(16)
+    expect(c.contact).toHaveLength(12)
+    expect(c.unresolved).toHaveLength(0)
+    expect(c.rows).toHaveLength(0)
+    expect(c.groups[0].complete).toBe(true)
+  })
+})
+
+describe('checklist grouping by component', () => {
+  test('groups rows whose both parts belong to the same component', () => {
+    const c = checklistOf(cabinetScene([carcase('cmp_1', 'Base 600')]))
+    expect(c.groups).toHaveLength(1)
+    expect(c.groups[0].componentId).toBe('cmp_1')
+    expect(c.groups[0].label).toBe('Base 600')
+    expect(c.groups[0].rows).toHaveLength(12)
+    expect(c.rows).toEqual([])
+  })
+
+  test('reports a fully jointed group as complete', () => {
+    const scene = cabinetScene([carcase('cmp_1', 'Base 600')])
+    const done = checklistOf(scene)
+    expect(done.groups[0].complete).toBe(true)
+    expect(done.groups[0].jointedCount).toBe(done.groups[0].rows.length)
+
+    const open = checklistOf({ ...scene, joints: [] })
+    expect(open.groups[0].complete).toBe(false)
+    expect(open.groups[0].jointedCount).toBe(0)
+  })
+
+  // Two cabinets side by side: the right side of one meets the left side of the other. Two flush
+  // panels face to face have no joint the engine will offer, so the pair surfaces in the top-level
+  // no-offer list — the point being that it is not swallowed by either cabinet's group.
+  test('keeps a cross-component pair out of both cabinets', () => {
+    const scene = cabinetScene([
+      carcase('cmp_1', 'Base 600'),
+      { ...carcase('cmp_2', 'Base 600 (2)'), position: { x: 600, y: 0, z: 0 } },
+    ])
+    const c = checklistOf(scene)
+    const right = idOfRole(scene, 'cmp_1', 'right-side')
+    const left = idOfRole(scene, 'cmp_2', 'left-side')
+
+    expect(c.groups.map((g) => g.componentId)).toEqual(['cmp_1', 'cmp_2'])
+    expect(c.groups.every((g) => g.rows.length === 12)).toBe(true)
+    expect(c.groups.every((g) => rowWith(g.rows, right, left) === undefined)).toBe(true)
+    expect(rowWith(c.unresolved, right, left)).toBeTruthy()
+  })
+
+  // One part in the cabinet, one loose: no shared component ancestor, so an actionable row stays
+  // ungrouped rather than joining the cabinet its neighbour belongs to.
+  test('keeps a loose board teed onto a cabinet at top level', () => {
+    const scene = cabinetScene([carcase('cmp_1', 'Base 600')])
+    const loose = board({
+      id: 'LOOSE',
+      length: 80,
+      width: 40,
+      thickness: 18,
+      rotation: { x: 0, y: -90, z: 0 },
+      position: { x: 300, y: 300, z: 720 },
+    })
+    const c = checklistOf({ ...scene, parts: [...scene.parts, loose] })
+
+    expect(c.groups).toHaveLength(1)
+    expect(c.groups[0].rows).toHaveLength(12)
+    expect(c.rows).toHaveLength(1)
+    expect(c.rows[0].state).toBe('open')
+    expect([c.rows[0].aId, c.rows[0].bId]).toContain('LOOSE')
+    expect(c.actionableTotal).toBe(13)
+  })
+
+  test('produces no groups for two loose touching boards', () => {
+    const c = build([teeH, teeD])
+    expect(c.groups).toEqual([])
+    expect(c.rows).toHaveLength(1)
+  })
 })

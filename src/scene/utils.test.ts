@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { BoardPart, CutDef, CylinderPart, Part } from './types'
+import type { BoardPart, BoxCut, CutDef, CylinderPart, HoleArrayCut, Part } from './types'
 import { shapeKey } from './utils'
 
 const board: BoardPart = {
@@ -279,6 +279,74 @@ describe('shapeKey — cylinder cuts', () => {
   it('ignores position/rotation', () => {
     const a = shapeKey(dowel())
     const b = shapeKey(dowel({ position: { x: 50, y: 0, z: 0 }, rotation: { x: 1, y: 0, z: 0 } }))
+    expect(a).toBe(b)
+  })
+})
+
+describe('shapeKey with hole arrays', () => {
+  const holeArray: HoleArrayCut = {
+    kind: 'hole-array',
+    id: 'h1',
+    label: 'Shelf pins L',
+    face: '+X',
+    axis: 'V',
+    start: { x: 0, y: 37, z: 200 },
+    pitch: 32,
+    count: 10,
+    diameter: 5,
+    depth: 12,
+  }
+
+  const boxCut: BoxCut = {
+    kind: 'box',
+    id: 'c1',
+    label: 'Dado',
+    face: '+Z',
+    position: { x: 0, y: 0, z: 0 },
+    size: { x: 20, y: 20, z: 10 },
+  }
+
+  it('encodes a hole array', () => {
+    const part = { ...board, cuts: [holeArray] }
+    expect(shapeKey(part)).toContain('h:')
+  })
+
+  it('changes when the hole count changes', () => {
+    const a = shapeKey({ ...board, cuts: [holeArray] })
+    const b = shapeKey({ ...board, cuts: [{ ...holeArray, count: 11 }] })
+    expect(a).not.toBe(b)
+  })
+
+  it('changes when the pitch changes', () => {
+    const a = shapeKey({ ...board, cuts: [holeArray] })
+    const b = shapeKey({ ...board, cuts: [{ ...holeArray, pitch: 25 }] })
+    expect(a).not.toBe(b)
+  })
+
+  it('is stable across repeated calls', () => {
+    expect(shapeKey({ ...board, cuts: [holeArray] })).toBe(
+      shapeKey({ ...board, cuts: [holeArray] }),
+    )
+  })
+
+  it('changes when face, axis, start, diameter, or depth changes', () => {
+    const base = shapeKey({ ...board, cuts: [holeArray] })
+    expect(shapeKey({ ...board, cuts: [{ ...holeArray, face: '-X' }] })).not.toBe(base)
+    expect(shapeKey({ ...board, cuts: [{ ...holeArray, axis: 'U' }] })).not.toBe(base)
+    expect(shapeKey({ ...board, cuts: [{ ...holeArray, start: { x: 1, y: 37, z: 200 } }] })).not.toBe(base) // prettier-ignore
+    expect(shapeKey({ ...board, cuts: [{ ...holeArray, diameter: 8 }] })).not.toBe(base)
+    expect(shapeKey({ ...board, cuts: [{ ...holeArray, depth: 10 }] })).not.toBe(base)
+  })
+
+  it('a hole array alongside a box cut changes the key — it is not silently dropped', () => {
+    const boxOnly = shapeKey({ ...board, cuts: [boxCut] })
+    const both = shapeKey({ ...board, cuts: [boxCut, holeArray] })
+    expect(both).not.toBe(boxOnly)
+  })
+
+  it('does not change when only the label changes', () => {
+    const a = shapeKey({ ...board, cuts: [holeArray] })
+    const b = shapeKey({ ...board, cuts: [{ ...holeArray, label: 'Shelf pins R' }] })
     expect(a).toBe(b)
   })
 })

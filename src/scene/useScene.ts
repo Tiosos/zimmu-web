@@ -5,6 +5,7 @@ import type { OcctWorkerApi, BuildSpec } from '../geom/occt.worker'
 import type { ExportSpec } from '../geom/occt'
 import type {
   BoardPart,
+  CarcaseComponent,
   Component,
   ComponentId,
   GroupComponent,
@@ -18,10 +19,13 @@ import type {
   Joint,
   FaceHit,
   Selection,
+  CarcaseParams,
 } from './types'
 import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
+import { regenerateComponents } from './regenerateComponents'
+import type { CarcasePreset } from './carcasePresets'
 import { componentsById, descendantIds, wouldCycle } from './componentTree'
 import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat } from '../geom/dado'
@@ -37,6 +41,7 @@ import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidTongueGroove } from '../geom/tonguegroove'
 import { PART_COLORS } from './palette'
 import { decomposeMatrix, resolveWorldMatrix } from '../geom/transform'
+import { parameterForRole } from './carcaseRoles'
 
 interface HistoryEntry {
   label: string
@@ -46,6 +51,13 @@ interface HistoryEntry {
 }
 
 const MAX_HISTORY = 50
+
+// The one place a scene mutation becomes geometry. The order is fixed: carcases emit their parts
+// and component-owned cuts first, then reconcileJoints derives joint cuts and seats from
+// scene.joints. Reversed, joints would be derived against parts that do not exist yet.
+function applyPipeline(scene: Scene): Scene {
+  return reconcileJoints(regenerateComponents(scene))
+}
 
 // Lazy singleton — not instantiated at module load so vi.stubGlobal('Worker') works in tests
 let _occt: ReturnType<typeof wrap<OcctWorkerApi>> | null = null
@@ -114,6 +126,12 @@ export interface UseSceneResult {
   onAddFingerJoint: (hitA: FaceHit, hitB: FaceHit) => void
   onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
   onAddComponent: (parentId: ComponentId | null) => void
+  onAddCarcase: (preset: CarcasePreset) => void
+  onDetachPart: (id: PartId, updater?: (p: Part) => Part) => void
+  parameterFor: (
+    id: PartId,
+    dimension: 'length' | 'width' | 'thickness',
+  ) => keyof CarcaseParams | null
   onRemoveComponent: (id: ComponentId) => void
   onReparentComponent: (id: ComponentId, newParentId: ComponentId | null) => void
   onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
@@ -284,12 +302,12 @@ export function useScene(): UseSceneResult {
     })
   }, [])
 
-  // Apply a scene mutation, reconcile joint-derived geometry, and record a single
-  // undo entry (whole-scene snapshot). Used by every joint-affecting mutation.
+  // Apply a scene mutation, regenerate component-driven geometry, and record a single
+  // undo entry (whole-scene snapshot). Used by every joint- or component-affecting mutation.
   const commitReconciled = useCallback(
     (mutate: (s: Scene) => Scene, label: string, coalesceKey?: string) => {
       const before = sceneRef.current
-      const after = reconcileJoints(mutate(before))
+      const after = applyPipeline(mutate(before))
       setScene(after)
       push({ label, coalesceKey, undo: () => setScene(before), redo: () => setScene(after) })
     },
@@ -397,7 +415,7 @@ export function useScene(): UseSceneResult {
       prevShapeKeys.current.delete(id)
       buildSeq.current.delete(id)
       setGeometries(new Map(geometriesRef.current))
-      const after = reconcileJoints({
+      const after = applyPipeline({
         ...before,
         parts: before.parts.filter((p) => p.id !== id),
         joints: before.joints.filter((j) => !jointInvolves(j, id)),
@@ -519,10 +537,14 @@ export function useScene(): UseSceneResult {
       const afterPart = updater(beforePart)
       const label = historyLabel ?? `Update ${afterPart.label}`
       const coalesceKey = historyLabel !== undefined ? undefined : `update-${id}`
-      const participates = before.joints.some((j) => jointInvolves(j, id))
+      // A driven part's dimensions are owned by its carcase, so an edit to one has to go through
+      // the pipeline that regenerates it. Skipping it here would leave the scene in a state where
+      // a part disagrees with the parameters that produced it until some unrelated mutation
+      // happens to reconcile it — and exports and the geometry cache would capture the disagreement.
+      const needsPipeline = before.joints.some((j) => jointInvolves(j, id)) || beforePart.driven
 
-      if (participates) {
-        const after = reconcileJoints({
+      if (needsPipeline) {
+        const after = applyPipeline({
           ...before,
           parts: before.parts.map((p) => (p.id === id ? afterPart : p)),
         })
@@ -1138,6 +1160,62 @@ export function useScene(): UseSceneResult {
     [componentLabelCounter, push],
   )
 
+  const onDetachPart = useCallback(
+    (id: PartId, updater?: (p: Part) => Part) => {
+      const before = sceneRef.current
+      // The edit that prompted the detach has to land in this same transition. `sceneRef` only
+      // catches up after render, so a separate `onUpdate` call from the same handler would read
+      // the still-driven part and regenerate the detachment away.
+      //
+      // Clearing `role` is the load-bearing half: it is the only thing that stops a later
+      // regeneration from reclaiming the part when its role comes back.
+      // Piped like every other mutation: the freed role has no part and the joints still name the
+      // detached one until something reconciles them, and nothing else here will.
+      const after = applyPipeline({
+        ...before,
+        parts: before.parts.map((p) =>
+          p.id === id ? { ...(updater ? updater(p) : p), driven: false, role: undefined } : p,
+        ),
+      })
+      setScene(after)
+      push({ label: 'Detach part', undo: () => setScene(before), redo: () => setScene(after) })
+    },
+    [push],
+  )
+
+  const parameterFor = useCallback(
+    (id: PartId, dimension: 'length' | 'width' | 'thickness'): keyof CarcaseParams | null => {
+      const part = sceneRef.current.parts.find((p) => p.id === id)
+      if (!part || !part.driven || part.parentId === null) return null
+      const owner = sceneRef.current.components.find((c) => c.id === part.parentId)
+      if (owner?.kind !== 'carcase') return null
+      return parameterForRole(part.role, dimension, owner.params)
+    },
+    [],
+  )
+
+  const onAddCarcase = useCallback(
+    (preset: CarcasePreset) => {
+      const component: CarcaseComponent = {
+        kind: 'carcase',
+        id: `cmp_${crypto.randomUUID()}`,
+        label: preset.name,
+        parentId: null,
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        rotationOrder: 'XYZ',
+        visible: true,
+        params: preset.params,
+      }
+      // One undo entry covers the component and every part the pipeline generates from it.
+      commitReconciled(
+        (before) => ({ ...before, components: [...before.components, component] }),
+        `Add ${preset.name}`,
+      )
+    },
+    [commitReconciled],
+  )
+
   const onRemoveComponent = useCallback(
     (id: ComponentId) => {
       const doomed = new Set<ComponentId>([
@@ -1202,20 +1280,16 @@ export function useScene(): UseSceneResult {
 
   const onUpdateComponent = useCallback(
     (id: ComponentId, updater: (c: Component) => Component) => {
-      const before = sceneRef.current
-      const after: Scene = {
-        ...before,
-        components: before.components.map((c) => (c.id === id ? updater(c) : c)),
-      }
-      setScene(after)
-      push({
-        label: 'Edit component',
-        coalesceKey: `component-${id}`,
-        undo: () => setScene(before),
-        redo: () => setScene(after),
-      })
+      commitReconciled(
+        (before) => ({
+          ...before,
+          components: before.components.map((c) => (c.id === id ? updater(c) : c)),
+        }),
+        'Edit component',
+        `component-${id}`,
+      )
     },
-    [push],
+    [commitReconciled],
   )
 
   const replaceScene = useCallback((next: Scene) => {
@@ -1226,7 +1300,7 @@ export function useScene(): UseSceneResult {
     pastRef.current = []
     futureRef.current = []
     setUndoState({ canUndo: false, canRedo: false, undoLabel: null, redoLabel: null })
-    setScene(reconcileJoints(next))
+    setScene(applyPipeline(next))
     setSelection(null)
     setPendingIds(new Set())
     setGeometries(new Map())
@@ -1284,6 +1358,9 @@ export function useScene(): UseSceneResult {
     onAddFingerJoint,
     onAddTongueGroove,
     onAddComponent,
+    onAddCarcase,
+    onDetachPart,
+    parameterFor,
     onRemoveComponent,
     onReparentComponent,
     onUpdateComponent,

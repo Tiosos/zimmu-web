@@ -6,6 +6,7 @@ import {
   computeDadoGroove,
   computeDadoSeat,
   defaultDadoDepth,
+  dadoDepthFor,
   computeRabbet,
   computeNotch,
   deriveJoint,
@@ -135,6 +136,29 @@ test('computeDadoGroove: combined stops clamp to leave ≥ 1 mm of groove', () =
 
 test('defaultDadoDepth: ~thickness/3, clamped', () => {
   expect(defaultDadoDepth(housing, '+Z')).toBe(8) // round(25/3)=8
+})
+
+// A dado depth must leave material behind. The property is checked across every stock size the
+// app can reach rather than against a table of expected numbers: the old formula
+// `clamp(round(d/3), 3, d - 1)` has `lo > hi` below 4 mm, so `Math.max` won the tie and it
+// returned 3 on a 3 mm panel — deeper than the panel itself.
+test('dadoDepthFor: never reaches through the stock, at any thickness', () => {
+  for (let dim = 0.5; dim <= 50; dim += 0.5) {
+    // Swept from half a millimetre so the property is total, not merely true for real stock.
+    const d = dadoDepthFor(dim)
+    expect(d, `dim=${dim}`).toBeGreaterThan(0)
+    expect(d, `dim=${dim}`).toBeLessThan(dim)
+  }
+})
+
+// The fix must be invisible at every thickness a real cabinet uses. Compares against the old
+// expression directly, so a change in behaviour at or above 4 mm fails here rather than silently
+// re-cutting every existing joint.
+test('dadoDepthFor: unchanged at 4 mm and above', () => {
+  for (let dim = 4; dim <= 50; dim += 0.5) {
+    const old = Math.max(3, Math.min(dim - 1, Math.round(dim / 3)))
+    expect(dadoDepthFor(dim), `dim=${dim}`).toBe(old)
+  }
 })
 
 test('computeDadoSeat: housed end lands on the groove bottom, centered on offset', () => {

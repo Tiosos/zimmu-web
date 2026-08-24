@@ -9,13 +9,17 @@ import type {
   Part,
   PartId,
   Scene,
+  CarcaseParams,
+  Component,
+  ComponentId,
 } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
 import type { JointSuggestion } from '../scene/suggestJoints'
 import { DowelCutsPanel } from './DowelCutsPanel'
 import { JointsPanel } from './JointsPanel'
 import { SuggestionsPanel } from './SuggestionsPanel'
-import { useDebouncedCallback } from './useDebouncedCallback'
+import { DimInput } from './DimInput'
+import { cutDimensions } from './buildCsv'
 import { faceAxes } from '../scene/snapMath'
 import { PART_COLORS } from '../scene/palette'
 import { Button } from '@/components/ui/button'
@@ -32,59 +36,6 @@ import {
 } from '@/components/ui/select'
 
 const MATERIAL_DATALIST_ID = 'zimmu-material-suggestions'
-
-function DimInput({
-  label,
-  value,
-  onCommit,
-  suffix,
-  min = 1,
-}: {
-  label: string
-  value: number
-  onCommit: (v: number) => void
-  suffix: string
-  min?: number
-}) {
-  const [localValue, setLocalValue] = useState(String(value))
-  const isFocused = useRef(false)
-  const debounced = useDebouncedCallback(onCommit, 150)
-
-  useEffect(() => {
-    if (!isFocused.current) setLocalValue(String(value))
-  }, [value])
-
-  return (
-    <div className="flex items-center gap-1.5 mb-1">
-      <Label className="w-4 shrink-0 text-right">{label}</Label>
-      <Input
-        type="number"
-        step="any"
-        value={localValue}
-        onChange={(e) => {
-          setLocalValue(e.target.value)
-          const v = parseFloat(e.target.value)
-          if (isFinite(v) && v >= min) debounced(v)
-        }}
-        onFocus={() => {
-          isFocused.current = true
-        }}
-        onBlur={(e) => {
-          isFocused.current = false
-          const v = parseFloat(e.target.value)
-          if (!isFinite(v) || v < min) {
-            setLocalValue(String(min))
-            onCommit(min)
-          } else {
-            setLocalValue(String(v))
-          }
-        }}
-        className="flex-1 min-w-0"
-      />
-      <span className="text-[11px] text-muted-foreground shrink-0 w-10">{suffix}</span>
-    </div>
-  )
-}
 
 function NumInput({
   label,
@@ -312,6 +263,15 @@ function CutRow({
   )
 }
 
+// Every mitre field setter spreads over whatever cut it is handed. Without a guard that spread
+// compiles against any CutDef member — the field simply lands on the wrong shape — which is how
+// the `axis` setter survived until HoleArrayCut arrived carrying an `axis` of its own. One helper
+// so the guard cannot be forgotten at a fourth call site.
+const mitrePatch =
+  (patch: Partial<MitreCut>) =>
+  (c: CutDef): CutDef =>
+    c.kind === 'mitre' ? { ...c, ...patch } : c
+
 function MitreRow({
   cut,
   partId,
@@ -356,7 +316,7 @@ function MitreRow({
             <Select
               value={cut.end}
               onValueChange={(v) =>
-                onUpdateCut(partId, cut.id, (c) => ({ ...c, end: v as MitreCut['end'] }))
+                onUpdateCut(partId, cut.id, mitrePatch({ end: v as MitreCut['end'] }))
               }
             >
               <SelectTrigger className="h-7 flex-1 text-[11px]">
@@ -373,7 +333,7 @@ function MitreRow({
             <Select
               value={cut.axis}
               onValueChange={(v) =>
-                onUpdateCut(partId, cut.id, (c) => ({ ...c, axis: v as MitreCut['axis'] }))
+                onUpdateCut(partId, cut.id, mitrePatch({ axis: v as MitreCut['axis'] }))
               }
             >
               <SelectTrigger className="h-7 flex-1 text-[11px]">
@@ -390,10 +350,7 @@ function MitreRow({
             value={cut.angle}
             suffix="°"
             onChange={(v) =>
-              onUpdateCut(partId, cut.id, (c) => ({
-                ...c,
-                angle: Math.max(0, Math.min(89, v)),
-              }))
+              onUpdateCut(partId, cut.id, mitrePatch({ angle: Math.max(0, Math.min(89, v)) }))
             }
           />
         </div>
@@ -458,9 +415,18 @@ export function EditPanel({
   suggestions,
   onApplySuggestion,
   onHoverSuggestion,
+  parameterFor,
+  onDetachPart,
+  onUpdateComponent,
 }: {
   part: Part
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
+  parameterFor: (
+    id: PartId,
+    dimension: 'length' | 'width' | 'thickness',
+  ) => keyof CarcaseParams | null
+  onDetachPart: (id: PartId, updater?: (p: Part) => Part) => void
+  onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
   onRemove: (id: PartId) => void
   onUpdateCut: (partId: PartId, cutId: CutId, updater: (c: CutDef) => CutDef) => void
   onAddMitre: (partId: PartId) => void
@@ -490,8 +456,57 @@ export function EditPanel({
     if (!labelFocused.current) setLabelValue(part.label)
   }, [part.label])
 
+  // A driven part's dimensions belong to its cabinet, so an edit here is a question, not a
+  // command: push it up to the parameter, or take ownership of the part. Holding the value
+  // instead of applying it is what keeps the cabinet from silently reverting the user.
+  const [pending, setPending] = useState<{
+    dimension: 'length' | 'width' | 'thickness'
+    value: number
+    param: keyof CarcaseParams | null
+  } | null>(null)
+
+  const commitDimension = (dimension: 'length' | 'width' | 'thickness', value: number) => {
+    if (!part.driven) {
+      onUpdate(part.id, (p) => ({ ...p, [dimension]: value }) as Part)
+      return
+    }
+    setPending({ dimension, value, param: parameterFor(part.id, dimension) })
+  }
+
+  const applyToCabinet = () => {
+    if (!pending || pending.param === null || part.parentId === null) return
+    const { param, value } = pending
+    onUpdateComponent(part.parentId, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, [param]: value } } : c,
+    )
+    setPending(null)
+  }
+
+  const detachAndApply = () => {
+    if (!pending) return
+    const { dimension, value } = pending
+    onDetachPart(part.id, (p) => ({ ...p, [dimension]: value }) as Part)
+    setPending(null)
+  }
+
+  // The cutting list reports the long edge as the length; the stored order is whatever the
+  // generator's min-corner placement produced. Showing both stops the two from looking like a
+  // contradiction, and stays hidden when they agree.
+  const cut = part.kind === 'board' ? cutDimensions(part) : null
+  const cutSizeNote =
+    part.kind === 'board' && cut !== null && cut.length !== part.length
+      ? `Cut size ${cut.length} × ${cut.width} × ${cut.thickness} mm`
+      : null
+
+  const ownerLabel =
+    part.parentId === null
+      ? ''
+      : (scene.components.find((c) => c.id === part.parentId)?.label ?? '')
+
+  // Bounded and scrollable for the same reason CarcasePanel is: with a cabinet in the tree the
+  // panel's content is tall enough to overflow the sidebar and cover the rows above it.
   return (
-    <div className="p-2 border-t border-border">
+    <div className="p-2 border-t border-border max-h-[55%] overflow-y-auto">
       {/* Label input + delete */}
       <div className="mb-2 flex gap-1">
         <Input
@@ -534,11 +549,20 @@ export function EditPanel({
           list={MATERIAL_DATALIST_ID}
           placeholder="Material (optional)"
           value={part.material}
+          // regenerateComponents rewrites this from the cabinet's params on every regeneration, so
+          // an edit here would revert on the next keystroke and leave a junk undo entry behind.
+          // The cabinet's own Material field is the one that works.
+          disabled={part.driven}
           onChange={(e) => {
             const material = e.target.value
             onUpdate(part.id, (p) => ({ ...p, material }))
           }}
         />
+        {part.driven && (
+          <div className="mt-1 text-[11px] text-muted-foreground">
+            Material is set by {ownerLabel}.
+          </div>
+        )}
         <datalist id={MATERIAL_DATALIST_ID}>
           <option value="Solid timber" />
           <option value="Plywood" />
@@ -562,20 +586,40 @@ export function EditPanel({
                 label="L"
                 value={part.length}
                 suffix="mm"
-                onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, length: v }))}
+                onCommit={(v) => commitDimension('length', v)}
               />
               <DimInput
                 label="W"
                 value={part.width}
                 suffix="mm"
-                onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, width: v }))}
+                onCommit={(v) => commitDimension('width', v)}
               />
               <DimInput
                 label="T"
                 value={part.thickness}
                 suffix="mm"
-                onCommit={(v) => onUpdate(part.id, (p) => ({ ...p, thickness: v }))}
+                onCommit={(v) => commitDimension('thickness', v)}
               />
+              {cutSizeNote && (
+                <div className="mt-1 text-[11px] text-muted-foreground">{cutSizeNote}</div>
+              )}
+              {pending && (
+                <div className="mt-1 rounded border border-amber-700/50 bg-amber-950/30 px-2 py-1.5">
+                  <div className="mb-1.5 text-[11px] text-amber-200">
+                    {part.label} is driven by {ownerLabel}.
+                  </div>
+                  <div className="flex gap-1.5">
+                    {pending.param !== null && (
+                      <Button size="sm" variant="secondary" onClick={applyToCabinet}>
+                        Change the cabinet
+                      </Button>
+                    )}
+                    <Button size="sm" variant="secondary" onClick={detachAndApply}>
+                      Detach this part
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -691,6 +735,7 @@ export function EditPanel({
               + Mitre
             </Button>
           </div>
+          {/* Hole arrays get no row: they are component-owned and carry nothing editable yet. */}
           {part.cuts.length === 0 ? (
             <p className="text-[11px] text-muted-foreground py-0.5">No cuts</p>
           ) : (
@@ -704,7 +749,7 @@ export function EditPanel({
                   onRemoveCut={onRemoveCut}
                   defaultOpen={cut.id === lastPlacedCutId}
                 />
-              ) : cut.sourceJointId ? (
+              ) : cut.kind === 'hole-array' ? null : cut.sourceJointId ? (
                 <div
                   key={cut.id}
                   className="border-t border-border/30 py-1 flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground/70"

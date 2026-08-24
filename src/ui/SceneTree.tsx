@@ -99,6 +99,17 @@ export function SceneTree({
         >
           {part.label}
         </span>
+        {part.parentId !== null && !part.driven && (
+          // Only meaningful against an owner: a top-level board was never driven, so calling it
+          // detached would be noise. Inside a component it matters — turning a role off and on
+          // again leaves the user with their detached part *and* a fresh generated one.
+          <span
+            title="Detached — this part no longer follows its cabinet"
+            className="text-[9px] uppercase tracking-wide text-amber-400/80 shrink-0"
+          >
+            detached
+          </span>
+        )}
         <VisibilityButton
           visible={part.visible}
           onToggle={() => onToggleVisible({ kind: 'part', id: part.id })}

@@ -30,7 +30,21 @@ export interface MitreCut {
   angle: number // degrees from a square cut; 0 = square (no-op), 45 = standard
 }
 
-export type CutDef = BoxCut | MitreCut
+export interface HoleArrayCut {
+  kind: 'hole-array'
+  id: CutId
+  label: string
+  face: Face // which face the holes are drilled into
+  axis: 'U' | 'V' // which of that face's two axes the row runs along
+  start: Vec3 // first hole centre, part-local
+  pitch: number // mm between hole centres
+  count: number
+  diameter: number
+  depth: number
+  sourceComponentId?: string // hole arrays are component-owned, never joint-owned
+}
+
+export type CutDef = BoxCut | MitreCut | HoleArrayCut
 
 export interface DowelEndCut {
   kind: 'end'

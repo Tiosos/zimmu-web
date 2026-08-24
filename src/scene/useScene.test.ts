@@ -13,6 +13,8 @@ import type {
   FaceHit,
   Part,
   PartId,
+  Scene,
+  ZimmuFile,
 } from './types'
 
 function asBoard(p: Part): BoardPart {
@@ -37,6 +39,10 @@ vi.stubGlobal(
 import { useScene, buildSpecForPart } from './useScene'
 import { resolveWorldMatrix } from '../geom/transform'
 import { componentsById } from './componentTree'
+import { CARCASE_PRESETS } from './carcasePresets'
+import { carcaseRoles } from './carcaseRoles'
+import { jointInvolves } from './jointInvolves'
+import { FILE_FORMAT_VERSION, parseFile } from './useFile'
 
 describe('useScene', () => {
   beforeEach(() => {
@@ -2306,5 +2312,280 @@ describe('deleting a component preserves where detached parts are', () => {
     act(() => result.current.onRemoveComponent(cmpId))
     const outside = result.current.scene.parts.find((p) => p.id === 'outside')!
     expect(outside.position).toEqual({ x: 7, y: 8, z: 9 })
+  })
+})
+
+describe('carcase generation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
+  })
+
+  const base = CARCASE_PRESETS[0]
+
+  function drivenPartsOf(scene: Scene, componentId: string): Part[] {
+    return scene.parts.filter((p) => p.parentId === componentId && p.driven)
+  }
+
+  it('adds a carcase component and its driven parts', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(base))
+
+    expect(result.current.scene.components).toHaveLength(1)
+    const component = result.current.scene.components[0]
+    expect(component.kind).toBe('carcase')
+    expect(component.label).toBe('Base 600')
+
+    const driven = drivenPartsOf(result.current.scene, component.id)
+    expect(driven.length).toBe(carcaseRoles(base.params).length)
+    expect(driven.map((p) => p.role)).toContain('left-side')
+    expect(driven.every((p) => p.parentId === component.id)).toBe(true)
+  })
+
+  it('resizes driven parts when a parameter changes', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(base))
+    const componentId = result.current.scene.components[0].id
+    const before = asBoard(result.current.scene.parts.find((p) => p.role === 'left-side')!)
+
+    act(() =>
+      result.current.onUpdateComponent(componentId, (c) =>
+        c.kind === 'carcase' ? { ...c, params: { ...c.params, depth: c.params.depth + 40 } } : c,
+      ),
+    )
+
+    const after = asBoard(result.current.scene.parts.find((p) => p.role === 'left-side')!)
+    expect(after.id).toBe(before.id)
+    expect(after.length).toBe(before.length + 40)
+  })
+
+  it('undoes the component and every generated part in one step', () => {
+    const { result } = renderHook(() => useScene())
+    const partsBefore = result.current.scene.parts.length
+    act(() => result.current.onAddCarcase(base))
+    expect(result.current.scene.parts.length).toBeGreaterThan(partsBefore)
+
+    act(() => result.current.undo())
+
+    expect(result.current.scene.components).toHaveLength(0)
+    expect(result.current.scene.parts).toHaveLength(partsBefore)
+    expect(result.current.canUndo).toBe(false)
+  })
+
+  it('keeps the component-owned toe-kick notch through reconcileJoints', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(base))
+    const componentId = result.current.scene.components[0].id
+
+    const side = asBoard(result.current.scene.parts.find((p) => p.role === 'left-side')!)
+    const notch = side.cuts.find(
+      (c): c is BoxCut => c.kind === 'box' && c.sourceComponentId === componentId,
+    )
+    expect(notch).toBeDefined()
+    expect(notch!.label).toBe('Toe Kick Notch')
+    expect(notch!.size.y).toBe(base.params.toeKickHeight)
+  })
+
+  it('survives a save/load round trip and regenerates without duplicating', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(base))
+    const saved = result.current.scene
+    const componentId = saved.components[0].id
+    const savedIds = saved.parts.map((p) => p.id).sort()
+
+    // What useFile.buildEnvelope + serialize write to disk.
+    const text = JSON.stringify(
+      {
+        version: FILE_FORMAT_VERSION,
+        name: 'Round Trip',
+        appVersion: '0.0.0',
+        units: 'mm',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        camera: { position: { x: 1, y: 1, z: 1 }, target: { x: 0, y: 0, z: 0 } },
+        scene: saved,
+      } satisfies ZimmuFile,
+      (_key, value: unknown) => (typeof value === 'number' ? parseFloat(value.toFixed(6)) : value),
+      2,
+    )
+
+    const reloaded = parseFile(text).scene
+    const reloadedSide = asBoard(reloaded.parts.find((p) => p.role === 'left-side')!)
+    expect(reloadedSide.driven).toBe(true)
+    expect(reloadedSide.parentId).toBe(componentId)
+    expect(reloaded.components[0].kind).toBe('carcase')
+
+    // replaceScene is the load path, and it runs the same pipeline as every other mutation. A
+    // generator that did not recognise its own reloaded output would emit a second cabinet here.
+    act(() => result.current.replaceScene(reloaded))
+
+    expect(result.current.scene.parts.map((p) => p.id).sort()).toEqual(savedIds)
+    expect(drivenPartsOf(result.current.scene, componentId)).toHaveLength(
+      drivenPartsOf(saved, componentId).length,
+    )
+  })
+})
+
+describe('a driven part edit is reconciled immediately', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0]),
+      normals: new Float32Array([0, 0, 1]),
+    })
+  })
+
+  it('does not leave a driven part disagreeing with the parameters that own it', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+    if (side.kind !== 'board') throw new Error('expected a board')
+    const generated = side.length
+
+    // The cabinet owns a driven part's dimensions. Editing one directly must not persist — Phase 6
+    // intercepts this with a "change the cabinet or detach" prompt, but until then the scene must
+    // never be left in a state where a part's size disagrees with the params that generated it.
+    act(() =>
+      result.current.onUpdate(side.id, (p) =>
+        p.kind === 'board' ? { ...p, length: p.length + 137 } : p,
+      ),
+    )
+
+    const after = result.current.scene.parts.find((p) => p.id === side.id)!
+    if (after.kind !== 'board') throw new Error('expected a board')
+    expect(after.length).toBe(generated)
+  })
+
+  it('still lets a detached part keep a hand edit', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+    act(() => result.current.onUpdate(side.id, (p) => ({ ...p, driven: false, role: undefined })))
+
+    act(() =>
+      result.current.onUpdate(side.id, (p) => (p.kind === 'board' ? { ...p, length: 999 } : p)),
+    )
+
+    const after = result.current.scene.parts.find((p) => p.id === side.id)!
+    if (after.kind !== 'board') throw new Error('expected a board')
+    expect(after.length).toBe(999)
+  })
+})
+
+describe('detach', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0]),
+      normals: new Float32Array([0, 0, 1]),
+    })
+  })
+
+  it('detaches a driven part and stops regenerating it', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const shelf = result.current.scene.parts.find((p) => p.role?.startsWith('shelf-'))!
+    const cmpId = result.current.scene.components[0].id
+
+    act(() => result.current.onDetachPart(shelf.id))
+    const detached = result.current.scene.parts.find((p) => p.id === shelf.id)!
+    expect(detached.driven).toBe(false)
+    expect(detached.role).toBeUndefined()
+
+    // A parameter change that would have moved it must now leave it alone.
+    act(() =>
+      result.current.onUpdateComponent(cmpId, (c) =>
+        c.kind === 'carcase' ? { ...c, params: { ...c.params, height: 900 } } : c,
+      ),
+    )
+    const after = result.current.scene.parts.find((p) => p.id === shelf.id)!
+    expect(after.position).toEqual(detached.position)
+  })
+
+  it('applies the edit that prompted the detach in the same transition', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+
+    act(() => result.current.onDetachPart(side.id, (p) => ({ ...p, length: 999 }) as Part))
+
+    const after = result.current.scene.parts.find((p) => p.id === side.id)!
+    expect(after.driven).toBe(false)
+    expect(after.role).toBeUndefined()
+    expect(after.kind === 'board' && after.length).toBe(999)
+
+    // One user action, one history entry: a single undo puts the part back under its cabinet.
+    act(() => result.current.undo())
+    const restored = result.current.scene.parts.find((p) => p.id === side.id)!
+    expect(restored.driven).toBe(true)
+    expect(restored.kind === 'board' && restored.length).toBe(side.kind === 'board' && side.length)
+  })
+
+  // Detaching frees a role and orphans every joint that referenced the part. Both used to sit
+  // unreconciled until some unrelated mutation happened to run the pipeline.
+  it('regenerates the freed role and drops the detached part from the joints immediately', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+
+    act(() => result.current.onDetachPart(side.id))
+
+    const detached = result.current.scene.parts.find((p) => p.id === side.id)!
+    expect(detached.driven).toBe(false)
+    expect(detached.role).toBeUndefined()
+
+    const fresh = result.current.scene.parts.find((p) => p.role === 'left-side')!
+    expect(fresh).toBeDefined()
+    expect(fresh.id).not.toBe(side.id)
+    expect(fresh.driven).toBe(true)
+    expect(result.current.scene.joints.some((j) => jointInvolves(j, side.id))).toBe(false)
+  })
+
+  it('leaves a detached part behind when its cabinet is deleted', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const cmpId = result.current.scene.components[0].id
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+
+    act(() => result.current.onDetachPart(side.id))
+    act(() => result.current.onRemoveComponent(cmpId))
+
+    const survivor = result.current.scene.parts.find((p) => p.id === side.id)
+    expect(survivor).toBeDefined()
+    expect(survivor!.parentId).toBeNull()
+    // Every board the cabinet was still driving goes with it.
+    expect(result.current.scene.parts.filter((p) => p.driven)).toHaveLength(0)
+  })
+
+  it('undoes a detach', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const id = result.current.scene.parts.find((p) => p.role === 'left-side')!.id
+    act(() => result.current.onDetachPart(id))
+    expect(result.current.scene.parts.find((p) => p.id === id)!.driven).toBe(false)
+    act(() => result.current.undo())
+    expect(result.current.scene.parts.find((p) => p.id === id)!.driven).toBe(true)
+  })
+
+  it('reports the parameter a driven dimension maps to, and null where there is none', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+    expect(result.current.parameterFor(side.id, 'length')).toBe('depth')
+    expect(result.current.parameterFor(side.id, 'thickness')).toBe('thickness')
+
+    const bottom = result.current.scene.parts.find((p) => p.role === 'bottom')!
+    expect(result.current.parameterFor(bottom.id, 'length')).toBeNull()
+  })
+
+  it('reports null for a part that is not driven', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+    act(() => result.current.onDetachPart(side.id))
+    expect(result.current.parameterFor(side.id, 'length')).toBeNull()
   })
 })

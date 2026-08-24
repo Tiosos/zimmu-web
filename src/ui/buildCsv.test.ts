@@ -1,7 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { groupParts, buildCsv, buildHardwareCsv, groupDowels, buildDowelCsv } from './buildCsv'
-import type { Part, CylinderPart } from '../scene/types'
+import {
+  cutDimensions,
+  groupParts,
+  buildCsv,
+  buildHardwareCsv,
+  groupDowels,
+  buildDowelCsv,
+} from './buildCsv'
+import type { BoardPart, CarcaseComponent, Part, CylinderPart, Scene } from '../scene/types'
 import type { MaterialDef, HardwareItem } from '../scene/types'
+import { regenerateComponents } from '../scene/regenerateComponents'
+import { CARCASE_PRESETS } from '../scene/carcasePresets'
 
 function makeDowel(over: Partial<CylinderPart> & { id: string }): Part {
   return {
@@ -22,7 +31,7 @@ function makeDowel(over: Partial<CylinderPart> & { id: string }): Part {
   }
 }
 
-const plywoodPart: Part = {
+const plywoodPart: BoardPart = {
   kind: 'board',
   id: 'p1',
   label: 'Shelf',
@@ -42,6 +51,35 @@ const plywoodPart: Part = {
 
 const materials: Record<string, MaterialDef> = {
   Plywood: { costPerM2: 100 },
+}
+
+// Generated rather than hand-written: a hand-written fixture is how a wrong cut length survived
+// four phases of this project unnoticed.
+function generatedBase600(): BoardPart[] {
+  const cabinet: CarcaseComponent = {
+    kind: 'carcase',
+    id: 'cmp_1',
+    label: 'Base 600',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    params: CARCASE_PRESETS[0].params,
+  }
+  const scene: Scene = {
+    parts: [],
+    materials: {},
+    hardware: [],
+    joints: [],
+    components: [cabinet],
+  }
+  return regenerateComponents(scene).parts.filter((p): p is BoardPart => p.kind === 'board')
+}
+
+function csvRow(csv: string, label: string): string[] {
+  const line = csv.split('\n').find((l) => l.includes(label))!
+  return line.split(',')
 }
 
 describe('groupParts', () => {
@@ -168,6 +206,72 @@ describe('buildHardwareCsv', () => {
     const csv = buildHardwareCsv([])
     const lines = csv.split('\n').filter(Boolean)
     expect(lines).toHaveLength(1) // header only, no total row
+  })
+})
+
+describe('cutDimensions', () => {
+  it('reports the longer in-plane dimension as the length', () => {
+    expect(cutDimensions({ ...plywoodPart, length: 600, width: 100, thickness: 18 })).toEqual({
+      length: 600,
+      width: 100,
+      thickness: 18,
+    })
+  })
+
+  it('swaps a width-longer board so the length is the long edge', () => {
+    expect(cutDimensions({ ...plywoodPart, length: 100, width: 600, thickness: 18 })).toEqual({
+      length: 600,
+      width: 100,
+      thickness: 18,
+    })
+  })
+
+  it('never moves the thickness, even when it is the largest dimension', () => {
+    expect(
+      cutDimensions({ ...plywoodPart, length: 40, width: 60, thickness: 100 }).thickness,
+    ).toBe(100)
+  })
+})
+
+describe('cut dimensions in the cutting list', () => {
+  it('collapses a board and its transposed twin into one row of qty 2', () => {
+    const a: Part = { ...plywoodPart, id: 'a', label: 'A', length: 600, width: 100 }
+    const b: Part = { ...plywoodPart, id: 'b', label: 'B', length: 100, width: 600 }
+    const rows = groupParts([a, b])
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].qty).toBe(2)
+    expect(rows[0].length).toBe(600)
+    expect(rows[0].width).toBe(100)
+  })
+
+  it('leaves a hand-placed board that is already length-first alone', () => {
+    const rows = groupParts([{ ...plywoodPart, length: 200, width: 100, thickness: 25 }])
+
+    expect(rows[0].length).toBe(200)
+    expect(rows[0].width).toBe(100)
+    expect(rows[0].thickness).toBe(25)
+  })
+
+  it("carries the cut length in the CSV's Length column for a generated cabinet side", () => {
+    const parts = generatedBase600()
+    const side = parts.find((p) => p.role === 'left-side')!
+    expect([side.length, side.width]).toEqual([560, 720]) // stored, unchanged
+
+    const row = csvRow(buildCsv(parts), 'Left Side')
+    expect(row[4]).toBe('720') // Length (mm)
+    expect(row[5]).toBe('560') // Width (mm)
+  })
+
+  it('prices a generated cabinet at its stored areas, so normalising moves no cost', () => {
+    const parts = generatedBase600()
+    const rate = 100
+    const expected = parts.reduce((sum, p) => sum + ((p.length * p.width) / 1_000_000) * rate, 0)
+
+    const rows = groupParts(parts, { '18mm Ply': { costPerM2: rate } })
+    const total = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
+
+    expect(total).toBeCloseTo(expected, 6)
   })
 })
 

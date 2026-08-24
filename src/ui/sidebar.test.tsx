@@ -3,6 +3,8 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { Sidebar } from './sidebar'
 import type { BoardPart, BoxCut, CutId, CylinderPart, Part, PartId } from '../scene/types'
 import { PART_COLORS } from '../scene/palette'
+import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import userEvent from '@testing-library/user-event'
 
 const partSel = (id: PartId) => ({ kind: 'part', id }) as const
 
@@ -67,7 +69,11 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     pendingIds: new Set<PartId>(),
     nextLabel: 'Board 2',
     onAdd: vi.fn(),
-  onAddComponent: vi.fn(),
+    onAddComponent: vi.fn(),
+    onAddCarcase: vi.fn(),
+    parameterFor: vi.fn(() => null),
+    onDetachPart: vi.fn(),
+    onUpdateComponent: vi.fn(),
     onRemove: vi.fn(),
     onDuplicate: vi.fn(),
     onUpdate: vi.fn(),
@@ -892,5 +898,82 @@ describe('Sidebar joints panel — tongue & groove', () => {
   it('shows the read-only hint on the tongue board', () => {
     render(<Sidebar {...props({ scene: tgScene(), selection: partSel('board_t2') })} />)
     expect(screen.getByText(/Edit from/)).toBeTruthy()
+  })
+})
+
+describe('Sidebar — carcase', () => {
+  afterEach(() => cleanup())
+
+  const carcase = {
+    kind: 'carcase' as const,
+    id: 'cmp_c1',
+    label: 'Base 600',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ' as const,
+    visible: true,
+    params: CARCASE_PRESETS[0].params,
+  }
+
+  const group = {
+    kind: 'group' as const,
+    id: 'cmp_g1',
+    label: 'Group 1',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ' as const,
+    visible: true,
+  }
+
+  it('offers every carcase preset and reports the chosen one', async () => {
+    const onAddCarcase = vi.fn()
+    render(<Sidebar {...props({ onAddCarcase })} />)
+    await userEvent.click(screen.getByLabelText('Add cabinet'))
+    await userEvent.click(screen.getByRole('option', { name: 'Wall 600' }))
+    expect(onAddCarcase).toHaveBeenCalledWith(expect.objectContaining({ name: 'Wall 600' }))
+  })
+
+  it('shows the carcase panel when a carcase is selected', () => {
+    render(
+      <Sidebar
+        {...props({
+          scene: {
+            parts: [],
+            materials: {},
+            hardware: [],
+            joints: [],
+            components: [carcase],
+          },
+          selection: { kind: 'component', id: 'cmp_c1' },
+        })}
+      />,
+    )
+    expect(screen.getByLabelText('Width')).toBeTruthy()
+  })
+
+  it('shows no carcase panel for a plain group', () => {
+    render(
+      <Sidebar
+        {...props({
+          scene: { parts: [], materials: {}, hardware: [], joints: [], components: [group] },
+          selection: { kind: 'component', id: 'cmp_g1' },
+        })}
+      />,
+    )
+    expect(screen.queryByLabelText('Width')).toBeNull()
+  })
+
+  it('shows no carcase panel when nothing is selected', () => {
+    render(
+      <Sidebar
+        {...props({
+          scene: { parts: [], materials: {}, hardware: [], joints: [], components: [carcase] },
+          selection: null,
+        })}
+      />,
+    )
+    expect(screen.queryByLabelText('Width')).toBeNull()
   })
 })
