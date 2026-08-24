@@ -454,3 +454,92 @@ describe('buildDrawingSheets — hole arrays', () => {
     }
   })
 })
+
+describe('buildDrawingSheets — a cut rectangle sits on the board it is cut from', () => {
+  // `BoxCut.position` is the box's MIN CORNER, not its centre: `makeCut` builds
+  // `BRepPrimAPI_MakeBox_1(size)` — a box over [0, size] — and translates it by `position`, so the
+  // tool occupies [position, position + size]. A projection that reads it as a centre draws every
+  // cut offset by half its own size, which on a full-width dado puts half the rectangle off the
+  // sheet. Containment is the assertion because it needs no number this test supplies.
+  function everyCutRect(part: BoardPart) {
+    const rects: { view: string; x: number; y: number; w: number; h: number; bw: number; bh: number }[] =
+      []
+    for (const sheet of buildDrawingSheets([part], 'test')) {
+      if (sheet.kind !== 'part' || sheet.shape !== 'board') continue
+      for (const v of sheet.views) {
+        for (const r of v.cuts) {
+          rects.push({
+            view: v.label,
+            x: r.x,
+            y: r.y,
+            w: r.w,
+            h: r.h,
+            bw: v.boardRect.w,
+            bh: v.boardRect.h,
+          })
+        }
+      }
+    }
+    return rects
+  }
+
+  it('never draws a cut outside the board on a generated cabinet', () => {
+    const cabinet: Component = {
+      kind: 'carcase',
+      id: 'cmp_1',
+      label: 'Base 600',
+      parentId: null,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+      params: CARCASE_PRESETS[0].params,
+    }
+    const scene = regenerateComponents({
+      parts: [],
+      materials: {},
+      hardware: [],
+      joints: [],
+      components: [cabinet],
+    })
+    const boards = scene.parts.filter((p): p is BoardPart => p.kind === 'board')
+    const withCuts = boards.filter((b) => b.cuts.length > 0)
+    expect(withCuts.length).toBeGreaterThan(0)
+
+    for (const board of withCuts) {
+      for (const r of everyCutRect(board)) {
+        const where = `${board.role} ${r.view}`
+        expect(r.x, where).toBeGreaterThanOrEqual(0)
+        expect(r.y, where).toBeGreaterThanOrEqual(0)
+        expect(r.x + r.w, where).toBeLessThanOrEqual(r.bw + 1e-9)
+        expect(r.y + r.h, where).toBeLessThanOrEqual(r.bh + 1e-9)
+      }
+    }
+  })
+
+  it('places a cut at the offset its position names', () => {
+    // A 100 x 50 through cut whose min corner is (200, 60) on an 800 x 300 face, at 1:1 scale after
+    // dividing out whatever scale was chosen. Read off the board rect rather than hard-coded.
+    const part = makeBoard({
+      cuts: [
+        {
+          kind: 'box',
+          id: 'c1',
+          label: 'Cut',
+          face: '+Z',
+          position: { x: 200, y: 60, z: 0 },
+          size: { x: 100, y: 50, z: 18 },
+        },
+      ],
+    })
+    const [r] = everyCutRect(part).filter((c) => c.view === 'Face')
+    const scale = r.bw / 800
+    expect(r.x / scale).toBeCloseTo(200, 6)
+    expect(r.w / scale).toBeCloseTo(100, 6)
+    // The Face view alone is built with flipV = false (Edge and End flip), so its y is the cut's
+    // own v offset rather than a distance from the top. Predicted 300 - 110 here and the code said
+    // 60; the code was right.
+    expect(r.y / scale).toBeCloseTo(60, 6)
+    expect(r.h / scale).toBeCloseTo(50, 6)
+  })
+})
