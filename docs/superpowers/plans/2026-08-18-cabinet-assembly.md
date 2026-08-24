@@ -4398,7 +4398,9 @@ driven through the real generator and drawing pipeline instead, so the result is
 ### Open items carried out of Phase 8
 
 1. **The pin rows carry no dimension annotation.** No diameter or depth label on the drawing, so a fabricator reads circles at a spacing but must infer ⌀5 × 12 deep from elsewhere. Outside what Task 8.4 asked for; the missing piece is a `DrawingView.segments`/label path.
-2. **An untested coupling between two modules.** The drawing projection is correct only because `faceAxes` (`src/scene/snapMath.ts`) and `stepVector` (`src/geom/occt.ts`) order a face's two in-face axes identically — x, y, z with the normal removed — so `HoleArrayCut.axis: 'U' | 'V'` needs no remapping between kernel and drawing. **If either ordering changes alone, the drawing marches the row along the wrong axis while the kernel still drills it correctly.** A silently wrong drawing, not a crash, and nothing currently guards it. The cheap guard is a test asserting the two orderings agree for all six faces.
+2. **RESOLVED 2026-08-24.** The coupling between `faceAxes` (`src/scene/snapMath.ts`) and `stepVector` (`src/geom/occt.ts`) is now guarded: `occt.test.ts` asserts the two orderings agree on all six faces, and that neither ever steps along the face normal. Mutation-tested from both sides — swapping U/V in the kernel fails all six cases; swapping only `±Y` in `faceAxes` fails exactly those two, so a failure names the face that broke.
+
+   **The structural fix was considered and rejected.** One shared definition would remove the class of bug rather than test for it, but `snapMath.ts` imports THREE and `occt.ts` runs in the geometry worker, so the import would pull Three.js into the worker bundle. `stepVector` is exported solely for this guard, and says so. Revisit if `faceAxes` ever moves somewhere THREE-free.
 3. **`pitch` is typed as the literal `32`**, so the sweep in Task 8.3 covers count × height × startHeight only. A second pitch cannot be tested without a cast to a state the type forbids.
 
 ---

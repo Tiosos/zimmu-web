@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { initOCCT, makeBox, makeCut, makeShape, makeCylinder, makeDowelShape } from './occt'
+import {
+  initOCCT,
+  makeBox,
+  makeCut,
+  makeShape,
+  makeCylinder,
+  makeDowelShape,
+  stepVector,
+} from './occt'
+import { faceAxes } from '../scene/snapMath'
+import type { Face } from '../scene/types'
 
 // Smoke test for the kernel seam. opencascade.js 1.x WASM expects a browser-like
 // global, so the actual init calls are skipped in Node and will be exercised via
@@ -131,5 +141,42 @@ describe('geom/occt', () => {
     // label is not embedded — only assert the STEP envelope is present.
     expect(text).toContain('ISO-10303-21')
     expect(text).toContain('END-ISO-10303-21')
+  })
+})
+
+// `HoleArrayCut.axis: 'U' | 'V'` is interpreted twice: `stepVector` here decides which way the
+// kernel drills the row, and `faceAxes` in scene/snapMath.ts decides which way the shop drawing
+// draws it. Nothing in the type system ties them together. If one ordering changes alone the
+// drawing marches the row along the wrong axis while the kernel still drills it correctly — a
+// wrong drawing reaching a fabricator, with nothing failing.
+//
+// The structural fix is one shared definition, not this test. It was not taken because snapMath
+// imports THREE and this module runs in the geometry worker, so the import would pull Three.js
+// into the worker bundle. Revisit if faceAxes ever moves somewhere THREE-free.
+describe('stepVector agrees with faceAxes on every face', () => {
+  const FACES: Face[] = ['+X', '-X', '+Y', '-Y', '+Z', '-Z']
+
+  // Which axis a step vector actually moves along, read back from the vector rather than assumed.
+  const steppedAxis = (v: { x: number; y: number; z: number }) => {
+    const moved = (['x', 'y', 'z'] as const).filter((a) => v[a] !== 0)
+    expect(moved).toHaveLength(1)
+    return moved[0]
+  }
+
+  for (const face of FACES) {
+    it(`marches U and V along faceAxes' u and v for ${face}`, () => {
+      const { u, v } = faceAxes(face)
+      expect(steppedAxis(stepVector(face, 'U', 32))).toBe(u)
+      expect(steppedAxis(stepVector(face, 'V', 32))).toBe(v)
+    })
+  }
+
+  it('never steps along the face normal', () => {
+    for (const face of FACES) {
+      const normal = faceAxes(face).depth
+      for (const rowAxis of ['U', 'V'] as const) {
+        expect(stepVector(face, rowAxis, 32)[normal], `${face} ${rowAxis}`).toBe(0)
+      }
+    }
   })
 })

@@ -327,7 +327,14 @@ function faceDrillAxis(face: Face): { axis: 'x' | 'y' | 'z'; sign: 1 | -1 } {
 
 // The in-face axis a row of holes marches along. U is the first non-normal axis in
 // x,y,z order; V is the second.
-function stepVector(face: Face, rowAxis: 'U' | 'V', pitch: number): Vec3 {
+//
+// This ordering must match `faceAxes` in `scene/snapMath.ts`, which is what the shop-drawing
+// projection uses to place the same row. They are separate on purpose: `snapMath` imports THREE,
+// and this module runs in the geometry worker, so sharing one definition would pull Three.js into
+// the worker bundle. Exported solely so a test can hold the two orderings to each other — if they
+// ever diverge, the drawing marches the row along the wrong axis while the kernel keeps drilling
+// it correctly, which is a silently wrong drawing rather than a crash.
+export function stepVector(face: Face, rowAxis: 'U' | 'V', pitch: number): Vec3 {
   const normal = faceDrillAxis(face).axis
   const inFace = (['x', 'y', 'z'] as const).filter((a) => a !== normal)
   const axis = rowAxis === 'U' ? inFace[0] : inFace[1]
