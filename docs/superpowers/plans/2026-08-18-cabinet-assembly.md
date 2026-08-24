@@ -4384,11 +4384,22 @@ Run: `pnpm typecheck && pnpm lint && pnpm test`
 
 ## Phase 8 verification
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` — green.
-- [ ] `PW_CHROMIUM_EXECUTABLE=… pnpm test:e2e` — all specs pass, including the new kernel volume check.
-- [ ] `pnpm dev`: drop Base 600, set adjustable shelf count to 20. Hole rows appear on both sides. **Dragging the count field feels responsive** — if it does not, confirm `makeHoleArrayCut` is being reached once per array, not once per hole, by adding a temporary counter.
-- [ ] Open shop drawings for a side panel: the pin rows render as circles at 32 mm spacing.
-- [ ] `grep -c 'BRepAlgoAPI_Cut' src/geom/occt.ts` — the hole-array path contributes exactly one.
+Verified 2026-08-24. Items 3 and 4 were written as `pnpm dev` walkthroughs; their substance was
+driven through the real generator and drawing pipeline instead, so the result is reproducible.
+
+- [x] `pnpm typecheck && pnpm lint && pnpm test` — green (60 files, 1089 passed, 10 skipped).
+- [x] `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium pnpm test:e2e` — **13 passed**, including both live-kernel specs and the new hole-array volume/placement check.
+- [x] Adjustable count 20 puts rows on **both** sides (2 rows each), and `shapeKey` changes with the count, so the geometry cache is invalidated and the panel rebuilds.
+
+      **The count comes back as 17, not 20 — that is correct.** A 720 mm cabinet cannot hold 20 pins at 32 mm pitch from a 200 mm start (`200 + 19 × 32 = 808`), so Task 8.3's clamp truncates the row to what fits. Anyone following the original wording literally would read 17 as a failure. It is the opposite.
+- [x] Shop drawings render the pin rows as circles: one column of 17 circles on the Face view, gaps measuring **exactly 32.0000 mm** once divided back through the sheet's 1:10 scale, and reaching both the SVG (`<circle>`) and the DXF (`CIRCLE`).
+- [x] `makeHoleArrayCut` contains exactly **one** `BRepAlgoAPI_Cut_3` (`src/geom/occt.ts:381`) — one boolean per array, not per hole. Measured cost over 480 holes: 4.1 s compounded against 65.3 s per-hole, a **16.1×** ratio, stable across four runs (16.8/16.3/16.5/16.1).
+
+### Open items carried out of Phase 8
+
+1. **The pin rows carry no dimension annotation.** No diameter or depth label on the drawing, so a fabricator reads circles at a spacing but must infer ⌀5 × 12 deep from elsewhere. Outside what Task 8.4 asked for; the missing piece is a `DrawingView.segments`/label path.
+2. **An untested coupling between two modules.** The drawing projection is correct only because `faceAxes` (`src/scene/snapMath.ts`) and `stepVector` (`src/geom/occt.ts`) order a face's two in-face axes identically — x, y, z with the normal removed — so `HoleArrayCut.axis: 'U' | 'V'` needs no remapping between kernel and drawing. **If either ordering changes alone, the drawing marches the row along the wrong axis while the kernel still drills it correctly.** A silently wrong drawing, not a crash, and nothing currently guards it. The cheap guard is a test asserting the two orderings agree for all six faces.
+3. **`pitch` is typed as the literal `32`**, so the sweep in Task 8.3 covers count × height × startHeight only. A second pitch cannot be tested without a cast to a state the type forbids.
 
 ---
 
