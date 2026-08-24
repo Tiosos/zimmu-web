@@ -4499,35 +4499,55 @@ git commit -m "feat(bom): group the cutting list by owning cabinet"
 ## Task 9.2: Hardware links to a component
 
 **Files:**
-- Modify: `src/scene/types.ts`, `src/ui/HardwareEditPanel.tsx`
+- Modify: `src/scene/types.ts`, `src/scene/useFile.ts`, `src/ui/HardwareEditPanel.tsx`, `src/ui/HardwareTab.tsx`
 - Test: `src/ui/HardwareEditPanel.test.tsx`
+
+> **Corrections after audit 2026-08-24 — the original snippet was stale:**
+> 1. The panel's callback is **`onSave(item)`**, not `onChange`, and it fires on a Save click, not per keystroke — the draft is held in local state. The test must tick the checkbox *then* click Save, and assert `onSave`'s last call.
+> 2. **There is no per-item hardware mapper in `parseFile`** — it is a wholesale passthrough `hardware: raw.scene.hardware ?? []`. To default `linkedComponentIds` on load you must *add* a per-item map.
+> 3. **`linkedPartIds` is already read unguarded** (`HardwareEditPanel.tsx:122`, `EditPanel.tsx:452` both call `.includes` on it) yet is *not* defaulted on load — only when a new item is created (`HardwareTab.tsx:22`). So an old file predating that field is already a latent `undefined.includes` crash. Default **both** fields in the new per-item map, and note the pre-existing gap you are closing.
+> 4. New-item creation in `HardwareTab.tsx` must also seed `linkedComponentIds: []`.
 
 - [ ] **Step 1: Write the failing test**
 
 ```tsx
 it('links a hardware item to a component', async () => {
-  const onChange = vi.fn()
-  render(<HardwareEditPanel {...props} components={[cabinet]} onChange={onChange} />)
+  const onSave = vi.fn()
+  render(
+    <HardwareEditPanel
+      item={item}          // item.linkedComponentIds: []
+      parts={[]}
+      components={[cabinet]} // cabinet.label === 'Base Cabinet 600'
+      onSave={onSave}
+      onCancel={vi.fn()}
+      onDelete={vi.fn()}
+    />,
+  )
   await userEvent.click(screen.getByLabelText('Base Cabinet 600'))
-  expect(onChange.mock.calls.at(-1)![0].linkedComponentIds).toEqual(['cmp_1'])
+  await userEvent.click(screen.getByRole('button', { name: /save/i }))
+  expect(onSave.mock.calls.at(-1)![0].linkedComponentIds).toEqual(['cmp_1'])
 })
 ```
+
+Add a second test: an item that already links a component shows that checkbox ticked (mirrors the existing `linkedPartIds` checkbox behaviour).
 
 - [ ] **Step 2: Run to confirm failure**
 
 Run: `pnpm vitest run src/ui/HardwareEditPanel.test.tsx -t 'links a hardware item to a component'`
-Expected: FAIL — no such checkbox.
+Expected: FAIL — no `components` prop, no such checkbox.
 
 - [ ] **Step 3: Implement**
 
-Add `linkedComponentIds: string[]` to `HardwareItem`; default it to `[]` in `parseFile`'s hardware mapper (no version bump needed — v11 already covers this release). Render a component checkbox list beside the existing part list in `HardwareEditPanel`.
+Add `linkedComponentIds: string[]` to `HardwareItem` (beside `linkedPartIds`). In `parseFile`, replace the hardware passthrough with a map that defaults **both** `linkedPartIds` and `linkedComponentIds` to `[]` when absent — closing the pre-existing `linkedPartIds` gap in the same stroke. Seed `linkedComponentIds: []` in `HardwareTab.tsx`'s new-item factory. Give `HardwareEditPanel` a `components: Component[]` prop and render a component checkbox list mirroring the parts list, wired through the same `field`/`draft` mechanism. Thread `components` from `HardwareTab` (which has the scene).
+
+No `FILE_FORMAT_VERSION` bump: the field is additive and defaulted at load. (On this branch the format is v11; the parallel Phase 8 branch bumps to v12 for `backSetback` — both additive, so whichever merges second needs no further bump.)
 
 - [ ] **Step 4: Run to confirm pass and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
 ```bash
-git add src/scene/types.ts src/scene/useFile.ts src/ui/HardwareEditPanel.tsx src/ui/HardwareEditPanel.test.tsx
+git add src/scene/types.ts src/scene/useFile.ts src/ui/HardwareEditPanel.tsx src/ui/HardwareEditPanel.test.tsx src/ui/HardwareTab.tsx
 git commit -m "feat(bom): hardware items link to cabinets as well as parts"
 ```
 
