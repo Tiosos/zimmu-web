@@ -123,6 +123,7 @@ export function CuttingList({
           <th className="pb-2 px-2 font-medium text-xs">Length (mm)</th>
           <th className="pb-2 px-2 font-medium text-xs">Width (mm)</th>
           <th className="pb-2 px-2 font-medium text-xs">Thickness (mm)</th>
+          <th className="pb-2 px-2 font-medium text-xs">Grain</th>
           <th className="pb-2 px-2 font-medium text-xs">Cuts</th>
           <th className="pb-2 px-2 font-medium text-xs">Cost/unit</th>
           <th className="pb-2 px-2 font-medium text-xs">Total</th>
@@ -131,7 +132,7 @@ export function CuttingList({
       <tbody>
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={11} className="py-3 text-muted-foreground text-center text-xs">
+            <td colSpan={12} className="py-3 text-muted-foreground text-center text-xs">
               No parts
             </td>
           </tr>
@@ -188,6 +189,8 @@ export function CuttingList({
               <td className="py-1.5 px-2 text-xs">{row.length}</td>
               <td className="py-1.5 px-2 text-xs">{row.width}</td>
               <td className="py-1.5 px-2 text-xs">{row.thickness}</td>
+              {/* A dash reads as "unconstrained"; the word "free" reads as a cost. */}
+              <td className="py-1.5 px-2 text-xs">{row.grain === 'free' ? '—' : 'Length'}</td>
               <td className="py-1.5 px-2 text-xs">{row.cuts}</td>
               <td className="py-1.5 px-2 text-xs">
                 {row.costPerUnit !== null ? `$${row.costPerUnit.toFixed(2)}` : '—'}
@@ -200,7 +203,7 @@ export function CuttingList({
         )}
         {anyHasCost && (
           <tr className="border-t border-border font-medium">
-            <td colSpan={10} className="pt-2 pr-2 text-xs text-right text-muted-foreground">
+            <td colSpan={11} className="pt-2 pr-2 text-xs text-right text-muted-foreground">
               Board total
             </td>
             <td className="pt-2 px-2 text-xs">${boardSubtotal.toFixed(2)}</td>

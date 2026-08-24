@@ -309,7 +309,7 @@
             <td><code>geom/drawing.ts</code>, <code>ui/DrawingViewer.tsx</code>, <code>ui/buildSvg.ts</code>, <code>ui/buildDxf.ts</code></td>
           </tr>
           <tr>
-            <td><strong>Bill of Materials</strong><br><span style="color:var(--muted);font-size:12px">Three-tab modal: Boards cutting list (with cost), Hardware BOM, Library of material rates</span></td>
+            <td><strong>Bill of Materials</strong><br><span style="color:var(--muted);font-size:12px">Three-tab modal: Boards cutting list (with cost and grain), Hardware BOM, Library of material rates, sheet stock and tool clearance</span></td>
             <td><span class="badge badge-green">Done</span></td>
             <td><code>ui/BomModal.tsx</code>, <code>ui/CuttingList.tsx</code>, <code>ui/HardwareTab.tsx</code>, <code>ui/buildCsv.ts</code></td>
           </tr>
@@ -464,6 +464,8 @@
 │   ├── defaultJoint.ts
 │   ├── fitCamera.test.ts
 │   ├── fitCamera.ts
+│   ├── grain.test.ts
+│   ├── grain.ts
 │   ├── groupSuggestions.test.ts
 │   ├── groupSuggestions.ts
 │   ├── idb.test.ts
@@ -587,7 +589,7 @@
           <tr><td><code>types.ts</code></td><td>Canonical types: <code>ZimmuFile</code>, <code>Scene</code>, <code>Part</code>/<code>BoardPart</code>, <code>CutDef</code> (incl. <code>hole-array</code>), <code>MaterialDef</code>, <code>HardwareItem</code>, <code>Joint</code>, <code>Component</code>, <code>CarcaseParams</code>, <code>FaceHit</code>, <code>CameraState</code>.</td></tr>
           <tr><td><code>useScene.ts</code></td><td>Scene state + geometry lifecycle + undo/redo + <code>exportStep</code> + cut linking + materials/hardware CRUD + component/carcase CRUD + detach. Every mutation passes through <code>applyPipeline</code> (<code>regenerateComponents</code> → <code>reconcileJoints</code>). Lazy Comlink worker singleton.</td></tr>
           <tr><td><code>useFile.ts</code></td><td>File System Access API save/open/new. Auto-reopen last file via IDB. <code>isDirty</code> tracking via JSON snapshot comparison.</td></tr>
-          <tr><td><code>idb.ts</code></td><td>IndexedDB wrapper (schema v2) — two object stores: <code>handles</code> (FileSystemFileHandle) and <code>library</code> (material cost rates).</td></tr>
+          <tr><td><code>idb.ts</code></td><td>IndexedDB wrapper (schema v3) — three object stores: <code>handles</code> (FileSystemFileHandle), <code>library</code> (material cost rates and sheet stock) and <code>settings</code> (the global tool clearance).</td></tr>
           <tr><td><code>utils.ts</code></td><td><code>shapeKey(part)</code> — geometry cache key. Encodes only shape-affecting fields (dimensions + cut positions/sizes).</td></tr>
           <tr><td><code>snapMath.ts</code></td><td>Pure face/cut geometry math — <code>faceAxes()</code>, <code>computeSnapDelta()</code>. No React. Three-typed but browser-free.</td></tr>
           <tr><td><code>fitCamera.ts</code></td><td>Pure camera framing for the <code>Home</code> key: <code>worldBounds</code> builds the world AABB of the visible parts, <code>fitDirection</code> preserves the current bearing, and <code>fitCameraToParts</code> solves the distance that satisfies both FOV half-angles.</td></tr>
@@ -639,7 +641,7 @@
           <tr><td><code>HardwareTab.tsx</code></td><td>Hardware BOM table with add/edit/delete. Clicking a row opens <code>HardwareEditPanel</code>.</td></tr>
           <tr><td><code>HardwareEditPanel.tsx</code></td><td>Hardware item form: name, qty, unit, supplier, part #, unit cost, notes, linked boards (checkbox list per board part).</td></tr>
           <tr><td><code>DrawingViewer.tsx</code></td><td>Modal for 2D shop drawings. SVG preview; SVG + DXF download.</td></tr>
-          <tr><td><code>buildCsv.ts</code></td><td><code>groupParts()</code> + CSV serialization for cutting list and hardware BOM.</td></tr>
+          <tr><td><code>buildCsv.ts</code></td><td><code>groupParts()</code> + <code>cutDimensions()</code> (grain decides which dimension is the length; size decides only when grain is <code>free</code>) + <code>isNestable()</code> + CSV serialization for cutting list and hardware BOM.</td></tr>
           <tr><td><code>buildSvg.ts</code></td><td><code>DrawingSheet</code> → SVG string (orthographic views + dimensions + cut labels).</td></tr>
           <tr><td><code>buildDxf.ts</code></td><td><code>DrawingSheet</code> → DXF string (CAD-friendly format).</td></tr>
           <tr><td><code>download.ts</code></td><td><code>downloadBlob()</code> — Blob + anchor click, browser-agnostic delivery.</td></tr>
@@ -903,7 +905,7 @@ interface FaceHit {
           </tr>
           <tr>
             <td><strong>IDB schema bumps</strong></td>
-            <td>Bumping <code>DB_VERSION</code> in <code>idb.ts</code> requires adding the new store in <code>onupgradeneeded</code>. Current: v2 with <code>handles</code> + <code>library</code>.</td>
+            <td>Bumping <code>DB_VERSION</code> in <code>idb.ts</code> requires adding the new store in <code>onupgradeneeded</code>. Current: v3 with <code>handles</code> + <code>library</code> + <code>settings</code>.</td>
           </tr>
           <tr>
             <td><strong>Library vs. project materials</strong></td>
@@ -1008,7 +1010,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->59<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-24 the full Vitest run is 1105 passing (10 skipped) across 60 files (the 60th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 68 test files total including 8 Playwright specs in <code>e2e/</code>.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->60<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-24 the full Vitest run is 1105 passing (10 skipped) across 60 files (the 60th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 68 test files total including 8 Playwright specs in <code>e2e/</code>.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1147,7 +1149,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-07-25-interaction-mode-refactor.md
     │   ├── 2026-07-26-joint-suggestions.md
     │   ├── 2026-08-16-zoom-to-fit.md
-    │   └── 2026-08-18-cabinet-assembly.md
+    │   ├── 2026-08-18-cabinet-assembly.md
+    │   └── 2026-08-24-sheet-yield-stage-1-grain-and-stock.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md

@@ -35,6 +35,7 @@ function board(over: Partial<BoardPart> = {}): BoardPart {
     length: 560,
     width: 720,
     thickness: 18,
+    grain: 'free' as const,
     material: '',
     color: '#c8a97e',
     position: { x: 0, y: 0, z: 0 },
@@ -185,7 +186,8 @@ describe('EditPanel — material on a driven part', () => {
   it('is read-only and names the cabinet that owns it', () => {
     renderPanel()
     expect(materialField().disabled).toBe(true)
-    expect(screen.getByText(/Base 600/)).toBeTruthy()
+    // Scoped: the Shape section carries its own "Grain is set by Base 600." note.
+    expect(screen.getByText('Material is set by Base 600.')).toBeTruthy()
   })
 
   it('is editable on a detached part', () => {
@@ -278,5 +280,49 @@ describe('EditPanel — cut size', () => {
   it('stays quiet when the stored order is already the cutting order', () => {
     renderPanel({ part: board({ length: 720, width: 560 }) })
     expect(screen.queryByText(/^Cut size/)).toBeNull()
+  })
+})
+
+describe('EditPanel — grain', () => {
+  afterEach(cleanup)
+
+  it('sets grain on an undriven board', async () => {
+    const { onUpdate } = renderPanel({ part: board({ driven: false, role: undefined }) })
+    await userEvent.click(screen.getByLabelText('Grain'))
+    await userEvent.click(screen.getByRole('option', { name: 'Along width' }))
+
+    expect(onUpdate).toHaveBeenCalled()
+    const [id, updater] = onUpdate.mock.calls[0] as [string, (p: BoardPart) => BoardPart]
+    expect(id).toBe('b1')
+    expect(updater(board({ driven: false })).grain).toBe('width')
+  })
+
+  it('a driven board shows its grain read-only and names the owner', () => {
+    renderPanel({ part: board({ grain: 'width' }) })
+    const trigger = screen.getByLabelText('Grain')
+    expect(trigger.getAttribute('data-disabled')).not.toBeNull()
+    expect(screen.getByText('Grain is set by Base 600.')).toBeTruthy()
+  })
+
+  it('offers no grain control on a dowel', () => {
+    renderPanel({
+      part: {
+        kind: 'cylinder' as const,
+        id: 'c1',
+        label: 'Dowel 1',
+        diameter: 8,
+        length: 40,
+        material: '',
+        color: '#c8a97e',
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        rotationOrder: 'XYZ' as const,
+        cuts: [],
+        visible: true,
+        parentId: null,
+        driven: false,
+      },
+    })
+    expect(screen.queryByLabelText('Grain')).toBeNull()
   })
 })

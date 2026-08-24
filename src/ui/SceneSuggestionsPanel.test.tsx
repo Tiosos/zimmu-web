@@ -13,6 +13,7 @@ const base = {
   length: 100,
   width: 40,
   thickness: 18,
+  grain: 'free' as const,
   material: '',
   color: '#fff',
   position: { x: 0, y: 0, z: 0 },

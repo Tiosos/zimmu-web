@@ -170,6 +170,7 @@ describe('useFile', () => {
       length: 200,
       width: 100,
       thickness: 25,
+      grain: 'free' as const,
       material: '',
       color: '#aaa',
       position: { x: 0, y: 0, z: 0 },
@@ -228,6 +229,7 @@ describe('useFile', () => {
       length: 200,
       width: 100,
       thickness: 25,
+      grain: 'free' as const,
       material: '',
       color: '#aaa',
       position: { x: 0, y: 0, z: 0 },
@@ -356,6 +358,7 @@ describe('useFile', () => {
       length: 200,
       width: 100.1234567,
       thickness: 25,
+      grain: 'free' as const,
       material: '',
       color: '#aaa',
       position: { x: 0, y: 0, z: 0 },
@@ -443,6 +446,67 @@ describe('useFile', () => {
   // parseFile only warns on a newer file version and parses on, so a joint kind from a future
   // release would otherwise survive into the render path, where jointChecklist's jointPairIds
   // exhaustiveness guard throws and blanks the app instead of degrading.
+  // BoardPart.grain is required, so an absent field would reach every read site as undefined.
+  // Normalised once here, the way parentId and backSetback are.
+  it('defaults grain to free on a file that predates the field', () => {
+    const legacy = JSON.stringify({
+      ...FIXTURE,
+      version: 12,
+      scene: {
+        ...FIXTURE.scene,
+        parts: [
+          {
+            kind: 'board',
+            id: 'b1',
+            label: 'Board 1',
+            length: 200,
+            width: 100,
+            thickness: 25,
+            material: '',
+            color: '#c8a97e',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            cuts: [],
+            visible: true,
+          },
+        ],
+      },
+    })
+    const part = parseFile(legacy).scene.parts[0]
+    expect(part.kind === 'board' && part.grain).toBe('free')
+  })
+
+  // The half a blanket `grain: 'free'` would silently break.
+  it('keeps a grain the file already carries', () => {
+    const withGrain = JSON.stringify({
+      ...FIXTURE,
+      scene: {
+        ...FIXTURE.scene,
+        parts: [
+          {
+            kind: 'board',
+            id: 'b1',
+            label: 'Side',
+            length: 560,
+            width: 720,
+            thickness: 18,
+            grain: 'width',
+            material: '',
+            color: '#c8a97e',
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            cuts: [],
+            visible: true,
+          },
+        ],
+      },
+    })
+    const part = parseFile(withGrain).scene.parts[0]
+    expect(part.kind === 'board' && part.grain).toBe('width')
+  })
+
   it('parseFile drops an unknown joint kind and keeps the known ones', () => {
     const raw = JSON.stringify({
       version: 99,
@@ -586,6 +650,7 @@ describe('useFile', () => {
             length: 200,
             width: 100,
             thickness: 25,
+            grain: 'free' as const,
             color: '#d4a373',
             position: { x: 0, y: 0, z: 0 },
             rotation: { x: 0, y: 0, z: 0 },
@@ -630,6 +695,7 @@ describe('useFile', () => {
             length: 200,
             width: 100,
             thickness: 25,
+            grain: 'free' as const,
             color: '#d4a373',
             position: { x: 0, y: 0, z: 0 },
             rotation: { x: 0, y: 0, z: 0 },
@@ -674,6 +740,7 @@ describe('useFile', () => {
             length: 200,
             width: 100,
             thickness: 25,
+            grain: 'free' as const,
             color: '#d4a373',
             position: { x: 0, y: 0, z: 0 },
             rotation: { x: 0, y: 0, z: 0 },
@@ -935,6 +1002,7 @@ describe('useFile', () => {
             length: 200,
             width: 100,
             thickness: 25,
+            grain: 'free' as const,
             color: '#d4a373',
             position: { x: 0, y: 0, z: 0 },
             rotation: { x: 0, y: 0, z: 0 },

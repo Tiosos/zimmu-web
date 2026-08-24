@@ -87,6 +87,14 @@ export interface DowelBoreTransverse {
 
 export type DowelCut = DowelEndCut | DowelNotch | DowelBoreAxial | DowelBoreTransverse
 
+// Which of a panel's three axes carries the material thickness. Lives here rather than in
+// carcaseRoles so grain.ts can name it without importing the generator it feeds.
+export type ThicknessAxis = 'x' | 'y' | 'z'
+
+// 'free' means the nester may rotate the part 90°. It is the default for a hand-made board and is
+// never what the carcase generator emits — a generated panel always states a direction.
+export type Grain = 'length' | 'width' | 'free'
+
 export interface BoardPart {
   kind: 'board'
   id: PartId
@@ -94,6 +102,7 @@ export interface BoardPart {
   length: number
   width: number
   thickness: number
+  grain: Grain
   material: string // "" means unspecified
   color: string
   position: Vec3
@@ -129,6 +138,12 @@ export type Part = BoardPart | CylinderPart
 export interface MaterialDef {
   costPerM2?: number // areal rate ($/m²) for sheet/board stock
   costPerM?: number // linear rate ($/m) for round/linear stock (dowels)
+  // Absent means the material is not nested — dowels, hardware, solid stock bought to length. Such
+  // a material keeps its Boards-tab rows and is simply absent from the yield report.
+  sheet?: { length: number; width: number; costPerSheet?: number }
+  // MDF and the like: the stock has no direction, so the nester may rotate any part of it 90°
+  // regardless of that part's own grain. Absent is treated as "has grain" — the safe default.
+  hasGrain?: boolean
 }
 
 export interface HardwareItem {

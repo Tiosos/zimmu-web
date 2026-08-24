@@ -1,8 +1,10 @@
 # Sheet yield and grain direction — design
 
 **Date:** 2026-08-23
-**Status:** approved, awaiting implementation plan
-**Plan:** _(to be written — staged, see "Stages" below)_
+**Status:** approved; Stage 1 planned. Amended 2026-08-24 — see "Correction" under
+"Per-role grain from the carcase generator".
+**Plan:** Stage 1 — `docs/superpowers/plans/2026-08-24-sheet-yield-stage-1-grain-and-stock.md`
+(Stages 2–4 to be written)
 **Notes:** `docs/superpowers/notes/2026-08-23-sheet-yield-notes.md`
 
 ## Why
@@ -125,10 +127,36 @@ looks inconsistent and is not:
 axes onto carcase axes positively — the invariant that makes `position` the box min corner. The
 table is correct; the frames differ.
 
-**A useful property, worth asserting in a test:** for every role above, the grain-running dimension
-is also the *larger* of the two. So grain and `cutDimensions`' existing longest-first rule agree on
-every generated panel, and diverge only for a hand-made board whose grain the user set across the
-short edge. Wiring grain into `cutDimensions` therefore re-baselines no existing cutting list.
+**The grain field is derived, never chosen.** State the convention in *carcase* axes — sides and
+dividers and the back run grain along `z`, flat panels and the kick along `x`, ladder side rails
+along `y` — and let `orientedPanel`'s axis map decide whether that lands on `length` or `width`.
+The table above is then a consequence, and a test can check it against `orientedPanel` rather than
+against a table someone typed twice.
+
+### Correction, 2026-08-24: grain does *not* always run along the longer dimension
+
+An earlier draft of this section claimed that for every role the grain-running dimension is also
+the larger of the two, and proposed asserting it. **That claim is false**, and measurement against
+`carcaseRoles` found two ordinary cabinets that break it:
+
+| cabinet | role | stored L × W | grain field | grain dimension |
+|---|---|---|---|---|
+| wall unit 1200 × 400 × 330 | `back` | 376 × 1176 | `length` | 376 — the **smaller** |
+| 900 × 720 × 560, two dividers | `shelf-0-0` | 285 × 548 | `length` | 285 — the **smaller** |
+
+Both are cabinets someone would really build: a wide low wall unit is wider than it is tall, and a
+three-bay 900 gives 285 mm bays against a 548 mm depth. The property holds for all three
+`CARCASE_PRESETS`, which is exactly why asserting it as a law would have been dangerous — the test
+would have passed and been believed.
+
+Two things follow, and both belong in Stage 1:
+
+1. **Assert it over `CARCASE_PRESETS` only**, and say in the test name that it is a property of the
+   presets, not of the role table.
+2. **Wiring grain into `cutDimensions` therefore *does* re-baseline some cutting lists** — the two
+   rows above swap their length and width. That is the correct new answer (grain decides the
+   length, size does not), but it is a behaviour change and Stage 1 must own it rather than claim
+   nothing moves.
 
 ## Architecture
 

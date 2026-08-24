@@ -1,6 +1,12 @@
 import type { BoardPart, Component, HardwareItem, MaterialDef, Part } from '../scene/types'
 import { ancestorsOf, componentsById } from '../scene/componentTree'
 
+// A sheet created by typing one dimension into the library carries 0 for the other. Zero is
+// absent, not a zero-sized sheet: a material is nestable only once both dimensions are real.
+export function isNestable(def: MaterialDef): boolean {
+  return def.sheet !== undefined && def.sheet.length > 0 && def.sheet.width > 0
+}
+
 export interface CutDims {
   length: number
   width: number
@@ -9,9 +15,21 @@ export interface CutDims {
 
 // What a woodworker cuts, which is not what the part stores: `orientedPanel` fixes which carcase
 // axis a board's x lands on to keep `position` the box min corner, so a 720 mm tall side is stored
-// length 560. Thickness is never in play — only the two in-plane dimensions are reordered.
-export function cutDimensions({ length, width, thickness }: BoardPart): CutDims {
+// length 560. Grain decides which dimension is the length, because that is what the length *means*
+// on a sheet good — size only decides it when grain is unconstrained. Thickness is never in play.
+export function cutDimensions({ length, width, thickness, grain }: BoardPart): CutDims {
+  if (grain === 'length') return { length, width, thickness }
+  if (grain === 'width') return { length: width, width: length, thickness }
   return length >= width ? { length, width, thickness } : { length: width, width: length, thickness }
+}
+
+// After `cutDimensions` the grain-running dimension *is* the reported length, so a board with any
+// direction reports 'length' here and only an unconstrained one reports 'free'. Reporting the raw
+// field instead would print 'width' for a board whose reported length is its grain direction — and
+// would let a 600x300 'length' board, a 300x600 'width' board and a 600x300 'free' board share one
+// row while disagreeing about grain.
+function cutGrain(p: BoardPart): 'length' | 'free' {
+  return p.grain === 'free' ? 'free' : 'length'
 }
 
 export interface GroupedRow {
@@ -24,6 +42,7 @@ export interface GroupedRow {
   length: number
   width: number
   thickness: number
+  grain: 'length' | 'free'
   cuts: number
   costPerUnit: number | null // null = no rate set for this material
   totalCost: number | null // null = no rate set; equals costPerUnit * qty
@@ -42,7 +61,9 @@ export function groupParts(
     if (p.kind !== 'board') continue
     const dims = cutDimensions(p)
     const component = ancestorsOf(p, byId)[0]?.label ?? ''
-    const key = `${component}|${dims.length}×${dims.width}×${dims.thickness}|${p.material}|${p.color}`
+    // Grain is in the key, not just the row: a part the nester may rotate and one it may not are
+    // different cuts even at identical dimensions.
+    const key = `${component}|${dims.length}×${dims.width}×${dims.thickness}|${cutGrain(p)}|${p.material}|${p.color}`
     const rate = materials[p.material]?.costPerM2
     const costPerUnit = rate !== undefined ? ((dims.length * dims.width) / 1_000_000) * rate : null
     const existing = map.get(key)
@@ -64,6 +85,7 @@ export function groupParts(
         length: dims.length,
         width: dims.width,
         thickness: dims.thickness,
+        grain: cutGrain(p),
         cuts: p.cuts.length,
         costPerUnit,
         totalCost: costPerUnit,
@@ -87,19 +109,19 @@ export function buildCsv(
   components: Component[] = [],
 ): string {
   const header =
-    'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts,Cost/unit,Total'
+    'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Grain,Cuts,Cost/unit,Total'
   const rows = groupParts(parts, materials, components)
   const dataRows = rows.map((row) => {
     const costStr = row.costPerUnit !== null ? row.costPerUnit.toFixed(2) : ''
     const totalStr = row.totalCost !== null ? row.totalCost.toFixed(2) : ''
-    return `${quoteField(row.component)},${row.qty},${quoteField(row.labels)},${quoteField(row.material)},${row.color},${row.length},${row.width},${row.thickness},${row.cuts},${costStr},${totalStr}`
+    return `${quoteField(row.component)},${row.qty},${quoteField(row.labels)},${quoteField(row.material)},${row.color},${row.length},${row.width},${row.thickness},${row.grain},${row.cuts},${costStr},${totalStr}`
   })
 
   const anyHasCost = rows.some((r) => r.totalCost !== null)
   if (!anyHasCost) return [header, ...dataRows].join('\n')
 
   const boardTotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
-  const subtotalRow = `,,,,,,,,,Board total,${boardTotal.toFixed(2)}`
+  const subtotalRow = `,,,,,,,,,,Board total,${boardTotal.toFixed(2)}`
   return [header, ...dataRows, subtotalRow].join('\n')
 }
 

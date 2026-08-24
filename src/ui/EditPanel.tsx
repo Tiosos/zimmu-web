@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import type {
   BoxCut,
+  Grain,
   CutDef,
   CutId,
   CylinderPart,
@@ -600,6 +601,37 @@ export function EditPanel({
                 suffix="mm"
                 onCommit={(v) => commitDimension('thickness', v)}
               />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label htmlFor="part-grain" className="w-8 shrink-0 text-right">
+                  Grain
+                </Label>
+                <Select
+                  value={part.grain}
+                  // A driven part's grain is its cabinet's, exactly as its material is: the
+                  // generator rewrites it on every regeneration, so an edit here would revert on
+                  // the next keystroke and leave a junk undo entry behind.
+                  disabled={part.driven}
+                  onValueChange={(v) =>
+                    onUpdate(part.id, (p) =>
+                      p.kind === 'board' ? { ...p, grain: v as Grain } : p,
+                    )
+                  }
+                >
+                  <SelectTrigger id="part-grain" className="h-7 flex-1 text-[11px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="length">Along length</SelectItem>
+                    <SelectItem value="width">Along width</SelectItem>
+                    <SelectItem value="free">Free (no grain)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {part.driven && (
+                <div className="mb-1 text-[11px] text-muted-foreground">
+                  Grain is set by {ownerLabel}.
+                </div>
+              )}
               {cutSizeNote && (
                 <div className="mt-1 text-[11px] text-muted-foreground">{cutSizeNote}</div>
               )}

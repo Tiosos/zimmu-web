@@ -12,6 +12,7 @@ const board = (o: Partial<BoardPart>): BoardPart => ({
   length: 200,
   width: 20,
   thickness: 20,
+  grain: 'free' as const,
   material: '',
   color: '#fff',
   position: { x: 0, y: 0, z: 0 },

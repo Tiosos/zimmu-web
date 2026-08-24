@@ -7,6 +7,9 @@ import {
   writeLibraryEntry,
   deleteLibraryEntry,
   openDb,
+  readClearance,
+  writeClearance,
+  DEFAULT_CLEARANCE,
 } from './idb'
 import type { MaterialDef } from './types'
 
@@ -109,5 +112,51 @@ describe('db v1 → v2 upgrade', () => {
     expect(db.objectStoreNames.contains('handles')).toBe(true)
     expect(db.objectStoreNames.contains('library')).toBe(true)
     db.close()
+  })
+})
+
+describe('idb v2 → v3', () => {
+  // An onupgradeneeded that drops a store is silent data loss, and it is the exact failure a
+  // version bump invites. Opening the old schema by hand is the only way to prove the upgrade path
+  // rather than the already-upgraded steady state.
+  it('upgrades a v2 database to v3 without losing its library entries', async () => {
+    indexedDB.deleteDatabase('zimmu')
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open('zimmu', 2)
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore('handles')
+        req.result.createObjectStore('library')
+      }
+      req.onsuccess = () => {
+        const db = req.result
+        const tx = db.transaction('library', 'readwrite')
+        tx.objectStore('library').put({ costPerM2: 42 }, 'Survivor')
+        tx.oncomplete = () => {
+          db.close()
+          resolve()
+        }
+        tx.onerror = () => reject(tx.error)
+      }
+      req.onerror = () => reject(req.error)
+    })
+
+    const db = await openDb()
+    const names = Array.from(db.objectStoreNames)
+    db.close()
+    expect(names).toContain('settings')
+
+    expect((await readLibrary()).Survivor).toEqual({ costPerM2: 42 })
+  })
+})
+
+describe('clearance', () => {
+  it('returns the default when none was ever written', async () => {
+    indexedDB.deleteDatabase('zimmu')
+    expect(await readClearance()).toBe(DEFAULT_CLEARANCE)
+  })
+
+  it('reads back a clearance it wrote', async () => {
+    await writeClearance(9)
+    expect(await readClearance()).toBe(9)
   })
 })

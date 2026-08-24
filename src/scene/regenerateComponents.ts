@@ -56,6 +56,9 @@ function regenerateOne(
       length: r.panel.length,
       width: r.panel.width,
       thickness: r.panel.thickness,
+      // Not `existing?.grain ?? r.grain`: a driven part's grain belongs to its cabinet, exactly as
+      // its material does. A detached part never reaches this line.
+      grain: r.grain,
       material: component.params.material,
       color: existing?.color ?? PART_COLORS[i % PART_COLORS.length],
       position: r.panel.position,
