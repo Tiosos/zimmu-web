@@ -1,4 +1,4 @@
-import type { BoxCut, CarcaseParams, Face, Vec3 } from './types'
+import type { BoxCut, CarcaseParams, Face, HoleArrayCut, Vec3 } from './types'
 import { dadoDepthFor } from '../geom/dado'
 
 export type ThicknessAxis = 'x' | 'y' | 'z'
@@ -541,6 +541,66 @@ export function carcaseCuts(p: CarcaseParams, role: string): BoxCut[] {
       size: { x: p.toeKickSetback, y: p.toeKickHeight, z: p.thickness * 2 },
     },
   ]
+}
+
+const PIN_DIAMETER = 5
+
+// Which board-local faces a role bores pins into. A side and a divider are both thickness-on-x
+// panels, so the inner face is board ±Z — the same faces the joinery table names. A divider stands
+// between two bays and carries a row on each of its faces; every other role carries none.
+function pinFaces(role: string): Face[] {
+  if (role === 'left-side') return [LEFT_EDGE_FACE]
+  if (role === 'right-side') return [RIGHT_EDGE_FACE]
+  if (role.startsWith('divider-')) return [LEFT_EDGE_FACE, RIGHT_EDGE_FACE]
+  return []
+}
+
+// The shelf-pin rows a carcase drills into the panels that carry adjustable shelves. Read against
+// the reconciled panel rather than the raw parameters: a divider is shorter than a side and starts
+// a bay above the floor, and a row placed from the parameters alone would run off its end.
+export function carcaseHoleArrays(p: CarcaseParams, role: string): HoleArrayCut[] {
+  const a = p.adjustableShelves
+  const radius = PIN_DIAMETER / 2
+  if (a.count <= 0 || a.setback < radius || a.backSetback < radius) return []
+  const faces = pinFaces(role)
+  if (faces.length === 0) return []
+  const panel = carcaseRoles(p).find((r) => r.role === role)?.panel
+  if (panel === undefined) return []
+
+  // Two thirds of the panel thickness: deep enough to seat a pin, never a through hole.
+  const depth = Math.min(12, (p.thickness * 2) / 3)
+
+  // `startHeight` is a height above the carcase floor, not above the panel's own bottom edge. A
+  // divider begins a bay up, so rows measured from each panel's own edge would sit at two
+  // different heights across one bay and every shelf in the cabinet would rest on a slope.
+  const first = a.startHeight - panel.position.z
+  // A cabinet can be too short to hold the configured count. Dropping the holes that would run past
+  // the panel's end is the only alternative to boring through it.
+  const count = Math.min(a.count, Math.floor((panel.width - radius - first) / a.pitch) + 1)
+  if (first < radius || count < 1) return []
+
+  const rows = [a.setback, panel.length - a.backSetback].slice(0, a.rows)
+
+  return faces.flatMap((face, f) =>
+    rows.map((alongDepth, r) => {
+      const i = f * rows.length + r
+      return {
+        kind: 'hole-array' as const,
+        id: `holes_${role}_${i}`,
+        label: `Shelf pins ${i + 1}`,
+        face,
+        // Board x runs the carcase depth and board y the height, so a vertical row marches along
+        // the second of the face's two in-face axes.
+        axis: 'V' as const,
+        // The row starts on the face it is bored through: OCCT drills from `start` into the panel.
+        start: { x: alongDepth, y: first, z: face === '+Z' ? panel.thickness : 0 },
+        pitch: a.pitch,
+        count,
+        diameter: PIN_DIAMETER,
+        depth,
+      }
+    }),
+  )
 }
 
 // Which carcase parameter, if any, a driven part's board dimension is a direct expression of.

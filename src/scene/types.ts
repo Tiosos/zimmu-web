@@ -161,7 +161,8 @@ export interface CarcaseParams {
   adjustableShelves: {
     rows: 1 | 2
     pitch: 32 // literal, not number: 32 mm *is* the system being modelled
-    setback: number
+    setback: number // front row, from the panel's front edge
+    backSetback: number // back row, from the panel's back edge
     startHeight: number
     count: number
   }

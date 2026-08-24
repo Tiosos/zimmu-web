@@ -28,7 +28,14 @@ const params: CarcaseParams = {
   toeKickHeight: 100,
   toeKickSetback: 60,
   fixedShelves: 1,
-  adjustableShelves: { rows: 1, pitch: 32, setback: 37, startHeight: 200, count: 0 },
+  adjustableShelves: {
+    rows: 1,
+    pitch: 32,
+    setback: 37,
+    backSetback: 37,
+    startHeight: 200,
+    count: 0,
+  },
   jointMethod: 'dado-rabbet',
   dividers: [],
 }
@@ -553,5 +560,57 @@ describe('a component-owned cut of a new kind', () => {
     const side = scene.parts.find((p) => p.role === 'left-side') as BoardPart
     expect(side.cuts.filter((c) => c.kind === 'hole-array')).toHaveLength(1)
     expect(side.cuts.filter((c) => c.kind === 'hole-array')[0].sourceComponentId).toBe('cmp_1')
+  })
+})
+
+// Task 8.3 — the pin rows a cabinet drills for its adjustable shelves. Component-owned like the
+// toe-kick notch, so the ownership rules above govern them: re-derived on every pass, never added
+// to what the last pass left behind.
+describe('shelf-pin hole arrays', () => {
+  const pinned: CarcaseComponent = {
+    ...cabinet,
+    params: {
+      ...params,
+      dividers: [0.5],
+      adjustableShelves: { ...params.adjustableShelves, count: 10 },
+    },
+  }
+  const scene: Scene = { ...empty, components: [pinned] }
+
+  const arraysOn = (s: Scene, role: string) =>
+    ((partsOf(s).find((p) => p.role === role) as BoardPart).cuts as CutDef[]).filter(
+      (c) => c.kind === 'hole-array',
+    )
+
+  const arrayCount = (s: Scene) =>
+    partsOf(s)
+      .flatMap((p) => (p.kind === 'board' ? p.cuts : []))
+      .filter((c) => c.kind === 'hole-array').length
+
+  it('drills the panels that carry shelves and no others', () => {
+    const out = regenerateComponents(scene)
+    expect(arraysOn(out, 'left-side')).toHaveLength(1)
+    expect(arraysOn(out, 'right-side')).toHaveLength(1)
+    expect(arraysOn(out, 'divider-0')).toHaveLength(2)
+    for (const role of ['bottom', 'top', 'back']) {
+      expect(arraysOn(out, role), role).toEqual([])
+    }
+  })
+
+  it('tags every row with the component that owns it', () => {
+    const rows = arraysOn(regenerateComponents(scene), 'left-side')
+    expect(rows.length).toBeGreaterThan(0)
+    for (const c of rows) expect(c.sourceComponentId).toBe('cmp_1')
+  })
+
+  // The stale-cut filter keys on the ownership tag alone. Were it to name kinds instead, every
+  // regeneration would append another copy of each row behind the fresh one.
+  it('re-derives its rows instead of accumulating them', () => {
+    const once = regenerateComponents(scene)
+    expect(arrayCount(once)).toBe(4)
+    let scene2 = once
+    for (let i = 0; i < 3; i++) scene2 = regenerateComponents(scene2)
+    expect(arrayCount(scene2)).toBe(arrayCount(once))
+    expect(scene2).toEqual(once)
   })
 })

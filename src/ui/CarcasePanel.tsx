@@ -280,6 +280,13 @@ export function CarcasePanel({
           />
           <DimInput
             labelWidth="w-20"
+            label="Pin back setback"
+            value={p.adjustableShelves.backSetback}
+            suffix="mm"
+            onCommit={(v) => setShelves({ backSetback: v })}
+          />
+          <DimInput
+            labelWidth="w-20"
             label="Pin start height"
             value={p.adjustableShelves.startHeight}
             suffix="mm"

@@ -4202,9 +4202,15 @@ strips stale component-owned cuts with:
 
 The moment this task attaches hole arrays tagged with `sourceComponentId`, that filter stops
 matching them, so **every regeneration appends another copy of each pin row on top of the last** —
-unbounded growth on every keystroke in the parameter panel. Widen it to
-`(c.kind === 'box' || c.kind === 'hole-array')` **before** emitting anything, and write the test that
-proves it: regenerate twice and assert the hole-array count is unchanged.
+unbounded growth on every keystroke in the parameter panel.
+
+**Already done, and not the way this paragraph says.** Task 8.1 landed the filter as
+`!('sourceComponentId' in c && c.sourceComponentId !== undefined)` — keyed on the ownership tag
+alone. Do not "widen it to `(c.kind === 'box' || c.kind === 'hole-array')`": naming kinds is the
+defect, and that spelling would exempt the kind added after `'hole-array'` exactly as the original
+exempted this one. The test still has to be written: regenerate twice and assert the hole-array
+count is unchanged. Confirmed by mutation on 2026-08-24 — restoring the box-only filter makes four
+regenerations carry 16 arrays where one carries 4.
 
 ### The second pin row is a parameter (decided with the user 2026-08-22)
 
@@ -4292,6 +4298,16 @@ export function carcaseHoleArrays(p: CarcaseParams, role: string): HoleArrayCut[
   //      between two bays and carries pins on **both** sides, so it emits `2 × rows` arrays.
   //
   // Sides get one face each; dividers get both.
+  //
+  // CORRECTED again 2026-08-24, during implementation. `start` below is in the wrong frame — a
+  // third defect, on top of the two above. The board frame of a thickness-on-x panel is
+  // *x = carcase depth, y = carcase height, z = material thickness* (the frame `carcaseCuts`
+  // already documents). So the setback is an **x**, the start height is a **y**, and **z** is
+  // neither: it is the plane the drill starts from — `panel.thickness` for a `+Z` face and `0` for
+  // a `-Z` one, matching `faceDrillAxis`. Two more things the snippet does not do and the landed
+  // code does: `startHeight` is measured from the carcase floor (`- panel.position.z`), or a
+  // divider's pins sit a bay higher than the sides' and every shelf slopes; and `count` is clamped
+  // to the holes the panel can hold, or a short cabinet bores off the end of the panel.
 
   return Array.from({ length: a.rows }, (_, r) => ({
     kind: 'hole-array' as const,

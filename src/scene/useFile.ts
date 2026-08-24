@@ -7,11 +7,12 @@ import type {
   CameraState,
   ZimmuFile,
   Joint,
+  CarcaseParams,
 } from './types'
 import * as idb from './idb'
 import { breakComponentCycles, promoteOrphans } from './componentTree'
 
-export const FILE_FORMAT_VERSION = 11
+export const FILE_FORMAT_VERSION = 12
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -157,6 +158,22 @@ export function parseFile(text: string): ZimmuFile {
           rotation: base.rotation,
           rotationOrder: base.rotationOrder,
           visible: base.visible,
+        }
+      }
+      // v11→v12: adjustableShelves gained `backSetback`. Filled here and nowhere else, so no read
+      // site has to carry a fallback; a pre-v12 file's own `setback` is the only figure it has to
+      // say where its back row went.
+      if (base.kind === 'carcase') {
+        const shelves = base.params.adjustableShelves as Omit<
+          CarcaseParams['adjustableShelves'],
+          'backSetback'
+        > & { backSetback?: number }
+        return {
+          ...base,
+          params: {
+            ...base.params,
+            adjustableShelves: { ...shelves, backSetback: shelves.backSetback ?? shelves.setback },
+          },
         }
       }
       return base

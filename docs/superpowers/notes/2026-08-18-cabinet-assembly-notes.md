@@ -1261,3 +1261,57 @@ bottom), makes it fail. Verified by mutation, not by reading.
 - **Compound lifetime.** The cylinder tool handles are deleted only after the boolean has consumed
   the compound, following the precedent in `writeStep` (which adds transformed solids to a compound
   and deletes the handles after `STEPControl_Writer` has transferred it).
+
+## Task 8.3 — shelf-pin rows on sides and dividers (2026-08-24)
+
+- **A third defect in the plan's snippet: `start` is in the wrong frame.** The plan had
+  `start: { x: 0, y: r === 0 ? a.setback : p.depth - a.setback, z: a.startHeight }`. A side is a
+  thickness-on-x panel, so its board frame is *x = carcase depth, y = carcase height, z = material
+  thickness* — the frame `carcaseCuts` already documents for the toe-kick notch. The setback is a
+  depth figure and belongs in `x`; the start height is a height and belongs in `y`; `z` is neither,
+  it is the face plane the drill starts from (`thickness` for a `+Z` face, `0` for `-Z`, matching
+  `faceDrillAxis`). Written as the plan had it, every hole would have been bored from the wrong
+  plane along the wrong edge. The two defects the plan itself flags (board-local faces, a divider
+  drilled on both faces) are real; this one it did not catch.
+- **`startHeight` is measured from the carcase floor, not from the panel's own bottom edge.**
+  Nothing in the spec said which. Panel-local is one subtraction cheaper and wrong: a divider's
+  board origin sits a bay above the floor (and a side's sits at `toeKickHeight` under a ladder
+  base), so pins measured from each panel's own edge land 100 mm apart across a single bay and
+  every shelf in a divided cabinet rests on a slope. `first = startHeight - panel.position.z`.
+  Covered by `puts a divider's pins at the same heights as the pins in the sides`.
+- **`backSetback` is measured from the panel's own back edge, not from the carcase back.** For a
+  side they are the same edge. For a divider under a captured back they are not: the divider stops
+  at `depth - backThickness`. Measuring from the carcase back would put the divider's back row
+  outside the panel entirely once `backThickness > backSetback - 2.5`, so the panel's own edge is
+  the only reading that keeps the hole in the material for every parameter set. The cost is that a
+  divider's back row sits `backThickness` forward of the sides' — the pins under one shelf are not
+  a rectangle. They are still at the same *height*, which is what keeps the shelf flat.
+- **The row count is clamped to what the panel can hold.** `count` is a user parameter and the
+  cabinet height is not: 10 pins at 32 mm from a 200 mm start need 488 mm of panel, which a 400 mm
+  cabinet does not have. The row is truncated to the holes that fit rather than boring off the end,
+  and a panel with room for none emits nothing. Found by the sweep, not by inspection.
+- **`pitch` cannot be swept.** `CarcaseParams['adjustableShelves'].pitch` is the literal type `32`,
+  so the "sweep count and pitch" the task asked for is a sweep of count, height and start height
+  only — a second pitch is not a state the type admits without a cast, and casting would test a
+  cabinet that cannot exist.
+- **The stale-cut filter needed no widening.** The plan opens this task with "widen it to
+  `(c.kind === 'box' || c.kind === 'hole-array')` **before** emitting anything". That is stale: the
+  filter landed in Task 8.1 keyed on `'sourceComponentId' in c` alone, which is both already correct
+  and strictly better than the fix the plan proposes — naming kinds is what left `'hole-array'`
+  exempt in the first place, and would exempt the kind after that. Verified by mutation rather than
+  by reading: restoring `c.kind === 'box' && …` makes four regenerations of a divided cabinet carry
+  16 hole arrays where one carries 4, and `re-derives its rows instead of accumulating them` fails
+  with `expected 16 to be 4`.
+- **`FILE_FORMAT_VERSION` bumped to 12.** A v11 file loads correctly under the new shape, so the
+  bump buys nothing at runtime — an older app reading a v12 file only prints the "newer than app
+  version" warning and parses on, because `backSetback` is additive. It was bumped anyway for one
+  reason: without it, `version: 11` names two different shapes forever, and the `// vN→vN+1`
+  comments in `parseFile` — the only migration log this format has — would have no boundary to
+  point at. Every prior additive field (`stopStart`/`stopEnd` at v6, the component tree at v11) took
+  a version with it.
+- **`carcaseHoleArrays` reads the reconciled panel, not the raw parameters.** It calls
+  `carcaseRoles(p)` and looks its own role up, so it sees the panel *after* the joinery extension
+  pass — a divider's real length and its real origin. Deriving the extents a second time from
+  `width`/`height`/`depth` would be the desynchronisation `bayEdges` exists to prevent. The cost is
+  that `regenerateComponents` recomputes the role table once per drilled role; at ~20 roles of pure
+  arithmetic that is not measurable next to the OCCT build it feeds.
