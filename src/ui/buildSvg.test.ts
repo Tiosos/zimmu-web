@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { buildSvg } from './buildSvg'
 import { buildDrawingSheets } from '../geom/drawing'
-import type { BoardPart, CylinderPart, DowelCut } from '../scene/types'
+import { regenerateComponents } from '../scene/regenerateComponents'
+import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import type { BoardPart, Component, CylinderPart, DowelCut } from '../scene/types'
 
 function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
@@ -181,5 +183,60 @@ describe('buildSvg — dowels', () => {
   it('cover lists the dowel with a ⌀ dimensions string', () => {
     const svgStr = buildSvg(buildDrawingSheets([makeDowel()], 'Test')[0])
     expect(svgStr).toContain('⌀20×100')
+  })
+})
+
+function pinnedSide(): BoardPart {
+  const carcase: Component = {
+    id: 'cmp_1',
+    kind: 'carcase',
+    label: 'Base 600',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    params: CARCASE_PRESETS[0].params,
+  }
+  const scene = regenerateComponents({
+    parts: [],
+    materials: {},
+    hardware: [],
+    joints: [],
+    components: [carcase],
+  })
+  const side = scene.parts.find((p) => p.role === 'left-side')
+  if (side === undefined || side.kind !== 'board') throw new Error('expected a board left side')
+  return side
+}
+
+function partSvgCircles(part: BoardPart): Element[] {
+  const svgStr = buildSvg(buildDrawingSheets([part], 'Test')[1])
+  const doc = new DOMParser().parseFromString(svgStr, 'image/svg+xml')
+  expect(doc.querySelector('parsererror')).toBeNull()
+  return [...doc.querySelectorAll('circle')]
+}
+
+describe('buildSvg — hole arrays', () => {
+  it('emits a circle for every pin hole', () => {
+    const side = pinnedSide()
+    const holes = side.cuts.filter((c) => c.kind === 'hole-array').reduce((n, a) => n + a.count, 0)
+    expect(holes).toBeGreaterThan(0)
+    expect(partSvgCircles(side)).toHaveLength(holes)
+  })
+
+  it('dashes blind pin holes and leaves through holes solid', () => {
+    const side = pinnedSide()
+    const blind = partSvgCircles(side)
+    expect(blind.length).toBeGreaterThan(0)
+    expect(blind.every((c) => c.getAttribute('stroke-dasharray') !== null)).toBe(true)
+
+    const drilledThrough: BoardPart = {
+      ...side,
+      cuts: side.cuts.map((c) => (c.kind === 'hole-array' ? { ...c, depth: side.thickness } : c)),
+    }
+    const solid = partSvgCircles(drilledThrough)
+    expect(solid.length).toBeGreaterThan(0)
+    expect(solid.some((c) => c.getAttribute('stroke-dasharray') !== null)).toBe(false)
   })
 })

@@ -1315,3 +1315,35 @@ bottom), makes it fail. Verified by mutation, not by reading.
   `width`/`height`/`depth` would be the desynchronisation `bayEdges` exists to prevent. The cost is
   that `regenerateComponents` recomputes the role table once per drilled role; at ~20 roles of pure
   arithmetic that is not measurable next to the OCCT build it feeds.
+
+## Task 8.4 — pin rows in the shop drawings (2026-08-24)
+
+- **The edge-on views draw nothing.** A `+Z`-drilled row reads as circles only in the view whose
+  normal is the drill axis (the Face view for a side panel); the Edge and End views see the row
+  end-on. They get `circles: []` rather than dashed centre marks, for two reasons. The first is
+  consistency: a box cut already appears in exactly one view — `buildView` filters cuts by the
+  view's own face pair — and a shop reading this sheet already knows a feature absent from two
+  views is square to the third. The second is cost: `DrawingView` has no segment primitive (only
+  `DowelView` does), so centre marks would mean adding one plus its SVG and DXF paths to annotate a
+  row whose real position is already dimensioned in the view that shows it. Recorded here because
+  it is a deliberate omission, not an oversight — if a fabricator asks for the depth on the edge
+  view, the missing piece is `DrawingView.segments`, not the projection.
+- **A blind hole is dashed; a through hole is solid.** `dashed` is computed per array as
+  `depth < throughDepth`, where `throughDepth` is the board extent along that view's drill axis
+  (thickness for the Face view, width for Edge, length for End) — not hardcoded to the panel
+  thickness, so it stays right for a row drilled into an edge. Strict draughting would draw the
+  bore's own mouth solid, since it *is* visible from the face you drilled: the Face view is shared
+  by both `+Z` and `-Z` faces of one panel, and a solid circle there is the drawing's notation for
+  "this goes through". Dashing is the only cue on this sheet that separates a 12 mm pin bore from a
+  hole bored out the other side of an 18 mm panel, and that is the error that costs a panel.
+- **The projection is the cut projection.** `projectHoleArray` takes the same `uAxis`/`vAxis`,
+  `boardH`, `scale` and `flipV` that `projectCut` takes, so a hole centre and a cut rect cannot
+  drift apart. This works because `faceAxes` and `stepVector` (in `occt.ts`) order a face's two
+  in-face axes identically — x,y,z with the normal removed — so the array's `axis: 'U' | 'V'` is
+  the view's own U/V with no remapping. **If either ordering ever changes, they must change
+  together**, or the drawing will march the row along the wrong axis while the kernel drills it
+  correctly.
+- **Test expectations are derived, never written in millimetres.** The generated 560×720×18 side
+  lands at 1:10, so a ⌀5 hole is a 0.25 mm circle on the sheet; every assertion divides through the
+  sheet's own `scaleLabel`. The plan's original snippet asserted `r ≈ 2.5` and `gap ≈ 32` and would
+  have failed against a correct implementation.

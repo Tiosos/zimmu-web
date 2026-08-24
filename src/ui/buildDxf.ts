@@ -1,4 +1,11 @@
-import type { DrawingSheet, DrawingView, DowelView, DimLine, Rect2D } from '../geom/drawing'
+import type {
+  DrawingSheet,
+  DrawingView,
+  DowelView,
+  DimLine,
+  DrawCircle,
+  Rect2D,
+} from '../geom/drawing'
 
 const SHEET_H = 210
 
@@ -50,6 +57,12 @@ function dxfDashedLine(x1: number, y1: number, x2: number, y2: number): string {
 function dxfCircle(layer: string, cx: number, cy: number, r: number, dashed: boolean): string {
   const head = dashed ? ['0', 'CIRCLE', '8', 'HIDDEN', '6', 'DASHED'] : ['0', 'CIRCLE', '8', layer]
   return [...head, '10', fmt(cx), '20', fmt(fy(cy)), '30', '0.000', '40', fmt(r)].join('\n') + '\n'
+}
+
+function dxfCircles(circles: DrawCircle[], px: number, py: number): string {
+  return circles
+    .map((c) => dxfCircle(c.dashed ? 'CUTS' : 'OUTLINE', px + c.cx, py + c.cy, c.r, c.dashed))
+    .join('')
 }
 
 // Draws 4 LINE entities forming a closed rectangle.
@@ -120,6 +133,7 @@ function dxfView(view: DrawingView): string {
     boardRect,
     boardOutline,
     cuts,
+    circles,
     cutLabels,
     noteLabels,
     boardDims,
@@ -154,6 +168,8 @@ function dxfView(view: DrawingView): string {
     }
   })
 
+  out.push(dxfCircles(circles, px, py))
+
   noteLabels.forEach((nl) =>
     out.push(dxfText('TEXT', px + nl.rect.x, py + nl.rect.y, 2.5, nl.text)),
   )
@@ -176,9 +192,7 @@ function dxfDowelView(view: DowelView): string {
     out.push(dxfLine('OUTLINE', px + a.x, py + a.y, px + b.x, py + b.y))
   }
 
-  circles.forEach((c) =>
-    out.push(dxfCircle(c.dashed ? 'CUTS' : 'OUTLINE', px + c.cx, py + c.cy, c.r, c.dashed)),
-  )
+  out.push(dxfCircles(circles, px, py))
 
   rects.forEach((r) => out.push(dxfRect('CUTS', px + r.rect.x, py + r.rect.y, r.rect.w, r.rect.h)))
 
