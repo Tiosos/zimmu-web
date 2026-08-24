@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { HardwareItem, MaterialDef, Part } from '../scene/types'
+import type { Component, HardwareItem, MaterialDef, Part } from '../scene/types'
 import { CuttingList } from './CuttingList'
 import { DowelList } from './DowelList'
 import { HardwareTab } from './HardwareTab'
@@ -11,6 +11,7 @@ type Tab = 'boards' | 'dowels' | 'hardware' | 'library'
 
 interface BomModalProps {
   parts: Part[]
+  components: Component[]
   materials: Record<string, MaterialDef>
   hardware: HardwareItem[]
   projectName: string
@@ -78,6 +79,7 @@ function LibraryTab({
 
 export function BomModal({
   parts,
+  components,
   materials,
   hardware,
   projectName,
@@ -105,7 +107,7 @@ export function BomModal({
     effectiveMaterials[name] = { ...library[name], ...materials[name] }
   }
 
-  const rows = groupParts(parts, effectiveMaterials)
+  const rows = groupParts(parts, effectiveMaterials, components)
   const boardSubtotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
   const dowelRows = groupDowels(parts, effectiveMaterials)
   const dowelSubtotal = dowelRows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
@@ -121,7 +123,7 @@ export function BomModal({
     if (tab === 'library') return
     const csv =
       tab === 'boards'
-        ? buildCsv(parts, effectiveMaterials)
+        ? buildCsv(parts, effectiveMaterials, components)
         : tab === 'dowels'
           ? buildDowelCsv(parts, effectiveMaterials)
           : buildHardwareCsv(hardware)
@@ -131,7 +133,11 @@ export function BomModal({
   const handleDownload = () => {
     if (tab === 'library') return
     if (tab === 'boards') {
-      downloadBlob(buildCsv(parts, effectiveMaterials), `${projectName}-boards.csv`, 'text/csv')
+      downloadBlob(
+        buildCsv(parts, effectiveMaterials, components),
+        `${projectName}-boards.csv`,
+        'text/csv',
+      )
     } else if (tab === 'dowels') {
       downloadBlob(
         buildDowelCsv(parts, effectiveMaterials),
@@ -201,6 +207,7 @@ export function BomModal({
               projectName={projectName}
               onClose={onClose}
               materials={effectiveMaterials}
+              components={components}
               onMaterialCostChange={handleMaterialCostChange}
               hideExportButtons
             />

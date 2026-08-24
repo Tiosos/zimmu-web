@@ -227,9 +227,9 @@ describe('cutDimensions', () => {
   })
 
   it('never moves the thickness, even when it is the largest dimension', () => {
-    expect(
-      cutDimensions({ ...plywoodPart, length: 40, width: 60, thickness: 100 }).thickness,
-    ).toBe(100)
+    expect(cutDimensions({ ...plywoodPart, length: 40, width: 60, thickness: 100 }).thickness).toBe(
+      100,
+    )
   })
 })
 
@@ -259,8 +259,8 @@ describe('cut dimensions in the cutting list', () => {
     expect([side.length, side.width]).toEqual([560, 720]) // stored, unchanged
 
     const row = csvRow(buildCsv(parts), 'Left Side')
-    expect(row[4]).toBe('720') // Length (mm)
-    expect(row[5]).toBe('560') // Width (mm)
+    expect(row[5]).toBe('720') // Length (mm)
+    expect(row[6]).toBe('560') // Width (mm)
   })
 
   it('prices a generated cabinet at its stored areas, so normalising moves no cost', () => {
@@ -272,6 +272,79 @@ describe('cut dimensions in the cutting list', () => {
     const total = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
 
     expect(total).toBeCloseTo(expected, 6)
+  })
+})
+
+describe('grouping by component', () => {
+  function makeCarcase(id: string, label: string, x: number): CarcaseComponent {
+    return {
+      id,
+      kind: 'carcase',
+      label,
+      parentId: null,
+      position: { x, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+      params: CARCASE_PRESETS[0].params,
+    }
+  }
+
+  const one = regenerateComponents({
+    parts: [],
+    materials: {},
+    hardware: [],
+    joints: [],
+    components: [makeCarcase('cmp_1', 'Base Cabinet 600', 0)],
+  })
+  const parts = one.parts
+  const components = one.components
+  const cabinet = components[0]
+
+  const two = regenerateComponents({
+    parts: [],
+    materials: {},
+    hardware: [],
+    joints: [],
+    components: [makeCarcase('cmp_1', 'Cab A', 0), makeCarcase('cmp_2', 'Cab B', 700)],
+  })
+  const twoIdenticalSidesInDifferentCabinets = two.parts.filter((p) => p.role === 'left-side')
+  // The generator gives each part a distinct palette color (PART_COLORS[i % len]), so a cabinet's
+  // left- and right-side are not identical rows. Duplicate one part to test within-cabinet merging.
+  const oneSide = parts.find((p) => p.role === 'left-side')!
+  const twoIdenticalSidesInOneCabinet = [oneSide, { ...oneSide, id: `${oneSide.id}-copy` }]
+  const looseBoard = { ...parts[0], id: 'loose', parentId: null, driven: false, role: undefined }
+
+  it('labels each row with its owning cabinet', () => {
+    expect(groupParts(parts, {}, components)[0].component).toBe('Base Cabinet 600')
+  })
+
+  it('labels a top-level part with an empty component', () => {
+    expect(groupParts([looseBoard], {}, [])[0].component).toBe('')
+  })
+
+  it('does not merge identical parts from different cabinets into one row', () => {
+    expect(groupParts(twoIdenticalSidesInDifferentCabinets, {}, two.components)).toHaveLength(2)
+  })
+
+  it('still merges identical parts within one cabinet', () => {
+    const rows = groupParts(twoIdenticalSidesInOneCabinet, {}, [cabinet])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].qty).toBe(2)
+  })
+
+  it('does not move any cost when the component list is added', () => {
+    const withCost = { '18mm Ply': { costPerM2: 100 } }
+    const before = groupParts(parts, withCost).reduce((n, r) => n + (r.totalCost ?? 0), 0)
+    const after = groupParts(parts, withCost, components).reduce(
+      (n, r) => n + (r.totalCost ?? 0),
+      0,
+    )
+    expect(after).toBeCloseTo(before, 6)
+  })
+
+  it('puts the Cabinet column first in the CSV header', () => {
+    expect(buildCsv(parts, {}, components).split('\n')[0]).toMatch(/^Cabinet,/)
   })
 })
 

@@ -446,6 +446,7 @@ function App() {
       {cuttingListOpen && (
         <BomModal
           parts={scene.parts}
+          components={scene.components}
           materials={scene.materials}
           hardware={scene.hardware}
           projectName={projectName}

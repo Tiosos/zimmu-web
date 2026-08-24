@@ -43,6 +43,7 @@ const hardware: HardwareItem[] = [
 
 const baseProps = {
   parts,
+  components: [],
   materials,
   hardware,
   projectName: 'Test',

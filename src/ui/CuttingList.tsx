@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { MaterialDef, Part } from '../scene/types'
+import type { Component, MaterialDef, Part } from '../scene/types'
 import { buildCsv, groupParts } from './buildCsv'
 import { downloadBlob } from './download'
 import { Button } from '@/components/ui/button'
@@ -65,6 +65,7 @@ interface CuttingListProps {
   projectName: string
   onClose: () => void
   materials?: Record<string, MaterialDef>
+  components?: Component[]
   onMaterialCostChange?: (name: string, def: MaterialDef) => void
   hideExportButtons?: boolean
 }
@@ -74,6 +75,7 @@ export function CuttingList({
   projectName,
   onClose,
   materials = {},
+  components = [],
   onMaterialCostChange,
   hideExportButtons = false,
 }: CuttingListProps) {
@@ -95,8 +97,8 @@ export function CuttingList({
     return () => window.removeEventListener('mousedown', handler)
   }, [openPopover])
 
-  const csv = buildCsv(parts, materials)
-  const rows = groupParts(parts, materials)
+  const csv = buildCsv(parts, materials, components)
+  const rows = groupParts(parts, materials, components)
 
   const handleDownload = () => {
     downloadBlob(csv, `${projectName}.csv`, 'text/csv')
@@ -113,7 +115,8 @@ export function CuttingList({
     <table className="w-full border-collapse mb-4">
       <thead>
         <tr className="border-b border-border text-muted-foreground text-left">
-          <th className="pb-2 pr-2 font-medium text-xs">Qty</th>
+          <th className="pb-2 pr-2 font-medium text-xs">Cabinet</th>
+          <th className="pb-2 px-2 font-medium text-xs">Qty</th>
           <th className="pb-2 px-2 font-medium text-xs">Labels</th>
           <th className="pb-2 px-2 font-medium text-xs">Material</th>
           <th className="pb-2 px-2 font-medium text-xs">Color</th>
@@ -128,14 +131,15 @@ export function CuttingList({
       <tbody>
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={10} className="py-3 text-muted-foreground text-center text-xs">
+            <td colSpan={11} className="py-3 text-muted-foreground text-center text-xs">
               No parts
             </td>
           </tr>
         ) : (
           rows.map((row) => (
             <tr key={row.key} className="border-b border-border/30">
-              <td className="py-1.5 pr-2 text-xs">{row.qty}</td>
+              <td className="py-1.5 pr-2 text-xs">{row.component || '—'}</td>
+              <td className="py-1.5 px-2 text-xs">{row.qty}</td>
               <td className="py-1.5 px-2 text-xs">{row.labels}</td>
               <td className="py-1.5 px-2 text-xs">
                 {row.material ? (
@@ -196,7 +200,7 @@ export function CuttingList({
         )}
         {anyHasCost && (
           <tr className="border-t border-border font-medium">
-            <td colSpan={9} className="pt-2 pr-2 text-xs text-right text-muted-foreground">
+            <td colSpan={10} className="pt-2 pr-2 text-xs text-right text-muted-foreground">
               Board total
             </td>
             <td className="pt-2 px-2 text-xs">${boardSubtotal.toFixed(2)}</td>
