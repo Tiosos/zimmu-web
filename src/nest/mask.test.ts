@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { maskArea, occupancyMask } from './mask'
-import type { BoardPart, BoxCut, CarcaseComponent, MitreCut } from '../scene/types'
+import type { BoardPart, BoxCut, CarcaseComponent, CarcaseParams, MitreCut } from '../scene/types'
 import { mitreFaceOutline } from '../geom/mitre'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { reconcileJoints } from '../scene/reconcileJoints'
@@ -293,6 +293,112 @@ describe('occupancyMask — clearance dilation', () => {
     // The real rectangle sits `pad` inside its own mask on each side, so the gap between the two
     // real rectangles at offset dx is dx - length.
     expect(dx - length).toBe(clearance)
+  })
+})
+
+// Every combination of the parameters that decide which roles exist, mirroring the sweep in
+// grain.test.ts: the properties below must hold for every board a carcase can emit, not for three
+// presets someone picked.
+const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as const).flatMap((baseMode) =>
+  (['captured', 'applied', 'none'] as const).flatMap((backMode) =>
+    [true, false].flatMap((hasTop) =>
+      [[], [1 / 3, 2 / 3]].flatMap((dividers) =>
+        [0, 2].map(
+          (fixedShelves): CarcaseParams => ({
+            ...CARCASE_PRESETS[0].params,
+            width: 1400,
+            height: 2100,
+            baseMode,
+            backMode,
+            hasTop,
+            dividers,
+            fixedShelves,
+          }),
+        ),
+      ),
+    ),
+  ),
+)
+
+// One board per role family. The sweep emits well over a thousand boards, most of them near
+// duplicates; a family is the unit the mask rules are stated in, so covering each once is both the
+// meaningful coverage and the affordable one.
+function sweepBoards(): BoardPart[] {
+  const byFamily = new Map<string, BoardPart>()
+  SWEEP.forEach((params, i) => {
+    const scene = reconcileJoints(
+      regenerateComponents({
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [
+          {
+            kind: 'carcase',
+            id: `cmp_${i}`,
+            label: `Case ${i}`,
+            parentId: null,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            visible: true,
+            params,
+          },
+        ],
+      }),
+    )
+    for (const p of scene.parts) {
+      if (p.kind !== 'board' || p.role === undefined) continue
+      const family = p.role.replace(/-\d+(-\d+)?$/, '')
+      if (!byFamily.has(family)) byFamily.set(family, p)
+    }
+  })
+  return [...byFamily.values()]
+}
+
+function sameBits(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
+describe('occupancyMask — properties over every role a carcase can emit', () => {
+  const boards = sweepBoards()
+
+  it('covers all thirteen role families', () => {
+    expect(boards.length).toBe(13)
+  })
+
+  it('no role ever masks to nothing', () => {
+    for (const p of boards) expect(maskArea(occupancyMask(p, 0)), `${p.role}`).toBeGreaterThan(0)
+  })
+
+  it('never claims material the part does not have', () => {
+    for (const p of boards) {
+      expect(maskArea(occupancyMask(p, 0)), `${p.role}`).toBeLessThanOrEqual(
+        Math.ceil(p.length) * Math.ceil(p.width),
+      )
+    }
+  })
+
+  it('area is monotone non-decreasing in clearance', () => {
+    for (const p of boards) {
+      const areas = [0, 4, 14, 30].map((c) => maskArea(occupancyMask(p, c)))
+      for (let i = 1; i < areas.length; i++) {
+        expect(areas[i], `${p.role} at index ${i}`).toBeGreaterThanOrEqual(areas[i - 1])
+      }
+    }
+  })
+
+  it('is deterministic', () => {
+    // A hand loop, not toEqual: vitest's deep equality on a multi-million-cell Uint8Array is slow
+    // enough to time the test out, and it was doing that rather than finding a difference.
+    for (const p of boards) {
+      const a = occupancyMask(p, 14)
+      const b = occupancyMask(p, 14)
+      expect([a.w, a.h], `${p.role}`).toEqual([b.w, b.h])
+      expect(sameBits(a.bits, b.bits), `${p.role}`).toBe(true)
+    }
   })
 })
 

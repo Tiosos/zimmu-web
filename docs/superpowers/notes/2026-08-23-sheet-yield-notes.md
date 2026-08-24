@@ -231,3 +231,55 @@ reference for the mask.
   pre-transposed mask would make that decision twice.
 - **Rounding goes outward on dimensions and inward on the mitre polygon.** Opposite directions, same
   principle: never claim material the part does not have.
+
+## 2026-08-24 — Stage 2 implemented
+
+### The first dilation was O(w·h·r), and the plan's own comment said otherwise
+
+The plan specified "a separable box dilation: one horizontal pass with a running window of `2r+1`,
+then one vertical pass. O(w·h) regardless of `r`." The first implementation wrote the vertical pass
+as an inner loop over the `2r+1` window, which is O(w·h·r) — and the monotonicity property, which
+sweeps clearance over `[0, 4, 14, 30]`, timed out. Rewritten with prefix sums, which is what
+"running window" actually requires.
+
+**Measured after the rewrite**, and flat in `r`, which is the proof it worked:
+
+| panel | clearance 0 | 14 | 30 |
+|---|---|---|---|
+| 600 × 300 | 0.7 ms | 4.6 ms | 2.8 ms |
+| 2100 × 560 | 2.2 ms | 17.6 ms | 18.2 ms |
+| 2440 × 1220 (a whole sheet) | 5.0 ms | 45.7 ms | 45.0 ms |
+
+**A realistic six-cabinet job — 46 boards — is 280 ms at a 14 mm clearance, ~6 ms per board.** Well
+inside a debounce, and it is a worker's job anyway from Stage 4. No budget is set beyond that: the
+number to watch is the per-board figure, not the total, since Stage 3's placement search will dwarf
+this.
+
+The square-vs-disc decision stands: a cell grows if any set cell lies within Chebyshev distance `r`,
+which over-reserves by up to r·(√2−1) mm at a 45° corner — always toward more clearance, never less.
+A disc is the "correct" structuring element; the square is the defensible one.
+
+### The property tests went from 59 s to 1.8 s, and got better in the process
+
+Two separate costs, both mine:
+
+- `expect(a.bits).toEqual(b.bits)` on a multi-million-cell `Uint8Array`. Vitest's deep equality was
+  timing the determinism test out rather than finding a difference. A hand loop instead.
+- Running the properties over **every** board the 96-case sweep emits — over a thousand, most of them
+  near duplicates. Now deduped to **one board per role family**, which is 13.
+
+The dedupe is better testing, not just cheaper: a family is the unit the mask rules are stated in, so
+covering each once is the meaningful coverage. It also gives a free assertion — `boards.length` is
+exactly 13, agreeing with the independent count in `grain.test.ts`.
+
+### What the mask does and does not model
+
+- **Only a through-cut clears material.** Confirmed against a Base 600: four dados span z[12, 18] on
+  an 18 mm panel and leave the outline whole; the toe-kick notch spans z[−9, 27] and removes exactly
+  60 × 100. A test asserts precisely that, per role, so loosening the rule fails loudly.
+- **`face` is not consulted.** A box cut is an axis-aligned box in board-local space, so its
+  footprint is its x-y span whichever face it was authored from.
+- **Hole arrays are ignored.** A drilled hole does not change the outline anyone cuts around.
+- **Only flat (`axis: 'Z'`) mitres shave the outline.** `mitreFaceOutline` filters the Face view's
+  own axis itself, so a bevel through the thickness correctly leaves the footprint square — the
+  widest section is what a nest must reserve.

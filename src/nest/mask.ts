@@ -32,28 +32,41 @@ function isThroughCut(c: BoxCut, thickness: number): boolean {
   return c.position.z <= 0 && c.position.z + c.size.z >= thickness
 }
 
-// Grow every set cell by `r` in each direction, as two linear passes rather than a distance
-// transform: O(w·h) whatever `r` is.
+// Grow every set cell by `r` in each direction, as two prefix-sum sweeps: O(w·h) regardless of `r`.
+// A naive inner loop over the 2r+1 window is O(w·h·r) instead, which at a 30 mm clearance on a
+// 2100 mm panel is ~31x the work and was slow enough to time a test out.
 //
 // The structuring element is a SQUARE, not a disc — a cell is grown if any set cell lies within
 // Chebyshev distance `r`. That over-reserves by up to r·(√2−1) mm at a 45° corner, always in the
 // direction of more clearance and never less, which is the side to err on when the number is a
 // router cutter's radius.
+//
+// Output cell (X, Y) maps to source cell (X − r, Y − r), so it is set exactly when the source has a
+// set cell in x ∈ [X − 2r, X] and y ∈ [Y − 2r, Y].
 function dilate(src: Mask, r: number): Mask {
   const w = src.w + 2 * r
   const h = src.h + 2 * r
+  const span = 2 * r
+
   const wide = new Uint8Array(w * src.h)
+  const rowSum = new Int32Array(src.w + 1)
   for (let y = 0; y < src.h; y++) {
-    for (let x = 0; x < src.w; x++) {
-      if (src.bits[y * src.w + x] === 0) continue
-      wide.fill(1, y * w + x, y * w + x + 2 * r + 1)
+    for (let x = 0; x < src.w; x++) rowSum[x + 1] = rowSum[x] + src.bits[y * src.w + x]
+    for (let X = 0; X < w; X++) {
+      const lo = Math.max(0, X - span)
+      const hi = Math.min(src.w, X + 1)
+      if (hi > lo && rowSum[hi] - rowSum[lo] > 0) wide[y * w + X] = 1
     }
   }
+
   const bits = new Uint8Array(w * h)
-  for (let y = 0; y < src.h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (wide[y * w + x] === 0) continue
-      for (let dy = 0; dy <= 2 * r; dy++) bits[(y + dy) * w + x] = 1
+  const colSum = new Int32Array(src.h + 1)
+  for (let X = 0; X < w; X++) {
+    for (let y = 0; y < src.h; y++) colSum[y + 1] = colSum[y] + wide[y * w + X]
+    for (let Y = 0; Y < h; Y++) {
+      const lo = Math.max(0, Y - span)
+      const hi = Math.min(src.h, Y + 1)
+      if (hi > lo && colSum[hi] - colSum[lo] > 0) bits[Y * w + X] = 1
     }
   }
   return { w, h, bits }
