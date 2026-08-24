@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { buildDrawingSheets } from './drawing'
-import type { BoardPart, CylinderPart, DowelCut } from '../scene/types'
+import type { DrawingSheet } from './drawing'
+import { regenerateComponents } from '../scene/regenerateComponents'
+import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import type { BoardPart, Component, CylinderPart, DowelCut } from '../scene/types'
 
 function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
@@ -355,5 +358,99 @@ describe('buildDrawingSheets — dowels', () => {
     // ⌀10×2000: raw = min((247-15)/2010, 135/10) = min(0.115, 13.5) = 0.115 → 0.1
     const sheet = dowelSheet([], { diameter: 10, length: 2000 })
     expect(sheet.scaleLabel).toBe('1:10')
+  })
+})
+
+function pinnedSide(): BoardPart {
+  const carcase: Component = {
+    id: 'cmp_1',
+    kind: 'carcase',
+    label: 'Base 600',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    params: CARCASE_PRESETS[0].params,
+  }
+  const scene = regenerateComponents({
+    parts: [],
+    materials: {},
+    hardware: [],
+    joints: [],
+    components: [carcase],
+  })
+  const side = scene.parts.find((p) => p.role === 'left-side')
+  if (side === undefined || side.kind !== 'board') throw new Error('expected a board left side')
+  return side
+}
+
+type BoardSheet = Extract<DrawingSheet, { kind: 'part'; shape: 'board' }>
+
+function boardSheet(part: BoardPart): BoardSheet {
+  const sheet = buildDrawingSheets([part], 'P')[1]
+  if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
+  return sheet
+}
+
+function scaleOf(sheet: BoardSheet): number {
+  return 1 / Number(sheet.scaleLabel.split(':')[1])
+}
+
+describe('buildDrawingSheets — hole arrays', () => {
+  it('draws one circle per hole in the view the row is drilled into', () => {
+    const side = pinnedSide()
+    const arrays = side.cuts.filter((c) => c.kind === 'hole-array')
+    expect(arrays.length).toBeGreaterThan(0)
+    const [face, edge, end] = boardSheet(side).views
+    expect(face.circles).toHaveLength(arrays.reduce((n, a) => n + a.count, 0))
+    expect(edge.circles).toEqual([])
+    expect(end.circles).toEqual([])
+  })
+
+  it('gives every circle a radius of half the hole diameter, scaled', () => {
+    const side = pinnedSide()
+    const arrays = side.cuts.filter((c) => c.kind === 'hole-array')
+    const sheet = boardSheet(side)
+    const scale = scaleOf(sheet)
+    for (const c of sheet.views[0].circles) {
+      expect(c.r).toBeCloseTo((arrays[0].diameter / 2) * scale, 9)
+    }
+  })
+
+  it('spaces consecutive holes one pitch apart, scaled', () => {
+    const side = pinnedSide()
+    const row = side.cuts.filter((c) => c.kind === 'hole-array')[0]
+    const sheet = boardSheet(side)
+    const scale = scaleOf(sheet)
+    // The fixture's rows run along the panel height (the face's V axis), so one row is the
+    // circles sharing its start's x.
+    const circles = sheet.views[0].circles
+      .filter((c) => Math.abs(c.cx - row.start.x * scale) < 1e-9)
+      .sort((a, b) => a.cy - b.cy)
+    expect(circles).toHaveLength(row.count)
+    expect(circles[0].cy).toBeCloseTo(row.start.y * scale, 9)
+    for (let i = 1; i < circles.length; i++) {
+      expect(circles[i].cy - circles[i - 1].cy).toBeCloseTo(row.pitch * scale, 9)
+    }
+  })
+
+  it('dashes a blind hole and leaves a through hole solid', () => {
+    const side = pinnedSide()
+    const arrays = side.cuts.filter((c) => c.kind === 'hole-array')
+    expect(arrays[0].depth).toBeLessThan(side.thickness)
+    expect(boardSheet(side).views[0].circles.every((c) => c.dashed)).toBe(true)
+
+    const drilledThrough: BoardPart = {
+      ...side,
+      cuts: side.cuts.map((c) => (c.kind === 'hole-array' ? { ...c, depth: side.thickness } : c)),
+    }
+    expect(boardSheet(drilledThrough).views[0].circles.some((c) => c.dashed)).toBe(false)
+  })
+
+  it('gives a part with no hole arrays an empty circle list in every view', () => {
+    for (const view of boardSheet(makeBoard()).views) {
+      expect(view.circles).toEqual([])
+    }
   })
 })

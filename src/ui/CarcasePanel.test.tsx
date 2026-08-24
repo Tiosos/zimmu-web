@@ -133,9 +133,24 @@ describe('CarcasePanel', () => {
   it('exposes a control for every CarcaseParams field', () => {
     renderPanel()
     const labels = [
-      'Width', 'Height', 'Depth', 'Thickness', 'Material',
-      'Has top', 'Back', 'Back thickness', 'Base', 'Toe-kick height', 'Toe-kick setback', 'Dividers',
-      'Fixed shelves', 'Adjustable rows', 'Pin setback', 'Pin start height', 'Pin count',
+      'Width',
+      'Height',
+      'Depth',
+      'Thickness',
+      'Material',
+      'Has top',
+      'Back',
+      'Back thickness',
+      'Base',
+      'Toe-kick height',
+      'Toe-kick setback',
+      'Dividers',
+      'Fixed shelves',
+      'Adjustable rows',
+      'Pin setback',
+      'Pin back setback',
+      'Pin start height',
+      'Pin count',
       'Joint method',
     ]
     for (const label of labels) {

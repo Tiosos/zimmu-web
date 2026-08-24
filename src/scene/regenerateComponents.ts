@@ -7,7 +7,7 @@ import type {
   Part,
   Scene,
 } from './types'
-import { carcaseCuts, carcaseJoints, carcaseRoles } from './carcaseRoles'
+import { carcaseCuts, carcaseHoleArrays, carcaseJoints, carcaseRoles } from './carcaseRoles'
 import { componentsById } from './componentTree'
 import { defaultDadoJoint, defaultFingerJoint } from './defaultJoint'
 import { PART_COLORS } from './palette'
@@ -43,10 +43,10 @@ function regenerateOne(
     const existing = byRole.get(r.role)
     if (existing !== undefined && !existing.driven) return existing
 
-    const componentCuts = carcaseCuts(component.params, r.role).map((c) => ({
-      ...c,
-      sourceComponentId: component.id,
-    }))
+    const componentCuts = [
+      ...carcaseCuts(component.params, r.role),
+      ...carcaseHoleArrays(component.params, r.role),
+    ].map((c) => ({ ...c, sourceComponentId: component.id }))
     const existingCuts = existing?.kind === 'board' ? existing.cuts : []
 
     const board: BoardPart = {

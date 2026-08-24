@@ -1257,3 +1257,72 @@ describe('v11 loader repairs a structurally broken file', () => {
     expect(parsed.scene.components[0].kind).toBe('carcase')
   })
 })
+
+// `backSetback` arrived with v12. A v11 carcase has a `setback` and nothing else to say where the
+// back row goes, and the one place that gap may be filled is here — every read site downstream
+// treats the field as present.
+describe('v12 loader defaults a carcase back setback', () => {
+  const shelves = { rows: 2, pitch: 32, setback: 50, startHeight: 200, count: 10 }
+  const carcase = (adjustableShelves: Record<string, unknown>) =>
+    JSON.stringify({
+      version: 11,
+      name: 'Legacy',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [
+          {
+            id: 'cmp_1',
+            kind: 'carcase',
+            label: 'Base 600',
+            parentId: null,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            rotationOrder: 'XYZ',
+            visible: true,
+            params: {
+              width: 600,
+              height: 720,
+              depth: 560,
+              material: '18mm Ply',
+              thickness: 18,
+              hasTop: true,
+              backMode: 'captured',
+              backThickness: 12,
+              baseMode: 'toe-kick',
+              toeKickHeight: 100,
+              toeKickSetback: 60,
+              fixedShelves: 1,
+              adjustableShelves,
+              jointMethod: 'dado-rabbet',
+              dividers: [],
+            },
+          },
+        ],
+      },
+    })
+
+  const shelvesOf = (text: string) => {
+    const c = parseFile(text).scene.components[0]
+    expect(c.kind).toBe('carcase')
+    if (c.kind !== 'carcase') throw new Error('not a carcase')
+    return c.params.adjustableShelves
+  }
+
+  // 50, not the preset's 37: a default hardcoded to the preset would pass against 37 and prove
+  // nothing about reading the file's own value.
+  it("defaults backSetback to the file's own setback", () => {
+    expect(shelvesOf(carcase(shelves)).backSetback).toBe(50)
+  })
+
+  it('leaves a back setback the file already carries alone', () => {
+    expect(shelvesOf(carcase({ ...shelves, backSetback: 12 })).backSetback).toBe(12)
+  })
+})

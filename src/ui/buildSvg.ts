@@ -1,4 +1,11 @@
-import type { DrawingSheet, DrawingView, DowelView, DimLine, Rect2D } from '../geom/drawing'
+import type {
+  DrawingSheet,
+  DrawingView,
+  DowelView,
+  DimLine,
+  DrawCircle,
+  Rect2D,
+} from '../geom/drawing'
 
 function escapeXml(s: string): string {
   return s
@@ -65,6 +72,19 @@ function svgCircle(
 
 const DASH = { 'stroke-dasharray': '1.2,0.8' }
 
+function renderCircles(circles: DrawCircle[], px: number, py: number): string {
+  return circles
+    .map((c) =>
+      svgCircle(px + c.cx, py + c.cy, c.r, {
+        stroke: '#000',
+        fill: 'none',
+        'stroke-width': c.dashed ? '0.2' : '0.3',
+        ...(c.dashed ? DASH : {}),
+      }),
+    )
+    .join('')
+}
+
 function renderDimLine(dim: DimLine, px: number, py: number): string {
   const lineStyle = { stroke: '#555', 'stroke-width': '0.15' }
   const textStyle = { 'font-size': '2', fill: '#444', 'font-family': 'sans-serif' }
@@ -100,6 +120,7 @@ function renderView(view: DrawingView): string {
     boardRect,
     boardOutline,
     cuts,
+    circles,
     cutLabels,
     noteLabels,
     boardDims,
@@ -150,6 +171,8 @@ function renderView(view: DrawingView): string {
     }
   })
 
+  out.push(renderCircles(circles, px, py))
+
   noteLabels.forEach((nl) =>
     out.push(
       svgText(px + nl.rect.x, py + nl.rect.y, nl.text, {
@@ -185,16 +208,7 @@ function renderDowelView(view: DowelView): string {
     out.push(el('polygon', { points, stroke: '#000', fill: 'none', 'stroke-width': '0.3' }))
   }
 
-  circles.forEach((c) => {
-    out.push(
-      svgCircle(px + c.cx, py + c.cy, c.r, {
-        stroke: '#000',
-        fill: 'none',
-        'stroke-width': c.dashed ? '0.2' : '0.3',
-        ...(c.dashed ? DASH : {}),
-      }),
-    )
-  })
+  out.push(renderCircles(circles, px, py))
 
   rects.forEach((r) => {
     out.push(

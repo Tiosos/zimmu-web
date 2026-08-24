@@ -13,7 +13,14 @@ const COMMON = {
   backThickness: 12,
   jointMethod: 'dado-rabbet',
   dividers: [],
-  adjustableShelves: { rows: 2, pitch: 32, setback: 37, startHeight: 200, count: 10 },
+  adjustableShelves: {
+    rows: 2,
+    pitch: 32,
+    setback: 37,
+    backSetback: 37,
+    startHeight: 200,
+    count: 10,
+  },
 } satisfies Partial<CarcaseParams>
 
 export const CARCASE_PRESETS: CarcasePreset[] = [
