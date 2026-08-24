@@ -22,6 +22,38 @@ const LADDER_WITH_DIVIDERS: CarcaseParams = {
   fixedShelves: 1,
 }
 
+// Every combination of the parameters that decide which roles exist, on a carcase large enough for
+// all of them to be valid. This is the generator's whole role space — the fixtures above are
+// checked against it rather than against a list anyone typed.
+const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as const).flatMap((baseMode) =>
+  (['captured', 'applied', 'none'] as const).flatMap((backMode) =>
+    [true, false].flatMap((hasTop) =>
+      [[], [1 / 3, 2 / 3]].flatMap((dividers) =>
+        [0, 2].map(
+          (fixedShelves): CarcaseParams => ({
+            ...CARCASE_PRESETS[0].params,
+            width: 1400,
+            height: 2100,
+            baseMode,
+            backMode,
+            hasTop,
+            dividers,
+            fixedShelves,
+          }),
+        ),
+      ),
+    ),
+  ),
+)
+
+// A role like `shelf-2-1` or `ladder-mid-0` is one instance of a family; the grain convention is
+// stated per family, so that is the unit coverage is measured in.
+function familiesReached(cases: CarcaseParams[]): string[] {
+  return [
+    ...new Set(cases.flatMap(carcaseBoxes).map((b) => b.role.replace(/-\d+(-\d+)?$/, ''))),
+  ].sort()
+}
+
 describe('GRAIN_IN_PLANE agrees with orientedPanel', () => {
   // The whole point of stating grain in carcase axes: the board field it lands on is derived from
   // the same map orientedPanel uses. If someone changes orientedPanel's rotations without changing
@@ -38,40 +70,30 @@ describe('GRAIN_IN_PLANE agrees with orientedPanel', () => {
 })
 
 describe('every generated role states a grain direction', () => {
-  it.each([...PRESET_CASES, ['ladder base with dividers', LADDER_WITH_DIVIDERS] as const])(
-    '%s: no role is grain-free, and no grain runs along the thickness',
-    (_name, params) => {
-      const boxes = carcaseBoxes(params)
-      expect(boxes.length).toBeGreaterThan(0)
-      for (const b of boxes) {
-        const axis = grainAxisOf(b.role)
-        expect(axis).not.toBe(b.thicknessAxis)
-        expect(grainFieldFor(b.thicknessAxis, axis)).not.toBe('free')
-      }
-    },
-  )
+  // Over the whole sweep, not a fixture: `grainAxisOf` has to be total across every role the
+  // generator can emit under any valid parameters, and a parameter combination nobody thought of
+  // is exactly the one that would throw in front of a user.
+  it('grainAxisOf answers for every role the generator can emit, and never along the thickness', () => {
+    const boxes = SWEEP.flatMap(carcaseBoxes)
+    expect(boxes.length).toBeGreaterThan(0)
+    for (const b of boxes) {
+      const axis = grainAxisOf(b.role)
+      expect(axis, b.role).not.toBe(b.thicknessAxis)
+      expect(grainFieldFor(b.thicknessAxis, axis), b.role).not.toBe('free')
+    }
+  })
 
-  it('the cases above reach every role family the generator can emit', () => {
-    const seen = new Set(
-      [...PRESET_CASES.map(([, p]) => p), LADDER_WITH_DIVIDERS]
-        .flatMap(carcaseBoxes)
-        .map((b) => b.role.replace(/-\d+(-\d+)?$/, '')),
+  it('every case in the sweep is a valid carcase', () => {
+    for (const params of SWEEP) expect(carcaseBoxes(params).length).toBeGreaterThan(0)
+  })
+
+  // Both sides come from `carcaseBoxes`. An earlier version compared against a hand-typed list of
+  // twelve families and was wrong — `ladder-mid` is a thirteenth — which is the whole argument for
+  // not typing one.
+  it('the named fixtures reach every role family the sweep does', () => {
+    expect(familiesReached([...PRESET_CASES.map(([, p]) => p), LADDER_WITH_DIVIDERS])).toEqual(
+      familiesReached(SWEEP),
     )
-    expect([...seen].sort()).toEqual([
-      'back',
-      'bottom',
-      'divider',
-      'ladder-back',
-      'ladder-front',
-      'ladder-left',
-      'ladder-mid',
-      'ladder-right',
-      'left-side',
-      'right-side',
-      'shelf',
-      'toe-kick',
-      'top',
-    ])
   })
 
   it('refuses a role it has no convention for, rather than inventing one', () => {

@@ -138,7 +138,24 @@ Both halves are now fixed:
   not are different cuts even at identical dimensions.
 
 Same shape as the false property in the spec: a claim that sounded right, was wrong, and cost four
-minutes to check.
+minutes to check. The plan's Step 4 has since been rewritten to carry the correct instruction, with
+the original claim quoted in place — the step's instruction to *check* the claim was the part that
+was right, and deleting it would have removed the lesson along with the error.
+
+### The role-coverage test was my error, and its shape was the worse half
+
+An earlier deviation note here blamed the plan for the twelve-vs-thirteen role families. That was
+wrong: the plan named `ladder-mid-*` explicitly among the roles the presets do not reach, and I
+wrote a hand-typed list anyway and left it out.
+
+The omission mattered less than the shape. **An enumeration test asserts a list a human typed, so it
+is only ever as complete as whoever typed it** — the same failure mode as a check that enumerates
+known instances and therefore cannot find the case with no instance to enumerate. It is now derived
+on both sides: the families reached by the named fixtures must equal those reached by a 96-case
+sweep across every `baseMode` × `backMode` × `hasTop` × divider-count × shelf-count combination, and
+`grainAxisOf`'s totality is asserted over that sweep directly rather than over three presets. The
+sweep reaches all thirteen families; dropping the ladder fixture fails the coverage test, and
+removing `ladder-mid` from `grainAxisOf` fails the totality test.
 
 ### Two mechanical notes
 

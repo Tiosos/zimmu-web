@@ -392,14 +392,42 @@ Grain-aware cut dimensions **re-baseline two known cabinets**: a 1200 × 400 wal
 
 - [ ] **Step 4: A Grain column**
 
-In `buildCsv`'s header, after `Thickness (mm)`, add `Grain`; in each row, emit `row.grain`. Add `grain: Grain` to `GroupedRow` and set it from the part.
+In `buildCsv`'s header, after `Thickness (mm)`, add `Grain`; in each row, emit `row.grain`.
 
-Two parts in the same group always share a grain — grain feeds `cutDimensions`, whose output is in the key — so taking it from the first part of a group is sound rather than lossy. Assert exactly that in a test, because it is the kind of claim that is true today and quietly stops being true when the key changes:
+**The row's grain is normalised, and it goes in the grouping key.** Add to `GroupedRow`:
 
 ```ts
-it('every part in a group shares the grain the row reports', () => {
-  // build a mixed scene, group it, then re-derive: for each row, every part whose key matches
-  // must have the row's grain.
+  grain: 'length' | 'free'
+```
+
+— **not** `Grain`, and **not** copied from the part. After `cutDimensions` the grain-running dimension *is* the reported length, so a directional board always reports `length` here and only an unconstrained one reports `free`:
+
+```ts
+function cutGrain(p: BoardPart): 'length' | 'free' {
+  return p.grain === 'free' ? 'free' : 'length'
+}
+```
+
+Then put `cutGrain(p)` in the key beside the dimensions. A part the nester may rotate and one it may not are different cuts even at identical dimensions, and they must not share a row.
+
+> **Corrected 2026-08-24, during implementation.** This step originally said that two parts in a
+> group always share a grain — because grain feeds `cutDimensions`, whose output is in the key — so
+> the row could take it from the first part. **That is false in both directions.** A 600 × 300 board
+> with grain `length`, a 300 × 600 board with grain `width`, and a 600 × 300 board with grain `free`
+> all reduce to the same 600 × 300 cut, so all three landed in one row that then reported whichever
+> grain arrived first. The test written to check the claim failed on its first run. Left recorded
+> rather than quietly rewritten: the instruction to *check* the claim was the part that was right.
+
+Two tests, and the second is the one that found the error above:
+
+```ts
+it('reports a directional board as running along the reported length', () => {
+  // a 300 x 600 board with grain 'width' reports length 600, grain 'length'
+})
+
+it('every part in a group agrees with the grain the row reports', () => {
+  // four boards spanning length/width/free at 600x300 and 300x600; for each row, every part in it
+  // must normalise to that row's grain
 })
 ```
 
@@ -711,16 +739,13 @@ Two claims in the tasks above were wrong. Both were found by a test written to c
 
 ### Task 1.3 said a row could take its grain from the first part of its group
 
-The stated reasoning: grain feeds `cutDimensions`, whose output is in the grouping key, so a group cannot hold two grains. **False in both directions.** A 600 × 300 board with grain `length`, a 300 × 600 board with grain `width`, and a 600 × 300 board with grain `free` all reduce to the same 600 × 300 cut, so all three landed in one row that then reported whichever grain arrived first.
+**Corrected in Step 4 above**, with the original claim quoted there. The stated reasoning — grain feeds `cutDimensions`, whose output is in the grouping key, so a group cannot hold two grains — was false in both directions, and the test the step told the implementer to write is what found it.
 
-The fix is two-part and is in the code:
+### The role-coverage test: my error, not the plan's
 
-- `GroupedRow.grain` is `'length' | 'free'`, not `Grain`. After `cutDimensions` the grain-running dimension *is* the reported length, so a directional board reports `length` and only an unconstrained one reports `free`.
-- The normalised grain is part of the grouping key. A part the nester may rotate and one it may not are different cuts at identical dimensions.
+The plan told me to cover the roles the presets do not reach and **named `ladder-mid-*` explicitly**. I wrote the test anyway with a hand-typed list of twelve families and left `ladder-mid` out of it. The plan was right; I did not follow it.
 
-### Task 1.1's role-coverage test named twelve role families; there are thirteen
-
-`ladder-mid-*` appears once a ladder base is wide enough to need a mid rail, which the plan's suggested fixture did not reach. The test asserted a list this plan supplied, the code disagreed, and the code was right.
+Worse than the omission was the shape: an enumeration test asserts a list a human typed, so it can only ever be as complete as whoever typed it. It has been replaced with one whose **both sides come from `carcaseBoxes`** — the families reached by the named fixtures must equal those reached by a 96-case sweep over every `baseMode` × `backMode` × `hasTop` × divider-count × shelf-count combination. `grainAxisOf`'s totality is now asserted over that sweep directly, so a parameter combination nobody thought of cannot throw in front of a user. Both halves were mutation-tested: dropping the ladder fixture fails the coverage test, and removing `ladder-mid` from `grainAxisOf` fails the totality test.
 
 ### Smaller deviations
 
