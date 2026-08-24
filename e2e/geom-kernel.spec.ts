@@ -9,6 +9,7 @@ import { test, expect } from '@playwright/test'
 // in-page via Vite's dev server (the same `pnpm dev` the Playwright webServer runs).
 
 const OCCT_READY_TIMEOUT = 120_000
+const DEPTH_MM = 12 // shelf-pin bore depth used by the cost measurement below
 
 test('live OCCT kernel builds every board/dowel cut path and exports STEP', async ({ page }) => {
   await page.goto('/')
@@ -130,4 +131,198 @@ test('live OCCT kernel builds every board/dowel cut path and exports STEP', asyn
     dowelTransverseBore: 'OK',
   })
   expect(results.stepExport).toMatch(/^OK len=\d+/)
+})
+
+// Task 8.2 — a hole array is one compound boolean, not one boolean per hole.
+// Volume alone cannot prove this: the same material removed through the wrong face,
+// along the wrong in-face axis, or at the wrong pitch measures identically. So the
+// removed material is isolated as its own solid (plain minus drilled) and its
+// centroid + bounding box are measured directly — undiluted by the 6-million-mm³
+// panel it came out of.
+test('a hole array drills the right material out of the right place', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  const result = await page.evaluate(async () => {
+    // @ts-expect-error dev-only source import served by Vite; occt is untyped here
+    const occt = await import('/src/geom/occt.ts')
+    const oc = await occt.initOCCT()
+
+    const panel = { length: 600, width: 560, thickness: 18 }
+    const plain = occt.makeShape(oc, { ...panel, cuts: [] })
+    const drilled = occt.makeShape(oc, {
+      ...panel,
+      cuts: [
+        {
+          kind: 'hole-array',
+          id: 'h1',
+          label: 'pins',
+          face: '+Z',
+          axis: 'U',
+          start: { x: 50, y: 37, z: 18 },
+          pitch: 32,
+          count: 10,
+          diameter: 5,
+          depth: 12,
+        },
+      ],
+    })
+
+    const volume = (shape: unknown): number => {
+      const g = new oc.GProp_GProps_1()
+      oc.BRepGProp.VolumeProperties_1(shape, g, false, false, false)
+      const v = g.Mass()
+      g.delete()
+      return v
+    }
+
+    // plain − drilled is exactly the material the array took out.
+    const op = new oc.BRepAlgoAPI_Cut_3(plain, drilled)
+    const removed = op.Shape()
+    const g = new oc.GProp_GProps_1()
+    oc.BRepGProp.VolumeProperties_1(removed, g, false, false, false)
+    const c = g.CentreOfMass()
+    const removedCentroid: [number, number, number] = [c.X(), c.Y(), c.Z()]
+    g.delete()
+    const box = new oc.Bnd_Box_1()
+    oc.BRepBndLib.Add(removed, box, false)
+    const lo = box.CornerMin()
+    const hi = box.CornerMax()
+    const removedBbox: [number, number, number, number, number, number] = [
+      lo.X(),
+      lo.Y(),
+      lo.Z(),
+      hi.X(),
+      hi.Y(),
+      hi.Z(),
+    ]
+    box.delete()
+
+    return {
+      plain: volume(plain),
+      drilled: volume(drilled),
+      removedCentroid,
+      removedBbox,
+    }
+  })
+
+  expect(result.drilled).toBeLessThan(result.plain)
+  // ten ⌀5 holes, 12 mm deep ≈ 10 · π · 2.5² · 12 ≈ 2356 mm³
+  expect(result.plain - result.drilled).toBeGreaterThan(2000)
+  expect(result.plain - result.drilled).toBeLessThan(2700)
+
+  // Where the material went. Holes march along +X from x=50 at 32 mm pitch, so the
+  // tenth centre is at 338; the row sits at y=37 and is bored 12 mm down from the
+  // +Z face at z=18. Every one of those numbers moves if the face, the in-face axis,
+  // the pitch, the count, the start, or the depth is wrong.
+  expect(result.removedCentroid[0]).toBeCloseTo(194, 1)
+  expect(result.removedCentroid[1]).toBeCloseTo(37, 1)
+  expect(result.removedCentroid[2]).toBeCloseTo(12, 1)
+
+  const [minX, minY, minZ, maxX, maxY, maxZ] = result.removedBbox
+  expect(minX).toBeCloseTo(47.5, 1)
+  expect(maxX).toBeCloseTo(340.5, 1)
+  expect(minY).toBeCloseTo(34.5, 1)
+  expect(maxY).toBeCloseTo(39.5, 1)
+  expect(minZ).toBeCloseTo(6, 1)
+  expect(maxZ).toBeCloseTo(18, 1)
+})
+
+// Task 8.2 Step 1b — the cost of a hole array, measured rather than asserted.
+// The phase's claim is that hole arrays do not make the app slow, and the reason
+// given is that an array is one compound boolean instead of one boolean per hole.
+// This times a realistic worst case (six cabinets' worth of side panels, two shelf-pin
+// rows each = 480 holes) both ways and prints both figures. Deliberately no timing
+// threshold: a wall-clock assertion in CI is flaky, and the budget is set from the
+// recorded number, not guessed here. See 2026-08-18-cabinet-assembly-notes.md.
+// The expanded-box arm is the slow half (~1 min); the assertions below are on the
+// geometry, so a regression still fails loudly without depending on the clock.
+test('hole-array build cost: one compound boolean vs one boolean per hole', async ({ page }) => {
+  test.setTimeout(600_000)
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  const perf = await page.evaluate(async () => {
+    // @ts-expect-error dev-only source import served by Vite; occt is untyped here
+    const occt = await import('/src/geom/occt.ts')
+    const oc = await occt.initOCCT()
+
+    const PANELS = 12 // six cabinets, two side panels each
+    const ROW_Y = [37, 523] // front and back shelf-pin rows
+    const COUNT = 20
+    const PITCH = 32
+    const DIAMETER = 5
+    const DEPTH = 12
+    const X0 = 100
+    const panel = { length: 720, width: 560, thickness: 18 }
+
+    const arrayCuts = ROW_Y.map((y, r) => ({
+      kind: 'hole-array',
+      id: 'h' + r,
+      label: 'pins',
+      face: '+Z',
+      axis: 'U',
+      start: { x: X0, y, z: panel.thickness },
+      pitch: PITCH,
+      count: COUNT,
+      diameter: DIAMETER,
+      depth: DEPTH,
+    }))
+
+    // The same 40 holes, one boolean each — what this design exists to avoid.
+    const boxCuts = ROW_Y.flatMap((y, r) =>
+      Array.from({ length: COUNT }, (_, i) => ({
+        kind: 'box',
+        id: `b${r}_${String(i).padStart(2, '0')}`,
+        label: 'pin',
+        face: '+Z',
+        position: {
+          x: X0 + i * PITCH - DIAMETER / 2,
+          y: y - DIAMETER / 2,
+          z: panel.thickness - DEPTH,
+        },
+        size: { x: DIAMETER, y: DIAMETER, z: DEPTH },
+      })),
+    )
+
+    const run = (cuts: unknown[]) => {
+      const t0 = performance.now()
+      let last: { delete: () => void } | null = null
+      for (let p = 0; p < PANELS; p++) {
+        if (last) last.delete()
+        last = occt.makeShape(oc, { ...panel, cuts })
+      }
+      const ms = performance.now() - t0
+      const g = new oc.GProp_GProps_1()
+      oc.BRepGProp.VolumeProperties_1(last, g, false, false, false)
+      const volume = g.Mass()
+      g.delete()
+      last!.delete()
+      return { ms, volume }
+    }
+
+    return {
+      holes: PANELS * ROW_Y.length * COUNT,
+      array: run(arrayCuts),
+      expanded: run(boxCuts),
+    }
+  })
+
+  const STOCK = 720 * 560 * 18
+  // 40 ⌀5×12 cylinders per panel vs 40 5×5×12 prisms — the arms remove different
+  // amounts, so each is checked against its own analytic figure. This is what proves
+  // both arms actually drilled all 40 holes and the timings compare like with like.
+  expect(STOCK - perf.array.volume).toBeCloseTo(40 * Math.PI * 6.25 * DEPTH_MM, 0)
+  expect(STOCK - perf.expanded.volume).toBeCloseTo(40 * 5 * 5 * DEPTH_MM, 0)
+
+  console.log(
+    `hole-array cost over ${perf.holes} holes (12 panels x 2 rows x 20): ` +
+      `one compound boolean per row = ${perf.array.ms.toFixed(0)} ms; ` +
+      `one boolean per hole = ${perf.expanded.ms.toFixed(0)} ms; ` +
+      `ratio = ${(perf.expanded.ms / perf.array.ms).toFixed(1)}x`,
+  )
 })

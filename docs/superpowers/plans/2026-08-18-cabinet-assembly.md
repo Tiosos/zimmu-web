@@ -4071,7 +4071,7 @@ In the same e2e, time `makeShape` for a realistic worst case — a six-cabinet s
 Run: `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium pnpm test:e2e e2e/geom-kernel.spec.ts`
 Expected: FAIL — volumes are equal, because `makeShape` currently skips `'hole-array'`.
 
-**Embind suffixes are guesses until proven.** The snippet below uses `gp_Dir_4`, `gp_Pnt_3`, `gp_Ax2_3`, `BRepPrimAPI_MakeCylinder_3`. Per the `add-geometry` skill, the suffix does **not** track argument count — probe the live kernel for the right overload before trusting any of them. `BRepAlgoAPI_Cut_3(S1, S2)` runs the boolean in its constructor; there is no `Message_ProgressRange` in opencascade.js v1.1.1.
+**Embind suffixes were guesses; all four are now verified.** Probed against the live kernel on 2026-08-24: `gp_Pnt_3(x,y,z)`, `gp_Dir_4(x,y,z)`, `gp_Ax2_3(pnt,dir)` and `BRepPrimAPI_MakeCylinder_3(ax2,R,H)` all construct. `Message_ProgressRange` is `undefined`, as the `add-geometry` skill warns. Three of the four were already in use in `makeCylinderCut`, which is why they were right. `BRepAlgoAPI_Cut_3(S1, S2)` runs the boolean in its constructor; there is no `Message_ProgressRange` in opencascade.js v1.1.1.
 
 - [ ] **Step 3: Implement**
 
@@ -4081,10 +4081,12 @@ Add to `src/geom/occt.ts`:
 // One boolean, not N. A 720 mm side at 32 mm pitch is ~20 holes; two rows per side across six
 // cabinets is ~480 subtractions if each hole is its own operation. Compounding the cylinders first
 // turns that into one BRepAlgoAPI_Cut per array.
+// `dims` is deliberately absent: the hole-array maths needs no board envelope, since the cut
+// carries its own start, direction and depth. An earlier draft took it and never read it, which
+// does not compile under `noUnusedParameters`.
 export function makeHoleArrayCut(
   oc: OpenCascadeInstance,
   shape: TopoDS_Shape,
-  dims: { length: number; width: number; thickness: number },
   cut: HoleArrayCut,
 ): TopoDS_Shape {
   if (cut.count <= 0 || cut.diameter <= 0 || cut.depth <= 0) return shape
@@ -4117,8 +4119,10 @@ export function makeHoleArrayCut(
     axisDir.delete()
   }
 
-  const op = new O.BRepAlgoAPI_Cut_3(shape, compound, new O.Message_ProgressRange_1())
-  op.Build(new O.Message_ProgressRange_1())
+  // Two arguments, no Build(): BRepAlgoAPI_Cut_3 runs the boolean in its constructor, and
+  // Message_ProgressRange does not exist in opencascade.js v1.1.1. An earlier draft of this
+  // snippet passed one anyway, two paragraphs below the warning that it is absent.
+  const op = new O.BRepAlgoAPI_Cut_3(shape, compound)
   if (!op.IsDone()) {
     console.warn('makeHoleArrayCut: BRepAlgoAPI_Cut did not complete — returning input shape')
     op.delete()

@@ -1197,3 +1197,67 @@ bottom), makes it fail. Verified by mutation, not by reading.
   describe had no `afterEach(cleanup)`, so its rendered panel leaked into any later describe. It was
   invisible until a later block queried by text. Added the missing `afterEach(cleanup)`; no
   assertions changed.
+
+## Task 8.2 — one boolean per hole array in the kernel (2026-08-24)
+
+- **The plan's `makeHoleArrayCut` signature does not compile.** It is written as
+  `(oc, shape, dims, cut)`, but the body never reads `dims` and `noUnusedParameters` is on in
+  `tsconfig.app.json`, so `pnpm typecheck` fails with `TS6133: 'dims' is declared but its value is
+  never read`. Dropped the parameter — the call site in `makeShape` is `makeHoleArrayCut(oc, current,
+  cut)`. Nothing in the hole-array math needs the board envelope: the cut carries its own start
+  point, direction and depth. If a later task wants to clamp `depth` to the stock thickness, that is
+  when `dims` earns its place back.
+- **The plan's implementation snippet still passes `Message_ProgressRange`** (`new
+  O.BRepAlgoAPI_Cut_3(shape, compound, new O.Message_ProgressRange_1())` followed by
+  `op.Build(...)`). That class is absent in opencascade.js v1.1.1 and the snippet would have thrown
+  at runtime — the plan's own Step 2 warns about exactly this two paragraphs above the snippet that
+  ignores it. Used the two-argument `BRepAlgoAPI_Cut_3(S1, S2)` with no `Build()`, matching every
+  other boolean in `occt.ts`.
+- **The four embind overloads the plan flags as unverified are all correct** against the live
+  kernel: `gp_Pnt_3(x,y,z)`, `gp_Dir_4(x,y,z)`, `gp_Ax2_3(pnt,dir)`,
+  `BRepPrimAPI_MakeCylinder_3(ax2,R,H)`. Three of the four were already in use in `makeCylinderCut`.
+- **Volume alone cannot verify a hole array — measured, not argued.** A `600 × 560 × 18` panel with
+  ten ⌀5 × 12 holes was drilled four ways and the removed material isolated as its own solid
+  (`BRepAlgoAPI_Cut_3(plain, drilled)`), then measured:
+
+  | variant | removed volume | removed centroid | removed bbox |
+  |---|---|---|---|
+  | correct (`+Z`, axis `U`, pitch 32) | 2356.1945 | (194, 37, 12) | x 47.5–340.5, y 34.5–39.5, z 6–18 |
+  | wrong face (`-Z`) | 2356.1945 | (194, 37, **6**) | z **0–12** |
+  | wrong in-face axis (`V`) | 2356.1945 | (**50, 181**, 12) | x 47.5–**52.5**, y 34.5–**327.5** |
+  | wrong pitch (25) | 2356.1945 | (**162.5**, 37, 12) | x max **277.5** |
+
+  All four remove *identical* volume to four decimal places. A volume-delta assertion passes every
+  one of them. So the e2e asserts on the removed solid's centroid and bounding box instead, which
+  separate all four. Isolating the removed material first also matters: comparing the two panels'
+  own centroids would dilute a 2356 mm³ signal into a 6,048,000 mm³ body and shift it by under
+  0.1 mm, where OCCT integration noise lives. Against the removed solid the expected values come out
+  exact (194.000, 37.000, 12.000), so `toBeCloseTo(…, 1)` has real margin.
+
+- **Measured cost, no budget set.** Six cabinets' worth of side panels — 12 panels of
+  720 × 560 × 18, two shelf-pin rows of 20 holes each, 480 holes total — built through `makeShape`
+  in Chromium:
+
+  | approach | wall clock | per panel |
+  |---|---|---|
+  | one compound boolean per row (2 booleans/panel, 24 total) | **3388 ms** | 282 ms |
+  | one boolean per hole (40 booleans/panel, 480 total) | **55819 ms** | 4652 ms |
+
+  **Ratio 16.5×.** A second run measured 3578 / 58475 ms (16.3×), so the ratio is stable. This is
+  the number Phase 10's baseline task should assert against; it is deliberately *not* asserted here
+  — a wall-clock threshold in CI is flaky, and the budget is a decision to make from the figure
+  rather than a guess to bake in now.
+  - The comparison flatters the per-hole arm slightly: its tool is a 5 × 5 × 12 box, cheaper to
+    build and to intersect than a cylinder, and it removes 12000 mm³/panel against the array's
+    9424.8. So 16.5× understates the true saving of compounding.
+  - The cost is superlinear in booleans, not in holes: 20× the booleans costs 16.5× the time only
+    because each successive cut works against a shape with more faces. Halving the hole count would
+    not halve the per-hole arm.
+  - **Suite cost tradeoff, left open deliberately.** The per-hole arm alone takes ~56 s, so
+    `e2e/geom-kernel.spec.ts` went from ~16 s to ~80 s. Its timeout is raised to 600 s so a slower CI
+    box cannot turn the measurement into a flake. If that becomes too expensive, drop `PANELS` from
+    12 to 2 and scale — the ratio holds per panel — rather than deleting the comparison, which is
+    the only falsifiable form of the phase's "hole arrays do not make the app slow" claim.
+- **Compound lifetime.** The cylinder tool handles are deleted only after the boolean has consumed
+  the compound, following the precedent in `writeStep` (which adds transformed solids to a compound
+  and deletes the handles after `STEPControl_Writer` has transferred it).

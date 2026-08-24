@@ -1,5 +1,5 @@
 import type { OpenCascadeInstance, TopoDS_Shape } from 'opencascade.js'
-import type { CutDef, DowelCut, MitreCut, Vec3 } from '../scene/types'
+import type { CutDef, DowelCut, Face, HoleArrayCut, MitreCut, Vec3 } from '../scene/types'
 import { computeMitreTool } from './mitre'
 import {
   computeEndTool,
@@ -306,6 +306,97 @@ export type ExportSpec =
       matrix: number[]
     }
 
+// A face's inward drilling direction: the hole is bored INTO the part, so the sign is
+// opposite the outward face normal.
+function faceDrillAxis(face: Face): { axis: 'x' | 'y' | 'z'; sign: 1 | -1 } {
+  switch (face) {
+    case '+X':
+      return { axis: 'x', sign: -1 }
+    case '-X':
+      return { axis: 'x', sign: 1 }
+    case '+Y':
+      return { axis: 'y', sign: -1 }
+    case '-Y':
+      return { axis: 'y', sign: 1 }
+    case '+Z':
+      return { axis: 'z', sign: -1 }
+    case '-Z':
+      return { axis: 'z', sign: 1 }
+  }
+}
+
+// The in-face axis a row of holes marches along. U is the first non-normal axis in
+// x,y,z order; V is the second.
+function stepVector(face: Face, rowAxis: 'U' | 'V', pitch: number): Vec3 {
+  const normal = faceDrillAxis(face).axis
+  const inFace = (['x', 'y', 'z'] as const).filter((a) => a !== normal)
+  const axis = rowAxis === 'U' ? inFace[0] : inFace[1]
+  return { x: axis === 'x' ? pitch : 0, y: axis === 'y' ? pitch : 0, z: axis === 'z' ? pitch : 0 }
+}
+
+// One boolean, not N. A 720 mm side at 32 mm pitch is ~20 holes; two rows per side
+// across six cabinets is ~480 subtractions if each hole is its own operation.
+// Compounding the cylinders first turns that into one BRepAlgoAPI_Cut per array.
+export function makeHoleArrayCut(
+  oc: OpenCascadeInstance,
+  shape: TopoDS_Shape,
+  cut: HoleArrayCut,
+): TopoDS_Shape {
+  if (cut.count <= 0 || cut.diameter <= 0 || cut.depth <= 0) return shape
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const O = oc as any
+
+  const { axis: drillAxis, sign } = faceDrillAxis(cut.face)
+  const step = stepVector(cut.face, cut.axis, cut.pitch)
+
+  const builder = new O.BRep_Builder()
+  const compound = new O.TopoDS_Compound()
+  builder.MakeCompound(compound)
+
+  const tools: TopoDS_Shape[] = []
+  for (let i = 0; i < cut.count; i++) {
+    const dir = new O.gp_Dir_4(
+      drillAxis === 'x' ? sign : 0,
+      drillAxis === 'y' ? sign : 0,
+      drillAxis === 'z' ? sign : 0,
+    )
+    const origin = new O.gp_Pnt_3(
+      cut.start.x + step.x * i,
+      cut.start.y + step.y * i,
+      cut.start.z + step.z * i,
+    )
+    const ax2 = new O.gp_Ax2_3(origin, dir)
+    const cylinder = new O.BRepPrimAPI_MakeCylinder_3(ax2, cut.diameter / 2, cut.depth)
+    const tool: TopoDS_Shape = cylinder.Shape()
+    builder.Add(compound, tool)
+    tools.push(tool)
+    cylinder.delete()
+    ax2.delete()
+    origin.delete()
+    dir.delete()
+  }
+
+  // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor; Message_ProgressRange
+  // is absent in opencascade.js v1.1.1, so the progress-range overloads are unusable.
+  const op = new O.BRepAlgoAPI_Cut_3(shape, compound)
+
+  const cleanup = () => {
+    op.delete()
+    for (const tool of tools) tool.delete()
+    compound.delete()
+    builder.delete()
+  }
+
+  if (!op.IsDone()) {
+    console.warn('makeHoleArrayCut: BRepAlgoAPI_Cut did not complete — returning input shape')
+    cleanup()
+    return shape
+  }
+  const result = op.Shape()
+  cleanup()
+  return result
+}
+
 export function makeShape(
   oc: OpenCascadeInstance,
   dims: {
@@ -323,7 +414,7 @@ export function makeShape(
       if (cut.size.x <= 0.1 || cut.size.y <= 0.1 || cut.size.z <= 0.1) continue
       current = makeCut(oc, current, cut.position, cut.size)
     } else if (cut.kind === 'hole-array') {
-      continue // drilled in Task 8.2; inert until then
+      current = makeHoleArrayCut(oc, current, cut)
     } else {
       if (cut.angle <= 0) continue
       current = makeMitreCut(oc, current, dims, cut)
