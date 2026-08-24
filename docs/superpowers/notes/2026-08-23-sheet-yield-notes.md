@@ -283,3 +283,76 @@ exactly 13, agreeing with the independent count in `grain.test.ts`.
 - **Only flat (`axis: 'Z'`) mitres shave the outline.** `mitreFaceOutline` filters the Face view's
   own axis itself, so a bevel through the thickness correctly leaves the footprint square — the
   widest section is what a nest must reserve.
+
+## 2026-08-25 — Stage 3: the spec's rotation rule made a standard cabinet unnestable
+
+**Plan:** `docs/superpowers/plans/2026-08-25-sheet-yield-stage-3-nest-sheets.md`
+
+The spec said: "orientations are 0° and 180° always, plus 90° and 270° when the part's `grain` is
+`'free'` or the material's `hasGrain` is false."
+
+That silently assumes grain always runs along the mask's **w** axis. It does not. The mask is in
+board-local axes and `BoardPart.grain` names *which board axis* the grain runs along — `'length'` is
+w, `'width'` is h. Measured at a 14 mm clearance on a 2440 × 1220 sheet:
+
+| cabinet | role | board | grain | mask | fits 0° | fits 90° |
+|---|---|---|---|---|---|---|
+| Tall 600 | `left-side` | 560 × 2100 | `width` | 574 × 2114 | **no** | yes |
+| Tall 600 | `back` | 1976 × 576 | `length` | 1990 × 590 | yes | **no** |
+
+Under the spec's rule a Tall 600 side is locked to 0°/180° and **cannot be placed on a standard
+sheet at all**. A probe confirmed it: 6 of the 8 largest masks in a six-cabinet job failed to place.
+
+The corrected rule is derived rather than chosen — the sheet's grain runs along its length, `grain`
+names the board axis, rotation maps board axes onto sheet axes:
+
+| `grain` | allowed rotations |
+|---|---|
+| `'length'` | 0°, 180° |
+| `'width'` | **90°, 270°** |
+| `'free'`, or `hasGrain: false` | all four |
+
+The spec's rule is right for `'length'` parts and wrong for every `'width'` one — which is both
+sides, every divider, and the toe kick.
+
+### The spec's performance claim was right, and my arithmetic was wrong
+
+I expected the naive bottom-left scan to be infeasible: ~3 M candidate positions × ~200 K mask cells
+is 10¹¹ operations on paper. **Measured: 46 parts in 1.1 s across 31.5 M candidates.** Early
+rejection carries it — in bottom-left order almost every candidate collides on its first row and
+costs a handful of comparisons, never a full mask scan. Recorded because the arithmetic is seductive
+and wrong, and someone will redo it.
+
+The real implementation is slower than that probe — **5.4 s for a six-cabinet job, 46 parts → 8
+sheets, 0 unplaced, 62–86% utilisation** — because it tries *every open sheet* before opening a new
+one, which the probe did not. That is a deliberate trade: a part rejected from sheet 1 often fits
+sheet 2's offcut, and only looking at the newest sheet wastes stock. 5.4 s is a worker's job, which
+is Stage 4.
+
+**A free-area prune was tried and removed.** Skipping any sheet whose remaining free area is less
+than the part's area is provably result-preserving and costs nothing to maintain. It bought
+5.38 s → 5.32 s, i.e. nothing: the cost is not in scanning full sheets but in scanning sheets that
+have area free and no room for *this shape*. Removed rather than kept, since dead complexity is
+worse than none. Recorded so the next person with the idea can skip it.
+
+### `unplaced` is not in the spec and had to be added
+
+A part larger than the stock in every allowed rotation has no home. Dropping it silently would make
+the sheet count a lie, and a 3000 mm panel on a 2440 mm sheet is an ordinary user mistake rather
+than an impossible state.
+
+### Two mutations survived the first pass, and both were test gaps
+
+- **Dropping the id tie-break in the sort changed nothing.** `Array.prototype.sort` is stable, so
+  nesting the *same array* twice is deterministic either way. The tie-break exists to make the
+  result independent of input *ordering*, so the test now shuffles the items deterministically and
+  asserts an identical nest.
+- **Restricting placement to the newest sheet changed nothing.** The fixture did not create the only
+  arrangement that distinguishes the rules: a part that fits an *earlier* sheet but not the latest.
+  It cannot happen with full-width parts — sorting by area descending guarantees the earlier sheet
+  is the fuller one — so the test now uses an L-shaped leftover: a 1220 × 1220 part leaves a
+  full-height column on sheet 1, a 2440 × 600 part needs the whole width and opens sheet 2, and a
+  1220 × 700 part fits the column but not sheet 2's strip.
+
+Both now fail when mutated. The general lesson, again: a test that cannot fail is not evidence, and
+the way to find out is to break the line on purpose.

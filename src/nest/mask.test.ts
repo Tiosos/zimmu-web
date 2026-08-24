@@ -244,6 +244,12 @@ describe('occupancyMask — clearance dilation', () => {
     expect(maskArea(m)).toBe((100 + 14) * (50 + 14))
   })
 
+  it('records the padding it added, so a caller never recomputes the formula', () => {
+    expect(occupancyMask(board({ length: 100, width: 50 }), 14).pad).toBe(7)
+    expect(occupancyMask(board({ length: 100, width: 50 }), 15).pad).toBe(8)
+    expect(occupancyMask(board({ length: 100, width: 50 }), 0).pad).toBe(0)
+  })
+
   it('a zero clearance changes nothing', () => {
     const m = occupancyMask(board({ length: 100, width: 50 }), 0)
     expect([m.w, m.h, maskArea(m)]).toEqual([100, 50, 5000])
