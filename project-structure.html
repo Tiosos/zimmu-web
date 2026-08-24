@@ -372,7 +372,7 @@
         <thead><tr><th>Layer</th><th>Technology</th><th>Notes</th></tr></thead>
         <tbody>
           <tr><td>UI framework</td><td>React 19 + TypeScript (strict)</td><td>Functional components only</td></tr>
-          <tr><td>Build / bundler</td><td>Vite 8 + <code>@vitejs/plugin-react</code></td><td>ES modules, <code>vite-plugin-wasm</code> for WASM</td></tr>
+          <tr><td>Build / bundler</td><td>Vite 8 + <code>@vitejs/plugin-react</code></td><td>ES modules; WASM loaded as a URL asset via <code>assetsInclude</code> (deliberately <em>not</em> <code>vite-plugin-wasm</code>)</td></tr>
           <tr><td>Styling</td><td>Tailwind CSS v4 (<code>@tailwindcss/vite</code>)</td><td>No <code>tailwind.config.js</code></td></tr>
           <tr><td>UI primitives</td><td>Radix UI → shadcn-style wrappers in <code>src/components/ui/</code></td><td><code>cn()</code> from <code>src/lib/utils.ts</code></td></tr>
           <tr><td>3D rendering</td><td>Three.js r184</td><td>+Z-up CAD convention, <code>OrbitControls</code></td></tr>
@@ -453,6 +453,10 @@
 ├── render/
 │   └── viewport.tsx
 ├── scene/
+│   ├── carcasePresets.test.ts
+│   ├── carcasePresets.ts
+│   ├── carcaseRoles.test.ts
+│   ├── carcaseRoles.ts
 │   ├── componentTree.test.ts
 │   ├── componentTree.ts
 │   ├── cutFootprint.test.ts
@@ -473,6 +477,8 @@
 │   ├── palette.ts
 │   ├── reconcileJoints.test.ts
 │   ├── reconcileJoints.ts
+│   ├── regenerateComponents.test.ts
+│   ├── regenerateComponents.ts
 │   ├── snapMath.test.ts
 │   ├── snapMath.ts
 │   ├── suggestionOutline.test.ts
@@ -515,8 +521,11 @@
 │   ├── buildPdf.ts
 │   ├── buildSvg.test.ts
 │   ├── buildSvg.ts
+│   ├── CarcasePanel.test.tsx
+│   ├── CarcasePanel.tsx
 │   ├── CuttingList.test.tsx
 │   ├── CuttingList.tsx
+│   ├── DimInput.tsx
 │   ├── DowelCutsPanel.test.tsx
 │   ├── DowelCutsPanel.tsx
 │   ├── DowelList.test.tsx
@@ -525,6 +534,7 @@
 │   ├── download.ts
 │   ├── DrawingViewer.test.tsx
 │   ├── DrawingViewer.tsx
+│   ├── EditPanel.test.tsx
 │   ├── EditPanel.tsx
 │   ├── FileMenu.test.tsx
 │   ├── FileMenu.tsx
@@ -554,7 +564,7 @@
           <tr><td><code>occt.ts</code></td><td>Lazy singleton OCCT bootstrap. <code>makeShape()</code> (box + cut chain), <code>makeTransformedShape()</code>, <code>writeStep()</code> (XCAF named solids). Exports <code>ExportSpec</code>.</td></tr>
           <tr><td><code>occt.worker.ts</code></td><td>Comlink Web Worker — exposes <code>buildPart()</code> and <code>exportStep()</code> to the main thread.</td></tr>
           <tr><td><code>mesh.ts</code></td><td><code>TopoDS_Shape</code> → <code>MeshData</code> (Float32Arrays) + <code>THREE.BufferGeometry</code> via <code>BRepMesh_IncrementalMesh</code>.</td></tr>
-          <tr><td><code>transform.ts</code></td><td><code>composeWorldMatrix(part)</code> — THREE-free world matrix. Single source of truth for part placement in STL/STEP export.</td></tr>
+          <tr><td><code>transform.ts</code></td><td><code>composeWorldMatrix(part)</code> + <code>resolveWorldMatrix(part, byId)</code> (composes placement through ancestor components) + <code>multiplyMatrix</code> — THREE-free. <code>resolveWorldMatrix</code> is the single source of truth for part placement; equals <code>composeWorldMatrix</code> exactly for a top-level part.</td></tr>
           <tr><td><code>stl.ts</code></td><td><code>buildBinaryStl(parts, geometries)</code> — world-space binary STL triangle soup with recomputed facet normals. Visible parts only.</td></tr>
           <tr><td><code>drawing.ts</code></td><td><code>buildDrawingSheet(part)</code> → <code>DrawingView[]</code>. Face/Edge/End orthographic projections with cut rects, dimension lines, cut labels.</td></tr>
           <tr><td><code>dado.ts</code></td><td>Pure dado-joint geometry — <code>isValidDadoSeat</code>, <code>deriveDadoAxes</code>, <code>computeDadoGroove</code>, <code>computeDadoSeat</code>, <code>computeRabbet</code>, <code>hasTongue</code>, <code>computeNotch</code> (stopped/blind-dado housed-corner cut), and <code>deriveJoint</code> (the list of derived cuts + seat consumed by <code>reconcileJoints</code>). Three-typed but browser-free.</td></tr>
@@ -574,8 +584,8 @@
       <table>
         <thead><tr><th>File</th><th>Role</th></tr></thead>
         <tbody>
-          <tr><td><code>types.ts</code></td><td>Canonical types: <code>ZimmuFile</code>, <code>Scene</code>, <code>Part</code>/<code>BoardPart</code>, <code>CutDef</code>, <code>MaterialDef</code>, <code>HardwareItem</code>, <code>FaceHit</code>, <code>CameraState</code>.</td></tr>
-          <tr><td><code>useScene.ts</code></td><td>Scene state + geometry lifecycle + undo/redo + <code>exportStep</code> + cut linking + materials/hardware CRUD. Lazy Comlink worker singleton.</td></tr>
+          <tr><td><code>types.ts</code></td><td>Canonical types: <code>ZimmuFile</code>, <code>Scene</code>, <code>Part</code>/<code>BoardPart</code>, <code>CutDef</code> (incl. <code>hole-array</code>), <code>MaterialDef</code>, <code>HardwareItem</code>, <code>Joint</code>, <code>Component</code>, <code>CarcaseParams</code>, <code>FaceHit</code>, <code>CameraState</code>.</td></tr>
+          <tr><td><code>useScene.ts</code></td><td>Scene state + geometry lifecycle + undo/redo + <code>exportStep</code> + cut linking + materials/hardware CRUD + component/carcase CRUD + detach. Every mutation passes through <code>applyPipeline</code> (<code>regenerateComponents</code> → <code>reconcileJoints</code>). Lazy Comlink worker singleton.</td></tr>
           <tr><td><code>useFile.ts</code></td><td>File System Access API save/open/new. Auto-reopen last file via IDB. <code>isDirty</code> tracking via JSON snapshot comparison.</td></tr>
           <tr><td><code>idb.ts</code></td><td>IndexedDB wrapper (schema v2) — two object stores: <code>handles</code> (FileSystemFileHandle) and <code>library</code> (material cost rates).</td></tr>
           <tr><td><code>utils.ts</code></td><td><code>shapeKey(part)</code> — geometry cache key. Encodes only shape-affecting fields (dimensions + cut positions/sizes).</td></tr>
@@ -589,7 +599,11 @@
           <tr><td><code>useAddFingerJoint.ts</code></td><td>Two-click box/finger-joint creation state machine (one board's end → perpendicular equal-width end of another). Fed <code>FaceHit</code>s from the raycaster.</td></tr>
           <tr><td><code>useAddTongueGroove.ts</code></td><td>Tongue &amp; groove two-click gesture.</td></tr>
           <tr><td><code>useInteractionMode.ts</code></td><td>Coordinator composing the seven gesture hooks (snap, cut, dado, half-lap, mortise-tenon, finger, tongue-groove) into one exclusive <code>activeMode</code> + normalized <code>{ onFaceClick, onFaceHover, sourceFace, hoveredFace, interactionActive, snapPhase }</code> bundle for the viewport.</td></tr>
-          <tr><td><code>reconcileJoints.ts</code></td><td>Pure, idempotent regeneration of joint-derived groove cuts + seated positions from <code>Scene.joints</code>. Run after every joint-affecting mutation and on file load.</td></tr>
+          <tr><td><code>componentTree.ts</code></td><td>Pure tree helpers — <code>componentsById</code>, <code>ancestorsOf</code>, <code>descendantIds</code>, <code>wouldCycle</code> (reparent guard), <code>promoteOrphans</code> (a dangling <code>parentId</code> costs hierarchy, never parts). No React, no THREE.</td></tr>
+          <tr><td><code>carcaseRoles.ts</code></td><td>Pure <code>CarcaseParams</code> → ordered <code>RoleSpec[]</code> (role key, dims, local position/rotation) — the whole geometry of a carcase (sides, back, top/bottom, shelves, toe-kick, dividers, shelf-pin hole arrays).</td></tr>
+          <tr><td><code>regenerateComponents.ts</code></td><td>Pure <code>Scene → Scene</code>. Each carcase emits driven parts + driven joints, reconciled against existing parts by stable role key so ids survive and a <code>driven: false</code> part is never touched. Sibling of <code>reconcileJoints</code>; runs immediately before it.</td></tr>
+          <tr><td><code>carcasePresets.ts</code></td><td><code>CARCASE_PRESETS</code> — named parameter bundles (Base 600, Wall 600, Tall 600). Data only.</td></tr>
+          <tr><td><code>reconcileJoints.ts</code></td><td>Pure, idempotent regeneration of joint-derived groove cuts + seated positions from <code>Scene.joints</code>. Run after <code>regenerateComponents</code>, after every joint-affecting mutation, and on file load.</td></tr>
           <tr><td><code>suggestJoints.ts</code></td><td>Selection-driven joint suggestions: <code>contactPair</code> face + <code>cornerPair</code> corner detection + per-type validity → <code>JointSuggestion[]</code>; <code>synthHit</code> replays through existing <code>onAdd*</code> creators.</td></tr>
           <tr><td><code>groupSuggestions.ts</code></td><td>Collapses scene-wide suggestions to one <code>PairGroup</code> per board pair for the sidebar rows; <code>orientationArrow</code> disambiguates the two-orientation kinds. Does not cap — the row caps live in <code>jointChecklist.ts</code>.</td></tr>
           <tr><td><code>jointChecklist.ts</code></td><td>Joins touching pairs, <code>scene.joints</code> and suggestions into <code>ChecklistRow[]</code> — each pair <em>jointed</em>, <em>open</em> or <em>no-offer</em> — ordered by pair distance so a row keeps its slot when it flips to done. no-offer pairs are pruned by <code>obbOverlap</code> and capped by <code>MAX_NOOFFER_ROWS</code>.</td></tr>
@@ -613,7 +627,11 @@
         <thead><tr><th>File</th><th>Role</th></tr></thead>
         <tbody>
           <tr><td><code>FileMenu.tsx</code></td><td>Top menu bar: File menu, project name, undo/redo buttons, BOM modal trigger, 3D/2D export buttons.</td></tr>
-          <tr><td><code>sidebar.tsx</code></td><td>Parts list panel + <code>EditPanel</code> (label, material, ColorControl, dimensions, position, rotation, cuts panel with cut-linking UI, joints panel, read-only derived-cut rows, linked hardware display). Also the Cut / Snap / Add-Dado mode buttons.</td></tr>
+          <tr><td><code>sidebar.tsx</code></td><td>Composition shell: the <code>SceneTree</code>, the selected-node editor (<code>EditPanel</code> for a part, <code>CarcasePanel</code> for a carcase), and the Cut / Snap / joint mode buttons.</td></tr>
+          <tr><td><code>SceneTree.tsx</code></td><td>Sidebar hierarchy over <code>components</code> + <code>parts</code>: expand/collapse, selection, per-node visibility, driven/detached badges.</td></tr>
+          <tr><td><code>CarcasePanel.tsx</code></td><td>Carcase parameter form in collapsible sections (dimensions, back, base, shelves, joint method, dividers) that drives <code>regenerateComponents</code>.</td></tr>
+          <tr><td><code>EditPanel.tsx</code></td><td>Selected-part editor (moved verbatim out of <code>sidebar.tsx</code>): label, material, ColorControl, dimensions, position, rotation, cuts (with cut-linking), joints, hole-arrays, read-only derived-cut rows, linked hardware.</td></tr>
+          <tr><td><code>DimInput.tsx</code></td><td>Dimension number field with debounced commit, used across the edit and carcase panels.</td></tr>
           <tr><td><code>JointsPanel.tsx</code></td><td>Per-part joints subsection in <code>EditPanel</code> — edit depth/clearance/offset (housing side), remove joint, stale banner.</td></tr>
           <tr><td><code>SuggestionsPanel.tsx</code></td><td>Sidebar "Suggested joints" list with one-click Add (calls <code>onApplySuggestion</code>); hovering a row highlights the neighbour board via <code>onHoverSuggestion</code> and outlines the two faces the joint would cut.</td></tr>
           <tr><td><code>BomModal.tsx</code></td><td>Three-tab modal (Boards / Hardware / Library). Footer shows board subtotal, hardware subtotal, grand total. CSV copy/download.</td></tr>
@@ -660,7 +678,7 @@
       <h2>Data model</h2>
       <p>All canonical types live in <code>src/scene/types.ts</code>. The file format serializes a <code>ZimmuFile</code> to <code>.zimmu</code> (flat JSON).</p>
 
-      <pre><code>// File format (FILE_FORMAT_VERSION = 2)
+      <pre><code>// File format (FILE_FORMAT_VERSION = 12)
 interface ZimmuFile {
   version: number       // must equal FILE_FORMAT_VERSION
   name: string
@@ -676,7 +694,21 @@ interface Scene {
   parts: Part[]
   materials: Record&lt;string, MaterialDef&gt;  // keyed by material name
   hardware: HardwareItem[]
-  joints: Joint[]       // first-class parametric joints (dado in v0.1)
+  joints: Joint[]        // first-class parametric joints (dado, half-lap, M&amp;T, finger, T&amp;G)
+  components: Component[] // flat-stored nestable tree: 'group' | 'carcase' nodes, linked by parentId
+}
+
+// A component is a group or a parametric carcase. Carcases carry CarcaseParams;
+// regenerateComponents(scene) turns those params into driven parts + driven joints,
+// reconciling against existing parts by stable role key so a detached part survives.
+interface Component {
+  id: ComponentId        // "cmp_<uuid>"
+  kind: 'group' | 'carcase'
+  label: string
+  parentId: ComponentId | null
+  position: Vec3; rotation: Vec3; rotationOrder: 'XYZ'
+  visible: boolean
+  params?: CarcaseParams // present iff kind === 'carcase'
 }
 
 // A joint owns the geometry it produces: a derived BoxCut on the housing
@@ -694,10 +726,11 @@ interface DadoJoint {
   profile: 'plain' | 'rabbeted'   // NEW in JP2
   tongueThickness: number         // tongue/groove width when rabbeted
   rabbetFace: '+Z' | '-Z'         // housed thickness face the rabbet removes from
+  driven: boolean; sourceComponentId?: string  // set on joints a carcase emits
 }
-type Joint = DadoJoint
+// Every joint interface adds { driven, sourceComponentId? }
+type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint | FingerJoint | TongueGrooveJoint
 
-// The only Part kind in v0.1 (more kinds planned)
 interface BoardPart {
   kind: 'board'
   id: PartId            // UUID string
@@ -709,15 +742,21 @@ interface BoardPart {
   rotationOrder: 'XYZ'
   cuts: CutDef[]
   visible: boolean
+  parentId: ComponentId | null  // owning component, or null when top-level
+  driven: boolean               // true = emitted by a carcase; false = the user's, never touched
+  role?: string                 // regeneration identity key, set only on driven parts
 }
 
-interface CutDef {
+// BoxCut is the boolean-subtract rectangle; 'hole-array' is the shelf-pin bore pattern
+interface CutDef {         // = BoxCut | HoleArrayCut
   id: CutId
   label: string
+  kind?: 'box' | 'hole-array'
   face: '+X' | '-X' | '+Y' | '-Y' | '+Z' | '-Z'
   position: Vec3; size: Vec3
-  pairedCutId?: string  // "{partId}:{cutId}" — links to mating cut
+  pairedCutId?: string    // "{partId}:{cutId}" — links to mating cut
   sourceJointId?: string  // set on derived cuts owned by a Joint (read-only in UI)
+  sourceComponentId?: string  // set on cuts a component places directly (toe-kick notch, holes)
 }
 
 interface MaterialDef { costPerM2: number }
@@ -727,7 +766,8 @@ interface HardwareItem {
   name: string; qty: number; unit: string
   supplier: string; partNumber: string; unitCost: number
   notes: string
-  linkedPartIds: string[]   // board part IDs this item is linked to
+  linkedPartIds: string[]        // board part IDs this item is linked to
+  linkedComponentIds: string[]   // cabinets/groups this item belongs to
 }
 
 interface FaceHit {
@@ -754,9 +794,9 @@ interface FaceHit {
       <div class="flow">
         <div class="flow-box">useScene<br><span style="color:var(--muted);font-size:11px">single source of truth</span></div>
         <div class="flow-arrow">→</div>
-        <div class="flow-box">props<br><span style="color:var(--muted);font-size:11px">parts, geometries, selectedId</span></div>
+        <div class="flow-box">props<br><span style="color:var(--muted);font-size:11px">parts, components, geometries, selectedId</span></div>
         <div class="flow-arrow">→</div>
-        <div class="flow-box">Viewport<br><span style="color:var(--muted);font-size:11px">Three.js meshes in refs</span></div>
+        <div class="flow-box">Viewport<br><span style="color:var(--muted);font-size:11px">meshes in refs, placed by resolveWorldMatrix</span></div>
       </div>
       <div class="flow" style="margin-top:8px">
         <div class="flow-box">useScene</div>
@@ -768,6 +808,18 @@ interface FaceHit {
         <div class="flow-box">callbacks → onUpdate / onRemove / …</div>
         <div class="flow-arrow">→</div>
         <div class="flow-box">useScene (undo entry)</div>
+      </div>
+
+      <h3>Regenerate → reconcile pipeline</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:8px">Every scene mutation flows through <code>applyPipeline</code> in <code>useScene</code> before it becomes state: regeneration first, joint reconciliation second, both pure and idempotent. A carcase parameter change re-emits its driven parts (including 32&nbsp;mm shelf-pin <code>hole-array</code> cuts) and driven joints; a detached (<code>driven: false</code>) part is preserved untouched.</p>
+      <div class="flow">
+        <div class="flow-box">mutation<br><span style="color:var(--muted);font-size:11px">param edit, drop preset, detach</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">regenerateComponents<br><span style="color:var(--muted);font-size:11px">carcases → driven parts + joints</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">reconcileJoints<br><span style="color:var(--muted);font-size:11px">joints → derived cuts + seats</span></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">setScene<br><span style="color:var(--muted);font-size:11px">then geometry lifecycle</span></div>
       </div>
 
       <h3>Geometry lifecycle</h3>
@@ -847,7 +899,7 @@ interface FaceHit {
           </tr>
           <tr>
             <td><strong>ZimmuFile float precision</strong></td>
-            <td>Serialization rounds floats to 6 decimal places. <code>FILE_FORMAT_VERSION = 2</code> in <code>useFile.ts</code>.</td>
+            <td>Serialization rounds floats to 6 decimal places. <code>FILE_FORMAT_VERSION = 12</code> in <code>useFile.ts</code> (v11 added the component tree; v12 added the carcase <code>backSetback</code>). Unrelated to the IDB <code>DB_VERSION</code>, which is separately 2.</td>
           </tr>
           <tr>
             <td><strong>IDB schema bumps</strong></td>
@@ -864,6 +916,18 @@ interface FaceHit {
           <tr>
             <td><strong>Visible parts only in exports</strong></td>
             <td>STL, STEP, and DXF/SVG export skip parts where <code>visible === false</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Regeneration pipeline order is fixed</strong></td>
+            <td><code>regenerateComponents(scene)</code> runs before <code>reconcileJoints(scene)</code>, always, via <code>applyPipeline</code> in <code>useScene.ts</code>. Carcases emit parts and joints; <code>reconcileJoints</code> derives cuts and seats from those joints. Both stages are pure and idempotent.</td>
+          </tr>
+          <tr>
+            <td><strong>A detached part is the user's</strong></td>
+            <td><code>driven: false</code> means no regeneration and no deletion — a parameter change, a role disappearing, and deleting the whole component all preserve it.</td>
+          </tr>
+          <tr>
+            <td><strong>resolveWorldMatrix is the single source of world placement</strong></td>
+            <td>For <code>parentId: null</code> it is byte-identical to <code>composeWorldMatrix</code>; never call <code>composeWorldMatrix</code> outside <code>transform.ts</code>. The one remaining mention elsewhere (in <code>occt.ts</code>) is a comment, not a call.</td>
           </tr>
         </tbody>
       </table>
@@ -944,7 +1008,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->54<!-- /AUTOGEN:test-file-count --> test files (co-located <code>*.test.ts</code> / <code>*.test.tsx</code>); live-OCCT specs skipped in Node</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->59<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-24 the full Vitest run is 1105 passing (10 skipped) across 60 files (the 60th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 68 test files total including 8 Playwright specs in <code>e2e/</code>.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1061,7 +1125,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-07-scene-wide-suggestions-notes.md
     │   ├── 2026-08-16-zoom-to-fit-notes.md
     │   ├── 2026-08-17-joint-checklist-notes.md
-    │   └── 2026-08-18-cabinet-assembly-notes.md
+    │   ├── 2026-08-18-cabinet-assembly-notes.md
+    │   └── 2026-08-23-sheet-yield-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1120,7 +1185,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-08-09-scene-suggestions-pair-grouping-design.md
         ├── 2026-08-16-zoom-to-fit-design.md
         ├── 2026-08-17-joint-checklist-design.md
-        └── 2026-08-18-cabinet-assembly-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-08-18-cabinet-assembly-design.md
+        └── 2026-08-23-sheet-yield-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
@@ -1128,7 +1194,7 @@ import { useScene } from './useScene'</code></pre>
       <h2>File format</h2>
       <p>Projects are saved as <code>.zimmu</code> files — flat JSON, human-readable, floats rounded to 6 decimal places.</p>
       <pre><code>{
-  "version": 2,
+  "version": 12,
   "name": "My Cabinet",
   "appVersion": "0.0.0",
   "units": "mm",
@@ -1136,14 +1202,18 @@ import { useScene } from './useScene'</code></pre>
   "updatedAt": "2026-06-13T12:34:56.000Z",
   "camera": { "position": { "x": 500, "y": -800, "z": 600 }, "target": { "x": 0, "y": 0, "z": 0 } },
   "scene": {
-    "parts": [ { "kind": "board", "id": "…", "label": "Side Panel", … } ],
+    "parts": [ { "kind": "board", "id": "…", "label": "Side Panel", "parentId": "cmp_…", "driven": true, … } ],
     "materials": { "18mm Birch Ply": { "costPerM2": 42.50 } },
-    "hardware": [ { "id": "…", "name": "Hinge", "qty": 4, "unit": "pcs", … } ]
+    "hardware": [ { "id": "…", "name": "Hinge", "qty": 4, "unit": "pcs", "linkedComponentIds": [], … } ],
+    "joints": [ … ],
+    "components": [ { "id": "cmp_…", "kind": "carcase", "label": "Base 600", "params": { … } } ]
   }
 }</code></pre>
       <p style="color:var(--muted);font-size:13px">
-        <strong>Version history:</strong> v1 (initial) → v2 (added <code>materials</code> and <code>hardware</code> to Scene).
-        Migration logic lives in <code>useFile.ts</code>.
+        <strong>Version history:</strong> v1 (initial) → v2 (added <code>materials</code> and <code>hardware</code> to Scene) →
+        … → v11 (component tree: <code>components</code> on Scene, <code>parentId</code>/<code>driven</code> on every part and joint) →
+        v12 (carcase <code>backSetback</code>). Now at <code>FILE_FORMAT_VERSION = 12</code>.
+        Migration logic lives in <code>useFile.ts</code>; a missing <code>parentId</code> loads as top-level, a dangling one is promoted.
       </p>
 
       <p style="margin-top: 40px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); padding-top: 16px;">
