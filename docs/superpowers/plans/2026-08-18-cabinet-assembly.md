@@ -4713,13 +4713,13 @@ git add CLAUDE.md README.md project-structure.html joinery_3d_software_plan.md
 git commit -m "docs: re-baseline for the component tree and clear the v2/374-test drift"
 ```
 
-## Phase 10 verification
+## Phase 10 verification — DONE 2026-08-24
 
-- [ ] Every check green: `pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e`.
-- [ ] `grep -rn 'FILE_FORMAT_VERSION = 2\|374 tests' README.md joinery_3d_software_plan.md CLAUDE.md` returns nothing.
-- [ ] `grep -n 'composeWorldMatrix' src/ --include=*.ts --include=*.tsx -r | grep -v transform` returns only test files.
-- [ ] `project-structure.html` lists every file created in this plan.
-- [ ] The notes file carries the measured performance numbers.
+- [x] Every check green: 1105 unit tests (10 skipped, 60 files), 13 e2e including both live-kernel specs, typecheck + lint clean.
+- [x] `grep -rn 'FILE_FORMAT_VERSION = 2\b|374 tests|25 test files' …` returns nothing (only dated history references to the v1→v2 progression survive, correctly).
+- [x] The only `composeWorldMatrix` outside `transform.ts` is a **comment** in `occt.ts:298` — the invariant already holds, no call to fix.
+- [x] `project-structure.html` lists all eight new files (18 grep hits for the four scene modules alone).
+- [x] The notes file carries the measured WASM baseline (Task 10.2 section).
 
 ---
 
@@ -4727,11 +4727,11 @@ git commit -m "docs: re-baseline for the component tree and clear the v2/374-tes
 
 Run all of these on the final branch before opening a PR:
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` — green.
-- [ ] `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e` — all specs green, including `carcase.spec.ts`.
-- [ ] `pnpm build` — production bundle succeeds.
+- [x] `pnpm typecheck && pnpm lint && pnpm test` — green (1105 passed, 10 skipped).
+- [x] `pnpm test:e2e` — all 13 specs green, including `carcase.spec.ts` and both live-kernel specs.
+- [x] `pnpm build` — production bundle succeeds (6.4s; the >500 kB chunk warning is pre-existing).
 - [ ] **Workflow C by hand:** drop Base 600, detach one shelf, change depth 560 → 600, confirm the driven parts follow and the shelf does not, undo four times back to an empty scene, redo forward again.
 - [ ] **Round trip:** save, hard-reload, reopen. Tree, parameters, driven flags and detached parts all survive.
 - [ ] **Backward compatibility:** open a `.zimmu` file saved before Phase 1. It loads flat, renders identically, and saves back as v12.
-- [ ] `wc -l src/ui/sidebar.tsx` — under 400.
+- [x] `wc -l src/ui/sidebar.tsx` — **334**, under 400.
 - [ ] The notes file has an entry for every place the implementation deviated from this plan.
