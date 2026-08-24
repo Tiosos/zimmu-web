@@ -4553,11 +4553,15 @@ git commit -m "feat(bom): hardware items link to cabinets as well as parts"
 
 ## Phase 9 verification
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` — green.
-- [ ] `pnpm dev`, drop two Base 600 cabinets, open the BOM: rows are grouped per cabinet and identical parts from *different* cabinets are not merged.
-- [ ] Download the CSV; the first column is `Cabinet` and every generated part names its cabinet.
+Verified 2026-08-24. The `pnpm dev` items' substance was driven through the real generator and CSV
+serializer instead, so the result is reproducible; the browser BOM view is a thin render over that.
 
----
+- [x] `pnpm typecheck && pnpm lint && pnpm test` — green (60 files, 1074 passed, 10 skipped).
+- [x] Two Base 600 cabinets, grouped per cabinet: `groupParts` over the two-cabinet scene goes from **7 rows to 14** — every part kept under its own cabinet, identical parts across cabinets not merged. Within one cabinet, identical parts still merge (`buildCsv.test.ts`).
+- [x] CSV first column is `Cabinet` and every generated part names its cabinet: header `Cabinet,Qty,Labels,Material,…`, first data row's first field `Cab A`, zero blank component rows. Measured, not read.
+- [x] Grouping is cost-neutral: summed total identical with and without the component list (433.6128 both ways over the two-cabinet scene) — a guard test, since this is a labelling and splitting change only.
+- [x] Hardware links to a cabinet: ticking a component checkbox and saving carries `linkedComponentIds` on the emitted item (`HardwareEditPanel.test.tsx`).
+- [x] **Bonus, not in the plan:** the new per-item hardware loader map closes a pre-existing latent crash — `linkedPartIds` was read unguarded but never defaulted on load, so an old file threw `undefined.includes` on open. A legacy hardware item now returns `[]` for both link arrays.
 
 # Phase 10 — Re-baseline the documentation, and measure
 
