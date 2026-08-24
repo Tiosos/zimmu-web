@@ -1,4 +1,5 @@
-import type { BoardPart, BoxCut } from '../scene/types'
+import type { BoardPart, BoxCut, MitreCut } from '../scene/types'
+import { mitreFaceOutline } from '../geom/mitre'
 
 // A part's footprint on a sheet, rasterised at 1 mm per cell.
 //
@@ -35,7 +36,27 @@ export function occupancyMask(part: BoardPart, clearance: number): Mask {
   // Outward, so a 599.5 mm panel never nests as 599 and comes back short.
   const w = Math.ceil(part.length)
   const h = Math.ceil(part.width)
-  const bits = new Uint8Array(w * h).fill(1)
+  const bits = new Uint8Array(w * h)
+
+  // `mitreFaceOutline` returns [bl, br, tr, tl] in board-local millimetres with its min corner at
+  // the origin, and only ever moves tr.x or tl.x — so the outline is a trapezoid and each row is a
+  // single run. With no flat mitre it is the plain rectangle, which is why this is the only fill.
+  // It filters on the 'Face' view's own axis, so passing every mitre is correct and the filter is
+  // not duplicated here: a bevel through the thickness leaves the footprint square, and the widest
+  // section is what a nest must reserve.
+  const [bl, br, tr, tl] = mitreFaceOutline(
+    { length: part.length, width: part.width, thickness: part.thickness },
+    part.cuts.filter((c): c is MitreCut => c.kind === 'mitre'),
+    'Face',
+  )
+  for (let y = 0; y < h; y++) {
+    const t = (y + 0.5) / part.width
+    // Inward: a cell is material only if its centre is inside. The opposite rounding to the
+    // dimensions above, and the same principle — never claim material the part does not have.
+    const left = Math.ceil(bl.x + (tl.x - bl.x) * t)
+    const right = Math.floor(br.x + (tr.x - br.x) * t)
+    if (right > left) bits.fill(1, y * w + Math.max(0, left), y * w + Math.min(w, right))
+  }
 
   for (const c of part.cuts) {
     // `face` is not consulted: a box cut is an axis-aligned box in board-local space, so its

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { maskArea, occupancyMask } from './mask'
-import type { BoardPart, BoxCut, CarcaseComponent } from '../scene/types'
+import type { BoardPart, BoxCut, CarcaseComponent, MitreCut } from '../scene/types'
+import { mitreFaceOutline } from '../geom/mitre'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { reconcileJoints } from '../scene/reconcileJoints'
 import { CARCASE_PRESETS } from '../scene/carcasePresets'
@@ -172,6 +173,66 @@ describe('occupancyMask — against a real cabinet, not a fixture', () => {
       p.cuts.filter((c) => c.kind === 'box' && c.position.z + c.size.z < p.thickness),
     )
     expect(grooves.length).toBeGreaterThan(0)
+  })
+})
+
+describe('occupancyMask — flat mitres shave the outline', () => {
+  const mitre = (over: Partial<MitreCut> = {}): MitreCut => ({
+    kind: 'mitre',
+    id: 'm1',
+    label: 'Mitre',
+    end: '+X',
+    axis: 'Z',
+    angle: 45,
+    ...over,
+  })
+
+  // Derived from mitreFaceOutline itself rather than from arithmetic in this test: the polygon is
+  // the contract, and a triangle area computed here would just be a second copy of it.
+  function outlineArea(p: BoardPart): number {
+    const pts = mitreFaceOutline(
+      { length: p.length, width: p.width, thickness: p.thickness },
+      p.cuts.filter((c): c is MitreCut => c.kind === 'mitre'),
+      'Face',
+    )
+    // Shoelace.
+    let a = 0
+    for (let i = 0; i < pts.length; i++) {
+      const q = pts[(i + 1) % pts.length]
+      a += pts[i].x * q.y - q.x * pts[i].y
+    }
+    return Math.abs(a) / 2
+  }
+
+  it('a flat mitre removes the wedge the outline polygon describes', () => {
+    const p = board({ length: 600, width: 300, cuts: [mitre({ angle: 30 })] })
+    const area = maskArea(occupancyMask(p, 0))
+    // Rasterised at 1 mm, so within a cell per row of the exact polygon.
+    expect(area).toBeGreaterThan(outlineArea(p) - p.width)
+    expect(area).toBeLessThanOrEqual(outlineArea(p) + p.width)
+  })
+
+  it('a flat mitre never claims more material than the plain rectangle', () => {
+    const p = board({ length: 600, width: 300, cuts: [mitre({ angle: 30 })] })
+    expect(maskArea(occupancyMask(p, 0))).toBeLessThan(600 * 300)
+  })
+
+  it('a bevel through the thickness leaves the footprint square', () => {
+    // axis 'Y' tilts through the thickness. The widest section is still the full rectangle, and
+    // that is what a nest has to reserve.
+    const p = board({ length: 600, width: 300, cuts: [mitre({ axis: 'Y', angle: 45 })] })
+    expect(maskArea(occupancyMask(p, 0))).toBe(600 * 300)
+  })
+
+  it('mitres both ends', () => {
+    const p = board({
+      length: 600,
+      width: 300,
+      cuts: [mitre({ end: '+X', angle: 20 }), mitre({ id: 'm2', end: '-X', angle: 20 })],
+    })
+    const area = maskArea(occupancyMask(p, 0))
+    expect(area).toBeGreaterThan(outlineArea(p) - 2 * p.width)
+    expect(area).toBeLessThanOrEqual(outlineArea(p) + 2 * p.width)
   })
 })
 
