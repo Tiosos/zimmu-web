@@ -11,6 +11,7 @@ function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
     length: 400,
     width: 200,
     thickness: 18,
+    grain: 'free' as const,
     material: 'Plywood',
     color: '#d4a373',
     position: { x: 0, y: 0, z: 0 },

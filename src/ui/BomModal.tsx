@@ -6,6 +6,8 @@ import { HardwareTab } from './HardwareTab'
 import { groupParts, buildCsv, buildHardwareCsv, groupDowels, buildDowelCsv } from './buildCsv'
 import { downloadBlob } from './download'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 type Tab = 'boards' | 'dowels' | 'hardware' | 'library'
 
@@ -21,59 +23,142 @@ interface BomModalProps {
   library: Record<string, MaterialDef>
   onSaveRate: (name: string, def: MaterialDef) => void
   onDeleteLibraryEntry: (name: string) => void
+  clearance: number
+  onSetClearance: (mm: number) => void
 }
 
 function LibraryTab({
   library,
   onDelete,
+  onSaveRate,
+  clearance,
+  onSetClearance,
 }: {
   library: Record<string, MaterialDef>
   onDelete: (name: string) => void
+  onSaveRate: (name: string, def: MaterialDef) => void
+  clearance: number
+  onSetClearance: (mm: number) => void
 }) {
   const entries = Object.entries(library).sort(([a], [b]) => a.localeCompare(b))
 
-  if (entries.length === 0) {
-    return (
-      <p className="text-xs text-muted-foreground py-4 text-center">
-        No materials saved yet. Set a rate in the Boards tab to build your library.
-      </p>
-    )
-  }
+  // Typing one dimension into a material that has no sheet creates the pair with the other at 0.
+  // `isNestable` treats a 0 as absent, so a half-filled sheet is never nested.
+  const setSheet = (name: string, def: MaterialDef, field: 'length' | 'width', mm: number) =>
+    onSaveRate(name, {
+      ...def,
+      sheet: { length: 0, width: 0, ...def.sheet, [field]: mm },
+    })
 
   return (
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="border-b border-border text-muted-foreground text-left">
-          <th className="pb-2 pr-2 font-medium text-xs">Material</th>
-          <th className="pb-2 px-2 font-medium text-xs">Cost/m²</th>
-          <th className="pb-2 px-2 font-medium text-xs">Cost/m</th>
-          <th className="pb-2 px-2 font-medium text-xs" />
-        </tr>
-      </thead>
-      <tbody>
-        {entries.map(([name, def]) => (
-          <tr key={name} className="border-b border-border/30">
-            <td className="py-1.5 pr-2 text-xs">{name}</td>
-            <td className="py-1.5 px-2 text-xs">
-              {def.costPerM2 !== undefined ? `$${def.costPerM2.toFixed(2)}` : '—'}
-            </td>
-            <td className="py-1.5 px-2 text-xs">
-              {def.costPerM !== undefined ? `$${def.costPerM.toFixed(2)}` : '—'}
-            </td>
-            <td className="py-1.5 px-2 text-xs text-right">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onDelete(name)}
-                className="h-5 px-1.5 text-xs text-muted-foreground hover:text-destructive"
-              >
-                Delete
-              </Button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      {entries.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-4 text-center">
+          No materials saved yet. Set a rate in the Boards tab to build your library.
+        </p>
+      ) : (
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground text-left">
+              <th className="pb-2 pr-2 font-medium text-xs">Material</th>
+              <th className="pb-2 px-2 font-medium text-xs">Cost/m²</th>
+              <th className="pb-2 px-2 font-medium text-xs">Cost/m</th>
+              <th className="pb-2 px-2 font-medium text-xs">Sheet L</th>
+              <th className="pb-2 px-2 font-medium text-xs">Sheet W</th>
+              <th className="pb-2 px-2 font-medium text-xs">Cost/sheet</th>
+              <th className="pb-2 px-2 font-medium text-xs">Grain</th>
+              <th className="pb-2 px-2 font-medium text-xs" />
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map(([name, def]) => (
+              <tr key={name} className="border-b border-border/30">
+                <td className="py-1.5 pr-2 text-xs">{name}</td>
+                <td className="py-1.5 px-2 text-xs">
+                  {def.costPerM2 !== undefined ? `$${def.costPerM2.toFixed(2)}` : '—'}
+                </td>
+                <td className="py-1.5 px-2 text-xs">
+                  {def.costPerM !== undefined ? `$${def.costPerM.toFixed(2)}` : '—'}
+                </td>
+                <td className="py-1.5 px-2">
+                  <Input
+                    type="number"
+                    aria-label={`Sheet length for ${name}`}
+                    value={def.sheet?.length ?? ''}
+                    onChange={(e) => setSheet(name, def, 'length', Number(e.target.value))}
+                    className="h-6 w-20 text-xs"
+                  />
+                </td>
+                <td className="py-1.5 px-2">
+                  <Input
+                    type="number"
+                    aria-label={`Sheet width for ${name}`}
+                    value={def.sheet?.width ?? ''}
+                    onChange={(e) => setSheet(name, def, 'width', Number(e.target.value))}
+                    className="h-6 w-20 text-xs"
+                  />
+                </td>
+                <td className="py-1.5 px-2">
+                  <Input
+                    type="number"
+                    aria-label={`Cost per sheet for ${name}`}
+                    value={def.sheet?.costPerSheet ?? ''}
+                    onChange={(e) =>
+                      onSaveRate(name, {
+                        ...def,
+                        sheet: {
+                          length: 0,
+                          width: 0,
+                          ...def.sheet,
+                          costPerSheet: Number(e.target.value),
+                        },
+                      })
+                    }
+                    className="h-6 w-20 text-xs"
+                  />
+                </td>
+                <td className="py-1.5 px-2">
+                  <input
+                    type="checkbox"
+                    aria-label={`${name} has grain`}
+                    // Absent means "has grain": the safe default, since rotating a directional
+                    // sheet freely is the answer that wastes material the user cannot get back.
+                    checked={def.hasGrain ?? true}
+                    onChange={(e) => onSaveRate(name, { ...def, hasGrain: e.target.checked })}
+                  />
+                </td>
+                <td className="py-1.5 px-2 text-xs text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDelete(name)}
+                    className="h-5 px-1.5 text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    Delete
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <div className="mt-4 flex items-center gap-2 border-t border-border pt-3">
+        <Label htmlFor="lib-clearance" className="text-xs">
+          Tool clearance
+        </Label>
+        <Input
+          id="lib-clearance"
+          type="number"
+          value={clearance}
+          onChange={(e) => onSetClearance(Number(e.target.value))}
+          className="h-7 w-20 text-xs"
+        />
+        <span className="text-xs text-muted-foreground">
+          mm — the gap left around every nested part
+        </span>
+      </div>
+    </>
   )
 }
 
@@ -89,6 +174,8 @@ export function BomModal({
   library,
   onSaveRate,
   onDeleteLibraryEntry,
+  clearance,
+  onSetClearance,
 }: BomModalProps) {
   const [tab, setTab] = useState<Tab>('boards')
 
@@ -225,7 +312,13 @@ export function BomModal({
               onUpdateHardware={onUpdateHardware}
             />
           ) : (
-            <LibraryTab library={library} onDelete={onDeleteLibraryEntry} />
+            <LibraryTab
+              library={library}
+              onDelete={onDeleteLibraryEntry}
+              onSaveRate={onSaveRate}
+              clearance={clearance}
+              onSetClearance={onSetClearance}
+            />
           )}
         </div>
 

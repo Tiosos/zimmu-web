@@ -87,6 +87,9 @@ function makeDefaultBoard(): BoardPart {
     length: 200,
     width: 100,
     thickness: 25,
+    // A hand-made board's grain is unknown, so the nester is left free to rotate it. Only the
+    // carcase generator states a direction.
+    grain: 'free',
     material: '',
     color: PART_COLORS[0],
     position: { x: 0, y: 0, z: 0 },
@@ -356,6 +359,7 @@ export function useScene(): UseSceneResult {
           length: 200,
           width: 100,
           thickness: 25,
+          grain: 'free',
           material: '',
           color,
           position: { x: 0, y: 0, z: 0 },

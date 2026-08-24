@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useMaterialLibrary } from './useMaterialLibrary'
-import { readLibrary, writeLibraryEntry, openDb } from './idb'
+import { readLibrary, writeLibraryEntry, openDb, readClearance, writeClearance } from './idb'
 import type { MaterialDef } from './types'
 
 async function clearLibrary() {
@@ -76,5 +76,23 @@ describe('useMaterialLibrary', () => {
       const stored = await readLibrary()
       expect(stored['pine']).toBeUndefined()
     })
+  })
+})
+
+describe('useMaterialLibrary — clearance', () => {
+  it('loads the stored clearance on mount', async () => {
+    await writeClearance(9)
+    const { result } = renderHook(() => useMaterialLibrary())
+    await waitFor(() => expect(result.current.clearance).toBe(9))
+  })
+
+  it('setClearance updates state optimistically and persists', async () => {
+    const { result } = renderHook(() => useMaterialLibrary())
+    await waitFor(() => expect(result.current.clearance).toBeDefined())
+    act(() => {
+      result.current.setClearance(20)
+    })
+    expect(result.current.clearance).toBe(20)
+    await waitFor(async () => expect(await readClearance()).toBe(20))
   })
 })

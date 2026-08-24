@@ -262,6 +262,7 @@ describe('useScene', () => {
           length: 300,
           width: 150,
           thickness: 30,
+          grain: 'free' as const,
           material: '',
           color: '#d4a373',
           position: { x: 0, y: 0, z: 0 },

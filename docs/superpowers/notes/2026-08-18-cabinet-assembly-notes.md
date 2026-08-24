@@ -1395,3 +1395,43 @@ six-cabinet scene, which would rebuild all 42 including 12 drilled sides (~3 s).
 common edit, the fix is either caching the drilled compound across a dimension change or moving the
 drill off the rebuild path — not making the boolean faster, which Task 8.2 already showed is 16× off
 the naive floor.
+
+---
+
+## 2026-08-24 — the plan is closed, and what "closed" does not mean
+
+Phases 1–10 are on `main`: #29 (Phases 4–7), #30 (Phase 8), #31 (Phase 9), #32 (Phase 10), with
+Phases 1–3 landed earlier on the review branch. Acceptance on the final branch: 1105 unit tests
+across 60 files (10 skipped), 13 e2e specs including both live-kernel ones, `pnpm build` green,
+`sidebar.tsx` at 334 lines.
+
+Three whole-plan acceptance bullets are **not** ticked, and the distinction is worth keeping:
+
+- **Workflow C by hand.** `e2e/carcase.spec.ts` drives everything in that bullet except the
+  undo-four-times/redo-forward leg. That leg is cheap to automate and was simply never written.
+- **Disk round trip** and **opening a pre-Phase-1 file.** Both cross the File System Access API,
+  which needs a native picker and a real user gesture — Playwright cannot drive it. The
+  serialise→parse seam beneath it *is* unit-tested (`useFile.test.ts` parses v1–v5, v10 and v11
+  fixtures); what is untested is the file arriving from disk and rendering identically.
+
+Recorded rather than ticked because a green box that nobody actually checked is worse than an
+honest empty one — the box is the only thing a future reader has to go on.
+
+### The one thing this plan taught that outlived it
+
+Every real defect in ten phases was found by checking the system **against itself**, never by
+comparing it to a number a human or a model supplied: pairwise overlap between panels, coverage
+assertions (`joints ∪ contact === boardsTouch`), face-direction dot products, parameter sweeps, and
+mutation testing. The three role-table errors, the dado seat that made every housed panel 6 mm
+short, the unjointed ladder base, and the applied back that touched along four lines were all
+caught this way. The tests that asserted numbers *I* chose passed throughout — they were baking the
+same error into both sides.
+
+Task 10.1 is the sharpest instance: this plan specified a mutation to prove `carcase.spec.ts` bites,
+and the specified mutation does not fail the test. A detached part is protected by `role: undefined`
+in `onDetachPart`, not by the `!existing.driven` guard the plan pointed at. Mutating the line that
+is actually load-bearing fails with `Expected 2 / Received 1`. The plan was wrong about its own
+code, and only running the mutation revealed it.
+
+This is carried forward into the sheet-yield work: its spec's testing section is written entirely as
+properties recomputed from returned placements, with no fixture asserting a coordinate anyone chose.

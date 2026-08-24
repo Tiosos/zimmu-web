@@ -6,6 +6,7 @@ import {
   buildHardwareCsv,
   groupDowels,
   buildDowelCsv,
+  isNestable,
 } from './buildCsv'
 import type { BoardPart, CarcaseComponent, Part, CylinderPart, Scene } from '../scene/types'
 import type { MaterialDef, HardwareItem } from '../scene/types'
@@ -38,6 +39,7 @@ const plywoodPart: BoardPart = {
   length: 600,
   width: 300,
   thickness: 18,
+  grain: 'free' as const,
   material: 'Plywood',
   color: '#aabbcc',
   position: { x: 0, y: 0, z: 0 },
@@ -117,6 +119,7 @@ describe('groupParts', () => {
         length: 1000,
         width: 500,
         thickness: 18,
+        grain: 'free' as const,
         material: 'Beech dowel',
         color: '#888888',
         position: { x: 0, y: 0, z: 0 },
@@ -231,6 +234,81 @@ describe('cutDimensions', () => {
     expect(cutDimensions({ ...plywoodPart, length: 40, width: 60, thickness: 100 }).thickness).toBe(
       100,
     )
+  })
+
+  // A three-bay 900's shelf is stored 285 x 548 and runs its grain along the 285 mm span. Grain
+  // decides the length because that is what the length *means* on a sheet good; size only decides
+  // it when grain is unconstrained.
+  it('grain decides the length, even when it is the shorter dimension', () => {
+    expect(
+      cutDimensions({ ...plywoodPart, length: 285, width: 548, thickness: 18, grain: 'length' }),
+    ).toEqual({ length: 285, width: 548, thickness: 18 })
+  })
+
+  it('grain on width swaps the pair', () => {
+    expect(
+      cutDimensions({ ...plywoodPart, length: 560, width: 720, thickness: 18, grain: 'width' }),
+    ).toEqual({ length: 720, width: 560, thickness: 18 })
+  })
+
+  it('free grain keeps the longest-first rule', () => {
+    expect(
+      cutDimensions({ ...plywoodPart, length: 560, width: 720, thickness: 18, grain: 'free' }),
+    ).toEqual({ length: 720, width: 560, thickness: 18 })
+  })
+})
+
+describe('grain in the cutting list', () => {
+  // The reported grain is relative to the *reported* dimensions, not the stored ones: cutDimensions
+  // has already put the grain-running dimension into `length`.
+  it('reports a directional board as running along the reported length', () => {
+    const a: Part = { ...plywoodPart, id: 'a', label: 'A', length: 300, width: 600, grain: 'width' }
+    const row = groupParts([a])[0]
+    expect(row.length).toBe(600)
+    expect(row.grain).toBe('length')
+  })
+
+  it('reports an unconstrained board as free', () => {
+    expect(groupParts([{ ...plywoodPart, id: 'a', grain: 'free' }])[0].grain).toBe('free')
+  })
+
+  // This is the assertion that found the first attempt wrong. A 600x300 'length' board, a 300x600
+  // 'width' board and a 600x300 'free' board all reduce to 600x300, so taking the row's grain from
+  // whichever part arrived first reported one part's grain for another's.
+  it('every part in a group agrees with the grain the row reports', () => {
+    const parts: Part[] = [
+      { ...plywoodPart, id: 'a', label: 'A', length: 600, width: 300, grain: 'length' },
+      { ...plywoodPart, id: 'b', label: 'B', length: 300, width: 600, grain: 'width' },
+      { ...plywoodPart, id: 'c', label: 'C', length: 600, width: 300, grain: 'free' },
+      { ...plywoodPart, id: 'd', label: 'D', length: 600, width: 300, grain: 'width' },
+    ]
+    const rows = groupParts(parts)
+    expect(rows.length).toBeGreaterThan(1)
+
+    for (const row of rows) {
+      const members = parts.filter((p) => row.labels.split(', ').includes(p.label))
+      expect(members.length).toBe(row.qty)
+      for (const m of members) {
+        const expected = m.kind === 'board' && m.grain === 'free' ? 'free' : 'length'
+        expect(expected, `${m.label} in row ${row.key}`).toBe(row.grain)
+      }
+    }
+  })
+
+  it('keeps a rotatable board out of a directional board s row', () => {
+    const rows = groupParts([
+      { ...plywoodPart, id: 'a', label: 'A', length: 600, width: 300, grain: 'length' },
+      { ...plywoodPart, id: 'b', label: 'B', length: 600, width: 300, grain: 'free' },
+    ])
+    expect(rows).toHaveLength(2)
+  })
+
+  it('names the grain in the CSV header and each row', () => {
+    const csv = buildCsv([{ ...plywoodPart, grain: 'width' }])
+    const [header, first] = csv.split('\n')
+    const col = header.split(',').indexOf('Grain')
+    expect(col).toBeGreaterThan(-1)
+    expect(first.split(',')[col]).toBe('length')
   })
 })
 
@@ -378,6 +456,7 @@ describe('groupDowels', () => {
       length: 200,
       width: 100,
       thickness: 25,
+      grain: 'free' as const,
       material: 'Oak',
       color: '#888888',
       position: { x: 0, y: 0, z: 0 },
@@ -401,5 +480,22 @@ describe('buildDowelCsv', () => {
     const lines = csv.split('\n')
     expect(lines[0]).toBe('Qty,Labels,Material,Color,Diameter (mm),Length (mm),Cost/unit,Total')
     expect(lines[lines.length - 1]).toContain('Dowel total')
+  })
+})
+
+describe('isNestable', () => {
+  it('a material with no sheet is not nested', () => {
+    expect(isNestable({ costPerM2: 40 })).toBe(false)
+  })
+
+  // A sheet field created by typing one dimension into the library carries 0 for the other. Zero is
+  // absent, not a zero-sized sheet — Stage 3 must not try to nest onto it.
+  it('a half-filled sheet is not nested', () => {
+    expect(isNestable({ sheet: { length: 2440, width: 0 } })).toBe(false)
+    expect(isNestable({ sheet: { length: 0, width: 1220 } })).toBe(false)
+  })
+
+  it('a sheet with both dimensions is nested', () => {
+    expect(isNestable({ sheet: { length: 2440, width: 1220 } })).toBe(true)
   })
 })

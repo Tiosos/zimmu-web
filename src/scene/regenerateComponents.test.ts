@@ -66,6 +66,40 @@ function withParams(s: Scene, overrides: Partial<CarcaseParams>): Scene {
   })
 }
 
+describe('grain', () => {
+  // Membership, not `not.toBe('free')`: an unset field is not 'free' either, so the weaker
+  // assertion passes against a generator that never writes grain at all.
+  it('every generated board states a real direction', () => {
+    const after = regenerateComponents(empty)
+    const driven = after.parts.filter((p) => p.driven && p.kind === 'board')
+    expect(driven.length).toBeGreaterThan(0)
+    for (const p of driven) {
+      expect(['length', 'width']).toContain(p.kind === 'board' ? p.grain : undefined)
+    }
+  })
+
+  it('a detached part keeps its own grain while its freed role regenerates with a real one', () => {
+    const first = regenerateComponents(empty)
+    const side = first.parts.find((p) => p.role === 'left-side')!
+    const detached = {
+      ...first,
+      parts: first.parts.map((p) =>
+        p.id === side.id ? { ...p, driven: false, role: undefined, grain: 'free' as const } : p,
+      ),
+    }
+
+    const after = withParams(detached, { depth: 600 })
+
+    const kept = after.parts.find((p) => p.id === side.id)!
+    expect(kept.kind === 'board' && kept.grain).toBe('free')
+    // The role came back on a fresh part. If the generator simply carried grain through from
+    // whatever it found, this one would be 'free' too.
+    const reclaimed = after.parts.find((p) => p.role === 'left-side')!
+    expect(reclaimed.id).not.toBe(side.id)
+    expect(reclaimed.kind === 'board' && reclaimed.grain).toBe('width')
+  })
+})
+
 describe('regenerateComponents', () => {
   it('creates one part per role, all driven and parented to the carcase', () => {
     const out = regenerateComponents(empty)
@@ -170,6 +204,7 @@ describe('regenerateComponents', () => {
       length: 100,
       width: 50,
       thickness: 18,
+      grain: 'free' as const,
       material: '',
       color: '#fff',
       position: { x: 0, y: 0, z: 0 },

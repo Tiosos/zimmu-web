@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete** — Phases 1–10 landed on `main` via #29 (Phases 4–7), #30 (Phase 8), #31 (Phase 9), #32 (Phase 10); Phases 1–3 landed earlier on the review branch. Three whole-plan acceptance items are browser-only and remain for a human; see the acceptance section at the foot of this file.
+
 **Goal:** Give Zimmu a nestable component tree and a parametric carcase generator, so a cabinet is a single editable object whose parts and joints regenerate when its parameters change, without ever destroying a part the user has detached.
 
 **Architecture:** `Scene` gains a flat `components: Component[]` array; parts and components link upward by `parentId`, and the tree is an index derived on demand. A new pure stage, `regenerateComponents(scene)`, runs immediately before the existing `reconcileJoints(scene)`: carcases emit driven parts and driven joints, then `reconcileJoints` derives cuts and seats from those joints exactly as it does today. Regeneration reconciles against existing parts by **stable role key**, so ids survive (keeping the `shapeKey` geometry cache useful) and a `driven: false` part is never touched.
@@ -4731,7 +4733,14 @@ Run all of these on the final branch before opening a PR:
 - [x] `pnpm test:e2e` — all 13 specs green, including `carcase.spec.ts` and both live-kernel specs.
 - [x] `pnpm build` — production bundle succeeds (6.4s; the >500 kB chunk warning is pre-existing).
 - [ ] **Workflow C by hand:** drop Base 600, detach one shelf, change depth 560 → 600, confirm the driven parts follow and the shelf does not, undo four times back to an empty scene, redo forward again.
+      *Automated as far as it goes:* `e2e/carcase.spec.ts` drives the drop, the parameter change, the driven-parts-follow assertion and the detached-part-holds assertion against the live kernel. The undo/redo leg is **not** covered — it is the only part of this bullet still awaiting a human.
 - [ ] **Round trip:** save, hard-reload, reopen. Tree, parameters, driven flags and detached parts all survive.
+      *Browser-only:* the save and open paths go through the File System Access API, which needs a native picker and a real user gesture. Playwright cannot drive it and neither can happy-dom, so the serialise→parse seam is unit-tested in `useFile.test.ts` and the disk round trip is not. A human must do this one.
 - [ ] **Backward compatibility:** open a `.zimmu` file saved before Phase 1. It loads flat, renders identically, and saves back as v12.
+      *Partly automated:* `useFile.test.ts` parses v1, v2, v3, v4, v5, v10 and v11 fixtures and asserts the normalised shape. What is untested is the same file arriving from disk and *rendering* identically — the same FSAPI limit as above.
 - [x] `wc -l src/ui/sidebar.tsx` — **334**, under 400.
-- [ ] The notes file has an entry for every place the implementation deviated from this plan.
+- [x] The notes file has an entry for every place the implementation deviated from this plan — 1397 lines, an entry per task from 2.1 through 10.2, including the three role-table corrections, the two Task 6.2 defects the unit tests structurally could not see, and Task 10.1's finding that this plan's own mutation target was wrong.
+
+## What is left, precisely
+
+The three unchecked bullets above are all the same shape: they need a person at a Chromium browser with a real file on disk. Nothing in `src/` is waiting on them — every seam beneath the browser boundary is covered by the 1105 unit tests and 13 e2e specs. They are recorded here rather than ticked because ticking them would be a claim nobody made.

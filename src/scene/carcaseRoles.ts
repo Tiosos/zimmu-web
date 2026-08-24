@@ -1,7 +1,8 @@
-import type { BoxCut, CarcaseParams, Face, HoleArrayCut, Vec3 } from './types'
+import type { BoxCut, CarcaseParams, Face, Grain, HoleArrayCut, ThicknessAxis, Vec3 } from './types'
 import { dadoDepthFor } from '../geom/dado'
+import { grainAxisOf, grainFieldFor } from './grain'
 
-export type ThicknessAxis = 'x' | 'y' | 'z'
+export type { ThicknessAxis }
 
 export interface LocalBox {
   x0: number
@@ -161,6 +162,7 @@ export interface RoleSpec {
   role: string
   label: string
   panel: PanelSpec
+  grain: Grain
 }
 
 export interface RoleBox {
@@ -359,6 +361,7 @@ export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
     role: b.role,
     label: b.label,
     panel: orientedPanel(b.box, b.thicknessAxis),
+    grain: grainFieldFor(b.thicknessAxis, grainAxisOf(b.role)),
   }))
 }
 

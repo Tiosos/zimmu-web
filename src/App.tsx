@@ -122,7 +122,7 @@ function App() {
     [onAddHalfLap, onAddJoint, onAddMortiseTenon, onAddTongueGroove, onAddFingerJoint],
   )
 
-  const { library, saveRate, deleteEntry } = useMaterialLibrary()
+  const { library, clearance, saveRate, deleteEntry, setClearance } = useMaterialLibrary()
 
   const [flashTarget, setFlashTarget] = useState<{ id: PartId; seq: number } | null>(null)
   const handleRotationSnap = useCallback(
@@ -456,6 +456,8 @@ function App() {
           library={library}
           onSaveRate={saveRate}
           onDeleteLibraryEntry={deleteEntry}
+          clearance={clearance}
+          onSetClearance={setClearance}
         />
       )}
       <DrawingViewer
