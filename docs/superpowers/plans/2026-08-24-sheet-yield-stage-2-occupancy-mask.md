@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript strict · Vitest. No new dependencies.
 
+**Status:** **Complete.** All five tasks implemented on `claude/sheet-yield-stage-2`. Acceptance: 1175 unit tests across 62 files (10 skipped), `pnpm build` green, every rule mutation-tested. One of this plan's own claims was wrong — see "What changed against this plan" at the foot.
+
 **Spec:** `docs/superpowers/specs/2026-08-23-sheet-yield-design.md`
 **Notes:** `docs/superpowers/notes/2026-08-23-sheet-yield-notes.md` — update it whenever a decision deviates from this plan.
 **Depends on:** Stage 1 (`docs/superpowers/plans/2026-08-24-sheet-yield-stage-1-grain-and-stock.md`, PR #33). `DEFAULT_CLEARANCE` and `MaterialDef.sheet` land there.
@@ -350,3 +352,29 @@ git commit -m "test(nest): mask properties over the full role sweep, and the fir
 - **No holes in the mask.** A drilled hole does not change the outline.
 - **No fix to `projectCut`'s convention bug in `drawing.ts`.** Real, out of scope, reported separately.
 - **No transposition for grain.** The mask stays in board axes; Stage 3 decides which rotations `part.grain` permits.
+
+
+---
+
+# What changed against this plan
+
+### The dilation was specified as O(w·h) and the first implementation was not
+
+Task 2.4 said "a separable box dilation: one horizontal pass with a running window of `2r+1`, then one vertical pass. O(w·h) regardless of `r`." The first implementation wrote the vertical pass as an inner loop over the `2r+1` window — O(w·h·r), roughly 31× the work at a 30 mm clearance on a 2100 mm panel — and the monotonicity property, which sweeps clearance over `[0, 4, 14, 30]`, timed out.
+
+Rewritten with prefix sums, which is what "running window" actually requires. Measured after, and **flat in `r`**, which is the proof it worked: 17.6 ms for a 2100 × 560 panel at 14 mm and 18.2 ms at 30 mm. A six-cabinet job is **280 ms over 46 boards**, ~6 ms per board.
+
+The plan was right about the complexity it wanted; the implementation did not deliver it, and only the property test noticed.
+
+### The property tests were restructured, and got better for it
+
+Written as specified they took 59 s. Two costs, both avoidable:
+
+- `expect(a.bits).toEqual(b.bits)` on a multi-million-cell `Uint8Array` — vitest's deep equality was timing the determinism test out rather than finding a difference. A hand loop instead.
+- Running the properties over **every** board the 96-case sweep emits, over a thousand of them, most near duplicates. Now **one board per role family** — 13.
+
+The dedupe is better testing, not just cheaper: a family is the unit the mask rules are stated in. It also yields a free assertion, `boards.length === 13`, which agrees with the independent count in `grain.test.ts`.
+
+### Everything the plan got right
+
+Worth recording, since the plan's value was mostly in what it stopped: `cutFootprintCorners` was indeed the wrong seam, `mitreFaceOutline` was the right one, the through-cut rule was needed (a Base 600 side has four grooves and one notch), and `BoxCut.position` is the min corner — that last one turned into its own fix, merged as #34.
