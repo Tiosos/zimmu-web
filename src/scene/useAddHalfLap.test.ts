@@ -10,6 +10,7 @@ const board = (id: string): Part => ({
   length: 100,
   width: 100,
   thickness: 20,
+  grain: 'free' as const,
   material: '',
   color: '#fff',
   position: { x: 0, y: 0, z: 0 },

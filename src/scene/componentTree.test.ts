@@ -31,6 +31,7 @@ function board(id: string, parentId: string | null): BoardPart {
     length: 100,
     width: 50,
     thickness: 18,
+    grain: 'free' as const,
     material: '',
     color: '#c8a97e',
     position: { x: 0, y: 0, z: 0 },

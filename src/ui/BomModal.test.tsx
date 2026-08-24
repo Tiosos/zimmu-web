@@ -13,6 +13,7 @@ const parts: Part[] = [
     length: 600,
     width: 300,
     thickness: 18,
+    grain: 'free' as const,
     material: 'Plywood',
     color: '#aabbcc',
     position: { x: 0, y: 0, z: 0 },

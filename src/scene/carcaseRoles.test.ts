@@ -36,6 +36,7 @@ function aabb(p: ReturnType<typeof orientedPanel>) {
   const m = composeWorldMatrix({
     ...p,
     kind: 'board',
+    grain: 'free' as const,
     id: 'x',
     label: 'x',
     material: '',
@@ -661,6 +662,7 @@ describe('carcaseCuts', () => {
     const m = composeWorldMatrix({
       ...panel,
       kind: 'board',
+    grain: 'free' as const,
       id: 'x',
       label: 'x',
       material: '',
@@ -803,6 +805,7 @@ function boardOf(p: PanelSpec) {
   return {
     ...p,
     kind: 'board' as const,
+    grain: 'free' as const,
     id: 'x',
     label: 'x',
     material: '',
@@ -1292,7 +1295,13 @@ describe('panel extents follow the joinery', () => {
       for (const [name, p] of Object.entries(variations)) {
         const params = { ...p, jointMethod: method }
         expect(carcaseJoints(params, 'cmp_1'), `${name}/${method}`).toEqual([])
-        expect(carcaseRoles(params), `${name}/${method}`).toEqual(
+        // Grain is dropped rather than reconstructed: this test is about extents, and rebuilding
+        // grain here would only assert the production line against a copy of itself. `grain.test.ts`
+        // owns it.
+        expect(
+          carcaseRoles(params).map((r) => ({ role: r.role, label: r.label, panel: r.panel })),
+          `${name}/${method}`,
+        ).toEqual(
           carcaseBoxes(params).map((b) => ({
             role: b.role,
             label: b.label,

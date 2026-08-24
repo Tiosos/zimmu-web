@@ -13,6 +13,7 @@ const groove: Part = {
   length: 800,
   width: 150,
   thickness: 18,
+  grain: 'free' as const,
   material: '',
   color: '#fff',
   position: { x: 0, y: 0, z: 0 },

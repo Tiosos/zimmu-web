@@ -35,6 +35,7 @@ function board(over: Partial<BoardPart> = {}): BoardPart {
     length: 560,
     width: 720,
     thickness: 18,
+    grain: 'free' as const,
     material: '',
     color: '#c8a97e',
     position: { x: 0, y: 0, z: 0 },

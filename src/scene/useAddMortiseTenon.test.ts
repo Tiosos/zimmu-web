@@ -13,6 +13,7 @@ const mortise: Part = {
   length: 200,
   width: 100,
   thickness: 40,
+  grain: 'free' as const,
   material: '',
   color: '#fff',
   position: { x: 0, y: 0, z: 0 },

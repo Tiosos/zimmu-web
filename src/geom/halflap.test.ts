@@ -10,6 +10,7 @@ const A: BoardPart = {
   length: 200,
   width: 40,
   thickness: 20,
+  grain: 'free' as const,
   material: '',
   color: '#fff',
   position: { x: 0, y: 0, z: 0 },
