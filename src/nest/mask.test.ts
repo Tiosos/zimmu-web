@@ -236,4 +236,64 @@ describe('occupancyMask — flat mitres shave the outline', () => {
   })
 })
 
+describe('occupancyMask — clearance dilation', () => {
+  it('grows a rectangle by half the clearance on every side', () => {
+    const m = occupancyMask(board({ length: 100, width: 50 }), 14)
+    expect(m.w).toBe(100 + 14)
+    expect(m.h).toBe(50 + 14)
+    expect(maskArea(m)).toBe((100 + 14) * (50 + 14))
+  })
+
+  it('a zero clearance changes nothing', () => {
+    const m = occupancyMask(board({ length: 100, width: 50 }), 0)
+    expect([m.w, m.h, maskArea(m)]).toEqual([100, 50, 5000])
+  })
+
+  it('fills a notch narrower than the clearance', () => {
+    // A 10 mm notch cannot admit anything at a 14 mm clearance, so dilation should close it. This
+    // is the case that proves dilation runs on the cleared mask and not on the bounding rectangle.
+    const notched = board({
+      length: 100,
+      width: 50,
+      cuts: [boxCut({ position: { x: 45, y: 0, z: -9 }, size: { x: 10, y: 20, z: 36 } })],
+    })
+    const m = occupancyMask(notched, 14)
+    expect(maskArea(m)).toBe(m.w * m.h)
+  })
+
+  it('leaves a notch wider than the clearance open', () => {
+    const notched = board({
+      length: 100,
+      width: 50,
+      cuts: [boxCut({ position: { x: 30, y: 0, z: -9 }, size: { x: 40, y: 20, z: 36 } })],
+    })
+    const m = occupancyMask(notched, 14)
+    expect(maskArea(m)).toBeLessThan(m.w * m.h)
+  })
+
+  // The property the halving exists for, and the one placement will lean on: two dilated masks
+  // that merely fail to overlap leave one FULL clearance between the real parts, not two.
+  it('two masks that just fail to overlap are one clearance apart', () => {
+    const clearance = 14
+    const length = 100
+    const m = occupancyMask(board({ length, width: 50 }), clearance)
+
+    const overlapsAt = (dx: number): boolean => {
+      for (let y = 0; y < m.h; y++) {
+        for (let x = dx; x < m.w; x++) {
+          if (m.bits[y * m.w + x] === 1 && m.bits[y * m.w + (x - dx)] === 1) return true
+        }
+      }
+      return false
+    }
+
+    let dx = 0
+    while (dx <= m.w && overlapsAt(dx)) dx++
+
+    // The real rectangle sits `pad` inside its own mask on each side, so the gap between the two
+    // real rectangles at offset dx is dx - length.
+    expect(dx - length).toBe(clearance)
+  })
+})
+
 export { board, boxCut }
