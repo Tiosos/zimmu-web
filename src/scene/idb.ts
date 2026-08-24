@@ -1,10 +1,17 @@
 import type { MaterialDef } from './types'
 
 const DB_NAME = 'zimmu'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const HANDLES_STORE = 'handles'
 const LIBRARY_STORE = 'library'
+const SETTINGS_STORE = 'settings'
 const KEY = 'last-file'
+const CLEARANCE_KEY = 'clearance'
+
+// One global setting rather than per-material: it is a property of the machine, not the sheet.
+// 14 mm is a common router-cutter diameter. Applied as a margin around every placed part, so the
+// gap between two neighbours is one clearance, not two.
+export const DEFAULT_CLEARANCE = 14
 
 export function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -13,6 +20,7 @@ export function openDb(): Promise<IDBDatabase> {
       const db = req.result
       if (!db.objectStoreNames.contains(HANDLES_STORE)) db.createObjectStore(HANDLES_STORE)
       if (!db.objectStoreNames.contains(LIBRARY_STORE)) db.createObjectStore(LIBRARY_STORE)
+      if (!db.objectStoreNames.contains(SETTINGS_STORE)) db.createObjectStore(SETTINGS_STORE)
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -105,6 +113,42 @@ export async function deleteLibraryEntry(name: string): Promise<void> {
   const db = await openDb()
   return new Promise((resolve, reject) => {
     const req = db.transaction(LIBRARY_STORE, 'readwrite').objectStore(LIBRARY_STORE).delete(name)
+    req.onsuccess = () => {
+      db.close()
+      resolve()
+    }
+    req.onerror = () => {
+      db.close()
+      reject(req.error)
+    }
+  })
+}
+
+export async function readClearance(): Promise<number> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const req = db
+      .transaction(SETTINGS_STORE, 'readonly')
+      .objectStore(SETTINGS_STORE)
+      .get(CLEARANCE_KEY)
+    req.onsuccess = () => {
+      db.close()
+      resolve((req.result as number | undefined) ?? DEFAULT_CLEARANCE)
+    }
+    req.onerror = () => {
+      db.close()
+      reject(req.error)
+    }
+  })
+}
+
+export async function writeClearance(mm: number): Promise<void> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const req = db
+      .transaction(SETTINGS_STORE, 'readwrite')
+      .objectStore(SETTINGS_STORE)
+      .put(mm, CLEARANCE_KEY)
     req.onsuccess = () => {
       db.close()
       resolve()

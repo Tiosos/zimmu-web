@@ -1,6 +1,12 @@
 import type { BoardPart, Component, HardwareItem, MaterialDef, Part } from '../scene/types'
 import { ancestorsOf, componentsById } from '../scene/componentTree'
 
+// A sheet created by typing one dimension into the library carries 0 for the other. Zero is
+// absent, not a zero-sized sheet: a material is nestable only once both dimensions are real.
+export function isNestable(def: MaterialDef): boolean {
+  return def.sheet !== undefined && def.sheet.length > 0 && def.sheet.width > 0
+}
+
 export interface CutDims {
   length: number
   width: number

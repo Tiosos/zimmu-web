@@ -6,6 +6,7 @@ import {
   buildHardwareCsv,
   groupDowels,
   buildDowelCsv,
+  isNestable,
 } from './buildCsv'
 import type { BoardPart, CarcaseComponent, Part, CylinderPart, Scene } from '../scene/types'
 import type { MaterialDef, HardwareItem } from '../scene/types'
@@ -479,5 +480,22 @@ describe('buildDowelCsv', () => {
     const lines = csv.split('\n')
     expect(lines[0]).toBe('Qty,Labels,Material,Color,Diameter (mm),Length (mm),Cost/unit,Total')
     expect(lines[lines.length - 1]).toContain('Dowel total')
+  })
+})
+
+describe('isNestable', () => {
+  it('a material with no sheet is not nested', () => {
+    expect(isNestable({ costPerM2: 40 })).toBe(false)
+  })
+
+  // A sheet field created by typing one dimension into the library carries 0 for the other. Zero is
+  // absent, not a zero-sized sheet — Stage 3 must not try to nest onto it.
+  it('a half-filled sheet is not nested', () => {
+    expect(isNestable({ sheet: { length: 2440, width: 0 } })).toBe(false)
+    expect(isNestable({ sheet: { length: 0, width: 1220 } })).toBe(false)
+  })
+
+  it('a sheet with both dimensions is nested', () => {
+    expect(isNestable({ sheet: { length: 2440, width: 1220 } })).toBe(true)
   })
 })

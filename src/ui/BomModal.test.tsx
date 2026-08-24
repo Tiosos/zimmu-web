@@ -55,6 +55,8 @@ const baseProps = {
   library: {} as Record<string, MaterialDef>,
   onSaveRate: vi.fn(),
   onDeleteLibraryEntry: vi.fn(),
+  clearance: 14,
+  onSetClearance: vi.fn(),
 }
 
 describe('BomModal', () => {
@@ -245,5 +247,61 @@ describe('BomModal', () => {
     expect(
       (screen.getByRole('button', { name: /download/i }) as HTMLButtonElement).disabled,
     ).toBeTruthy()
+  })
+})
+
+describe('BomModal — Library tab sheet stock and clearance', () => {
+  afterEach(cleanup)
+
+  function openLibrary(library: Record<string, MaterialDef> = { '18mm Ply': { costPerM2: 40 } }) {
+    const onSaveRate = vi.fn()
+    const onSetClearance = vi.fn()
+    render(
+      <BomModal
+        {...baseProps}
+        library={library}
+        onSaveRate={onSaveRate}
+        clearance={14}
+        onSetClearance={onSetClearance}
+      />,
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Library' }))
+    return { onSaveRate, onSetClearance }
+  }
+
+  it('writes a sheet length back through onSaveRate, keeping the rate', () => {
+    const { onSaveRate } = openLibrary()
+    fireEvent.change(screen.getByLabelText('Sheet length for 18mm Ply'), {
+      target: { value: '2440' },
+    })
+    expect(onSaveRate).toHaveBeenCalledWith('18mm Ply', {
+      costPerM2: 40,
+      sheet: { length: 2440, width: 0 },
+    })
+  })
+
+  it('keeps the other sheet dimension when one is edited', () => {
+    const { onSaveRate } = openLibrary({ '18mm Ply': { sheet: { length: 2440, width: 1220 } } })
+    fireEvent.change(screen.getByLabelText('Sheet width for 18mm Ply'), {
+      target: { value: '600' },
+    })
+    expect(onSaveRate).toHaveBeenCalledWith('18mm Ply', { sheet: { length: 2440, width: 600 } })
+  })
+
+  it('treats an absent hasGrain as having grain', () => {
+    openLibrary()
+    expect((screen.getByLabelText('18mm Ply has grain') as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('reports a hasGrain change through onSaveRate', () => {
+    const { onSaveRate } = openLibrary()
+    fireEvent.click(screen.getByLabelText('18mm Ply has grain'))
+    expect(onSaveRate).toHaveBeenCalledWith('18mm Ply', { costPerM2: 40, hasGrain: false })
+  })
+
+  it('reports a clearance change through onSetClearance', () => {
+    const { onSetClearance } = openLibrary()
+    fireEvent.change(screen.getByLabelText('Tool clearance'), { target: { value: '20' } })
+    expect(onSetClearance).toHaveBeenCalledWith(20)
   })
 })
