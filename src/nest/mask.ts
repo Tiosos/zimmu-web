@@ -12,6 +12,9 @@ export interface Mask {
   w: number
   h: number
   bits: Uint8Array // row-major, length w * h; 1 = material
+  // How far the dilation grew the mask beyond the real part, on every side. Carried here so a
+  // consumer can recover the material rectangle without knowing — or duplicating — the formula.
+  pad: number
 }
 
 export function maskArea(m: Mask): number {
@@ -69,7 +72,7 @@ function dilate(src: Mask, r: number): Mask {
       if (hi > lo && colSum[hi] - colSum[lo] > 0) bits[Y * w + X] = 1
     }
   }
-  return { w, h, bits }
+  return { w, h, bits, pad: r }
 }
 
 export function occupancyMask(part: BoardPart, clearance: number): Mask {
@@ -114,5 +117,5 @@ export function occupancyMask(part: BoardPart, clearance: number): Mask {
   // clearance apart rather than two. The mask therefore grows: placement must position by the
   // dilated mask and report the undilated rectangle, or every offcut figure is a clearance out.
   const r = Math.ceil(clearance / 2)
-  return r > 0 ? dilate({ w, h, bits }, r) : { w, h, bits }
+  return r > 0 ? dilate({ w, h, bits, pad: 0 }, r) : { w, h, bits, pad: 0 }
 }
