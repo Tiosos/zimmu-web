@@ -99,3 +99,51 @@ codebase has been wrong before. Measuring took four minutes.
 - **The clearance gets its own IDB store, not a magic key in `library`.** `readLibrary` returns
   `Record<string, MaterialDef>`; a `"__clearance"` key holding a number would make that type a lie
   and force every consumer to filter it. The store costs one line in `onupgradeneeded`.
+
+## 2026-08-24 — Stage 1 implementation
+
+### `FILE_FORMAT_VERSION` deliberately holds at 12
+
+A version bump earns its keep when an older *app* would misread a newer file. It would not here.
+`grain` is additive and defaulted at the `parseFile` boundary; a v12 app reading a file this app
+wrote simply ignores the field, and the board it renders is identical — grain changes no geometry,
+only which dimension the cutting list calls the length. Bumping would force every file through a
+migration that does nothing and would make "v13" mean nothing in particular.
+
+The line where this stops being true: **Stage 1 does not cross it, Stage 3 might.** Once a `.zimmu`
+file carries a nest result or a sheet definition an older app would render wrong, bump then, and let
+13 mean that.
+
+Recorded because it breaks the run of bumps through v12 and a silent omission would read as an
+oversight.
+
+### The reported grain is normalised, and a test found the first attempt wrong
+
+The plan said a `GroupedRow` could take its grain from the first part of its group, on the reasoning
+that grain feeds `cutDimensions`, whose output is in the grouping key, so a group cannot hold two
+grains. The test written to check that claim failed immediately.
+
+The reasoning was wrong in both directions. A 600×300 board with grain `length`, a 300×600 board
+with grain `width`, and a 600×300 board with grain `free` all reduce to the same 600×300 cut
+dimensions, so all three landed in one row — which then reported whichever grain happened to arrive
+first.
+
+Both halves are now fixed:
+
+- **`GroupedRow.grain` is `'length' | 'free'`, not `Grain`.** After `cutDimensions` the
+  grain-running dimension *is* the reported length, so a directional board always reports `length`
+  and only an unconstrained one reports `free`. Printing the raw field would say "width" for a board
+  whose reported length is its grain direction.
+- **The normalised grain is part of the grouping key.** A part the nester may rotate and one it may
+  not are different cuts even at identical dimensions.
+
+Same shape as the false property in the spec: a claim that sounded right, was wrong, and cost four
+minutes to check.
+
+### Two mechanical notes
+
+- `ThicknessAxis` moved from `carcaseRoles.ts` to `types.ts`. `grain.ts` needs it and
+  `carcaseRoles.ts` imports `grain.ts` back, so leaving it in place would have made a cycle.
+  `carcaseRoles.ts` re-exports it, so its existing importers did not move.
+- The two `kind: 'board'` literals in `useScene.ts` that build a `BuildSpec`/`ExportSpec` for the
+  kernel do **not** get grain. They are geometry specs; grain is not geometry.

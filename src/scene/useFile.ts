@@ -72,6 +72,9 @@ export function parseFile(text: string): ZimmuFile {
             material: p.material ?? '',
             parentId: p.parentId ?? null,
             driven: p.driven ?? false,
+            // Required on BoardPart, so an absent field would reach every read site as undefined.
+            // Normalised here and nowhere else — no read site carries `?? 'free'`.
+            grain: p.grain ?? 'free',
           }
         : {
             ...p,
