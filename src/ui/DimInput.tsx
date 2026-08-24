@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useId } from 'react'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { useDebouncedCallback } from './useDebouncedCallback'
+import { cn } from '@/lib/utils'
 
 // Extracted from EditPanel when CarcasePanel became a second consumer. Commits on change behind a
 // 150ms debounce rather than on blur, so geometry follows the value as it is typed — which is the
@@ -14,12 +15,16 @@ export function DimInput({
   onCommit,
   suffix,
   min = 1,
+  labelWidth = 'w-4',
 }: {
   label: string
   value: number
   onCommit: (v: number) => void
   suffix: string
   min?: number
+  // EditPanel labels are single letters; CarcasePanel's are words, which overflow `w-4` and break
+  // alignment with the word-labelled rows beside them.
+  labelWidth?: string
 }) {
   // Without an id/htmlFor pair the label is announced by nothing and queryable by nothing —
   // an accessibility defect that also made the field untestable by its visible name.
@@ -34,7 +39,7 @@ export function DimInput({
 
   return (
     <div className="flex items-center gap-1.5 mb-1">
-      <Label htmlFor={id} className="w-4 shrink-0 text-right">
+      <Label htmlFor={id} className={cn('shrink-0 text-right', labelWidth)}>
         {label}
       </Label>
       <Input

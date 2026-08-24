@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { EditPanel } from './EditPanel'
@@ -175,11 +175,36 @@ describe('EditPanel — editing a driven part', () => {
   })
 })
 
+// regenerateComponents rewrites `material` from the cabinet's params on every regeneration, so an
+// edit here on a driven part reverted on the next keystroke and left a junk undo entry behind.
+describe('EditPanel — material on a driven part', () => {
+  afterEach(cleanup)
+
+  const materialField = () => screen.getByPlaceholderText('Material (optional)') as HTMLInputElement
+
+  it('is read-only and names the cabinet that owns it', () => {
+    renderPanel()
+    expect(materialField().disabled).toBe(true)
+    expect(screen.getByText(/Base 600/)).toBeTruthy()
+  })
+
+  it('is editable on a detached part', () => {
+    renderPanel({ part: board({ driven: false, role: undefined }) })
+    expect(materialField().disabled).toBe(false)
+  })
+
+  it('reports nothing when typed into on a driven part', async () => {
+    const h = renderPanel()
+    await userEvent.type(materialField(), 'Oak')
+    expect(h.onUpdate).not.toHaveBeenCalled()
+  })
+})
+
 // Every mitre setter spreads `{ ...c }` over whatever cut it is handed. The `axis` one was found
 // unguarded while widening CutDef: it compiled only because no other member had an `axis`, and
-// HoleArrayCut does — with an incompatible literal union. All three now share one guarded helper,
-// so this exercises the guard through the one control Radix will operate in happy-dom; the other
-// two setters are the same call.
+// HoleArrayCut does — with an incompatible literal union. All three now share one guarded helper.
+// The End select and the angle input each drive it, so the guard is checked through two of the
+// three call sites rather than asserted from the helper alone.
 describe('mitre setters refuse a cut that is not a mitre', () => {
   afterEach(cleanup)
 
@@ -203,6 +228,21 @@ describe('mitre setters refuse a cut that is not a mitre', () => {
     diameter: 5,
     depth: 12,
   }
+
+  it('leaves a hole array untouched when the End select fires', async () => {
+    const onUpdateCut = vi.fn()
+    renderPanel({ part: board({ cuts: [mitre] }), onUpdateCut })
+    await userEvent.click(screen.getByText('Mitre'))
+    // Scoped to the mitre row: EditPanel carries other comboboxes, and reaching for the first one
+    // in the whole panel is what made an earlier version of this test look like a Radix limitation.
+    const row = screen.getByText('Mitre').closest('div')!.parentElement!
+    await userEvent.click(within(row).getAllByRole('combobox')[0])
+    await userEvent.click(screen.getByRole('option', { name: '−X end' }))
+
+    const updater = onUpdateCut.mock.calls.at(-1)![2] as (c: CutDef) => CutDef
+    expect(updater(holes)).toEqual(holes)
+    expect((updater(mitre) as MitreCut).end).toBe('-X')
+  })
 
   it('passes a hole array through untouched, and still patches a mitre', async () => {
     const onUpdateCut = vi.fn()

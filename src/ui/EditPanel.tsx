@@ -549,11 +549,20 @@ export function EditPanel({
           list={MATERIAL_DATALIST_ID}
           placeholder="Material (optional)"
           value={part.material}
+          // regenerateComponents rewrites this from the cabinet's params on every regeneration, so
+          // an edit here would revert on the next keystroke and leave a junk undo entry behind.
+          // The cabinet's own Material field is the one that works.
+          disabled={part.driven}
           onChange={(e) => {
             const material = e.target.value
             onUpdate(part.id, (p) => ({ ...p, material }))
           }}
         />
+        {part.driven && (
+          <div className="mt-1 text-[11px] text-muted-foreground">
+            Material is set by {ownerLabel}.
+          </div>
+        )}
         <datalist id={MATERIAL_DATALIST_ID}>
           <option value="Solid timber" />
           <option value="Plywood" />

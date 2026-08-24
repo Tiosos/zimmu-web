@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CarcaseParams, CarcaseComponent, Component } from '../scene/types'
 import { validateCarcaseParams } from '../scene/carcaseRoles'
 import { DimInput } from './DimInput'
@@ -27,12 +27,23 @@ const BACK_MODES: { value: CarcaseParams['backMode']; label: string }[] = [
   { value: 'none', label: 'None' },
 ]
 
+// 'legs' stays in the CarcaseParams union so saved files keep loading, but it is not offered:
+// no generator branch implements it, so choosing it produced a cabinet identical to 'none'.
 const BASE_MODES: { value: CarcaseParams['baseMode']; label: string }[] = [
   { value: 'toe-kick', label: 'Toe kick' },
   { value: 'ladder', label: 'Ladder' },
-  { value: 'legs', label: 'Legs' },
   { value: 'none', label: 'None' },
 ]
+
+// A divider is only committed once its text is a complete number: parseFloat('0.') is 0, so
+// reparsing the field on every keystroke ate the decimal point before it could be typed.
+const DIVIDER = /^(\d+(\.\d+)?|\.\d+)$/
+
+function parseDividers(text: string): number[] | null {
+  if (text.trim() === '') return []
+  const parts = text.split(',').map((s) => s.trim())
+  return parts.every((s) => DIVIDER.test(s)) ? parts.map(Number) : null
+}
 
 const JOINT_METHODS: { value: CarcaseParams['jointMethod']; label: string }[] = [
   { value: 'dado-rabbet', label: 'Dado + rabbet' },
@@ -56,6 +67,16 @@ export function CarcasePanel({
 
   const p = component.params
   const errors = validateCarcaseParams(p)
+
+  // Same shape as DimInput: the field shows what was typed, and only a text that parses cleanly
+  // reaches the params. Resync is skipped while focused so an in-progress '0.50' is not
+  // reformatted to '0.5' under the cursor.
+  const committedDividers = p.dividers.join(', ')
+  const [dividersText, setDividersText] = useState(committedDividers)
+  const dividersFocused = useRef(false)
+  useEffect(() => {
+    if (!dividersFocused.current) setDividersText(committedDividers)
+  }, [committedDividers])
 
   // Every control funnels through here so a carcase update is always a whole-params replacement —
   // partial merges at each call site would drift as fields are added.
@@ -82,24 +103,28 @@ export function CarcasePanel({
         <SectionHeader open={sizeOpen} label="Size" />
         <CollapsibleContent forceMount className="data-[state=closed]:hidden">
           <DimInput
+            labelWidth="w-20"
             label="Width"
             value={p.width}
             suffix="mm"
             onCommit={(v) => setParams({ width: v })}
           />
           <DimInput
+            labelWidth="w-20"
             label="Height"
             value={p.height}
             suffix="mm"
             onCommit={(v) => setParams({ height: v })}
           />
           <DimInput
+            labelWidth="w-20"
             label="Depth"
             value={p.depth}
             suffix="mm"
             onCommit={(v) => setParams({ depth: v })}
           />
           <DimInput
+            labelWidth="w-20"
             label="Thickness"
             value={p.thickness}
             suffix="mm"
@@ -156,6 +181,7 @@ export function CarcasePanel({
           </div>
 
           <DimInput
+            labelWidth="w-20"
             label="Back thickness"
             value={p.backThickness}
             suffix="mm"
@@ -184,12 +210,14 @@ export function CarcasePanel({
           </div>
 
           <DimInput
+            labelWidth="w-20"
             label="Toe-kick height"
             value={p.toeKickHeight}
             suffix="mm"
             onCommit={(v) => setParams({ toeKickHeight: v })}
           />
           <DimInput
+            labelWidth="w-20"
             label="Toe-kick setback"
             value={p.toeKickSetback}
             suffix="mm"
@@ -202,18 +230,22 @@ export function CarcasePanel({
             </Label>
             <Input
               id="carcase-dividers"
-              value={p.dividers.join(', ')}
+              value={dividersText}
               placeholder="0.5, 0.75"
-              // Fractions of the width. Parsed leniently so a half-typed list does not wipe the
-              // existing dividers — validateCarcaseParams rejects anything out of range.
-              onChange={(e) =>
-                setParams({
-                  dividers: e.target.value
-                    .split(',')
-                    .map((s) => parseFloat(s.trim()))
-                    .filter((n) => isFinite(n)),
-                })
-              }
+              // Fractions of the width. A half-typed list parses to null and leaves the existing
+              // dividers alone — validateCarcaseParams rejects anything out of range.
+              onChange={(e) => {
+                setDividersText(e.target.value)
+                const dividers = parseDividers(e.target.value)
+                if (dividers !== null) setParams({ dividers })
+              }}
+              onFocus={() => {
+                dividersFocused.current = true
+              }}
+              onBlur={() => {
+                dividersFocused.current = false
+                setDividersText(committedDividers)
+              }}
               className="flex-1 min-w-0"
             />
           </div>
@@ -224,6 +256,7 @@ export function CarcasePanel({
         <SectionHeader open={shelvingOpen} label="Shelving" />
         <CollapsibleContent forceMount className="data-[state=closed]:hidden">
           <DimInput
+            labelWidth="w-20"
             label="Fixed shelves"
             value={p.fixedShelves}
             suffix=""
@@ -231,6 +264,7 @@ export function CarcasePanel({
             onCommit={(v) => setParams({ fixedShelves: Math.round(v) })}
           />
           <DimInput
+            labelWidth="w-20"
             label="Adjustable rows"
             value={p.adjustableShelves.rows}
             suffix=""
@@ -238,18 +272,21 @@ export function CarcasePanel({
             onCommit={(v) => setShelves({ rows: Math.round(v) === 1 ? 1 : 2 })}
           />
           <DimInput
+            labelWidth="w-20"
             label="Pin setback"
             value={p.adjustableShelves.setback}
             suffix="mm"
             onCommit={(v) => setShelves({ setback: v })}
           />
           <DimInput
+            labelWidth="w-20"
             label="Pin start height"
             value={p.adjustableShelves.startHeight}
             suffix="mm"
             onCommit={(v) => setShelves({ startHeight: v })}
           />
           <DimInput
+            labelWidth="w-20"
             label="Pin count"
             value={p.adjustableShelves.count}
             suffix=""

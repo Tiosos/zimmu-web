@@ -41,6 +41,7 @@ import { resolveWorldMatrix } from '../geom/transform'
 import { componentsById } from './componentTree'
 import { CARCASE_PRESETS } from './carcasePresets'
 import { carcaseRoles } from './carcaseRoles'
+import { jointInvolves } from './jointInvolves'
 import { FILE_FORMAT_VERSION, parseFile } from './useFile'
 
 describe('useScene', () => {
@@ -2521,6 +2522,26 @@ describe('detach', () => {
     const restored = result.current.scene.parts.find((p) => p.id === side.id)!
     expect(restored.driven).toBe(true)
     expect(restored.kind === 'board' && restored.length).toBe(side.kind === 'board' && side.length)
+  })
+
+  // Detaching frees a role and orphans every joint that referenced the part. Both used to sit
+  // unreconciled until some unrelated mutation happened to run the pipeline.
+  it('regenerates the freed role and drops the detached part from the joints immediately', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
+
+    act(() => result.current.onDetachPart(side.id))
+
+    const detached = result.current.scene.parts.find((p) => p.id === side.id)!
+    expect(detached.driven).toBe(false)
+    expect(detached.role).toBeUndefined()
+
+    const fresh = result.current.scene.parts.find((p) => p.role === 'left-side')!
+    expect(fresh).toBeDefined()
+    expect(fresh.id).not.toBe(side.id)
+    expect(fresh.driven).toBe(true)
+    expect(result.current.scene.joints.some((j) => jointInvolves(j, side.id))).toBe(false)
   })
 
   it('leaves a detached part behind when its cabinet is deleted', () => {

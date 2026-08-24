@@ -3669,6 +3669,8 @@ while fixing them and are **still open** — recorded so they are not rediscover
 
 7. **A rail's cutting-list dimensions read oddly:** `Base Front` comes out 100 × 600 × 18, its "length" being its height, because `orientedPanel` maps a `thicknessAxis: 'y'` panel's length to the vertical extent. Shared with the back and toe-kick panels. It is also precisely what makes the suggestion engine read a rail's top as an *end*, which is load-bearing for Task 7.5's contact decision — so any fix must re-check that.
 
+8. **`baseMode: 'legs'` is unimplemented, and the option has been withdrawn from the panel.** No generator branch handles it: `floorZ` and `carcaseZ0` both treat `'legs'` exactly like `'none'`, so choosing Legs produced a cabinet with no base at all — identical to None, under a label promising otherwise. Real legs are a feature, not a fix, so on 2026-08-24 the entry was removed from `BASE_MODES` in `src/ui/CarcasePanel.tsx` rather than left dangling. `'legs'` stays in the `CarcaseParams['baseMode']` union so files already saved with it keep loading and keep behaving exactly as they do now; the panel's Base select simply shows nothing selected for them. Implementing it means a leg role table, a leg-height parameter distinct from `toeKickHeight`, and a decision about whether legs are boards at all.
+
 ## Task 7.4: Panel extents follow the joinery at each edge
 
 **Files:**

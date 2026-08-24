@@ -1169,12 +1169,14 @@ export function useScene(): UseSceneResult {
       //
       // Clearing `role` is the load-bearing half: it is the only thing that stops a later
       // regeneration from reclaiming the part when its role comes back.
-      const after: Scene = {
+      // Piped like every other mutation: the freed role has no part and the joints still name the
+      // detached one until something reconciles them, and nothing else here will.
+      const after = applyPipeline({
         ...before,
         parts: before.parts.map((p) =>
           p.id === id ? { ...(updater ? updater(p) : p), driven: false, role: undefined } : p,
         ),
-      }
+      })
       setScene(after)
       push({ label: 'Detach part', undo: () => setScene(before), redo: () => setScene(after) })
     },

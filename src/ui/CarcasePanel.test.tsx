@@ -89,6 +89,45 @@ describe('CarcasePanel', () => {
     expect(appliedParams(onUpdate, c).hasTop).toBe(false)
   })
 
+  // Typed one character at a time, the way a user types it. A field that reparses its own text on
+  // every keystroke cannot survive an intermediate "0." — the point of the local draft state.
+  it('keeps what was typed while a divider list is entered character by character', async () => {
+    const c = carcase({ dividers: [] })
+    const onUpdate = renderPanel(c)
+    const field = screen.getByLabelText('Dividers') as HTMLInputElement
+    await userEvent.type(field, '0.33, 0.66')
+    expect(field.value).toBe('0.33, 0.66')
+    expect(appliedParams(onUpdate, c).dividers).toEqual([0.33, 0.66])
+  })
+
+  it('re-syncs the divider field when the params change from elsewhere', () => {
+    const { rerender } = render(
+      <TooltipProvider>
+        <CarcasePanel component={carcase({ dividers: [0.5] })} onUpdate={vi.fn()} />
+      </TooltipProvider>,
+    )
+    rerender(
+      <TooltipProvider>
+        <CarcasePanel component={carcase({ dividers: [0.25, 0.75] })} onUpdate={vi.fn()} />
+      </TooltipProvider>,
+    )
+    expect((screen.getByLabelText('Dividers') as HTMLInputElement).value).toBe('0.25, 0.75')
+  })
+
+  // 'legs' is still in the CarcaseParams union so saved files load, but no generator branch
+  // implements it — it produced a cabinet identical to 'none' under a label promising otherwise.
+  it('does not offer Legs as a base mode', async () => {
+    renderPanel()
+    await userEvent.click(screen.getByLabelText('Base'))
+    const options = screen.getAllByRole('option').map((o) => o.textContent)
+    expect(options).toEqual(['Toe kick', 'Ladder', 'None'])
+  })
+
+  it('renders a cabinet saved with the withdrawn legs base', () => {
+    renderPanel(carcase({ baseMode: 'legs' }))
+    expect(screen.getByLabelText('Base')).toBeTruthy()
+  })
+
   // Every CarcaseParams field must be reachable. A parameter with no control is invisible to the
   // user and silently un-editable forever, and no other test in the suite would notice.
   it('exposes a control for every CarcaseParams field', () => {

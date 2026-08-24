@@ -64,6 +64,14 @@ test('a detached part keeps its own size when the cabinet changes', async ({ pag
   // The marker, not `data-driven`, identifies the detached row: a top-level board is undriven too.
   const detachedRow = page.locator('[data-testid^="node-board_"]').filter({ hasText: 'detached' })
   await expect(detachedRow).toHaveCount(1)
+
+  // The detach itself runs the pipeline, so the freed `left-side` role regenerates there and then
+  // and two boards share the label immediately — which is precisely why the detached one carries a
+  // marker. It used to take an unrelated parameter change to reconcile.
+  await expect(
+    page.locator('[data-testid^="node-board_"]').filter({ hasText: 'Left Side' }),
+  ).toHaveCount(2)
+
   await detachedRow.click()
   await expect(length).toHaveValue('999')
 
@@ -71,8 +79,6 @@ test('a detached part keeps its own size when the cabinet changes', async ({ pag
   await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
   await page.getByLabel('Depth').fill('600')
 
-  // The freed `left-side` role regenerates, so two boards now share the label — which is
-  // precisely why the detached one carries a marker.
   await expect(
     page.locator('[data-testid^="node-board_"]').filter({ hasText: 'Left Side' }),
   ).toHaveCount(2)
