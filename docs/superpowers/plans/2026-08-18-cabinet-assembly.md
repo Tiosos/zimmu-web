@@ -4412,36 +4412,34 @@ driven through the real generator and drawing pipeline instead, so the result is
 ## Task 9.1: Component column in `groupParts`
 
 **Files:**
-- Modify: `src/ui/buildCsv.ts`, `src/ui/CuttingList.tsx`, `src/ui/BomModal.tsx` (audit 2026-08-20: `BomModal` also calls `groupParts` and was missed in the original list)
+- Modify: `src/ui/buildCsv.ts`, `src/ui/CuttingList.tsx`, `src/ui/BomModal.tsx`, `src/App.tsx`
 - Test: `src/ui/buildCsv.test.ts`, `src/ui/CuttingList.test.tsx`
+
+> **The original snippet here was written against a one-arg `groupParts`. It has two args since Task 7.9 (audited 2026-08-24). Corrections, so they are not reinstated:**
+> 1. `groupParts(parts, materials)` and `buildCsv(parts, materials)` already exist — `materials` drives the cost columns and cannot be dropped. The component list is a **third** parameter, defaulted, so existing calls keep working: `groupParts(parts, materials, components)`.
+> 2. There is no `buildCuttingListCsv`. The serializer is `buildCsv(parts, materials, components)`.
+> 3. **Both** `CuttingList.tsx` and `BomModal.tsx` call `groupParts` *and* `buildCsv`; `App.tsx` renders `BomModal`. Components must thread App → BomModal → CuttingList, and into both call sites in each.
+> 4. `ancestorsOf(node, byId)` needs a `Map`, built with `componentsById(components)`.
 
 - [ ] **Step 1: Write the failing tests**
 
+Fixtures built from the generator so ownership is genuine. `groupParts`' third argument is the component list; it is defaulted, so the cost-only tests already in this file keep passing untouched.
+
 ```ts
-// Fixtures, built from the generator so ownership is genuine rather than hand-stitched.
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS } from '../scene/carcasePresets'
 import type { Component } from '../scene/types'
 
 function makeCarcase(id: string, label: string, x: number): Component {
   return {
-    id,
-    kind: 'carcase',
-    label,
-    parentId: null,
-    position: { x, y: 0, z: 0 },
-    rotation: { x: 0, y: 0, z: 0 },
-    rotationOrder: 'XYZ',
-    visible: true,
-    params: CARCASE_PRESETS[0].params,
+    id, kind: 'carcase', label, parentId: null,
+    position: { x, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ', visible: true, params: CARCASE_PRESETS[0].params,
   }
 }
 
 const one = regenerateComponents({
-  parts: [],
-  materials: {},
-  hardware: [],
-  joints: [],
+  parts: [], materials: {}, hardware: [], joints: [],
   components: [makeCarcase('cmp_1', 'Base Cabinet 600', 0)],
 })
 const parts = one.parts
@@ -4449,16 +4447,10 @@ const components = one.components
 const cabinet = components[0]
 
 const two = regenerateComponents({
-  parts: [],
-  materials: {},
-  hardware: [],
-  joints: [],
+  parts: [], materials: {}, hardware: [], joints: [],
   components: [makeCarcase('cmp_1', 'Cab A', 0), makeCarcase('cmp_2', 'Cab B', 700)],
 })
-const twoCabinets = two.components
-// Both cabinets' left sides: identical dimensions, different owners.
 const twoIdenticalSidesInDifferentCabinets = two.parts.filter((p) => p.role === 'left-side')
-// Both sides of one cabinet are the same size, so they merge.
 const twoIdenticalSidesInOneCabinet = parts.filter(
   (p) => p.role === 'left-side' || p.role === 'right-side',
 )
@@ -4466,28 +4458,34 @@ const looseBoard = { ...parts[0], id: 'loose', parentId: null, driven: false, ro
 
 describe('grouping by component', () => {
   it('labels each row with its owning cabinet', () => {
-    const rows = groupParts(parts, components)
-    expect(rows[0].component).toBe('Base Cabinet 600')
+    expect(groupParts(parts, {}, components)[0].component).toBe('Base Cabinet 600')
   })
 
   it('labels a top-level part with an empty component', () => {
-    const rows = groupParts([looseBoard], [])
-    expect(rows[0].component).toBe('')
+    expect(groupParts([looseBoard], {}, [])[0].component).toBe('')
   })
 
   it('does not merge identical parts from different cabinets into one row', () => {
-    const rows = groupParts(twoIdenticalSidesInDifferentCabinets, twoCabinets)
-    expect(rows).toHaveLength(2)
+    expect(groupParts(twoIdenticalSidesInDifferentCabinets, {}, two.components)).toHaveLength(2)
   })
 
   it('still merges identical parts within one cabinet', () => {
-    const rows = groupParts(twoIdenticalSidesInOneCabinet, [cabinet])
+    const rows = groupParts(twoIdenticalSidesInOneCabinet, {}, [cabinet])
     expect(rows).toHaveLength(1)
     expect(rows[0].qty).toBe(2)
   })
 
-  it('puts the component first in the CSV header', () => {
-    expect(buildCuttingListCsv(groupParts(parts, components)).split('\n')[0]).toMatch(/^Cabinet,/)
+  it('does not move any cost when the component list is added', () => {
+    // Guard: component is a grouping-and-label change only. Total over the same parts is unchanged
+    // whether or not components are supplied.
+    const withCost = { '18mm Ply': { costPerM2: 100 } }
+    const before = groupParts(parts, withCost).reduce((n, r) => n + (r.totalCost ?? 0), 0)
+    const after = groupParts(parts, withCost, components).reduce((n, r) => n + (r.totalCost ?? 0), 0)
+    expect(after).toBeCloseTo(before, 6)
+  })
+
+  it('puts the Cabinet column first in the CSV header', () => {
+    expect(buildCsv(parts, {}, components).split('\n')[0]).toMatch(/^Cabinet,/)
   })
 })
 ```
@@ -4495,63 +4493,89 @@ describe('grouping by component', () => {
 - [ ] **Step 2: Run to confirm failure**
 
 Run: `pnpm vitest run src/ui/buildCsv.test.ts -t 'grouping by component'`
-Expected: FAIL — `groupParts` takes one argument.
+Expected: FAIL — `GroupedRow` has no `component`, and the header does not start with `Cabinet`.
 
 - [ ] **Step 3: Implement**
 
-Widen `groupParts(parts, components)`; resolve each part's nearest component ancestor via `ancestorsOf` and add its label to the grouping key **and** to the row as `component: string`. Add a `Cabinet` column to `CuttingList.tsx` and make it the first CSV column.
+Add `component: string` to `GroupedRow`. In `groupParts`, take `components: Component[] = []`, build `byId = componentsById(components)`, resolve each part's nearest ancestor `ancestorsOf(p, byId)[0]?.label ?? ''`, and fold that label into **both** the grouping key and the row. In `buildCsv`, take the same third arg, prepend a `Cabinet` column to the header and each row, and thread `components` into its `groupParts` call. Add the `Cabinet` column to `CuttingList.tsx`, thread `components` through its `groupParts`/`buildCsv` calls, take it as a prop, and pass it from `BomModal` (which has the scene) and from `App` into `BomModal`.
+
+Keep the subtotal row's column count in step with the new leading column.
 
 - [ ] **Step 4: Run to confirm pass and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
 ```bash
-git add src/ui/buildCsv.ts src/ui/buildCsv.test.ts src/ui/CuttingList.tsx src/ui/CuttingList.test.tsx
+git add src/ui/buildCsv.ts src/ui/buildCsv.test.ts src/ui/CuttingList.tsx src/ui/CuttingList.test.tsx src/ui/BomModal.tsx src/App.tsx
 git commit -m "feat(bom): group the cutting list by owning cabinet"
 ```
 
 ## Task 9.2: Hardware links to a component
 
 **Files:**
-- Modify: `src/scene/types.ts`, `src/ui/HardwareEditPanel.tsx`
+- Modify: `src/scene/types.ts`, `src/scene/useFile.ts`, `src/ui/HardwareEditPanel.tsx`, `src/ui/HardwareTab.tsx`
 - Test: `src/ui/HardwareEditPanel.test.tsx`
+
+> **Corrections after audit 2026-08-24 — the original snippet was stale:**
+> 1. The panel's callback is **`onSave(item)`**, not `onChange`, and it fires on a Save click, not per keystroke — the draft is held in local state. The test must tick the checkbox *then* click Save, and assert `onSave`'s last call.
+> 2. **There is no per-item hardware mapper in `parseFile`** — it is a wholesale passthrough `hardware: raw.scene.hardware ?? []`. To default `linkedComponentIds` on load you must *add* a per-item map.
+> 3. **`linkedPartIds` is already read unguarded** (`HardwareEditPanel.tsx:122`, `EditPanel.tsx:452` both call `.includes` on it) yet is *not* defaulted on load — only when a new item is created (`HardwareTab.tsx:22`). So an old file predating that field is already a latent `undefined.includes` crash. Default **both** fields in the new per-item map, and note the pre-existing gap you are closing.
+> 4. New-item creation in `HardwareTab.tsx` must also seed `linkedComponentIds: []`.
 
 - [ ] **Step 1: Write the failing test**
 
 ```tsx
 it('links a hardware item to a component', async () => {
-  const onChange = vi.fn()
-  render(<HardwareEditPanel {...props} components={[cabinet]} onChange={onChange} />)
+  const onSave = vi.fn()
+  render(
+    <HardwareEditPanel
+      item={item}          // item.linkedComponentIds: []
+      parts={[]}
+      components={[cabinet]} // cabinet.label === 'Base Cabinet 600'
+      onSave={onSave}
+      onCancel={vi.fn()}
+      onDelete={vi.fn()}
+    />,
+  )
   await userEvent.click(screen.getByLabelText('Base Cabinet 600'))
-  expect(onChange.mock.calls.at(-1)![0].linkedComponentIds).toEqual(['cmp_1'])
+  await userEvent.click(screen.getByRole('button', { name: /save/i }))
+  expect(onSave.mock.calls.at(-1)![0].linkedComponentIds).toEqual(['cmp_1'])
 })
 ```
+
+Add a second test: an item that already links a component shows that checkbox ticked (mirrors the existing `linkedPartIds` checkbox behaviour).
 
 - [ ] **Step 2: Run to confirm failure**
 
 Run: `pnpm vitest run src/ui/HardwareEditPanel.test.tsx -t 'links a hardware item to a component'`
-Expected: FAIL — no such checkbox.
+Expected: FAIL — no `components` prop, no such checkbox.
 
 - [ ] **Step 3: Implement**
 
-Add `linkedComponentIds: string[]` to `HardwareItem`; default it to `[]` in `parseFile`'s hardware mapper (no version bump needed — v11 already covers this release). Render a component checkbox list beside the existing part list in `HardwareEditPanel`.
+Add `linkedComponentIds: string[]` to `HardwareItem` (beside `linkedPartIds`). In `parseFile`, replace the hardware passthrough with a map that defaults **both** `linkedPartIds` and `linkedComponentIds` to `[]` when absent — closing the pre-existing `linkedPartIds` gap in the same stroke. Seed `linkedComponentIds: []` in `HardwareTab.tsx`'s new-item factory. Give `HardwareEditPanel` a `components: Component[]` prop and render a component checkbox list mirroring the parts list, wired through the same `field`/`draft` mechanism. Thread `components` from `HardwareTab` (which has the scene).
+
+No `FILE_FORMAT_VERSION` bump: the field is additive and defaulted at load. (On this branch the format is v11; the parallel Phase 8 branch bumps to v12 for `backSetback` — both additive, so whichever merges second needs no further bump.)
 
 - [ ] **Step 4: Run to confirm pass and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
 ```bash
-git add src/scene/types.ts src/scene/useFile.ts src/ui/HardwareEditPanel.tsx src/ui/HardwareEditPanel.test.tsx
+git add src/scene/types.ts src/scene/useFile.ts src/ui/HardwareEditPanel.tsx src/ui/HardwareEditPanel.test.tsx src/ui/HardwareTab.tsx
 git commit -m "feat(bom): hardware items link to cabinets as well as parts"
 ```
 
 ## Phase 9 verification
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` — green.
-- [ ] `pnpm dev`, drop two Base 600 cabinets, open the BOM: rows are grouped per cabinet and identical parts from *different* cabinets are not merged.
-- [ ] Download the CSV; the first column is `Cabinet` and every generated part names its cabinet.
+Verified 2026-08-24. The `pnpm dev` items' substance was driven through the real generator and CSV
+serializer instead, so the result is reproducible; the browser BOM view is a thin render over that.
 
----
+- [x] `pnpm typecheck && pnpm lint && pnpm test` — green (60 files, 1074 passed, 10 skipped).
+- [x] Two Base 600 cabinets, grouped per cabinet: `groupParts` over the two-cabinet scene goes from **7 rows to 14** — every part kept under its own cabinet, identical parts across cabinets not merged. Within one cabinet, identical parts still merge (`buildCsv.test.ts`).
+- [x] CSV first column is `Cabinet` and every generated part names its cabinet: header `Cabinet,Qty,Labels,Material,…`, first data row's first field `Cab A`, zero blank component rows. Measured, not read.
+- [x] Grouping is cost-neutral: summed total identical with and without the component list (433.6128 both ways over the two-cabinet scene) — a guard test, since this is a labelling and splitting change only.
+- [x] Hardware links to a cabinet: ticking a component checkbox and saving carries `linkedComponentIds` on the emitted item (`HardwareEditPanel.test.tsx`).
+- [x] **Bonus, not in the plan:** the new per-item hardware loader map closes a pre-existing latent crash — `linkedPartIds` was read unguarded but never defaulted on load, so an old file threw `undefined.includes` on open. A legacy hardware item now returns `[]` for both link arrays.
 
 # Phase 10 — Re-baseline the documentation, and measure
 

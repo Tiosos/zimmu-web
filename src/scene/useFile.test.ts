@@ -1159,6 +1159,44 @@ describe('v10 → v11 migration', () => {
       expect(part.driven).toBe(false)
     }
   })
+
+  // Pre-existing gap: linkedPartIds/linkedComponentIds are read unguarded (.includes) in the UI
+  // but were only ever seeded on new items, so a file predating them loaded an undefined array.
+  // The per-item hardware map now defaults both; a non-empty item proves the map ran (not dropped).
+  it('defaults linkedPartIds and linkedComponentIds on hardware that lacks them', () => {
+    const legacy = JSON.stringify({
+      version: 10,
+      name: 'Legacy hardware',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+      scene: {
+        parts: [],
+        materials: {},
+        hardware: [
+          {
+            id: 'hw_1',
+            name: 'Hinge',
+            qty: 4,
+            unit: 'pcs',
+            supplier: 'Ace',
+            partNumber: 'H-100',
+            unitCost: 2.5,
+            notes: 'soft-close',
+          },
+        ],
+        joints: [],
+      },
+    })
+
+    const hardware = parseFile(legacy).scene.hardware
+    expect(hardware).toHaveLength(1)
+    expect(hardware[0].name).toBe('Hinge')
+    expect(hardware[0].linkedPartIds).toEqual([])
+    expect(hardware[0].linkedComponentIds).toEqual([])
+  })
 })
 
 describe('v11 loader repairs a structurally broken file', () => {

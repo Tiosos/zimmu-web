@@ -16,6 +16,7 @@ const items: HardwareItem[] = [
     unitCost: 2.5,
     notes: '',
     linkedPartIds: [],
+    linkedComponentIds: [],
   },
 ]
 
@@ -42,23 +43,23 @@ function makePart(overrides: Partial<BoardPart> = {}): BoardPart {
 
 describe('HardwareTab', () => {
   it('shows empty state when no items', () => {
-    render(<HardwareTab hardware={[]} parts={[]} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={[]} parts={[]} components={[]} onUpdateHardware={vi.fn()} />)
     expect(screen.getByText(/no hardware items yet/i)).toBeTruthy()
   })
 
   it('renders item rows in the table', () => {
-    render(<HardwareTab hardware={items} parts={[]} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={items} parts={[]} components={[]} onUpdateHardware={vi.fn()} />)
     expect(screen.getByText('Hinge')).toBeTruthy()
   })
 
   it('Add item button creates a blank item and opens the edit panel', () => {
-    render(<HardwareTab hardware={[]} parts={[]} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={[]} parts={[]} components={[]} onUpdateHardware={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: /add item/i }))
     expect(screen.getByRole('button', { name: /save/i })).toBeTruthy()
   })
 
   it('clicking a row opens the edit panel with that item', () => {
-    render(<HardwareTab hardware={items} parts={[]} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={items} parts={[]} components={[]} onUpdateHardware={vi.fn()} />)
     fireEvent.click(screen.getByText('Hinge'))
     expect(screen.getByDisplayValue('Hinge')).toBeTruthy()
     expect(screen.getByRole('button', { name: /save/i })).toBeTruthy()
@@ -66,7 +67,7 @@ describe('HardwareTab', () => {
 
   it('saving a new blank item calls onUpdateHardware with one item', () => {
     const onUpdateHardware = vi.fn()
-    render(<HardwareTab hardware={[]} parts={[]} onUpdateHardware={onUpdateHardware} />)
+    render(<HardwareTab hardware={[]} parts={[]} components={[]} onUpdateHardware={onUpdateHardware} />)
     fireEvent.click(screen.getByRole('button', { name: /add item/i }))
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
     expect(onUpdateHardware).toHaveBeenCalledWith(
@@ -76,7 +77,7 @@ describe('HardwareTab', () => {
 
   it('deleting an item calls onUpdateHardware with empty list', () => {
     const onUpdateHardware = vi.fn()
-    render(<HardwareTab hardware={items} parts={[]} onUpdateHardware={onUpdateHardware} />)
+    render(<HardwareTab hardware={items} parts={[]} components={[]} onUpdateHardware={onUpdateHardware} />)
     fireEvent.click(screen.getByText('Hinge'))
     fireEvent.click(screen.getByRole('button', { name: /delete/i }))
     fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
@@ -95,6 +96,7 @@ describe('HardwareTab', () => {
         unitCost: 2.5,
         notes: '',
         linkedPartIds: [],
+        linkedComponentIds: [],
       },
       {
         id: 'h2',
@@ -106,9 +108,10 @@ describe('HardwareTab', () => {
         unitCost: 0.1,
         notes: '',
         linkedPartIds: [],
+        linkedComponentIds: [],
       },
     ]
-    render(<HardwareTab hardware={items2} parts={[]} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={items2} parts={[]} components={[]} onUpdateHardware={vi.fn()} />)
     fireEvent.click(screen.getByText('Hinge'))
     expect(screen.getByDisplayValue('Hinge')).toBeTruthy()
     fireEvent.click(screen.getByText('Screw'))
@@ -117,7 +120,7 @@ describe('HardwareTab', () => {
 
   it('renders part labels as checkboxes in the edit panel when a part is in the list', () => {
     const parts = [makePart({ id: 'p1', label: 'Side Panel' })]
-    render(<HardwareTab hardware={items} parts={parts} onUpdateHardware={vi.fn()} />)
+    render(<HardwareTab hardware={items} parts={parts} components={[]} onUpdateHardware={vi.fn()} />)
     fireEvent.click(screen.getByText('Hinge'))
     expect(screen.getByLabelText('Side Panel')).toBeTruthy()
   })

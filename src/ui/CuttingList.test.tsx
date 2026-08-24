@@ -28,7 +28,7 @@ function makePart(overrides: Partial<BoardPart> = {}): BoardPart {
 describe('buildCsv', () => {
   it('returns only the header when parts array is empty', () => {
     expect(buildCsv([])).toBe(
-      'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts,Cost/unit,Total',
+      'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts,Cost/unit,Total',
     )
   })
 
@@ -42,7 +42,7 @@ describe('buildCsv', () => {
 
   it('formats a data row with correct field values', () => {
     const csv = buildCsv([makePart({ length: 600, width: 300, thickness: 18 })])
-    expect(csv.split('\n')[1]).toBe('1,Left Side,,#8b6914,600,300,18,0,,')
+    expect(csv.split('\n')[1]).toBe(',1,Left Side,,#8b6914,600,300,18,0,,')
   })
 
   it('includes the cut count', () => {
@@ -65,29 +65,29 @@ describe('buildCsv', () => {
       },
     ]
     const csv = buildCsv([makePart({ cuts })])
-    expect(csv.split('\n')[1]).toBe('1,Left Side,,#8b6914,600,300,18,2,,')
+    expect(csv.split('\n')[1]).toBe(',1,Left Side,,#8b6914,600,300,18,2,,')
   })
 
   it('wraps labels in double quotes when they contain a comma', () => {
     const csv = buildCsv([makePart({ label: 'Left, Side' })])
-    expect(csv.split('\n')[1]).toMatch(/^1,"Left, Side",,/)
+    expect(csv.split('\n')[1]).toMatch(/^,1,"Left, Side",,/)
   })
 
   it('escapes embedded double-quotes in labels as "" per RFC 4180', () => {
     const csv = buildCsv([makePart({ label: '5" shelf' })])
-    expect(csv.split('\n')[1]).toMatch(/^1,"5"" shelf",,/)
+    expect(csv.split('\n')[1]).toMatch(/^,1,"5"" shelf",,/)
   })
 
   it('wraps material in double quotes when it contains a comma', () => {
     const csv = buildCsv([makePart({ material: 'Pine, Ply' })])
-    expect(csv.split('\n')[1]).toMatch(/^1,Left Side,"Pine, Ply",/)
+    expect(csv.split('\n')[1]).toMatch(/^,1,Left Side,"Pine, Ply",/)
   })
 
   it('quotes grouped labels field when labels contain a comma after grouping', () => {
     const parts = [makePart({ id: 'p1', label: 'A' }), makePart({ id: 'p2', label: 'B' })]
     const csv = buildCsv(parts)
     // Grouped labels = "A, B" which contains a comma — must be quoted
-    expect(csv.split('\n')[1]).toMatch(/^2,"A, B",,/)
+    expect(csv.split('\n')[1]).toMatch(/^,2,"A, B",,/)
   })
 
   it('puts different colors on separate rows', () => {
@@ -317,9 +317,9 @@ describe('CuttingList', () => {
     expect(writeText).toHaveBeenCalledOnce()
     const csvArg = writeText.mock.calls[0][0] as string
     expect(csvArg.split('\n')[0]).toBe(
-      'Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts,Cost/unit,Total',
+      'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Cuts,Cost/unit,Total',
     )
-    expect(csvArg).toContain('1,Left Side,,#8b6914,600,300,18,0,,')
+    expect(csvArg).toContain(',1,Left Side,,#8b6914,600,300,18,0,,')
   })
 
   it('renders the Color column header and the hex value for a part', () => {

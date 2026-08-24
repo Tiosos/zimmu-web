@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import type { HardwareItem, Part } from '../scene/types'
+import type { Component, HardwareItem, Part } from '../scene/types'
 import { Button } from '@/components/ui/button'
 
 interface HardwareEditPanelProps {
   item: HardwareItem
   parts: Part[]
+  components: Component[]
   onSave: (item: HardwareItem) => void
   onCancel: () => void
   onDelete: (id: string) => void
@@ -13,6 +14,7 @@ interface HardwareEditPanelProps {
 export function HardwareEditPanel({
   item,
   parts,
+  components,
   onSave,
   onCancel,
   onDelete,
@@ -131,6 +133,34 @@ export function HardwareEditPanel({
                   }}
                 />
                 {p.label}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-muted-foreground">Linked components</label>
+        {components.length === 0 ? (
+          <span className="text-xs text-muted-foreground italic">No components in project</span>
+        ) : (
+          <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
+            {components.map((c) => (
+              <label key={c.id} className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={draft.linkedComponentIds.includes(c.id)}
+                  onChange={(e) => {
+                    const ids = new Set(draft.linkedComponentIds)
+                    if (e.target.checked) {
+                      ids.add(c.id)
+                    } else {
+                      ids.delete(c.id)
+                    }
+                    field('linkedComponentIds', [...ids])
+                  }}
+                />
+                {c.label}
               </label>
             ))}
           </div>

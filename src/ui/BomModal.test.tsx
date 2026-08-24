@@ -38,11 +38,13 @@ const hardware: HardwareItem[] = [
     unitCost: 2.5,
     notes: '',
     linkedPartIds: [],
+    linkedComponentIds: [],
   },
 ]
 
 const baseProps = {
   parts,
+  components: [],
   materials,
   hardware,
   projectName: 'Test',
