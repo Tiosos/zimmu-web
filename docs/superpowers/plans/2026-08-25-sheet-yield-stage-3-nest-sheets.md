@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript strict · Vitest. No new dependencies.
 
+**Status:** **Complete.** All four tasks implemented on `claude/sheet-yield-stage-3`. Acceptance: 1201 unit tests across 63 files (10 skipped), `pnpm build` green, every property mutation-tested. Measured: 5.4 s for a six-cabinet job.
+
 **Spec:** `docs/superpowers/specs/2026-08-23-sheet-yield-design.md`
 **Notes:** `docs/superpowers/notes/2026-08-23-sheet-yield-notes.md`
 **Depends on:** Stage 2 (`occupancyMask`), merged as #35.
@@ -270,3 +272,21 @@ Plus the yield sanity check: *n* identical parts that tile a sheet exactly occup
 - **No worker, no UI.** Stage 4.
 - **No best-fit or offcut banking.** First-fit, measured adequate. Better heuristics go behind the same signature if a real job ever needs them.
 - **No grouping by material.** `nestSheets` nests one material's parts onto one stock size; Stage 4 groups.
+
+
+---
+
+# What changed against this plan
+
+### Two mutations survived the first pass, and both were gaps in the tests this plan specified
+
+- **Property 5 (determinism) could not see the id tie-break.** The plan said to test "same input twice, identical output" — but `Array.prototype.sort` is stable, so the same array nests identically whether or not the sort breaks ties. The tie-break exists to make the result independent of input *ordering*, so the test now shuffles the items deterministically and asserts an identical nest.
+- **The earlier-sheet rule was untested.** The plan's fixture did not create the only arrangement that distinguishes "try every open sheet" from "try the newest" — a part that fits an *earlier* sheet but not the latest. That cannot happen with full-width parts, since sorting by area descending guarantees the earlier sheet is the fuller one. The test now uses an L-shaped leftover.
+
+### A prune was tried and removed
+
+Skipping any sheet whose remaining free area is below the part's area is provably result-preserving. It bought 5.38 s → 5.32 s, i.e. nothing — the cost is not in scanning full sheets but in scanning sheets that have area free and no room for *this shape*. Removed rather than kept: dead complexity is worse than none.
+
+### Everything else held
+
+The corrected rotation rule, `unplaced`, the `mask.pad` bookkeeping, and the decision to keep first-fit rather than pre-optimise all landed as written. The measured nest is 5.4 s for 46 parts across 8 sheets at 62–86% utilisation — slower than the 1.1 s probe because the probe did not try every open sheet, which is the deliberate trade for better stock use.
