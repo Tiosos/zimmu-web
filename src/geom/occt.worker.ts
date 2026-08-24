@@ -19,6 +19,7 @@ const MESH_OPTS = { linearDeflection: 0.1, angularDeflection: 0.5 }
 
 const api = {
   async buildPart(spec: BuildSpec) {
+    const t0 = performance.now()
     const oc = await initOCCT()
     let shape: TopoDS_Shape
     switch (spec.kind) {
@@ -39,6 +40,12 @@ const api = {
     }
     const data = shapeToMeshData(oc, shape, MESH_OPTS)
     shape.delete()
+    // A single line, DEV only, so a slow rebuild is visible in the console without a profiler.
+    // The kernel figures behind these numbers are recorded in the cabinet-assembly notes.
+    if (import.meta.env.DEV) {
+      const cutCount = spec.cuts.length
+      console.debug(`zimmu: buildPart ${spec.kind} (${cutCount} cuts) ${(performance.now() - t0).toFixed(1)}ms`)
+    }
     return transfer(data, [data.positions.buffer, data.normals.buffer])
   },
   async exportStep(specs: ExportSpec[]): Promise<string> {

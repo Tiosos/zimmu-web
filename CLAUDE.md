@@ -123,14 +123,15 @@ src/
 │   │                    makeShape (box + cut chain), writeStep (unnamed STEP compound), ExportSpec
 │   ├── occt.worker.ts   Comlink Web Worker — exposes buildPart() + exportStep()
 │   ├── mesh.ts          TopoDS_Shape → MeshData (Float32Arrays) + BufferGeometry
-│   ├── transform.ts     composeWorldMatrix(part) — THREE-free world matrix, parity-tested
+│   ├── transform.ts     composeWorldMatrix(part) + resolveWorldMatrix(part, byId) — THREE-free
+│   │                    world matrix (composed through ancestor components), parity-tested
 │   ├── stl.ts           buildBinaryStl(parts, geometries) — world-space binary STL
 │   ├── drawing.ts       buildDrawingSheet(part) → DrawingView[] (Face/Edge/End orthographic
 │   │                    projections with cut rects, dimension lines, and cut labels)
 │   └── occt.test.ts     Smoke tests (live OCCT skipped in Node)
 ├── scene/
-│   ├── types.ts         Canonical types: ZimmuFile, Scene, Part/BoardPart, CutDef,
-│   │                    MaterialDef, HardwareItem, FaceHit, CameraState
+│   ├── types.ts         Canonical types: ZimmuFile, Scene, Part/BoardPart, CutDef (incl. hole-array),
+│   │                    MaterialDef, HardwareItem, Joint, Component, CarcaseParams, FaceHit, CameraState
 │   ├── useScene.ts      Scene state + geometry lifecycle + undo/redo + exportStep +
 │   │                    cut linking + materials/hardware CRUD
 │   ├── useFile.ts       File System Access API save/open/new + IDB auto-reopen
@@ -142,13 +143,26 @@ src/
 │   ├── useAddCut.ts     Click-a-face-to-add-joinery-cut interaction state machine
 │   ├── useInteractionMode.ts  Coordinator composing the six gesture hooks into one activeMode + normalized viewport bundle
 │   ├── useMaterialLibrary.ts  Loads/persists material cost rates via idb.ts library store
+│   ├── componentTree.ts  Pure tree helpers (index, ancestor walk, descendant collection,
+│   │                    cycle guard, orphan promotion) — no React, no THREE
+│   ├── carcaseRoles.ts   Pure CarcaseParams → ordered RoleSpec[] (role key, dims, local
+│   │                    position/rotation) — the whole geometry of a carcase
+│   ├── regenerateComponents.ts  Pure Scene → Scene; carcases emit driven parts + driven joints,
+│   │                    reconciled against existing parts by stable role key. Runs before reconcileJoints
+│   ├── carcasePresets.ts  CARCASE_PRESETS — Base/Wall/Tall parameter bundles (data only)
 │   └── palette.ts       PART_COLORS preset swatches
 ├── render/
 │   └── viewport.tsx     React-wrapped Three.js canvas + OrbitControls + raycaster (emits FaceHit)
 ├── ui/
 │   ├── FileMenu.tsx     Top menu bar (File menu, project name, undo/redo, BOM modal, export)
-│   ├── sidebar.tsx      Parts list + EditPanel (label, material, ColorControl, dims,
-│   │                    position, rotation, cuts panel with cut-linking UI)
+│   ├── sidebar.tsx      Composition shell: SceneTree + selected-node editor + mode buttons
+│   ├── EditPanel.tsx    Selected-part editor (moved out of sidebar.tsx): label, material,
+│   │                    ColorControl, dims, position, rotation, cuts (with cut-linking),
+│   │                    joints, hole-arrays, linked hardware
+│   ├── DimInput.tsx     Dimension number field with debounced commit
+│   ├── SceneTree.tsx    Sidebar hierarchy over components + parts: expand/collapse, selection,
+│   │                    per-node visibility, driven/detached badges
+│   ├── CarcasePanel.tsx  Carcase parameter form (collapsible sections) driving regenerateComponents
 │   ├── CuttingList.tsx  Grouped cutting-list table with material cost popover + CSV export
 │   ├── BomModal.tsx     Three-tab modal: Boards (cutting list), Hardware (BOM), Library
 │   │                    (persistent material rates)
@@ -173,7 +187,7 @@ src/
 
 ### Data Flow
 
-`useScene` is the single source of truth for scene state (`Scene` = `parts` + `materials` + `hardware`). It manages:
+`useScene` is the single source of truth for scene state (`Scene` = `parts` + `materials` + `hardware` + `joints` + `components`). It manages:
 
 1. **Geometry lifecycle** — watches `scene.parts` for changes; calls `occt.worker.buildPart()` for any part whose `shapeKey()` changed. Geometry results are kept in a ref (`geometriesRef`) and mirrored to state. Only `shapeKey()` changes (dimensions + cuts) trigger a rebuild; position/rotation changes are applied directly in the Viewport.
 2. **Undo/redo** — a 50-entry history stored in refs (`pastRef`/`futureRef`). History entries carry explicit `undo`/`redo` functions (closures over the before/after state). Consecutive `onUpdate` calls to the same part coalesce into one entry via `coalesceKey`.
@@ -191,7 +205,7 @@ src/
 
 **Face interactions** (`useSnap`, `useAddCut`) are small state machines composed in `App.tsx`, fed `FaceHit`s from the Viewport raycaster. Both apply results through `useScene.onUpdate` (so they participate in undo/redo). All their geometry math lives in `snapMath.ts` as pure, THREE-typed-but-browser-free functions — test it directly, not through the React hooks.
 
-**3D export** (STL + STEP) is hybrid: `composeWorldMatrix(part)` in `transform.ts` is the single source of truth for a part's world placement (THREE-free, element-wise parity-tested against `THREE.Matrix4`). STL is built synchronously on the main thread (`buildBinaryStl`, world-space triangle soup with recomputed facet normals). STEP goes through the worker (`exportStep` → `writeStep`, an unnamed `STEPControl_Writer` compound of all solids in mm — the XCAF named-solid path is absent at runtime in opencascade.js v1.1.1, see `docs/superpowers/notes/2026-06-05-3d-export-notes.md`). Both export only **visible** parts and deliver via `downloadBlob`. If you add a `rotationOrder` other than `'XYZ'`, `composeWorldMatrix` must be revisited — it hardcodes Euler XYZ.
+**3D export** (STL + STEP) is hybrid: `resolveWorldMatrix(part, byId)` in `transform.ts` is the single source of truth for a part's world placement — it composes `composeWorldMatrix` (THREE-free, element-wise parity-tested against `THREE.Matrix4`) through every ancestor component, and equals it exactly for a top-level part. STL is built synchronously on the main thread (`buildBinaryStl`, world-space triangle soup with recomputed facet normals). STEP goes through the worker (`exportStep` → `writeStep`, an unnamed `STEPControl_Writer` compound of all solids in mm — the XCAF named-solid path is absent at runtime in opencascade.js v1.1.1, see `docs/superpowers/notes/2026-06-05-3d-export-notes.md`). Both export only **visible** parts and deliver via `downloadBlob`. If you add a `rotationOrder` other than `'XYZ'`, `composeWorldMatrix` must be revisited — it hardcodes Euler XYZ.
 
 **2D export** (shop drawings): `buildDrawingSheet(part)` in `src/geom/drawing.ts` produces `DrawingView[]` (Face/Edge/End orthographic projections) from a single part. The `DrawingViewer` modal renders these as an SVG preview; `buildSvg.ts` and `buildDxf.ts` serialize them to downloadable formats.
 
@@ -202,9 +216,12 @@ src/
 - **Workers use Comlink.** `expose()` in the worker, `wrap()` in `useScene` (lazy singleton so `vi.stubGlobal('Worker', ...)` works in tests).
 - **Three.js coordinate system:** +Z up (CAD convention). Don't change `camera.up.set(0, 0, 1)`.
 - **`shapeKey()` is the geometry cache key.** It encodes only what changes the OCCT shape — dimensions and cut positions/sizes (not position/rotation, which the Viewport applies directly). Adding a new shape type or a shape-affecting field requires updating `shapeKey()` in `src/scene/utils.ts`.
-- **`ZimmuFile` serialization** rounds floats to 6 decimal places. The current file format version is `FILE_FORMAT_VERSION = 2` in `useFile.ts`.
-- **IndexedDB schema is version 2** with two object stores: `handles` (file handle persistence) and `library` (material cost rates). Bumping `DB_VERSION` in `idb.ts` requires adding the new store in `onupgradeneeded`.
+- **`ZimmuFile` serialization** rounds floats to 6 decimal places. The current file format version is `FILE_FORMAT_VERSION = 12` in `useFile.ts` (v11 added the component tree; v12 added the carcase `backSetback` parameter).
+- **IndexedDB schema is version 2** with two object stores: `handles` (file handle persistence) and `library` (material cost rates). Bumping `DB_VERSION` in `idb.ts` requires adding the new store in `onupgradeneeded`. (This DB version is unrelated to `FILE_FORMAT_VERSION`.)
 - **Material library vs. project materials** — `scene.materials` is per-file; `library` (IndexedDB) is global. The app merges them at the BOM layer; never conflate the two in `useScene`.
+- **The regeneration pipeline order is fixed.** `regenerateComponents(scene)` runs before `reconcileJoints(scene)`, always, via `applyPipeline` in `useScene.ts`. Carcases emit parts and joints; `reconcileJoints` derives cuts and seats from those joints. Both stages are pure and idempotent.
+- **A detached part is the user's.** `driven: false` means no regeneration and no deletion — a parameter change, a role disappearing, and deleting the whole component all preserve it.
+- **`resolveWorldMatrix` is the single source of world placement.** For `parentId: null` it is byte-identical to `composeWorldMatrix`; never call `composeWorldMatrix` directly outside `transform.ts`. The one remaining mention of `composeWorldMatrix` elsewhere (in `occt.ts`) is a comment describing the matrix layout, not a call, so the invariant already holds.
 
 ## Code Conventions
 

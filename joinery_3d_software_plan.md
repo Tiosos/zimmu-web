@@ -20,16 +20,17 @@ prototype. The Rust/Tauri production build (Phase 1) has not started.
 - Snap/align mode and boolean joinery cuts with cut pairing (linked cuts)
 - 50-entry undo/redo with dimension-edit coalescing
 - File save/open/new via FSAPI (Chrome/Edge); graceful degradation on other browsers
-- `.zimmu` flat-JSON project format — `FILE_FORMAT_VERSION = 2` (includes `materials` and `hardware`)
+- Parametric joint engine: dado (plain/rabbeted/stopped), half-lap, mortise & tenon, box/finger, tongue & groove — each generated from a first-class `Joint` and kept in sync as dimensions change; auto-suggested from part adjacency and tracked in a joint checklist
+- Nestable component tree (`Scene.components`) with a parametric carcase generator: drop a Base/Wall/Tall preset and its side/back/shelf/toe-kick parts and joints regenerate from carcase parameters; a detached (`driven: false`) part is never touched by regeneration; 32 mm shelf-pin hole arrays
+- `.zimmu` flat-JSON project format — `FILE_FORMAT_VERSION = 12` (v11 added the component tree; v12 added `backSetback`; includes `materials`, `hardware`, `joints`, `components`)
 - Auto-reopen last file via IndexedDB; dirty tracking
-- Three-tab BOM modal: Boards cutting list (with per-material cost), Hardware BOM (with linked-part checkboxes), Library (persistent material rates in IDB)
+- Three-tab BOM modal: Boards cutting list (with per-material cost, grouped per cabinet), Hardware BOM (with linked-part checkboxes), Library (persistent material rates in IDB)
 - Part duplication, removal (keyboard `Delete`/`Backspace`), visibility toggle
 - STL + STEP 3D export; SVG + DXF 2D shop drawings (Face/Edge/End orthographic views)
 - shadcn/ui + Radix primitives throughout; Tailwind v4
-- 25 test files, 374 tests passing (Vitest + happy-dom + @testing-library/react)
+- 1105 tests passing (10 skipped) across 60 Vitest files; 68 test files total including 8 Playwright specs (Vitest + happy-dom + @testing-library/react + Playwright)
 
 **Still pending from Phase 0.5 original scope:**
-- WASM geometry performance baseline instrumentation (not yet measured)
 - `.zimmu` → `.zmu` file format migration utility (not yet written)
 
 **Next milestone:** Rust geometry engineer hire; begin Phase 1 (Rust/Tauri core modeller).
@@ -319,7 +320,7 @@ User action (UI)
 
 The project is a tree of typed objects, all addressable by stable UUIDs. Below are the core types.
 
-> **v0.1 prototype data model (updated June 2026):** `ZimmuFile` (`FILE_FORMAT_VERSION = 2`) has `version`, `name`, `appVersion`, `units: 'mm'`, `createdAt`, `updatedAt`, `camera: CameraState`, and `scene: Scene`. `Scene` has `parts: Part[]`, `materials: Record<string, MaterialDef>` (keyed by name, carries `costPerM2`), and `hardware: HardwareItem[]`. A `BoardPart` has `kind: 'board'`, UUID `id`, `label`, `length`/`width`/`thickness` (mm), `material` (string, "" = unspecified), `color` (hex), `position`/`rotation` (Vec3 floats, degrees), `rotationOrder: 'XYZ'`, `visible: boolean`, and `cuts: CutDef[]`. A `CutDef` optionally carries `pairedCutId: "{partId}:{cutId}"` linking it to the mating cut on another part. A `HardwareItem` carries `id`, `name`, `qty`, `unit`, `supplier`, `partNumber`, `unitCost`, `notes`, and `linkedPartIds: string[]` (the board IDs this item is associated with). There is no assembly tree, no components — just a flat part array and the two supporting collections.
+> **v0.1 prototype data model (updated August 2026):** `ZimmuFile` (`FILE_FORMAT_VERSION = 12`) has `version`, `name`, `appVersion`, `units: 'mm'`, `createdAt`, `updatedAt`, `camera: CameraState`, and `scene: Scene`. `Scene` has `parts: Part[]`, `materials: Record<string, MaterialDef>` (keyed by name, carries `costPerM2`), `hardware: HardwareItem[]`, `joints: Joint[]` (first-class parametric joints), and `components: Component[]` (the flat-stored nestable assembly tree — `group` and `carcase` nodes linked by `parentId`). A `BoardPart` has `kind: 'board'`, UUID `id`, `label`, `length`/`width`/`thickness` (mm), `material` (string, "" = unspecified), `color` (hex), `position`/`rotation` (Vec3 floats, degrees), `rotationOrder: 'XYZ'`, `visible: boolean`, `cuts: CutDef[]`, `parentId: ComponentId | null`, `driven: boolean`, and an optional `role` (the regeneration identity key on driven parts). A `CutDef` optionally carries `pairedCutId: "{partId}:{cutId}"` linking it to the mating cut on another part, and a `hole-array` cut kind carries the shelf-pin bore pattern. A `HardwareItem` carries `id`, `name`, `qty`, `unit`, `supplier`, `partNumber`, `unitCost`, `notes`, `linkedPartIds: string[]`, and `linkedComponentIds: string[]` (the cabinets/groups this item belongs to). A `carcase` `Component` carries `CarcaseParams` (width/height/depth, thickness, back and base modes, fixed and 32 mm-pitch adjustable shelves, joint method, dividers); `regenerateComponents(scene)` turns those parameters into driven parts and joints, reconciling against existing parts by stable role key so a detached part survives.
 
 ### Project
 
@@ -740,11 +741,11 @@ project.zmu/
 
 While the production `.zmu` format is being designed, the browser prototype uses a simpler flat-JSON format with the `.zimmu` extension.
 
-**Structure:** A single UTF-8 JSON file with this top-level shape (current: `FILE_FORMAT_VERSION = 2`):
+**Structure:** A single UTF-8 JSON file with this top-level shape (current: `FILE_FORMAT_VERSION = 12`):
 
 ```json
 {
-  "version": 2,
+  "version": 12,
   "name": "My Cabinet",
   "appVersion": "0.0.0",
   "units": "mm",
@@ -776,17 +777,19 @@ While the production `.zmu` format is being designed, the browser prototype uses
         "name": "Hinge", "qty": 4, "unit": "pcs",
         "supplier": "Blum", "partNumber": "71B3550",
         "unitCost": 3.20, "notes": "",
-        "linkedPartIds": ["board_<uuid>"]
+        "linkedPartIds": ["board_<uuid>"], "linkedComponentIds": []
       }
-    ]
+    ],
+    "joints": [],
+    "components": []
   }
 }
 ```
 
 **Key decisions:**
 - All numeric fields are stored as floats rounded to 6 decimal places.
-- `FILE_FORMAT_VERSION = 2` is checked on load; unknown versions are rejected.
-- v1 → v2 migration: added `materials`, `hardware`, `appVersion`, `units`, `createdAt`, `updatedAt`, `camera`, and `rotationOrder` fields. Migration logic lives in `useFile.ts`.
+- `FILE_FORMAT_VERSION = 12` is checked on load; unknown versions are rejected.
+- Migration logic lives in `useFile.ts`. Notable bumps: v1 → v2 added `materials`, `hardware`, `appVersion`, `units`, `createdAt`, `updatedAt`, `camera`, `rotationOrder`; later versions added the parametric `joints` array; v11 added the `components` tree (with `parentId`/`driven` on every part and joint); v12 added the carcase `backSetback` shelf parameter.
 - `visible` defaults to `true` on load for backward compatibility with pre-visibility saves (`p.visible ?? true`).
 - No binary geometry is stored — geometry is recomputed from parameters on open.
 - The `.zimmu` format will be migrated to `.zmu` before production; a migration utility is planned (not yet written — see Open Question 10).
@@ -885,7 +888,7 @@ The roadmap is organised in five phases. Phase exit criteria are explicit.
 - Vitest + @testing-library/react test suite (scene, file, keyboard shortcuts, UI)
 - GitHub Actions CI
 
-*Additions completed in Phase 0.5 (see below):* shadcn/ui, BOM modal, hardware BOM with linked parts, material library (IDB), 3D STL + STEP export, 2D shop drawings (SVG + DXF), part deletion keyboard shortcut, FSAPI graceful degradation, `FILE_FORMAT_VERSION = 2` (adds `materials`, `hardware`).
+*Additions completed in Phase 0.5 (see below):* shadcn/ui, BOM modal, hardware BOM with linked parts, material library (IDB), 3D STL + STEP export, 2D shop drawings (SVG + DXF), part deletion keyboard shortcut, FSAPI graceful degradation, file format bumped to v2 (adds `materials`, `hardware`).
 
 **What was NOT built in Phase 0 (production targets, deferred):**
 
@@ -908,13 +911,13 @@ The roadmap is organised in five phases. Phase exit criteria are explicit.
 - ✅ **Cutting list / BOM:** three-tab BOM modal (Boards cutting list with cost, Hardware BOM with linked-part checkboxes, Library with persistent IDB rates)
 - ✅ **shadcn/ui integration:** all controls replaced; design system established
 - ✅ **FSAPI fallback:** shows "Save/Load requires Chrome or Edge" and disables file menu on non-Chromium browsers
-- ✅ **Test coverage:** 374 tests across 25 files (Vitest + happy-dom + @testing-library/react); Playwright deferred
+- ✅ **Test coverage:** 374 across 25 files at Phase 0.5 close (Vitest + happy-dom + @testing-library/react); Playwright deferred then, since adopted (now 1105 across 60 Vitest files plus 8 Playwright specs)
 - ✅ **3D export:** STL (binary, world-space) + STEP (XCAF named solids)
 - ✅ **2D shop drawings:** Face/Edge/End orthographic projections with dimensions; SVG + DXF download
 - ✅ **Material library:** persistent cost rates in IDB `library` store; merged with per-file `scene.materials` at BOM layer
 - ✅ **Hardware BOM:** items link to board parts; linked items visible in sidebar EditPanel
-- ✅ **`FILE_FORMAT_VERSION = 2`:** adds `materials`, `hardware`, `appVersion`, `units`, `camera`, `rotationOrder` to the schema
-- ⏳ **WASM performance baseline:** geometry build time instrumentation not yet written
+- ✅ **File format:** Phase 0.5 shipped v2 (adds `materials`, `hardware`, `appVersion`, `units`, `camera`, `rotationOrder`); the format has since advanced to v12 as the joint engine and component tree landed
+- ✅ **WASM performance baseline:** `buildPart` now logs build times in DEV; first baseline measured 2026-08-24 (cold WASM boot ~2.6 s; a plain panel ~1 ms; a pin-drilled side ~260 ms; a 7-part Base 600 ~710 ms of kernel work; regeneration itself is pure and ~3 ms). See the 2026-08-18 cabinet-assembly notes, Task 10.2.
 - ⏳ **`.zimmu` → `.zmu` migration utility:** not yet written (see Open Question 10)
 
 **Exit criterion:** a real woodworker can design a simple cabinet (4 boards, 2 dados, 1 rabbet), export a cutting list as CSV, save the project, close the browser, reopen it the next day, and continue editing — with no data loss. *Met for the core loop.*
@@ -928,6 +931,8 @@ The roadmap is organised in five phases. Phase exit criteria are explicit.
 **Goal:** a usable direct-modelling tool with the parametric foundation in place.
 
 **Status: partial** — Some Phase 1 goals have been prototyped in the browser (see Phase 0.5), but the production Rust/Tauri implementation has not started. The browser prototype covers: board parts with dimensions, save/load, undo/redo, and basic cut operations. Feature graph, topology naming, fillet/chamfer, materials, and `.zmu` format remain unbuilt.
+
+> **Note (August 2026):** the browser prototype now carries a **nestable component tree** and a **parametric carcase generator** — parts and components link upward by `parentId`, a pure `regenerateComponents(scene)` stage emits driven parts and joints from carcase parameters, and world placement composes through ancestors via `resolveWorldMatrix`. These are the *"Parts and components"* Phase 1 item and much of the *"Parts and components / joint engine"* work Phase 2 assigns to the Rust build, prototyped in TypeScript ahead of that build. This does not answer Open Question 9 (browser vs. Tauri transition timing) — it sharpens it: the prototype has now proven more of the parametric model than the sequential plan assumed, so the risk of UX/model drift on the eventual Rust rewrite is larger, and the value of keeping the two tracks in sync (rather than letting the prototype race ahead) is higher.
 
 - Feature graph + topology naming system
 - Direct modelling: extrude, cut, fillet, chamfer
@@ -1265,11 +1270,11 @@ Phase 0.5 is complete for the core loop. Status of the original task list:
 2. ✅ **shadcn/ui integration** — all controls replaced; design system live
 3. ✅ **Joint engine (snap/align hardening)** — snap/align + boolean cut modes + cut pairing
 4. ✅ **FSAPI fallback** — shows "Save/Load requires Chrome or Edge"; menu items disabled
-5. ✅ **Test coverage** — 374 tests across 25 files; Playwright deferred
+5. ✅ **Test coverage** — the June 2026 suite stood at 374 across 25 files; Playwright since adopted. Measured 2026-08-24: 1105 passing (10 skipped) across 60 Vitest files, 68 test files total including 8 Playwright specs.
+6. ✅ **WASM performance baseline** — `buildPart` logs build times in DEV; first baseline measured 2026-08-24 (see the 2026-08-18 cabinet-assembly notes, Task 10.2)
 
 **Still pending:**
 
-6. ⏳ **WASM performance baseline** — `performance.mark` instrumentation not yet added; needed before Phase 1 hardware can be specified
 7. ⏳ **`.zimmu` → `.zmu` migration utility** — not yet written (see Open Question 10)
 8. ⏳ **Resolve Open Question 9** (sequential vs. parallel tracks) and **Open Question 10** (`.zimmu` vs. `.zmu` extension) — both needed before fully closing Phase 0.5
 
