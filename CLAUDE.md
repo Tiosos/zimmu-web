@@ -150,6 +150,8 @@ src/
 │   ├── regenerateComponents.ts  Pure Scene → Scene; carcases emit driven parts + driven joints,
 │   │                    reconciled against existing parts by stable role key. Runs before reconcileJoints
 │   ├── carcasePresets.ts  CARCASE_PRESETS — Base/Wall/Tall parameter bundles (data only)
+│   ├── grain.ts         Grain convention stated in carcase axes + grainFieldFor() — the board
+│   │                    field is derived from orientedPanel's axis map, never hand-tabulated
 │   └── palette.ts       PART_COLORS preset swatches
 ├── render/
 │   └── viewport.tsx     React-wrapped Three.js canvas + OrbitControls + raycaster (emits FaceHit)
@@ -170,7 +172,8 @@ src/
 │   ├── HardwareEditPanel.tsx  Reusable hardware item form (name, qty, unit, supplier,
 │   │                    part #, unit cost, notes)
 │   ├── DrawingViewer.tsx  Modal for 2D shop drawings (Face/Edge/End views) with SVG/DXF export
-│   ├── buildCsv.ts      groupParts() + CSV serialization for cutting list + hardware
+│   ├── buildCsv.ts      groupParts() + cutDimensions() (grain decides the length) + isNestable()
+│   │                    + CSV serialization for cutting list + hardware
 │   ├── buildSvg.ts      DrawingSheet → SVG (orthographic views + dimensions + cut labels)
 │   ├── buildDxf.ts      DrawingSheet → DXF (CAD-friendly format)
 │   ├── download.ts      downloadBlob() — Blob + anchor click (browser-agnostic delivery)
@@ -217,10 +220,11 @@ src/
 - **Three.js coordinate system:** +Z up (CAD convention). Don't change `camera.up.set(0, 0, 1)`.
 - **`shapeKey()` is the geometry cache key.** It encodes only what changes the OCCT shape — dimensions and cut positions/sizes (not position/rotation, which the Viewport applies directly). Adding a new shape type or a shape-affecting field requires updating `shapeKey()` in `src/scene/utils.ts`.
 - **`ZimmuFile` serialization** rounds floats to 6 decimal places. The current file format version is `FILE_FORMAT_VERSION = 12` in `useFile.ts` (v11 added the component tree; v12 added the carcase `backSetback` parameter).
-- **IndexedDB schema is version 2** with two object stores: `handles` (file handle persistence) and `library` (material cost rates). Bumping `DB_VERSION` in `idb.ts` requires adding the new store in `onupgradeneeded`. (This DB version is unrelated to `FILE_FORMAT_VERSION`.)
+- **IndexedDB schema is version 3** with three object stores: `handles` (file handle persistence), `library` (material cost rates and sheet stock) and `settings` (the global tool clearance). Bumping `DB_VERSION` in `idb.ts` requires adding the new store in `onupgradeneeded`. (This DB version is unrelated to `FILE_FORMAT_VERSION`.)
 - **Material library vs. project materials** — `scene.materials` is per-file; `library` (IndexedDB) is global. The app merges them at the BOM layer; never conflate the two in `useScene`.
 - **The regeneration pipeline order is fixed.** `regenerateComponents(scene)` runs before `reconcileJoints(scene)`, always, via `applyPipeline` in `useScene.ts`. Carcases emit parts and joints; `reconcileJoints` derives cuts and seats from those joints. Both stages are pure and idempotent.
 - **A detached part is the user's.** `driven: false` means no regeneration and no deletion — a parameter change, a role disappearing, and deleting the whole component all preserve it.
+- **Grain is stated in carcase axes and derived into a board field.** `grainAxisOf(role)` names the direction; `grainFieldFor(thicknessAxis, axis)` turns it into `'length'` or `'width'` through the same map `orientedPanel` uses. The role→field table in the design doc is a *consequence* — never hand-maintain a second copy of it, and **never assume grain runs along a panel's longer dimension**: a 1200 × 400 wall unit's back and a three-bay 900's shelf both run it along the shorter one.
 - **`resolveWorldMatrix` is the single source of world placement.** For `parentId: null` it is byte-identical to `composeWorldMatrix`; never call `composeWorldMatrix` directly outside `transform.ts`. The one remaining mention of `composeWorldMatrix` elsewhere (in `occt.ts`) is a comment describing the matrix layout, not a call, so the invariant already holds.
 
 ## Code Conventions

@@ -8,6 +8,8 @@
 
 **Tech Stack:** React 19 · TypeScript strict · Vitest + happy-dom + @testing-library/react · Playwright · Tailwind v4 + Radix.
 
+**Status:** **Complete.** All seven tasks implemented on `claude/sheet-yield-stage-1`. Acceptance: 1150 unit tests across 61 files (10 skipped), 13 e2e green, `pnpm build` succeeds. Two of the plan's own claims turned out to be wrong and were corrected in the code — see "What changed against this plan" at the foot.
+
 **Spec:** `docs/superpowers/specs/2026-08-23-sheet-yield-design.md`
 **Notes:** `docs/superpowers/notes/2026-08-23-sheet-yield-notes.md` — update it whenever a decision deviates from this plan.
 
@@ -699,3 +701,30 @@ Run all of these on the branch before opening a PR:
 - **No nesting, no Sheets tab, no yield figure.** Stages 2–4.
 - **No grain in the shop drawings.** `buildSvg`/`buildDxf` are untouched. The spec mentions drawings as a benefit of the stage; the arrow on a drawing is a small independent piece of work and is better done once the field has been lived with.
 - **No change to `+ Board`'s default.** It is `'free'`; whether it should be `'length'` is deferred by the spec until the field exists.
+
+
+---
+
+# What changed against this plan
+
+Two claims in the tasks above were wrong. Both were found by a test written to check them, not by review.
+
+### Task 1.3 said a row could take its grain from the first part of its group
+
+The stated reasoning: grain feeds `cutDimensions`, whose output is in the grouping key, so a group cannot hold two grains. **False in both directions.** A 600 × 300 board with grain `length`, a 300 × 600 board with grain `width`, and a 600 × 300 board with grain `free` all reduce to the same 600 × 300 cut, so all three landed in one row that then reported whichever grain arrived first.
+
+The fix is two-part and is in the code:
+
+- `GroupedRow.grain` is `'length' | 'free'`, not `Grain`. After `cutDimensions` the grain-running dimension *is* the reported length, so a directional board reports `length` and only an unconstrained one reports `free`.
+- The normalised grain is part of the grouping key. A part the nester may rotate and one it may not are different cuts at identical dimensions.
+
+### Task 1.1's role-coverage test named twelve role families; there are thirteen
+
+`ladder-mid-*` appears once a ladder base is wide enough to need a mid rail, which the plan's suggested fixture did not reach. The test asserted a list this plan supplied, the code disagreed, and the code was right.
+
+### Smaller deviations
+
+- **Tasks 1.1 and 1.2 landed as one commit**, as the plan's own Step 4 anticipated: `BoardPart.grain` is required, so the tree does not typecheck between them and the pre-commit hook blocks the split.
+- **72 test fixtures needed `grain`**, not the "roughly a dozen" predicted. All default to `'free'`; none was set to a direction to make a test pass.
+- **The two `kind: 'board'` literals in `useScene.ts` that build a `BuildSpec`/`ExportSpec`** deliberately do *not* carry grain. They are kernel geometry specs, and grain is not geometry.
+- **An existing EditPanel test's `getByText(/Base 600/)` became ambiguous** once the Shape section grew its own "Grain is set by Base 600." note. Scoped to its exact text rather than the new note being renamed around it.

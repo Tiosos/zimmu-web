@@ -147,3 +147,18 @@ minutes to check.
   `carcaseRoles.ts` re-exports it, so its existing importers did not move.
 - The two `kind: 'board'` literals in `useScene.ts` that build a `BuildSpec`/`ExportSpec` for the
   kernel do **not** get grain. They are geometry specs; grain is not geometry.
+
+### Stage 1 acceptance, measured 2026-08-24
+
+- `pnpm typecheck && pnpm lint && pnpm test` — 61 files, **1150 passed**, 10 skipped (up from 1105).
+- `pnpm test:e2e` — **13 passed**, both live-kernel specs included.
+- `pnpm build` — succeeds (the >500 kB chunk warning is pre-existing).
+- `grep -rn "?? 'free'" src/ | grep -v useFile.ts` — nothing. The boundary normalises once.
+- `carcaseRoles.ts` mentions grain three times: the import, the `RoleSpec` field, and the single
+  derivation call. No per-role literal.
+- Every guard added in Tasks 1.1, 1.3, 1.5 and 1.6 was mutation-tested — the axis map, the
+  cutDimensions grain branch, the grouping key, the disabled control, the setter, the `hasGrain`
+  default, the sheet-pair merge, and the `isNestable` zero check all go red when broken.
+
+Not done, and deliberately: grain in the shop drawings (`buildSvg`/`buildDxf` are untouched), and
+any change to `+ Board`'s `'free'` default. Both are deferred by the spec.
