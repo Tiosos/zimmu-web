@@ -179,3 +179,55 @@ removing `ladder-mid` from `grainAxisOf` fails the totality test.
 
 Not done, and deliberately: grain in the shop drawings (`buildSvg`/`buildDxf` are untouched), and
 any change to `+ Board`'s `'free'` default. Both are deferred by the spec.
+
+## 2026-08-24 — Stage 2 planning found three errors in the spec's `occupancyMask` sketch
+
+**Plan:** `docs/superpowers/plans/2026-08-24-sheet-yield-stage-2-occupancy-mask.md`
+
+The spec describes `occupancyMask` in one paragraph: fill the cut-size rectangle at 1 mm, clear each
+box cut's footprint, apply mitre outlines, and reuse `cutFootprintCorners`. Checking each clause
+against the code before writing the plan:
+
+### `cutFootprintCorners` is the wrong seam
+
+It returns **world-space** corners (it calls `resolveWorldMatrix` internally), takes a **`BoxCut`
+only** where `CutDef` has three members, and needs a component map a pure mask function has no
+business knowing. `mitreFaceOutline` in `src/geom/mitre.ts` is the seam that actually fits: pure,
+board-local, in millimetres, min corner at the origin, already tested.
+
+### "Clear each box cut's footprint" would carve a cabinet side into ribbons
+
+**A dado is not a notch.** Measured on a Base 600 left side (560 × 720 × 18): the toe-kick notch
+spans z[−9, 27] — through the 18 mm and genuinely outline-changing — while all four dados span
+z[12, 18], a 6 mm groove that leaves the panel a full rectangle to cut around. Clearing all five
+would let the nester tuck a neighbour into a groove.
+
+A box cut removes outline material only when its z-span covers the whole thickness. Both live
+through-cut conventions satisfy that: `computeFingerSlots` is exactly flush (z 0 → thickness) and
+the toe-kick notch overshoots (−T/2 → 3T/2). See the cabinet-assembly notes for why both exist.
+
+### And a standing defect in the shop drawings, found on the way
+
+`BoxCut.position` is the box's **min corner**. `makeCut` builds `BRepPrimAPI_MakeBox_1(size)` — a box
+over [0, size] — and translates by `position`, so the tool occupies [position, position + size]. The
+generated cuts agree: a full-width dado on a 560-long panel is `position.x = 0, size.x = 560`.
+
+**`projectCut` in `src/geom/drawing.ts:135` uses the opposite convention**, `x = (uPos - uSz/2)`,
+treating `position` as the centre. Every Face-view cut rectangle on a Base 600 side is therefore
+drawn offset by half its own size in both in-plane axes — measured output, board rect 56 × 72 at 0.1
+scale, cut rects at x = −28, y = −36, x = −28, x = 54.2, x = 5.1, x = −28. All six outside the board.
+
+Only `projectCut` is affected. `projectHoleArray` reads `h.start` directly with no centring, which is
+why the hole-array e2e test passes and this went unnoticed.
+
+Out of scope for sheet yield, reported separately. Recorded here so nobody reuses `projectCut` as a
+reference for the mask.
+
+### Two decisions taken in the plan
+
+- **The mask stays in board-local axes**, not `cutDimensions`' grain-ordered pair. `cutDimensions`
+  answers "which dimension does the cutting list call the length"; the mask answers "what shape is
+  this on a sheet". Stage 3 reads `part.grain` to decide which rotations are allowed, and a
+  pre-transposed mask would make that decision twice.
+- **Rounding goes outward on dimensions and inward on the mitre polygon.** Opposite directions, same
+  principle: never claim material the part does not have.
