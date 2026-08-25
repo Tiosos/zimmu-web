@@ -11,12 +11,13 @@ import { Sidebar } from './ui/sidebar'
 import { FileMenu } from './ui/FileMenu'
 import { BomModal } from './ui/BomModal'
 import { useMaterialLibrary } from './scene/useMaterialLibrary'
+import { useNest } from './scene/useNest'
 import { buildBinaryStl } from './geom/stl'
 import { downloadBlob } from './ui/download'
 import { buildDrawingSheets } from './geom/drawing'
 import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
-import type { CameraState, PartId, Selection } from './scene/types'
+import type { CameraState, MaterialDef, PartId, Selection } from './scene/types'
 
 const supported = 'showOpenFilePicker' in window
 
@@ -123,6 +124,22 @@ function App() {
   )
 
   const { library, clearance, saveRate, deleteEntry, setClearance } = useMaterialLibrary()
+  // Driven by the Sheets tab: a nest is several seconds of work, so it runs only for a report
+  // someone is actually looking at.
+  const [sheetsTabOpen, setSheetsTabOpen] = useState(false)
+  const nestMaterials = useMemo(() => {
+    const merged: Record<string, MaterialDef> = {}
+    for (const name of new Set([...Object.keys(library), ...Object.keys(scene.materials)])) {
+      merged[name] = { ...library[name], ...scene.materials[name] }
+    }
+    return merged
+  }, [library, scene.materials])
+  const { reports: nestReports, pending: nestPending } = useNest(
+    scene.parts,
+    nestMaterials,
+    clearance,
+    sheetsTabOpen,
+  )
 
   const [flashTarget, setFlashTarget] = useState<{ id: PartId; seq: number } | null>(null)
   const handleRotationSnap = useCallback(
@@ -458,6 +475,9 @@ function App() {
           onDeleteLibraryEntry={deleteEntry}
           clearance={clearance}
           onSetClearance={setClearance}
+          nestReports={nestReports}
+          nestPending={nestPending}
+          onSheetsTabChange={setSheetsTabOpen}
         />
       )}
       <DrawingViewer

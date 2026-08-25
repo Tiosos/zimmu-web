@@ -5,11 +5,13 @@ import { DowelList } from './DowelList'
 import { HardwareTab } from './HardwareTab'
 import { groupParts, buildCsv, buildHardwareCsv, groupDowels, buildDowelCsv } from './buildCsv'
 import { downloadBlob } from './download'
+import { SheetsTab } from './SheetsTab'
+import type { NestReport } from '../scene/useNest'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-type Tab = 'boards' | 'dowels' | 'hardware' | 'library'
+type Tab = 'boards' | 'dowels' | 'sheets' | 'hardware' | 'library'
 
 interface BomModalProps {
   parts: Part[]
@@ -25,6 +27,10 @@ interface BomModalProps {
   onDeleteLibraryEntry: (name: string) => void
   clearance: number
   onSetClearance: (mm: number) => void
+  nestReports: NestReport[]
+  nestPending: boolean
+  // Set from the tab state so a 5-second nest only runs for a report someone is looking at.
+  onSheetsTabChange: (open: boolean) => void
 }
 
 function LibraryTab({
@@ -176,8 +182,19 @@ export function BomModal({
   onDeleteLibraryEntry,
   clearance,
   onSetClearance,
+  nestReports,
+  nestPending,
+  onSheetsTabChange,
 }: BomModalProps) {
   const [tab, setTab] = useState<Tab>('boards')
+
+  useEffect(() => {
+    onSheetsTabChange(tab === 'sheets')
+    // Cleanup matters as much as the effect: closing the modal while on the Sheets tab would
+    // otherwise leave the nest wanted forever, running a 5-second job on every scene edit for a
+    // report nobody can see.
+    return () => onSheetsTabChange(false)
+  }, [tab, onSheetsTabChange])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -207,7 +224,7 @@ export function BomModal({
   }
 
   const handleCopy = () => {
-    if (tab === 'library') return
+    if (tab === 'library' || tab === 'sheets') return
     const csv =
       tab === 'boards'
         ? buildCsv(parts, effectiveMaterials, components)
@@ -218,7 +235,7 @@ export function BomModal({
   }
 
   const handleDownload = () => {
-    if (tab === 'library') return
+    if (tab === 'library' || tab === 'sheets') return
     if (tab === 'boards') {
       downloadBlob(
         buildCsv(parts, effectiveMaterials, components),
@@ -263,7 +280,7 @@ export function BomModal({
 
         {/* Tabs */}
         <div role="tablist" className="flex gap-0 border-b border-border px-6">
-          {(['boards', 'dowels', 'hardware', 'library'] as const).map((t) => (
+          {(['boards', 'dowels', 'sheets', 'hardware', 'library'] as const).map((t) => (
             <button
               key={t}
               role="tab"
@@ -277,7 +294,9 @@ export function BomModal({
             >
               {t === 'boards'
                 ? 'Boards'
-                : t === 'dowels'
+                : t === 'sheets'
+                  ? 'Sheets'
+                  : t === 'dowels'
                   ? 'Dowels'
                   : t === 'hardware'
                     ? 'Hardware'
@@ -303,6 +322,13 @@ export function BomModal({
               parts={parts}
               materials={effectiveMaterials}
               onMaterialCostChange={handleMaterialCostChange}
+            />
+          ) : tab === 'sheets' ? (
+            <SheetsTab
+              reports={nestReports}
+              pending={nestPending}
+              materials={effectiveMaterials}
+              labelOf={(id) => parts.find((p) => p.id === id)?.label ?? id}
             />
           ) : tab === 'hardware' ? (
             <HardwareTab
@@ -355,14 +381,14 @@ export function BomModal({
             </span>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={handleCopy} disabled={tab === 'library'}>
+            <Button variant="secondary" size="sm" onClick={handleCopy} disabled={tab === 'library' || tab === 'sheets'}>
               Copy CSV
             </Button>
             <Button
               variant="secondary"
               size="sm"
               onClick={handleDownload}
-              disabled={tab === 'library'}
+              disabled={tab === 'library' || tab === 'sheets'}
             >
               Download .csv
             </Button>
