@@ -153,6 +153,12 @@ src/
 │   ├── grain.ts         Grain convention stated in carcase axes + grainFieldFor() — the board
 │   │                    field is derived from orientedPanel's axis map, never hand-tabulated
 │   └── palette.ts       PART_COLORS preset swatches
+├── nest/
+│   ├── mask.ts          occupancyMask(part, clearance) — 1 mm occupancy bitmask in BOARD axes,
+│   │                    dilated by half the clearance; carries its own `pad`
+│   ├── nest.ts          allowedRotations + rotateMask + nestSheets — bottom-left first fit onto
+│   │                    stock sheets, reporting placements, utilisation and `unplaced`
+│   └── nest.worker.ts   Comlink worker — takes PARTS, masks and nests them in one hop
 ├── render/
 │   └── viewport.tsx     React-wrapped Three.js canvas + OrbitControls + raycaster (emits FaceHit)
 ├── ui/
@@ -172,6 +178,8 @@ src/
 │   ├── HardwareEditPanel.tsx  Reusable hardware item form (name, qty, unit, supplier,
 │   │                    part #, unit cost, notes)
 │   ├── DrawingViewer.tsx  Modal for 2D shop drawings (Face/Edge/End views) with SVG/DXF export
+│   ├── buildSheetSvg.ts  Placement[] → SVG of one nested sheet (origin bottom-left, y flipped)
+│   ├── SheetsTab.tsx    Per-material yield: sheet count, utilisation, cost, per-sheet SVG
 │   ├── buildCsv.ts      groupParts() + cutDimensions() (grain decides the length) + isNestable()
 │   │                    + CSV serialization for cutting list + hardware
 │   ├── buildSvg.ts      DrawingSheet → SVG (orthographic views + dimensions + cut labels)
@@ -225,6 +233,8 @@ src/
 - **The regeneration pipeline order is fixed.** `regenerateComponents(scene)` runs before `reconcileJoints(scene)`, always, via `applyPipeline` in `useScene.ts`. Carcases emit parts and joints; `reconcileJoints` derives cuts and seats from those joints. Both stages are pure and idempotent.
 - **A detached part is the user's.** `driven: false` means no regeneration and no deletion — a parameter change, a role disappearing, and deleting the whole component all preserve it.
 - **Grain is stated in carcase axes and derived into a board field.** `grainAxisOf(role)` names the direction; `grainFieldFor(thicknessAxis, axis)` turns it into `'length'` or `'width'` through the same map `orientedPanel` uses. The role→field table in the design doc is a *consequence* — never hand-maintain a second copy of it, and **never assume grain runs along a panel's longer dimension**: a 1200 × 400 wall unit's back and a three-bay 900's shelf both run it along the shorter one.
+- **The nest runs off-thread, and only while the Sheets tab is open.** A six-cabinet job is ~4.8 s (0.4 s masking, 4.4 s placement), so running one on every scene edit would compute a figure nobody is looking at. `BomModal` drives `useNest`'s `enabled` flag from its tab state *and clears it on unmount*. Masks are built **in** the worker, never posted to it: a dilated mask for a 2100 mm panel is over a megabyte.
+- **A nest mask is in board axes; a placement reports material.** `occupancyMask` is dilated by `mask.pad` on every side, so `nestSheets` positions the dilated mask and reports the undilated rectangle. Never recompute the padding formula outside `mask.ts`.
 - **`resolveWorldMatrix` is the single source of world placement.** For `parentId: null` it is byte-identical to `composeWorldMatrix`; never call `composeWorldMatrix` directly outside `transform.ts`. The one remaining mention of `composeWorldMatrix` elsewhere (in `occt.ts`) is a comment describing the matrix layout, not a call, so the invariant already holds.
 
 ## Code Conventions
