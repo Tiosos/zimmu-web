@@ -70,32 +70,28 @@ export function useNest(
   clearance: number,
   enabled: boolean,
 ): { reports: NestReport[]; pending: boolean } {
-  const [reports, setReports] = useState<NestReport[]>([])
-  const [pending, setPending] = useState(false)
+  // Keyed by the signature it was computed for, so `reports` and `pending` are DERIVED rather than
+  // set: no state has to be cleared when the tab closes or the scene changes, and a result that
+  // belongs to a different scene can never be shown as current.
+  const [stored, setStored] = useState<{ signature: string; reports: NestReport[] }>({
+    signature: '',
+    reports: [],
+  })
   // A nest takes seconds, so two runs overlapping is the normal case. Only the newest may land.
   const runId = useRef(0)
 
   const groups = enabled ? groupByNestableMaterial(parts, materials) : []
   const signature = enabled ? jobSignature(groups, clearance) : ''
-  const groupsRef = useRef(groups)
-  groupsRef.current = groups
-  const clearanceRef = useRef(clearance)
-  clearanceRef.current = clearance
+  const fresh = stored.signature === signature
 
   useEffect(() => {
-    if (!enabled) {
-      setPending(false)
-      return
-    }
-    const pendingGroups = groupsRef.current
-    if (pendingGroups.length === 0) {
-      setReports([])
-      setPending(false)
-      return
-    }
+    if (!enabled || fresh) return
+    // Re-derived here rather than captured from render: `signature` is a complete encoding of
+    // every input a nest reads, so anything it does not change cannot change the groups either.
+    const pendingGroups = groupByNestableMaterial(parts, materials)
+    if (pendingGroups.length === 0) return
 
     const id = ++runId.current
-    setPending(true)
     const timer = setTimeout(() => {
       const nester = getNester()
       void Promise.all(
@@ -104,7 +100,7 @@ export function useNest(
           sheet: g.def.sheet!,
           result: await nester.nestJob({
             parts: g.parts,
-            clearance: clearanceRef.current,
+            clearance,
             sheet: g.def.sheet!,
             // Absent means the stock has grain: the safe default, and the one the Library
             // checkbox shows.
@@ -112,20 +108,24 @@ export function useNest(
           }),
         })),
       )
-        .then((next) => {
-          if (id !== runId.current) return
-          setReports(next)
-          setPending(false)
+        .then((reports) => {
+          if (id === runId.current) setStored({ signature, reports })
         })
         .catch((err: unknown) => {
-          if (id !== runId.current) return
-          console.error('Failed to nest sheets:', err)
-          setPending(false)
+          if (id === runId.current) console.error('Failed to nest sheets:', err)
         })
     }, DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
-  }, [signature, enabled])
+    // `parts`, `materials` and `clearance` are all encoded in `signature`; depending on their
+    // identity would re-nest on every render, since both objects are rebuilt each time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, enabled, fresh])
 
-  return { reports, pending }
+  return {
+    reports: fresh ? stored.reports : [],
+    // The figure on screen is stale from the moment the scene changes until the new one lands —
+    // including the debounce window, when nothing is running yet but the answer is already wrong.
+    pending: enabled && groups.length > 0 && !fresh,
+  }
 }
