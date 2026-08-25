@@ -356,3 +356,62 @@ than an impossible state.
 
 Both now fail when mutated. The general lesson, again: a test that cannot fail is not evidence, and
 the way to find out is to break the line on purpose.
+
+## 2026-08-25 — Stage 4: the worker and the Sheets tab
+
+### End-to-end measurement
+
+Measured on the real `nestJob` path — masking and placement in one call, as the worker does it:
+
+**Six cabinets, 46 boards, 2440 × 1220 stock, 14 mm clearance: 4.82 s** — 384 ms masking, 4.44 s
+placement, 8 sheets, nothing unplaced. Close enough to Stage 3's standalone 5.4 s that the two
+stages compose additively, which is what the plan asked to confirm rather than assume.
+
+That figure is why the nest is gated on the Sheets tab rather than run in the background.
+
+### The hook depended on object identity and hung the suite
+
+`useNest`'s first version depended on `parts` and `materials` directly. Both are fresh objects on
+almost every render — `effectiveMaterials` is rebuilt inside `BomModal` each time — so the effect
+re-ran on every render, set state, re-rendered, forever. The test run hung rather than failed.
+
+It now depends on a **derived signature** built from `shapeKey`, which already encodes exactly what
+changes a board's shape, and is exactly what `occupancyMask` reads. No second copy of that rule.
+
+### eslint forced a better design than the plan specified
+
+The rewrite wrote refs during render and called `setState` synchronously inside the effect, both of
+which `react-hooks` rejects. **And it was committed anyway**, because the verification command was
+`pnpm typecheck && pnpm lint 2>&1 | tail -1 && git commit` — the pipe made the exit status `tail`'s,
+so the `&&` never short-circuited on a red lint. Check exit codes directly, not through a pipe.
+
+Fixing it properly meant keying stored results by the signature they were computed for, which makes
+both outputs **derived**:
+
+- `reports` is `fresh ? stored.reports : []` — a result belonging to a different scene can never be
+  shown as current, and nothing has to be cleared when the tab closes.
+- `pending` is `enabled && groups.length > 0 && !fresh` — correctly true during the debounce window
+  too, when nothing is running yet but the answer on screen is already wrong.
+- Reopening the tab on an unchanged scene reuses the previous nest instead of recomputing it, which
+  falls out for free.
+
+Better than what the plan described. The lint rule was right and the plan was lazy.
+
+### A type error surfaced a real lifecycle bug
+
+Wiring `useNest` into `App.tsx` failed with "`cuttingListOpen` used before declaration". The obvious
+fix — reorder, or guard with `sheetsTabOpen && cuttingListOpen` — would have papered over the actual
+problem: closing the modal while on the Sheets tab leaves `sheetsTabOpen` true forever, so every
+later scene edit runs a 4.8 s nest for a report nobody can see.
+
+The fix belongs in `BomModal`, which owns that lifecycle: its effect returns
+`onSheetsTabChange(false)`, and a test unmounts on the Sheets tab to prove it.
+
+### A mutation that never applied looked exactly like a surviving one
+
+While mutation-testing `buildSheetSvg`, the "always draw the label" mutation reported the test as
+surviving. The mutation had never applied — prettier reflowed the `const fits =` line after the file
+was written, so the string replacement matched nothing and the run tested unmodified code.
+
+**Grep the file after applying a mutation.** A no-op replacement and a genuinely surviving mutation
+produce identical output, and only one of them means anything.

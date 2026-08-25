@@ -450,6 +450,12 @@
 ├── lib/
 │   └── utils.ts
 ├── main.tsx
+├── nest/
+│   ├── mask.test.ts
+│   ├── mask.ts
+│   ├── nest.test.ts
+│   ├── nest.ts
+│   └── nest.worker.ts
 ├── render/
 │   └── viewport.tsx
 ├── scene/
@@ -506,6 +512,8 @@
 │   ├── useInteractionMode.ts
 │   ├── useMaterialLibrary.test.ts
 │   ├── useMaterialLibrary.ts
+│   ├── useNest.test.ts
+│   ├── useNest.ts
 │   ├── useScene.test.ts
 │   ├── useScene.ts
 │   ├── useSnap.test.ts
@@ -521,6 +529,8 @@
 │   ├── buildDxf.ts
 │   ├── buildPdf.test.ts
 │   ├── buildPdf.ts
+│   ├── buildSheetSvg.test.ts
+│   ├── buildSheetSvg.ts
 │   ├── buildSvg.test.ts
 │   ├── buildSvg.ts
 │   ├── CarcasePanel.test.tsx
@@ -550,6 +560,8 @@
 │   ├── SceneSuggestionsPanel.tsx
 │   ├── SceneTree.test.tsx
 │   ├── SceneTree.tsx
+│   ├── SheetsTab.test.tsx
+│   ├── SheetsTab.tsx
 │   ├── sidebar.test.tsx
 │   ├── sidebar.tsx
 │   ├── SuggestionsPanel.test.tsx
@@ -1010,7 +1022,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->60<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-24 the full Vitest run is 1105 passing (10 skipped) across 60 files (the 60th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 68 test files total including 8 Playwright specs in <code>e2e/</code>.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->65<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-24 the full Vitest run is 1105 passing (10 skipped) across 60 files (the 60th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 68 test files total including 8 Playwright specs in <code>e2e/</code>.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1128,7 +1140,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-16-zoom-to-fit-notes.md
     │   ├── 2026-08-17-joint-checklist-notes.md
     │   ├── 2026-08-18-cabinet-assembly-notes.md
-    │   └── 2026-08-23-sheet-yield-notes.md
+    │   ├── 2026-08-23-sheet-yield-notes.md
+    │   └── 2026-08-24-drawing-cut-origin-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1150,7 +1163,10 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-07-26-joint-suggestions.md
     │   ├── 2026-08-16-zoom-to-fit.md
     │   ├── 2026-08-18-cabinet-assembly.md
-    │   └── 2026-08-24-sheet-yield-stage-1-grain-and-stock.md
+    │   ├── 2026-08-24-sheet-yield-stage-1-grain-and-stock.md
+    │   ├── 2026-08-24-sheet-yield-stage-2-occupancy-mask.md
+    │   ├── 2026-08-25-sheet-yield-stage-3-nest-sheets.md
+    │   └── 2026-08-25-sheet-yield-stage-4-worker-and-report.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md

@@ -57,6 +57,9 @@ const baseProps = {
   onDeleteLibraryEntry: vi.fn(),
   clearance: 14,
   onSetClearance: vi.fn(),
+  nestReports: [],
+  nestPending: false,
+  onSheetsTabChange: vi.fn(),
 }
 
 describe('BomModal', () => {
@@ -303,5 +306,39 @@ describe('BomModal — Library tab sheet stock and clearance', () => {
     const { onSetClearance } = openLibrary()
     fireEvent.change(screen.getByLabelText('Tool clearance'), { target: { value: '20' } })
     expect(onSetClearance).toHaveBeenCalledWith(20)
+  })
+})
+
+describe('BomModal — the Sheets tab drives the nest', () => {
+  afterEach(cleanup)
+
+  // The gating contract: a 5-second nest must start only when someone opens the report, and stop
+  // being wanted the moment they leave it.
+  it('reports the tab open and closed again', () => {
+    const onSheetsTabChange = vi.fn()
+    render(<BomModal {...baseProps} onSheetsTabChange={onSheetsTabChange} />)
+    expect(onSheetsTabChange).toHaveBeenLastCalledWith(false)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Sheets' }))
+    expect(onSheetsTabChange).toHaveBeenLastCalledWith(true)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Boards' }))
+    expect(onSheetsTabChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('stops wanting a nest when the modal closes on the Sheets tab', () => {
+    const onSheetsTabChange = vi.fn()
+    const { unmount } = render(<BomModal {...baseProps} onSheetsTabChange={onSheetsTabChange} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Sheets' }))
+    expect(onSheetsTabChange).toHaveBeenLastCalledWith(true)
+
+    unmount()
+    expect(onSheetsTabChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('offers no CSV of a nest', () => {
+    render(<BomModal {...baseProps} />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Sheets' }))
+    expect(screen.getByRole('button', { name: /copy/i }).hasAttribute('disabled')).toBe(true)
   })
 })
