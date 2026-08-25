@@ -8,6 +8,8 @@
 
 **Tech Stack:** React 19 · TypeScript strict · Vitest + happy-dom · Comlink · Tailwind v4 + Radix.
 
+**Status:** **Complete.** All five tasks implemented on `claude/sheet-yield-stage-4`. Acceptance: 1230 unit tests across 66 files (10 skipped), 13 e2e, `pnpm build` green. Measured end to end: **4.82 s** for six cabinets. This closes the sheet-yield design (Stages 1–4).
+
 **Spec:** `docs/superpowers/specs/2026-08-23-sheet-yield-design.md`
 **Notes:** `docs/superpowers/notes/2026-08-23-sheet-yield-notes.md`
 **Depends on:** Stages 1–3, merged as #33, #35, #36.
@@ -262,3 +264,26 @@ The empty state names the fix: *"No material has a sheet size yet. Set one in th
 - **No DXF or G-code export of the nest.** Excluded by the spec.
 - **No offcut banking across jobs.** Excluded by the spec.
 - **No best-fit.** Stage 3's decision stands until a measurement says otherwise.
+
+
+---
+
+# What changed against this plan
+
+### eslint forced a better `useNest` than this plan specified
+
+Task 4.2 described a hook that sets `reports` and `pending`. Written that way it wrote refs during render and called `setState` synchronously inside an effect, both of which `react-hooks` rejects — and an earlier version, depending on `parts`/`materials` by identity rather than by signature, looped forever and hung the test suite.
+
+Keying stored results by the signature they were computed for makes both outputs **derived** instead: a result belonging to a different scene can never show as current, nothing needs clearing when the tab closes, `pending` is correctly true during the debounce window, and reopening the tab on an unchanged scene reuses the previous nest for free. The lint rule was right and the plan was lazy.
+
+### The gating cleanup belongs in `BomModal`, not `App`
+
+The plan had `BomModal` set `enabled` from its tab state. It did not say what happens when the modal *closes* on the Sheets tab — and the answer is that `sheetsTabOpen` stays true forever, so every later scene edit runs a 4.8 s nest for a report nobody can see. A type error in `App.tsx` surfaced it; the fix is `return () => onSheetsTabChange(false)` in the effect, with a test that unmounts on the Sheets tab.
+
+### Measured, as instructed rather than assumed
+
+**4.82 s for six cabinets** — 384 ms masking, 4.44 s placement, 46 boards onto 8 sheets, nothing unplaced. The two stages compose additively against Stage 3's standalone 5.4 s, which is what Task 4.5 asked to confirm.
+
+### Everything else held
+
+The worker taking parts rather than masks, the tab-gated nest, `unplaced` shown rather than hidden, cost precedence with a stated basis, and utilisation quoted to a whole percent all landed as written.
