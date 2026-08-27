@@ -53,7 +53,7 @@ All taken in the 2026-08-23 session, in this order. Each superseded a smaller op
 | Cutting method | **Free nesting** (CNC), not guillotine |
 | Output | **Yield figures plus an on-screen layout.** No DXF, no G-code |
 | Part shape | **True outlines** — a part may tuck into another's notch |
-| Rotation | **0° and 180° always; 90° and 270° only when grain permits** |
+| Rotation | **Whichever quarter turns put the part's grain along the sheet's** — see the corrected rule under `nestSheets` |
 | Engine | **Raster occupancy**, not no-fit polygons |
 | Stock lives in | **The material library** (IndexedDB), like cost rates |
 | Tool clearance | **One global setting, default 14 mm**, editable. Becomes CAM-visible if G-code is ever added |
@@ -180,9 +180,30 @@ BoardPart + MaterialDef
 
 ### 1. `occupancyMask` — rasterise a part's true outline
 
-Fills the part's cut-size rectangle at 1 mm per cell, clears each box cut's footprint, and applies
-mitre outlines. Reuses `cutFootprintCorners` from `src/scene/cutFootprint.ts` rather than deriving
-cut rectangles again.
+Fills the part's outline at 1 mm per cell in **board-local** axes, clears the footprint of every box
+cut that goes **all the way through the thickness**, and takes its outline from `mitreFaceOutline` in
+`src/geom/mitre.ts`.
+
+> **Corrected 2026-08-25, during Stage 2.** This originally said "clears each box cut's footprint"
+> and named `cutFootprintCorners` as the seam. Both were wrong, and both were checked against the
+> code before a line of Stage 2 was written.
+>
+> **`cutFootprintCorners` is the wrong seam.** It returns **world-space** corners — it calls
+> `resolveWorldMatrix(part, byId)` internally — takes a `BoxCut` only where `CutDef` has three
+> members, and needs a `Map<ComponentId, Component>` that a pure mask function has no business
+> knowing. `mitreFaceOutline` is pure, board-local, in millimetres, min corner at the origin, and
+> already tested.
+>
+> **Clearing every box cut would carve a cabinet side into ribbons.** A dado is not a notch.
+> Measured on a Base 600 left side (560 × 720 × 18): four dados span z[12, 18] — 6 mm grooves that
+> leave the panel a full rectangle to cut around — while only the toe-kick notch spans z[−9, 27] and
+> genuinely removes material. Clearing all five would let the nester tuck a neighbour into a groove.
+> The rule is that a box cut changes the outline only when its z-span covers the whole thickness,
+> and both live through-cut conventions satisfy it: `computeFingerSlots` is exactly flush and the
+> toe-kick notch overshoots.
+>
+> The test is deliberately **exact** — a cut leaving even 0.5 mm of web keeps the part one piece, so
+> the mask treats it as solid. Erring solid never claims material the part does not have.
 
 **This is what buys true-outline nesting without no-fit-polygon geometry.** There is never a merged
 outline polygon, only a filled bitmask, so concavity is free and 2D booleans are never needed. A
@@ -194,9 +215,28 @@ do not collide are one full clearance apart.
 ### 2. `nestSheets` — placement
 
 - Parts sorted by mask area descending, ties broken by part id, so the result is **deterministic**.
-- For each part, orientations are 0° and 180° always, plus 90° and 270° when the part's `grain` is
-  `'free'` or the material's `hasGrain` is false. 180° is included because a mitred or notched part
-  is not symmetric even when its bounding box is.
+- **The sheet's grain runs along its length**, and a part's grain must end up parallel to it. A mask
+  is in board axes and `grain` names which *board* axis the grain runs along, so:
+
+  | part `grain` | grain runs along | allowed rotations |
+  |---|---|---|
+  | `'length'` | the mask's **w** | 0°, 180° |
+  | `'width'` | the mask's **h** | **90°, 270°** |
+  | `'free'`, or material `hasGrain: false` | — | all four |
+
+  180° is in every list because a mitred or notched part is not symmetric even when its bounding box
+  is.
+
+  > **Corrected 2026-08-25, during Stage 3.** This originally read "0° and 180° always, plus 90° and
+  > 270° when the part's `grain` is `'free'` or the material's `hasGrain` is false" — which silently
+  > assumes grain always runs along the mask's **w** axis. It does not.
+  >
+  > Measured at a 14 mm clearance on a 2440 × 1220 sheet: a Tall 600 `left-side` is 560 × 2100 with
+  > grain along its **width**, so its mask is 574 × **2114** — taller than the sheet is wide. Under
+  > the original rule that panel was locked to 0°/180° and **could never be placed at all**; a probe
+  > confirmed 6 of the 8 largest masks in a six-cabinet job failed to place. The original rule
+  > happens to be right for `'length'` parts and wrong for every `'width'` one — which is both
+  > cabinet sides, every divider, and the toe kick.
 - Placement scans for the lowest free position, then leftmost, and takes the first that does not
   collide. First-fit rather than best-fit: predictable, fast, and good enough at 1 mm.
 - A new sheet opens when no orientation fits anywhere on the current one.
