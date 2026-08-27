@@ -4,6 +4,7 @@ import type { LocalBox } from './carcaseRoles'
 import { CARCASE_PRESETS } from './carcasePresets'
 import { GRAIN_IN_PLANE, grainAxisOf, grainFieldFor } from './grain'
 import type { CarcaseParams, ThicknessAxis } from './types'
+import { LADDER_WITH_DIVIDERS, SWEEP } from './__fixtures__/sweep'
 
 // Distinct extents on every axis, so a wrong mapping cannot coincidentally match.
 const BOX: LocalBox = { x0: 0, x1: 100, y0: 0, y1: 200, z0: 0, z1: 300 }
@@ -11,40 +12,6 @@ const EXTENT = { x: 100, y: 200, z: 300 } as const
 const AXES: ThicknessAxis[] = ['x', 'y', 'z']
 
 const PRESET_CASES = CARCASE_PRESETS.map((p) => [p.name, p.params] as const)
-
-// The presets reach neither a ladder base, nor dividers, nor a multi-bay shelf. Without this the
-// role coverage test below would pass while `grainAxisOf` had no answer for five roles.
-const LADDER_WITH_DIVIDERS: CarcaseParams = {
-  ...CARCASE_PRESETS[0].params,
-  width: 1400,
-  baseMode: 'ladder',
-  dividers: [0.5],
-  fixedShelves: 1,
-}
-
-// Every combination of the parameters that decide which roles exist, on a carcase large enough for
-// all of them to be valid. This is the generator's whole role space — the fixtures above are
-// checked against it rather than against a list anyone typed.
-const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as const).flatMap((baseMode) =>
-  (['captured', 'applied', 'none'] as const).flatMap((backMode) =>
-    [true, false].flatMap((hasTop) =>
-      [[], [1 / 3, 2 / 3]].flatMap((dividers) =>
-        [0, 2].map(
-          (fixedShelves): CarcaseParams => ({
-            ...CARCASE_PRESETS[0].params,
-            width: 1400,
-            height: 2100,
-            baseMode,
-            backMode,
-            hasTop,
-            dividers,
-            fixedShelves,
-          }),
-        ),
-      ),
-    ),
-  ),
-)
 
 // A role like `shelf-2-1` or `ladder-mid-0` is one instance of a family; the grain convention is
 // stated per family, so that is the unit coverage is measured in.
@@ -98,6 +65,12 @@ describe('every generated role states a grain direction', () => {
 
   it('refuses a role it has no convention for, rather than inventing one', () => {
     expect(() => grainAxisOf('plinth')).toThrow(/no grain convention/)
+  })
+
+  // The plan and the baseline both assume 96. A sweep that silently changed size would make the
+  // equivalence test cover less than it claims.
+  it('the sweep is 96 cases', () => {
+    expect(SWEEP).toHaveLength(96)
   })
 })
 
