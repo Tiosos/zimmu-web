@@ -147,18 +147,29 @@ git commit -m "test: extract the carcase sweep into a shared fixture"
 A golden master is normally a smell — it asserts values nobody reasoned about. Here it is the right tool and for a specific reason: it is captured *from the system*, not typed by a person, and its only job is to detect unintended change across a refactor that deletes the code being compared against. It is deleted at the end of Stage A (Task 14).
 
 **Files:**
-- Create: `scripts/capture-stage-a-baseline.mjs`
-- Create: `src/scene/__fixtures__/stage-a-baseline.json` (generated)
+- Create then delete: `src/scene/captureBaseline.test.ts` (a temporary runner)
+- Create: `src/scene/__fixtures__/stage-a-baseline.json` (generated, committed)
 
-- [ ] **Step 1: Write the capture script**
+> **Corrected 2026-08-27, during execution.** This task originally specified a standalone
+> `scripts/capture-stage-a-baseline.mjs` run under `vite-node`. **There is no `vite-node` or `tsx`
+> in this project's toolchain** — `node_modules/.bin` holds only `vite` and `vitest`, and
+> `package.json` has no script for either. Rather than add a dependency for a one-shot capture, run
+> the capture as a temporary Vitest file: Vitest is installed and already resolves TypeScript.
+>
+> The temporary file **must be deleted once the JSON exists.** A test that writes the baseline would
+> rewrite it on every `pnpm test`, making the baseline follow the code instead of pinning it —
+> which destroys the only thing it is for.
 
-```js
-// scripts/capture-stage-a-baseline.mjs
-// One-shot: records carcaseBoxes + carcaseJoints output over the sweep, so Stage A can prove the
-// section tree reproduces it. Delete this script and its output when Stage A closes.
+- [ ] **Step 1: Write the temporary capture test**
+
+```ts
+// src/scene/captureBaseline.test.ts — TEMPORARY. Delete after Step 2.
+// Records carcaseBoxes + carcaseJoints output over the sweep so Stage A can prove the section tree
+// reproduces it. Deleted again when Stage A closes.
 import { writeFileSync, mkdirSync } from 'node:fs'
-import { carcaseBoxes, carcaseJoints } from '../src/scene/carcaseRoles.ts'
-import { SWEEP } from '../src/scene/__fixtures__/sweep.ts'
+import { it, expect } from 'vitest'
+import { carcaseBoxes, carcaseJoints } from './carcaseRoles'
+import { SWEEP } from './__fixtures__/sweep'
 
 // Geometry only. Role names are deliberately excluded: they change in this stage, and a baseline
 // keyed on them could be satisfied by renaming rather than by producing the same cabinet.
@@ -186,29 +197,34 @@ const cases = SWEEP.map((params, i) => {
   return { index: i, boxes: boxes.map(boxKey).sort(), joints }
 })
 
-mkdirSync('src/scene/__fixtures__', { recursive: true })
-writeFileSync('src/scene/__fixtures__/stage-a-baseline.json', JSON.stringify(cases, null, 2) + '\n')
-console.log(`captured ${cases.length} cases`)
+it('captures the baseline', () => {
+  mkdirSync('src/scene/__fixtures__', { recursive: true })
+  writeFileSync('src/scene/__fixtures__/stage-a-baseline.json', JSON.stringify(cases, null, 2) + '\n')
+  // Asserted here so a silent empty capture cannot pass: an empty box list means
+  // validateCarcaseParams rejected a sweep case and the baseline would be worthless.
+  expect(cases).toHaveLength(96)
+  for (const c of cases) expect(c.boxes.length).toBeGreaterThan(0)
+})
 ```
 
-- [ ] **Step 2: Run it**
+- [ ] **Step 2: Run it, then delete it**
 
-Run: `pnpm vite-node scripts/capture-stage-a-baseline.mjs`
-Expected: `captured 96 cases`
+Run: `pnpm vitest run src/scene/captureBaseline.test.ts`
+Expected: PASS, 1 test.
 
-If `vite-node` is not available, run `pnpm dlx vite-node scripts/capture-stage-a-baseline.mjs`. The script must run against the **unmodified** generator — if any generator file has already been edited, `git stash` first and re-run.
+The generator must be **unmodified** when this runs — `git status` clean, and no edit to `carcaseRoles.ts`. If anything is dirty, `git stash` first and re-run.
 
-- [ ] **Step 3: Sanity-check the output is not empty**
+Then `rm src/scene/captureBaseline.test.ts`.
 
-Run: `node -e "const c=require('./src/scene/__fixtures__/stage-a-baseline.json'); console.log(c.length, c[0].boxes.length, c[0].joints.length)"`
-Expected: three numbers, all greater than zero — 96 cases, and the first case with a non-empty box list.
+- [ ] **Step 3: Sanity-check the captured file**
 
-If `boxes.length` is 0 for any case, stop: `validateCarcaseParams` is rejecting a sweep case and the baseline is worthless.
+Run: `node -e "const c=require('./src/scene/__fixtures__/stage-a-baseline.json'); console.log(c.length, Math.min(...c.map(x=>x.boxes.length)), Math.max(...c.map(x=>x.joints.length)))"`
+Expected: 96, then a minimum box count greater than zero, then a maximum joint count greater than zero.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add scripts/capture-stage-a-baseline.mjs src/scene/__fixtures__/stage-a-baseline.json
+git add src/scene/__fixtures__/stage-a-baseline.json
 git commit -m "test: capture the pre-restructure carcase baseline"
 ```
 
@@ -1701,7 +1717,7 @@ git commit -m "feat(ui): the carcase panel writes section trees"
 ### Task 14: Close the stage
 
 **Files:**
-- Delete: `scripts/capture-stage-a-baseline.mjs`, `src/scene/__fixtures__/stage-a-baseline.json`, `src/scene/sectionEquivalence.test.ts`
+- Delete: `src/scene/__fixtures__/stage-a-baseline.json`, `src/scene/sectionEquivalence.test.ts`
 - Modify: `docs/superpowers/notes/2026-08-27-cabinet-assembly-restructure-notes.md`
 - Modify: `CLAUDE.md`, `project-structure.html`
 
@@ -1726,7 +1742,7 @@ It has done its job once green, and it depends on a fixture captured from delete
 Delete all three files. The properties worth keeping permanently are already in `sectionTree.test.ts` (the fill property, bounds) and `carcaseRoles.test.ts` (contact-pair coverage, preset shelf counts).
 
 ```bash
-git rm scripts/capture-stage-a-baseline.mjs src/scene/__fixtures__/stage-a-baseline.json src/scene/sectionEquivalence.test.ts
+git rm src/scene/__fixtures__/stage-a-baseline.json src/scene/sectionEquivalence.test.ts
 ```
 
 - [ ] **Step 4: Re-run the suite after the deletion**
