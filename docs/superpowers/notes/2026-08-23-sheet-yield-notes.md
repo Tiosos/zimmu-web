@@ -451,3 +451,38 @@ right instruction and the reason for it in the same place.
 
 Only the spec needed an edit. Recorded because "the code is right" and "the document is right" are
 different claims, and this session had been conflating them.
+
+## 2026-08-27 — Sheets tab e2e, and the defect it found on its first run
+
+Every existing test of the Sheets tab mocks Comlink, so nothing exercised the real worker boundary:
+a serialisation bug in `NestJob` or `NestResult` would have passed the whole suite. `e2e/sheets-tab.spec.ts`
+closes that — it drops a Base 600, seeds a rate, sets 2440 × 1220 stock, and reads the rendered sheet.
+
+**The first run never reached the Sheets tab.** Clicking "18mm Ply" in the Boards tab did nothing:
+the popover opened and vanished within one frame. `openPopover` held a *material name*, but the
+popover is rendered per *row*, and a Base 600 has seven rows of "18mm Ply". All seven popovers
+mounted; each focused its own input, blurring the previous, whose `onBlur` → `commit()` read an empty
+value → `onClose()` → `setOpenPopover(null)`. Instrumenting the window `mousedown` listener ruled it
+out first — the handler never fired — which is what pointed at the focus cascade.
+
+The consequence was larger than a flicker: with no rate there is no library entry, with no library
+entry there is no row in the Library tab, and with no sheet size the Sheets tab is unreachable. **The
+entire feature had no working UI path for any cabinet material**, and 1230 unit tests did not notice,
+because every popover test renders a single row.
+
+Fixed by keying `openPopover` on `row.key` instead of `row.material` — two lines. The regression test
+(`opens one popover when several rows share a material`) fails on the old code with *zero*
+spinbuttons found, reproducing the user-visible symptom rather than an internal count.
+
+### What the e2e asserts, and why in that shape
+
+- **One pinned number** — 1 sheet, 73% used, computed from `regenerateComponents` → `reconcileJoints`
+  → `occupancyMask` → `nestSheets` at the default 14 mm clearance. Pinned because a figure that
+  merely looks plausible is what the test exists to rule out. Expected to move if the packer improves.
+- **Self-checking geometry** — every drawn rect lies inside the sheet outline and no two overlap.
+  These hold for *any* correct nest, so they survive a packer change, and they are what a flipped
+  axis or a lost `mask.pad` in the round trip actually breaks.
+- **A second case for `unplaced`** — 500 × 400 stock, where all seven panels have no home.
+
+Both were mutation-checked at the boundary the test exists to guard: swapping the sheet's axes inside
+`nest.worker.ts` fails the geometry invariants, and returning `unplaced: []` fails the second test.

@@ -79,6 +79,10 @@ export function CuttingList({
   onMaterialCostChange,
   hideExportButtons = false,
 }: CuttingListProps) {
+  // Keyed by row, not by material: several rows share a material, and keying by material opened a
+  // popover in every one of them. Each mount focused its own input, blurring the previous — whose
+  // blur committed an empty value and closed the lot, so a material with more than one row could
+  // not be given a rate at all.
   const [openPopover, setOpenPopover] = useState<string | null>(null)
 
   useEffect(() => {
@@ -150,7 +154,7 @@ export function CuttingList({
                       onClick={(e) => {
                         e.stopPropagation()
                         if (onMaterialCostChange) {
-                          setOpenPopover(openPopover === row.material ? null : row.material)
+                          setOpenPopover(openPopover === row.key ? null : row.key)
                         }
                       }}
                       className="underline decoration-dotted cursor-pointer hover:text-foreground text-xs"
@@ -158,7 +162,7 @@ export function CuttingList({
                     >
                       {row.material}
                     </button>
-                    {openPopover === row.material && onMaterialCostChange && (
+                    {openPopover === row.key && onMaterialCostChange && (
                       <MaterialPopover
                         current={materials[row.material]?.costPerM2}
                         unitLabel="$/m²"
