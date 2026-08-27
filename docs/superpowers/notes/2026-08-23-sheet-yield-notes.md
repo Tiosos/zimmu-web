@@ -415,3 +415,39 @@ was written, so the string replacement matched nothing and the run tested unmodi
 
 **Grep the file after applying a mutation.** A no-op replacement and a genuinely surviving mutation
 produce identical output, and only one of them means anything.
+
+## 2026-08-25 — the six claims re-verified, and the spec finally corrected
+
+All six were re-checked against merged `main` rather than against memory. Every one still holds:
+
+| # | Claim as originally written | Measured on main |
+|---|---|---|
+| 1 | Grain always runs along the longer dimension | False — wide wall `back` grain=`length` at L=376 vs W=1176; narrow `shelf-0-0` grain=`length` at L=285 vs W=548 |
+| 2 | `cutFootprintCorners` is the masking seam | Wrong seam — it calls `resolveWorldMatrix`, takes `cut: BoxCut`, needs `byId`. `src/nest/` never imports it |
+| 3 | Clear each box cut's footprint | Base 600 side has 6 box cuts, **1** through; the mask removes exactly 6000 mm², the 60 × 100 notch |
+| 4 | Grained parts get 0°/180° | Tall side mask 574 × 2114, grain=`width`, allowed 90/270, fits only at 90/270 |
+| 5 | Row grain from the first part of a group | `cutGrain(p)` is in the grouping key in `buildCsv.ts` |
+| 6 | The dilation is O(w·h) | Now flat in `r`: 1 / 28 / 49 / 45 ms at clearance 0 / 14 / 30 / 60 |
+
+### The gap that was still open
+
+The code and plans were right, but **the spec still stated claims 2, 3 and 4 as originally written**.
+Only claim 1 had been given a Correction section. Anyone reading the approved design fresh would have
+been misled three times — and the spec is the document a future stage starts from.
+
+Now corrected in place, each with a dated block quoting what it originally said and the measurement
+that disproved it. The corrections are inline rather than collected at the top, so a reader hits the
+right instruction and the reason for it in the same place.
+
+### Four questions put to the user, three of which confirmed the code
+
+- **Sheet grain along the length** — confirmed as always true for the stock in question, so
+  `allowedRotations` keeps its assumption and no per-material direction is added.
+- **The through-cut test stays exact.** A cut leaving even 0.5 mm of web keeps the part one piece, so
+  the mask treats it as solid. Erring solid never claims material that is not there.
+- **The cutting list keeps Length × Width with a Grain column**, even where the length is the smaller
+  number. That is the point of the change: on a sheet good the length is the grain direction, not the
+  bigger dimension.
+
+Only the spec needed an edit. Recorded because "the code is right" and "the document is right" are
+different claims, and this session had been conflating them.
