@@ -10,6 +10,7 @@ vi.mock('./idb', () => ({
 import { useFile, parseFile } from './useFile'
 import * as idb from './idb'
 import type { ZimmuFile, Scene, Part } from './types'
+import { carcaseBoxes, validateCarcaseParams } from './carcaseRoles'
 
 const CAMERA = { position: { x: 250, y: -200, z: 150 }, target: { x: 0, y: 0, z: 0 } }
 
@@ -1392,5 +1393,100 @@ describe('v12 loader defaults a carcase back setback', () => {
 
   it('leaves a back setback the file already carries alone', () => {
     expect(shelvesOf(carcase({ ...shelves, backSetback: 12 })).backSetback).toBe(12)
+  })
+})
+
+describe('v12 → v13 migration', () => {
+  const v12 = (params: Record<string, unknown>) =>
+    JSON.stringify({
+      version: 12,
+      scene: {
+        parts: [],
+        materials: {},
+        hardware: [],
+        joints: [],
+        components: [
+          {
+            kind: 'carcase',
+            id: 'cmp_1',
+            label: 'Base',
+            parentId: null,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            visible: true,
+            params,
+          },
+        ],
+      },
+    })
+
+  const BASE = {
+    width: 600,
+    height: 720,
+    depth: 560,
+    material: '18mm Ply',
+    thickness: 18,
+    hasTop: true,
+    backMode: 'captured',
+    backThickness: 12,
+    baseMode: 'toe-kick',
+    toeKickHeight: 100,
+    toeKickSetback: 60,
+    jointMethod: 'dado-rabbet',
+    adjustableShelves: {
+      rows: 2,
+      pitch: 32,
+      setback: 37,
+      backSetback: 37,
+      startHeight: 200,
+      count: 10,
+    },
+  }
+
+  const carcaseOf = (text: string) => {
+    const c = parseFile(text).scene.components[0]
+    if (c.kind !== 'carcase') throw new Error('expected a carcase')
+    return c
+  }
+
+  it('turns dividers and fixedShelves into a tree', () => {
+    const c = carcaseOf(v12({ ...BASE, dividers: [0.5], fixedShelves: 1 }))
+    expect(c.params.section.content.kind).toBe('split')
+    expect('dividers' in c.params).toBe(false)
+    expect('fixedShelves' in c.params).toBe(false)
+  })
+
+  it('a plain v12 cabinet becomes a single leaf', () => {
+    expect(
+      carcaseOf(v12({ ...BASE, dividers: [], fixedShelves: 0 })).params.section.content.kind,
+    ).toBe('leaf')
+  })
+
+  it('produces the same cabinet the v12 parameters described', () => {
+    const c = carcaseOf(v12({ ...BASE, dividers: [0.5], fixedShelves: 1 }))
+    const divisions = carcaseBoxes(c.params).filter((b) => b.role.startsWith('division-'))
+    // One partition, plus one shelf in each of the two bays.
+    expect(divisions.filter((d) => d.thicknessAxis === 'x')).toHaveLength(1)
+    expect(divisions.filter((d) => d.thicknessAxis === 'z')).toHaveLength(2)
+  })
+
+  // The regression this group exists to close: before the migration existed, a v12 carcase reached
+  // the generator with `section` undefined and threw on `s.id`.
+  it('a migrated v12 carcase validates instead of throwing', () => {
+    const c = carcaseOf(v12({ ...BASE, dividers: [0.5], fixedShelves: 1 }))
+    expect(validateCarcaseParams(c.params)).toEqual([])
+  })
+
+  // The partition must land where v12 put it, not where an even split would. This is the exact
+  // discrepancy the golden-master baseline caught, so it is pinned here at the file boundary too.
+  it('places the partition on its v12 centre, not on an even share', () => {
+    const c = carcaseOf(v12({ ...BASE, width: 1400, dividers: [1 / 3, 2 / 3], fixedShelves: 0 }))
+    const partitions = carcaseBoxes(c.params)
+      .filter((b) => b.role.startsWith('division-') && b.thicknessAxis === 'x')
+      .sort((a, b) => a.box.x0 - b.box.x0)
+    expect(partitions).toHaveLength(2)
+    // v12: a divider is centred on W*d, so x0 = 1400/3 - 18/2 = 457.667
+    expect(partitions[0].box.x0).toBeCloseTo(1400 / 3 - 9, 6)
+    expect(partitions[1].box.x0).toBeCloseTo((1400 * 2) / 3 - 9, 6)
   })
 })

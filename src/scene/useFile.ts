@@ -11,8 +11,10 @@ import type {
 } from './types'
 import * as idb from './idb'
 import { breakComponentCycles, promoteOrphans } from './componentTree'
+import { legacyToSection } from './migrateSections'
+import type { Section } from './sectionTree'
 
-export const FILE_FORMAT_VERSION = 12
+export const FILE_FORMAT_VERSION = 13
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -177,13 +179,33 @@ export function parseFile(text: string): ZimmuFile {
           CarcaseParams['adjustableShelves'],
           'backSetback'
         > & { backSetback?: number }
-        return {
-          ...base,
-          params: {
-            ...base.params,
-            adjustableShelves: { ...shelves, backSetback: shelves.backSetback ?? shelves.setback },
-          },
+        // v12→v13: `dividers` and `fixedShelves` became the section tree. Converted at the
+        // boundary, so the generator never sees a legacy field. Width and thickness come from the
+        // same params object: a v12 divider is centred on a fraction of the gross width, and the
+        // percentages that reproduce it depend on both.
+        const legacy = base.params as unknown as {
+          dividers?: number[]
+          fixedShelves?: number
+          section?: Section
         }
+        const section =
+          legacy.section ??
+          legacyToSection(
+            legacy.dividers ?? [],
+            legacy.fixedShelves ?? 0,
+            base.params.width,
+            base.params.thickness,
+          )
+        const params: CarcaseParams & { dividers?: number[]; fixedShelves?: number } = {
+          ...base.params,
+          section,
+          adjustableShelves: { ...shelves, backSetback: shelves.backSetback ?? shelves.setback },
+        }
+        // Dropped, not kept alongside the tree: two descriptions of the same divisions would
+        // disagree the moment either is edited.
+        delete params.dividers
+        delete params.fixedShelves
+        return { ...base, params }
       }
       return base
     }),
