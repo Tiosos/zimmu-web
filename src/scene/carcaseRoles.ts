@@ -7,6 +7,7 @@ import {
   type Bound,
   type Rect,
   type ResolvedDivision,
+  type ResolvedTree,
   type SectionBounds,
 } from './sectionTree'
 
@@ -173,6 +174,17 @@ export interface RoleBox {
 //
 // Ordered: the array is the build sequence downstream projects consume, so a role's index is part
 // of the contract, not an artefact of how the function is written.
+// Division labels carry an ordinal because they reach the user: the scene tree, the cutting list
+// and the BOM all print them, and three panels all called "Shelf" is a worse cutting list than one
+// that numbers them. A shelf also names its bay wherever there is more than one — which is what the
+// pre-tree labels did, and dropping it was a regression only the e2e caught.
+function divisionLabel(tree: ResolvedTree, d: ResolvedDivision): string {
+  if (d.axis === 'vertical') return `Partition ${d.index + 1}`
+  const bay = tree.placeOf(d.parentId)
+  const inBays = bay !== undefined && bay.axis === 'vertical' && bay.count > 1
+  return inBays ? `Bay ${bay.index + 1} Shelf ${d.index + 1}` : `Shelf ${d.index + 1}`
+}
+
 export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
   if (validateCarcaseParams(p).length > 0) return []
 
@@ -296,7 +308,7 @@ export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
     const vertical = d.axis === 'vertical'
     boxes.push({
       role: `division-${d.parentId}-${d.index}`,
-      label: vertical ? 'Partition' : 'Shelf',
+      label: divisionLabel(tree, d),
       box: {
         x0: d.rect.x0,
         x1: d.rect.x1,
@@ -422,7 +434,9 @@ function housingsFor(p: CarcaseParams, d: ResolvedDivision, parent: SectionBound
   const left = roleOf(parent.left, 'left-side')
   const right = roleOf(parent.right, 'right-side')
   return [
-    ...(left === null ? [] : [{ role: left, housingFace: LEFT_EDGE_FACE, housedEnd: '-X' as Face }]),
+    ...(left === null
+      ? []
+      : [{ role: left, housingFace: LEFT_EDGE_FACE, housedEnd: '-X' as Face }]),
     ...(right === null
       ? []
       : [{ role: right, housingFace: RIGHT_EDGE_FACE, housedEnd: '+X' as Face }]),
@@ -583,7 +597,8 @@ function pinFaces(role: string, thicknessAxis: ThicknessAxis): Face[] {
   if (role === 'left-side') return [LEFT_EDGE_FACE]
   if (role === 'right-side') return [RIGHT_EDGE_FACE]
   // Only a vertical division is an upright that carries pins; a horizontal one is a shelf.
-  if (role.startsWith('division-') && thicknessAxis === 'x') return [LEFT_EDGE_FACE, RIGHT_EDGE_FACE]
+  if (role.startsWith('division-') && thicknessAxis === 'x')
+    return [LEFT_EDGE_FACE, RIGHT_EDGE_FACE]
   return []
 }
 

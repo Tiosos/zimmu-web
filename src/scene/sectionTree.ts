@@ -72,6 +72,16 @@ export interface ResolvedTree {
   // split it belongs to has no sibling that way — whatever encloses its parent, ultimately the
   // shell. A shelf is housed in the bay's bounds, not in the cabinet's, which only this can say.
   boundsOf: (id: SectionId) => SectionBounds
+  // Where a section sits inside its parent's split. `undefined` for the root, which has no parent.
+  // A label needs this to say which bay a shelf is in.
+  placeOf: (id: SectionId) => SectionPlace | undefined
+}
+
+export interface SectionPlace {
+  parentId: SectionId
+  axis: 'vertical' | 'horizontal'
+  index: number
+  count: number
 }
 
 export function resolveSections(
@@ -82,10 +92,7 @@ export function resolveSections(
   const rects = new Map<SectionId, Rect>()
   const divisions: ResolvedDivision[] = []
   const childIds = new Map<SectionId, SectionId[]>()
-  const neighbours = new Map<
-    SectionId,
-    { parentId: SectionId; axis: 'vertical' | 'horizontal'; index: number; count: number }
-  >()
+  const neighbours = new Map<SectionId, SectionPlace>()
 
   const place = (section: Section, rect: Rect): void => {
     rects.set(section.id, rect)
@@ -175,6 +182,7 @@ export function resolveSections(
     divisions,
     childRects: (parentId) => (childIds.get(parentId) ?? []).map((id) => rects.get(id)!),
     boundsOf,
+    placeOf: (id) => neighbours.get(id),
   }
 }
 

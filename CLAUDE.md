@@ -146,7 +146,12 @@ src/
 │   ├── componentTree.ts  Pure tree helpers (index, ancestor walk, descendant collection,
 │   │                    cycle guard, orphan promotion) — no React, no THREE
 │   ├── carcaseRoles.ts   Pure CarcaseParams → ordered RoleSpec[] (role key, dims, local
-│   │                    position/rotation) — the whole geometry of a carcase
+│   │                    position/rotation) — the whole geometry of a carcase. Interior
+│   │                    division comes from the section tree, not from scalar parameters
+│   ├── sectionTree.ts   Section tree types + resolveSections (tree → rectangles + division
+│   │                    boxes), boundsOf (what encloses a section), validateSection. Pure
+│   ├── migrateSections.ts  legacyToSection(dividers, fixedShelves, width, thickness) — the one
+│   │                    place pre-v13 divider/shelf parameters become a tree
 │   ├── regenerateComponents.ts  Pure Scene → Scene; carcases emit driven parts + driven joints,
 │   │                    reconciled against existing parts by stable role key. Runs before reconcileJoints
 │   ├── carcasePresets.ts  CARCASE_PRESETS — Base/Wall/Tall parameter bundles (data only)
@@ -227,7 +232,9 @@ src/
 - **Workers use Comlink.** `expose()` in the worker, `wrap()` in `useScene` (lazy singleton so `vi.stubGlobal('Worker', ...)` works in tests).
 - **Three.js coordinate system:** +Z up (CAD convention). Don't change `camera.up.set(0, 0, 1)`.
 - **`shapeKey()` is the geometry cache key.** It encodes only what changes the OCCT shape — dimensions and cut positions/sizes (not position/rotation, which the Viewport applies directly). Adding a new shape type or a shape-affecting field requires updating `shapeKey()` in `src/scene/utils.ts`.
-- **`ZimmuFile` serialization** rounds floats to 6 decimal places. The current file format version is `FILE_FORMAT_VERSION = 12` in `useFile.ts` (v11 added the component tree; v12 added the carcase `backSetback` parameter).
+- **`ZimmuFile` serialization** rounds floats to 6 decimal places. The current file format version is `FILE_FORMAT_VERSION = 13` in `useFile.ts` (v11 added the component tree; v12 added the carcase `backSetback` parameter; v13 replaced `dividers` and `fixedShelves` with the `section` tree).
+- **The section tree is the only description of a cabinet's interior division.** `dividers` and `fixedShelves` are gone: splitting a section is what *creates* the partition or shelf between its children. A pre-v13 file is converted by `legacyToSection` at the `parseFile` boundary and nowhere else, so the generator never sees a legacy field. That conversion needs the carcase's **width and thickness** — a v12 divider is centred on a fraction of the gross width, while a section percentage is a share of the clear span left after divisions take their thickness, and the ratio between them depends on the panel thickness.
+- **`useFile.ts` types `base.params` loosely, so `tsc` cannot see a file-format regression there.** When a required `CarcaseParams` field is added, the parser will still compile while producing objects that lack it, and the failure only appears when the generator dereferences it at runtime. Any change to `CarcaseParams` needs a `parseFile` test, not just a typecheck.
 - **IndexedDB schema is version 3** with three object stores: `handles` (file handle persistence), `library` (material cost rates and sheet stock) and `settings` (the global tool clearance). Bumping `DB_VERSION` in `idb.ts` requires adding the new store in `onupgradeneeded`. (This DB version is unrelated to `FILE_FORMAT_VERSION`.)
 - **Material library vs. project materials** — `scene.materials` is per-file; `library` (IndexedDB) is global. The app merges them at the BOM layer; never conflate the two in `useScene`.
 - **The regeneration pipeline order is fixed.** `regenerateComponents(scene)` runs before `reconcileJoints(scene)`, always, via `applyPipeline` in `useScene.ts`. Carcases emit parts and joints; `reconcileJoints` derives cuts and seats from those joints. Both stages are pure and idempotent.

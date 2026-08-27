@@ -539,14 +539,32 @@ describe('carcaseRoles', () => {
     expect(divisionRoles({ ...base, section: sec([0.33, 0.66], 2) }, 'z')).toHaveLength(6)
   })
 
-  // Labels are per-part text, not keys. A division is a Partition or a Shelf; which bay it stands
-  // in is in the tree, not spelled into every label.
-  it('labels a division by what it is', () => {
-    const divided = { ...base, section: sec([0.5], 1) }
+  // Labels are user-facing — the scene tree, the cutting list and the BOM all print them — so a
+  // division carries an ordinal, and a shelf names its bay wherever there is more than one. An
+  // earlier version of this test asserted the bare words 'Partition' and 'Shelf' and passed, because
+  // it was rewritten by the same change that dropped the ordinals; only the e2e, which asserts text
+  // a user actually reads, caught it. Hence all three shapes are pinned here.
+  it('numbers a division, and names the bay when there is more than one', () => {
+    const divided = { ...base, section: sec([0.5], 2) }
     const byRole = new Map(carcaseRoles(divided).map((r) => [r.role, r.label]))
-    expect(byRole.get(partitionRole(divided))).toBe('Partition')
-    expect(byRole.get(shelfRole(divided, 0, 0))).toBe('Shelf')
-    expect(byRole.get(shelfRole(divided, 1, 0))).toBe('Shelf')
+    expect(byRole.get(partitionRole(divided))).toBe('Partition 1')
+    expect(byRole.get(shelfRole(divided, 0, 0))).toBe('Bay 1 Shelf 1')
+    expect(byRole.get(shelfRole(divided, 0, 1))).toBe('Bay 1 Shelf 2')
+    expect(byRole.get(shelfRole(divided, 1, 0))).toBe('Bay 2 Shelf 1')
+  })
+
+  it('omits the bay from a shelf label in an undivided cabinet', () => {
+    const plain = { ...base, section: sec([], 2) }
+    const byRole = new Map(carcaseRoles(plain).map((r) => [r.role, r.label]))
+    expect(byRole.get(shelfRole(plain, 0, 0))).toBe('Shelf 1')
+    expect(byRole.get(shelfRole(plain, 0, 1))).toBe('Shelf 2')
+  })
+
+  it('numbers each partition of a multi-bay cabinet', () => {
+    const three = { ...base, width: 1800, section: sec([1 / 3, 2 / 3], 0, 1800) }
+    const byRole = new Map(carcaseRoles(three).map((r) => [r.role, r.label]))
+    expect(byRole.get(partitionRole(three, 0))).toBe('Partition 1')
+    expect(byRole.get(partitionRole(three, 1))).toBe('Partition 2')
   })
 
   it('centres a divider on its width fraction', () => {
@@ -684,7 +702,7 @@ describe('carcaseCuts', () => {
     const m = composeWorldMatrix({
       ...panel,
       kind: 'board',
-    grain: 'free' as const,
+      grain: 'free' as const,
       id: 'x',
       label: 'x',
       material: '',
@@ -1066,7 +1084,9 @@ describe('carcaseJoints', () => {
         .filter((d) => d.housedRole === role)
         .map((d) => d.housingRole)
         .sort()
-    expect(housingsOf(shelfRole(p, 1, 0))).toEqual([partitionRole(p, 0), partitionRole(p, 1)].sort())
+    expect(housingsOf(shelfRole(p, 1, 0))).toEqual(
+      [partitionRole(p, 0), partitionRole(p, 1)].sort(),
+    )
   })
 
   it('tags every joint with the owning component and marks it driven', () => {
@@ -1461,7 +1481,14 @@ describe('carcaseHoleArrays', () => {
   })
 
   it('emits nothing for a role that is not a side or a partition', () => {
-    for (const role of ['bottom', 'top', 'back', 'toe-kick', shelfRole(base, 0, 0), 'ladder-front']) {
+    for (const role of [
+      'bottom',
+      'top',
+      'back',
+      'toe-kick',
+      shelfRole(base, 0, 0),
+      'ladder-front',
+    ]) {
       expect(carcaseHoleArrays(base, role), role).toEqual([])
     }
   })

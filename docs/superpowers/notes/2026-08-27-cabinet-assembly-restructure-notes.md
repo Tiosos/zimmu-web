@@ -144,3 +144,65 @@ tree, and only the resolved rectangles know whether the cabinet is big enough to
 carcase validator now resolves the tree and rejects any section with a non-positive span —
 "the sections do not fit in the carcase". One rule replaces five, and the tests that pinned the old
 failures still pin the same cabinets.
+
+### 2026-08-27 — the label regression, and why 1459 unit tests could not see it
+
+`carcaseBoxes` emitted `label: vertical ? 'Partition' : 'Shelf'`. That is what the Stage A plan
+specified, and the plan was wrong: the pre-tree labels were `Divider {n}` and
+`Bay {b} Shelf {i}` / `Shelf {i}`. The ordinal was dropped silently.
+
+These labels are user-facing — the scene tree, the cutting list and the hardware BOM all print them.
+A cutting list with three rows all called "Shelf" is a worse document than one that numbers them,
+so this was a real downgrade rather than a cosmetic change.
+
+**The whole unit suite passed.** It could not have failed, because the same commit that changed the
+labels also rewrote the test that guarded them — and rewrote the comment above it into a
+rationalisation of the loss ("which bay it stands in is in the tree, not spelled into every label").
+A test edited alongside the code it guards has stopped being evidence about that code.
+
+`e2e/sheets-tab.spec.ts` caught it, on two assertions, because it asserts text a user actually reads
+and nobody thought to update it. That is the argument for having any test at all that is written
+against the product rather than against the implementation.
+
+The fix restores the ordinals and the bay prefix, derived from `resolveSections`' own record of
+where each section sits in its parent (`placeOf`) rather than re-walking the tree. Three label
+shapes are now pinned in `carcaseRoles.test.ts` — numbered partitions, bay-prefixed shelves in a
+divided cabinet, bare numbered shelves in an undivided one — so the next regression fails a unit
+test rather than waiting four minutes for Playwright.
+
+### 2026-08-27 — `--no-verify` does not work here, and the plan should not have needed it
+
+Stage A's plan had the build failing for eight consecutive commits, with `--no-verify` to get them
+past the pre-commit typecheck. Both halves were wrong.
+
+The gate is not a git hook. It is a Claude Code `PreToolUse` hook (`.claude/settings.json` →
+`.claude/hooks/pre-commit-typecheck.sh`) that intercepts the Bash call before git runs and denies it
+on a red typecheck; `--no-verify` is substring text to it. An implementer correctly refused to edit
+the hook to get around it.
+
+The deeper problem was the red window itself: eight commits nobody can verify, and no green commit
+to bisect back to. Expand/contract was considered and rejected — keeping `section` alongside
+`dividers`/`fixedShelves` would have let the ~40 test sites that spread `{ ...base, dividers: [0.5] }`
+inherit a `section` describing no divider, passing while describing a different cabinet than they
+name. Commits were regrouped by green boundaries instead: new modules, then the whole switch, then
+the file format, then close-out. The switch is a large commit, and the 96-case equivalence test is
+what makes a commit that size safe.
+
+### 2026-08-27 — Stage A closed
+
+- Unit tests **1231 → 1268** (the 193 equivalence assertions were temporary and are retired with the
+  baseline; the +37 are permanent).
+- e2e **15 / 15**, including both `sheets-tab` specs that caught the label regression.
+- The golden master (`stage-a-baseline.json`, `sectionEquivalence.test.ts`) was green at 193/193
+  immediately before deletion. It is deleted deliberately: keeping it would freeze Stage A's output
+  against later stages that change it on purpose — Stage D changes pin bores, Stage E adds fronts.
+- Not done, and deliberately: `adjustableShelves` still lives on `CarcaseParams` and pin rows still
+  span whole panels (Stage D); `Section` has no `interior` or `front` (Stages D and E); thickness
+  still comes from `CarcaseParams.thickness` (Stage B); `CarcasePanel` is a shim, not an editor
+  (Stage G).
+
+Two seams were built here specifically so Stage B has somewhere to land: `openingRect`, which spends
+one thickness per side today and must spend each panel's own tomorrow, and `resolveSections`'
+`thicknessOf` callback, which is a function rather than a number for exactly that reason. **A
+symmetric fixture will not catch a mistake in either** — Stage B needs a case with different
+materials on the left and right sides.
