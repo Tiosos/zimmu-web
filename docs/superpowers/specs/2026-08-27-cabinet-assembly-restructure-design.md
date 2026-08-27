@@ -468,7 +468,7 @@ Seven plans. Each ships green with its own acceptance.
 
 | | stage | acceptance |
 |---|---|---|
-| A | Section tree, output-identical, + v13 migration | the migrated tree reproduces v12 roles, boxes and joints across the existing 96-case sweep |
+| A | Section tree, output-identical, + v13 migration | the migrated tree reproduces v12 boxes and joints across the existing 96-case sweep |
 | B | Materials own thickness; the override bag | a 25 mm side resolves the bottom to `W − 50`; an override survives a width change |
 | C | Screw joints as the default; per-joint override | presets flip; clearance and pilot arrays land; an overridden joint survives regeneration |
 | D | Adjustable shelf boards; per-section pin bores | shelves reach the cutting list; no rows on drawer-bay faces |
@@ -479,6 +479,26 @@ Seven plans. Each ships green with its own acceptance.
 **Stage A is shippable, not a broken intermediate.** The existing `CarcasePanel` divider field and
 shelf counters stay, rewritten as a shim that writes simple trees — *n* bays, *m* shelves. Nothing
 regresses, and the real editor arrives in G.
+
+### Correction, 2026-08-27 — Stage A does not carry `Section.interior`
+
+This document's `Section` type carries `interior: InteriorSpec`, and the staging table above reads as
+though Stage A adopts the type whole. Writing the Stage A plan made that checkable, so it was
+checked, and it does not hold.
+
+**All three presets ship `fixedShelves > 0`** — Base 600 at 1, Wall 600 at 1, Tall 600 at 4. Under
+the tree each becomes a horizontal split, so if Stage A also moved `adjustableShelves` onto sections,
+pin rows would move from spanning a *panel* to spanning a *section* in every shipped preset. That
+destroys Stage A's output-identity property, which is the only real risk control on a change to the
+most heavily tested module in the repo.
+
+So Stage A moves `dividers` and `fixedShelves` only. `Section` carries `id`, `size` and `content`
+there; `interior` arrives with Stage D and `front` with Stage E, each with its own file version bump.
+One version, one meaning.
+
+Recorded here rather than only in the plan, because this spec is the document a future stage starts
+from — and the same omission in the sheet-yield spec left three claims standing after the code had
+already disproved them.
 
 ## Testing
 
