@@ -5,6 +5,8 @@ import { mitreFaceOutline } from '../geom/mitre'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { reconcileJoints } from '../scene/reconcileJoints'
 import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { carcaseBoxes } from '../scene/carcaseRoles'
+import { legacyToSection } from '../scene/migrateSections'
 
 function board(over: Partial<BoardPart> = {}): BoardPart {
   return {
@@ -317,8 +319,7 @@ const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as const)
             baseMode,
             backMode,
             hasTop,
-            dividers,
-            fixedShelves,
+            section: legacyToSection(dividers, fixedShelves, 1400, 18),
           }),
         ),
       ),
@@ -353,9 +354,16 @@ function sweepBoards(): BoardPart[] {
         ],
       }),
     )
+    // A division's role key carries the uuid of the section it splits, so its family is the kind of
+    // panel it is: thickness across the cabinet is a partition, thickness up it is a shelf.
+    const axisOf = new Map(carcaseBoxes(params).map((b) => [b.role, b.thicknessAxis]))
     for (const p of scene.parts) {
       if (p.kind !== 'board' || p.role === undefined) continue
-      const family = p.role.replace(/-\d+(-\d+)?$/, '')
+      const family = p.role.startsWith('division-')
+        ? axisOf.get(p.role) === 'x'
+          ? 'partition'
+          : 'shelf'
+        : p.role.replace(/-\d+$/, '')
       if (!byFamily.has(family)) byFamily.set(family, p)
     }
   })

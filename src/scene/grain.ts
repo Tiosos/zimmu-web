@@ -15,10 +15,19 @@ export const GRAIN_IN_PLANE: Record<ThicknessAxis, { length: GrainAxis; width: G
 // the kick run it across the cabinet (+X); ladder side rails run it front-to-back (+Y). Which board
 // *field* that becomes is derived below and differs per role — that is the frames differing, not
 // the convention.
-export function grainAxisOf(role: string): GrainAxis {
-  if (role === 'left-side' || role === 'right-side' || role.startsWith('divider-')) return 'z'
+//
+// A `division-` role names a partition or a shelf depending only on which way its parent section
+// was split, so it cannot state a grain alone — the caller passes the axis it resolved.
+export function grainAxisOf(role: string, splitAxis?: 'vertical' | 'horizontal'): GrainAxis {
+  if (role.startsWith('division-')) {
+    if (splitAxis === undefined) {
+      throw new Error(`zimmu: division role "${role}" needs its split axis to state a grain`)
+    }
+    return splitAxis === 'vertical' ? 'z' : 'x'
+  }
+  if (role === 'left-side' || role === 'right-side') return 'z'
   if (role === 'back') return 'z'
-  if (role === 'bottom' || role === 'top' || role.startsWith('shelf-')) return 'x'
+  if (role === 'bottom' || role === 'top') return 'x'
   if (role === 'toe-kick' || role === 'ladder-front' || role === 'ladder-back') return 'x'
   if (role === 'ladder-left' || role === 'ladder-right' || role.startsWith('ladder-mid-'))
     return 'y'

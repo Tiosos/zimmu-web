@@ -1,4 +1,5 @@
 import { CARCASE_PRESETS } from '../carcasePresets'
+import { legacyToSection } from '../migrateSections'
 import type { CarcaseParams } from '../types'
 
 // The presets reach neither a ladder base, nor dividers, nor a multi-bay shelf. Without this the
@@ -7,13 +8,16 @@ export const LADDER_WITH_DIVIDERS: CarcaseParams = {
   ...CARCASE_PRESETS[0].params,
   width: 1400,
   baseMode: 'ladder',
-  dividers: [0.5],
-  fixedShelves: 1,
+  section: legacyToSection([0.5], 1, 1400, 18),
 }
 
 // Every combination of the parameters that decide which roles exist, on a carcase large enough for
 // all of them to be valid. This is the generator's whole role space — fixtures are checked against
 // it rather than against a list anyone typed.
+//
+// The legacy divider fractions and shelf count stay the loop variables so the sweep spans the same
+// space it did before the section tree, and `SWEEP[i]` still names the cabinet `baseline[i]` was
+// captured from.
 export const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as const).flatMap(
   (baseMode) =>
     (['captured', 'applied', 'none'] as const).flatMap((backMode) =>
@@ -27,8 +31,7 @@ export const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as
               baseMode,
               backMode,
               hasTop,
-              dividers,
-              fixedShelves,
+              section: legacyToSection(dividers, fixedShelves, 1400, 18),
             }),
           ),
         ),

@@ -1,3 +1,4 @@
+import { legacyToSection } from './migrateSections'
 import type { CarcaseParams } from './types'
 
 export interface CarcasePreset {
@@ -12,7 +13,6 @@ const COMMON = {
   backMode: 'captured',
   backThickness: 12,
   jointMethod: 'dado-rabbet',
-  dividers: [],
   adjustableShelves: {
     rows: 2,
     pitch: 32,
@@ -35,7 +35,7 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       baseMode: 'toe-kick',
       toeKickHeight: 100,
       toeKickSetback: 60,
-      fixedShelves: 1,
+      section: legacyToSection([], 1, 600, 18),
     },
   },
   {
@@ -49,7 +49,7 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       baseMode: 'none',
       toeKickHeight: 100,
       toeKickSetback: 60,
-      fixedShelves: 1,
+      section: legacyToSection([], 1, 600, 18),
     },
   },
   {
@@ -63,7 +63,7 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       baseMode: 'toe-kick',
       toeKickHeight: 100,
       toeKickSetback: 60,
-      fixedShelves: 4,
+      section: legacyToSection([], 4, 600, 18),
     },
   },
 ]

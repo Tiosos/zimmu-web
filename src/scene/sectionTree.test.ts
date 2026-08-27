@@ -244,3 +244,109 @@ describe('validateSection', () => {
     expect(errors.length).toBeGreaterThan(1)
   })
 })
+
+describe('boundsOf', () => {
+  it('a lone leaf is bounded by the shell on all four sides', () => {
+    const resolved = resolveSections(leaf('a'), OPENING, () => 18)
+    expect(resolved.boundsOf('a')).toEqual({
+      left: { kind: 'shell' },
+      right: { kind: 'shell' },
+      bottom: { kind: 'shell' },
+      top: { kind: 'shell' },
+    })
+  })
+
+  it('two vertical siblings share the division between them and meet the shell outward', () => {
+    const root: Section = {
+      id: 'root',
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        division: 'panel',
+        children: [leaf('a'), leaf('b')],
+      },
+    }
+    const resolved = resolveSections(root, OPENING, () => 18)
+    expect(resolved.boundsOf('a')).toEqual({
+      left: { kind: 'shell' },
+      right: { kind: 'division', parentId: 'root', index: 0 },
+      bottom: { kind: 'shell' },
+      top: { kind: 'shell' },
+    })
+    expect(resolved.boundsOf('b')).toEqual({
+      left: { kind: 'division', parentId: 'root', index: 0 },
+      right: { kind: 'shell' },
+      bottom: { kind: 'shell' },
+      top: { kind: 'shell' },
+    })
+  })
+
+  it('the middle of a three-way horizontal split is bounded by a division below and above', () => {
+    const root: Section = {
+      id: 'root',
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'horizontal',
+        division: 'panel',
+        children: [leaf('a'), leaf('b'), leaf('c')],
+      },
+    }
+    const resolved = resolveSections(root, OPENING, () => 18)
+    expect(resolved.boundsOf('b')).toEqual({
+      left: { kind: 'shell' },
+      right: { kind: 'shell' },
+      bottom: { kind: 'division', parentId: 'root', index: 0 },
+      top: { kind: 'division', parentId: 'root', index: 1 },
+    })
+  })
+
+  it('a nested section inherits the bounds its ancestors do not supply', () => {
+    const root: Section = {
+      id: 'root',
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        division: 'panel',
+        children: [
+          {
+            id: 'bay',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              division: 'panel',
+              children: [leaf('lower'), leaf('upper')],
+            },
+          },
+          leaf('right-bay'),
+        ],
+      },
+    }
+    const resolved = resolveSections(root, OPENING, () => 18)
+    expect(resolved.boundsOf('upper')).toEqual({
+      left: { kind: 'shell' },
+      right: { kind: 'division', parentId: 'root', index: 0 },
+      bottom: { kind: 'division', parentId: 'bay', index: 0 },
+      top: { kind: 'shell' },
+    })
+  })
+
+  it('a split with no division leaves its children bounded by the shell', () => {
+    const root: Section = {
+      id: 'root',
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        division: 'none',
+        children: [leaf('a'), leaf('b')],
+      },
+    }
+    const resolved = resolveSections(root, OPENING, () => 18)
+    expect(resolved.boundsOf('a').right).toEqual({ kind: 'shell' })
+    expect(resolved.boundsOf('b').left).toEqual({ kind: 'shell' })
+  })
+})

@@ -2,6 +2,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { regenerateComponents } from './regenerateComponents'
 import { reconcileJoints } from './reconcileJoints'
 import { CARCASE_PRESETS } from './carcasePresets'
+import { carcaseBoxes } from './carcaseRoles'
+import { legacyToSection } from './migrateSections'
 import type {
   BoardPart,
   BoxCut,
@@ -27,7 +29,7 @@ const params: CarcaseParams = {
   baseMode: 'none',
   toeKickHeight: 100,
   toeKickSetback: 60,
-  fixedShelves: 1,
+  section: legacyToSection([], 1, 600, 18),
   adjustableShelves: {
     rows: 1,
     pitch: 32,
@@ -37,8 +39,17 @@ const params: CarcaseParams = {
     count: 0,
   },
   jointMethod: 'dado-rabbet',
-  dividers: [],
 }
+
+// A division's role key carries the uuid of the section it splits, so tests name one by what it is
+// and look the key up.
+const divisionRoles = (p: CarcaseParams, thicknessAxis: 'x' | 'z') =>
+  carcaseBoxes(p)
+    .filter((b) => b.role.startsWith('division-') && b.thicknessAxis === thicknessAxis)
+    .map((b) => b.role)
+
+const shelfRole = (p: CarcaseParams, i = 0): string => divisionRoles(p, 'z')[i]
+const partitionRole = (p: CarcaseParams, i = 0): string => divisionRoles(p, 'x')[i]
 
 const cabinet: CarcaseComponent = {
   kind: 'carcase',
@@ -109,7 +120,7 @@ describe('regenerateComponents', () => {
       'bottom',
       'top',
       'back',
-      'shelf-0-0',
+      shelfRole(params),
     ])
     expect(partsOf(out).every((p) => p.driven)).toBe(true)
     expect(partsOf(out)).toHaveLength(out.parts.length)
@@ -256,11 +267,16 @@ describe('regenerateComponents', () => {
     const edits: Partial<CarcaseParams>[] = [
       { depth: 600 },
       { depth: 600, height: 900 },
-      { depth: 600, height: 900, fixedShelves: 3 },
-      { depth: 600, height: 900, fixedShelves: 3, hasTop: false },
-      { depth: 480, height: 2100, fixedShelves: 0, hasTop: false, dividers: [0.5] },
-      { depth: 480, height: 2100, fixedShelves: 2, hasTop: true, dividers: [0.5] },
-      { depth: 560, height: 720, fixedShelves: 1, hasTop: true, dividers: [] },
+      { depth: 600, height: 900, section: legacyToSection([], 3, 600, 18) },
+      { depth: 600, height: 900, section: legacyToSection([], 3, 600, 18), hasTop: false },
+      {
+        depth: 480,
+        height: 2100,
+        section: legacyToSection([0.5], 0, 600, 18),
+        hasTop: false,
+      },
+      { depth: 480, height: 2100, section: legacyToSection([0.5], 2, 600, 18), hasTop: true },
+      { depth: 560, height: 720, section: legacyToSection([], 1, 600, 18), hasTop: true },
     ]
 
     let scene = regenerateComponents(empty)
@@ -606,7 +622,7 @@ describe('shelf-pin hole arrays', () => {
     ...cabinet,
     params: {
       ...params,
-      dividers: [0.5],
+      section: legacyToSection([0.5], 1, 600, 18),
       adjustableShelves: { ...params.adjustableShelves, count: 10 },
     },
   }
@@ -626,7 +642,7 @@ describe('shelf-pin hole arrays', () => {
     const out = regenerateComponents(scene)
     expect(arraysOn(out, 'left-side')).toHaveLength(1)
     expect(arraysOn(out, 'right-side')).toHaveLength(1)
-    expect(arraysOn(out, 'divider-0')).toHaveLength(2)
+    expect(arraysOn(out, partitionRole(pinned.params))).toHaveLength(2)
     for (const role of ['bottom', 'top', 'back']) {
       expect(arraysOn(out, role), role).toEqual([])
     }

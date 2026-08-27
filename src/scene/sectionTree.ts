@@ -55,10 +55,23 @@ export interface ResolvedDivision {
 // number.
 export type DivisionThickness = (parentId: SectionId, index: number) => number
 
+export type Bound = { kind: 'shell' } | { kind: 'division'; parentId: SectionId; index: number }
+
+export interface SectionBounds {
+  left: Bound
+  right: Bound
+  bottom: Bound
+  top: Bound
+}
+
 export interface ResolvedTree {
   rects: Map<SectionId, Rect>
   divisions: ResolvedDivision[]
   childRects: (parentId: SectionId) => Rect[]
+  // What encloses a section on each side: the division it shares with a sibling, or — where the
+  // split it belongs to has no sibling that way — whatever encloses its parent, ultimately the
+  // shell. A shelf is housed in the bay's bounds, not in the cabinet's, which only this can say.
+  boundsOf: (id: SectionId) => SectionBounds
 }
 
 export function resolveSections(
@@ -69,6 +82,10 @@ export function resolveSections(
   const rects = new Map<SectionId, Rect>()
   const divisions: ResolvedDivision[] = []
   const childIds = new Map<SectionId, SectionId[]>()
+  const neighbours = new Map<
+    SectionId,
+    { parentId: SectionId; axis: 'vertical' | 'horizontal'; index: number; count: number }
+  >()
 
   const place = (section: Section, rect: Rect): void => {
     rects.set(section.id, rect)
@@ -91,6 +108,12 @@ export function resolveSections(
 
     let cursor = lo
     children.forEach((child, i) => {
+      neighbours.set(child.id, {
+        parentId: section.id,
+        axis,
+        index: i,
+        count: children.length,
+      })
       const span = spans[i]
       place(
         child,
@@ -116,10 +139,42 @@ export function resolveSections(
 
   place(root, opening)
 
+  const hasDivision = (parentId: SectionId, index: number): boolean =>
+    divisions.some((d) => d.parentId === parentId && d.index === index)
+
+  const boundsOf = (id: SectionId): SectionBounds => {
+    const sides: SectionBounds = {
+      left: { kind: 'shell' },
+      right: { kind: 'shell' },
+      bottom: { kind: 'shell' },
+      top: { kind: 'shell' },
+    }
+    let cursor: SectionId | undefined = id
+    while (cursor !== undefined) {
+      const n = neighbours.get(cursor)
+      if (n === undefined) break
+      const [lowSide, highSide] =
+        n.axis === 'vertical' ? (['left', 'right'] as const) : (['bottom', 'top'] as const)
+      if (sides[lowSide].kind === 'shell' && n.index > 0 && hasDivision(n.parentId, n.index - 1)) {
+        sides[lowSide] = { kind: 'division', parentId: n.parentId, index: n.index - 1 }
+      }
+      if (
+        sides[highSide].kind === 'shell' &&
+        n.index < n.count - 1 &&
+        hasDivision(n.parentId, n.index)
+      ) {
+        sides[highSide] = { kind: 'division', parentId: n.parentId, index: n.index }
+      }
+      cursor = n.parentId
+    }
+    return sides
+  }
+
   return {
     rects,
     divisions,
     childRects: (parentId) => (childIds.get(parentId) ?? []).map((id) => rects.get(id)!),
+    boundsOf,
   }
 }
 

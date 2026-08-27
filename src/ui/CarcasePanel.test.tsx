@@ -4,6 +4,9 @@ import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CarcasePanel } from './CarcasePanel'
 import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { openingRect } from '../scene/carcaseRoles'
+import { legacyToSection } from '../scene/migrateSections'
+import { resolveSections } from '../scene/sectionTree'
 import type { CarcaseComponent, CarcaseParams, Component } from '../scene/types'
 
 function carcase(params: Partial<CarcaseParams> = {}): CarcaseComponent {
@@ -28,6 +31,16 @@ function renderPanel(component = carcase(), onUpdate = vi.fn()) {
   )
   return onUpdate
 }
+
+// Preset 0 is 600 wide on 18 mm stock and carries one fixed shelf.
+const sec = (dividers: number[], fixedShelves = 1) => legacyToSection(dividers, fixedShelves, 600, 18)
+
+// Where the partitions a set of params describes actually land, as fractions of the width — the
+// same reading the divider field shows.
+const partitionCentres = (p: CarcaseParams) =>
+  resolveSections(p.section, openingRect(p), () => p.thickness)
+    .divisions.filter((d) => d.axis === 'vertical')
+    .map((d) => Number((((d.rect.x0 + d.rect.x1) / 2 / p.width)).toFixed(6)))
 
 // The panel reports edits as an updater, matching how onUpdate works everywhere else in useScene.
 function appliedParams(onUpdate: ReturnType<typeof vi.fn>, base: CarcaseComponent): CarcaseParams {
@@ -92,23 +105,25 @@ describe('CarcasePanel', () => {
   // Typed one character at a time, the way a user types it. A field that reparses its own text on
   // every keystroke cannot survive an intermediate "0." — the point of the local draft state.
   it('keeps what was typed while a divider list is entered character by character', async () => {
-    const c = carcase({ dividers: [] })
+    const c = carcase({ section: sec([]) })
     const onUpdate = renderPanel(c)
     const field = screen.getByLabelText('Dividers') as HTMLInputElement
     await userEvent.type(field, '0.33, 0.66')
     expect(field.value).toBe('0.33, 0.66')
-    expect(appliedParams(onUpdate, c).dividers).toEqual([0.33, 0.66])
+    // Read back through the geometry, not the tree's shape: what the field promises is two
+    // partitions centred a third and two thirds of the way across.
+    expect(partitionCentres(appliedParams(onUpdate, c))).toEqual([0.33, 0.66])
   })
 
   it('re-syncs the divider field when the params change from elsewhere', () => {
     const { rerender } = render(
       <TooltipProvider>
-        <CarcasePanel component={carcase({ dividers: [0.5] })} onUpdate={vi.fn()} />
+        <CarcasePanel component={carcase({ section: sec([0.5]) })} onUpdate={vi.fn()} />
       </TooltipProvider>,
     )
     rerender(
       <TooltipProvider>
-        <CarcasePanel component={carcase({ dividers: [0.25, 0.75] })} onUpdate={vi.fn()} />
+        <CarcasePanel component={carcase({ section: sec([0.25, 0.75]) })} onUpdate={vi.fn()} />
       </TooltipProvider>,
     )
     expect((screen.getByLabelText('Dividers') as HTMLInputElement).value).toBe('0.25, 0.75')

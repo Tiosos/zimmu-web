@@ -107,3 +107,40 @@ remote container, so a local URL is not reachable from the user's machine; an Ar
 instead as the equivalent. The user chose text-only, so overlay-versus-inset and the reveal model
 were settled in prose. If the elevation editor in stage G needs design review, that is the point
 where a visual is worth the tokens.
+
+### 2026-08-27 — `legacyToSection` needed the carcase's width and thickness
+
+Stage A's plan gave the conversion the signature `legacyToSection(dividers, fixedShelves)`. Written
+that way it cannot reproduce v12 geometry, and the golden-master baseline caught it on the first
+run: on the 1400 mm sweep case the tree put the first partition at x = 460.667 where v12 had it at
+457.667.
+
+The two models measure different things. A v12 divider is *centred* on a fraction of the **gross**
+width, so its bays are that fraction less a whole side thickness at each end and a half divider
+thickness at each divider. A section percentage is a share of the **clear** span that is left after
+every division has taken its thickness. Converting one to the other is only possible with the
+carcase's own `width` and `thickness` — algebraically the ratio depends on `T`, so no fixed set of
+percentages works for all cabinets. The signature is now
+`legacyToSection(dividers, fixedShelves, width, thickness)`, which is what the design already asked
+for in prose: "sized by percentage **to reproduce the original fractions**".
+
+Two details worth keeping:
+
+- The last bay takes `100 − (the others)` rather than its own quotient. The shares sum to 100 only
+  in real arithmetic; `validateSection` rejects a split whose percentages *exceed* 100, and a
+  cabinet that fails validation emits no parts at all, so a float overshoot of 1e-14 would blank
+  the cabinet. Checked over 196,172 randomised valid cabinets: no validation failure, and every
+  partition landed on its v12 position to nine decimal places.
+- The Stage C file loader must pass the same `width` and `thickness` when it migrates a v12 file.
+  Until it does, a v12 file loads with `params.section` undefined and `validateCarcaseParams`
+  throws — Stage A's commit groups B and C are not independently shippable.
+
+### 2026-08-27 — `validateCarcaseParams` gained one geometric rule
+
+Deleting the `dividers` and `fixedShelves` rules removed the only thing that stopped a cabinet too
+short for its shelves, or a partition that does not clear a side, from generating panels that pass
+through the shell and through each other. `validateSection` cannot replace them: it validates the
+tree, and only the resolved rectangles know whether the cabinet is big enough to hold it. So the
+carcase validator now resolves the tree and rejects any section with a non-positive span —
+"the sections do not fit in the carcase". One rule replaces five, and the tests that pinned the old
+failures still pin the same cabinets.

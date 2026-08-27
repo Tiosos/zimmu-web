@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CarcaseParams, CarcaseComponent, Component } from '../scene/types'
-import { validateCarcaseParams } from '../scene/carcaseRoles'
+import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
+import { legacyToSection } from '../scene/migrateSections'
+import { resolveSections } from '../scene/sectionTree'
 import { DimInput } from './DimInput'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -45,6 +47,25 @@ function parseDividers(text: string): number[] | null {
   return parts.every((s) => DIVIDER.test(s)) ? parts.map(Number) : null
 }
 
+// The v12 numbers the two legacy fields display, read back out of the tree. Divider fractions come
+// from where the partitions actually resolved, so a tree written by anything else still shows
+// something truthful rather than a guess at its shape.
+function legacyViewOf(p: CarcaseParams): { dividers: number[]; fixedShelves: number } {
+  const root = p.section
+  const divisions = resolveSections(root, openingRect(p), () => p.thickness).divisions
+  const dividers = divisions
+    .filter((d) => d.parentId === root.id && d.axis === 'vertical')
+    .map((d) => (d.rect.x0 + d.rect.x1) / 2 / p.width)
+  const firstBay =
+    root.content.kind === 'split' && root.content.axis === 'vertical'
+      ? root.content.children[0]
+      : root
+  return {
+    dividers,
+    fixedShelves: divisions.filter((d) => d.parentId === firstBay.id).length,
+  }
+}
+
 const JOINT_METHODS: { value: CarcaseParams['jointMethod']; label: string }[] = [
   { value: 'dado-rabbet', label: 'Dado + rabbet' },
   { value: 'finger', label: 'Box / finger' },
@@ -68,10 +89,16 @@ export function CarcasePanel({
   const p = component.params
   const errors = validateCarcaseParams(p)
 
+  // Stage A shim. These two fields still speak the v12 parameters — a list of divider fractions and
+  // a count of shelves per bay — so they read those numbers back out of the section tree and write
+  // a whole new tree on every edit, discarding any structure the numbers cannot express. Real
+  // section editing replaces them; until then this is what keeps the fields working.
+  const legacy = legacyViewOf(p)
+
   // Same shape as DimInput: the field shows what was typed, and only a text that parses cleanly
   // reaches the params. Resync is skipped while focused so an in-progress '0.50' is not
   // reformatted to '0.5' under the cursor.
-  const committedDividers = p.dividers.join(', ')
+  const committedDividers = legacy.dividers.join(', ')
   const [dividersText, setDividersText] = useState(committedDividers)
   const dividersFocused = useRef(false)
   useEffect(() => {
@@ -237,7 +264,11 @@ export function CarcasePanel({
               onChange={(e) => {
                 setDividersText(e.target.value)
                 const dividers = parseDividers(e.target.value)
-                if (dividers !== null) setParams({ dividers })
+                if (dividers !== null) {
+                  setParams({
+                    section: legacyToSection(dividers, legacy.fixedShelves, p.width, p.thickness),
+                  })
+                }
               }}
               onFocus={() => {
                 dividersFocused.current = true
@@ -258,10 +289,14 @@ export function CarcasePanel({
           <DimInput
             labelWidth="w-20"
             label="Fixed shelves"
-            value={p.fixedShelves}
+            value={legacy.fixedShelves}
             suffix=""
             min={0}
-            onCommit={(v) => setParams({ fixedShelves: Math.round(v) })}
+            onCommit={(v) =>
+              setParams({
+                section: legacyToSection(legacy.dividers, Math.round(v), p.width, p.thickness),
+              })
+            }
           />
           <DimInput
             labelWidth="w-20"

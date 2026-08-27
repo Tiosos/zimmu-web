@@ -15,6 +15,7 @@ import type { ChecklistRow } from './jointChecklist'
 import { buildJointChecklist, MAX_NOOFFER_ROWS } from './jointChecklist'
 import { componentsById } from './componentTree'
 import { CARCASE_PRESETS } from './carcasePresets'
+import { legacyToSection } from './migrateSections'
 import { regenerateComponents } from './regenerateComponents'
 
 const NO_COMPONENTS = componentsById([])
@@ -314,6 +315,16 @@ function checklistOf(scene: Scene) {
   )
 }
 
+// A shelf's role key carries the uuid of the section it divides, so it is found by what it is: the
+// only thickness-on-z panel of a Base 600 that is neither the bottom nor the top.
+function idOfShelf(scene: Scene, componentId: ComponentId): PartId {
+  const part = scene.parts.find(
+    (p) => p.parentId === componentId && p.role?.startsWith('division-'),
+  )
+  if (!part) throw new Error(`no division part in ${componentId}`)
+  return part.id
+}
+
 function idOfRole(scene: Scene, componentId: ComponentId, role: string): PartId {
   const part = scene.parts.find((p) => p.parentId === componentId && p.role === role)
   if (!part) throw new Error(`no part with role ${role} in ${componentId}`)
@@ -328,7 +339,7 @@ describe('contact rows', () => {
   test('marks a shelf against the back as contact, not open', () => {
     const scene = cabinetScene([carcase('cmp_1', 'Base 600')])
     const back = idOfRole(scene, 'cmp_1', 'back')
-    const shelf = idOfRole(scene, 'cmp_1', 'shelf-0-0')
+    const shelf = idOfShelf(scene, 'cmp_1')
     const c = checklistOf(scene)
 
     expect(rowWith(c.contact, back, shelf)?.state).toBe('contact')
@@ -361,7 +372,11 @@ describe('contact rows', () => {
     expect(wall.actionableTotal).toBe(10)
     expect(wall.contact).toHaveLength(1)
 
-    const divided = checklistOf(cabinetScene([carcase('cmp_1', 'Base 600', { dividers: [0.5] })]))
+    const divided = checklistOf(
+      cabinetScene([
+        carcase('cmp_1', 'Base 600', { section: legacyToSection([0.5], 1, 600, 18) }),
+      ]),
+    )
     expect(divided.jointedCount).toBe(16)
     expect(divided.actionableTotal).toBe(16)
     expect(divided.contact).toHaveLength(4)

@@ -1,3 +1,7 @@
+import type { Section } from './sectionTree'
+
+export type { Section, SectionId, SectionSize, SectionContent, DivisionKind } from './sectionTree'
+
 export type PartId = string
 export type CutId = string
 
@@ -173,7 +177,7 @@ export interface CarcaseParams {
   baseMode: 'toe-kick' | 'ladder' | 'legs' | 'none'
   toeKickHeight: number
   toeKickSetback: number
-  fixedShelves: number
+  section: Section
   adjustableShelves: {
     rows: 1 | 2
     pitch: 32 // literal, not number: 32 mm *is* the system being modelled
@@ -183,7 +187,6 @@ export interface CarcaseParams {
     count: number
   }
   jointMethod: 'dado-rabbet' | 'finger' | 'dowel' | 'butt-screw' | 'confirmat'
-  dividers: number[] // fractions of width, 0..1, ascending
 }
 
 export interface GroupComponent {

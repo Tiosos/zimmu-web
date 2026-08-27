@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { carcaseBoxes, carcaseRoles, orientedPanel } from './carcaseRoles'
-import type { LocalBox } from './carcaseRoles'
+import type { LocalBox, RoleBox } from './carcaseRoles'
 import { CARCASE_PRESETS } from './carcasePresets'
 import { GRAIN_IN_PLANE, grainAxisOf, grainFieldFor } from './grain'
+import { legacyToSection } from './migrateSections'
 import type { CarcaseParams, ThicknessAxis } from './types'
 import { LADDER_WITH_DIVIDERS, SWEEP } from './__fixtures__/sweep'
 
@@ -13,12 +14,21 @@ const AXES: ThicknessAxis[] = ['x', 'y', 'z']
 
 const PRESET_CASES = CARCASE_PRESETS.map((p) => [p.name, p.params] as const)
 
-// A role like `shelf-2-1` or `ladder-mid-0` is one instance of a family; the grain convention is
-// stated per family, so that is the unit coverage is measured in.
+// Which way a box's parent section was split, which is what `grainAxisOf` needs from a division
+// role and cannot read off the string.
+const splitOf = (b: RoleBox): 'vertical' | 'horizontal' =>
+  b.thicknessAxis === 'x' ? 'vertical' : 'horizontal'
+
+// A role like `division-sec_…-1` or `ladder-mid-0` is one instance of a family; the grain
+// convention is stated per family, so that is the unit coverage is measured in. A division's family
+// is the kind of panel it is — the section id in its role is an identity, not a family.
+function familyOf(b: RoleBox): string {
+  if (b.role.startsWith('division-')) return splitOf(b) === 'vertical' ? 'partition' : 'shelf'
+  return b.role.replace(/-\d+$/, '')
+}
+
 function familiesReached(cases: CarcaseParams[]): string[] {
-  return [
-    ...new Set(cases.flatMap(carcaseBoxes).map((b) => b.role.replace(/-\d+(-\d+)?$/, ''))),
-  ].sort()
+  return [...new Set(cases.flatMap(carcaseBoxes).map(familyOf))].sort()
 }
 
 describe('GRAIN_IN_PLANE agrees with orientedPanel', () => {
@@ -44,7 +54,7 @@ describe('every generated role states a grain direction', () => {
     const boxes = SWEEP.flatMap(carcaseBoxes)
     expect(boxes.length).toBeGreaterThan(0)
     for (const b of boxes) {
-      const axis = grainAxisOf(b.role)
+      const axis = grainAxisOf(b.role, splitOf(b))
       expect(axis, b.role).not.toBe(b.thicknessAxis)
       expect(grainFieldFor(b.thicknessAxis, axis), b.role).not.toBe('free')
     }
@@ -67,6 +77,12 @@ describe('every generated role states a grain direction', () => {
     expect(() => grainAxisOf('plinth')).toThrow(/no grain convention/)
   })
 
+  // A partition runs its grain up and a shelf runs it across, and the role names neither — so a
+  // caller that cannot say which it has must not be given a guess.
+  it('refuses a division role that does not say which way its section was split', () => {
+    expect(() => grainAxisOf('division-sec_root-0')).toThrow(/needs its split axis/)
+  })
+
   // The plan and the baseline both assume 96. A sweep that silently changed size would make the
   // equivalence test cover less than it claims.
   it('the sweep is 96 cases', () => {
@@ -81,10 +97,8 @@ describe('for the presets only, grain agrees with longest-first', () => {
   // believed.
   it.each(PRESET_CASES)('%s', (_name, params) => {
     for (const r of carcaseRoles(params)) {
-      const grain = grainFieldFor(
-        carcaseBoxes(params).find((b) => b.role === r.role)!.thicknessAxis,
-        grainAxisOf(r.role),
-      )
+      const box = carcaseBoxes(params).find((b) => b.role === r.role)!
+      const grain = grainFieldFor(box.thicknessAxis, grainAxisOf(r.role, splitOf(box)))
       const grainDim = grain === 'length' ? r.panel.length : r.panel.width
       const otherDim = grain === 'length' ? r.panel.width : r.panel.length
       expect(grainDim).toBeGreaterThanOrEqual(otherDim)
@@ -96,7 +110,7 @@ describe('for the presets only, grain agrees with longest-first', () => {
       ...CARCASE_PRESETS[1].params,
       width: 1200,
       height: 400,
-      fixedShelves: 0,
+      section: legacyToSection([], 0, 1200, 18),
     }
     const box = carcaseBoxes(params).find((b) => b.role === 'back')!
     const back = carcaseRoles(params).find((r) => r.role === 'back')!
@@ -105,14 +119,17 @@ describe('for the presets only, grain agrees with longest-first', () => {
   })
 
   it('a narrow bay runs its shelf grain along the shorter dimension', () => {
+    // Preset 0 carries one fixed shelf; three bays across a 900 makes each of them narrow.
     const params: CarcaseParams = {
       ...CARCASE_PRESETS[0].params,
       width: 900,
-      dividers: [1 / 3, 2 / 3],
+      section: legacyToSection([1 / 3, 2 / 3], 1, 900, 18),
     }
-    const box = carcaseBoxes(params).find((b) => b.role === 'shelf-0-0')!
-    const shelf = carcaseRoles(params).find((r) => r.role === 'shelf-0-0')!
-    expect(grainFieldFor(box.thicknessAxis, grainAxisOf('shelf-0-0'))).toBe('length')
+    const box = carcaseBoxes(params).find(
+      (b) => b.role.startsWith('division-') && b.thicknessAxis === 'z',
+    )!
+    const shelf = carcaseRoles(params).find((r) => r.role === box.role)!
+    expect(grainFieldFor(box.thicknessAxis, grainAxisOf(box.role, splitOf(box)))).toBe('length')
     expect(shelf.panel.length).toBeLessThan(shelf.panel.width)
   })
 })

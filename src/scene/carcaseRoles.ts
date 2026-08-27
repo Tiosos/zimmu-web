@@ -1,6 +1,14 @@
 import type { BoxCut, CarcaseParams, Face, Grain, HoleArrayCut, ThicknessAxis, Vec3 } from './types'
 import { dadoDepthFor } from '../geom/dado'
 import { grainAxisOf, grainFieldFor } from './grain'
+import {
+  resolveSections,
+  validateSection,
+  type Bound,
+  type Rect,
+  type ResolvedDivision,
+  type SectionBounds,
+} from './sectionTree'
 
 export type { ThicknessAxis }
 
@@ -70,11 +78,17 @@ function floorZ(p: CarcaseParams): number {
   return p.baseMode === 'toe-kick' || p.baseMode === 'ladder' ? p.toeKickHeight : 0
 }
 
-// Dividers cut the carcase into vertical bays and a bay is a consecutive pair of edges. Shared by
-// the role table and the joint table so a change to bay layout cannot desynchronise the two.
-function bayEdges(p: CarcaseParams): number[] {
-  const { width: W, thickness: T } = p
-  return [T, ...p.dividers.flatMap((d) => [W * d - T / 2, W * d + T / 2]), W - T]
+// The rectangle the section tree divides: the clear opening between the shell panels. Stage A
+// spends one thickness on each side because CarcaseParams still carries one; Stage B of the wider
+// restructure replaces each of these four with that panel's own resolved thickness, and a
+// symmetric fixture will not catch a mistake there.
+export function openingRect(p: CarcaseParams): Rect {
+  return {
+    x0: p.thickness,
+    x1: p.width - p.thickness,
+    z0: floorZ(p) + p.thickness,
+    z1: p.hasTop ? p.height - p.thickness : p.height,
+  }
 }
 
 // Total and side-effect free by contract: the generator calls this on every keystroke and emits
@@ -108,37 +122,18 @@ export function validateCarcaseParams(p: CarcaseParams): string[] {
   if (p.backMode !== 'none' && p.backThickness >= p.depth) {
     errors.push('backThickness must be less than depth')
   }
-  if (p.fixedShelves < 0) {
-    errors.push('fixedShelves must be 0 or more')
-  } else if (p.fixedShelves > 0) {
-    // Shelf pitch is the one place where height, toe kick, top and shelf count all draw on the
-    // same budget; a negative bay does not produce a degenerate shelf, it produces shelves that
-    // pass through the bottom panel and through each other.
-    const bayZ0 = floorZ(p) + p.thickness
-    const innerTop = p.hasTop ? p.height - p.thickness : p.height
-    if (innerTop - bayZ0 - p.fixedShelves * p.thickness <= 0) {
-      errors.push('fixedShelves do not fit in the internal height')
-    }
-  }
   if (p.adjustableShelves.count < 0) errors.push('adjustable shelf count must be 0 or more')
-  if (p.dividers.some((d) => d <= 0 || d >= 1)) {
-    errors.push('dividers must lie strictly between 0 and 1')
-  }
-  if (p.dividers.some((d, i) => i > 0 && d <= p.dividers[i - 1])) {
-    errors.push('dividers must be ascending')
-  }
-  // A divider is centred on its fraction and is T wide, so `0 < d < 1` is not enough: at d = 0.02
-  // on a 600mm carcase it spans x[3,21] and runs straight through the left side at x[0,18].
-  if (p.dividers.some((d) => p.width * d - p.thickness / 2 <= p.thickness)) {
-    errors.push('dividers must clear the side panels')
-  }
-  if (p.dividers.some((d) => p.width * d + p.thickness / 2 >= p.width - p.thickness)) {
-    errors.push('dividers must clear the side panels')
-  }
-  // Ascending is not enough either — two dividers can be ordered and still overlap, or leave a
-  // bay too narrow to hold anything.
-  if (p.dividers.some((d, i) => i > 0 && p.width * (d - p.dividers[i - 1]) <= p.thickness)) {
-    errors.push('dividers must leave a bay between them')
+  errors.push(...validateSection(p.section))
+  // The tree's own rules are about the tree; only the resolved rectangles know whether the cabinet
+  // is big enough to hold it. A section squeezed to nothing does not produce a thin panel, it
+  // produces panels that pass through the shell and through each other — which is what the v12
+  // rules named `dividers` and `fixedShelves` were guarding against.
+  const resolved = resolveSections(p.section, openingRect(p), () => p.thickness)
+  for (const rect of resolved.rects.values()) {
+    if (rect.x1 - rect.x0 <= 0 || rect.z1 - rect.z0 <= 0) {
+      errors.push('the sections do not fit in the carcase')
+      break
+    }
   }
   return errors
 }
@@ -295,29 +290,23 @@ export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
     })
   }
 
-  p.dividers.forEach((d, i) => {
-    boxes.push({
-      role: `divider-${i}`,
-      label: `Divider ${i + 1}`,
-      box: { x0: W * d - T / 2, x1: W * d + T / 2, y0: 0, y1: shelfBackY, z0: bayZ0, z1: innerTop },
-      thicknessAxis: 'x',
-    })
-  })
+  const tree = resolveSections(p.section, openingRect(p), () => p.thickness)
 
-  // Shelves live inside a bay — a bookcase with a centre upright — so `fixedShelves` is a count
-  // per bay.
-  const edges = bayEdges(p)
-  const shelfGap = (innerTop - bayZ0 - p.fixedShelves * T) / (p.fixedShelves + 1)
-  for (let b = 0; b < edges.length / 2; b++) {
-    for (let i = 0; i < p.fixedShelves; i++) {
-      const z0 = bayZ0 + (i + 1) * shelfGap + i * T
-      boxes.push({
-        role: `shelf-${b}-${i}`,
-        label: p.dividers.length > 0 ? `Bay ${b + 1} Shelf ${i + 1}` : `Shelf ${i + 1}`,
-        box: { x0: edges[b * 2], x1: edges[b * 2 + 1], y0: 0, y1: shelfBackY, z0, z1: z0 + T },
-        thicknessAxis: 'z',
-      })
-    }
+  for (const d of tree.divisions) {
+    const vertical = d.axis === 'vertical'
+    boxes.push({
+      role: `division-${d.parentId}-${d.index}`,
+      label: vertical ? 'Partition' : 'Shelf',
+      box: {
+        x0: d.rect.x0,
+        x1: d.rect.x1,
+        y0: 0,
+        y1: d.kind === 'rail' ? T : shelfBackY,
+        z0: d.rect.z0,
+        z1: d.rect.z1,
+      },
+      thicknessAxis: vertical ? 'x' : 'z',
+    })
   }
 
   return boxes
@@ -361,7 +350,10 @@ export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
     role: b.role,
     label: b.label,
     panel: orientedPanel(b.box, b.thicknessAxis),
-    grain: grainFieldFor(b.thicknessAxis, grainAxisOf(b.role)),
+    grain: grainFieldFor(
+      b.thicknessAxis,
+      grainAxisOf(b.role, b.thicknessAxis === 'x' ? 'vertical' : 'horizontal'),
+    ),
   }))
 }
 
@@ -393,6 +385,49 @@ const SIDES: SideSpec[] = [
   { role: 'left-side', inward: LEFT_EDGE_FACE, endOfFlat: '-X', endOfUpright: '-Y' },
   { role: 'right-side', inward: RIGHT_EDGE_FACE, endOfFlat: '+X', endOfUpright: '+Y' },
 ]
+
+interface Housing {
+  role: string
+  housingFace: Face
+  housedEnd: Face
+}
+
+// What a division is housed into, and with which faces. Both branches are transcribed from the two
+// rules the old code wrote separately — a partition into bottom and top, a shelf into whatever
+// bounds its bay — so these face constants are the ones that were already shipping, not ones
+// re-derived from the frames.
+//
+// The two panel kinds line up because a bound is always the same thickness axis as the shell panel
+// it replaces: a shelf is thickness-on-z like bottom and top, a partition is thickness-on-x like a
+// side, so one pair of faces covers a shell bound and a division bound alike.
+function housingsFor(p: CarcaseParams, d: ResolvedDivision, parent: SectionBounds): Housing[] {
+  const roleOf = (b: Bound, shell: string | null): string | null =>
+    b.kind === 'division' ? `division-${b.parentId}-${b.index}` : shell
+
+  if (d.axis === 'vertical') {
+    // Was: add('dado', 'bottom', `divider-${i}`, '+Z', '-Y') / ('top', …, '-Z', '+Y')
+    const below = roleOf(parent.bottom, 'bottom')
+    const above = roleOf(parent.top, p.hasTop ? 'top' : null)
+    return [
+      ...(below === null
+        ? []
+        : [{ role: below, housingFace: '+Z' as Face, housedEnd: '-Y' as Face }]),
+      ...(above === null
+        ? []
+        : [{ role: above, housingFace: '-Z' as Face, housedEnd: '+Y' as Face }]),
+    ]
+  }
+
+  // Was: add('dado', left, `shelf-…`, LEFT_EDGE_FACE, '-X') / (right, …, RIGHT_EDGE_FACE, '+X')
+  const left = roleOf(parent.left, 'left-side')
+  const right = roleOf(parent.right, 'right-side')
+  return [
+    ...(left === null ? [] : [{ role: left, housingFace: LEFT_EDGE_FACE, housedEnd: '-X' as Face }]),
+    ...(right === null
+      ? []
+      : [{ role: right, housingFace: RIGHT_EDGE_FACE, housedEnd: '+X' as Face }]),
+  ]
+}
 
 // The joints a carcase implies, keyed by role because part ids are only known after reconciliation.
 // Returns nothing for the three fastener methods: their geometry is hardware, not a cut.
@@ -453,19 +488,15 @@ export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescr
     if (p.hasTop) add('dado', 'top', 'back', '-Z', '+X')
   }
 
-  // A divider spans floor to ceiling of the bay and never reaches a side.
-  for (let i = 0; i < p.dividers.length; i++) {
-    add('dado', 'bottom', `divider-${i}`, '+Z', '-Y')
-    if (p.hasTop) add('dado', 'top', `divider-${i}`, '-Z', '+Y')
-  }
-
-  const bays = bayEdges(p).length / 2
-  for (let b = 0; b < bays; b++) {
-    const left = b === 0 ? 'left-side' : `divider-${b - 1}`
-    const right = b === bays - 1 ? 'right-side' : `divider-${b}`
-    for (let i = 0; i < p.fixedShelves; i++) {
-      add('dado', left, `shelf-${b}-${i}`, LEFT_EDGE_FACE, '-X')
-      add('dado', right, `shelf-${b}-${i}`, RIGHT_EDGE_FACE, '+X')
+  // A division is housed at both ends into whatever bounds its parent section along the
+  // perpendicular axis: a partition into the bottom and the top, a shelf into the two uprights of
+  // its bay, whether those are the sides or the partitions beside it.
+  const tree = resolveSections(p.section, openingRect(p), () => p.thickness)
+  for (const d of tree.divisions) {
+    if (d.kind === 'rail') continue // butt-jointed; no housing
+    const housedRole = `division-${d.parentId}-${d.index}`
+    for (const h of housingsFor(p, d, tree.boundsOf(d.parentId))) {
+      add('dado', h.role, housedRole, h.housingFace, h.housedEnd)
     }
   }
 
@@ -512,11 +543,8 @@ export function carcaseContactPairs(p: CarcaseParams): [string, string][] {
     if (p.baseMode === 'ladder') pairs.push(['back', 'ladder-back'])
   }
   if (p.backMode !== 'none') {
-    for (let i = 0; i < p.dividers.length; i++) pairs.push(['back', `divider-${i}`])
-    const bays = bayEdges(p).length / 2
-    for (let b = 0; b < bays; b++) {
-      for (let i = 0; i < p.fixedShelves; i++) pairs.push(['back', `shelf-${b}-${i}`])
-    }
+    const tree = resolveSections(p.section, openingRect(p), () => p.thickness)
+    for (const d of tree.divisions) pairs.push(['back', `division-${d.parentId}-${d.index}`])
   }
   return pairs
 }
@@ -548,13 +576,14 @@ export function carcaseCuts(p: CarcaseParams, role: string): BoxCut[] {
 
 const PIN_DIAMETER = 5
 
-// Which board-local faces a role bores pins into. A side and a divider are both thickness-on-x
-// panels, so the inner face is board ±Z — the same faces the joinery table names. A divider stands
-// between two bays and carries a row on each of its faces; every other role carries none.
-function pinFaces(role: string): Face[] {
+// Which board-local faces a role bores pins into. A side and a partition are both thickness-on-x
+// panels, so the inner face is board ±Z — the same faces the joinery table names. A partition
+// stands between two bays and carries a row on each of its faces; every other role carries none.
+function pinFaces(role: string, thicknessAxis: ThicknessAxis): Face[] {
   if (role === 'left-side') return [LEFT_EDGE_FACE]
   if (role === 'right-side') return [RIGHT_EDGE_FACE]
-  if (role.startsWith('divider-')) return [LEFT_EDGE_FACE, RIGHT_EDGE_FACE]
+  // Only a vertical division is an upright that carries pins; a horizontal one is a shelf.
+  if (role.startsWith('division-') && thicknessAxis === 'x') return [LEFT_EDGE_FACE, RIGHT_EDGE_FACE]
   return []
 }
 
@@ -565,7 +594,10 @@ export function carcaseHoleArrays(p: CarcaseParams, role: string): HoleArrayCut[
   const a = p.adjustableShelves
   const radius = PIN_DIAMETER / 2
   if (a.count <= 0 || a.setback < radius || a.backSetback < radius) return []
-  const faces = pinFaces(role)
+  // A `division-` role does not say on its own whether it is a partition or a shelf; its box does.
+  const box = carcaseBoxes(p).find((b) => b.role === role)
+  if (box === undefined) return []
+  const faces = pinFaces(role, box.thicknessAxis)
   if (faces.length === 0) return []
   const panel = carcaseRoles(p).find((r) => r.role === role)?.panel
   if (panel === undefined) return []
@@ -620,8 +652,8 @@ export function parameterForRole(
 ): keyof CarcaseParams | null {
   if (role === undefined) return null
 
-  // Shelves and dividers carry a bay index, and every one of them is material-thick.
-  if (role.startsWith('shelf-') || role.startsWith('divider-')) {
+  // A division — partition or shelf — spans whatever the tree gives it, and is material-thick.
+  if (role.startsWith('division-')) {
     return dimension === 'thickness' ? 'thickness' : null
   }
 

@@ -12,6 +12,7 @@ import {
 } from './carcaseRoles'
 import type { JointDescriptor, PanelSpec, RoleSpec } from './carcaseRoles'
 import { dadoDepthFor } from '../geom/dado'
+import { legacyToSection } from './migrateSections'
 import { reconcileJoints } from './reconcileJoints'
 import type {
   BoardPart,
@@ -28,6 +29,7 @@ import { componentsById } from './componentTree'
 import { regenerateComponents } from './regenerateComponents'
 import { boardsTouch } from './suggestJoints'
 import { CARCASE_PRESETS } from './carcasePresets'
+import { SWEEP } from './__fixtures__/sweep'
 
 // World AABB of a panel spec, in carcase-local space. This is the assertion surface: it pins
 // position and rotation together and is indifferent to which equivalent Euler triple the
@@ -133,6 +135,31 @@ describe('orientedPanel', () => {
   })
 })
 
+// These tests describe cabinets the way the parameters used to: n bays across, m fixed shelves in
+// each. `legacyToSection` is the conversion the app itself uses, so a fixture and a migrated file
+// describe the same tree. Width and thickness are arguments because a section percentage is a share
+// of the clear span, not of the gross width.
+const sec = (dividers: number[], fixedShelves: number, width = 600, thickness = 18) =>
+  legacyToSection(dividers, fixedShelves, width, thickness)
+
+// A division role carries the uuid of the section it splits, so the tests below name divisions by
+// what they are and look the key up. `carcaseBoxes` emits them in tree order — each bay's shelves
+// bottom-up, then the partition to that bay's right — which is exactly the order `shelf-{b}-{i}`
+// and `divider-{i}` were numbered in, so these read the same way the old names did.
+function divisionRoles(p: CarcaseParams, thicknessAxis: 'x' | 'z'): string[] {
+  return carcaseBoxes(p)
+    .filter((b) => b.role.startsWith('division-') && b.thicknessAxis === thicknessAxis)
+    .map((b) => b.role)
+}
+
+const partitionRole = (p: CarcaseParams, i = 0): string => divisionRoles(p, 'x')[i]
+
+function shelfRole(p: CarcaseParams, bay: number, i: number): string {
+  const all = divisionRoles(p, 'z')
+  const bays = divisionRoles(p, 'x').length + 1
+  return all[bay * (all.length / bays) + i]
+}
+
 const base: CarcaseParams = {
   width: 600,
   height: 720,
@@ -145,7 +172,7 @@ const base: CarcaseParams = {
   baseMode: 'toe-kick',
   toeKickHeight: 100,
   toeKickSetback: 60,
-  fixedShelves: 1,
+  section: sec([], 1),
   adjustableShelves: {
     rows: 2,
     pitch: 32,
@@ -155,7 +182,6 @@ const base: CarcaseParams = {
     count: 10,
   },
   jointMethod: 'dado-rabbet',
-  dividers: [],
 }
 
 describe('validateCarcaseParams', () => {
@@ -175,19 +201,19 @@ describe('validateCarcaseParams', () => {
     )
   })
 
-  it('rejects negative shelf counts', () => {
-    expect(validateCarcaseParams({ ...base, fixedShelves: -1 })).toContain(
-      'fixedShelves must be 0 or more',
-    )
-  })
-
-  it('rejects dividers outside 0..1 or out of order', () => {
-    expect(validateCarcaseParams({ ...base, dividers: [1.5] })).toContain(
-      'dividers must lie strictly between 0 and 1',
-    )
-    expect(validateCarcaseParams({ ...base, dividers: [0.6, 0.3] })).toContain(
-      'dividers must be ascending',
-    )
+  // The v12 rules about divider fractions — in range, ascending, clear of the sides — described a
+  // representation that no longer exists. What guards the same mistakes now is the tree's own
+  // validator, whose messages the carcase validator folds in.
+  it('reports the problems the section tree itself reports', () => {
+    const broken: CarcaseParams = {
+      ...base,
+      section: {
+        id: 'sec_root',
+        size: { kind: 'equal' },
+        content: { kind: 'split', axis: 'vertical', division: 'panel', children: [] },
+      },
+    }
+    expect(validateCarcaseParams(broken)).toContain('a split needs at least two sections')
   })
 
   it('rejects a back thicker than the depth it sits in', () => {
@@ -197,9 +223,7 @@ describe('validateCarcaseParams', () => {
   })
 
   it('accumulates every problem rather than stopping at the first', () => {
-    expect(validateCarcaseParams({ ...base, width: 10, fixedShelves: -2 }).length).toBeGreaterThan(
-      1,
-    )
+    expect(validateCarcaseParams({ ...base, width: 10, depth: 5 }).length).toBeGreaterThan(1)
   })
 
   // Reasons forward from what the generator needs rather than backward from the rules that exist:
@@ -217,15 +241,12 @@ describe('validateCarcaseParams', () => {
     )
   })
 
-  // Deferred from Task 4.2 until the shelf layout math existed. Height 160 clears every existing
-  // rule (the toe kick leaves 160 - 100 - 36 = 24 mm), but three 18 mm shelves cannot occupy a
-  // 24 mm bay: the table computes a negative bay and places shelf 0 at z=110.5, 7.5 mm inside the
-  // bottom panel, with the shelves overlapping each other 10.5 mm apart.
+  // Height 160 clears every other rule (the toe kick leaves 160 - 100 - 36 = 24 mm), but three
+  // 18 mm shelves cannot occupy a 24 mm bay: the sections between them resolve to a negative
+  // height, which is not a thin shelf but shelves passing through the bottom panel and each other.
   it('rejects fixed shelves that do not fit the internal height', () => {
-    const squeezed: CarcaseParams = { ...base, height: 160, fixedShelves: 3 }
-    expect(validateCarcaseParams(squeezed)).toEqual([
-      'fixedShelves do not fit in the internal height',
-    ])
+    const squeezed: CarcaseParams = { ...base, height: 160, section: sec([], 3) }
+    expect(validateCarcaseParams(squeezed)).toEqual(['the sections do not fit in the carcase'])
   })
 
   // Defect 3: the side rails run y:[KS+T, D-T], so they invert one thickness before the front
@@ -263,15 +284,14 @@ describe('validateCarcaseParams', () => {
         depth: 600,
         toeKickHeight: 150,
         toeKickSetback: 75,
-        dividers: [0.5],
+        section: sec([0.5], 1, 900),
       },
       '2100 tall unit': {
         ...base,
         width: 600,
         height: 2100,
         depth: 600,
-        fixedShelves: 3,
-        dividers: [0.33, 0.66],
+        section: sec([0.33, 0.66], 3),
       },
       'open-backed': { ...base, backMode: 'none', depth: 300, backThickness: 12 },
       'on legs': { ...base, baseMode: 'legs', toeKickHeight: 120, hasTop: false },
@@ -305,11 +325,11 @@ const variations: Record<string, CarcaseParams> = {
   'applied back': { ...base, backMode: 'applied' },
   'no base': { ...base, baseMode: 'none' },
   ladder: { ...base, baseMode: 'ladder' },
-  'ladder, divided, shelved': { ...base, baseMode: 'ladder', dividers: [0.5], fixedShelves: 2 },
+  'ladder, divided, shelved': { ...base, baseMode: 'ladder', section: sec([0.5], 2) },
   legs: { ...base, baseMode: 'legs' },
-  'two shelves': { ...base, fixedShelves: 2 },
-  'no shelves': { ...base, fixedShelves: 0 },
-  divided: { ...base, dividers: [0.5] },
+  'two shelves': { ...base, section: sec([], 2) },
+  'no shelves': { ...base, section: sec([], 0) },
+  divided: { ...base, section: sec([0.5], 1) },
 }
 
 describe('carcaseRoles', () => {
@@ -321,7 +341,7 @@ describe('carcaseRoles', () => {
       'top',
       'back',
       'toe-kick',
-      'shelf-0-0',
+      shelfRole(base, 0, 0),
     ])
   })
 
@@ -367,12 +387,12 @@ describe('carcaseRoles', () => {
 
   it('stops shelves short of a captured back', () => {
     const roles = carcaseRoles(base)
-    expect(roleBox(roles, 'shelf-0-0').max.y).toBeCloseTo(roleBox(roles, 'back').min.y, 9)
+    expect(roleBox(roles, shelfRole(base, 0, 0)).max.y).toBeCloseTo(roleBox(roles, 'back').min.y, 9)
   })
 
   it('centres a single fixed shelf in the internal height', () => {
     const roles = carcaseRoles(base)
-    const shelf = roleBox(roles, 'shelf-0-0')
+    const shelf = roleBox(roles, shelfRole(base, 0, 0))
     const below = shelf.min.z - roleBox(roles, 'bottom').max.z
     const above = roleBox(roles, 'top').min.z - shelf.max.z
     expect(below).toBeCloseTo(above, 9)
@@ -380,9 +400,10 @@ describe('carcaseRoles', () => {
   })
 
   it('splits the internal height into equal bays for two fixed shelves', () => {
-    const roles = carcaseRoles({ ...base, fixedShelves: 2 })
-    const lower = roleBox(roles, 'shelf-0-0')
-    const upper = roleBox(roles, 'shelf-0-1')
+    const twoShelves = { ...base, section: sec([], 2) }
+    const roles = carcaseRoles(twoShelves)
+    const lower = roleBox(roles, shelfRole(twoShelves, 0, 0))
+    const upper = roleBox(roles, shelfRole(twoShelves, 0, 1))
     const bays = [
       lower.min.z - roleBox(roles, 'bottom').max.z,
       upper.min.z - lower.max.z,
@@ -400,9 +421,10 @@ describe('carcaseRoles', () => {
   })
 
   it('omits the back and runs shelves full depth when backMode is none', () => {
-    const roles = carcaseRoles({ ...base, backMode: 'none' })
+    const openBacked = { ...base, backMode: 'none' as const }
+    const roles = carcaseRoles(openBacked)
     expect(roles.map((r) => r.role)).not.toContain('back')
-    expect(roleBox(roles, 'shelf-0-0').max.y).toBeCloseTo(560, 9)
+    expect(roleBox(roles, shelfRole(openBacked, 0, 0)).max.y).toBeCloseTo(560, 9)
   })
 
   it('drops the bottom to the floor when baseMode is none', () => {
@@ -496,16 +518,12 @@ describe('carcaseRoles', () => {
   // Defect 1: a divider spans the full internal height and a shelf used to span the full internal
   // width, so the two rows shared volume by construction. Shelves belong to a bay.
   it('emits fixed shelves per bay, each stopping at the divider', () => {
-    const roles = carcaseRoles({ ...base, dividers: [0.5], fixedShelves: 2 })
-    expect(roles.filter((r) => r.role.startsWith('shelf-')).map((r) => r.role)).toEqual([
-      'shelf-0-0',
-      'shelf-0-1',
-      'shelf-1-0',
-      'shelf-1-1',
-    ])
-    const divider = roleBox(roles, 'divider-0')
-    const left = roleBox(roles, 'shelf-0-0')
-    const right = roleBox(roles, 'shelf-1-0')
+    const p = { ...base, section: sec([0.5], 2) }
+    const roles = carcaseRoles(p)
+    expect(divisionRoles(p, 'z')).toHaveLength(4)
+    const divider = roleBox(roles, partitionRole(p))
+    const left = roleBox(roles, shelfRole(p, 0, 0))
+    const right = roleBox(roles, shelfRole(p, 1, 0))
     // Each shelf end stops a dado depth *inside* the panel that houses it, not on its face.
     const depth = dadoDepthFor(base.thickness)
     expect(left.min.x).toBeCloseTo(18 - depth, 9)
@@ -515,25 +533,26 @@ describe('carcaseRoles', () => {
     expect(right.min.z).toBeCloseTo(left.min.z, 9)
   })
 
-  // `fixedShelves` counts shelves per bay, so two dividers triple the shelf count and the carcase
-  // stays symmetrical.
+  // A shelf lives in a bay, so two partitions across a cabinet that carries two shelves per bay
+  // triple the shelf count and the carcase stays symmetrical.
   it('repeats the shelf count in every bay', () => {
-    const roles = carcaseRoles({ ...base, dividers: [0.33, 0.66], fixedShelves: 2 })
-    expect(roles.filter((r) => r.role.startsWith('shelf-')).length).toBe(6)
+    expect(divisionRoles({ ...base, section: sec([0.33, 0.66], 2) }, 'z')).toHaveLength(6)
   })
 
-  it('names shelves by bay only when the carcase has more than one bay', () => {
-    expect(carcaseRoles(base).find((r) => r.role === 'shelf-0-0')?.label).toBe('Shelf 1')
-    const divided = carcaseRoles({ ...base, dividers: [0.5] })
-    expect(divided.filter((r) => r.role.startsWith('shelf-')).map((r) => r.label)).toEqual([
-      'Bay 1 Shelf 1',
-      'Bay 2 Shelf 1',
-    ])
+  // Labels are per-part text, not keys. A division is a Partition or a Shelf; which bay it stands
+  // in is in the tree, not spelled into every label.
+  it('labels a division by what it is', () => {
+    const divided = { ...base, section: sec([0.5], 1) }
+    const byRole = new Map(carcaseRoles(divided).map((r) => [r.role, r.label]))
+    expect(byRole.get(partitionRole(divided))).toBe('Partition')
+    expect(byRole.get(shelfRole(divided, 0, 0))).toBe('Shelf')
+    expect(byRole.get(shelfRole(divided, 1, 0))).toBe('Shelf')
   })
 
   it('centres a divider on its width fraction', () => {
-    const roles = carcaseRoles({ ...base, dividers: [0.5] })
-    const d = roleBox(roles, 'divider-0')
+    const divided = { ...base, section: sec([0.5], 1) }
+    const roles = carcaseRoles(divided)
+    const d = roleBox(roles, partitionRole(divided))
     expect(d.min.x).toBeCloseTo(291, 9)
     expect(d.max.x).toBeCloseTo(309, 9)
     // Housed in the bottom and the top, so it runs a dado depth into each.
@@ -547,8 +566,10 @@ describe('carcaseRoles', () => {
   })
 
   it('returns a stable order across repeated calls', () => {
-    const keys = () =>
-      carcaseRoles({ ...base, dividers: [0.4], fixedShelves: 2 }).map((r) => r.role)
+    // One params object, called twice: a division role is keyed by its section's id, so building a
+    // second tree from the same legacy numbers is a different cabinet as far as the keys go.
+    const p = { ...base, section: sec([0.4], 2) }
+    const keys = () => carcaseRoles(p).map((r) => r.role)
     expect(keys()).toEqual(keys())
   })
 
@@ -562,12 +583,12 @@ describe('carcaseRoles', () => {
   it('never lets two panels share volume', () => {
     const cases: Record<string, CarcaseParams> = {
       base,
-      divided: { ...base, dividers: [0.5] },
-      'divided, two shelves': { ...base, dividers: [0.35, 0.7], fixedShelves: 2 },
+      divided: { ...base, section: sec([0.5], 1) },
+      'divided, two shelves': { ...base, section: sec([0.35, 0.7], 2) },
       ladder: { ...base, baseMode: 'ladder' },
-      'ladder, divided, shelved': { ...base, baseMode: 'ladder', dividers: [0.5], fixedShelves: 2 },
+      'ladder, divided, shelved': { ...base, baseMode: 'ladder', section: sec([0.5], 2) },
       'open, topless, on legs': { ...base, hasTop: false, backMode: 'none', baseMode: 'legs' },
-      'no shelves': { ...base, fixedShelves: 0 },
+      'no shelves': { ...base, section: sec([], 0) },
     }
     for (const [name, params] of Object.entries(cases)) {
       const boxes = carcaseRoles({ ...params, jointMethod: 'dowel' }).map((r) => ({
@@ -601,38 +622,39 @@ describe('carcaseRoles', () => {
   })
 })
 
-describe('dividers must clear the side panels and each other', () => {
-  it('rejects a divider that overlaps the left side', () => {
-    // W*0.02 - T/2 = 3, so the divider spans x[3,21] and the left side spans x[0,18].
-    // `0 < d < 1` passes this, which is why the pairwise-overlap test never saw it — no
-    // fixture used a divider that close to an edge.
-    expect(validateCarcaseParams({ ...base, dividers: [0.02] })).toContain(
-      'dividers must clear the side panels',
+// Three separate v12 rules — a divider in range, clear of each side, and leaving a bay beside its
+// neighbour — were three ways of saying one thing, which the tree says once: the section the
+// partition would stand beside has no width left.
+describe('partitions must clear the side panels and each other', () => {
+  it('rejects a partition that overlaps the left side', () => {
+    // W*0.02 - T/2 = 3, so the partition spans x[3,21] and the left side spans x[0,18].
+    expect(validateCarcaseParams({ ...base, section: sec([0.02], 1) })).toContain(
+      'the sections do not fit in the carcase',
     )
   })
 
-  it('rejects a divider that overlaps the right side', () => {
-    expect(validateCarcaseParams({ ...base, dividers: [0.98] })).toContain(
-      'dividers must clear the side panels',
+  it('rejects a partition that overlaps the right side', () => {
+    expect(validateCarcaseParams({ ...base, section: sec([0.98], 1) })).toContain(
+      'the sections do not fit in the carcase',
     )
   })
 
-  it('rejects two dividers too close to leave a bay between them', () => {
+  it('rejects two partitions too close to leave a bay between them', () => {
     // Ascending, both in range, but only 6mm apart on an 18mm stock.
-    expect(validateCarcaseParams({ ...base, dividers: [0.5, 0.51] })).toContain(
-      'dividers must leave a bay between them',
+    expect(validateCarcaseParams({ ...base, section: sec([0.5, 0.51], 1) })).toContain(
+      'the sections do not fit in the carcase',
     )
   })
 
-  it('accepts dividers that clear the sides and each other', () => {
-    expect(validateCarcaseParams({ ...base, dividers: [0.34, 0.67] })).toEqual([])
-    expect(validateCarcaseParams({ ...base, dividers: [0.5] })).toEqual([])
+  it('accepts partitions that clear the sides and each other', () => {
+    expect(validateCarcaseParams({ ...base, section: sec([0.34, 0.67], 1) })).toEqual([])
+    expect(validateCarcaseParams({ ...base, section: sec([0.5], 1) })).toEqual([])
   })
 
   it('produces no overlapping panels for every divider set it accepts', () => {
     for (const dividers of [[0.05], [0.5], [0.34, 0.67], [0.25, 0.5, 0.75]]) {
       // Face-to-face, as above: joinery extensions are checked against the joint table instead.
-      const params: CarcaseParams = { ...base, dividers, jointMethod: 'dowel' }
+      const params: CarcaseParams = { ...base, section: sec(dividers, 1), jointMethod: 'dowel' }
       expect(validateCarcaseParams(params)).toEqual([])
       const roles = carcaseRoles(params)
       for (let i = 0; i < roles.length; i++) {
@@ -740,7 +762,7 @@ describe('carcaseCuts', () => {
   })
 
   it('emits no notch for a role that is not a side panel', () => {
-    for (const role of ['bottom', 'top', 'back', 'toe-kick', 'shelf-0-0']) {
+    for (const role of ['bottom', 'top', 'back', 'toe-kick', shelfRole(base, 0, 0)]) {
       expect(
         carcaseRoles(base).some((r) => r.role === role),
         role,
@@ -785,11 +807,12 @@ describe('parameterForRole', () => {
     expect(parameterForRole('bottom', 'length', base)).toBeNull()
   })
 
-  it('maps every shelf and divider thickness to thickness, whatever their bay', () => {
-    expect(parameterForRole('shelf-0-0', 'thickness', base)).toBe('thickness')
-    expect(parameterForRole('shelf-2-1', 'thickness', base)).toBe('thickness')
-    expect(parameterForRole('divider-0', 'thickness', base)).toBe('thickness')
-    expect(parameterForRole('shelf-0-0', 'width', base)).toBeNull()
+  it('maps every division thickness to thickness, partition or shelf', () => {
+    const divided = { ...base, section: sec([0.5], 1) }
+    expect(parameterForRole(partitionRole(divided), 'thickness', base)).toBe('thickness')
+    expect(parameterForRole(shelfRole(divided, 0, 0), 'thickness', base)).toBe('thickness')
+    expect(parameterForRole(shelfRole(divided, 1, 0), 'thickness', base)).toBe('thickness')
+    expect(parameterForRole(shelfRole(divided, 0, 0), 'width', base)).toBeNull()
   })
 
   it('returns null for an unknown or absent role', () => {
@@ -894,8 +917,8 @@ describe('carcaseJoints', () => {
       'wall, fingered': { ...base, baseMode: 'none', jointMethod: 'finger' },
       ladder: { ...base, baseMode: 'ladder' },
       'ladder, fingered': { ...base, baseMode: 'ladder', jointMethod: 'finger' },
-      divided: { ...base, dividers: [0.5] },
-      'two dividers, two shelves': { ...base, dividers: [0.34, 0.67], fixedShelves: 2 },
+      divided: { ...base, section: sec([0.5], 1) },
+      'two dividers, two shelves': { ...base, section: sec([0.34, 0.67], 2) },
       'no top, no back': { ...base, hasTop: false, backMode: 'none' },
       'applied back': { ...base, backMode: 'applied' },
       'applied back on a ladder base': { ...base, backMode: 'applied', baseMode: 'ladder' },
@@ -932,17 +955,17 @@ describe('carcaseJoints', () => {
     const cases: [string, CarcaseParams, number, number][] = [
       ['Base 600', CARCASE_PRESETS[0].params, 12, 2],
       ['Wall 600', CARCASE_PRESETS[1].params, 10, 1],
-      ['Base 600 + divider', { ...CARCASE_PRESETS[0].params, dividers: [0.5] }, 16, 4],
+      ['Base 600 + divider', { ...CARCASE_PRESETS[0].params, section: sec([0.5], 1) }, 16, 4],
       ['Ladder 600', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder' }, 14, 11],
       [
         'Ladder 600 + divider',
-        { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', dividers: [0.5] },
+        { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', section: sec([0.5], 1) },
         18,
         13,
       ],
       [
         'Ladder 600 + divider + two shelves per bay',
-        { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', dividers: [0.5], fixedShelves: 2 },
+        { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', section: sec([0.5], 2) },
         22,
         15,
       ],
@@ -1010,38 +1033,40 @@ describe('carcaseJoints', () => {
     expect(facesOf('ladder-mid-0')).toEqual(['dado ladder-back -Z +X', 'dado ladder-front +Z -X'])
   })
 
-  it('houses dividers in the bottom and top, never in a side', () => {
-    const withDivider = { ...base, dividers: [0.5] }
-    const ds = carcaseJoints(withDivider, 'cmp_1').filter((d) =>
-      d.housedRole.startsWith('divider-'),
-    )
+  it('houses partitions in the bottom and top, never in a side', () => {
+    const withDivider = { ...base, section: sec([0.5], 1) }
+    const partition = partitionRole(withDivider)
+    const ds = carcaseJoints(withDivider, 'cmp_1').filter((d) => d.housedRole === partition)
     expect(ds.map((d) => d.housingRole).sort()).toEqual(['bottom', 'top'])
-    expect(
-      carcaseJoints(withDivider, 'cmp_1').some((d) => d.housingRole.startsWith('divider-')),
-    ).toBe(true)
+    // And the partition houses the shelves either side of it.
+    expect(carcaseJoints(withDivider, 'cmp_1').some((d) => d.housingRole === partition)).toBe(true)
   })
 
   it('houses each shelf in its own bay edges, not in both sides', () => {
-    const withDivider = { ...base, dividers: [0.5] }
+    const withDivider = { ...base, section: sec([0.5], 1) }
     const js = carcaseJoints(withDivider, 'cmp_1')
     const housingsOf = (role: string) =>
       js
         .filter((d) => d.housedRole === role)
         .map((d) => d.housingRole)
         .sort()
-    expect(housingsOf('shelf-0-0')).toEqual(['divider-0', 'left-side'])
-    expect(housingsOf('shelf-1-0')).toEqual(['divider-0', 'right-side'])
+    expect(housingsOf(shelfRole(withDivider, 0, 0))).toEqual(
+      [partitionRole(withDivider), 'left-side'].sort(),
+    )
+    expect(housingsOf(shelfRole(withDivider, 1, 0))).toEqual(
+      [partitionRole(withDivider), 'right-side'].sort(),
+    )
   })
 
-  it('houses a middle bay shelf in the two dividers that bound it', () => {
-    const p = { ...base, dividers: [0.34, 0.67] }
+  it('houses a middle bay shelf in the two partitions that bound it', () => {
+    const p = { ...base, section: sec([0.34, 0.67], 1) }
     const js = carcaseJoints(p, 'cmp_1')
     const housingsOf = (role: string) =>
       js
         .filter((d) => d.housedRole === role)
         .map((d) => d.housingRole)
         .sort()
-    expect(housingsOf('shelf-1-0')).toEqual(['divider-0', 'divider-1'])
+    expect(housingsOf(shelfRole(p, 1, 0))).toEqual([partitionRole(p, 0), partitionRole(p, 1)].sort())
   })
 
   it('tags every joint with the owning component and marks it driven', () => {
@@ -1074,7 +1099,7 @@ describe('carcaseJoints', () => {
 
   it('scales with shelf count', () => {
     const one = carcaseJoints(base, 'cmp_1').length
-    const three = carcaseJoints({ ...base, fixedShelves: 3 }, 'cmp_1').length
+    const three = carcaseJoints({ ...base, section: sec([], 3) }, 'cmp_1').length
     expect(three - one).toBe(4)
   })
 })
@@ -1085,12 +1110,13 @@ describe('carcaseContactPairs', () => {
       carcaseContactPairs(base)
         .map(([a, b]) => pairKey(a, b))
         .sort(),
-    ).toEqual(['back|shelf-0-0', 'bottom|toe-kick'])
+    ).toEqual([pairKey('back', shelfRole(base, 0, 0)), 'bottom|toe-kick'].sort())
   })
 
-  it('declares dividers against the back too', () => {
-    const pairs = carcaseContactPairs({ ...base, dividers: [0.5] }).map(([a, b]) => pairKey(a, b))
-    expect(pairs).toContain('back|divider-0')
+  it('declares partitions against the back too', () => {
+    const divided = { ...base, section: sec([0.5], 1) }
+    const pairs = carcaseContactPairs(divided).map(([a, b]) => pairKey(a, b))
+    expect(pairs).toContain(pairKey('back', partitionRole(divided)))
   })
 
   it('declares the same pairs whatever fastens the cabinet', () => {
@@ -1100,7 +1126,7 @@ describe('carcaseContactPairs', () => {
   })
 
   it('declares the whole set-down plane of a ladder base, and nothing across the carcase', () => {
-    const pairs = carcaseContactPairs({ ...base, baseMode: 'ladder', fixedShelves: 0 })
+    const pairs = carcaseContactPairs({ ...base, baseMode: 'ladder', section: sec([], 0) })
       .map(([a, b]) => pairKey(a, b))
       .sort()
     expect(pairs).toEqual([
@@ -1121,14 +1147,16 @@ describe('carcaseContactPairs', () => {
     const pairs = carcaseContactPairs({ ...base, backMode: 'applied' })
       .map(([a, b]) => pairKey(a, b))
       .sort()
-    expect(pairs).toEqual([
-      'back|bottom',
-      'back|left-side',
-      'back|right-side',
-      'back|shelf-0-0',
-      'back|top',
-      'bottom|toe-kick',
-    ])
+    expect(pairs).toEqual(
+      [
+        'back|bottom',
+        'back|left-side',
+        'back|right-side',
+        pairKey('back', shelfRole(base, 0, 0)),
+        'back|top',
+        'bottom|toe-kick',
+      ].sort(),
+    )
   })
 
   it('declares an applied back against the ladder rail it comes down on', () => {
@@ -1173,8 +1201,8 @@ const jointedCases: Record<string, CarcaseParams> = {
   // and its seat was the one part in the generator that still moved through the pipeline.
   'applied back': { ...base, backMode: 'applied' },
   legs: { ...base, baseMode: 'legs' },
-  'divided, two shelves': { ...base, dividers: [0.5], fixedShelves: 2 },
-  'two dividers': { ...base, dividers: [0.34, 0.67], fixedShelves: 2 },
+  'divided, two shelves': { ...base, section: sec([0.5], 2) },
+  'two dividers': { ...base, section: sec([0.34, 0.67], 2) },
   'no top': { ...base, hasTop: false },
   'fingered wall': { ...CARCASE_PRESETS[1].params, jointMethod: 'finger' },
   'fingered base': { ...base, jointMethod: 'finger' },
@@ -1432,8 +1460,8 @@ describe('carcaseHoleArrays', () => {
     ).toEqual([])
   })
 
-  it('emits nothing for a role that is not a side or divider', () => {
-    for (const role of ['bottom', 'top', 'back', 'toe-kick', 'shelf-0-0', 'ladder-front']) {
+  it('emits nothing for a role that is not a side or a partition', () => {
+    for (const role of ['bottom', 'top', 'back', 'toe-kick', shelfRole(base, 0, 0), 'ladder-front']) {
       expect(carcaseHoleArrays(base, role), role).toEqual([])
     }
   })
@@ -1442,9 +1470,9 @@ describe('carcaseHoleArrays', () => {
     expect(carcaseHoleArrays({ ...base, width: 20 }, 'left-side')).toEqual([])
   })
 
-  it('drills a divider on both faces, since it serves a bay on each side', () => {
-    const divided = { ...base, dividers: [0.5] }
-    const cuts = carcaseHoleArrays(divided, 'divider-0')
+  it('drills a partition on both faces, since it serves a bay on each side', () => {
+    const divided = { ...base, section: sec([0.5], 1) }
+    const cuts = carcaseHoleArrays(divided, partitionRole(divided))
     expect(cuts).toHaveLength(2 * base.adjustableShelves.rows)
     expect(new Set(cuts.map((c) => c.face)).size).toBe(2)
   })
@@ -1467,8 +1495,8 @@ describe('carcaseHoleArrays', () => {
       base,
       wall: { ...base, baseMode: 'none' },
       ladder: { ...base, baseMode: 'ladder' },
-      divided: { ...base, dividers: [0.5] },
-      'two dividers': { ...base, dividers: [0.34, 0.67] },
+      divided: { ...base, section: sec([0.5], 1) },
+      'two dividers': { ...base, section: sec([0.34, 0.67], 1) },
       'applied back': { ...base, backMode: 'applied' },
       'no top, no back': { ...base, hasTop: false, backMode: 'none' },
     }
@@ -1487,8 +1515,9 @@ describe('carcaseHoleArrays', () => {
           z: Math.max(...envelopes.map((b) => b.max.z)),
         },
       }
+      const uprights = new Set(divisionRoles(p, 'x'))
       const roles = [...panels.keys()].filter(
-        (r) => r === 'left-side' || r === 'right-side' || r.startsWith('divider-'),
+        (r) => r === 'left-side' || r === 'right-side' || uprights.has(r),
       )
       expect(roles.length, name).toBeGreaterThan(0)
       for (const role of roles) {
@@ -1511,7 +1540,7 @@ describe('carcaseHoleArrays', () => {
 
   // A row that runs off the end of the panel is a hole in nothing — or worse, a hole through the
   // panel's edge. Swept rather than fixtured: the interesting failures are a cabinet too short to
-  // hold the configured count and a divider whose bay is shorter still.
+  // hold the configured count and a partition whose bay is shorter still.
   it('keeps every hole inside the panel it drills', () => {
     for (const height of [210, 300, 400, 720, 1200, 2100]) {
       for (const count of [1, 5, 10, 40]) {
@@ -1519,13 +1548,12 @@ describe('carcaseHoleArrays', () => {
           const p: CarcaseParams = {
             ...base,
             height,
-            dividers: [0.5],
-            fixedShelves: 0,
+            section: sec([0.5], 0),
             adjustableShelves: { ...base.adjustableShelves, count, startHeight },
           }
           if (validateCarcaseParams(p).length > 0) continue
           const panels = panelsOf(p)
-          for (const role of ['left-side', 'right-side', 'divider-0']) {
+          for (const role of ['left-side', 'right-side', partitionRole(p)]) {
             const panel = panels.get(role)!
             for (const c of carcaseHoleArrays(p, role)) {
               const where = `h=${height} n=${count} z0=${startHeight} ${role}`
@@ -1548,14 +1576,14 @@ describe('carcaseHoleArrays', () => {
     }
   })
 
-  // A shelf sits on four pins, two of them in a divider. Rows that start from each panel's own
-  // bottom edge would put the divider's pins 100 mm above the side's on a toe-kick cabinet, and
+  // A shelf sits on four pins, two of them in a partition. Rows that start from each panel's own
+  // bottom edge would put the partition's pins 100 mm above the side's on a toe-kick cabinet, and
   // every shelf in the cabinet would sit on a slope.
-  it('puts a divider’s pins at the same heights as the pins in the sides', () => {
+  it('puts a partition’s pins at the same heights as the pins in the sides', () => {
     for (const p of [
-      { ...base, dividers: [0.5] },
-      { ...base, dividers: [0.5], baseMode: 'ladder' as const },
-      { ...base, dividers: [0.5], height: 400 },
+      { ...base, section: sec([0.5], 1) },
+      { ...base, section: sec([0.5], 1), baseMode: 'ladder' as const },
+      { ...base, section: sec([0.5], 1), height: 400 },
     ]) {
       const panels = panelsOf(p)
       const heightsOf = (role: string) =>
@@ -1563,7 +1591,7 @@ describe('carcaseHoleArrays', () => {
           centres(c).map((v) => toCarcase(panels.get(role)!, v).z),
         )
       const side = new Set(heightsOf('left-side').map((z) => z.toFixed(6)))
-      const divider = heightsOf('divider-0')
+      const divider = heightsOf(partitionRole(p))
       expect(divider.length).toBeGreaterThan(0)
       for (const z of divider)
         expect(side.has(z.toFixed(6)), `${z} is not a side pin height`).toBe(true)
@@ -1581,5 +1609,33 @@ describe('carcaseHoleArrays', () => {
     expect(depths.length).toBe(2)
     expect(Math.min(...depths)).toBeCloseTo(37, 9)
     expect(Math.max(...depths)).toBeCloseTo(panel.length - 60, 9)
+  })
+})
+
+describe('the section tree in the generator', () => {
+  // Contacts are derived from the same resolved tree the boxes are, so a role that appears in one
+  // and not the other would mean the two had drifted apart — which is what the shared `bayEdges`
+  // used to prevent.
+  it('every contact pair names a role the generator actually emits', () => {
+    for (const params of SWEEP) {
+      const roles = new Set(carcaseBoxes(params).map((b) => b.role))
+      for (const [a, b] of carcaseContactPairs(params)) {
+        expect(roles.has(a), a).toBe(true)
+        expect(roles.has(b), b).toBe(true)
+      }
+    }
+  })
+
+  // All three presets ship fixed shelves, which is why Stage A could not also move
+  // adjustableShelves into the tree.
+  it.each([
+    ['Base 600', 1],
+    ['Wall 600', 1],
+    ['Tall 600', 4],
+  ])('%s still has %i fixed shelves', (name, expected) => {
+    const params = CARCASE_PRESETS.find((p) => p.name === name)!.params
+    const divisions = carcaseBoxes(params).filter((b) => b.role.startsWith('division-'))
+    expect(divisions).toHaveLength(expected)
+    for (const d of divisions) expect(d.thicknessAxis).toBe('z')
   })
 })

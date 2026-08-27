@@ -2492,7 +2492,8 @@ describe('detach', () => {
   it('detaches a driven part and stops regenerating it', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-    const shelf = result.current.scene.parts.find((p) => p.role?.startsWith('shelf-'))!
+    // The Base 600's one fixed shelf: a division role carries its section's uuid, not a shelf index.
+    const shelf = result.current.scene.parts.find((p) => p.role?.startsWith('division-'))!
     const cmpId = result.current.scene.components[0].id
 
     act(() => result.current.onDetachPart(shelf.id))
