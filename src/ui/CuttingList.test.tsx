@@ -436,6 +436,39 @@ describe('CuttingList', () => {
     expect(onMaterialCostChange).not.toHaveBeenCalled()
   })
 
+  // Every other popover test uses a single row, which is why this survived: keying the open
+  // popover by material name opened one in EVERY row sharing that material. Each mount focused its
+  // own input, blurring the previous, whose blur committed an empty value and closed all of them —
+  // so a Base 600's "18mm Ply" could not be given a rate at all, and with no rate there is no
+  // library entry, no sheet size, and no Sheets tab.
+  it('opens one popover when several rows share a material', () => {
+    const onMaterialCostChange = vi.fn()
+    render(
+      <CuttingList
+        parts={[
+          makePart({ id: 'p1', label: 'Side', material: 'Ply', length: 600 }),
+          makePart({ id: 'p2', label: 'Shelf', material: 'Ply', length: 400 }),
+        ]}
+        projectName="Test"
+        onClose={vi.fn()}
+        materials={{ Ply: { costPerM2: 45 } }}
+        onMaterialCostChange={onMaterialCostChange}
+        hideExportButtons
+      />,
+    )
+    const buttons = screen.getAllByRole('button', { name: 'Ply' })
+    expect(buttons).toHaveLength(2)
+
+    fireEvent.click(buttons[0])
+    const inputs = screen.getAllByRole('spinbutton')
+    expect(inputs).toHaveLength(1)
+
+    // And it stays open long enough to be typed into: the rate reaches the material, not a blur.
+    fireEvent.change(inputs[0], { target: { value: '60' } })
+    fireEvent.keyDown(inputs[0], { key: 'Enter' })
+    expect(onMaterialCostChange).toHaveBeenCalledWith('Ply', { costPerM2: 60 })
+  })
+
   it('preserves existing costPerM when saving a new costPerM2 via the popover', () => {
     const onMaterialCostChange = vi.fn()
     const part = makePart({ id: 'p1', material: 'Oak' })
