@@ -13,6 +13,47 @@
 
 ---
 
+## Execution revision, 2026-08-27 — commits are grouped by green boundaries
+
+**The original task-per-commit structure was wrong and has been regrouped.** The task *bodies* below
+are unchanged and still authoritative for what to write; only the commit boundaries move.
+
+Two things forced it, and the second matters more than the first:
+
+**1. `--no-verify` does not work here.** The pre-commit typecheck is not a git hook — it is a Claude
+Code `PreToolUse` hook (`.claude/settings.json` → `.claude/hooks/pre-commit-typecheck.sh`) that
+intercepts the Bash call before git runs and denies it on a red typecheck. `--no-verify` is just
+substring text to it. Every commit must typecheck. Do **not** edit the hook or settings to get
+around this.
+
+**2. A red window is bad practice regardless.** The original Tasks 3–11 left the build failing with
+96 errors across 10 files for eight commits — eight unverifiable commits with no green commit to
+bisect back to. The hook was right and the plan was wrong.
+
+**Expand/contract was considered and rejected.** Adding `section` alongside `dividers`/`fixedShelves`
+would give the transition two sources of truth: the ~40 test sites that spread `{ ...base, dividers:
+[0.5] }` would inherit a `section` describing no divider, and would keep passing while describing a
+different cabinet than they name. Silent disagreement between two fields is worse than one large
+verified commit.
+
+### The regrouping
+
+| commit | covers original tasks | why it is green |
+|---|---|---|
+| **A** New modules | 3 (types), 4 (`legacyToSection`), 5 (`resolveSections`), 6 (`validateSection`) | adds new files only; touches no existing consumer |
+| **B** The switch | 7 (`carcaseBoxes`), 8 (joints), 9 (equivalence), 10 (pin/grain/params), 11 (presets) | swaps the field and every consumer at once; the equivalence test is what makes a change this size safe, and is exactly why the baseline was captured first |
+| **C** File format | 12 | v13 migration at the parse boundary |
+| **D** Panel shim | 13 | the divider field and shelf counter write trees |
+| **E** Close the stage | 14 | retire the baseline, docs, notes |
+
+Commit B is large and that is accepted deliberately: there is no smaller step that removes
+`dividers` and `fixedShelves` while leaving the build green, because they are load-bearing in 11
+files. Its size is bought back by the 96-case equivalence test, which no incremental split would
+have given.
+
+Every commit in every group must pass `pnpm typecheck && pnpm lint && pnpm test` before it is made.
+No `--no-verify` anywhere in this plan.
+
 ## Two deliberate deviations from the spec
 
 Both were forced by measurements taken while writing this plan. Record them in the notes file when you reach Task 14.
@@ -310,10 +351,14 @@ This is the expected state. Do not fix them yet — the following tasks fix them
 
 ```bash
 git add src/scene/sectionTree.ts src/scene/types.ts
-git commit -m "feat(scene): the Section tree types" --no-verify
+# Do NOT commit here. This task's output is part of commit group A — see the execution
+# revision at the top. Commit once Tasks 4, 5 and 6 are also written and the suite is green.
 ```
 
-`--no-verify` is required here and **only** here: the pre-commit hook runs typecheck, and the tree is deliberately mid-migration for the next several tasks. Every later commit in this plan must pass the hook normally.
+**Do not delete `dividers` and `fixedShelves` from `CarcaseParams` in this task.** They come out in
+commit group B, together with every consumer that reads them. Adding `Section` and `section` here
+while leaving the old fields in place would create two sources of truth; the field swap belongs in
+the one commit that also switches every reader.
 
 ---
 
@@ -965,10 +1010,9 @@ Expected: still FAIL, but no longer in `carcaseBoxes` — remaining errors shoul
 
 ```bash
 git add src/scene/carcaseRoles.ts
-git commit -m "feat(scene): carcaseBoxes builds divisions from the section tree" --no-verify
+# Do NOT commit here. This is the first piece of commit group B — see the execution revision
+# at the top. Group B commits once Tasks 8, 9, 10 and 11 are done and the suite is green.
 ```
-
-Second and last `--no-verify`: the module is typecheck-clean only once Task 11 lands.
 
 ---
 
