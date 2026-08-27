@@ -1,15 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import {
-  carcaseBoxes,
-  carcaseContactPairs,
-  carcaseCuts,
-  carcaseHoleArrays,
-  carcaseJoints,
-  carcaseRoles,
+  carcaseBoxes as boxesOf,
+  carcaseContactPairs as contactPairsOf,
+  carcaseCuts as cutsOf,
+  carcaseHoleArrays as holeArraysOf,
+  carcaseJoints as jointsOf,
+  carcaseRoles as rolesOf,
   orientedPanel,
-  validateCarcaseParams,
+  validateCarcaseParams as validateOf,
   parameterForRole,
 } from './carcaseRoles'
+import { roleThicknessFor } from './resolveThickness'
 import type { JointDescriptor, PanelSpec, RoleSpec } from './carcaseRoles'
 import { dadoDepthFor } from '../geom/dado'
 import { legacyToSection } from './migrateSections'
@@ -21,6 +22,7 @@ import type {
   CarcaseParams,
   Face,
   HoleArrayCut,
+  MaterialDef,
   Scene,
   Vec3,
 } from './types'
@@ -135,6 +137,34 @@ describe('orientedPanel', () => {
   })
 })
 
+// The two materials every cabinet below is built from. `base` used to carry `thickness: 18` and
+// `backThickness: 12` in its own parameters; the same two numbers now live on the materials it
+// names, so every panel these tests measure is the panel it always was.
+const MATERIALS: Record<string, MaterialDef> = {
+  '18mm Ply': { thickness: 18 },
+  '12mm MDF': { thickness: 12 },
+  '25mm Ply': { thickness: 25 },
+  // Named only where a rule has to reject it: a back cannot be thicker than the cabinet is deep.
+  'Absurd 600': { thickness: 600 },
+}
+
+// What `base` resolves to. Spelled out because the assertions below are about a cabinet built from
+// 18 mm stock, and reading the number back out of the resolver would let both sides move together.
+const T = 18
+
+const tOf = (p: CarcaseParams) => roleThicknessFor(p, MATERIALS, new Map())
+
+// The generator resolves a thickness per panel now, so every entry point takes a resolver. These
+// tests are about the layout rather than about resolution, so each wrapper binds the one the
+// cabinet's own materials imply; the tests that are about resolution build their own.
+const carcaseBoxes = (p: CarcaseParams) => boxesOf(p, tOf(p))
+const carcaseRoles = (p: CarcaseParams) => rolesOf(p, tOf(p))
+const validateCarcaseParams = (p: CarcaseParams) => validateOf(p, tOf(p))
+const carcaseContactPairs = (p: CarcaseParams) => contactPairsOf(p, tOf(p))
+const carcaseJoints = (p: CarcaseParams, componentId: string) => jointsOf(p, tOf(p), componentId)
+const carcaseCuts = (p: CarcaseParams, role: string) => cutsOf(p, tOf(p), role)
+const carcaseHoleArrays = (p: CarcaseParams, role: string) => holeArraysOf(p, tOf(p), role)
+
 // These tests describe cabinets the way the parameters used to: n bays across, m fixed shelves in
 // each. `legacyToSection` is the conversion the app itself uses, so a fixture and a migrated file
 // describe the same tree. Width and thickness are arguments because a section percentage is a share
@@ -164,11 +194,10 @@ const base: CarcaseParams = {
   width: 600,
   height: 720,
   depth: 560,
-  material: '18mm Ply',
-  thickness: 18,
+  carcaseMaterial: '18mm Ply',
+  backMaterial: '12mm MDF',
   hasTop: true,
   backMode: 'captured',
-  backThickness: 12,
   baseMode: 'toe-kick',
   toeKickHeight: 100,
   toeKickSetback: 60,
@@ -217,8 +246,8 @@ describe('validateCarcaseParams', () => {
   })
 
   it('rejects a back thicker than the depth it sits in', () => {
-    expect(validateCarcaseParams({ ...base, backThickness: 600 })).toContain(
-      'backThickness must be less than depth',
+    expect(validateCarcaseParams({ ...base, backMaterial: 'Absurd 600' })).toContain(
+      'the back material is thicker than the cabinet is deep',
     )
   })
 
@@ -231,7 +260,7 @@ describe('validateCarcaseParams', () => {
   // sitting on the toe kick and the top panel) is the one whose height three parameters conspire
   // to consume. `toeKickHeight < height` alone does not protect it.
   it('rejects a toe kick that leaves no interior bay', () => {
-    const bay = (p: CarcaseParams) => p.height - p.toeKickHeight - 2 * p.thickness
+    const bay = (p: CarcaseParams) => p.height - p.toeKickHeight - 2 * T
     expect(bay(base)).toBeGreaterThan(0)
 
     const squashed: CarcaseParams = { ...base, height: 130, toeKickHeight: 100 }
@@ -253,7 +282,7 @@ describe('validateCarcaseParams', () => {
   // rail alone would run out of depth — 70 + 18 = 88 clears a 100 deep cabinet, 70 + 36 does not.
   it('rejects a ladder setback that inverts the side rails', () => {
     const shallow: CarcaseParams = { ...base, baseMode: 'ladder', depth: 100, toeKickSetback: 70 }
-    expect(shallow.toeKickSetback + shallow.thickness).toBeLessThan(shallow.depth)
+    expect(shallow.toeKickSetback + T).toBeLessThan(shallow.depth)
     expect(validateCarcaseParams(shallow)).toEqual([
       'toeKickSetback leaves no room for the ladder side rails',
     ])
@@ -293,7 +322,7 @@ describe('validateCarcaseParams', () => {
         depth: 600,
         section: sec([0.33, 0.66], 3),
       },
-      'open-backed': { ...base, backMode: 'none', depth: 300, backThickness: 12 },
+      'open-backed': { ...base, backMode: 'none', depth: 300 },
       'on legs': { ...base, baseMode: 'legs', toeKickHeight: 120, hasTop: false },
     }
     for (const [name, params] of Object.entries(cabinets)) {
@@ -367,8 +396,8 @@ describe('carcaseRoles', () => {
     const bottom = roleBox(roles, 'bottom')
     const kick = roleBox(roles, 'toe-kick')
     // Not 18..582: each end runs the dado depth past the side's inner face, into its groove.
-    expect(bottom.min.x).toBeCloseTo(18 - dadoDepthFor(base.thickness), 9)
-    expect(bottom.max.x).toBeCloseTo(582 + dadoDepthFor(base.thickness), 9)
+    expect(bottom.min.x).toBeCloseTo(18 - dadoDepthFor(T), 9)
+    expect(bottom.max.x).toBeCloseTo(582 + dadoDepthFor(T), 9)
     expect(bottom.min.z).toBeCloseTo(100, 9)
     expect(bottom.max.z).toBeCloseTo(118, 9)
     expect(kick.max.z).toBeCloseTo(bottom.min.z, 9)
@@ -381,8 +410,8 @@ describe('carcaseRoles', () => {
     expect(back.min.y).toBeCloseTo(548, 9)
     expect(back.max.y).toBeCloseTo(560, 9)
     // Not 118..702: the bay ends are dado floors inside the bottom and the top.
-    expect(back.min.z).toBeCloseTo(118 - dadoDepthFor(base.thickness), 9)
-    expect(back.max.z).toBeCloseTo(702 + dadoDepthFor(base.thickness), 9)
+    expect(back.min.z).toBeCloseTo(118 - dadoDepthFor(T), 9)
+    expect(back.max.z).toBeCloseTo(702 + dadoDepthFor(T), 9)
   })
 
   it('stops shelves short of a captured back', () => {
@@ -479,7 +508,7 @@ describe('carcaseRoles', () => {
     expect(mid.max.y).toBeCloseTo(left.max.y, 9)
     expect(mid.min.z).toBeCloseTo(left.min.z, 9)
     expect(mid.max.z).toBeCloseTo(left.max.z, 9)
-    expect(mid.max.x - mid.min.x).toBeCloseTo(base.thickness, 9)
+    expect(mid.max.x - mid.min.x).toBeCloseTo(T, 9)
     expect((mid.min.x + mid.max.x) / 2).toBeCloseTo(600, 9)
   })
 
@@ -508,7 +537,7 @@ describe('carcaseRoles', () => {
       const mids = uprights.length - 2
       if (mids > 0) {
         expect(
-          (width - 2 * base.thickness - (mids - 1) * base.thickness) / mids,
+          (width - 2 * T - (mids - 1) * T) / mids,
           `${width}mm uses ${mids} mid rails where ${mids - 1} would do`,
         ).toBeGreaterThan(600)
       }
@@ -525,7 +554,7 @@ describe('carcaseRoles', () => {
     const left = roleBox(roles, shelfRole(p, 0, 0))
     const right = roleBox(roles, shelfRole(p, 1, 0))
     // Each shelf end stops a dado depth *inside* the panel that houses it, not on its face.
-    const depth = dadoDepthFor(base.thickness)
+    const depth = dadoDepthFor(T)
     expect(left.min.x).toBeCloseTo(18 - depth, 9)
     expect(left.max.x).toBeCloseTo(divider.min.x + depth, 9)
     expect(right.min.x).toBeCloseTo(divider.max.x - depth, 9)
@@ -574,8 +603,8 @@ describe('carcaseRoles', () => {
     expect(d.min.x).toBeCloseTo(291, 9)
     expect(d.max.x).toBeCloseTo(309, 9)
     // Housed in the bottom and the top, so it runs a dado depth into each.
-    expect(d.min.z).toBeCloseTo(118 - dadoDepthFor(base.thickness), 9)
-    expect(d.max.z).toBeCloseTo(702 + dadoDepthFor(base.thickness), 9)
+    expect(d.min.z).toBeCloseTo(118 - dadoDepthFor(T), 9)
+    expect(d.max.z).toBeCloseTo(702 + dadoDepthFor(T), 9)
     expect(d.max.y).toBeCloseTo(548, 9)
   })
 
@@ -752,7 +781,7 @@ describe('carcaseCuts', () => {
   })
 
   it('removes exactly the toe recess from each side panel in carcase space', () => {
-    const { width: W, thickness: T, toeKickSetback: KS, toeKickHeight: KH } = base
+    const { width: W, toeKickSetback: KS, toeKickHeight: KH } = base
     for (const [role, x0, x1] of [
       ['left-side', 0, T],
       ['right-side', W - T, W],
@@ -798,9 +827,8 @@ describe('carcaseCuts', () => {
 })
 
 describe('parameterForRole', () => {
-  it('maps a side panel length to depth and thickness to thickness', () => {
+  it('maps a side panel length to depth', () => {
     expect(parameterForRole('left-side', 'length', base)).toBe('depth')
-    expect(parameterForRole('left-side', 'thickness', base)).toBe('thickness')
     expect(parameterForRole('right-side', 'length', base)).toBe('depth')
   })
 
@@ -811,8 +839,25 @@ describe('parameterForRole', () => {
     expect(parameterForRole('left-side', 'width', { ...base, baseMode: 'ladder' })).toBeNull()
   })
 
-  it('maps a back panel thickness to backThickness, not thickness', () => {
-    expect(parameterForRole('back', 'thickness', base)).toBe('backThickness')
+  // Was: a back panel's thickness maps to `backThickness`, a side's to `thickness`. Neither
+  // parameter exists any more — thickness comes from the panel's material — so there is nothing
+  // for an edit to be pushed into, on any role. The route for that edit is a material choice or a
+  // per-part override, not a cabinet parameter.
+  it('maps no dimension of any role to a thickness parameter', () => {
+    const divided = { ...base, section: sec([0.5], 1) }
+    for (const role of [
+      'left-side',
+      'right-side',
+      'bottom',
+      'top',
+      'back',
+      'toe-kick',
+      partitionRole(divided),
+      shelfRole(divided, 0, 0),
+      shelfRole(divided, 1, 0),
+    ]) {
+      expect(parameterForRole(role, 'thickness', base), role).toBeNull()
+    }
   })
 
   it('maps top and bottom width to depth', () => {
@@ -825,12 +870,10 @@ describe('parameterForRole', () => {
     expect(parameterForRole('bottom', 'length', base)).toBeNull()
   })
 
-  it('maps every division thickness to thickness, partition or shelf', () => {
+  it('maps no division dimension to a parameter: the tree decides what a division spans', () => {
     const divided = { ...base, section: sec([0.5], 1) }
-    expect(parameterForRole(partitionRole(divided), 'thickness', base)).toBe('thickness')
-    expect(parameterForRole(shelfRole(divided, 0, 0), 'thickness', base)).toBe('thickness')
-    expect(parameterForRole(shelfRole(divided, 1, 0), 'thickness', base)).toBe('thickness')
     expect(parameterForRole(shelfRole(divided, 0, 0), 'width', base)).toBeNull()
+    expect(parameterForRole(shelfRole(divided, 0, 0), 'length', base)).toBeNull()
   })
 
   it('returns null for an unknown or absent role', () => {
@@ -900,7 +943,7 @@ function sceneFor(params: CarcaseParams): Scene {
   }
   return regenerateComponents({
     parts: [],
-    materials: {},
+    materials: MATERIALS,
     hardware: [],
     joints: [],
     components: [cabinet],
@@ -1505,9 +1548,13 @@ describe('carcaseHoleArrays', () => {
   })
 
   it('drills no deeper than the panel is thick', () => {
-    for (const p of [base, { ...base, thickness: 12 }, { ...base, thickness: 25 }]) {
+    for (const p of [
+      base,
+      { ...base, carcaseMaterial: '12mm MDF' },
+      { ...base, carcaseMaterial: '25mm Ply' },
+    ]) {
       for (const c of carcaseHoleArrays(p, 'left-side')) {
-        expect(c.depth).toBeLessThan(p.thickness)
+        expect(c.depth).toBeLessThan(tOf(p)('left-side'))
         expect(c.depth).toBeGreaterThan(0)
       }
     }

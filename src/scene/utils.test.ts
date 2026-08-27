@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { BoardPart, BoxCut, CutDef, CylinderPart, HoleArrayCut, Part } from './types'
+import type { BoardPart, BoxCut, CutDef, CylinderPart, HoleArrayCut, Part, Scene } from './types'
 import { shapeKey } from './utils'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
+import { regenerateComponents } from './regenerateComponents'
 
 const board: BoardPart = {
   kind: 'board',
@@ -349,5 +351,57 @@ describe('shapeKey with hole arrays', () => {
     const a = shapeKey({ ...board, cuts: [holeArray] })
     const b = shapeKey({ ...board, cuts: [{ ...holeArray, label: 'Shelf pins R' }] })
     expect(a).toBe(b)
+  })
+})
+
+// Thickness has two sources now — the material a panel names, and an override on the part — and
+// only one of them reaches the geometry worker: the resolved number regeneration writes onto the
+// part. `shapeKey` reads that, so a material getting thicker has to change the key of every panel
+// made of it, or the cabinet would keep the geometry it was built with.
+describe('shapeKey against a material that changes thickness', () => {
+  const cabinetScene = (materials: Scene['materials']): Scene =>
+    regenerateComponents({
+      parts: [],
+      materials,
+      hardware: [],
+      joints: [],
+      components: [
+        {
+          kind: 'carcase',
+          id: 'cmp_1',
+          label: 'Base 600',
+          parentId: null,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          visible: true,
+          params: CARCASE_PRESETS[0].params,
+        },
+      ],
+    })
+
+  // Two scenes identical but for one material's thickness.
+  const thin = cabinetScene({ ...PRESET_MATERIALS })
+  const thick = cabinetScene({ ...PRESET_MATERIALS, '18mm Ply': { thickness: 25 } })
+  const keyOf = (scene: Scene, role: string) => shapeKey(scene.parts.find((p) => p.role === role)!)
+  const sideOf = (scene: Scene) => scene.parts.find((p) => p.role === 'left-side')!
+
+  it('gives every panel made of that material a different key', () => {
+    for (const role of ['left-side', 'right-side', 'bottom', 'top']) {
+      expect(keyOf(thick, role), role).not.toBe(keyOf(thin, role))
+    }
+  })
+
+  it('reads the resolved thickness the part carries, which is why the key is right', () => {
+    const before = sideOf(thin)
+    const after = sideOf(thick)
+    expect(before.kind === 'board' && before.thickness).toBe(18)
+    expect(after.kind === 'board' && after.thickness).toBe(25)
+  })
+
+  // The back's own material did not move, but the opening it fills did: a panel between 25 mm
+  // sides is narrower. Its key has to follow the panel, not the material.
+  it('follows the panel, not the material, where a thicker side reshapes a panel of another', () => {
+    expect(keyOf(thick, 'back')).not.toBe(keyOf(thin, 'back'))
   })
 })

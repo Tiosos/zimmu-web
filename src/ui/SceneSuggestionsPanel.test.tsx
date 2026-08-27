@@ -3,7 +3,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import type { DadoJoint, PartId, Scene } from '../scene/types'
 import type { JointSuggestion } from '../scene/suggestJoints'
 import { SceneSuggestionsPanel } from './SceneSuggestionsPanel'
-import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { regenerateComponents } from '../scene/regenerateComponents'
 
 afterEach(cleanup)
@@ -236,7 +236,7 @@ test('no-offer pairs live in their own section, closed by default', () => {
 function cabinetScene(): Scene {
   return regenerateComponents({
     parts: [],
-    materials: {},
+    materials: { ...PRESET_MATERIALS },
     hardware: [],
     joints: [],
     components: [

@@ -4,8 +4,9 @@ import type { BoardPart, BoxCut, CarcaseComponent, CarcaseParams, MitreCut } fro
 import { mitreFaceOutline } from '../geom/mitre'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { reconcileJoints } from '../scene/reconcileJoints'
-import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { carcaseBoxes } from '../scene/carcaseRoles'
+import { roleThicknessFor } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
 
 function board(over: Partial<BoardPart> = {}): BoardPart {
@@ -147,7 +148,7 @@ describe('occupancyMask — against a real cabinet, not a fixture', () => {
     const scene = reconcileJoints(
       regenerateComponents({
         parts: [],
-        materials: {},
+        materials: PRESET_MATERIALS,
         hardware: [],
         joints: [],
         components: [cabinet],
@@ -336,7 +337,7 @@ function sweepBoards(): BoardPart[] {
     const scene = reconcileJoints(
       regenerateComponents({
         parts: [],
-        materials: {},
+        materials: PRESET_MATERIALS,
         hardware: [],
         joints: [],
         components: [
@@ -356,7 +357,12 @@ function sweepBoards(): BoardPart[] {
     )
     // A division's role key carries the uuid of the section it splits, so its family is the kind of
     // panel it is: thickness across the cabinet is a partition, thickness up it is a shelf.
-    const axisOf = new Map(carcaseBoxes(params).map((b) => [b.role, b.thicknessAxis]))
+    const axisOf = new Map(
+      carcaseBoxes(params, roleThicknessFor(params, PRESET_MATERIALS, new Map())).map((b) => [
+        b.role,
+        b.thicknessAxis,
+      ]),
+    )
     for (const p of scene.parts) {
       if (p.kind !== 'board' || p.role === undefined) continue
       const family = p.role.startsWith('division-')

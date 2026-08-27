@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { buildDrawingSheets } from './drawing'
 import type { DrawingSheet } from './drawing'
 import { regenerateComponents } from '../scene/regenerateComponents'
-import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import type { BoardPart, Component, CylinderPart, DowelCut } from '../scene/types'
 
 function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
@@ -376,7 +376,7 @@ function pinnedSide(): BoardPart {
   }
   const scene = regenerateComponents({
     parts: [],
-    materials: {},
+    materials: { ...PRESET_MATERIALS },
     hardware: [],
     joints: [],
     components: [carcase],
@@ -498,7 +498,7 @@ describe('buildDrawingSheets — a cut rectangle sits on the board it is cut fro
     }
     const scene = regenerateComponents({
       parts: [],
-      materials: {},
+      materials: { ...PRESET_MATERIALS },
       hardware: [],
       joints: [],
       components: [cabinet],

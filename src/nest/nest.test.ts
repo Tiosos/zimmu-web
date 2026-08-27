@@ -5,7 +5,7 @@ import { maskArea, occupancyMask } from './mask'
 import type { Mask } from './mask'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { reconcileJoints } from '../scene/reconcileJoints'
-import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import type { BoardPart, CarcaseComponent, CarcaseParams, Grain, Scene } from '../scene/types'
 
 function boardsFor(params: CarcaseParams, id = 'cmp_1'): BoardPart[] {
@@ -20,7 +20,13 @@ function boardsFor(params: CarcaseParams, id = 'cmp_1'): BoardPart[] {
     visible: true,
     params,
   }
-  const scene: Scene = { parts: [], materials: {}, hardware: [], joints: [], components: [cabinet] }
+  const scene: Scene = {
+    parts: [],
+    materials: { ...PRESET_MATERIALS },
+    hardware: [],
+    joints: [],
+    components: [cabinet],
+  }
   return reconcileJoints(regenerateComponents(scene)).parts.filter(
     (p): p is BoardPart => p.kind === 'board',
   )

@@ -39,8 +39,9 @@ vi.stubGlobal(
 import { useScene, buildSpecForPart } from './useScene'
 import { resolveWorldMatrix } from '../geom/transform'
 import { componentsById } from './componentTree'
-import { CARCASE_PRESETS } from './carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { carcaseRoles } from './carcaseRoles'
+import { roleThicknessFor } from './resolveThickness'
 import { jointInvolves } from './jointInvolves'
 import { FILE_FORMAT_VERSION, parseFile } from './useFile'
 
@@ -1261,10 +1262,26 @@ describe('useScene', () => {
     expect(Array.isArray(specs[0].cuts)).toBe(true)
   })
 
-  it('starts with materials: {} and hardware: []', () => {
+  // Was `materials: {}`. A carcase preset names its materials instead of carrying a thickness, so
+  // a scene seeded with nothing could not resolve a single panel of the first cabinet dropped into
+  // it: the seed is what makes a preset usable in a brand new file.
+  it('starts seeded with the preset materials, and hardware: []', () => {
     const { result } = renderHook(() => useScene())
-    expect(result.current.scene.materials).toEqual({})
+    expect(result.current.scene.materials).toEqual(PRESET_MATERIALS)
     expect(result.current.scene.hardware).toEqual([])
+  })
+
+  it('every carcase preset dropped into a fresh scene emits its parts', () => {
+    for (const preset of CARCASE_PRESETS) {
+      const { result, unmount } = renderHook(() => useScene())
+      act(() => result.current.onAddCarcase(preset))
+      const component = result.current.scene.components[0]
+      expect(
+        result.current.scene.parts.filter((p) => p.parentId === component.id && p.driven).length,
+        preset.name,
+      ).toBeGreaterThan(0)
+      unmount()
+    }
   })
 
   it('onAdd preserves existing materials and hardware', async () => {
@@ -1292,7 +1309,10 @@ describe('useScene', () => {
     act(() => {
       result.current.onAdd('board')
     })
-    expect(result.current.scene.materials).toEqual({ Plywood: { costPerM2: 50 } })
+    expect(result.current.scene.materials).toEqual({
+      ...PRESET_MATERIALS,
+      Plywood: { costPerM2: 50 },
+    })
     expect(result.current.scene.hardware).toHaveLength(1)
   })
 
@@ -1302,7 +1322,10 @@ describe('useScene', () => {
     act(() => {
       result.current.onUpdateMaterial('Plywood', { costPerM2: 40 })
     })
-    expect(result.current.scene.materials).toEqual({ Plywood: { costPerM2: 40 } })
+    expect(result.current.scene.materials).toEqual({
+      ...PRESET_MATERIALS,
+      Plywood: { costPerM2: 40 },
+    })
   })
 
   it('onUpdateMaterial undo restores previous materials', async () => {
@@ -1314,7 +1337,7 @@ describe('useScene', () => {
     act(() => {
       result.current.undo()
     })
-    expect(result.current.scene.materials).toEqual({})
+    expect(result.current.scene.materials).toEqual(PRESET_MATERIALS)
   })
 
   it('onUpdateMaterial redo reapplies rate after undo', async () => {
@@ -1329,7 +1352,10 @@ describe('useScene', () => {
     act(() => {
       result.current.redo()
     })
-    expect(result.current.scene.materials).toEqual({ Plywood: { costPerM2: 40 } })
+    expect(result.current.scene.materials).toEqual({
+      ...PRESET_MATERIALS,
+      Plywood: { costPerM2: 40 },
+    })
   })
 
   it('onUpdateMaterial coalesces rapid calls into one undo entry', async () => {
@@ -1347,7 +1373,7 @@ describe('useScene', () => {
     act(() => {
       result.current.undo()
     })
-    expect(result.current.scene.materials).toEqual({})
+    expect(result.current.scene.materials).toEqual(PRESET_MATERIALS)
   })
 
   it('onUpdateHardware sets hardware items', async () => {
@@ -2345,7 +2371,9 @@ describe('carcase generation', () => {
     expect(component.label).toBe('Base 600')
 
     const driven = drivenPartsOf(result.current.scene, component.id)
-    expect(driven.length).toBe(carcaseRoles(base.params).length)
+    expect(driven.length).toBe(
+      carcaseRoles(base.params, roleThicknessFor(base.params, PRESET_MATERIALS, new Map())).length,
+    )
     expect(driven.map((p) => p.role)).toContain('left-side')
     expect(driven.every((p) => p.parentId === component.id)).toBe(true)
   })
@@ -2581,7 +2609,9 @@ describe('detach', () => {
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
     const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
     expect(result.current.parameterFor(side.id, 'length')).toBe('depth')
-    expect(result.current.parameterFor(side.id, 'thickness')).toBe('thickness')
+    // Thickness is the panel's material now, not a cabinet parameter, so there is nothing to push
+    // an edit into — the panel offers a material or an override instead.
+    expect(result.current.parameterFor(side.id, 'thickness')).toBeNull()
 
     const bottom = result.current.scene.parts.find((p) => p.role === 'bottom')!
     expect(result.current.parameterFor(bottom.id, 'length')).toBeNull()

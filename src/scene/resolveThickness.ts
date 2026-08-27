@@ -1,4 +1,4 @@
-import type { MaterialDef } from './types'
+import type { ComponentId, MaterialDef, Part } from './types'
 
 export interface PartOverrides {
   thickness?: number
@@ -28,11 +28,36 @@ export function roleThicknessFor(
   return (role) => {
     const own = overrides.get(role)
     if (own?.thickness !== undefined) return own.thickness
-    const name = own?.material ?? (role === 'back' ? slots.backMaterial : slots.carcaseMaterial)
+    const name = materialForRole(slots, overrides, role)
     const thickness = materials[name]?.thickness
     // Deliberately fatal. A zero here would collapse every panel the layout derives from it, and
     // the symptom would appear nowhere near the cause.
     if (thickness === undefined) throw new Error(`zimmu: material "${name}" has no thickness`)
     return thickness
   }
+}
+
+// Which material a role is made of: its own override, else the slot its role belongs to. The one
+// place the back's slot is told apart from every other panel's — the thickness rule above reads it,
+// and so does the regeneration that writes the name onto the part.
+export function materialForRole(
+  slots: MaterialSlots,
+  overrides: Map<string, PartOverrides>,
+  role: string,
+): string {
+  return (
+    overrides.get(role)?.material ?? (role === 'back' ? slots.backMaterial : slots.carcaseMaterial)
+  )
+}
+
+// The overrides a component's own parts carry, keyed by role. Both the generator and anything that
+// re-derives a carcase's layout have to resolve against the same map, so it is read out of the
+// parts in one place rather than assembled at each call site.
+export function overridesOf(parts: Part[], componentId: ComponentId): Map<string, PartOverrides> {
+  const overrides = new Map<string, PartOverrides>()
+  for (const p of parts) {
+    if (p.kind !== 'board' || p.parentId !== componentId) continue
+    if (p.role !== undefined && p.overrides !== undefined) overrides.set(p.role, p.overrides)
+  }
+  return overrides
 }

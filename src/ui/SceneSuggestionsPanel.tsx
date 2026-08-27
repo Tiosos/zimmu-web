@@ -158,8 +158,14 @@ export function SceneSuggestionsPanel({
   const [openGroups, setOpenGroups] = useState<Record<ComponentId, boolean>>({})
   const { rows, groups, unresolved, contact, jointedCount, actionableTotal } = useMemo(
     () =>
-      buildJointChecklist(scene.parts, scene.joints, suggestions, componentsById(scene.components)),
-    [scene.parts, scene.joints, scene.components, suggestions],
+      buildJointChecklist(
+        scene.parts,
+        scene.joints,
+        suggestions,
+        componentsById(scene.components),
+        scene.materials,
+      ),
+    [scene.parts, scene.joints, scene.components, scene.materials, suggestions],
   )
   if (rows.length === 0 && groups.length === 0 && unresolved.length === 0 && contact.length === 0) {
     return null

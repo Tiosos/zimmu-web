@@ -4,12 +4,14 @@ import type {
   Component,
   ComponentId,
   Joint,
+  MaterialDef,
   Part,
   Scene,
 } from './types'
 import { carcaseCuts, carcaseHoleArrays, carcaseJoints, carcaseRoles } from './carcaseRoles'
 import { componentsById } from './componentTree'
 import { defaultDadoJoint, defaultFingerJoint } from './defaultJoint'
+import { materialForRole, overridesOf, roleThicknessFor } from './resolveThickness'
 import { PART_COLORS } from './palette'
 
 function regenerateOne(
@@ -17,17 +19,25 @@ function regenerateOne(
   parts: Part[],
   joints: Joint[],
   byId: Map<ComponentId, Component>,
+  materials: Record<string, MaterialDef>,
 ): { parts: Part[]; joints: Joint[] } {
-  const roles = carcaseRoles(component.params)
-  // Invalid parameters produce no roles. Preserve the last good parts rather than emptying the
-  // cabinet mid-keystroke — the same contract deriveJoint has when it returns null.
-  if (roles.length === 0) return { parts, joints }
-
   const mine = parts.filter((p) => p.parentId === component.id)
   const others = parts.filter((p) => p.parentId !== component.id)
   // Built from this component's parts only: a role key is unique per carcase, not per scene.
   const byRole = new Map<string, Part>()
   for (const p of mine) if (p.role !== undefined) byRole.set(p.role, p)
+
+  // Collected before the layout runs, because the layout is what has to see them: a 25 mm override
+  // on a side is what makes the bottom come out at W − 50. An override applied to the finished
+  // panel instead would leave every panel around it the wrong length.
+  const overrides = overridesOf(mine, component.id)
+  const thicknessOf = roleThicknessFor(component.params, materials, overrides)
+
+  const roles = carcaseRoles(component.params, thicknessOf)
+  // Invalid parameters produce no roles. Preserve the last good parts rather than emptying the
+  // cabinet mid-keystroke — the same contract deriveJoint has when it returns null.
+  if (roles.length === 0) return { parts, joints }
+
   const wanted = new Set(roles.map((r) => r.role))
 
   const kept: Part[] = []
@@ -44,8 +54,8 @@ function regenerateOne(
     if (existing !== undefined && !existing.driven) return existing
 
     const componentCuts = [
-      ...carcaseCuts(component.params, r.role),
-      ...carcaseHoleArrays(component.params, r.role),
+      ...carcaseCuts(component.params, thicknessOf, r.role),
+      ...carcaseHoleArrays(component.params, thicknessOf, r.role),
     ].map((c) => ({ ...c, sourceComponentId: component.id }))
     const existingCuts = existing?.kind === 'board' ? existing.cuts : []
 
@@ -59,7 +69,7 @@ function regenerateOne(
       // Not `existing?.grain ?? r.grain`: a driven part's grain belongs to its cabinet, exactly as
       // its material does. A detached part never reaches this line.
       grain: r.grain,
-      material: component.params.material,
+      material: materialForRole(component.params, overrides, r.role),
       color: existing?.color ?? PART_COLORS[i % PART_COLORS.length],
       position: r.panel.position,
       rotation: r.panel.rotation,
@@ -79,6 +89,9 @@ function regenerateOne(
       parentId: component.id,
       driven: true,
       role: r.role,
+      // Carried across the regeneration that read it: an override the pass consumed but did not
+      // write back would last exactly one edit.
+      overrides: existing?.kind === 'board' ? existing.overrides : undefined,
     }
     return board
   })
@@ -90,22 +103,24 @@ function regenerateOne(
     if (p.kind === 'board') seats.set(roles[i].role, { part: p, label: roles[i].label })
   })
 
-  const emitted = carcaseJoints(component.params, component.id).flatMap((d): Joint[] => {
-    const housing = seats.get(d.housingRole)
-    const housed = seats.get(d.housedRole)
-    if (housing === undefined || housed === undefined) return []
+  const emitted = carcaseJoints(component.params, thicknessOf, component.id).flatMap(
+    (d): Joint[] => {
+      const housing = seats.get(d.housingRole)
+      const housed = seats.get(d.housedRole)
+      if (housing === undefined || housed === undefined) return []
 
-    // Derived from the component and the role pair, so a regeneration reproduces the same id
-    // without looking anything up.
-    const id = `joint_${component.id}_${d.housingRole}__${d.housedRole}`
-    const kindLabel = d.kind === 'dado' ? 'Dado' : 'Finger joint'
-    const label = `${kindLabel} — ${housing.label} / ${housed.label}`
-    const joint =
-      d.kind === 'dado'
-        ? defaultDadoJoint(housing.part, housed.part, d.housingFace, d.housedEnd, id, label, byId)
-        : defaultFingerJoint(housing.part, housed.part, d.housingFace, d.housedEnd, id, label)
-    return [{ ...joint, sourceComponentId: component.id, driven: true }]
-  })
+      // Derived from the component and the role pair, so a regeneration reproduces the same id
+      // without looking anything up.
+      const id = `joint_${component.id}_${d.housingRole}__${d.housedRole}`
+      const kindLabel = d.kind === 'dado' ? 'Dado' : 'Finger joint'
+      const label = `${kindLabel} — ${housing.label} / ${housed.label}`
+      const joint =
+        d.kind === 'dado'
+          ? defaultDadoJoint(housing.part, housed.part, d.housingFace, d.housedEnd, id, label, byId)
+          : defaultFingerJoint(housing.part, housed.part, d.housingFace, d.housedEnd, id, label)
+      return [{ ...joint, sourceComponentId: component.id, driven: true }]
+    },
+  )
 
   return {
     parts: [...others, ...kept, ...generated],
@@ -123,7 +138,7 @@ export function regenerateComponents(scene: Scene): Scene {
   let parts = scene.parts
   let joints = scene.joints
   for (const c of carcases) {
-    const next = regenerateOne(c, parts, joints, byId)
+    const next = regenerateOne(c, parts, joints, byId, scene.materials)
     parts = next.parts
     joints = next.joints
   }

@@ -206,3 +206,58 @@ one thickness per side today and must spend each panel's own tomorrow, and `reso
 `thicknessOf` callback, which is a function rather than a number for exactly that reason. **A
 symmetric fixture will not catch a mistake in either** — Stage B needs a case with different
 materials on the left and right sides.
+
+### 2026-08-27 — Stage B, group B: the switch to per-panel thickness
+
+Decisions that are not in the plan, or that deviate from it.
+
+- **Every generator entry point takes the resolver, `thicknessOf` immediately after `p`.**
+  `carcaseBoxes`, `carcaseRoles`, `carcaseJoints`, `carcaseContactPairs`, `carcaseCuts`,
+  `carcaseHoleArrays`, `validateCarcaseParams` and `openingRect` all needed it — the first four
+  because they call `validateCarcaseParams`, and validation itself now reads resolved thicknesses.
+  `floorZ` did **not** get one, unlike the snippet in the plan: it reads `toeKickHeight` only, and
+  `noUnusedParameters` rejects a parameter added for symmetry.
+
+- **`ladderMidRails` divides the frame's own clear width, not the carcase's.** The plan reads the
+  old `p.width - 2 * p.thickness` as the two *side panels*. In the box table the mid rails are laid
+  out between `ladder-left` and `ladder-right`, so the span has to be measured from those two, or
+  the count and the placement disagree the moment a rail differs from a side. Identical for any
+  cabinet whose ladder rails and sides share a material, which is every cabinet the app can make.
+
+- **`validateCarcaseParams` is total across a throw.** `roleThicknessFor` is deliberately fatal, and
+  the parameter panel validates on every keystroke, so the validator wraps every thickness read and
+  turns a failure into `carcaseMaterial "X" has no thickness`. It also probes the roles no rule
+  reads — toe kick, ladder rails — so an unusable material fails there, where it is a message,
+  rather than inside `carcaseBoxes`, where it would throw in front of a user.
+
+- **Two error messages changed meaning, and one mapping went away.** `backThickness must be less
+  than depth` became `the back material is thicker than the cabinet is deep`; the parameter it named
+  no longer exists. `parameterForRole` returns `null` for every thickness, because there is no
+  cabinet-wide number to push a thickness edit into any more — `EditPanel` offers only "detach"
+  until group D adds "just this part".
+
+- **A carcase names a material per slot, so its back is no longer nested with its sides.** The
+  Base 600 e2e nest went from 7 parts at 72.83% on one sheet to 6 at 61.30%, with the 12 mm MDF back
+  absent from the yield report because no stock is set for it. That is the intended behaviour, not a
+  regression: `sheets-tab.spec.ts` carried the old premise in a comment and in two label lists.
+
+- **`useFile` fills the slot names only.** A pre-v14 carcase gets
+  `carcaseMaterial: legacy.material ?? '18mm Ply'` and `backMaterial: '12mm MDF'`; its own
+  `material`, `thickness` and `backThickness` ride along on the params object, unread, for the v14
+  migration to pick up. Until that lands, a real v13 file's materials carry no thickness, so its
+  carcase fails validation and keeps the parts the file already holds rather than regenerating them
+  at the wrong size. A v13 file whose back was not 12 mm is exactly the case group C's collision
+  test has to cover.
+
+- **The seed is the trap the plan warned about.** `PRESET_MATERIALS` lives beside the presets that
+  name it, and is seeded into `useScene`'s initial scene and into `useFile`'s `newFile` envelope
+  **and** its saved snapshot — a new file whose baseline differed from its own scene would open
+  dirty.
+
+- **Mutation check on `openingRect`** (both `x0` and `x1` reading `thicknessOf('left-side')`): all
+  96 box and 96 joint equivalence cases stayed green, and the asymmetric test failed with
+  `expected 1375 to be 1382`. The bottom-panel assertion the plan sketched does **not** catch it —
+  the shell panels are placed from the box table, and only what is placed inside the cabinet reads
+  `openingRect`. The case that bites is a divided cabinet's shelf, and it now sits in
+  `thicknessEquivalence.test.ts` beside the bottom-panel one.
+

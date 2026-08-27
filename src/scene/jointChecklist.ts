@@ -1,10 +1,11 @@
-import type { BoardPart, Component, ComponentId, Joint, Part, PartId } from './types'
+import type { BoardPart, Component, ComponentId, Joint, MaterialDef, Part, PartId } from './types'
 import type { JointSuggestion } from './suggestJoints'
 import { boardsTouch, aabbCenterDist } from './suggestJoints'
 import { obbOverlap } from './obbOverlap'
 import { groupByPair } from './groupSuggestions'
 import { ancestorsOf, isNodeVisible } from './componentTree'
 import { carcaseContactPairs } from './carcaseRoles'
+import { overridesOf, roleThicknessFor } from './resolveThickness'
 
 // Two runaway guards, sized to their lists rather than sharing one number. Actionable rows (jointed
 // + open) are all real decisions, so their cap is generous — it only exists to bound a pathological
@@ -84,6 +85,7 @@ export function buildJointChecklist(
   joints: Joint[],
   suggestions: JointSuggestion[],
   byId: Map<ComponentId, Component>,
+  materials: Record<string, MaterialDef>,
 ): JointChecklist {
   // The same filter suggestJointsForScene uses. Any divergence would produce rows for pairs the
   // engine never considered.
@@ -107,7 +109,10 @@ export function buildJointChecklist(
     if (parent === undefined || parent.kind !== 'carcase') return false
     let keys = contactKeys.get(parent.id)
     if (keys === undefined) {
-      keys = new Set(carcaseContactPairs(parent.params).map(([x, y]) => pairKey(x, y)))
+      // Resolved the same way the generator resolved it, overrides included: they decide how many
+      // rails a ladder base has, and that decides which role pairs exist to declare a contact.
+      const thicknessOf = roleThicknessFor(parent.params, materials, overridesOf(parts, parent.id))
+      keys = new Set(carcaseContactPairs(parent.params, thicknessOf).map(([x, y]) => pairKey(x, y)))
       contactKeys.set(parent.id, keys)
     }
     return keys.has(pairKey(a.role, b.role))

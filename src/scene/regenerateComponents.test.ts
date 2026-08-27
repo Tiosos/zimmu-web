@@ -1,9 +1,11 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { regenerateComponents } from './regenerateComponents'
 import { reconcileJoints } from './reconcileJoints'
-import { CARCASE_PRESETS } from './carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { carcaseBoxes } from './carcaseRoles'
 import { legacyToSection } from './migrateSections'
+import { dadoDepthFor } from '../geom/dado'
+import { roleThicknessFor, type PartOverrides, type RoleThickness } from './resolveThickness'
 import type {
   BoardPart,
   BoxCut,
@@ -21,11 +23,10 @@ const params: CarcaseParams = {
   width: 600,
   height: 720,
   depth: 560,
-  material: '18mm Ply',
-  thickness: 18,
+  carcaseMaterial: '18mm Ply',
+  backMaterial: '12mm MDF',
   hasTop: true,
   backMode: 'captured',
-  backThickness: 12,
   baseMode: 'none',
   toeKickHeight: 100,
   toeKickSetback: 60,
@@ -44,7 +45,7 @@ const params: CarcaseParams = {
 // A division's role key carries the uuid of the section it splits, so tests name one by what it is
 // and look the key up.
 const divisionRoles = (p: CarcaseParams, thicknessAxis: 'x' | 'z') =>
-  carcaseBoxes(p)
+  carcaseBoxes(p, roleThicknessFor(p, PRESET_MATERIALS, new Map()))
     .filter((b) => b.role.startsWith('division-') && b.thicknessAxis === thicknessAxis)
     .map((b) => b.role)
 
@@ -63,7 +64,15 @@ const cabinet: CarcaseComponent = {
   params,
 }
 
-const empty: Scene = { parts: [], materials: {}, hardware: [], joints: [], components: [cabinet] }
+// Seeded exactly as a new scene is: the cabinet names its materials, and a scene without them
+// resolves no panel at all.
+const empty: Scene = {
+  parts: [],
+  materials: { ...PRESET_MATERIALS },
+  hardware: [],
+  joints: [],
+  components: [cabinet],
+}
 
 function partsOf(s: Scene): Part[] {
   return s.parts.filter((p) => p.parentId === 'cmp_1')
@@ -108,6 +117,68 @@ describe('grain', () => {
     const reclaimed = after.parts.find((p) => p.role === 'left-side')!
     expect(reclaimed.id).not.toBe(side.id)
     expect(reclaimed.kind === 'board' && reclaimed.grain).toBe('width')
+  })
+})
+
+// A driven part the user has taken one dimension of. The point of the stage: the part keeps
+// following width, depth and joinery, and the layout resolves against the override rather than
+// applying it afterwards.
+describe('a part overriding its own thickness', () => {
+  const withOverride = (s: Scene, role: string, overrides: PartOverrides): Scene => ({
+    ...s,
+    parts: s.parts.map((p) => (p.role === role ? { ...p, overrides } : p)),
+  })
+  const boardOf = (s: Scene, role: string): BoardPart => {
+    const part = s.parts.find((p) => p.role === role)
+    if (part === undefined || part.kind !== 'board') throw new Error(`no board for ${role}`)
+    return part
+  }
+
+  it('is written onto the part it belongs to, and nowhere else', () => {
+    const overridden = withOverride(regenerateComponents(empty), 'left-side', { thickness: 25 })
+    const after = regenerateComponents(overridden)
+
+    expect(boardOf(after, 'left-side').thickness).toBe(25)
+    expect(boardOf(after, 'right-side').thickness).toBe(18)
+  })
+
+  // Read before the layout runs, not applied after it: the panels between the sides have to come
+  // out shorter, or the cabinet is 7 mm wider than its own sides allow. Each end then reaches into
+  // the dado that houses it, which is a depth of that housing panel's own thickness.
+  it('shortens the panels between the sides', () => {
+    const overridden = withOverride(regenerateComponents(empty), 'left-side', { thickness: 25 })
+    const bottom = boardOf(regenerateComponents(overridden), 'bottom')
+
+    expect(bottom.length).toBe(params.width - 25 - 18 + dadoDepthFor(25) + dadoDepthFor(18))
+    expect(bottom.position.x).toBe(25 - dadoDepthFor(25))
+  })
+
+  it('survives a parameter change, and the part still follows that parameter', () => {
+    const overridden = withOverride(regenerateComponents(empty), 'left-side', { thickness: 25 })
+    const wider = withParams(overridden, { width: 900 })
+    const side = boardOf(wider, 'left-side')
+
+    expect(side.overrides).toEqual({ thickness: 25 })
+    expect(side.thickness).toBe(25)
+    expect(side.driven).toBe(true)
+    // The dimension it did not take ownership of still comes from the cabinet.
+    expect(boardOf(wider, 'bottom').length).toBe(
+      900 - 25 - 18 + dadoDepthFor(25) + dadoDepthFor(18),
+    )
+  })
+
+  it('names the material it overrides on the part, and resolves that thickness', () => {
+    const overridden = withOverride(regenerateComponents(empty), 'left-side', {
+      material: '25mm Ply',
+    })
+    const after = regenerateComponents({
+      ...overridden,
+      materials: { ...PRESET_MATERIALS, '25mm Ply': { thickness: 25 } },
+    })
+
+    expect(boardOf(after, 'left-side').material).toBe('25mm Ply')
+    expect(boardOf(after, 'left-side').thickness).toBe(25)
+    expect(boardOf(after, 'right-side').material).toBe('18mm Ply')
   })
 })
 
@@ -588,8 +659,8 @@ describe('a component-owned cut of a new kind', () => {
       const actual = await importOriginal<typeof import('./carcaseRoles')>()
       return {
         ...actual,
-        carcaseCuts: (p: CarcaseParams, role: string): CutDef[] => [
-          ...actual.carcaseCuts(p, role),
+        carcaseCuts: (p: CarcaseParams, thicknessOf: RoleThickness, role: string): CutDef[] => [
+          ...actual.carcaseCuts(p, thicknessOf, role),
           ...(role === 'left-side' ? [pinRow] : []),
         ],
       }

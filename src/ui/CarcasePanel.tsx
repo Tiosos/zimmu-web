@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CarcaseParams, CarcaseComponent, Component } from '../scene/types'
+import type { CarcaseParams, CarcaseComponent, Component, MaterialDef } from '../scene/types'
 import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
+import { roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
 import { resolveSections } from '../scene/sectionTree'
 import { DimInput } from './DimInput'
@@ -47,12 +48,31 @@ function parseDividers(text: string): number[] | null {
   return parts.every((s) => DIVIDER.test(s)) ? parts.map(Number) : null
 }
 
+// The panel renders in states the validator rejects — a slot naming a material with no thickness
+// among them — so the resolver it lays sections out with must not throw. An unknown thickness reads
+// as 0 here and the error list beside the fields is what reports it.
+function panelThickness(p: CarcaseParams, materials: Record<string, MaterialDef>): RoleThickness {
+  const resolve = roleThicknessFor(p, materials, new Map())
+  return (role) => {
+    try {
+      return resolve(role)
+    } catch {
+      return 0
+    }
+  }
+}
+
 // The v12 numbers the two legacy fields display, read back out of the tree. Divider fractions come
 // from where the partitions actually resolved, so a tree written by anything else still shows
 // something truthful rather than a guess at its shape.
-function legacyViewOf(p: CarcaseParams): { dividers: number[]; fixedShelves: number } {
+function legacyViewOf(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+): { dividers: number[]; fixedShelves: number } {
   const root = p.section
-  const divisions = resolveSections(root, openingRect(p), () => p.thickness).divisions
+  const divisions = resolveSections(root, openingRect(p, thicknessOf), (parentId, index) =>
+    thicknessOf(`division-${parentId}-${index}`),
+  ).divisions
   const dividers = divisions
     .filter((d) => d.parentId === root.id && d.axis === 'vertical')
     .map((d) => (d.rect.x0 + d.rect.x1) / 2 / p.width)
@@ -76,9 +96,11 @@ const JOINT_METHODS: { value: CarcaseParams['jointMethod']; label: string }[] = 
 
 export function CarcasePanel({
   component,
+  materials,
   onUpdate,
 }: {
   component: CarcaseComponent
+  materials: Record<string, MaterialDef>
   onUpdate: (updater: (c: Component) => Component) => void
 }) {
   const [sizeOpen, setSizeOpen] = useState(true)
@@ -87,13 +109,24 @@ export function CarcasePanel({
   const [joineryOpen, setJoineryOpen] = useState(false)
 
   const p = component.params
-  const errors = validateCarcaseParams(p)
+  const thicknessOf = panelThickness(p, materials)
+  const errors = validateCarcaseParams(p, thicknessOf)
+  // A slot can only name a material that states a thickness; anything else collapses every panel
+  // derived from it. The one already on the carcase is offered too, so a file naming a material
+  // this scene does not have still shows what it is set to.
+  const materialOptions = (current: string): string[] => {
+    const usable = Object.keys(materials).filter((name) => materials[name].thickness !== undefined)
+    return current !== '' && !usable.includes(current) ? [current, ...usable] : usable
+  }
+  // legacyToSection lays out a tree whose divisions have no role keys yet. Every one of them draws
+  // on the carcase slot, which is the same slot the bottom panel draws on.
+  const divisionThickness = thicknessOf('bottom')
 
   // Stage A shim. These two fields still speak the v12 parameters — a list of divider fractions and
   // a count of shelves per bay — so they read those numbers back out of the section tree and write
   // a whole new tree on every edit, discarding any structure the numbers cannot express. Real
   // section editing replaces them; until then this is what keeps the fields working.
-  const legacy = legacyViewOf(p)
+  const legacy = legacyViewOf(p, thicknessOf)
 
   // Same shape as DimInput: the field shows what was typed, and only a text that parses cleanly
   // reaches the params. Resync is skipped while focused so an in-progress '0.50' is not
@@ -150,23 +183,25 @@ export function CarcasePanel({
             suffix="mm"
             onCommit={(v) => setParams({ depth: v })}
           />
-          <DimInput
-            labelWidth="w-20"
-            label="Thickness"
-            value={p.thickness}
-            suffix="mm"
-            onCommit={(v) => setParams({ thickness: v })}
-          />
           <div className="flex items-center gap-1.5 mb-1">
             <Label htmlFor="carcase-material" className="w-20 shrink-0 text-right">
               Material
             </Label>
-            <Input
-              id="carcase-material"
-              value={p.material}
-              onChange={(e) => setParams({ material: e.target.value })}
-              className="flex-1 min-w-0"
-            />
+            <Select
+              value={p.carcaseMaterial}
+              onValueChange={(v) => setParams({ carcaseMaterial: v })}
+            >
+              <SelectTrigger id="carcase-material" className="h-7 flex-1 text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {materialOptions(p.carcaseMaterial).map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -207,13 +242,23 @@ export function CarcasePanel({
             </Select>
           </div>
 
-          <DimInput
-            labelWidth="w-20"
-            label="Back thickness"
-            value={p.backThickness}
-            suffix="mm"
-            onCommit={(v) => setParams({ backThickness: v })}
-          />
+          <div className="flex items-center gap-1.5 mb-1">
+            <Label htmlFor="carcase-back-material" className="w-20 shrink-0 text-right">
+              Back material
+            </Label>
+            <Select value={p.backMaterial} onValueChange={(v) => setParams({ backMaterial: v })}>
+              <SelectTrigger id="carcase-back-material" className="h-7 flex-1 text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {materialOptions(p.backMaterial).map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="flex items-center gap-1.5 mb-1">
             <Label htmlFor="carcase-base" className="w-20 shrink-0 text-right">
@@ -266,7 +311,12 @@ export function CarcasePanel({
                 const dividers = parseDividers(e.target.value)
                 if (dividers !== null) {
                   setParams({
-                    section: legacyToSection(dividers, legacy.fixedShelves, p.width, p.thickness),
+                    section: legacyToSection(
+                      dividers,
+                      legacy.fixedShelves,
+                      p.width,
+                      divisionThickness,
+                    ),
                   })
                 }
               }}
@@ -294,7 +344,12 @@ export function CarcasePanel({
             min={0}
             onCommit={(v) =>
               setParams({
-                section: legacyToSection(legacy.dividers, Math.round(v), p.width, p.thickness),
+                section: legacyToSection(
+                  legacy.dividers,
+                  Math.round(v),
+                  p.width,
+                  divisionThickness,
+                ),
               })
             }
           />

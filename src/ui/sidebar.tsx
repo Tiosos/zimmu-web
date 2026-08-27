@@ -234,6 +234,7 @@ export function Sidebar({
           <CarcasePanel
             key={selectedCarcase.id}
             component={selectedCarcase}
+            materials={scene.materials}
             onUpdate={(updater) => onUpdateComponent(selectedCarcase.id, updater)}
           />
         )}

@@ -9,8 +9,18 @@ vi.mock('./idb', () => ({
 
 import { useFile, parseFile } from './useFile'
 import * as idb from './idb'
-import type { ZimmuFile, Scene, Part } from './types'
-import { carcaseBoxes, validateCarcaseParams } from './carcaseRoles'
+import type { CarcaseParams, ZimmuFile, Scene, Part } from './types'
+import { carcaseBoxes as boxesOf, validateCarcaseParams as validateOf } from './carcaseRoles'
+import { PRESET_MATERIALS } from './carcasePresets'
+import { roleThicknessFor } from './resolveThickness'
+
+// A pre-v14 file states one thickness per carcase. Until the v14 migration turns those into
+// material definitions, the parser fills the two slots with the names a new scene is seeded with,
+// so that is the record these assertions resolve against.
+const carcaseBoxes = (p: CarcaseParams) =>
+  boxesOf(p, roleThicknessFor(p, PRESET_MATERIALS, new Map()))
+const validateCarcaseParams = (p: CarcaseParams) =>
+  validateOf(p, roleThicknessFor(p, PRESET_MATERIALS, new Map()))
 
 const CAMERA = { position: { x: 250, y: -200, z: 150 }, target: { x: 0, y: 0, z: 0 } }
 
@@ -626,7 +636,24 @@ describe('useFile', () => {
     vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
     const onFileLoaded = vi.fn()
 
-    const { result } = renderHook(() => useFile(makeInput({ onFileLoaded })))
+    // The scene the app holds after File → New: the envelope newFile hands to onFileLoaded, seeded
+    // with the materials a carcase preset names. Dirty is `live scene !== last saved`, so a mock
+    // that stayed empty while newFile saved a seeded snapshot would read as dirty on a brand new
+    // file.
+    const { result } = renderHook(() =>
+      useFile(
+        makeInput({
+          onFileLoaded,
+          scene: {
+            parts: [],
+            materials: { ...PRESET_MATERIALS },
+            hardware: [],
+            joints: [],
+            components: [],
+          },
+        }),
+      ),
+    )
     await waitFor(() => expect(result.current.fileName).toBe('shelf.zimmu'))
 
     await act(async () => {

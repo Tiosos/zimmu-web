@@ -11,7 +11,7 @@ import {
 import type { BoardPart, CarcaseComponent, Part, CylinderPart, Scene } from '../scene/types'
 import type { MaterialDef, HardwareItem } from '../scene/types'
 import { regenerateComponents } from '../scene/regenerateComponents'
-import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 
 function makeDowel(over: Partial<CylinderPart> & { id: string }): Part {
   return {
@@ -71,7 +71,7 @@ function generatedBase600(): BoardPart[] {
   }
   const scene: Scene = {
     parts: [],
-    materials: {},
+    materials: { ...PRESET_MATERIALS },
     hardware: [],
     joints: [],
     components: [cabinet],
@@ -345,7 +345,11 @@ describe('cut dimensions in the cutting list', () => {
   it('prices a generated cabinet at its stored areas, so normalising moves no cost', () => {
     const parts = generatedBase600()
     const rate = 100
-    const expected = parts.reduce((sum, p) => sum + ((p.length * p.width) / 1_000_000) * rate, 0)
+    // A carcase names a material per slot, so its back is 12 mm MDF and carries no rate here. Only
+    // the panels actually made of the priced material contribute.
+    const expected = parts
+      .filter((p) => p.material === '18mm Ply')
+      .reduce((sum, p) => sum + ((p.length * p.width) / 1_000_000) * rate, 0)
 
     const rows = groupParts(parts, { '18mm Ply': { costPerM2: rate } })
     const total = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
@@ -371,7 +375,7 @@ describe('grouping by component', () => {
 
   const one = regenerateComponents({
     parts: [],
-    materials: {},
+    materials: { ...PRESET_MATERIALS },
     hardware: [],
     joints: [],
     components: [makeCarcase('cmp_1', 'Base Cabinet 600', 0)],
@@ -382,7 +386,7 @@ describe('grouping by component', () => {
 
   const two = regenerateComponents({
     parts: [],
-    materials: {},
+    materials: { ...PRESET_MATERIALS },
     hardware: [],
     joints: [],
     components: [makeCarcase('cmp_1', 'Cab A', 0), makeCarcase('cmp_2', 'Cab B', 700)],

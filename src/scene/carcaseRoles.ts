@@ -1,10 +1,12 @@
 import type { BoxCut, CarcaseParams, Face, Grain, HoleArrayCut, ThicknessAxis, Vec3 } from './types'
 import { dadoDepthFor } from '../geom/dado'
 import { grainAxisOf, grainFieldFor } from './grain'
+import type { RoleThickness } from './resolveThickness'
 import {
   resolveSections,
   validateSection,
   type Bound,
+  type DivisionThickness,
   type Rect,
   type ResolvedDivision,
   type ResolvedTree,
@@ -79,35 +81,85 @@ function floorZ(p: CarcaseParams): number {
   return p.baseMode === 'toe-kick' || p.baseMode === 'ladder' ? p.toeKickHeight : 0
 }
 
-// The rectangle the section tree divides: the clear opening between the shell panels. Stage A
-// spends one thickness on each side because CarcaseParams still carries one; Stage B of the wider
-// restructure replaces each of these four with that panel's own resolved thickness, and a
-// symmetric fixture will not catch a mistake there.
-export function openingRect(p: CarcaseParams): Rect {
+// The rectangle the section tree divides: the clear opening between the shell panels. Each edge
+// spends the thickness of the panel that bounds it — four separate panels, four separate calls —
+// so a 25 mm left side moves x0 to 25 while an 18 mm right side leaves x1 where it was. A fixture
+// whose panels are all the same thickness cannot tell the four apart.
+export function openingRect(p: CarcaseParams, thicknessOf: RoleThickness): Rect {
   return {
-    x0: p.thickness,
-    x1: p.width - p.thickness,
-    z0: floorZ(p) + p.thickness,
-    z1: p.hasTop ? p.height - p.thickness : p.height,
+    x0: thicknessOf('left-side'),
+    x1: p.width - thicknessOf('right-side'),
+    z0: floorZ(p) + thicknessOf('bottom'),
+    z1: p.hasTop ? p.height - thicknessOf('top') : p.height,
   }
+}
+
+// A division panel is as thick as the panel it is, not as thick as the cabinet: the tree asks by
+// parent section and index, which is exactly what the box table names the role after.
+function sectionThickness(thicknessOf: RoleThickness): DivisionThickness {
+  return (parentId, index) => thicknessOf(`division-${parentId}-${index}`)
 }
 
 // Total and side-effect free by contract: the generator calls this on every keystroke and emits
 // nothing when it returns errors, so the last-good parts survive transient states like a width of
 // `6` on the way to `600`. Every problem is collected — a panel that reported one at a time would
 // turn fixing three mistakes into three round trips.
-export function validateCarcaseParams(p: CarcaseParams): string[] {
+export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickness): string[] {
   const errors: string[] = []
-  if (p.thickness <= 0) errors.push('thickness must be positive')
-  if (p.width <= 2 * p.thickness) errors.push('width must exceed 2 × thickness')
-  if (p.height <= 2 * p.thickness) errors.push('height must exceed 2 × thickness')
-  if (p.depth <= p.thickness) errors.push('depth must exceed thickness')
+
+  // `roleThicknessFor` is fatal by design; here it must not be. The parameter panel validates on
+  // every keystroke, so a slot whose material cannot say how thick it is has to read back as a
+  // message beside the fields rather than as an exception that takes the app down mid-edit. Every
+  // rule below reads thicknesses through this, so the function stays total.
+  const unresolved = new Set<string>()
+  const thicknessAt: RoleThickness = (role) => {
+    try {
+      return thicknessOf(role)
+    } catch {
+      // Named by slot, not by role: every role but the back draws on the same one, so one message
+      // per slot is what the user can act on.
+      const message =
+        role === 'back'
+          ? `backMaterial "${p.backMaterial}" has no thickness`
+          : `carcaseMaterial "${p.carcaseMaterial}" has no thickness`
+      if (!unresolved.has(message)) {
+        unresolved.add(message)
+        errors.push(message)
+      }
+      return 0
+    }
+  }
+  const left = thicknessAt('left-side')
+  const right = thicknessAt('right-side')
+  const bottom = thicknessAt('bottom')
+  // Charged against the height budget whether or not the cabinet has a top, as one cabinet-wide
+  // thickness was: a carcase too short for two panels is too short for the one it does have.
+  const top = thicknessAt('top')
+  const back = p.backMode === 'none' ? 0 : thicknessAt('back')
+  const ladderFront = p.baseMode === 'ladder' ? thicknessAt('ladder-front') : 0
+  const ladderBack = p.baseMode === 'ladder' ? thicknessAt('ladder-back') : 0
+  // Asked about, and the answer discarded: no rule below reads these, but every panel the box
+  // table will build has to fail here, where an unusable material is a message, rather than there,
+  // where it is a throw.
+  if (p.baseMode === 'toe-kick') thicknessAt('toe-kick')
+  if (p.baseMode === 'ladder') {
+    thicknessAt('ladder-left')
+    thicknessAt('ladder-right')
+  }
+  // Nothing below this can mean anything while a thickness is unknown.
+  if (errors.length > 0) return errors
+
+  if (Math.min(left, right, bottom, top) <= 0) errors.push('thickness must be positive')
+  if (p.width <= left + right) errors.push('width must exceed 2 × thickness')
+  if (p.height <= bottom + top) errors.push('height must exceed 2 × thickness')
+  // The thickest shell panel is the one that runs out of depth first.
+  if (p.depth <= Math.max(left, right, bottom, top)) errors.push('depth must exceed thickness')
   // Both bases spend toeKickHeight out of the total height: a toe kick lifts the bottom panel
   // inside sides that still reach the ground, a ladder lifts the whole carcase onto its frame.
   if (p.baseMode === 'toe-kick' || p.baseMode === 'ladder') {
     if (p.toeKickHeight >= p.height) {
       errors.push('toeKickHeight must be less than height')
-    } else if (p.toeKickHeight + 2 * p.thickness >= p.height) {
+    } else if (p.toeKickHeight + bottom + top >= p.height) {
       errors.push('toeKickHeight leaves no room between top and bottom')
     }
   }
@@ -117,11 +169,11 @@ export function validateCarcaseParams(p: CarcaseParams): string[] {
   // A ladder needs the setback to clear two rail thicknesses, not one: its side rails run
   // y:[KS+T, D-T] and invert — a negative extent OCCT sees as a degenerate solid — before the
   // front rail alone would run out of depth.
-  if (p.baseMode === 'ladder' && p.toeKickSetback + 2 * p.thickness >= p.depth) {
+  if (p.baseMode === 'ladder' && p.toeKickSetback + ladderFront + ladderBack >= p.depth) {
     errors.push('toeKickSetback leaves no room for the ladder side rails')
   }
-  if (p.backMode !== 'none' && p.backThickness >= p.depth) {
-    errors.push('backThickness must be less than depth')
+  if (p.backMode !== 'none' && back >= p.depth) {
+    errors.push('the back material is thicker than the cabinet is deep')
   }
   if (p.adjustableShelves.count < 0) errors.push('adjustable shelf count must be 0 or more')
   errors.push(...validateSection(p.section))
@@ -129,7 +181,11 @@ export function validateCarcaseParams(p: CarcaseParams): string[] {
   // is big enough to hold it. A section squeezed to nothing does not produce a thin panel, it
   // produces panels that pass through the shell and through each other — which is what the v12
   // rules named `dividers` and `fixedShelves` were guarding against.
-  const resolved = resolveSections(p.section, openingRect(p), () => p.thickness)
+  const resolved = resolveSections(
+    p.section,
+    openingRect(p, thicknessAt),
+    sectionThickness(thicknessAt),
+  )
   for (const rect of resolved.rects.values()) {
     if (rect.x1 - rect.x0 <= 0 || rect.z1 - rect.z0 <= 0) {
       errors.push('the sections do not fit in the carcase')
@@ -148,10 +204,20 @@ const MAX_LADDER_SPAN = 600
 // A perimeter rectangle carries the cabinet bottom on its four edges alone, which is fine at
 // 600 mm and not at 1200. The fewest mid rails that bring every clear span within the limit.
 // Shared by the box, joint and contact tables so none of them can disagree on how many there are.
-function ladderMidRails(p: CarcaseParams): string[] {
-  let n = 0
-  while ((p.width - 2 * p.thickness - n * p.thickness) / (n + 1) > MAX_LADDER_SPAN) n++
-  return Array.from({ length: n }, (_, i) => `ladder-mid-${i}`)
+function ladderMidRails(p: CarcaseParams, thicknessOf: RoleThickness): string[] {
+  // Two thicknesses with two meanings, and no longer one number: the frame's own outer rails bound
+  // the clear width, and each mid rail spends its own thickness out of what is left. The rails
+  // bound it rather than the side panels above them — the mid rails divide the frame, and the box
+  // table below positions them from the same two edges.
+  const clear = p.width - thicknessOf('ladder-left') - thicknessOf('ladder-right')
+  const roles: string[] = []
+  let spent = 0
+  while ((clear - spent) / (roles.length + 1) > MAX_LADDER_SPAN) {
+    const role = `ladder-mid-${roles.length}`
+    spent += thicknessOf(role)
+    roles.push(role)
+  }
+  return roles
 }
 
 export interface RoleSpec {
@@ -185,37 +251,44 @@ function divisionLabel(tree: ResolvedTree, d: ResolvedDivision): string {
   return inBays ? `Bay ${bay.index + 1} Shelf ${d.index + 1}` : `Shelf ${d.index + 1}`
 }
 
-export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
-  if (validateCarcaseParams(p).length > 0) return []
+export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): RoleBox[] {
+  if (validateCarcaseParams(p, thicknessOf).length > 0) return []
 
-  const { width: W, height: H, depth: D, thickness: T, backThickness: BT } = p
+  const { width: W, height: H, depth: D } = p
+  // Each panel's own thickness, read once. A shell edge is bounded by a specific panel, so which
+  // one it is has to be named at every edge rather than shared between them.
+  const TL = thicknessOf('left-side')
+  const TR = thicknessOf('right-side')
+  const TB = thicknessOf('bottom')
+  const TT = p.hasTop ? thicknessOf('top') : 0
+  const BT = p.backMode === 'none' ? 0 : thicknessOf('back')
   // A ladder is a frame *under* the carcase, so the carcase box starts on top of it. A toe kick is
   // a notch in sides that still run to the ground, so only the bottom panel rises. H is the total
   // height from the ground in every mode.
   const carcaseZ0 = p.baseMode === 'ladder' ? p.toeKickHeight : 0
   const floor = floorZ(p)
-  const innerTop = p.hasTop ? H - T : H
+  const innerTop = p.hasTop ? H - TT : H
   const backY0 = p.backMode === 'captured' ? D - BT : D
   const shelfBackY = p.backMode === 'captured' ? backY0 : D
-  const bayZ0 = floor + T
+  const bayZ0 = floor + TB
 
   const boxes: RoleBox[] = [
     {
       role: 'left-side',
       label: 'Left Side',
-      box: { x0: 0, x1: T, y0: 0, y1: D, z0: carcaseZ0, z1: H },
+      box: { x0: 0, x1: TL, y0: 0, y1: D, z0: carcaseZ0, z1: H },
       thicknessAxis: 'x',
     },
     {
       role: 'right-side',
       label: 'Right Side',
-      box: { x0: W - T, x1: W, y0: 0, y1: D, z0: carcaseZ0, z1: H },
+      box: { x0: W - TR, x1: W, y0: 0, y1: D, z0: carcaseZ0, z1: H },
       thicknessAxis: 'x',
     },
     {
       role: 'bottom',
       label: 'Bottom',
-      box: { x0: T, x1: W - T, y0: 0, y1: D, z0: floor, z1: floor + T },
+      box: { x0: TL, x1: W - TR, y0: 0, y1: D, z0: floor, z1: floor + TB },
       thicknessAxis: 'z',
     },
   ]
@@ -224,7 +297,7 @@ export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
     boxes.push({
       role: 'top',
       label: 'Top',
-      box: { x0: T, x1: W - T, y0: 0, y1: D, z0: H - T, z1: H },
+      box: { x0: TL, x1: W - TR, y0: 0, y1: D, z0: H - TT, z1: H },
       thicknessAxis: 'z',
     })
   }
@@ -239,7 +312,7 @@ export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
       box:
         p.backMode === 'applied'
           ? { x0: 0, x1: W, y0: D, y1: D + BT, z0: carcaseZ0, z1: H }
-          : { x0: T, x1: W - T, y0: backY0, y1: backY0 + BT, z0: bayZ0, z1: innerTop },
+          : { x0: TL, x1: W - TR, y0: backY0, y1: backY0 + BT, z0: bayZ0, z1: innerTop },
       thicknessAxis: 'y',
     })
   }
@@ -249,10 +322,10 @@ export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
       role: 'toe-kick',
       label: 'Toe Kick',
       box: {
-        x0: T,
-        x1: W - T,
+        x0: TL,
+        x1: W - TR,
         y0: p.toeKickSetback,
-        y1: p.toeKickSetback + T,
+        y1: p.toeKickSetback + thicknessOf('toe-kick'),
         z0: 0,
         z1: floor,
       },
@@ -263,57 +336,72 @@ export function carcaseBoxes(p: CarcaseParams): RoleBox[] {
   if (p.baseMode === 'ladder') {
     const KS = p.toeKickSetback
     const KH = p.toeKickHeight
+    const FR = thicknessOf('ladder-front')
+    const BR = thicknessOf('ladder-back')
+    const LR = thicknessOf('ladder-left')
+    const RR = thicknessOf('ladder-right')
     boxes.push(
       {
         role: 'ladder-front',
         label: 'Base Front',
-        box: { x0: 0, x1: W, y0: KS, y1: KS + T, z0: 0, z1: KH },
+        box: { x0: 0, x1: W, y0: KS, y1: KS + FR, z0: 0, z1: KH },
         thicknessAxis: 'y',
       },
       {
         role: 'ladder-back',
         label: 'Base Back',
-        box: { x0: 0, x1: W, y0: D - T, y1: D, z0: 0, z1: KH },
+        box: { x0: 0, x1: W, y0: D - BR, y1: D, z0: 0, z1: KH },
         thicknessAxis: 'y',
       },
       {
         role: 'ladder-left',
         label: 'Base Left',
-        box: { x0: 0, x1: T, y0: KS + T, y1: D - T, z0: 0, z1: KH },
+        box: { x0: 0, x1: LR, y0: KS + FR, y1: D - BR, z0: 0, z1: KH },
         thicknessAxis: 'x',
       },
       {
         role: 'ladder-right',
         label: 'Base Right',
-        box: { x0: W - T, x1: W, y0: KS + T, y1: D - T, z0: 0, z1: KH },
+        box: { x0: W - RR, x1: W, y0: KS + FR, y1: D - BR, z0: 0, z1: KH },
         thicknessAxis: 'x',
       },
     )
-    const mids = ladderMidRails(p)
-    const span = (W - 2 * T - mids.length * T) / (mids.length + 1)
+    const mids = ladderMidRails(p, thicknessOf)
+    const spent = mids.reduce((sum, role) => sum + thicknessOf(role), 0)
+    const span = (W - LR - RR - spent) / (mids.length + 1)
+    // What the rails to this one's left have already spent, so each clear span is `span` wide
+    // whether or not the rails are all the same thickness.
+    let before = 0
     mids.forEach((role, i) => {
-      const x0 = T + (i + 1) * span + i * T
+      const x0 = LR + (i + 1) * span + before
+      const t = thicknessOf(role)
+      before += t
       boxes.push({
         role,
         label: `Base Mid Rail ${i + 1}`,
-        box: { x0, x1: x0 + T, y0: KS + T, y1: D - T, z0: 0, z1: KH },
+        box: { x0, x1: x0 + t, y0: KS + FR, y1: D - BR, z0: 0, z1: KH },
         thicknessAxis: 'x',
       })
     })
   }
 
-  const tree = resolveSections(p.section, openingRect(p), () => p.thickness)
+  const tree = resolveSections(
+    p.section,
+    openingRect(p, thicknessOf),
+    sectionThickness(thicknessOf),
+  )
 
   for (const d of tree.divisions) {
     const vertical = d.axis === 'vertical'
+    const role = `division-${d.parentId}-${d.index}`
     boxes.push({
-      role: `division-${d.parentId}-${d.index}`,
+      role,
       label: divisionLabel(tree, d),
       box: {
         x0: d.rect.x0,
         x1: d.rect.x1,
         y0: 0,
-        y1: d.kind === 'rail' ? T : shelfBackY,
+        y1: d.kind === 'rail' ? thicknessOf(role) : shelfBackY,
         z0: d.rect.z0,
         z1: d.rect.z1,
       },
@@ -338,12 +426,12 @@ function extendToward(housed: LocalBox, housing: LocalBox, ax: ThicknessAxis, in
 // Face-to-face boxes plus what the joinery at each edge takes. Without this pass a panel is butt
 // sized while its own joint expects it to reach the groove floor, and reconcileJoints closes the
 // gap by *moving* the panel — twice, when both ends are housed, so one end ends up proud.
-export function carcaseRoles(p: CarcaseParams): RoleSpec[] {
-  const boxes = carcaseBoxes(p)
+export function carcaseRoles(p: CarcaseParams, thicknessOf: RoleThickness): RoleSpec[] {
+  const boxes = carcaseBoxes(p, thicknessOf)
   const byRole = new Map(boxes.map((b) => [b.role, b]))
 
   // The component id is only stamped on the descriptors; the extension reads their roles and kind.
-  for (const d of carcaseJoints(p, '')) {
+  for (const d of carcaseJoints(p, thicknessOf, '')) {
     // Both roles are always present: carcaseJoints derives its role names from the same parameters
     // carcaseBoxes builds its boxes from.
     const housing = byRole.get(d.housingRole)!
@@ -445,8 +533,12 @@ function housingsFor(p: CarcaseParams, d: ResolvedDivision, parent: SectionBound
 
 // The joints a carcase implies, keyed by role because part ids are only known after reconciliation.
 // Returns nothing for the three fastener methods: their geometry is hardware, not a cut.
-export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescriptor[] {
-  if (validateCarcaseParams(p).length > 0) return []
+export function carcaseJoints(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+  componentId: string,
+): JointDescriptor[] {
+  if (validateCarcaseParams(p, thicknessOf).length > 0) return []
   if (p.jointMethod !== 'dado-rabbet' && p.jointMethod !== 'finger') return []
 
   const out: JointDescriptor[] = []
@@ -489,7 +581,7 @@ export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescr
   // full-width rail crossing it. Nothing above the frame is jointed into it — the carcase is set
   // down on the frame's top plane, which carcaseContactPairs declares.
   if (p.baseMode === 'ladder') {
-    for (const rail of ['ladder-left', 'ladder-right', ...ladderMidRails(p)]) {
+    for (const rail of ['ladder-left', 'ladder-right', ...ladderMidRails(p, thicknessOf)]) {
       add('dado', 'ladder-front', rail, '+Z', '-X')
       add('dado', 'ladder-back', rail, '-Z', '+X')
     }
@@ -505,7 +597,11 @@ export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescr
   // A division is housed at both ends into whatever bounds its parent section along the
   // perpendicular axis: a partition into the bottom and the top, a shelf into the two uprights of
   // its bay, whether those are the sides or the partitions beside it.
-  const tree = resolveSections(p.section, openingRect(p), () => p.thickness)
+  const tree = resolveSections(
+    p.section,
+    openingRect(p, thicknessOf),
+    sectionThickness(thicknessOf),
+  )
   for (const d of tree.divisions) {
     if (d.kind === 'rail') continue // butt-jointed; no housing
     const housedRole = `division-${d.parentId}-${d.index}`
@@ -520,8 +616,11 @@ export function carcaseJoints(p: CarcaseParams, componentId: string): JointDescr
 // Role pairs that touch and are deliberately left unjointed: a shelf stops at the back, it is not
 // housed in it, and the kick carries the bottom rather than joining it. Independent of jointMethod —
 // they abut whatever fastens the cabinet.
-export function carcaseContactPairs(p: CarcaseParams): [string, string][] {
-  if (validateCarcaseParams(p).length > 0) return []
+export function carcaseContactPairs(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+): [string, string][] {
+  if (validateCarcaseParams(p, thicknessOf).length > 0) return []
 
   const pairs: [string, string][] = []
   if (p.baseMode === 'toe-kick') pairs.push(['bottom', 'toe-kick'])
@@ -535,7 +634,7 @@ export function carcaseContactPairs(p: CarcaseParams): [string, string][] {
       'ladder-back',
       'ladder-left',
       'ladder-right',
-      ...ladderMidRails(p),
+      ...ladderMidRails(p, thicknessOf),
     ]) {
       pairs.push(['bottom', rail])
     }
@@ -557,7 +656,11 @@ export function carcaseContactPairs(p: CarcaseParams): [string, string][] {
     if (p.baseMode === 'ladder') pairs.push(['back', 'ladder-back'])
   }
   if (p.backMode !== 'none') {
-    const tree = resolveSections(p.section, openingRect(p), () => p.thickness)
+    const tree = resolveSections(
+      p.section,
+      openingRect(p, thicknessOf),
+      sectionThickness(thicknessOf),
+    )
     for (const d of tree.divisions) pairs.push(['back', `division-${d.parentId}-${d.index}`])
   }
   return pairs
@@ -569,10 +672,11 @@ export function carcaseContactPairs(p: CarcaseParams): [string, string][] {
 //
 // The panel's board frame comes from orientedPanel(..., 'x'): board x runs the carcase depth axis,
 // board y the height axis, board z the material thickness.
-export function carcaseCuts(p: CarcaseParams, role: string): BoxCut[] {
+export function carcaseCuts(p: CarcaseParams, thicknessOf: RoleThickness, role: string): BoxCut[] {
   if (p.baseMode !== 'toe-kick') return []
   if (role !== 'left-side' && role !== 'right-side') return []
 
+  const T = thicknessOf(role)
   return [
     {
       kind: 'box',
@@ -582,8 +686,8 @@ export function carcaseCuts(p: CarcaseParams, role: string): BoxCut[] {
       face: '-Z',
       // A tool face coplanar with the face it subtracts from is resolved unreliably by OCCT;
       // overshooting both thickness faces keeps it an unambiguous through-cut.
-      position: { x: 0, y: 0, z: -p.thickness / 2 },
-      size: { x: p.toeKickSetback, y: p.toeKickHeight, z: p.thickness * 2 },
+      position: { x: 0, y: 0, z: -T / 2 },
+      size: { x: p.toeKickSetback, y: p.toeKickHeight, z: T * 2 },
     },
   ]
 }
@@ -605,20 +709,25 @@ function pinFaces(role: string, thicknessAxis: ThicknessAxis): Face[] {
 // The shelf-pin rows a carcase drills into the panels that carry adjustable shelves. Read against
 // the reconciled panel rather than the raw parameters: a divider is shorter than a side and starts
 // a bay above the floor, and a row placed from the parameters alone would run off its end.
-export function carcaseHoleArrays(p: CarcaseParams, role: string): HoleArrayCut[] {
+export function carcaseHoleArrays(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+  role: string,
+): HoleArrayCut[] {
   const a = p.adjustableShelves
   const radius = PIN_DIAMETER / 2
   if (a.count <= 0 || a.setback < radius || a.backSetback < radius) return []
   // A `division-` role does not say on its own whether it is a partition or a shelf; its box does.
-  const box = carcaseBoxes(p).find((b) => b.role === role)
+  const box = carcaseBoxes(p, thicknessOf).find((b) => b.role === role)
   if (box === undefined) return []
   const faces = pinFaces(role, box.thicknessAxis)
   if (faces.length === 0) return []
-  const panel = carcaseRoles(p).find((r) => r.role === role)?.panel
+  const panel = carcaseRoles(p, thicknessOf).find((r) => r.role === role)?.panel
   if (panel === undefined) return []
 
-  // Two thirds of the panel thickness: deep enough to seat a pin, never a through hole.
-  const depth = Math.min(12, (p.thickness * 2) / 3)
+  // Two thirds of the panel this row is bored into: deep enough to seat a pin, never a through
+  // hole — which is a statement about that panel, not about the cabinet.
+  const depth = Math.min(12, (thicknessOf(role) * 2) / 3)
 
   // `startHeight` is a height above the carcase floor, not above the panel's own bottom edge. A
   // divider begins a bay up, so rows measured from each panel's own edge would sit at two
@@ -660,36 +769,31 @@ export function carcaseHoleArrays(p: CarcaseParams, role: string): HoleArrayCut[
 // Only *direct* one-to-one relationships are reported. A bottom panel's length is
 // `width - 2 * thickness` — two parameters — so there is nothing unambiguous to push an edit into,
 // and offering to change the cabinet there would silently pick one.
+//
+// No dimension maps to a thickness any more: thickness comes from the panel's material, and a
+// cabinet-wide number to push it into no longer exists. An edit there has to become a material
+// choice or a per-part override instead.
 export function parameterForRole(
   role: string | undefined,
   dimension: 'length' | 'width' | 'thickness',
   p: CarcaseParams,
 ): keyof CarcaseParams | null {
-  if (role === undefined) return null
+  if (role === undefined || dimension === 'thickness') return null
 
-  // A division — partition or shelf — spans whatever the tree gives it, and is material-thick.
-  if (role.startsWith('division-')) {
-    return dimension === 'thickness' ? 'thickness' : null
-  }
+  // A division — partition or shelf — spans whatever the tree gives it.
+  if (role.startsWith('division-')) return null
 
   switch (role) {
     case 'left-side':
     case 'right-side':
       if (dimension === 'length') return 'depth'
-      if (dimension === 'thickness') return 'thickness'
       // The side spans carcaseZ0..H, so its width is the height parameter only when the carcase
       // starts on the ground. Under a ladder base it is height - toeKickHeight, and pushing an
       // edit into `height` would move the top without moving the bottom.
       return p.baseMode === 'ladder' ? null : 'height'
     case 'bottom':
     case 'top':
-      if (dimension === 'width') return 'depth'
-      if (dimension === 'thickness') return 'thickness'
-      return null
-    case 'back':
-      return dimension === 'thickness' ? 'backThickness' : null
-    case 'toe-kick':
-      return dimension === 'thickness' ? 'thickness' : null
+      return dimension === 'width' ? 'depth' : null
     default:
       return null
   }

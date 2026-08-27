@@ -11,6 +11,11 @@ import type {
 } from './types'
 import * as idb from './idb'
 import { breakComponentCycles, promoteOrphans } from './componentTree'
+import {
+  DEFAULT_BACK_MATERIAL,
+  DEFAULT_CARCASE_MATERIAL,
+  PRESET_MATERIALS,
+} from './carcasePresets'
 import { legacyToSection } from './migrateSections'
 import type { Section } from './sectionTree'
 
@@ -187,6 +192,10 @@ export function parseFile(text: string): ZimmuFile {
           dividers?: number[]
           fixedShelves?: number
           section?: Section
+          material?: string
+          thickness?: number
+          carcaseMaterial?: string
+          backMaterial?: string
         }
         const section =
           legacy.section ??
@@ -194,11 +203,21 @@ export function parseFile(text: string): ZimmuFile {
             legacy.dividers ?? [],
             legacy.fixedShelves ?? 0,
             base.params.width,
-            base.params.thickness,
+            legacy.thickness ?? 0,
           )
         const params: CarcaseParams & { dividers?: number[]; fixedShelves?: number } = {
           ...base.params,
           section,
+          // Pre-v14 files state one thickness per carcase instead of one per material. Only the
+          // slot *names* are filled in here so the generator has something to resolve; turning a
+          // file's own thicknesses into material definitions — and telling apart two carcases that
+          // shared a name at different thicknesses — is the v14 migration, one commit away. Until
+          // it lands, a pre-v14 carcase whose named material carries no thickness fails validation
+          // and keeps the parts the file already holds rather than regenerating them wrongly. The
+          // file's own `material`, `thickness` and `backThickness` ride along on the params object
+          // untouched — unread by anything, and where the migration will find them.
+          carcaseMaterial: legacy.carcaseMaterial ?? legacy.material ?? DEFAULT_CARCASE_MATERIAL,
+          backMaterial: legacy.backMaterial ?? DEFAULT_BACK_MATERIAL,
           adjustableShelves: { ...shelves, backSetback: shelves.backSetback ?? shelves.setback },
         }
         // Dropped, not kept alongside the tree: two descriptions of the same divisions would
@@ -380,6 +399,15 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
   const newFile = useCallback(async () => {
     if (!guardUnsaved()) return
     const now = new Date().toISOString()
+    // The same seed a freshly mounted scene starts from, and written into the saved snapshot too:
+    // a new file that differed from its own baseline would open dirty.
+    const emptyScene = () => ({
+      parts: [],
+      materials: { ...PRESET_MATERIALS },
+      hardware: [],
+      joints: [],
+      components: [],
+    })
     const envelope: ZimmuFile = {
       version: FILE_FORMAT_VERSION,
       name: 'Untitled',
@@ -388,18 +416,12 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       createdAt: now,
       updatedAt: now,
       camera: getCameraStateRef.current(),
-      scene: { parts: [], materials: {}, hardware: [], joints: [], components: [] },
+      scene: emptyScene(),
     }
     handleRef.current = null
     createdAtRef.current = null
     projectNameRef.current = 'Untitled'
-    lastSavedSceneRef.current = JSON.stringify({
-      parts: [],
-      materials: {},
-      hardware: [],
-      joints: [],
-      components: [],
-    })
+    lastSavedSceneRef.current = JSON.stringify(emptyScene())
     lastSavedProjectNameRef.current = 'Untitled'
     isDirtyRef.current = false
     setFileName(null)

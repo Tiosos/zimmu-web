@@ -14,7 +14,7 @@ import { defaultDadoJoint } from './defaultJoint'
 import type { ChecklistRow } from './jointChecklist'
 import { buildJointChecklist, MAX_NOOFFER_ROWS } from './jointChecklist'
 import { componentsById } from './componentTree'
-import { CARCASE_PRESETS } from './carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { legacyToSection } from './migrateSections'
 import { regenerateComponents } from './regenerateComponents'
 
@@ -70,6 +70,7 @@ function build(parts: Part[], joints: DadoJoint[] = []) {
     joints,
     suggestJointsForScene(parts, joints, NO_COMPONENTS),
     NO_COMPONENTS,
+    PRESET_MATERIALS,
   )
 }
 
@@ -298,7 +299,7 @@ function carcase(
 function cabinetScene(components: CarcaseComponent[]): Scene {
   return regenerateComponents({
     parts: [],
-    materials: {},
+    materials: { ...PRESET_MATERIALS },
     hardware: [],
     joints: [],
     components,
@@ -312,6 +313,7 @@ function checklistOf(scene: Scene) {
     scene.joints,
     suggestJointsForScene(scene.parts, scene.joints, byId),
     byId,
+    scene.materials,
   )
 }
 

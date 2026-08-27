@@ -3,9 +3,10 @@ import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CarcasePanel } from './CarcasePanel'
-import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { openingRect } from '../scene/carcaseRoles'
 import { legacyToSection } from '../scene/migrateSections'
+import { roleThicknessFor } from '../scene/resolveThickness'
 import { resolveSections } from '../scene/sectionTree'
 import type { CarcaseComponent, CarcaseParams, Component } from '../scene/types'
 
@@ -23,24 +24,29 @@ function carcase(params: Partial<CarcaseParams> = {}): CarcaseComponent {
   }
 }
 
-function renderPanel(component = carcase(), onUpdate = vi.fn()) {
+function renderPanel(component = carcase(), onUpdate = vi.fn(), materials = PRESET_MATERIALS) {
   render(
     <TooltipProvider>
-      <CarcasePanel component={component} onUpdate={onUpdate} />
+      <CarcasePanel component={component} materials={materials} onUpdate={onUpdate} />
     </TooltipProvider>,
   )
   return onUpdate
 }
 
 // Preset 0 is 600 wide on 18 mm stock and carries one fixed shelf.
-const sec = (dividers: number[], fixedShelves = 1) => legacyToSection(dividers, fixedShelves, 600, 18)
+const sec = (dividers: number[], fixedShelves = 1) =>
+  legacyToSection(dividers, fixedShelves, 600, 18)
 
 // Where the partitions a set of params describes actually land, as fractions of the width — the
 // same reading the divider field shows.
-const partitionCentres = (p: CarcaseParams) =>
-  resolveSections(p.section, openingRect(p), () => p.thickness)
+const partitionCentres = (p: CarcaseParams) => {
+  const thicknessOf = roleThicknessFor(p, PRESET_MATERIALS, new Map())
+  return resolveSections(p.section, openingRect(p, thicknessOf), (parentId, index) =>
+    thicknessOf(`division-${parentId}-${index}`),
+  )
     .divisions.filter((d) => d.axis === 'vertical')
-    .map((d) => Number((((d.rect.x0 + d.rect.x1) / 2 / p.width)).toFixed(6)))
+    .map((d) => Number(((d.rect.x0 + d.rect.x1) / 2 / p.width).toFixed(6)))
+}
 
 // The panel reports edits as an updater, matching how onUpdate works everywhere else in useScene.
 function appliedParams(onUpdate: ReturnType<typeof vi.fn>, base: CarcaseComponent): CarcaseParams {
@@ -118,12 +124,20 @@ describe('CarcasePanel', () => {
   it('re-syncs the divider field when the params change from elsewhere', () => {
     const { rerender } = render(
       <TooltipProvider>
-        <CarcasePanel component={carcase({ section: sec([0.5]) })} onUpdate={vi.fn()} />
+        <CarcasePanel
+          component={carcase({ section: sec([0.5]) })}
+          materials={PRESET_MATERIALS}
+          onUpdate={vi.fn()}
+        />
       </TooltipProvider>,
     )
     rerender(
       <TooltipProvider>
-        <CarcasePanel component={carcase({ section: sec([0.25, 0.75]) })} onUpdate={vi.fn()} />
+        <CarcasePanel
+          component={carcase({ section: sec([0.25, 0.75]) })}
+          materials={PRESET_MATERIALS}
+          onUpdate={vi.fn()}
+        />
       </TooltipProvider>,
     )
     expect((screen.getByLabelText('Dividers') as HTMLInputElement).value).toBe('0.25, 0.75')
@@ -151,11 +165,10 @@ describe('CarcasePanel', () => {
       'Width',
       'Height',
       'Depth',
-      'Thickness',
       'Material',
       'Has top',
       'Back',
-      'Back thickness',
+      'Back material',
       'Base',
       'Toe-kick height',
       'Toe-kick setback',

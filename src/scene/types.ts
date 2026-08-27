@@ -1,4 +1,5 @@
 import type { Section } from './sectionTree'
+import type { PartOverrides } from './resolveThickness'
 
 export type { Section, SectionId, SectionSize, SectionContent, DivisionKind } from './sectionTree'
 
@@ -117,6 +118,9 @@ export interface BoardPart {
   parentId: ComponentId | null
   driven: boolean
   role?: string // set only on driven parts; the regeneration identity key
+  // What the user has taken ownership of on an otherwise driven part. Applied on top of the driven
+  // value, so the part still follows width, depth and joinery. Absent on almost every part.
+  overrides?: PartOverrides
 }
 
 export interface CylinderPart {
@@ -174,11 +178,12 @@ export interface CarcaseParams {
   width: number
   height: number
   depth: number
-  material: string
-  thickness: number
+  // The material slots a role draws its thickness from; `roleThicknessFor` is the one rule that
+  // says which. There is no `frontMaterial` until there are fronts to use it.
+  carcaseMaterial: string
+  backMaterial: string
   hasTop: boolean
   backMode: 'captured' | 'applied' | 'none'
-  backThickness: number
   baseMode: 'toe-kick' | 'ladder' | 'legs' | 'none'
   toeKickHeight: number
   toeKickSetback: number

@@ -25,7 +25,7 @@ import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
 import { regenerateComponents } from './regenerateComponents'
-import type { CarcasePreset } from './carcasePresets'
+import { PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
 import { componentsById, descendantIds, wouldCycle } from './componentTree'
 import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat } from '../geom/dado'
@@ -167,7 +167,10 @@ export function buildSpecForPart(part: Part): BuildSpec {
 export function useScene(): UseSceneResult {
   const [scene, setScene] = useState<Scene>(() => ({
     parts: [makeDefaultBoard()],
-    materials: {},
+    // Seeded, not empty: a carcase preset names its materials, and a panel whose material is not
+    // in the scene has no thickness to resolve — the first cabinet dropped into a new file would
+    // fail validation and never appear.
+    materials: { ...PRESET_MATERIALS },
     hardware: [],
     joints: [],
     components: [],
