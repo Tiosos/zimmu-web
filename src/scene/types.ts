@@ -148,6 +148,11 @@ export interface MaterialDef {
   // MDF and the like: the stock has no direction, so the nester may rotate any part of it 90°
   // regardless of that part's own grain. Absent is treated as "has grain" — the safe default.
   hasGrain?: boolean
+  // Panel thickness in mm. Absent means the material is not a sheet good — dowel and hardware
+  // stock has no panel thickness — following the same convention as `sheet?`. A material used as a
+  // carcase or back slot must have one; `validateCarcaseParams` rejects it otherwise, because a
+  // silent zero would collapse every panel derived from it.
+  thickness?: number
 }
 
 export interface HardwareItem {
