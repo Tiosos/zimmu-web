@@ -5,9 +5,25 @@
 // Stage A carries structure only. `interior` (per-section shelves) arrives in Stage D and `front`
 // in Stage E.
 
-import type { InteriorSpec } from './sectionInterior'
-
 export type SectionId = string // "sec_<uuid>"
+
+export interface AdjustableSpec {
+  // How many boards actually sit in this section. New in Stage D: before it, an adjustable shelf
+  // was only ever a row of holes, so nothing counted the shelves themselves.
+  shelves: number
+  // Pin positions per row — what the panel's "Pin count" field has always meant, and what
+  // HoleArrayCut.count receives. Not a shelf count: a section with ten pin positions and two
+  // shelves is ordinary.
+  count: number
+  rows: 1 | 2
+  pitch: 32 // literal, not number: 32 mm *is* the system being modelled
+  setback: number // front row, from the panel's front edge
+  backSetback: number // back row, from the panel's back edge
+}
+
+export interface InteriorSpec {
+  adjustable: AdjustableSpec
+}
 
 export type SectionSize =
   | { kind: 'equal' }
