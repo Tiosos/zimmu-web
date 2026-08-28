@@ -5,6 +5,8 @@
 // Stage A carries structure only. `interior` (per-section shelves) arrives in Stage D and `front`
 // in Stage E.
 
+import type { InteriorSpec } from './sectionInterior'
+
 export type SectionId = string // "sec_<uuid>"
 
 export type SectionSize =
@@ -29,6 +31,9 @@ export interface Section {
   id: SectionId
   size: SectionSize
   content: SectionContent
+  // Per-section shelving. Optional because nothing writes it yet — `sectionInteriors` is the only
+  // reader, and group B is what starts producing it.
+  interior?: InteriorSpec
 }
 
 export function newSectionId(): SectionId {
