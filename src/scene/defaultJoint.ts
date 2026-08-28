@@ -7,6 +7,7 @@ import type {
   FingerJoint,
   HalfLapJoint,
   MortiseTenonJoint,
+  ScrewJoint,
   TongueGrooveJoint,
 } from './types'
 import { computeDadoOffset, defaultDadoDepth } from '../geom/dado'
@@ -142,5 +143,54 @@ export function defaultTongueGrooveJoint(
     tongueThickness: Math.min(Math.max(3, Math.round(groove.thickness / 3)), groove.thickness - 2),
     tongueDepth: Math.min(8, Math.floor(Math.min(groove.width, tongue.width) / 2) - 1),
     clearance: 0,
+  }
+}
+
+// The widest gap the rule leaves between two screws in one joint. A chosen figure — the spacing a
+// shop reaches for on carcase work — not one derived from the fastener, the panel or any load.
+// Change it and the screw count follows.
+export const MAX_SCREW_SPACING = 250
+
+// Chosen too: far enough from the end of a panel that a pilot does not split it, near enough that
+// the corner is actually pulled together.
+const SCREW_END_INSET = 30
+
+// A #8 (⌀4.2) carcase screw: 5 mm clearance so the shank passes freely, 3 mm pilot so the thread
+// bites, 30 mm of pilot for a 40 mm screw. Chosen figures — the screw itself is not modelled.
+const CLEARANCE_DIAMETER = 5
+const PILOT_DIAMETER = 3
+const PILOT_DEPTH = 30
+
+// The through panel is the housing and the receiving panel is the housed one — you screw through
+// the side into the bottom's edge, the same pair a dado names.
+export function defaultScrewJoint(
+  through: BoardPart,
+  receiving: BoardPart,
+  throughFace: Face,
+  receivingEnd: Face,
+  id: string,
+  label: string,
+): ScrewJoint {
+  const end = faceAxes(receivingEnd)
+  // The joint line runs along whichever of the receiving end's two in-face axes is not the panel's
+  // thickness — the line deriveScrewJoint spaces the screws on.
+  const runAx = end.u === 'z' ? end.v : end.u
+  const span = { x: receiving.length, y: receiving.width, z: receiving.thickness }[runAx]
+  // One screw at each end, then intermediates until no gap is wider than the maximum.
+  const run = span - 2 * SCREW_END_INSET
+  return {
+    kind: 'screw',
+    id,
+    label,
+    driven: false,
+    throughPartId: through.id,
+    throughFace,
+    receivingPartId: receiving.id,
+    receivingEnd,
+    screwCount: Math.max(2, Math.ceil(run / MAX_SCREW_SPACING) + 1),
+    endInset: SCREW_END_INSET,
+    clearanceDiameter: CLEARANCE_DIAMETER,
+    pilotDiameter: PILOT_DIAMETER,
+    pilotDepth: PILOT_DEPTH,
   }
 }

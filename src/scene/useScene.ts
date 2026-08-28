@@ -1093,15 +1093,17 @@ export function useScene(): UseSceneResult {
       const joint = sceneRef.current.joints.find((j) => j.id === jointId)
       if (!joint) return
       const label =
-        joint.kind === 'tongue-groove'
-          ? 'Remove tongue & groove'
-          : joint.kind === 'finger'
-            ? 'Remove finger joint'
-            : joint.kind === 'mortise-tenon'
-              ? 'Remove mortise & tenon'
-              : joint.kind === 'halflap'
-                ? 'Remove half-lap'
-                : 'Remove dado'
+        joint.kind === 'screw'
+          ? 'Remove screw fixing'
+          : joint.kind === 'tongue-groove'
+            ? 'Remove tongue & groove'
+            : joint.kind === 'finger'
+              ? 'Remove finger joint'
+              : joint.kind === 'mortise-tenon'
+                ? 'Remove mortise & tenon'
+                : joint.kind === 'halflap'
+                  ? 'Remove half-lap'
+                  : 'Remove dado'
       commitReconciled(
         (prev) => ({ ...prev, joints: prev.joints.filter((j) => j.id !== jointId) }),
         label,

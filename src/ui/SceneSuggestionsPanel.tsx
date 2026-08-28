@@ -1,4 +1,4 @@
-import type { ComponentId, PartId, Scene } from '../scene/types'
+import type { ComponentId, Joint, PartId, Scene } from '../scene/types'
 
 import type { JointSuggestion } from '../scene/suggestJoints'
 import { pairIdsOf } from '../scene/suggestJoints'
@@ -10,12 +10,15 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useMemo, useState } from 'react'
 
-const KIND_LABEL: Record<JointSuggestion['kind'], string> = {
+// Keyed by the joint union rather than the suggestion one: this names existing joints in a
+// jointed row as well as the options in an open one, and screw fixing is a joint nothing suggests.
+const KIND_LABEL: Record<Joint['kind'], string> = {
   halflap: 'Half-lap',
   dado: 'Dado',
   'mortise-tenon': 'Mortise & tenon',
   finger: 'Finger joint',
   'tongue-groove': 'Tongue & groove',
+  screw: 'Screw fixing',
 }
 
 // Short forms: a chip sits inside a row alongside up to three others.

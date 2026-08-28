@@ -344,6 +344,52 @@ export function JointsPanel({
             </div>
           )
         }
+        if (j.kind === 'screw') {
+          const other = j.throughPartId === part.id ? j.receivingPartId : j.throughPartId
+          return (
+            <div key={j.id} className="border-t border-border/30 pt-1 pb-1">
+              <div className="flex items-center gap-1 py-0.5">
+                <span className="flex-1 text-[11px] text-foreground">{j.label}</span>
+                <span className="text-[10px] text-muted-foreground">screw fixing</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Remove joint"
+                  className="h-5 w-5 text-destructive hover:text-destructive"
+                  onClick={() => onRemoveJoint(j.id)}
+                >
+                  ✕
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground pb-0.5">
+                {j.throughPartId === part.id ? '→ into ' : '← through '}
+                {partLabel(scene, other)}
+              </p>
+              <JointNumInput
+                label="Screws"
+                value={j.screwCount}
+                suffix=""
+                onCommit={(v) =>
+                  onUpdateJoint(j.id, (jt) => ({ ...jt, screwCount: Math.max(1, Math.round(v)) }))
+                }
+              />
+              <JointNumInput
+                label="Inset"
+                value={j.endInset}
+                suffix="mm"
+                onCommit={(v) => onUpdateJoint(j.id, (jt) => ({ ...jt, endInset: Math.max(0, v) }))}
+              />
+              <JointNumInput
+                label="Pilot"
+                value={j.pilotDepth}
+                suffix="mm"
+                onCommit={(v) =>
+                  onUpdateJoint(j.id, (jt) => ({ ...jt, pilotDepth: Math.max(1, v) }))
+                }
+              />
+            </div>
+          )
+        }
         const isHousing = j.housingPartId === part.id
         const housing = scene.parts.find((p) => p.id === j.housingPartId)
         const housed = scene.parts.find((p) => p.id === j.housedPartId)

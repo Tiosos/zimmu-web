@@ -7,5 +7,7 @@ export function jointInvolves(joint: Joint, partId: PartId): boolean {
     return joint.mortisePartId === partId || joint.tenonPartId === partId
   if (joint.kind === 'tongue-groove')
     return joint.groovePartId === partId || joint.tonguePartId === partId
+  if (joint.kind === 'screw')
+    return joint.throughPartId === partId || joint.receivingPartId === partId
   return joint.partAId === partId || joint.partBId === partId
 }

@@ -311,7 +311,30 @@ export interface TongueGrooveJoint {
   clearance: number // mm — added to groove width for fit (default 0)
 }
 
-export type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint | FingerJoint | TongueGrooveJoint
+export interface ScrewJoint {
+  kind: 'screw'
+  id: string // "joint_<uuid>"
+  label: string // "Screw fixing 1"
+  sourceComponentId?: string
+  driven: boolean
+  throughPartId: PartId // panel screwed through — clearance holes on its face
+  throughFace: Face // the face the screws enter
+  receivingPartId: PartId // panel receiving them — pilots into its end
+  receivingEnd: Face // the end face the screws are driven into
+  screwCount: number // holes in each row; the spacing follows from the joint line's length
+  endInset: number // mm — first and last screw, from each end of the joint line
+  clearanceDiameter: number // mm — shank clearance, bored right through the through panel
+  pilotDiameter: number // mm — narrower, so the thread bites
+  pilotDepth: number // mm — never through: a screw that bursts out the far face is a defect
+}
+
+export type Joint =
+  | DadoJoint
+  | HalfLapJoint
+  | MortiseTenonJoint
+  | FingerJoint
+  | TongueGrooveJoint
+  | ScrewJoint
 
 export interface Scene {
   parts: Part[]

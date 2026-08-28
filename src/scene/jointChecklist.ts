@@ -73,6 +73,8 @@ function jointPairIds(j: Joint): [PartId, PartId] {
       return [j.partAId, j.partBId]
     case 'tongue-groove':
       return [j.groovePartId, j.tonguePartId]
+    case 'screw':
+      return [j.throughPartId, j.receivingPartId]
     default: {
       const _exhaustive: never = j
       throw new Error(`unhandled joint kind: ${JSON.stringify(_exhaustive)}`)

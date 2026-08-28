@@ -19,6 +19,7 @@ import { deriveHalfLap } from './halflap'
 import { deriveMortiseTenon } from './mortisetenon'
 import { deriveFingerJoint } from './fingerjoint'
 import { deriveTongueGroove } from './tonguegroove'
+import { deriveScrewJoint } from './screw'
 
 type Axis = 'x' | 'y' | 'z'
 
@@ -299,6 +300,8 @@ export function deriveJoint(
       return deriveFingerJoint(joint, parts, byId)
     case 'tongue-groove':
       return deriveTongueGroove(joint, parts, byId)
+    case 'screw':
+      return deriveScrewJoint(joint, parts, byId)
   }
 }
 
