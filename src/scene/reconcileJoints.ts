@@ -6,6 +6,7 @@ import { isJointOwned, isOwnedBy } from './cutOwnership'
 // Regenerate every derived (joint-owned) cut and seated position from the joints.
 // Joint-agnostic: it distributes whatever deriveJoint emits. Pure and idempotent.
 export function reconcileJoints(scene: Scene): Scene {
+  const jointIds = new Set(scene.joints.map((j) => j.id))
   const byId = componentsById(scene.components)
 
   // 1. Strip orphan derived cuts (owning joint gone).
@@ -13,9 +14,7 @@ export function reconcileJoints(scene: Scene): Scene {
     p.kind === 'board'
       ? {
           ...p,
-          cuts: p.cuts.filter(
-            (c) => !isJointOwned(c) || scene.joints.some((j) => isOwnedBy(c, j.id)),
-          ),
+          cuts: p.cuts.filter((c) => !isJointOwned(c) || jointIds.has(c.sourceJointId)),
         }
       : p,
   )
