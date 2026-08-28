@@ -9,14 +9,15 @@ vi.mock('./idb', () => ({
 
 import { useFile, parseFile } from './useFile'
 import * as idb from './idb'
-import type { CarcaseParams, ZimmuFile, Scene, Part } from './types'
+import type { CarcaseParams, MaterialDef, ZimmuFile, Scene, Part } from './types'
 import { carcaseBoxes as boxesOf, validateCarcaseParams as validateOf } from './carcaseRoles'
 import { PRESET_MATERIALS } from './carcasePresets'
 import { roleThicknessFor } from './resolveThickness'
 
-// A pre-v14 file states one thickness per carcase. Until the v14 migration turns those into
-// material definitions, the parser fills the two slots with the names a new scene is seeded with,
-// so that is the record these assertions resolve against.
+// A pre-v14 file states one thickness per carcase; the v14 migration turns those into material
+// definitions. Every legacy fixture below is 18 mm ply on a 12 mm back, which migrates to exactly
+// the two definitions a new scene is seeded with, so that is the record these assertions resolve
+// against. The migration's own naming is asserted in the v13 → v14 block.
 const carcaseBoxes = (p: CarcaseParams) =>
   boxesOf(p, roleThicknessFor(p, PRESET_MATERIALS, new Map()))
 const validateCarcaseParams = (p: CarcaseParams) =>
@@ -1515,5 +1516,185 @@ describe('v12 → v13 migration', () => {
     // v12: a divider is centred on W*d, so x0 = 1400/3 - 18/2 = 457.667
     expect(partitions[0].box.x0).toBeCloseTo(1400 / 3 - 9, 6)
     expect(partitions[1].box.x0).toBeCloseTo((1400 * 2) / 3 - 9, 6)
+  })
+})
+
+// v13 states one thickness per carcase, v14 one thickness per material. Two carcases may legally
+// share a material name at different thicknesses in v13 and cannot in v14, so the migration has to
+// tell them apart — reusing one definition would resize one of the two cabinets.
+describe('v13 → v14 migration', () => {
+  const params = (extra: Record<string, unknown>) => ({
+    width: 600,
+    height: 720,
+    depth: 560,
+    hasTop: true,
+    backMode: 'captured',
+    baseMode: 'toe-kick',
+    toeKickHeight: 100,
+    toeKickSetback: 60,
+    jointMethod: 'dado-rabbet',
+    section: { id: 'sec_1', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+    adjustableShelves: {
+      rows: 2,
+      pitch: 32,
+      setback: 37,
+      backSetback: 37,
+      startHeight: 200,
+      count: 10,
+    },
+    ...extra,
+  })
+
+  const file = (
+    carcases: Record<string, unknown>[],
+    materials: Record<string, unknown> = {},
+    version = 13,
+  ) =>
+    JSON.stringify({
+      version,
+      name: 'Kitchen',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: CAMERA,
+      scene: {
+        parts: [],
+        materials,
+        hardware: [],
+        joints: [],
+        components: carcases.map((p, i) => ({
+          kind: 'carcase',
+          id: `cmp_${i + 1}`,
+          label: `Cabinet ${i + 1}`,
+          parentId: null,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          visible: true,
+          params: p,
+        })),
+      },
+    })
+
+  const loaded = (text: string) => {
+    const parsed = parseFile(text)
+    return {
+      materials: parsed.scene.materials,
+      carcases: parsed.scene.components.map((c) => {
+        if (c.kind !== 'carcase') throw new Error('expected a carcase')
+        return c.params
+      }),
+    }
+  }
+
+  const resolve = (materials: Record<string, MaterialDef>, p: CarcaseParams, role: string) =>
+    roleThicknessFor(p, materials, new Map())(role)
+
+  const SHARED = [
+    params({ material: '18mm Ply', thickness: 18, backThickness: 12 }),
+    params({ material: '18mm Ply', thickness: 25, backThickness: 12 }),
+  ]
+
+  // The hazard this whole migration exists for.
+  it('keeps each carcase at the thickness it was saved with when a name collides', () => {
+    const { materials, carcases } = loaded(file(SHARED))
+    expect(resolve(materials, carcases[0], 'left-side')).toBe(18)
+    expect(resolve(materials, carcases[1], 'left-side')).toBe(25)
+  })
+
+  it('disambiguates the colliding name by its thickness', () => {
+    const { materials, carcases } = loaded(file(SHARED))
+    expect(carcases[0].carcaseMaterial).toBe('18mm Ply')
+    expect(carcases[1].carcaseMaterial).toBe('18mm Ply (25mm)')
+    expect(materials['18mm Ply'].thickness).toBe(18)
+    expect(materials['18mm Ply (25mm)'].thickness).toBe(25)
+  })
+
+  it('both migrated carcases validate', () => {
+    const { materials, carcases } = loaded(file(SHARED))
+    for (const p of carcases) {
+      expect(validateOf(p, roleThicknessFor(p, materials, new Map()))).toEqual([])
+    }
+  })
+
+  // The other half of the rule: only a *differing* thickness may fork the name.
+  it('shares one definition between two carcases of the same thickness', () => {
+    const { materials, carcases } = loaded(
+      file([
+        params({ material: '18mm Ply', thickness: 18, backThickness: 12 }),
+        params({ material: '18mm Ply', thickness: 18, backThickness: 12 }),
+      ]),
+    )
+    expect(carcases[0].carcaseMaterial).toBe('18mm Ply')
+    expect(carcases[1].carcaseMaterial).toBe('18mm Ply')
+    expect(Object.keys(materials).filter((n) => n.startsWith('18mm Ply'))).toEqual(['18mm Ply'])
+  })
+
+  it('drops the per-carcase thickness fields', () => {
+    const { carcases } = loaded(file(SHARED))
+    for (const p of carcases) {
+      expect('material' in p).toBe(false)
+      expect('thickness' in p).toBe(false)
+      expect('backThickness' in p).toBe(false)
+    }
+  })
+
+  // Adding a thickness, not replacing the definition: a rate the user typed must survive the load.
+  it('keeps the other fields of a material the file already defines', () => {
+    const { materials } = loaded(
+      file([params({ material: '18mm Ply', thickness: 18, backThickness: 12 })], {
+        '18mm Ply': { costPerM2: 42, hasGrain: true, sheet: { length: 2440, width: 1220 } },
+      }),
+    )
+    expect(materials['18mm Ply']).toEqual({
+      costPerM2: 42,
+      hasGrain: true,
+      sheet: { length: 2440, width: 1220 },
+      thickness: 18,
+    })
+  })
+
+  // v13 has a back thickness and no back material name at all, so one is synthesised per distinct
+  // thickness — named for the thickness it stands for, so a 6 mm back is not called "12mm MDF".
+  it('synthesises a back material per distinct back thickness', () => {
+    const { materials, carcases } = loaded(
+      file([
+        params({ material: '18mm Ply', thickness: 18, backThickness: 12 }),
+        params({ material: '18mm Ply', thickness: 18, backThickness: 6 }),
+      ]),
+    )
+    expect(carcases[0].backMaterial).toBe('12mm MDF')
+    expect(carcases[1].backMaterial).toBe('6mm MDF')
+    expect(resolve(materials, carcases[0], 'back')).toBe(12)
+    expect(resolve(materials, carcases[1], 'back')).toBe(6)
+  })
+
+  // Some legacy carcases carry `material: ''`. Deriving the name from the thickness rather than
+  // synthesising one called "" keeps a nameless row out of every list the materials record feeds.
+  it('names a slot the file left blank after its thickness', () => {
+    const { materials, carcases } = loaded(
+      file([params({ material: '', thickness: 18, backThickness: 12 })]),
+    )
+    expect(carcases[0].carcaseMaterial).toBe('18mm Ply')
+    expect('' in materials).toBe(false)
+    expect(resolve(materials, carcases[0], 'left-side')).toBe(18)
+  })
+
+  // A v14 file states its slots and its thicknesses already; the migration must not touch it.
+  it('passes a v14 file through unchanged and idempotently', () => {
+    const v14 = file(
+      [params({ carcaseMaterial: '18mm Ply', backMaterial: '12mm MDF' })],
+      { '18mm Ply': { thickness: 18 }, '12mm MDF': { thickness: 12 }, Dowel: { costPerM: 3 } },
+      14,
+    )
+    const once = parseFile(v14).scene
+    expect(once.materials).toEqual({
+      '18mm Ply': { thickness: 18 },
+      '12mm MDF': { thickness: 12 },
+      Dowel: { costPerM: 3 },
+    })
+    const twice = parseFile(JSON.stringify({ ...JSON.parse(v14), scene: once })).scene
+    expect(twice).toEqual(once)
   })
 })

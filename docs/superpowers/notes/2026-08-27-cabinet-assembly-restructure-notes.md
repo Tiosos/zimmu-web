@@ -261,3 +261,24 @@ Decisions that are not in the plan, or that deviate from it.
   `openingRect`. The case that bites is a divided cabinet's shelf, and it now sits in
   `thicknessEquivalence.test.ts` beside the bottom-panel one.
 
+
+- **v14's migration forks a colliding material name rather than reusing one.** `materialAtThickness`
+  in `useFile.ts` walks candidate names — `18mm Ply`, then `18mm Ply (25mm)`, then
+  `18mm Ply (25mm) 2` — and stops at the first that is either unknown, thickness-less (it then gains
+  the thickness and keeps its `costPerM2`/`sheet`/`hasGrain`), or already at the thickness wanted.
+  Reusing the first name for both would silently resize the 25 mm cabinet to 18 mm; the mutation
+  check confirmed that is exactly what the collision test catches (`expected 18 to be 25`).
+  A `thickness` of `undefined` short-circuits the whole thing, which is what makes a v14 file pass
+  through untouched and the migration idempotent.
+
+- **A slot the file never named is named after its thickness, not after the default.** v13 has no
+  back material name at all, and some legacy carcases carry `material: ''`. Both become
+  `${t}mm Ply` / `${t}mm MDF`, so an 18 mm/12 mm cabinet lands back on the seeded `18mm Ply` and
+  `12mm MDF`, a 6 mm back becomes `6mm MDF` instead of a material *named* `12mm MDF` that is 6 mm
+  thick, and no material is ever named the empty string. This is wider than the plan's "name the
+  back material from its thickness" — the same rule had to cover the blank carcase name that
+  `useFile.test.ts`'s v11 fixture carries.
+
+- **`materialAtThickness` needs explicit annotations on `candidate` and `def`.** Without them `tsc`
+  reports TS7022 (implicit `any`, self-referential) because the loop writes back into the same
+  record it indexes. Not a design smell — just the inference giving up.

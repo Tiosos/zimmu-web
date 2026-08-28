@@ -11,15 +11,11 @@ import type {
 } from './types'
 import * as idb from './idb'
 import { breakComponentCycles, promoteOrphans } from './componentTree'
-import {
-  DEFAULT_BACK_MATERIAL,
-  DEFAULT_CARCASE_MATERIAL,
-  PRESET_MATERIALS,
-} from './carcasePresets'
+import { DEFAULT_BACK_MATERIAL, DEFAULT_CARCASE_MATERIAL, PRESET_MATERIALS } from './carcasePresets'
 import { legacyToSection } from './migrateSections'
 import type { Section } from './sectionTree'
 
-export const FILE_FORMAT_VERSION = 13
+export const FILE_FORMAT_VERSION = 14
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -52,6 +48,38 @@ function serialize(envelope: ZimmuFile): string {
 
 const KNOWN_JOINT_KINDS = ['dado', 'halflap', 'mortise-tenon', 'finger', 'tongue-groove']
 
+// v13→v14: a pre-v14 file states one thickness per carcase, v14 one thickness per material. Two
+// carcases may legally have shared a material name at different thicknesses, which v14 cannot
+// represent — so a name already spoken for at another thickness forks into a suffixed one instead
+// of being quietly reused, which would resize one of the two cabinets. A definition the file
+// already carries keeps its other fields: this adds a thickness, it does not replace the material.
+function materialAtThickness(
+  materials: Record<string, MaterialDef>,
+  name: string,
+  thickness: number | undefined,
+): string {
+  // A v14 file states no per-carcase thickness — its slots already name materials that carry one.
+  if (thickness === undefined) return name
+  for (let attempt = 0; ; attempt++) {
+    const candidate: string =
+      attempt === 0
+        ? name
+        : attempt === 1
+          ? `${name} (${thickness}mm)`
+          : `${name} (${thickness}mm) ${attempt}`
+    const def: MaterialDef | undefined = materials[candidate]
+    if (def === undefined) {
+      materials[candidate] = { thickness }
+      return candidate
+    }
+    if (def.thickness === undefined) {
+      materials[candidate] = { ...def, thickness }
+      return candidate
+    }
+    if (def.thickness === thickness) return candidate
+  }
+}
+
 export function parseFile(text: string): ZimmuFile {
   const raw = JSON.parse(text) as ZimmuFile
   if (raw.version > FILE_FORMAT_VERSION) {
@@ -66,6 +94,12 @@ export function parseFile(text: string): ZimmuFile {
     }
     return true
   })
+  // Hoisted out of the scene literal below because the carcase migration writes into it: each
+  // carcase has to see the definitions the ones before it added, or a shared name could not be
+  // told apart from a colliding one.
+  const materials: Record<string, MaterialDef> = {
+    ...((raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {}),
+  }
   const scene: Scene = {
     parts: parts.map((p) =>
       p.kind === 'board'
@@ -92,7 +126,7 @@ export function parseFile(text: string): ZimmuFile {
             driven: p.driven ?? false,
           },
     ),
-    materials: (raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {},
+    materials,
     // Per-item so linkedPartIds/linkedComponentIds default to [] when absent — both are read
     // unguarded (.includes) in the UI, so a file predating either field would otherwise crash.
     hardware: (raw.scene.hardware ?? []).map((h) => ({
@@ -194,6 +228,7 @@ export function parseFile(text: string): ZimmuFile {
           section?: Section
           material?: string
           thickness?: number
+          backThickness?: number
           carcaseMaterial?: string
           backMaterial?: string
         }
@@ -205,25 +240,40 @@ export function parseFile(text: string): ZimmuFile {
             base.params.width,
             legacy.thickness ?? 0,
           )
-        const params: CarcaseParams & { dividers?: number[]; fixedShelves?: number } = {
+        // v13→v14: the back slot has no name to inherit — a pre-v14 file states only how thick
+        // the back is — and some carcases name no material at all. A slot the file did not name is
+        // named for the thickness it stands for, in the vocabulary a new scene is seeded with, so
+        // a default cabinet lands back on `18mm Ply` and a 6 mm back is not called `12mm MDF`.
+        const carcaseName =
+          legacy.carcaseMaterial ||
+          legacy.material ||
+          (legacy.thickness !== undefined ? `${legacy.thickness}mm Ply` : DEFAULT_CARCASE_MATERIAL)
+        const backName =
+          legacy.backMaterial ||
+          (legacy.backThickness !== undefined
+            ? `${legacy.backThickness}mm MDF`
+            : DEFAULT_BACK_MATERIAL)
+        const params: CarcaseParams & {
+          dividers?: number[]
+          fixedShelves?: number
+          material?: string
+          thickness?: number
+          backThickness?: number
+        } = {
           ...base.params,
           section,
-          // Pre-v14 files state one thickness per carcase instead of one per material. Only the
-          // slot *names* are filled in here so the generator has something to resolve; turning a
-          // file's own thicknesses into material definitions — and telling apart two carcases that
-          // shared a name at different thicknesses — is the v14 migration, one commit away. Until
-          // it lands, a pre-v14 carcase whose named material carries no thickness fails validation
-          // and keeps the parts the file already holds rather than regenerating them wrongly. The
-          // file's own `material`, `thickness` and `backThickness` ride along on the params object
-          // untouched — unread by anything, and where the migration will find them.
-          carcaseMaterial: legacy.carcaseMaterial ?? legacy.material ?? DEFAULT_CARCASE_MATERIAL,
-          backMaterial: legacy.backMaterial ?? DEFAULT_BACK_MATERIAL,
+          carcaseMaterial: materialAtThickness(materials, carcaseName, legacy.thickness),
+          backMaterial: materialAtThickness(materials, backName, legacy.backThickness),
           adjustableShelves: { ...shelves, backSetback: shelves.backSetback ?? shelves.setback },
         }
         // Dropped, not kept alongside the tree: two descriptions of the same divisions would
-        // disagree the moment either is edited.
+        // disagree the moment either is edited. The same argument retires the per-carcase
+        // thicknesses now that the materials carry them.
         delete params.dividers
         delete params.fixedShelves
+        delete params.material
+        delete params.thickness
+        delete params.backThickness
         return { ...base, params }
       }
       return base
