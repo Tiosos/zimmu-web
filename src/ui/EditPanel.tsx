@@ -23,6 +23,7 @@ import { SuggestionsPanel } from './SuggestionsPanel'
 import { DimInput } from './DimInput'
 import { cutDimensions } from './buildCsv'
 import { faceAxes } from '../scene/snapMath'
+import { isJointOwned } from '../scene/cutOwnership'
 import { PART_COLORS } from '../scene/palette'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -857,7 +858,8 @@ export function EditPanel({
               + Mitre
             </Button>
           </div>
-          {/* Hole arrays get no row: they are component-owned and carry nothing editable yet. */}
+          {/* A component-owned hole array gets no row: it carries nothing editable yet. A
+              joint-owned one takes the same read-only row a joint-owned box cut takes. */}
           {part.cuts.length === 0 ? (
             <p className="text-[11px] text-muted-foreground py-0.5">No cuts</p>
           ) : (
@@ -871,7 +873,7 @@ export function EditPanel({
                   onRemoveCut={onRemoveCut}
                   defaultOpen={cut.id === lastPlacedCutId}
                 />
-              ) : cut.kind === 'hole-array' ? null : cut.sourceJointId ? (
+              ) : isJointOwned(cut) ? (
                 <div
                   key={cut.id}
                   className="border-t border-border/30 py-1 flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground/70"
@@ -879,7 +881,7 @@ export function EditPanel({
                   <span className="flex-1">{cut.label} (joint)</span>
                   <span className="font-mono text-[10px] text-border">{cut.face}</span>
                 </div>
-              ) : (
+              ) : cut.kind === 'hole-array' ? null : (
                 <CutRow
                   key={cut.id}
                   cut={cut}

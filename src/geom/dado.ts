@@ -7,6 +7,7 @@ import type {
   CutId,
   DadoJoint,
   Face,
+  HoleArrayCut,
   Joint,
   Part,
   PartId,
@@ -21,7 +22,7 @@ import { deriveTongueGroove } from './tonguegroove'
 
 type Axis = 'x' | 'y' | 'z'
 
-export type DerivedCut = { partId: PartId; cut: BoxCut }
+export type DerivedCut = { partId: PartId; cut: BoxCut | HoleArrayCut }
 export type DeriveResult = { cuts: DerivedCut[]; seat?: { partId: PartId; position: Vec3 } }
 
 const FACE_NORMALS: Record<Face, Vec3> = {

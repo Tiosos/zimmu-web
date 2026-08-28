@@ -469,6 +469,8 @@
 │   ├── componentTree.ts
 │   ├── cutFootprint.test.ts
 │   ├── cutFootprint.ts
+│   ├── cutOwnership.test.ts
+│   ├── cutOwnership.ts
 │   ├── defaultJoint.ts
 │   ├── fitCamera.test.ts
 │   ├── fitCamera.ts
@@ -1032,7 +1034,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->70<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-24 the full Vitest run is 1105 passing (10 skipped) across 60 files (the 60th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 68 test files total including 8 Playwright specs in <code>e2e/</code>.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->71<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-24 the full Vitest run is 1105 passing (10 skipped) across 60 files (the 60th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 68 test files total including 8 Playwright specs in <code>e2e/</code>.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1179,7 +1181,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-25-sheet-yield-stage-3-nest-sheets.md
     │   ├── 2026-08-25-sheet-yield-stage-4-worker-and-report.md
     │   ├── 2026-08-27-cabinet-restructure-stage-a-section-tree.md
-    │   └── 2026-08-27-cabinet-restructure-stage-b-materials-own-thickness.md
+    │   ├── 2026-08-27-cabinet-restructure-stage-b-materials-own-thickness.md
+    │   └── 2026-08-28-cabinet-restructure-stage-c-screw-joints.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md

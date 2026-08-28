@@ -24,6 +24,7 @@ import type {
 import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
+import { isJointOwned } from './cutOwnership'
 import { regenerateComponents } from './regenerateComponents'
 import { PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
 import { componentsById, descendantIds, wouldCycle } from './componentTree'
@@ -460,7 +461,7 @@ export function useScene(): UseSceneResult {
           rotation: { x: 0, y: 0, z: 0 },
           visible: true,
           cuts: orig.cuts
-            .filter((c) => !(c.kind === 'box' && c.sourceJointId))
+            .filter((c) => !isJointOwned(c))
             .map((c) =>
               c.kind === 'box'
                 ? { ...c, id: `cut_${crypto.randomUUID()}` as CutId, pairedCutId: undefined }
@@ -588,7 +589,7 @@ export function useScene(): UseSceneResult {
       if (part?.kind !== 'board') return
       const beforeA = part.cuts.find((c) => c.id === cutId)
       if (!beforeA) return
-      if (beforeA.kind === 'box' && beforeA.sourceJointId) return // derived cut — edit via the joint
+      if (isJointOwned(beforeA)) return // derived cut — edit via the joint
       const afterA = updater(beforeA)
 
       if (afterA.kind === 'box' && afterA.pairedCutId) {
@@ -743,7 +744,7 @@ export function useScene(): UseSceneResult {
       if (part?.kind !== 'board') return
       const removedCut = part.cuts.find((c) => c.id === cutId)
       if (!removedCut) return
-      if (removedCut.kind === 'box' && removedCut.sourceJointId) return // derived cut — remove the joint
+      if (isJointOwned(removedCut)) return // derived cut — remove the joint
 
       const affectedPairs: Array<{ partId: PartId; cutId: CutId }> = []
       for (const p of sceneRef.current.parts) {
@@ -823,7 +824,7 @@ export function useScene(): UseSceneResult {
       const cutB = partB.cuts.find((c) => c.id === cutIdB)
       if (!cutA || !cutB) return
       if (cutA.kind !== 'box' || cutB.kind !== 'box') return // linking is box-only
-      if (cutA.sourceJointId || cutB.sourceJointId) return // derived cuts can't be paired
+      if (isJointOwned(cutA) || isJointOwned(cutB)) return // derived cuts can't be paired
 
       const axesA = faceAxes(cutA.face)
       const axesB = faceAxes(cutB.face)

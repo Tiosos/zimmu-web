@@ -102,6 +102,50 @@ test('orphaned derived cuts (no matching joint) are stripped', () => {
   expect(H.cuts.some((c) => c.kind === 'box' && c.sourceJointId === 'gone')).toBe(false)
 })
 
+test('an orphaned derived hole array is stripped too, not only a box cut', () => {
+  const s = scene()
+  ;(s.parts[0] as BoardPart).cuts = [
+    {
+      kind: 'hole-array',
+      id: 'cut_ghost_bores',
+      label: 'Ghost bores',
+      face: '+Z',
+      axis: 'U',
+      start: { x: 20, y: 20, z: 25 },
+      pitch: 32,
+      count: 2,
+      diameter: 5,
+      depth: 12,
+      sourceJointId: 'gone',
+    },
+  ]
+  const out = reconcileJoints(s)
+  const H = out.parts.find((p) => p.id === 'H') as BoardPart
+  expect(H.cuts.some((c) => c.id === 'cut_ghost_bores')).toBe(false)
+})
+
+test('a component-owned hole array survives reconciliation', () => {
+  const s = scene()
+  ;(s.parts[0] as BoardPart).cuts = [
+    {
+      kind: 'hole-array',
+      id: 'cut_shelf_pins',
+      label: 'Shelf pins',
+      face: '+Z',
+      axis: 'U',
+      start: { x: 20, y: 20, z: 25 },
+      pitch: 32,
+      count: 2,
+      diameter: 5,
+      depth: 12,
+      sourceComponentId: 'cmp_1',
+    },
+  ]
+  const out = reconcileJoints(s)
+  const H = out.parts.find((p) => p.id === 'H') as BoardPart
+  expect(H.cuts.some((c) => c.id === 'cut_shelf_pins')).toBe(true)
+})
+
 test('a stale (off-axis) joint keeps its last-good derived cut', () => {
   const s = reconcileJoints(scene()) // materialize the groove first
   const staleScene: Scene = {

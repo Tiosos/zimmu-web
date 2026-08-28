@@ -46,7 +46,12 @@ export interface HoleArrayCut {
   count: number
   diameter: number
   depth: number
-  sourceComponentId?: string // hole arrays are component-owned, never joint-owned
+  // A hole array is owned either by a component or by a joint, never both.
+  sourceComponentId?: string // set on hole arrays a component places directly (e.g. shelf-pin rows)
+  // Set on hole arrays a Joint generates and owns (read-only in the UI), exactly as on a box cut.
+  // Screw fixing is the first joint whose geometry is bores rather than a groove; before it, the
+  // only joint-owned cut kind was 'box'.
+  sourceJointId?: string
 }
 
 export type CutDef = BoxCut | MitreCut | HoleArrayCut

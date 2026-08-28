@@ -1,7 +1,15 @@
 import { describe, it, test, expect } from 'vitest'
-import type { BoardPart, Component, HalfLapJoint, Part } from '../scene/types'
+import type { BoardPart, BoxCut, Component, HalfLapJoint, Part } from '../scene/types'
+import type { DerivedCut } from './dado'
 import { componentsById } from '../scene/componentTree'
 import { isValidHalfLap, stackAxis, worldAabb, deriveHalfLap } from './halflap'
+
+// A half-lap's geometry is a notch, so every cut it derives is a box; DerivedCut is wider than
+// that because a joint may also own a bore.
+function boxCut(cut: DerivedCut['cut']): BoxCut {
+  if (cut.kind !== 'box') throw new Error(`expected a box cut, got ${cut.kind}`)
+  return cut
+}
 
 const A: BoardPart = {
   kind: 'board',
@@ -99,8 +107,8 @@ test('deriveHalfLap: complementary corner cuts, one per board, no seat', () => {
   expect(r).not.toBeNull()
   expect(r!.seat).toBeUndefined()
   expect(r!.cuts).toHaveLength(2)
-  const cutA = r!.cuts.find((c) => c.partId === 'A')!.cut
-  const cutB = r!.cuts.find((c) => c.partId === 'B')!.cut
+  const cutA = boxCut(r!.cuts.find((c) => c.partId === 'A')!.cut)
+  const cutB = boxCut(r!.cuts.find((c) => c.partId === 'B')!.cut)
   expect(cutA.id).toBe('cut_j1_lapA')
   expect(cutA.position).toEqual({ x: 80, y: 0, z: 10 })
   expect(cutA.size).toEqual({ x: 40, y: 40, z: 10 })
@@ -114,15 +122,15 @@ test('deriveHalfLap: complementary corner cuts, one per board, no seat', () => {
 
 test('deriveHalfLap: split shifts the shared plane', () => {
   const r = deriveHalfLap({ ...joint, split: 0.25 }, parts, NO_COMPONENTS)!
-  const cutA = r.cuts.find((c) => c.partId === 'A')!.cut
+  const cutA = boxCut(r.cuts.find((c) => c.partId === 'A')!.cut)
   expect(cutA.position.z).toBeCloseTo(5, 6)
   expect(cutA.size.z).toBeCloseTo(15, 6)
 })
 
 test('deriveHalfLap: clearance deepens each notch past the mid-plane', () => {
   const r = deriveHalfLap({ ...joint, clearance: 2 }, parts, NO_COMPONENTS)!
-  const cutA = r.cuts.find((c) => c.partId === 'A')!.cut
-  const cutB = r.cuts.find((c) => c.partId === 'B')!.cut
+  const cutA = boxCut(r.cuts.find((c) => c.partId === 'A')!.cut)
+  const cutB = boxCut(r.cuts.find((c) => c.partId === 'B')!.cut)
   expect(cutA.position.z).toBeCloseTo(8, 6)
   expect(cutA.size.z).toBeCloseTo(12, 6)
   expect(cutB.position.z).toBeCloseTo(0, 6)
@@ -145,8 +153,8 @@ test('deriveHalfLap: cuts are correct when the second board is rotated Rz=90 (st
   const jointAC = { ...joint, partBId: 'C' }
   const r = deriveHalfLap(jointAC, [A, C], NO_COMPONENTS)
   expect(r).not.toBeNull()
-  const cutA = r!.cuts.find((c) => c.partId === 'A')!.cut
-  const cutC = r!.cuts.find((c) => c.partId === 'C')!.cut
+  const cutA = boxCut(r!.cuts.find((c) => c.partId === 'A')!.cut)
+  const cutC = boxCut(r!.cuts.find((c) => c.partId === 'C')!.cut)
   // A keeps low, removes high [10,20] over the overlap x[80,120] y[0,40]:
   expect(cutA.position.x).toBeCloseTo(80, 6)
   expect(cutA.position.y).toBeCloseTo(0, 6)

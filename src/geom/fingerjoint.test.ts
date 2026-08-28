@@ -8,6 +8,14 @@ import {
 } from './fingerjoint'
 import { applyMatrixToPoint, composeWorldMatrix } from './transform'
 import { componentsById } from '../scene/componentTree'
+import type { DerivedCut } from './dado'
+
+// A finger joint's geometry is slots, so every cut it derives is a box; DerivedCut is wider than
+// that because a joint may also own a bore.
+function boxCut(cut: DerivedCut['cut']): BoxCut {
+  if (cut.kind !== 'box') throw new Error(`expected a box cut, got ${cut.kind}`)
+  return cut
+}
 
 const NO_COMPONENTS = componentsById([])
 
@@ -134,11 +142,11 @@ test('deriveFingerJoint: A and B cover complementary world-Y bands (interlock)',
   const r = deriveFingerJoint(joint, parts, NO_COMPONENTS)!
   const aSlots = r.cuts
     .filter((c) => c.partId === 'A')
-    .map((c) => c.cut.position.y)
+    .map((c) => boxCut(c.cut).position.y)
     .sort((x, y) => x - y)
   const bSlots = r.cuts
     .filter((c) => c.partId === 'B')
-    .map((c) => c.cut.position.y)
+    .map((c) => boxCut(c.cut).position.y)
     .sort((x, y) => x - y)
   expect(aSlots).toEqual([20, 60])
   expect(bSlots).toEqual([0, 40])
@@ -147,8 +155,8 @@ test('deriveFingerJoint: unequal thickness → asymmetric slot depths', () => {
   const a2: BoardPart = { ...A, thickness: 12 }
   const b2: BoardPart = { ...B, thickness: 24 }
   const r = deriveFingerJoint(joint, [a2, b2], NO_COMPONENTS)!
-  const aCut = r.cuts.find((c) => c.partId === 'A')!.cut
-  const bCut = r.cuts.find((c) => c.partId === 'B')!.cut
+  const aCut = boxCut(r.cuts.find((c) => c.partId === 'A')!.cut)
+  const bCut = boxCut(r.cuts.find((c) => c.partId === 'B')!.cut)
   expect(aCut.size.x).toBe(24)
   expect(bCut.size.x).toBe(12)
 })
@@ -187,8 +195,10 @@ test('deriveFingerJoint: genuinely anti-parallel board triggers flip=true and wo
     return [cy - cut.size.y / 2, cy + cut.size.y / 2]
   }
   const seatedB: BoardPart = { ...Bflip, position: r.seat!.position }
-  const aBands = r.cuts.filter((c) => c.partId === 'A').map((c) => worldBandY(A, c.cut))
-  const bBands = r.cuts.filter((c) => c.partId === 'B').map((c) => worldBandY(seatedB, c.cut))
+  const aBands = r.cuts.filter((c) => c.partId === 'A').map((c) => worldBandY(A, boxCut(c.cut)))
+  const bBands = r.cuts
+    .filter((c) => c.partId === 'B')
+    .map((c) => worldBandY(seatedB, boxCut(c.cut)))
   const overlap = (p: [number, number], q: [number, number]) =>
     Math.min(p[1], q[1]) - Math.max(p[0], q[0]) > 1e-6
   for (const ab of aBands) for (const bb of bBands) expect(overlap(ab, bb)).toBe(false)

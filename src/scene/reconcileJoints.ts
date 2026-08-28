@@ -1,11 +1,11 @@
 import type { Scene } from './types'
 import { deriveJoint } from '../geom/dado'
 import { componentsById } from './componentTree'
+import { isJointOwned, isOwnedBy } from './cutOwnership'
 
 // Regenerate every derived (joint-owned) cut and seated position from the joints.
 // Joint-agnostic: it distributes whatever deriveJoint emits. Pure and idempotent.
 export function reconcileJoints(scene: Scene): Scene {
-  const jointIds = new Set(scene.joints.map((j) => j.id))
   const byId = componentsById(scene.components)
 
   // 1. Strip orphan derived cuts (owning joint gone).
@@ -14,12 +14,7 @@ export function reconcileJoints(scene: Scene): Scene {
       ? {
           ...p,
           cuts: p.cuts.filter(
-            (c) =>
-              !(
-                c.kind === 'box' &&
-                c.sourceJointId !== undefined &&
-                !jointIds.has(c.sourceJointId)
-              ),
+            (c) => !isJointOwned(c) || scene.joints.some((j) => isOwnedBy(c, j.id)),
           ),
         }
       : p,
@@ -32,9 +27,7 @@ export function reconcileJoints(scene: Scene): Scene {
 
     // Remove this joint's derived cuts from every board, then scatter the fresh ones.
     parts = parts.map((p) =>
-      p.kind === 'board'
-        ? { ...p, cuts: p.cuts.filter((c) => !(c.kind === 'box' && c.sourceJointId === joint.id)) }
-        : p,
+      p.kind === 'board' ? { ...p, cuts: p.cuts.filter((c) => !isOwnedBy(c, joint.id)) } : p,
     )
     for (const { partId, cut } of result.cuts) {
       parts = parts.map((p) =>
