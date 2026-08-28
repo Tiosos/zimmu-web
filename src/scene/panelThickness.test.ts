@@ -1,17 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { carcaseBoxes, carcaseJoints, type LocalBox } from './carcaseRoles'
+import { carcaseBoxes } from './carcaseRoles'
 import { roleThicknessFor } from './resolveThickness'
 import type { CarcaseParams, MaterialDef } from './types'
 import { SWEEP } from './__fixtures__/sweep'
-import baselineJson from './__fixtures__/stage-b-baseline.json?raw'
 
-// Loaded as text: `resolveJsonModule` is off, and turning it on to reach one fixture would change
-// how every module in the project resolves.
-const baseline: { index: number; boxes: string[]; joints: string[] }[] = JSON.parse(baselineJson)
-
-// The two thicknesses the sweep's cabinets used to state as parameters, now stated by the materials
-// they name. Nothing else about them changes, so every box the generator emits must land where it
-// landed before thickness moved onto the material.
+// Extracted from the Stage B equivalence suite when its golden-master baseline was retired. The
+// baseline proved the switch to per-panel thickness changed nothing; these prove it changed
+// something — and they are the only tests that can. Every one of the 96 baseline cases was
+// symmetric, so `openingRect` reading one side's thickness for both edges passed all of them and
+// failed only here. That mutation was run: 1 failed, 196 passed.
 const MATERIALS: Record<string, MaterialDef> = {
   '18mm Ply': { thickness: 18 },
   '12mm MDF': { thickness: 12 },
@@ -19,40 +16,6 @@ const MATERIALS: Record<string, MaterialDef> = {
 }
 
 const tOf = (p: CarcaseParams) => roleThicknessFor(p, MATERIALS, new Map())
-
-// Compared by *geometry*, never by role name: a name-keyed comparison could be satisfied by
-// renaming something into place rather than by building the same cabinet. Both sides are derived;
-// neither is a number anyone typed.
-const boxKey = (b: { box: LocalBox; thicknessAxis: string }) =>
-  [b.box.x0, b.box.x1, b.box.y0, b.box.y1, b.box.z0, b.box.z1, b.thicknessAxis]
-    .map((n) => (typeof n === 'number' ? n.toFixed(6) : n))
-    .join('|')
-
-describe('per-panel thickness reproduces the one-thickness cabinet', () => {
-  it('covers every baseline case', () => {
-    expect(SWEEP).toHaveLength(baseline.length)
-  })
-
-  it.each(SWEEP.map((p, i) => [i, p] as const))('case %i: same boxes', (i, params) => {
-    expect(carcaseBoxes(params, tOf(params)).map(boxKey).sort()).toEqual(baseline[i].boxes)
-  })
-
-  it.each(SWEEP.map((p, i) => [i, p] as const))('case %i: same joints', (i, params) => {
-    const byRole = new Map(carcaseBoxes(params, tOf(params)).map((b) => [b.role, b]))
-    const joints = carcaseJoints(params, tOf(params), '')
-      .map((d) =>
-        [
-          d.kind,
-          boxKey(byRole.get(d.housingRole)!),
-          boxKey(byRole.get(d.housedRole)!),
-          d.housingFace,
-          d.housedEnd,
-        ].join('#'),
-      )
-      .sort()
-    expect(joints).toEqual(baseline[i].joints)
-  })
-})
 
 describe('a panel resolves its own thickness', () => {
   const params = SWEEP[0]

@@ -282,3 +282,52 @@ Decisions that are not in the plan, or that deviate from it.
 - **`materialAtThickness` needs explicit annotations on `candidate` and `def`.** Without them `tsc`
   reports TS7022 (implicit `any`, self-referential) because the loop writes back into the same
   record it indexes. Not a design smell — just the inference giving up.
+
+### 2026-08-28 — Stage B: the debounce dropped a pending edit on unmount
+
+`e2e/carcase.spec.ts` failed at close-out: changing a cabinet's depth and then clicking a part left
+the part at its old size. The generator was innocent — a unit test driving `regenerateComponents`
+through the same depth change resized correctly.
+
+The cause was `useDebouncedCallback`, untouched by this stage and wrong since it was written:
+
+```ts
+useEffect(() => () => { if (timer.current !== null) clearTimeout(timer.current) }, [])
+```
+
+It **cancelled** the pending call. `DimInput` commits 150 ms after a keystroke, and selecting a part
+in the tree swaps `CarcasePanel` for `EditPanel` — so any cabinet dimension typed within 150 ms of
+the next click was silently thrown away. Not a test artefact: a user typing a depth and clicking a
+part loses the depth.
+
+It now flushes instead, firing the latest pending value on unmount. Five tests pin the behaviour,
+including that it does not double-fire when the timer already ran, and does not fire when nothing
+was pending.
+
+**Why no unit test caught this before.** Every existing test of a debounced field asserts what
+happens when the timer *fires*; none unmounted mid-edit, because unmounting is not something a
+component test does unless it is testing unmounting. The e2e caught it because a real user's next
+action is a click somewhere else, and that is what the spec does.
+
+Stage B did not cause it — the race has been there all along, and the suite passed by luck when the
+gap between fill and click happened to exceed 150 ms. Stage B's extra work per render made the
+losing side of that race the usual one.
+
+### 2026-08-28 — Stage B closed
+
+- Unit tests **1268 → 1310**; e2e **15/15**.
+- The golden master (`stage-b-baseline.json`, `thicknessEquivalence.test.ts`) was green at 197/197
+  immediately before retirement.
+- **The four asymmetry tests were extracted, not deleted, into `panelThickness.test.ts`.** They were
+  living in the equivalence file, and retiring the baseline would have taken them with it — which
+  would have thrown away the *only* tests that can catch this stage's central bug. Re-verified after
+  extraction by re-running the `openingRect` mutation against the extracted file alone: 1 failed, 3
+  passed. A test worth keeping is worth proving still bites after it moves.
+- The mutation that matters, recorded for whoever revisits `openingRect`: making it read
+  `thicknessOf('left-side')` for both x edges leaves **all 96 baseline cases green** and fails only
+  the shelf assertion. The golden master is blind to it, and so was the bottom-panel test the plan
+  originally specified — shell panels come from the box table, and only what nests inside the
+  cabinet reads `openingRect`.
+- Not done, deliberately: no `frontMaterial` (Stage E, with the fronts that need it);
+  `adjustableShelves` still on `CarcaseParams` (Stage D); joints still use `jointMethod` (Stage C of
+  the wider restructure).
