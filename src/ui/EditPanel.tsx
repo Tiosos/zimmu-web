@@ -14,6 +14,7 @@ import type {
   Component,
   ComponentId,
 } from '../scene/types'
+import type { PartOverrides } from '../scene/resolveThickness'
 import type { DowelCutTool } from '../scene/useAddCut'
 import type { JointSuggestion } from '../scene/suggestJoints'
 import { DowelCutsPanel } from './DowelCutsPanel'
@@ -360,6 +361,31 @@ function MitreRow({
   )
 }
 
+// The same amber the SceneTree gives a detached part, for the same kind of fact: this value is the
+// part's own, not its cabinet's. Carries the way back, because an override with no way out is a
+// one-way detachment by another name.
+function OverriddenNote({
+  field,
+  onClear,
+}: {
+  field: 'thickness' | 'material'
+  onClear: () => void
+}) {
+  return (
+    <div className="mb-1 flex items-center gap-1.5">
+      <span
+        title={`Overridden — this ${field} is the part's own, not its cabinet's`}
+        className="text-[9px] uppercase tracking-wide text-amber-400/80 shrink-0"
+      >
+        overridden
+      </span>
+      <button className="text-[11px] text-muted-foreground underline" onClick={onClear}>
+        Use the cabinet's {field}
+      </button>
+    </div>
+  )
+}
+
 function ColorControl({
   part,
   onUpdate,
@@ -490,6 +516,39 @@ export function EditPanel({
     setPending(null)
   }
 
+  // Clearing the last override leaves the field absent rather than an empty object, so a part that
+  // owns nothing serialises exactly as it did before it could own anything.
+  const setOverride = <K extends keyof PartOverrides>(key: K, value: PartOverrides[K]) => {
+    onUpdate(part.id, (p) => {
+      if (p.kind !== 'board') return p
+      const next: PartOverrides = { ...p.overrides }
+      if (value === undefined) delete next[key]
+      else next[key] = value
+      return { ...p, overrides: Object.keys(next).length > 0 ? next : undefined }
+    })
+  }
+
+  // Thickness is the one dimension a part can take on its own: it has an override to land in, and
+  // since it comes from the material there is no cabinet parameter to push it up to. Length and
+  // width keep the two answers they had.
+  const applyToPart = () => {
+    if (!pending || pending.dimension !== 'thickness') return
+    setOverride('thickness', pending.value)
+    setPending(null)
+  }
+
+  // A material stating no thickness cannot size a panel — roleThicknessFor throws on one by design
+  // — so the filter CarcasePanel applies to a slot applies here too. The one already on the part is
+  // offered as well, so a file naming a material this scene lacks still shows what it is set to.
+  const ownMaterial = part.kind === 'board' ? part.overrides?.material : undefined
+  const usableMaterials = Object.keys(scene.materials).filter(
+    (name) => scene.materials[name].thickness !== undefined,
+  )
+  const materialOptions =
+    ownMaterial !== undefined && !usableMaterials.includes(ownMaterial)
+      ? [ownMaterial, ...usableMaterials]
+      : usableMaterials
+
   // The cutting list reports the long edge as the length; the stored order is whatever the
   // generator's min-corner placement produced. Showing both stops the two from looking like a
   // contradiction, and stays hidden when they agree.
@@ -559,9 +618,31 @@ export function EditPanel({
             onUpdate(part.id, (p) => ({ ...p, material }))
           }}
         />
-        {part.driven && (
+        {part.driven && ownMaterial === undefined && (
           <div className="mt-1 text-[11px] text-muted-foreground">
             Material is set by {ownerLabel}.
+          </div>
+        )}
+        {part.kind === 'board' && part.driven && (
+          <div className="mt-1">
+            <Select
+              value={part.overrides?.material ?? ''}
+              onValueChange={(v) => setOverride('material', v)}
+            >
+              <SelectTrigger aria-label="Material for this part" className="h-7 w-full text-[11px]">
+                <SelectValue placeholder="Material for this part only…" />
+              </SelectTrigger>
+              <SelectContent>
+                {materialOptions.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {ownMaterial !== undefined && (
+              <OverriddenNote field="material" onClear={() => setOverride('material', undefined)} />
+            )}
           </div>
         )}
         <datalist id={MATERIAL_DATALIST_ID}>
@@ -601,6 +682,12 @@ export function EditPanel({
                 suffix="mm"
                 onCommit={(v) => commitDimension('thickness', v)}
               />
+              {part.overrides?.thickness !== undefined && (
+                <OverriddenNote
+                  field="thickness"
+                  onClear={() => setOverride('thickness', undefined)}
+                />
+              )}
               <div className="flex items-center gap-1.5 mb-1">
                 <Label htmlFor="part-grain" className="w-8 shrink-0 text-right">
                   Grain
@@ -612,9 +699,7 @@ export function EditPanel({
                   // the next keystroke and leave a junk undo entry behind.
                   disabled={part.driven}
                   onValueChange={(v) =>
-                    onUpdate(part.id, (p) =>
-                      p.kind === 'board' ? { ...p, grain: v as Grain } : p,
-                    )
+                    onUpdate(part.id, (p) => (p.kind === 'board' ? { ...p, grain: v as Grain } : p))
                   }
                 >
                   <SelectTrigger id="part-grain" className="h-7 flex-1 text-[11px]">
@@ -644,6 +729,11 @@ export function EditPanel({
                     {pending.param !== null && (
                       <Button size="sm" variant="secondary" onClick={applyToCabinet}>
                         Change the cabinet
+                      </Button>
+                    )}
+                    {pending.dimension === 'thickness' && (
+                      <Button size="sm" variant="secondary" onClick={applyToPart}>
+                        Change this part only
                       </Button>
                     )}
                     <Button size="sm" variant="secondary" onClick={detachAndApply}>

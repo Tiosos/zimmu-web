@@ -3,15 +3,19 @@ import { render, screen, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { EditPanel } from './EditPanel'
-import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
+import { regenerateComponents } from '../scene/regenerateComponents'
+import type { Mock } from 'vitest'
 import type {
   BoardPart,
   CarcaseComponent,
+  CarcaseParams,
   Component,
   CutDef,
   CutId,
   HoleArrayCut,
   MitreCut,
+  Part,
   Scene,
 } from '../scene/types'
 
@@ -324,5 +328,130 @@ describe('EditPanel — grain', () => {
       },
     })
     expect(screen.queryByLabelText('Grain')).toBeNull()
+  })
+})
+
+// Stage B: a driven part can take ownership of its thickness or material and stay driven. The
+// panel is what writes one, so these drive it through the real generator rather than asserting on
+// the updater alone — an override a regeneration drops is the failure that matters.
+describe('EditPanel — a part taking ownership of a field', () => {
+  afterEach(cleanup)
+
+  const materials = {
+    ...PRESET_MATERIALS,
+    '25mm Ply': { thickness: 25 },
+    'Edge banding': { costPerM: 2 },
+  }
+  const seeded = regenerateComponents({
+    parts: [],
+    materials,
+    hardware: [],
+    joints: [],
+    components: [cabinet],
+  })
+
+  const boardOf = (s: Scene, role: string): BoardPart => {
+    const p = s.parts.find((x) => x.role === role)
+    if (p === undefined || p.kind !== 'board') throw new Error(`no board for ${role}`)
+    return p
+  }
+
+  const regenerate = (part: BoardPart, params: Partial<CarcaseParams> = {}): Scene =>
+    regenerateComponents({
+      ...seeded,
+      parts: seeded.parts.map((p) => (p.id === part.id ? part : p)),
+      components: [{ ...cabinet, params: { ...cabinet.params, ...params } }],
+    })
+
+  const lastUpdate = (onUpdate: Mock, part: BoardPart): BoardPart => {
+    const updater = onUpdate.mock.calls.at(-1)![1] as (p: Part) => Part
+    const next = updater(part)
+    if (next.kind !== 'board') throw new Error('expected a board')
+    return next
+  }
+
+  // The bottom is the panel that shows both halves at once: its length comes from the cabinet's
+  // width, its thickness from the material it would otherwise share with every other panel.
+  const overridden = (o: BoardPart['overrides']): { part: BoardPart; scene: Scene } => {
+    const scene = regenerate({ ...boardOf(seeded, 'bottom'), overrides: o })
+    return { part: boardOf(scene, 'bottom'), scene }
+  }
+
+  it('keeps its own thickness through a cabinet width change, and still follows the width', async () => {
+    const bottom = boardOf(seeded, 'bottom')
+    // Thickness comes from the material now, so there is no cabinet parameter to push it up to.
+    const h = renderPanel({ part: bottom, scene: seeded, parameterFor: vi.fn(() => null) })
+    const field = screen.getByLabelText('T')
+    await userEvent.clear(field)
+    await userEvent.type(field, '25')
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Change this part only' })).toBeTruthy(),
+    )
+    expect(screen.queryByRole('button', { name: 'Change the cabinet' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Change this part only' }))
+
+    const owned = lastUpdate(h.onUpdate, bottom)
+    expect(owned.overrides).toEqual({ thickness: 25 })
+    expect(owned.driven).toBe(true)
+
+    const narrow = boardOf(regenerate(owned), 'bottom')
+    const wide = boardOf(regenerate(owned, { width: cabinet.params.width + 300 }), 'bottom')
+    expect(wide.overrides).toEqual({ thickness: 25 })
+    expect(wide.thickness).toBe(25)
+    expect(wide.length - narrow.length).toBe(300)
+  })
+
+  it('gives the thickness back to the cabinet when the override is cleared', async () => {
+    const { part, scene } = overridden({ thickness: 25 })
+    expect(part.thickness).toBe(25)
+
+    const h = renderPanel({ part, scene, parameterFor: vi.fn(() => null) })
+    await userEvent.click(screen.getByRole('button', { name: "Use the cabinet's thickness" }))
+
+    // 18 mm: the thickness of the material in the carcase slot.
+    expect(boardOf(regenerate(lastUpdate(h.onUpdate, part)), 'bottom').thickness).toBe(18)
+  })
+
+  it('leaves no empty overrides object behind when the last one is cleared', async () => {
+    const { part, scene } = overridden({ thickness: 25 })
+    const h = renderPanel({ part, scene, parameterFor: vi.fn(() => null) })
+    await userEvent.click(screen.getByRole('button', { name: "Use the cabinet's thickness" }))
+
+    const cleared = lastUpdate(h.onUpdate, part)
+    expect(cleared.overrides).toBeUndefined()
+    // A part that owns nothing has to serialise exactly as it did before it could own anything.
+    expect(JSON.parse(JSON.stringify(cleared))).not.toHaveProperty('overrides')
+  })
+
+  it('clears one field without disturbing the other', async () => {
+    const { part, scene } = overridden({ thickness: 25, material: '25mm Ply' })
+    const h = renderPanel({ part, scene, parameterFor: vi.fn(() => null) })
+    await userEvent.click(screen.getByRole('button', { name: "Use the cabinet's material" }))
+
+    expect(lastUpdate(h.onUpdate, part).overrides).toEqual({ thickness: 25 })
+  })
+
+  it('offers only materials that state a thickness', async () => {
+    renderPanel({ part: boardOf(seeded, 'bottom'), scene: seeded })
+    await userEvent.click(screen.getByLabelText('Material for this part'))
+
+    // roleThicknessFor throws on a material with no thickness by design: one cannot size a panel.
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      '18mm Ply',
+      '12mm MDF',
+      '25mm Ply',
+    ])
+  })
+
+  it("takes the chosen material as the part's own, and resolves its thickness", async () => {
+    const part = boardOf(seeded, 'bottom')
+    const h = renderPanel({ part, scene: seeded })
+    await userEvent.click(screen.getByLabelText('Material for this part'))
+    await userEvent.click(screen.getByRole('option', { name: '25mm Ply' }))
+
+    const owned = lastUpdate(h.onUpdate, part)
+    expect(owned.overrides).toEqual({ material: '25mm Ply' })
+    expect(owned.driven).toBe(true)
+    expect(boardOf(regenerate(owned), 'bottom').thickness).toBe(25)
   })
 })
