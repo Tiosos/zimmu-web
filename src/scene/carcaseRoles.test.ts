@@ -11,6 +11,7 @@ import {
   parameterForRole,
 } from './carcaseRoles'
 import { roleThicknessFor } from './resolveThickness'
+import { jointKindFor } from './resolveJointKind'
 import type { JointDescriptor, PanelSpec, RoleSpec } from './carcaseRoles'
 import { dadoDepthFor } from '../geom/dado'
 import { legacyToSection } from './migrateSections'
@@ -158,12 +159,14 @@ const tOf = (p: CarcaseParams) => roleThicknessFor(p, MATERIALS, new Map())
 // tests are about the layout rather than about resolution, so each wrapper binds the one the
 // cabinet's own materials imply; the tests that are about resolution build their own.
 const carcaseBoxes = (p: CarcaseParams) => boxesOf(p, tOf(p))
-const carcaseRoles = (p: CarcaseParams) => rolesOf(p, tOf(p))
+const carcaseRoles = (p: CarcaseParams) => rolesOf(p, tOf(p), jointKindFor([], ''))
 const validateCarcaseParams = (p: CarcaseParams) => validateOf(p, tOf(p))
 const carcaseContactPairs = (p: CarcaseParams) => contactPairsOf(p, tOf(p))
-const carcaseJoints = (p: CarcaseParams, componentId: string) => jointsOf(p, tOf(p), componentId)
+const carcaseJoints = (p: CarcaseParams, componentId: string) =>
+  jointsOf(p, tOf(p), jointKindFor([], componentId), componentId)
 const carcaseCuts = (p: CarcaseParams, role: string) => cutsOf(p, tOf(p), role)
-const carcaseHoleArrays = (p: CarcaseParams, role: string) => holeArraysOf(p, tOf(p), role)
+const carcaseHoleArrays = (p: CarcaseParams, role: string) =>
+  holeArraysOf(p, tOf(p), jointKindFor([], ''), role)
 
 // These tests describe cabinets the way the parameters used to: n bays across, m fixed shelves in
 // each. `legacyToSection` is the conversion the app itself uses, so a fixture and a migrated file

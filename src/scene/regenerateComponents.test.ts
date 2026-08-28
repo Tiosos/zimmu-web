@@ -6,6 +6,9 @@ import { carcaseBoxes } from './carcaseRoles'
 import { legacyToSection } from './migrateSections'
 import { dadoDepthFor } from '../geom/dado'
 import { defaultScrewJoint } from './defaultJoint'
+import { changeJointKind, type ConvertibleKind } from './changeJointKind'
+import { componentsById } from './componentTree'
+import { applyMatrixToPoint, resolveWorldMatrix } from '../geom/transform'
 import { roleThicknessFor, type PartOverrides, type RoleThickness } from './resolveThickness'
 import type {
   BoardPart,
@@ -678,6 +681,106 @@ describe('joint emission', () => {
 
     expect(once.joints.length).toBeGreaterThan(0)
     expect(regenerateComponents(once)).toEqual(once)
+  })
+})
+
+// A cabinet is screwed together, and one joint in it is not. The panels have to be sized to the
+// joint each pair actually has: a bottom sized to the cabinet default is butt length, and the
+// groove it is then seated in pulls it 6 mm away from the side at the other end — a hole in the
+// carcase that no test of joint kinds alone can see.
+describe('a joint the user changed sizes the panels', () => {
+  const screwed: Scene = {
+    ...empty,
+    components: [{ ...cabinet, params: CARCASE_PRESETS[0].params }],
+  }
+  const LEFT_BOTTOM = 'joint_cmp_1_left-side__bottom'
+  const RIGHT_BOTTOM = 'joint_cmp_1_right-side__bottom'
+
+  // The user's own path: convertibleKinds offers the kind, changeJointKind builds it, and the joint
+  // it returns carries `driven: false` — which is what regeneration reads.
+  function convert(s: Scene, id: string, kind: ConvertibleKind): Scene {
+    const joint = s.joints.find((j) => j.id === id)
+    expect(joint, id).toBeDefined()
+    const next = changeJointKind(joint!, kind, s.parts, componentsById(s.components))
+    expect(next, `${id} → ${kind}`).not.toBeNull()
+    return { ...s, joints: s.joints.map((j) => (j.id === id ? next! : j)) }
+  }
+
+  // Carcase-local extents read off the generated part itself — position and rotation together —
+  // rather than off whichever board dimension a role's orientation happens to put on x. Both edges
+  // of every assertion below come from these, never from a literal: a hardcoded 570 would still
+  // pass if the generator and the fixture drifted together.
+  function boxOf(s: Scene, role: string) {
+    const part = s.parts.find((p) => p.role === role) as BoardPart
+    const m = resolveWorldMatrix(part, componentsById(s.components))
+    const min = { x: Infinity, y: Infinity, z: Infinity }
+    const max = { x: -Infinity, y: -Infinity, z: -Infinity }
+    for (const cx of [0, part.length])
+      for (const cy of [0, part.width])
+        for (const cz of [0, part.thickness]) {
+          const [wx, wy, wz] = applyMatrixToPoint(m, cx, cy, cz)
+          min.x = Math.min(min.x, wx)
+          min.y = Math.min(min.y, wy)
+          min.z = Math.min(min.z, wz)
+          max.x = Math.max(max.x, wx)
+          max.y = Math.max(max.y, wy)
+          max.z = Math.max(max.z, wz)
+        }
+    return { min, max }
+  }
+
+  const built = (s: Scene): Scene => reconcileJoints(regenerateComponents(s))
+
+  const depthOf = (s: Scene, id: string): number =>
+    (s.joints.find((j) => j.id === id) as DadoJoint).depth
+
+  it('reaches the groove floor at the dado end and the side it still butts at the other', () => {
+    const out = built(convert(regenerateComponents(screwed), LEFT_BOTTOM, 'dado'))
+
+    const left = boxOf(out, 'left-side')
+    const right = boxOf(out, 'right-side')
+    const bottom = boxOf(out, 'bottom')
+    const depth = depthOf(out, LEFT_BOTTOM)
+
+    expect(depth).toBeGreaterThan(0)
+    expect(bottom.min.x).toBeCloseTo(left.max.x - depth, 6)
+    // The end the defect opened: sizing the bottom to the cabinet default and seating it in the
+    // groove moved it left by `depth`, leaving exactly that much daylight here.
+    expect(bottom.max.x).toBeCloseTo(right.min.x, 6)
+  })
+
+  it('reaches both groove floors when both side joints are dados', () => {
+    const first = convert(regenerateComponents(screwed), LEFT_BOTTOM, 'dado')
+    const out = built(convert(first, RIGHT_BOTTOM, 'dado'))
+
+    const left = boxOf(out, 'left-side')
+    const right = boxOf(out, 'right-side')
+    const bottom = boxOf(out, 'bottom')
+
+    expect(bottom.min.x).toBeCloseTo(left.max.x - depthOf(out, LEFT_BOTTOM), 6)
+    expect(bottom.max.x).toBeCloseTo(right.min.x + depthOf(out, RIGHT_BOTTOM), 6)
+  })
+
+  // The pass stays a function in one direction. What it reads is a joint's *kind*, never a
+  // dimension it has just generated, so a second run has nothing new to see — an override that fed
+  // back into the layout would settle over several passes, or not at all.
+  it('regenerates an overridden cabinet to itself', () => {
+    const once = regenerateComponents(convert(regenerateComponents(screwed), LEFT_BOTTOM, 'dado'))
+
+    expect(regenerateComponents(once)).toEqual(once)
+  })
+
+  // The other half of the rule, and the one that stops the fix being "extend everything": with no
+  // joint overridden the bottom is exactly its butt length, inner face to inner face.
+  it('butts a cabinet nobody has overridden exactly', () => {
+    const out = built(screwed)
+
+    expect(out.joints.filter((j) => j.sourceComponentId === 'cmp_1').length).toBeGreaterThan(0)
+    expect(out.joints.every((j) => j.kind === 'screw')).toBe(true)
+
+    const bottom = boxOf(out, 'bottom')
+    expect(bottom.min.x).toBeCloseTo(boxOf(out, 'left-side').max.x, 6)
+    expect(bottom.max.x).toBeCloseTo(boxOf(out, 'right-side').min.x, 6)
   })
 })
 

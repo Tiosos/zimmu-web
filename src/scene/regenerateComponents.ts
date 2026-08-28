@@ -12,6 +12,7 @@ import { carcaseCuts, carcaseHoleArrays, carcaseJoints, carcaseRoles } from './c
 import { componentsById } from './componentTree'
 import { defaultDadoJoint, defaultFingerJoint, defaultScrewJoint } from './defaultJoint'
 import { materialForRole, overridesOf, roleThicknessFor } from './resolveThickness'
+import { carcaseJointId, jointKindFor } from './resolveJointKind'
 import { PART_COLORS } from './palette'
 
 function regenerateOne(
@@ -32,8 +33,12 @@ function regenerateOne(
   // panel instead would leave every panel around it the wrong length.
   const overrides = overridesOf(mine, component.id)
   const thicknessOf = roleThicknessFor(component.params, materials, overrides)
+  // The same reason, one joint further out: a dado where the cabinet says screw is what makes the
+  // bottom 6 mm longer, and a panel sized to the cabinet default would stop short of the groove it
+  // is seated in. Read from the joints the emit below preserves, before the layout runs.
+  const kindOf = jointKindFor(joints, component.id)
 
-  const roles = carcaseRoles(component.params, thicknessOf)
+  const roles = carcaseRoles(component.params, thicknessOf, kindOf)
   // Invalid parameters produce no roles. Preserve the last good parts rather than emptying the
   // cabinet mid-keystroke — the same contract deriveJoint has when it returns null.
   if (roles.length === 0) return { parts, joints }
@@ -55,7 +60,7 @@ function regenerateOne(
 
     const componentCuts = [
       ...carcaseCuts(component.params, thicknessOf, r.role),
-      ...carcaseHoleArrays(component.params, thicknessOf, r.role),
+      ...carcaseHoleArrays(component.params, thicknessOf, kindOf, r.role),
     ].map((c) => ({ ...c, sourceComponentId: component.id }))
     const existingCuts = existing?.kind === 'board' ? existing.cuts : []
 
@@ -110,15 +115,13 @@ function regenerateOne(
     joints.filter((j) => j.sourceComponentId === component.id).map((j) => [j.id, j] as const),
   )
 
-  const emitted = carcaseJoints(component.params, thicknessOf, component.id).flatMap(
+  const emitted = carcaseJoints(component.params, thicknessOf, kindOf, component.id).flatMap(
     (d): Joint[] => {
       const housing = seats.get(d.housingRole)
       const housed = seats.get(d.housedRole)
       if (housing === undefined || housed === undefined) return []
 
-      // Derived from the component and the role pair, so a regeneration reproduces the same id
-      // without looking anything up.
-      const id = `joint_${component.id}_${d.housingRole}__${d.housedRole}`
+      const id = carcaseJointId(component.id, d.housingRole, d.housedRole)
 
       const existing = ownedJoints.get(id)
       // The mirror of the detached-part line in the role pass: the user's, so it is neither rebuilt

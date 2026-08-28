@@ -3,6 +3,7 @@ import { CARCASE_PRESETS, PRESET_MATERIALS, type CarcasePreset } from './carcase
 import { carcaseRoles, validateCarcaseParams } from './carcaseRoles'
 import { regenerateComponents } from './regenerateComponents'
 import { roleThicknessFor } from './resolveThickness'
+import { jointKindFor } from './resolveJointKind'
 import type { Scene } from './types'
 
 // The scene a new file starts from: empty except for the material definitions seeded with it. A
@@ -45,8 +46,11 @@ describe('CARCASE_PRESETS', () => {
   it.each(PRESET_CASES)('%s generates panels in a fresh scene', (_name, preset) => {
     const scene = freshScene(preset)
     expect(
-      carcaseRoles(preset.params, roleThicknessFor(preset.params, scene.materials, new Map()))
-        .length,
+      carcaseRoles(
+        preset.params,
+        roleThicknessFor(preset.params, scene.materials, new Map()),
+        jointKindFor([], ''),
+      ).length,
     ).toBeGreaterThan(0)
   })
 

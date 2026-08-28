@@ -2,6 +2,7 @@ import type { BoxCut, CarcaseParams, Face, Grain, HoleArrayCut, ThicknessAxis, V
 import { dadoDepthFor } from '../geom/dado'
 import { grainAxisOf, grainFieldFor } from './grain'
 import type { RoleThickness } from './resolveThickness'
+import type { CarcaseJointKind, RoleJointKind } from './resolveJointKind'
 import {
   resolveSections,
   validateSection,
@@ -420,7 +421,7 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
 // face to face, which is where carcaseBoxes already put them — so a screwed cabinet's panels are
 // exactly their butt sizes. Extending them by a thickness nobody removes would be silent: no
 // error, just every housed panel in the cabinet too long, and a cutting list to match.
-function extensionFor(kind: JointDescriptor['kind'], thickness: number): number {
+function extensionFor(kind: CarcaseJointKind, thickness: number): number {
   switch (kind) {
     case 'dado':
       return dadoDepthFor(thickness)
@@ -443,12 +444,16 @@ function extendToward(housed: LocalBox, housing: LocalBox, ax: ThicknessAxis, in
 // Face-to-face boxes plus what the joinery at each edge takes. Without this pass a panel is butt
 // sized while its own joint expects it to reach the groove floor, and reconcileJoints closes the
 // gap by *moving* the panel — twice, when both ends are housed, so one end ends up proud.
-export function carcaseRoles(p: CarcaseParams, thicknessOf: RoleThickness): RoleSpec[] {
+export function carcaseRoles(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+  kindOf: RoleJointKind,
+): RoleSpec[] {
   const boxes = carcaseBoxes(p, thicknessOf)
   const byRole = new Map(boxes.map((b) => [b.role, b]))
 
   // The component id is only stamped on the descriptors; the extension reads their roles and kind.
-  for (const d of carcaseJoints(p, thicknessOf, '')) {
+  for (const d of carcaseJoints(p, thicknessOf, kindOf, '')) {
     // Both roles are always present: carcaseJoints derives its role names from the same parameters
     // carcaseBoxes builds its boxes from.
     const housing = byRole.get(d.housingRole)!
@@ -470,7 +475,7 @@ export function carcaseRoles(p: CarcaseParams, thicknessOf: RoleThickness): Role
 }
 
 export interface JointDescriptor {
-  kind: 'dado' | 'finger' | 'screw'
+  kind: CarcaseJointKind
   housingRole: string
   housedRole: string
   housingFace: Face
@@ -553,6 +558,7 @@ function housingsFor(p: CarcaseParams, d: ResolvedDivision, parent: SectionBound
 export function carcaseJoints(
   p: CarcaseParams,
   thicknessOf: RoleThickness,
+  kindOf: RoleJointKind,
   componentId: string,
 ): JointDescriptor[] {
   if (validateCarcaseParams(p, thicknessOf).length > 0) return []
@@ -565,14 +571,17 @@ export function carcaseJoints(
 
   const out: JointDescriptor[] = []
   const add = (
-    kind: JointDescriptor['kind'],
+    kind: CarcaseJointKind,
     housingRole: string,
     housedRole: string,
     housingFace: Face,
     housedEnd: Face,
   ) => {
     out.push({
-      kind,
+      // What this pair is actually joined with: a joint the user took ownership of is the one
+      // regeneration keeps, so it is the one the panels have to be sized to. `jointMethod` is only
+      // the default the rest of this function derives.
+      kind: kindOf(housingRole, housedRole) ?? kind,
       housingRole,
       housedRole,
       housingFace,
@@ -590,7 +599,7 @@ export function carcaseJoints(
   // Every pair the dado path names, a screwed cabinet names too, with the same two faces: the
   // panel that would house the groove is the one screwed through, and the panel that would sit in
   // it takes the pilots in its end. That is the pairing defaultScrewJoint is written to.
-  const joinery: JointDescriptor['kind'] = p.jointMethod === 'butt-screw' ? 'screw' : 'dado'
+  const joinery: CarcaseJointKind = p.jointMethod === 'butt-screw' ? 'screw' : 'dado'
 
   for (const s of SIDES) {
     if (fingerBottom) add('finger', s.role, 'bottom', '-Y', s.endOfFlat)
@@ -738,6 +747,7 @@ function pinFaces(role: string, thicknessAxis: ThicknessAxis): Face[] {
 export function carcaseHoleArrays(
   p: CarcaseParams,
   thicknessOf: RoleThickness,
+  kindOf: RoleJointKind,
   role: string,
 ): HoleArrayCut[] {
   const a = p.adjustableShelves
@@ -748,7 +758,7 @@ export function carcaseHoleArrays(
   if (box === undefined) return []
   const faces = pinFaces(role, box.thicknessAxis)
   if (faces.length === 0) return []
-  const panel = carcaseRoles(p, thicknessOf).find((r) => r.role === role)?.panel
+  const panel = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === role)?.panel
   if (panel === undefined) return []
 
   // Two thirds of the panel this row is bored into: deep enough to seat a pin, never a through

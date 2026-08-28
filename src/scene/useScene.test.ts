@@ -42,6 +42,7 @@ import { componentsById } from './componentTree'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { carcaseRoles } from './carcaseRoles'
 import { roleThicknessFor } from './resolveThickness'
+import { jointKindFor } from './resolveJointKind'
 import { jointInvolves } from './jointInvolves'
 import { changeJointKind } from './changeJointKind'
 import { FILE_FORMAT_VERSION, parseFile } from './useFile'
@@ -2373,7 +2374,11 @@ describe('carcase generation', () => {
 
     const driven = drivenPartsOf(result.current.scene, component.id)
     expect(driven.length).toBe(
-      carcaseRoles(base.params, roleThicknessFor(base.params, PRESET_MATERIALS, new Map())).length,
+      carcaseRoles(
+        base.params,
+        roleThicknessFor(base.params, PRESET_MATERIALS, new Map()),
+        jointKindFor([], ''),
+      ).length,
     )
     expect(driven.map((p) => p.role)).toContain('left-side')
     expect(driven.every((p) => p.parentId === component.id)).toBe(true)

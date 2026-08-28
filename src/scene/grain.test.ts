@@ -3,6 +3,7 @@ import { carcaseBoxes as boxesOf, carcaseRoles as rolesOf, orientedPanel } from 
 import type { LocalBox, RoleBox } from './carcaseRoles'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { roleThicknessFor } from './resolveThickness'
+import { jointKindFor } from './resolveJointKind'
 import { GRAIN_IN_PLANE, grainAxisOf, grainFieldFor } from './grain'
 import { legacyToSection } from './migrateSections'
 import type { CarcaseParams, ThicknessAxis } from './types'
@@ -12,7 +13,7 @@ import { LADDER_WITH_DIVIDERS, SWEEP } from './__fixtures__/sweep'
 const carcaseBoxes = (p: CarcaseParams) =>
   boxesOf(p, roleThicknessFor(p, PRESET_MATERIALS, new Map()))
 const carcaseRoles = (p: CarcaseParams) =>
-  rolesOf(p, roleThicknessFor(p, PRESET_MATERIALS, new Map()))
+  rolesOf(p, roleThicknessFor(p, PRESET_MATERIALS, new Map()), jointKindFor([], ''))
 
 // Distinct extents on every axis, so a wrong mapping cannot coincidentally match.
 const BOX: LocalBox = { x0: 0, x1: 100, y0: 0, y1: 200, z0: 0, z1: 300 }

@@ -372,3 +372,31 @@ losing side of that race the usual one.
   screw converted to a dado still reads "Screw fixing — Left Side / Bottom" in the panel and on its
   derived cut labels. Kept deliberately; renaming would have to re-derive the label from the roles,
   which the joint does not carry either.
+
+### 2026-08-28 — Stage C group D: panel sizing follows the overridden joint
+
+- **The gap recorded in the entry above is closed**, by the shape Stage B already used for
+  thickness. `resolveJointKind.ts` mirrors `resolveThickness.ts`: `jointKindFor(joints, componentId)`
+  returns a `RoleJointKind` — "what kind is *this* role pair joined with" — and `carcaseRoles`,
+  `carcaseJoints` and `carcaseHoleArrays` take it as the argument after the thickness resolver, the
+  way `carcaseBoxes` already takes `RoleThickness`. `regenerateOne` builds it beside `thicknessOf`,
+  from the same `driven: false` joints the emit preserves, **before** the layout runs.
+- **The resolver answers `undefined`, not a kind, where the user has said nothing.** `carcaseJoints`
+  still derives the cabinet default from `jointMethod` and `add` takes `kindOf(...) ?? kind`, so a
+  cabinet nobody has touched produces byte-identical descriptors — the whole suite passed unchanged
+  across the fix (1353 → 1356, the three additions being the new tests).
+- **The id and the role pair are one thing now.** `carcaseJointId(componentId, housingRole,
+  housedRole)` is stated once in `resolveJointKind.ts`; the emit calls it and the override lookup
+  calls it, so the two cannot drift into disagreeing about which joint belongs to which pair.
+- **Still one direction: overrides in, boxes out.** The resolver reads a joint's discrete *kind*,
+  never a generated dimension, so regeneration has no fixed point to chase. Pinned by
+  `regenerates an overridden cabinet to itself`.
+- **The parameter is required, not optional-with-a-default.** A defaulting parameter would have let
+  `carcaseHoleArrays` keep calling `carcaseRoles` with the cabinet default and silently place a
+  partition's pin rows against a panel 6 mm from where it is — the same class of silent disagreement
+  the bug itself was. Every caller now states which joints it is resolving against; the tests that
+  are about layout rather than about overrides pass `jointKindFor([], '')`.
+- **The mutation, recorded.** Making the extension pass read `carcaseJoints(p, thicknessOf,
+  () => undefined, '')` — the override invisible to sizing, everything else intact — reproduces the
+  measured defect exactly (bottom 564 mm at x = 12, 6 mm of daylight at the right side) and fails
+  the two gap tests while the all-screws butt test still passes. Restored and re-verified green.
