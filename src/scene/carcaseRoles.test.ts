@@ -331,10 +331,14 @@ describe('validateCarcaseParams', () => {
   })
 })
 
-function roleBox(roles: RoleSpec[], key: string) {
+function panelOf(roles: RoleSpec[], key: string): PanelSpec {
   const r = roles.find((x) => x.role === key)
   if (!r) throw new Error(`no role ${key} in [${roles.map((x) => x.role).join(', ')}]`)
-  return aabb(r.panel)
+  return r.panel
+}
+
+function roleBox(roles: RoleSpec[], key: string) {
+  return aabb(panelOf(roles, key))
 }
 
 type Aabb = ReturnType<typeof aabb>
@@ -1150,10 +1154,23 @@ describe('carcaseJoints', () => {
     )
   })
 
-  it('emits nothing for fastener methods', () => {
-    for (const m of ['dowel', 'butt-screw', 'confirmat'] as const) {
+  // butt-screw left this list: a ScrewJoint derives its own geometry, so a screwed cabinet emits
+  // joints. Dowel and confirmat still have no kind in the Joint union to emit.
+  it('emits nothing for dowel or confirmat', () => {
+    for (const m of ['dowel', 'confirmat'] as const) {
       expect(carcaseJoints({ ...base, jointMethod: m }, 'cmp_1'), m).toEqual([])
     }
+  })
+
+  // Pair for pair, face for face, in the same order: screwing a carcase changes what happens at
+  // each edge, not which edges there are.
+  it('screws every pair the dado path houses, with the same two faces', () => {
+    const screws = carcaseJoints({ ...base, jointMethod: 'butt-screw' }, 'cmp_1')
+    expect(screws.length).toBeGreaterThan(0)
+    expect(screws.every((d) => d.kind === 'screw')).toBe(true)
+    expect(screws.map((d) => ({ ...d, kind: 'dado' as const }))).toEqual(
+      carcaseJoints(base, 'cmp_1'),
+    )
   })
 
   it('emits nothing for invalid parameters', () => {
@@ -1382,7 +1399,7 @@ describe('panel extents follow the joinery', () => {
   })
 
   it('leaves panels butt-sized when no joint is emitted', () => {
-    for (const method of ['dowel', 'butt-screw', 'confirmat'] as const) {
+    for (const method of ['dowel', 'confirmat'] as const) {
       for (const [name, p] of Object.entries(variations)) {
         const params = { ...p, jointMethod: method }
         expect(carcaseJoints(params, 'cmp_1'), `${name}/${method}`).toEqual([])
@@ -1406,6 +1423,29 @@ describe('panel extents follow the joinery', () => {
     const bottom = roleBox(carcaseRoles({ ...base, jointMethod: 'dowel' }), 'bottom')
     expect(bottom.min.x).toBeCloseTo(18, 9)
     expect(bottom.max.x).toBeCloseTo(582, 9)
+  })
+
+  // The highest-risk line in the screw work: a screwed butt joint has no groove, so the extension
+  // pass must move nothing — and unlike dowel and confirmat above, this cabinet does emit a joint
+  // at every pair, so it reaches the pass rather than skipping it. Both edges come from the same
+  // resolver the generator reads, one call per side: a literal 564 would still pass if the
+  // generator and the fixture ever drifted together.
+  it('screws a cabinet together without extending a single panel', () => {
+    const p: CarcaseParams = { ...base, jointMethod: 'butt-screw' }
+    const t = tOf(p)
+    expect(carcaseJoints(p, 'cmp_1').length).toBeGreaterThan(0)
+
+    const bottom = panelOf(carcaseRoles(p), 'bottom')
+    expect(bottom.length).toBeCloseTo(p.width - t('left-side') - t('right-side'), 9)
+    expect(bottom.width).toBeCloseTo(p.depth, 9)
+
+    // The dadoed cabinet it replaces is longer by one groove at each end, so the numbers above are
+    // measuring the extension pass rather than an arithmetic identity that holds either way.
+    const dadoed = panelOf(carcaseRoles({ ...base, jointMethod: 'dado-rabbet' }), 'bottom')
+    expect(dadoed.length).toBeCloseTo(
+      bottom.length + dadoDepthFor(t('left-side')) + dadoDepthFor(t('right-side')),
+      9,
+    )
   })
 
   it('gives finger corners real overlapping material', () => {

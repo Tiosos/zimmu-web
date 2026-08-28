@@ -510,7 +510,10 @@ describe('cut ownership', () => {
 // Every fixture below is whatever the generator actually produces for a shipped preset: a
 // hand-written cabinet is how a wrong joint count survives a phase.
 describe('joint emission', () => {
-  const presetParams = CARCASE_PRESETS[0].params
+  // Pinned to dado rather than taking the preset's method: the assertions below are about grooves
+  // and housing panels, which only a dado has. The preset now ships `butt-screw`, and letting
+  // these follow it would leave tests named for a dado quietly asserting something else.
+  const presetParams: CarcaseParams = { ...CARCASE_PRESETS[0].params, jointMethod: 'dado-rabbet' }
   const preset: CarcaseComponent = { ...cabinet, params: presetParams }
   const presetScene: Scene = { ...empty, components: [preset] }
 
@@ -542,6 +545,32 @@ describe('joint emission', () => {
     expect(roleOf.get(dado.housingPartId)).toBe('left-side')
     expect(roleOf.get(dado.housedPartId)).toBe('bottom')
     expect(dado.label).toBe('Dado — Left Side / Bottom')
+  })
+
+  // The dado fixtures above pin what a dado does; this pins what the shipped preset now does.
+  // Without it, flipping the preset back to a groove-cutting method would break no test.
+  it('a shipped preset is screwed together, and each joint bores two rows on two parts', () => {
+    const screwed: Scene = {
+      ...empty,
+      components: [{ ...cabinet, params: CARCASE_PRESETS[0].params }],
+    }
+    const out = reconcileJoints(regenerateComponents(screwed))
+    const joints = out.joints.filter((j) => j.sourceComponentId === 'cmp_1')
+
+    expect(joints.length).toBeGreaterThan(0)
+    expect(joints.every((j) => j.kind === 'screw')).toBe(true)
+
+    for (const j of joints) {
+      const bores = out.parts.flatMap((p) =>
+        p.kind === 'board'
+          ? p.cuts.filter((c) => c.kind === 'hole-array' && c.sourceJointId === j.id).map(() => p.id)
+          : [],
+      )
+      // One clearance row and one pilot row, and never both on the same panel — you screw through
+      // one part into the other.
+      expect(bores, j.id).toHaveLength(2)
+      expect(new Set(bores).size, j.id).toBe(2)
+    }
   })
 
   it('keeps joint ids stable across a regeneration', () => {
@@ -598,7 +627,11 @@ describe('joint emission', () => {
 // handed straight to the stage that derives their cut geometry. A wrong housing face puts the
 // groove on the outside of the cabinet and nothing downstream objects.
 describe('emitted joints through reconcileJoints', () => {
-  const preset: CarcaseComponent = { ...cabinet, params: CARCASE_PRESETS[0].params }
+  // Dado for the same reason as above: this describe is about where a groove is cut.
+  const preset: CarcaseComponent = {
+    ...cabinet,
+    params: { ...CARCASE_PRESETS[0].params, jointMethod: 'dado-rabbet' },
+  }
   const presetScene: Scene = { ...empty, components: [preset] }
 
   it('cuts every derived groove into the housing panel', () => {

@@ -9,7 +9,8 @@ vi.mock('./idb', () => ({
 
 import { useFile, parseFile } from './useFile'
 import * as idb from './idb'
-import type { CarcaseParams, MaterialDef, ZimmuFile, Scene, Part } from './types'
+import type { BoardPart, CarcaseParams, MaterialDef, ZimmuFile, Scene, Part } from './types'
+import { defaultScrewJoint } from './defaultJoint'
 import { carcaseBoxes as boxesOf, validateCarcaseParams as validateOf } from './carcaseRoles'
 import { PRESET_MATERIALS } from './carcasePresets'
 import { roleThicknessFor } from './resolveThickness'
@@ -541,6 +542,68 @@ describe('useFile', () => {
     const parsed = parseFile(raw)
     expect(parsed.scene.joints).toHaveLength(1)
     expect(parsed.scene.joints[0].kind).toBe('halflap')
+  })
+
+  // Save and reopen, not parse alone: the kind has to clear the unknown-kind filter *and* miss the
+  // dado default, which would spread a groove's fields over a screw joint. Invisible on a driven
+  // joint, which regeneration recreates; permanent on one the user overrode, which it will not.
+  it('a screw joint survives save → parse', async () => {
+    let writtenContent = ''
+    const mockWritable = {
+      write: vi.fn().mockImplementation((c: string) => {
+        writtenContent = c
+        return Promise.resolve()
+      }),
+      close: vi.fn().mockResolvedValue(undefined),
+    }
+    const mockHandle = {
+      name: 'screwed.zimmu',
+      createWritable: vi.fn().mockResolvedValue(mockWritable),
+    } as unknown as FileSystemFileHandle
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(mockHandle))
+
+    const board = (id: string, label: string, length: number): BoardPart => ({
+      kind: 'board',
+      id,
+      label,
+      length,
+      width: 560,
+      thickness: 18,
+      grain: 'length',
+      material: '18mm Ply',
+      color: '#c8a97e',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      cuts: [],
+      visible: true,
+      parentId: null,
+      driven: false,
+    })
+    const side = board('b_side', 'Left Side', 720)
+    const bottom = board('b_bottom', 'Bottom', 564)
+    const joint = defaultScrewJoint(side, bottom, '+Z', '-X', 'j_screw', 'Screw fixing 1')
+
+    const { result } = renderHook(() =>
+      useFile(
+        makeInput({
+          scene: {
+            parts: [side, bottom],
+            materials: {},
+            hardware: [],
+            joints: [joint],
+            components: [],
+          },
+        }),
+      ),
+    )
+    await waitFor(() => expect(result.current.fileReady).toBe(true))
+
+    await act(async () => {
+      await result.current.saveFile()
+    })
+
+    expect(parseFile(writtenContent).scene.joints).toEqual([joint])
   })
 
   // Pre-v7 files carry joints with no `kind` at all — they are all dados. The unknown-kind filter

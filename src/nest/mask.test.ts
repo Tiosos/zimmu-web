@@ -143,7 +143,11 @@ describe('occupancyMask — against a real cabinet, not a fixture', () => {
       rotation: { x: 0, y: 0, z: 0 },
       rotationOrder: 'XYZ',
       visible: true,
-      params: CARCASE_PRESETS[0].params,
+      // Dado, not the preset's method: these tests exist to prove a groove does NOT clear mask
+      // material, and the preset now ships `butt-screw`, which cuts no groove at all. Under the
+      // preset's own method the rule below would be asserted against a cabinet that has nothing
+      // to exercise it — which is exactly what the guard test at the end of this block catches.
+      params: { ...CARCASE_PRESETS[0].params, jointMethod: 'dado-rabbet' as const },
     }
     const scene = reconcileJoints(
       regenerateComponents({

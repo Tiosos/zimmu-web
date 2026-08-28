@@ -15,7 +15,7 @@ import { DEFAULT_BACK_MATERIAL, DEFAULT_CARCASE_MATERIAL, PRESET_MATERIALS } fro
 import { legacyToSection } from './migrateSections'
 import type { Section } from './sectionTree'
 
-export const FILE_FORMAT_VERSION = 14
+export const FILE_FORMAT_VERSION = 15
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -46,7 +46,7 @@ function serialize(envelope: ZimmuFile): string {
   )
 }
 
-const KNOWN_JOINT_KINDS = ['dado', 'halflap', 'mortise-tenon', 'finger', 'tongue-groove']
+const KNOWN_JOINT_KINDS = ['dado', 'halflap', 'mortise-tenon', 'finger', 'tongue-groove', 'screw']
 
 // v13→v14: a pre-v14 file states one thickness per carcase, v14 one thickness per material. Two
 // carcases may legally have shared a material name at different thicknesses, which v14 cannot
@@ -139,6 +139,7 @@ export function parseFile(text: string): ZimmuFile {
     // v7→v8: mortise-tenon joints (kind 'mortise-tenon').
     // v8→v9: finger joints (kind 'finger').
     // v9→v10: tongue-groove joints (kind 'tongue-groove').
+    // v14→v15: screw joints (kind 'screw').
     joints: ((raw.scene.joints ?? []) as unknown as Array<Record<string, unknown>>)
       // Dropped the way an unknown part kind is, rather than kept verbatim. A newer file version
       // only warns above and parses on, so without this a joint kind from a future release reaches
@@ -151,40 +152,45 @@ export function parseFile(text: string): ZimmuFile {
         return false
       })
       .map((j) =>
-        j.kind === 'tongue-groove'
-          ? ({
-              tongueThickness: 6,
-              tongueDepth: 8,
-              clearance: 0,
-              driven: false,
-              ...j,
-            } as unknown as Joint)
-          : j.kind === 'finger'
-            ? ({ fingerCount: 0, clearance: 0, driven: false, ...j } as unknown as Joint)
-            : j.kind === 'mortise-tenon'
-              ? ({
-                  tenonLength: 0,
-                  tenonThickness: 0,
-                  tenonWidth: 0,
-                  clearance: 0,
-                  through: false,
-                  offsetU: 0,
-                  offsetV: 0,
-                  driven: false,
-                  ...j,
-                } as unknown as Joint)
-              : j.kind === 'halflap'
-                ? ({ split: 0.5, clearance: 0, driven: false, ...j } as unknown as Joint)
-                : ({
-                    kind: 'dado' as const,
-                    profile: 'plain' as const,
-                    tongueThickness: 6,
-                    rabbetFace: '+Z' as const,
-                    stopStart: 0,
-                    stopEnd: 0,
+        // No field defaults: every screw field ships with the kind in v15, so there is no older
+        // shape to fill in. The branch exists so a screw joint does not fall through to the dado
+        // default below, which would spread a groove's fields across it.
+        j.kind === 'screw'
+          ? ({ driven: false, ...j } as unknown as Joint)
+          : j.kind === 'tongue-groove'
+            ? ({
+                tongueThickness: 6,
+                tongueDepth: 8,
+                clearance: 0,
+                driven: false,
+                ...j,
+              } as unknown as Joint)
+            : j.kind === 'finger'
+              ? ({ fingerCount: 0, clearance: 0, driven: false, ...j } as unknown as Joint)
+              : j.kind === 'mortise-tenon'
+                ? ({
+                    tenonLength: 0,
+                    tenonThickness: 0,
+                    tenonWidth: 0,
+                    clearance: 0,
+                    through: false,
+                    offsetU: 0,
+                    offsetV: 0,
                     driven: false,
                     ...j,
-                  } as unknown as Joint),
+                  } as unknown as Joint)
+                : j.kind === 'halflap'
+                  ? ({ split: 0.5, clearance: 0, driven: false, ...j } as unknown as Joint)
+                  : ({
+                      kind: 'dado' as const,
+                      profile: 'plain' as const,
+                      tongueThickness: 6,
+                      rabbetFace: '+Z' as const,
+                      stopStart: 0,
+                      stopEnd: 0,
+                      driven: false,
+                      ...j,
+                    } as unknown as Joint),
       ),
     // v10→v11: component tree. Legacy files have no components and no parentage.
     components: (raw.scene.components ?? []).map((c) => {

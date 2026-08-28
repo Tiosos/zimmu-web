@@ -412,10 +412,27 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
   return boxes
 }
 
-// A housing houses along its own thickness axis, and the panel it houses meets it end-on, so the
-// only question is how far past the housing's near face that end runs: to the groove floor for a
+// How far past the housing's near face the housed panel's end runs: to the groove floor for a
 // dado, clear through to the outer face for a finger corner, where the fingers need material on
 // both sides of the joint line to mesh into.
+//
+// Nowhere at all for a screwed butt joint. There is no groove to reach into — the two panels meet
+// face to face, which is where carcaseBoxes already put them — so a screwed cabinet's panels are
+// exactly their butt sizes. Extending them by a thickness nobody removes would be silent: no
+// error, just every housed panel in the cabinet too long, and a cutting list to match.
+function extensionFor(kind: JointDescriptor['kind'], thickness: number): number {
+  switch (kind) {
+    case 'dado':
+      return dadoDepthFor(thickness)
+    case 'finger':
+      return thickness
+    case 'screw':
+      return 0
+  }
+}
+
+// A housing houses along its own thickness axis, and the panel it houses meets it end-on, so the
+// only question is how far past the housing's near face that end runs.
 function extendToward(housed: LocalBox, housing: LocalBox, ax: ThicknessAxis, into: number): void {
   const lo = `${ax}0` as const
   const hi = `${ax}1` as const
@@ -438,12 +455,7 @@ export function carcaseRoles(p: CarcaseParams, thicknessOf: RoleThickness): Role
     const housed = byRole.get(d.housedRole)!
     const ax = housing.thicknessAxis
     const thickness = housing.box[`${ax}1`] - housing.box[`${ax}0`]
-    extendToward(
-      housed.box,
-      housing.box,
-      ax,
-      d.kind === 'dado' ? dadoDepthFor(thickness) : thickness,
-    )
+    extendToward(housed.box, housing.box, ax, extensionFor(d.kind, thickness))
   }
 
   return boxes.map((b) => ({
@@ -458,7 +470,7 @@ export function carcaseRoles(p: CarcaseParams, thicknessOf: RoleThickness): Role
 }
 
 export interface JointDescriptor {
-  kind: 'dado' | 'finger'
+  kind: 'dado' | 'finger' | 'screw'
   housingRole: string
   housedRole: string
   housingFace: Face
@@ -532,18 +544,28 @@ function housingsFor(p: CarcaseParams, d: ResolvedDivision, parent: SectionBound
 }
 
 // The joints a carcase implies, keyed by role because part ids are only known after reconciliation.
-// Returns nothing for the three fastener methods: their geometry is hardware, not a cut.
+//
+// Screw fixing is joinery here, not hardware — the comment this replaces said the opposite of all
+// three fastener methods. A ScrewJoint derives two hole arrays, clearance through one panel and
+// pilots into the other's end, so a screwed cabinet emits the same role pairs the dado path does
+// and gets its bores from them. Dowel and confirmat still emit nothing, for the reason screwing no
+// longer has: neither is a kind in the Joint union, so there is nothing to derive geometry from.
 export function carcaseJoints(
   p: CarcaseParams,
   thicknessOf: RoleThickness,
   componentId: string,
 ): JointDescriptor[] {
   if (validateCarcaseParams(p, thicknessOf).length > 0) return []
-  if (p.jointMethod !== 'dado-rabbet' && p.jointMethod !== 'finger') return []
+  if (
+    p.jointMethod !== 'dado-rabbet' &&
+    p.jointMethod !== 'finger' &&
+    p.jointMethod !== 'butt-screw'
+  )
+    return []
 
   const out: JointDescriptor[] = []
   const add = (
-    kind: 'dado' | 'finger',
+    kind: JointDescriptor['kind'],
     housingRole: string,
     housedRole: string,
     housingFace: Face,
@@ -565,16 +587,20 @@ export function carcaseJoints(
   // thing the suggestion engine would offer there.
   const finger = p.jointMethod === 'finger'
   const fingerBottom = finger && p.baseMode !== 'toe-kick'
+  // Every pair the dado path names, a screwed cabinet names too, with the same two faces: the
+  // panel that would house the groove is the one screwed through, and the panel that would sit in
+  // it takes the pilots in its end. That is the pairing defaultScrewJoint is written to.
+  const joinery: JointDescriptor['kind'] = p.jointMethod === 'butt-screw' ? 'screw' : 'dado'
 
   for (const s of SIDES) {
     if (fingerBottom) add('finger', s.role, 'bottom', '-Y', s.endOfFlat)
-    else add('dado', s.role, 'bottom', s.inward, s.endOfFlat)
+    else add(joinery, s.role, 'bottom', s.inward, s.endOfFlat)
     if (p.hasTop) {
       if (finger) add('finger', s.role, 'top', '+Y', s.endOfFlat)
-      else add('dado', s.role, 'top', s.inward, s.endOfFlat)
+      else add(joinery, s.role, 'top', s.inward, s.endOfFlat)
     }
-    if (p.backMode === 'captured') add('dado', s.role, 'back', s.inward, s.endOfUpright)
-    if (p.baseMode === 'toe-kick') add('dado', s.role, 'toe-kick', s.inward, s.endOfUpright)
+    if (p.backMode === 'captured') add(joinery, s.role, 'back', s.inward, s.endOfUpright)
+    if (p.baseMode === 'toe-kick') add(joinery, s.role, 'toe-kick', s.inward, s.endOfUpright)
   }
 
   // The base frame is joined to itself: each side rail's end lands in the inner face of the
@@ -582,16 +608,16 @@ export function carcaseJoints(
   // down on the frame's top plane, which carcaseContactPairs declares.
   if (p.baseMode === 'ladder') {
     for (const rail of ['ladder-left', 'ladder-right', ...ladderMidRails(p, thicknessOf)]) {
-      add('dado', 'ladder-front', rail, '+Z', '-X')
-      add('dado', 'ladder-back', rail, '-Z', '+X')
+      add(joinery, 'ladder-front', rail, '+Z', '-X')
+      add(joinery, 'ladder-back', rail, '-Z', '+X')
     }
   }
 
   // A captured back sits on the bottom and under the top, so they house it, not the other way
   // round. An applied back is screwed onto the rear edges instead — carcaseContactPairs declares it.
   if (p.backMode === 'captured') {
-    add('dado', 'bottom', 'back', '+Z', '-X')
-    if (p.hasTop) add('dado', 'top', 'back', '-Z', '+X')
+    add(joinery, 'bottom', 'back', '+Z', '-X')
+    if (p.hasTop) add(joinery, 'top', 'back', '-Z', '+X')
   }
 
   // A division is housed at both ends into whatever bounds its parent section along the
@@ -606,7 +632,7 @@ export function carcaseJoints(
     if (d.kind === 'rail') continue // butt-jointed; no housing
     const housedRole = `division-${d.parentId}-${d.index}`
     for (const h of housingsFor(p, d, tree.boundsOf(d.parentId))) {
-      add('dado', h.role, housedRole, h.housingFace, h.housedEnd)
+      add(joinery, h.role, housedRole, h.housingFace, h.housedEnd)
     }
   }
 

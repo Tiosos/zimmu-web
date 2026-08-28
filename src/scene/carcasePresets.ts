@@ -28,7 +28,10 @@ const COMMON = {
   carcaseMaterial: DEFAULT_CARCASE_MATERIAL,
   backMaterial: DEFAULT_BACK_MATERIAL,
   backMode: 'captured',
-  jointMethod: 'dado-rabbet',
+  // What a shop reaches for first: butt joints pulled together with screws. A dado is a decision
+  // the user makes, not the one they get by default — and unlike dowel or confirmat, screwing is a
+  // joint the app can derive geometry for, so the cabinet it drops in is fully described.
+  jointMethod: 'butt-screw',
   adjustableShelves: {
     rows: 2,
     pitch: 32,

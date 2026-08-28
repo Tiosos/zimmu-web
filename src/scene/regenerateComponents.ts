@@ -10,7 +10,7 @@ import type {
 } from './types'
 import { carcaseCuts, carcaseHoleArrays, carcaseJoints, carcaseRoles } from './carcaseRoles'
 import { componentsById } from './componentTree'
-import { defaultDadoJoint, defaultFingerJoint } from './defaultJoint'
+import { defaultDadoJoint, defaultFingerJoint, defaultScrewJoint } from './defaultJoint'
 import { materialForRole, overridesOf, roleThicknessFor } from './resolveThickness'
 import { PART_COLORS } from './palette'
 
@@ -112,12 +112,17 @@ function regenerateOne(
       // Derived from the component and the role pair, so a regeneration reproduces the same id
       // without looking anything up.
       const id = `joint_${component.id}_${d.housingRole}__${d.housedRole}`
-      const kindLabel = d.kind === 'dado' ? 'Dado' : 'Finger joint'
+      const kindLabel = { dado: 'Dado', finger: 'Finger joint', screw: 'Screw fixing' }[d.kind]
       const label = `${kindLabel} — ${housing.label} / ${housed.label}`
+      // A screw descriptor names the same two panels in the same order a dado does — the housing is
+      // the panel screwed through, the housed one takes the pilots in its end — so the three
+      // creators take the same four arguments.
       const joint =
         d.kind === 'dado'
           ? defaultDadoJoint(housing.part, housed.part, d.housingFace, d.housedEnd, id, label, byId)
-          : defaultFingerJoint(housing.part, housed.part, d.housingFace, d.housedEnd, id, label)
+          : d.kind === 'finger'
+            ? defaultFingerJoint(housing.part, housed.part, d.housingFace, d.housedEnd, id, label)
+            : defaultScrewJoint(housing.part, housed.part, d.housingFace, d.housedEnd, id, label)
       return [{ ...joint, sourceComponentId: component.id, driven: true }]
     },
   )
