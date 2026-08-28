@@ -192,15 +192,9 @@ export interface CarcaseParams {
   baseMode: 'toe-kick' | 'ladder' | 'legs' | 'none'
   toeKickHeight: number
   toeKickSetback: number
+  // The cabinet's interior division *and* its shelving: a pin row belongs to the section that
+  // needs it, so there is no cabinet-wide adjustable-shelf bundle to state one.
   section: Section
-  adjustableShelves: {
-    rows: 1 | 2
-    pitch: 32 // literal, not number: 32 mm *is* the system being modelled
-    setback: number // front row, from the panel's front edge
-    backSetback: number // back row, from the panel's back edge
-    startHeight: number
-    count: number
-  }
   jointMethod: 'dado-rabbet' | 'finger' | 'dowel' | 'butt-screw' | 'confirmat'
 }
 

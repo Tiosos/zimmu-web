@@ -13,9 +13,10 @@ import * as idb from './idb'
 import { breakComponentCycles, promoteOrphans } from './componentTree'
 import { DEFAULT_BACK_MATERIAL, DEFAULT_CARCASE_MATERIAL, PRESET_MATERIALS } from './carcasePresets'
 import { legacyToSection } from './migrateSections'
+import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
 
-export const FILE_FORMAT_VERSION = 15
+export const FILE_FORMAT_VERSION = 16
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -216,14 +217,7 @@ export function parseFile(text: string): ZimmuFile {
           visible: base.visible,
         }
       }
-      // v11→v12: adjustableShelves gained `backSetback`. Filled here and nowhere else, so no read
-      // site has to carry a fallback; a pre-v12 file's own `setback` is the only figure it has to
-      // say where its back row went.
       if (base.kind === 'carcase') {
-        const shelves = base.params.adjustableShelves as Omit<
-          CarcaseParams['adjustableShelves'],
-          'backSetback'
-        > & { backSetback?: number }
         // v12→v13: `dividers` and `fixedShelves` became the section tree. Converted at the
         // boundary, so the generator never sees a legacy field. Width and thickness come from the
         // same params object: a v12 divider is centred on a fraction of the gross width, and the
@@ -237,8 +231,17 @@ export function parseFile(text: string): ZimmuFile {
           backThickness?: number
           carcaseMaterial?: string
           backMaterial?: string
+          // v11→v12: `backSetback` arrived, and a pre-v12 file's own `setback` is the only figure
+          // it has to say where its back row went. Defaulted here and nowhere else, so no read
+          // site downstream carries a fallback.
+          adjustableShelves?: {
+            rows: 1 | 2
+            setback: number
+            backSetback?: number
+            count: number
+          }
         }
-        const section =
+        const divided =
           legacy.section ??
           legacyToSection(
             legacy.dividers ?? [],
@@ -246,6 +249,26 @@ export function parseFile(text: string): ZimmuFile {
             base.params.width,
             legacy.thickness ?? 0,
           )
+        // v15→v16: a pin row belongs to the section that needs it, not to the cabinet. The one
+        // bundle a pre-v16 carcase carried is copied onto every leaf, since nothing in the file
+        // says which opening the user meant it for. `startHeight` has no successor — a row now
+        // starts above its own section's floor — so a migrated file's rows may sit at a different
+        // height, which is the correction the stage exists to make. `shelves: 0`: a pre-v16 file
+        // had no shelf boards, and inventing some would change what the user saved.
+        const shelves = legacy.adjustableShelves
+        const section =
+          shelves === undefined
+            ? divided
+            : seedInteriors(divided, {
+                adjustable: {
+                  shelves: 0,
+                  count: shelves.count,
+                  rows: shelves.rows,
+                  pitch: 32,
+                  setback: shelves.setback,
+                  backSetback: shelves.backSetback ?? shelves.setback,
+                },
+              })
         // v13→v14: the back slot has no name to inherit — a pre-v14 file states only how thick
         // the back is — and some carcases name no material at all. A slot the file did not name is
         // named for the thickness it stands for, in the vocabulary a new scene is seeded with, so
@@ -265,12 +288,12 @@ export function parseFile(text: string): ZimmuFile {
           material?: string
           thickness?: number
           backThickness?: number
+          adjustableShelves?: unknown
         } = {
           ...base.params,
           section,
           carcaseMaterial: materialAtThickness(materials, carcaseName, legacy.thickness),
           backMaterial: materialAtThickness(materials, backName, legacy.backThickness),
-          adjustableShelves: { ...shelves, backSetback: shelves.backSetback ?? shelves.setback },
         }
         // Dropped, not kept alongside the tree: two descriptions of the same divisions would
         // disagree the moment either is edited. The same argument retires the per-carcase
@@ -280,6 +303,7 @@ export function parseFile(text: string): ZimmuFile {
         delete params.material
         delete params.thickness
         delete params.backThickness
+        delete params.adjustableShelves
         return { ...base, params }
       }
       return base

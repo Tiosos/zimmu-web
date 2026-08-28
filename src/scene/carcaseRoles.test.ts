@@ -15,6 +15,8 @@ import { jointKindFor } from './resolveJointKind'
 import type { JointDescriptor, PanelSpec, RoleSpec } from './carcaseRoles'
 import { dadoDepthFor } from '../geom/dado'
 import { legacyToSection } from './migrateSections'
+import { seedInteriors } from './sectionInterior'
+import type { Section } from './sectionTree'
 import { reconcileJoints } from './reconcileJoints'
 import type {
   BoardPart,
@@ -168,12 +170,26 @@ const carcaseCuts = (p: CarcaseParams, role: string) => cutsOf(p, tOf(p), role)
 const carcaseHoleArrays = (p: CarcaseParams, role: string) =>
   holeArraysOf(p, tOf(p), jointKindFor([], ''), role)
 
+// The shelving `base` and its variants carry. A pin row now belongs to the section that needs it,
+// so a cabinet states its shelving by seeding it onto the openings rather than holding one bundle.
+const ADJ = {
+  shelves: 0,
+  count: 10,
+  rows: 2 as 1 | 2,
+  pitch: 32 as const,
+  setback: 37,
+  backSetback: 37,
+}
+const shelved = (s: Section, over: Partial<typeof ADJ> = {}): Section =>
+  seedInteriors(s, { adjustable: { ...ADJ, ...over } })
+
 // These tests describe cabinets the way the parameters used to: n bays across, m fixed shelves in
 // each. `legacyToSection` is the conversion the app itself uses, so a fixture and a migrated file
 // describe the same tree. Width and thickness are arguments because a section percentage is a share
-// of the clear span, not of the gross width.
+// of the clear span, not of the gross width. Every opening gets `ADJ`, because a cabinet-wide
+// `adjustableShelves` is what these fixtures used to carry.
 const sec = (dividers: number[], fixedShelves: number, width = 600, thickness = 18) =>
-  legacyToSection(dividers, fixedShelves, width, thickness)
+  shelved(legacyToSection(dividers, fixedShelves, width, thickness))
 
 // A division role carries the uuid of the section it splits, so the tests below name divisions by
 // what they are and look the key up. `carcaseBoxes` emits them in tree order — each bay's shelves
@@ -205,14 +221,6 @@ const base: CarcaseParams = {
   toeKickHeight: 100,
   toeKickSetback: 60,
   section: sec([], 1),
-  adjustableShelves: {
-    rows: 2,
-    pitch: 32,
-    setback: 37,
-    backSetback: 37,
-    startHeight: 200,
-    count: 10,
-  },
   jointMethod: 'dado-rabbet',
 }
 
@@ -1538,29 +1546,45 @@ describe('carcaseHoleArrays', () => {
     v.z > b.min.z &&
     v.z < b.max.z
 
+  // One opening top to bottom, so a side panel bounds exactly one section. `base` carries a fixed
+  // shelf, which now makes two sections and therefore two rows per face on the same panel — true,
+  // and asserted below in its own right, but it is not what a test about pitch is about.
+  const oneBay: CarcaseParams = { ...base, section: sec([], 0) }
+
   it('puts two rows on each side panel', () => {
     for (const role of ['left-side', 'right-side']) {
-      const cuts = carcaseHoleArrays(base, role)
+      const cuts = carcaseHoleArrays(oneBay, role)
       expect(cuts, role).toHaveLength(2)
       expect(cuts.every((c) => c.kind === 'hole-array')).toBe(true)
     }
   })
 
   it('honours the configured count and pitch', () => {
-    const [row] = carcaseHoleArrays(base, 'left-side')
+    const [row] = carcaseHoleArrays(oneBay, 'left-side')
     expect(row.count).toBe(10)
     expect(row.pitch).toBe(32)
   })
 
   it('emits one row per configured row', () => {
-    const oneRow = { ...base, adjustableShelves: { ...base.adjustableShelves, rows: 1 as const } }
+    const oneRow = { ...base, section: shelved(sec([], 0), { rows: 1 }) }
     expect(carcaseHoleArrays(oneRow, 'left-side')).toHaveLength(1)
+  })
+
+  // The inversion this stage makes: a row belongs to the section that needs it, so a panel that
+  // bounds two sections carries a row for each. Before, one full-height row spanned the panel
+  // whatever divided it.
+  it('gives a panel one row per section it bounds', () => {
+    const panel = panelsOf(base).get('left-side')!
+    const rows = carcaseHoleArrays(base, 'left-side')
+    expect(rows).toHaveLength(2 * ADJ.rows)
+    const starts = rows.map((c) => toCarcase(panel, centres(c)[0]).z.toFixed(6))
+    expect(new Set(starts).size).toBe(2)
   })
 
   it('emits nothing when the adjustable count is zero', () => {
     expect(
       carcaseHoleArrays(
-        { ...base, adjustableShelves: { ...base.adjustableShelves, count: 0 } },
+        { ...base, section: shelved(sec([], 0), { count: 0 }) },
         'left-side',
       ),
     ).toEqual([])
@@ -1584,10 +1608,47 @@ describe('carcaseHoleArrays', () => {
   })
 
   it('drills a partition on both faces, since it serves a bay on each side', () => {
-    const divided = { ...base, section: sec([0.5], 1) }
+    const divided = { ...base, section: sec([0.5], 0) }
     const cuts = carcaseHoleArrays(divided, partitionRole(divided))
-    expect(cuts).toHaveLength(2 * base.adjustableShelves.rows)
+    expect(cuts).toHaveLength(2 * ADJ.rows)
     expect(new Set(cuts.map((c) => c.face)).size).toBe(2)
+  })
+
+  // The defect this stage exists to fix. A partition between a shelved bay and a bay that holds
+  // drawers used to be bored on both faces, because the rows belonged to the panel and the panel
+  // could not tell the two sides apart. A row of pin holes facing a drawer bank is a row of holes
+  // nothing can ever rest on.
+  it('drills a partition only on the face of the bay that asks for shelves', () => {
+    const tree = sec([0.5], 0)
+    if (tree.content.kind !== 'split') throw new Error('fixture is not a split')
+    const [shelvedBay, drawerBank] = tree.content.children
+    const p: CarcaseParams = {
+      ...base,
+      section: {
+        ...tree,
+        content: {
+          ...tree.content,
+          children: [shelvedBay, { ...drawerBank, interior: undefined }],
+        },
+      },
+    }
+    const role = partitionRole(p)
+    const cuts = carcaseHoleArrays(p, role)
+    expect(cuts).toHaveLength(ADJ.rows)
+    expect(new Set(cuts.map((c) => c.face)).size).toBe(1)
+
+    // And it is the left face — the one that looks into the shelved bay. Asserting the letters of
+    // `face` would only prove the table matches itself, so the bored face is followed one
+    // millimetre out and has to land on the shelved side of the partition.
+    const panel = panelsOf(p).get(role)!
+    const box = aabb(panel)
+    for (const c of cuts) {
+      const dir = faceDirInCarcase(panel, c.face)
+      const start = toCarcase(panel, c.start)
+      expect(start.x + dir.x, `face ${c.face} opens away from the shelved bay`).toBeLessThan(
+        box.min.x,
+      )
+    }
   })
 
   it('drills no deeper than the panel is thick', () => {
@@ -1661,19 +1722,18 @@ describe('carcaseHoleArrays', () => {
   it('keeps every hole inside the panel it drills', () => {
     for (const height of [210, 300, 400, 720, 1200, 2100]) {
       for (const count of [1, 5, 10, 40]) {
-        for (const startHeight of [120, 200, 400]) {
+        {
           const p: CarcaseParams = {
             ...base,
             height,
-            section: sec([0.5], 0),
-            adjustableShelves: { ...base.adjustableShelves, count, startHeight },
+            section: shelved(sec([0.5], 0), { count }),
           }
           if (validateCarcaseParams(p).length > 0) continue
           const panels = panelsOf(p)
           for (const role of ['left-side', 'right-side', partitionRole(p)]) {
             const panel = panels.get(role)!
             for (const c of carcaseHoleArrays(p, role)) {
-              const where = `h=${height} n=${count} z0=${startHeight} ${role}`
+              const where = `h=${height} n=${count} ${role}`
               expect(c.count, where).toBeGreaterThan(0)
               expect(c.count, where).toBeLessThanOrEqual(count)
               expect(c.depth, where).toBeLessThan(panel.thickness)
@@ -1719,7 +1779,7 @@ describe('carcaseHoleArrays', () => {
   it('measures the front row from the front edge and the back row from the back edge', () => {
     const p: CarcaseParams = {
       ...base,
-      adjustableShelves: { ...base.adjustableShelves, setback: 37, backSetback: 60 },
+      section: shelved(sec([], 0), { setback: 37, backSetback: 60 }),
     }
     const panel = panelsOf(p).get('left-side')!
     const depths = carcaseHoleArrays(p, 'left-side').map((c) => centres(c)[0].x)

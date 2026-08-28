@@ -10,6 +10,9 @@ vi.mock('./idb', () => ({
 import { useFile, parseFile } from './useFile'
 import * as idb from './idb'
 import type { BoardPart, CarcaseParams, MaterialDef, ZimmuFile, Scene, Part } from './types'
+import type { Section } from './sectionTree'
+import { firstInterior } from './sectionInterior'
+import { legacyToSection } from './migrateSections'
 import { defaultScrewJoint } from './defaultJoint'
 import { carcaseBoxes as boxesOf, validateCarcaseParams as validateOf } from './carcaseRoles'
 import { PRESET_MATERIALS } from './carcasePresets'
@@ -1469,11 +1472,16 @@ describe('v12 loader defaults a carcase back setback', () => {
       },
     })
 
+  // v16 moved the shelving off the cabinet and onto the openings, so the value the file states is
+  // read back from a leaf. Any leaf: the migration seeds the same spec on every one, which is
+  // exactly what the single cabinet-wide bundle meant.
   const shelvesOf = (text: string) => {
     const c = parseFile(text).scene.components[0]
     expect(c.kind).toBe('carcase')
     if (c.kind !== 'carcase') throw new Error('not a carcase')
-    return c.params.adjustableShelves
+    const interior = firstInterior(c.params.section)
+    if (interior === undefined) throw new Error('no interior on any leaf')
+    return interior.adjustable
   }
 
   // 50, not the preset's 37: a default hardcoded to the preset would pass against 37 and prove
@@ -1484,6 +1492,98 @@ describe('v12 loader defaults a carcase back setback', () => {
 
   it('leaves a back setback the file already carries alone', () => {
     expect(shelvesOf(carcase({ ...shelves, backSetback: 12 })).backSetback).toBe(12)
+  })
+})
+
+// `base.params` is typed loosely in useFile.ts, so `tsc` cannot see a file-format regression here.
+// A v16 migration needs a parseFile test, not a green typecheck.
+describe('v15 → v16 migration', () => {
+  const shelves = { rows: 2, pitch: 32, setback: 50, backSetback: 44, startHeight: 200, count: 10 }
+  const v15 = (params: Record<string, unknown>) =>
+    JSON.stringify({
+      version: 15,
+      scene: {
+        parts: [],
+        materials: { '18mm Ply': { thickness: 18 }, '12mm MDF': { thickness: 12 } },
+        hardware: [],
+        joints: [],
+        components: [
+          {
+            kind: 'carcase',
+            id: 'cmp_1',
+            label: 'Base',
+            parentId: null,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            visible: true,
+            params: {
+              width: 600,
+              height: 720,
+              depth: 560,
+              carcaseMaterial: '18mm Ply',
+              backMaterial: '12mm MDF',
+              hasTop: true,
+              backMode: 'captured',
+              baseMode: 'toe-kick',
+              toeKickHeight: 100,
+              toeKickSetback: 60,
+              jointMethod: 'dado-rabbet',
+              ...params,
+            },
+          },
+        ],
+      },
+    })
+
+  // Two bays with a fixed shelf each: four leaves, so "seeded on every one" is a claim with
+  // something to be wrong about.
+  const divided = legacyToSection([0.5], 1, 600, 18)
+
+  const carcaseOf = (text: string) => {
+    const c = parseFile(text).scene.components[0]
+    if (c.kind !== 'carcase') throw new Error('not a carcase')
+    return c
+  }
+
+  const leaves = (s: Section): Section[] =>
+    s.content.kind === 'leaf' ? [s] : s.content.children.flatMap(leaves)
+
+  it('puts the cabinet-wide bundle on every leaf', () => {
+    const params = carcaseOf(v15({ section: divided, adjustableShelves: shelves })).params
+    const all = leaves(params.section)
+    expect(all).toHaveLength(4)
+    for (const leaf of all) {
+      expect(leaf.interior?.adjustable).toEqual({
+        shelves: 0,
+        count: 10,
+        rows: 2,
+        pitch: 32,
+        setback: 50,
+        backSetback: 44,
+      })
+    }
+  })
+
+  // A pre-v16 file had no shelf boards. Seeding any would put parts in the user's cutting list
+  // that they never drew.
+  it('invents no shelf boards', () => {
+    const params = carcaseOf(v15({ section: divided, adjustableShelves: shelves })).params
+    for (const leaf of leaves(params.section)) expect(leaf.interior?.adjustable.shelves).toBe(0)
+  })
+
+  // `startHeight` has no successor: a row starts above its own section's floor now. It must not
+  // survive as a field nothing reads, which is how a stale parameter outlives its meaning.
+  it('drops startHeight and the cabinet-wide bundle', () => {
+    const params: CarcaseParams & { adjustableShelves?: unknown } = carcaseOf(
+      v15({ section: divided, adjustableShelves: shelves }),
+    ).params
+    expect(params.adjustableShelves).toBeUndefined()
+    expect(JSON.stringify(params)).not.toContain('startHeight')
+  })
+
+  it('leaves a carcase that never stated any shelving without an interior', () => {
+    const params = carcaseOf(v15({ section: divided })).params
+    for (const leaf of leaves(params.section)) expect(leaf.interior).toBeUndefined()
   })
 })
 

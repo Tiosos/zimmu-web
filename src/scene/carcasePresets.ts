@@ -1,4 +1,5 @@
 import { legacyToSection } from './migrateSections'
+import { seedInteriors, type InteriorSpec } from './sectionInterior'
 import type { CarcaseParams, MaterialDef } from './types'
 
 export interface CarcasePreset {
@@ -32,15 +33,19 @@ const COMMON = {
   // the user makes, not the one they get by default — and unlike dowel or confirmat, screwing is a
   // joint the app can derive geometry for, so the cabinet it drops in is fully described.
   jointMethod: 'butt-screw',
-  adjustableShelves: {
-    rows: 2,
-    pitch: 32,
-    setback: 37,
-    backSetback: 37,
-    startHeight: 200,
-    count: 10,
-  },
 } satisfies Partial<CarcaseParams>
+
+// The shelving every preset section carries — the pin geometry the cabinet itself used to state,
+// now said by each opening that wants it. `shelves: 0` because a preset has never shipped shelf
+// boards, and inventing some here would change what dropping in a cabinet produces.
+const PRESET_INTERIOR: InteriorSpec = {
+  adjustable: { shelves: 0, count: 10, rows: 2, pitch: 32, setback: 37, backSetback: 37 },
+}
+
+// Every opening a preset makes wants the same shelving, which is exactly what the one cabinet-wide
+// bundle meant.
+const shelved = (dividers: number[], fixedShelves: number, width: number) =>
+  seedInteriors(legacyToSection(dividers, fixedShelves, width, CARCASE_THICKNESS), PRESET_INTERIOR)
 
 export const CARCASE_PRESETS: CarcasePreset[] = [
   {
@@ -54,7 +59,7 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       baseMode: 'toe-kick',
       toeKickHeight: 100,
       toeKickSetback: 60,
-      section: legacyToSection([], 1, 600, CARCASE_THICKNESS),
+      section: shelved([], 1, 600),
     },
   },
   {
@@ -68,7 +73,7 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       baseMode: 'none',
       toeKickHeight: 100,
       toeKickSetback: 60,
-      section: legacyToSection([], 1, 600, CARCASE_THICKNESS),
+      section: shelved([], 1, 600),
     },
   },
   {
@@ -82,7 +87,7 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       baseMode: 'toe-kick',
       toeKickHeight: 100,
       toeKickSetback: 60,
-      section: legacyToSection([], 4, 600, CARCASE_THICKNESS),
+      section: shelved([], 4, 600),
     },
   },
 ]

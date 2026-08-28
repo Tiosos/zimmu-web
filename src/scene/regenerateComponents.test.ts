@@ -4,6 +4,7 @@ import { reconcileJoints } from './reconcileJoints'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { carcaseBoxes } from './carcaseRoles'
 import { legacyToSection } from './migrateSections'
+import { seedInteriors } from './sectionInterior'
 import { dadoDepthFor } from '../geom/dado'
 import { defaultScrewJoint } from './defaultJoint'
 import { changeJointKind, type ConvertibleKind } from './changeJointKind'
@@ -34,15 +35,9 @@ const params: CarcaseParams = {
   baseMode: 'none',
   toeKickHeight: 100,
   toeKickSetback: 60,
+  // No interior seeded: `count: 0` is how this fixture used to say "this cabinet bores no pins",
+  // and a section that asks for nothing is now the same statement.
   section: legacyToSection([], 1, 600, 18),
-  adjustableShelves: {
-    rows: 1,
-    pitch: 32,
-    setback: 37,
-    backSetback: 37,
-    startHeight: 200,
-    count: 0,
-  },
   jointMethod: 'dado-rabbet',
 }
 
@@ -887,8 +882,11 @@ describe('shelf-pin hole arrays', () => {
     ...cabinet,
     params: {
       ...params,
-      section: legacyToSection([0.5], 1, 600, 18),
-      adjustableShelves: { ...params.adjustableShelves, count: 10 },
+      // Two bays, no fixed shelf, so each panel bounds one section per face: the counts below are
+      // about which panels get drilled, not about how a divided cabinet multiplies rows.
+      section: seedInteriors(legacyToSection([0.5], 0, 600, 18), {
+        adjustable: { shelves: 0, count: 10, rows: 1, pitch: 32, setback: 37, backSetback: 37 },
+      }),
     },
   }
   const scene: Scene = { ...empty, components: [pinned] }

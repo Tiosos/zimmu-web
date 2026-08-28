@@ -13,6 +13,7 @@ import {
   type ResolvedTree,
   type SectionBounds,
 } from './sectionTree'
+import { sectionInteriors } from './sectionInterior'
 
 export type { ThicknessAxis }
 
@@ -176,7 +177,6 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
   if (p.backMode !== 'none' && back >= p.depth) {
     errors.push('the back material is thicker than the cabinet is deep')
   }
-  if (p.adjustableShelves.count < 0) errors.push('adjustable shelf count must be 0 or more')
   errors.push(...validateSection(p.section))
   // The tree's own rules are about the tree; only the resolved rectangles know whether the cabinet
   // is big enough to hold it. A section squeezed to nothing does not produce a thin panel, it
@@ -729,60 +729,80 @@ export function carcaseCuts(p: CarcaseParams, thicknessOf: RoleThickness, role: 
 
 const PIN_DIAMETER = 5
 
-// Which board-local faces a role bores pins into. A side and a partition are both thickness-on-x
-// panels, so the inner face is board ±Z — the same faces the joinery table names. A partition
-// stands between two bays and carries a row on each of its faces; every other role carries none.
-function pinFaces(role: string, thicknessAxis: ThicknessAxis): Face[] {
-  if (role === 'left-side') return [LEFT_EDGE_FACE]
-  if (role === 'right-side') return [RIGHT_EDGE_FACE]
-  // Only a vertical division is an upright that carries pins; a horizontal one is a shelf.
-  if (role.startsWith('division-') && thicknessAxis === 'x')
-    return [LEFT_EDGE_FACE, RIGHT_EDGE_FACE]
-  return []
+// How far above a section's own floor its first pin hole sits. A chosen figure — one increment of
+// the system being modelled — not one derived from the panel or from the shelf: nothing can rest
+// flush on a section's bottom, and 32 mm is the step every other hole in the row takes.
+const FIRST_PIN_INSET = 32
+
+// Which board face of a bounding upright looks into a section. A section's left bound is the panel
+// on its *left*, so the section lies on that panel's +x side — board +Z, the same face the joinery
+// table names. Only the left and right bounds appear here: a shelf rests on pins in the uprights
+// beside it, never in the panels above and below it.
+const BOUND_FACE = { left: LEFT_EDGE_FACE, right: RIGHT_EDGE_FACE } as const
+
+// The role of the panel a bound names. `boundsOf` only ever puts a vertical division in the left or
+// right slot, so a bound found there is always an upright.
+function boundRole(bound: Bound, side: keyof typeof BOUND_FACE): string {
+  return bound.kind === 'shell' ? `${side}-side` : `division-${bound.parentId}-${bound.index}`
 }
 
-// The shelf-pin rows a carcase drills into the panels that carry adjustable shelves. Read against
-// the reconciled panel rather than the raw parameters: a divider is shorter than a side and starts
-// a bay above the floor, and a row placed from the parameters alone would run off its end.
+// The shelf-pin rows a carcase drills, asked the only way round that can answer correctly: a row
+// belongs to the *section* that needs it, and is contributed to the panels bounding that section.
+// A panel's rows are the union of what every section it bounds asks for — which is why a divider
+// beside a drawer bank is bored on one face and not on two.
+//
+// Read against the reconciled panel rather than the raw parameters: a divider is shorter than a
+// side and starts a bay above the floor, so the section's own floor has to be measured against the
+// panel the row lands on.
 export function carcaseHoleArrays(
   p: CarcaseParams,
   thicknessOf: RoleThickness,
   kindOf: RoleJointKind,
   role: string,
 ): HoleArrayCut[] {
-  const a = p.adjustableShelves
   const radius = PIN_DIAMETER / 2
-  if (a.count <= 0 || a.setback < radius || a.backSetback < radius) return []
-  // A `division-` role does not say on its own whether it is a partition or a shelf; its box does.
-  const box = carcaseBoxes(p, thicknessOf).find((b) => b.role === role)
-  if (box === undefined) return []
-  const faces = pinFaces(role, box.thicknessAxis)
-  if (faces.length === 0) return []
+  // Empty for a carcase whose parameters do not build, which is what makes every line below safe:
+  // nothing here resolves a thickness or a rectangle for a cabinet the validator rejected.
   const panel = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === role)?.panel
   if (panel === undefined) return []
+
+  const tree = resolveSections(
+    p.section,
+    openingRect(p, thicknessOf),
+    sectionThickness(thicknessOf),
+  )
 
   // Two thirds of the panel this row is bored into: deep enough to seat a pin, never a through
   // hole — which is a statement about that panel, not about the cabinet.
   const depth = Math.min(12, (thicknessOf(role) * 2) / 3)
 
-  // `startHeight` is a height above the carcase floor, not above the panel's own bottom edge. A
-  // divider begins a bay up, so rows measured from each panel's own edge would sit at two
-  // different heights across one bay and every shelf in the cabinet would rest on a slope.
-  const first = a.startHeight - panel.position.z
-  // A cabinet can be too short to hold the configured count. Dropping the holes that would run past
-  // the panel's end is the only alternative to boring through it.
-  const count = Math.min(a.count, Math.floor((panel.width - radius - first) / a.pitch) + 1)
-  if (first < radius || count < 1) return []
+  const cuts: HoleArrayCut[] = []
+  for (const { sectionId, rect, bounds, spec } of sectionInteriors(p.section, tree)) {
+    const a = spec.adjustable
+    if (a.count <= 0 || a.setback < radius || a.backSetback < radius) continue
+    // At most one: a panel cannot bound the same section on both sides.
+    const side = (['left', 'right'] as const).find((s) => boundRole(bounds[s], s) === role)
+    if (side === undefined) continue
 
-  const rows = [a.setback, panel.length - a.backSetback].slice(0, a.rows)
+    // Board y runs the carcase height and the panel's origin is its own bottom edge, so the
+    // section's floor and ceiling are carried across into the panel's frame.
+    const first = rect.z0 + FIRST_PIN_INSET - panel.position.z
+    const ceiling = rect.z1 - panel.position.z
+    // A section can be too short to hold the configured count. Dropping the holes that would run
+    // past its own ceiling is the only alternative to boring pins no shelf in it could reach.
+    const count = Math.min(a.count, Math.floor((ceiling - radius - first) / a.pitch) + 1)
+    if (count < 1) continue
 
-  return faces.flatMap((face, f) =>
-    rows.map((alongDepth, r) => {
-      const i = f * rows.length + r
-      return {
+    const face = BOUND_FACE[side]
+    const rows = [a.setback, panel.length - a.backSetback].slice(0, a.rows)
+    for (const [r, alongDepth] of rows.entries()) {
+      cuts.push({
         kind: 'hole-array' as const,
-        id: `holes_${role}_${i}`,
-        label: `Shelf pins ${i + 1}`,
+        // Unique per (panel, section, row): one panel carries a row for every shelved section it
+        // bounds, and an id that named only the panel would let the second silently replace the
+        // first.
+        id: `holes_${role}_${sectionId}_${r}`,
+        label: `Shelf pins ${cuts.length + 1}`,
         face,
         // Board x runs the carcase depth and board y the height, so a vertical row marches along
         // the second of the face's two in-face axes.
@@ -793,9 +813,10 @@ export function carcaseHoleArrays(
         count,
         diameter: PIN_DIAMETER,
         depth,
-      }
-    }),
-  )
+      })
+    }
+  }
+  return cuts
 }
 
 // Which carcase parameter, if any, a driven part's board dimension is a direct expression of.

@@ -425,9 +425,17 @@ describe('buildDrawingSheets — hole arrays', () => {
     const sheet = boardSheet(side)
     const scale = scaleOf(sheet)
     // The fixture's rows run along the panel height (the face's V axis), so one row is the
-    // circles sharing its start's x.
+    // circles sharing its start's x — and, since the preset's side panel bounds a section above
+    // and below its fixed shelf, lying within that row's own span. Sections are disjoint in
+    // height, so the two rows at one setback stack rather than interleave.
+    const top = (row.start.y + row.pitch * (row.count - 1)) * scale
     const circles = sheet.views[0].circles
-      .filter((c) => Math.abs(c.cx - row.start.x * scale) < 1e-9)
+      .filter(
+        (c) =>
+          Math.abs(c.cx - row.start.x * scale) < 1e-9 &&
+          c.cy >= row.start.y * scale - 1e-9 &&
+          c.cy <= top + 1e-9,
+      )
       .sort((a, b) => a.cy - b.cy)
     expect(circles).toHaveLength(row.count)
     expect(circles[0].cy).toBeCloseTo(row.start.y * scale, 9)

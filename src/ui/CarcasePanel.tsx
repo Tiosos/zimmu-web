@@ -3,6 +3,7 @@ import type { CarcaseParams, CarcaseComponent, Component, MaterialDef } from '..
 import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
 import { roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
+import { firstInterior, seedInteriors } from '../scene/sectionInterior'
 import { resolveSections } from '../scene/sectionTree'
 import { DimInput } from './DimInput'
 import { Input } from '@/components/ui/input'
@@ -143,8 +144,15 @@ export function CarcasePanel({
   const setParams = (patch: Partial<CarcaseParams>) =>
     onUpdate((c) => (c.kind === 'carcase' ? { ...c, params: { ...c.params, ...patch } } : c))
 
-  const setShelves = (patch: Partial<CarcaseParams['adjustableShelves']>) =>
-    setParams({ adjustableShelves: { ...p.adjustableShelves, ...patch } })
+  // The shim writes a whole new tree, whose sections are new sections with new ids, so a shelving
+  // spec attached to the old ones would be thrown away on every keystroke in the Dividers field.
+  // The cabinet-wide shelving these two fields describe has exactly one spec, so carrying it onto
+  // every new leaf loses nothing. Per-section editing is what makes this insufficient.
+  const relaid = (dividers: number[], fixedShelves: number) => {
+    const tree = legacyToSection(dividers, fixedShelves, p.width, divisionThickness)
+    const interior = firstInterior(p.section)
+    return interior === undefined ? tree : seedInteriors(tree, interior)
+  }
 
   return (
     // Matches EditPanel's container, and bounds its own height: with 17 fields an unbounded panel
@@ -310,14 +318,7 @@ export function CarcasePanel({
                 setDividersText(e.target.value)
                 const dividers = parseDividers(e.target.value)
                 if (dividers !== null) {
-                  setParams({
-                    section: legacyToSection(
-                      dividers,
-                      legacy.fixedShelves,
-                      p.width,
-                      divisionThickness,
-                    ),
-                  })
+                  setParams({ section: relaid(dividers, legacy.fixedShelves) })
                 }
               }}
               onFocus={() => {
@@ -342,53 +343,7 @@ export function CarcasePanel({
             value={legacy.fixedShelves}
             suffix=""
             min={0}
-            onCommit={(v) =>
-              setParams({
-                section: legacyToSection(
-                  legacy.dividers,
-                  Math.round(v),
-                  p.width,
-                  divisionThickness,
-                ),
-              })
-            }
-          />
-          <DimInput
-            labelWidth="w-20"
-            label="Adjustable rows"
-            value={p.adjustableShelves.rows}
-            suffix=""
-            min={1}
-            onCommit={(v) => setShelves({ rows: Math.round(v) === 1 ? 1 : 2 })}
-          />
-          <DimInput
-            labelWidth="w-20"
-            label="Pin setback"
-            value={p.adjustableShelves.setback}
-            suffix="mm"
-            onCommit={(v) => setShelves({ setback: v })}
-          />
-          <DimInput
-            labelWidth="w-20"
-            label="Pin back setback"
-            value={p.adjustableShelves.backSetback}
-            suffix="mm"
-            onCommit={(v) => setShelves({ backSetback: v })}
-          />
-          <DimInput
-            labelWidth="w-20"
-            label="Pin start height"
-            value={p.adjustableShelves.startHeight}
-            suffix="mm"
-            onCommit={(v) => setShelves({ startHeight: v })}
-          />
-          <DimInput
-            labelWidth="w-20"
-            label="Pin count"
-            value={p.adjustableShelves.count}
-            suffix=""
-            min={0}
-            onCommit={(v) => setShelves({ count: Math.round(v) })}
+            onCommit={(v) => setParams({ section: relaid(legacy.dividers, Math.round(v)) })}
           />
         </CollapsibleContent>
       </Collapsible>

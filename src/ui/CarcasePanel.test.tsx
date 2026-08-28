@@ -6,6 +6,7 @@ import { CarcasePanel } from './CarcasePanel'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { openingRect } from '../scene/carcaseRoles'
 import { legacyToSection } from '../scene/migrateSections'
+import { firstInterior, sectionInteriors } from '../scene/sectionInterior'
 import { roleThicknessFor } from '../scene/resolveThickness'
 import { resolveSections } from '../scene/sectionTree'
 import type { CarcaseComponent, CarcaseParams, Component } from '../scene/types'
@@ -37,16 +38,19 @@ function renderPanel(component = carcase(), onUpdate = vi.fn(), materials = PRES
 const sec = (dividers: number[], fixedShelves = 1) =>
   legacyToSection(dividers, fixedShelves, 600, 18)
 
-// Where the partitions a set of params describes actually land, as fractions of the width — the
-// same reading the divider field shows.
-const partitionCentres = (p: CarcaseParams) => {
+const resolvedOf = (p: CarcaseParams) => {
   const thicknessOf = roleThicknessFor(p, PRESET_MATERIALS, new Map())
   return resolveSections(p.section, openingRect(p, thicknessOf), (parentId, index) =>
     thicknessOf(`division-${parentId}-${index}`),
   )
+}
+
+// Where the partitions a set of params describes actually land, as fractions of the width — the
+// same reading the divider field shows.
+const partitionCentres = (p: CarcaseParams) =>
+  resolvedOf(p)
     .divisions.filter((d) => d.axis === 'vertical')
     .map((d) => Number(((d.rect.x0 + d.rect.x1) / 2 / p.width).toFixed(6)))
-}
 
 // The panel reports edits as an updater, matching how onUpdate works everywhere else in useScene.
 function appliedParams(onUpdate: ReturnType<typeof vi.fn>, base: CarcaseComponent): CarcaseParams {
@@ -143,6 +147,20 @@ describe('CarcasePanel', () => {
     expect((screen.getByLabelText('Dividers') as HTMLInputElement).value).toBe('0.25, 0.75')
   })
 
+  // The shim writes a whole new tree on every edit. Shelving now hangs off the sections in that
+  // tree, so a shim that rebuilt it plainly would delete the cabinet's pin rows the moment anyone
+  // touched the divider or fixed-shelf field.
+  it('keeps the cabinet’s shelving when the shim relays the tree', async () => {
+    const c = carcase()
+    const before = firstInterior(c.params.section)
+    expect(before, 'preset 0 should ship shelving').toBeDefined()
+    const onUpdate = renderPanel(c)
+    await userEvent.type(screen.getByLabelText('Dividers'), '0.5')
+    const after = appliedParams(onUpdate, c).section
+    expect(firstInterior(after)).toEqual(before)
+    expect(sectionInteriors(after, resolvedOf(appliedParams(onUpdate, c)))).toHaveLength(4)
+  })
+
   // 'legs' is still in the CarcaseParams union so saved files load, but no generator branch
   // implements it — it produced a cabinet identical to 'none' under a label promising otherwise.
   it('does not offer Legs as a base mode', async () => {
@@ -159,6 +177,10 @@ describe('CarcasePanel', () => {
 
   // Every CarcaseParams field must be reachable. A parameter with no control is invisible to the
   // user and silently un-editable forever, and no other test in the suite would notice.
+  //
+  // The pin fields are gone from this list because they are gone from CarcaseParams: shelving is
+  // stated per section now. Editing it needs a selected section, which arrives with the elevation
+  // editor.
   it('exposes a control for every CarcaseParams field', () => {
     renderPanel()
     const labels = [
@@ -174,11 +196,6 @@ describe('CarcasePanel', () => {
       'Toe-kick setback',
       'Dividers',
       'Fixed shelves',
-      'Adjustable rows',
-      'Pin setback',
-      'Pin back setback',
-      'Pin start height',
-      'Pin count',
       'Joint method',
     ]
     for (const label of labels) {

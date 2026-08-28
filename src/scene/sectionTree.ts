@@ -47,8 +47,8 @@ export interface Section {
   id: SectionId
   size: SectionSize
   content: SectionContent
-  // Per-section shelving. Optional because nothing writes it yet — `sectionInteriors` is the only
-  // reader, and group B is what starts producing it.
+  // Per-section shelving. Optional because most sections want nothing, and a required field would
+  // put an empty spec on every leaf of every saved file.
   interior?: InteriorSpec
 }
 
@@ -241,6 +241,11 @@ export function validateSection(root: Section): string[] {
     }
     if (s.size.kind === 'percent' && (s.size.pct <= 0 || s.size.pct > 100)) {
       errors.push('a section percentage must be between 0 and 100')
+    }
+    // The rule the cabinet-wide bundle used to carry: a negative pin count is meaningless, and the
+    // section that states it is now the only place it can be caught.
+    if (s.interior !== undefined && s.interior.adjustable.count < 0) {
+      errors.push('adjustable shelf count must be 0 or more')
     }
     if (s.content.kind === 'leaf') return
 

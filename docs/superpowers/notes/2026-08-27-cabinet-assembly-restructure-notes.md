@@ -479,3 +479,57 @@ After: `len=570 x=12`, right edge exactly on the right side's inner face, **GAP 
 - A user-owned joint dies with its cabinet, unlike a detached part. A board exists in its own right
   and can be promoted to top level; a relation between two panels has nowhere to be promoted to.
 - `dowel` and `confirmat` still emit nothing — they need the hardware model, not a cut.
+
+### 2026-08-28 — Stage D: "count" was never a shelf count
+
+The spec's Stage D line treats `adjustable.count` as "how many shelves are in this opening". It is
+not. `CarcasePanel` labels it **"Pin count"** and `carcaseHoleArrays` passes it straight into
+`HoleArrayCut.count` — the number of *holes in the row*. A Base 600 ships `count: 10`, so building
+the stage as the spec reads would have put **ten shelves** in every section.
+
+There has never been a shelf count anywhere in the model: an adjustable shelf has only ever been a
+row of bores. `AdjustableSpec` therefore carries both, named so the difference cannot be misread at
+a call site: `shelves` (boards seated) and `count` (pin positions per row).
+
+`InteriorSpec.fixedShelves` was left out deliberately. Stage A already turned a fixed shelf into a
+horizontal split with `division: 'panel'`, and until fronts exist the two are observationally
+identical — adding the field now would give the model two ways to say one thing.
+
+### 2026-08-28 — a pre-v16 file's pin rows may move, and that is the correction
+
+`startHeight` has no successor. It was an absolute height above the carcase floor; a row now starts
+`FIRST_PIN_INSET` (32 mm, one increment of the system) above **its own section's floor**. So a
+migrated cabinet whose rows began 200 mm up will find them starting just above the opening — and in
+a divided cabinet, one row per section rather than one row spanning the panel.
+
+That is the whole point of the stage rather than a regression: the old geometry bored a full-height
+row on **both** faces of every partition, including the face looking into a drawer bank where
+nothing can rest. `carcaseRoles.test.ts` now holds the test that could not be written before —
+*drills a partition only on the face of the bay that asks for shelves* — and the mutation that bores
+both faces regardless fails it.
+
+The v16 migration copies the one cabinet-wide bundle onto every leaf, with `shelves: 0`: a pre-v16
+file had no shelf boards, and inventing some would change what the user saved.
+
+### 2026-08-28 — the legacy shim would have deleted the shelving on every keystroke
+
+`CarcasePanel`'s Dividers and Fixed-shelves fields write a whole new tree through `legacyToSection`
+on every edit — new sections, new ids. With shelving hanging off those sections, typing in the
+Dividers field silently threw away the cabinet's pin rows. The fields are a v12 shim describing a
+cabinet-wide bundle, so `firstInterior` reads the one spec back out and `seedInteriors` puts it on
+every new leaf; nothing is lost because the shim cannot express more than one. Per-section editing
+is exactly what makes this insufficient, and that is group D's job.
+
+### 2026-08-28 — where the counts legitimately doubled
+
+A panel bounding two sections now carries a row for **each**. Fixtures built on `legacyToSection(…,
+fixedShelves ≥ 1, …)` therefore report twice the rows they used to, and three tests moved to say so
+rather than being weakened:
+
+- `carcaseRoles.test.ts` gained a `oneBay` fixture (`sec([], 0)`) for the tests that are about pitch
+  and setback, plus a new *gives a panel one row per section it bounds* asserting the doubling
+  directly.
+- `regenerateComponents.test.ts`'s pin fixture dropped its fixed shelf: that test is about which
+  panels get drilled, not about how division multiplies rows.
+- `drawing.test.ts` filters a row's circles by its own span as well as its setback, because the
+  preset's side panel now carries two rows at each setback, stacked.
