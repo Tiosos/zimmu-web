@@ -400,3 +400,82 @@ losing side of that race the usual one.
   () => undefined, '')` — the override invisible to sizing, everything else intact — reproduces the
   measured defect exactly (bottom 564 mm at x = 12, 6 mm of daylight at the right side) and fails
   the two gap tests while the all-screws butt test still passes. Restored and re-verified green.
+
+### 2026-08-28 — Stage C: the joint→cut pipeline was box-only
+
+The spec said the screw joint's two hole families "are `HoleArrayCut`s, so drawings and the nest
+handle them already". True of rendering, false of ownership:
+
+```ts
+export type DerivedCut = { partId: PartId; cut: BoxCut }          // src/geom/dado.ts
+sourceComponentId?: string // hole arrays are component-owned, never joint-owned   // types.ts
+```
+
+Seven guards asked "is this joint-owned?" as `c.kind === 'box' && c.sourceJointId`. Unwidened, a
+screw joint's bores would have outlived the joint that made them and stayed editable in the UI,
+breaking the read-only contract every other derived cut has. `cutOwnership.ts` now states the
+question once and all seven call it.
+
+The `isJointOwned` signature was wrong on the first pass — a bare `boolean` cannot narrow
+`sourceJointId`, so the orphan strip had to scan every joint per cut instead of using a `Set`. The
+implementer flagged the trade-off rather than reaching for a non-null assertion, which was the right
+call; it is a type predicate now.
+
+### 2026-08-28 — the preset flip re-baselines every cabinet, and e2e cannot see it
+
+`CARCASE_PRESETS` moved from `dado-rabbet` to `butt-screw`, so a screwed butt joint extends no panel.
+Measured on a Base 600: **bottom 576 → 564**, a 12 mm change on every housed panel.
+
+`extensionFor` returns 0 for `screw`. Mutating it to `thickness` fails **two** tests that know
+nothing about each other — the computed span check (600 vs 564, exactly two phantom grooves) and the
+touching-pair coverage property, which notices that over-extended panels touch differently. Two
+independent tests, one bug.
+
+**No e2e spec moved, and that is a coverage fact rather than luck.** `sheets-tab.spec.ts` pins
+`used 61%`, and both methods nest to 61% — measured, not assumed: the difference is real but under
+half a percent, so it rounds away. No e2e asserts a housed panel's dimensions at all. The
+re-baseline was caught by unit tests only.
+
+Three unit tests took `CARCASE_PRESETS[0].params` directly and so became screw tests while their
+names still said "groove", "dado" and "box cuts that are not through". They are pinned to
+`jointMethod: 'dado-rabbet'` explicitly rather than having their expected values updated — updating
+them would have quietly repurposed tests into asserting something their names deny. New coverage
+asserts the shipped preset *is* screwed; without it, flipping back to a groove method would break no
+test.
+
+### 2026-08-28 — the per-joint override put a 6 mm hole in the cabinet
+
+Shipping the override revealed that `carcaseRoles` sizes panels from the cabinet-wide `jointMethod`
+while `reconcileJoints` seats them from the joints the scene actually holds. Override one joint to a
+dado and the two disagree:
+
+```
+bottom len=564 x=18  →  len=564 x=12   right edge 576, right side at 582   GAP = 6 mm
+```
+
+The panel slid into its new groove and never grew. Not a documented limitation — a feature whose use
+produces a broken cabinet has not shipped.
+
+The fix is the same inversion Stage B made for thickness, and `resolveJointKind.ts` is written as the
+deliberate mirror of `resolveThickness.ts`: `jointKindFor(joints, componentId)` returns
+`(housingRole, housedRole) => kind | undefined`, built in `regenerateOne` from the same `driven:
+false` joints the emit preserves, and read **before** the layout resolves boxes. Where the user has
+said nothing it answers `undefined` and the descriptors are byte-identical, which is why the entire
+existing suite passed unchanged.
+
+`carcaseJointId` is now spelled in exactly one place. The emit and the override lookup both call it,
+so the joint id and the role pair can no longer encode the same fact two ways and drift.
+
+After: `len=570 x=12`, right edge exactly on the right side's inner face, **GAP = 0**.
+
+### 2026-08-28 — Stage C closed
+
+- Unit tests **1337 → 1357**; e2e **15/15**, with no e2e file touched in the whole stage.
+- Known and deliberate: a converted joint keeps its old kind's **label** ("Screw fixing — Left Side /
+  Bottom" on a dado), because the joint does not carry the role labels needed to rename it.
+- Only `dado` ↔ `screw` are convertible. That is evidence-based, not caution: `carcaseJoints` emits
+  one *or the other* for identical role pairs with identical faces. Finger meets two *ends* at a
+  corner and cannot be read off a joint that names a face.
+- A user-owned joint dies with its cabinet, unlike a detached part. A board exists in its own right
+  and can be promoted to top level; a relation between two panels has nowhere to be promoted to.
+- `dowel` and `confirmat` still emit nothing — they need the hardware model, not a cut.
