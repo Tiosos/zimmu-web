@@ -1,4 +1,15 @@
-import type { BoardPart, DadoJoint, Joint, Part, PartId, Scene } from '../scene/types'
+import type {
+  BoardPart,
+  Component,
+  ComponentId,
+  DadoJoint,
+  Joint,
+  Part,
+  PartId,
+  Scene,
+} from '../scene/types'
+import type { ConvertibleKind } from '../scene/changeJointKind'
+import { CONVERTIBLE_KIND_LABEL, changeJointKind, convertibleKinds } from '../scene/changeJointKind'
 import { isValidDadoSeat } from '../geom/dado'
 import { isValidFingerJoint } from '../geom/fingerjoint'
 import { isValidHalfLap } from '../geom/halflap'
@@ -45,6 +56,48 @@ function JointNumInput({
         className="flex-1 min-w-0"
       />
       <span className="text-[11px] text-muted-foreground shrink-0 w-8">{suffix}</span>
+    </div>
+  )
+}
+
+function JointKindSelect({
+  joint,
+  scene,
+  byId,
+  onUpdateJoint,
+}: {
+  joint: Joint
+  scene: Scene
+  byId: Map<ComponentId, Component>
+  onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
+}) {
+  const kinds = convertibleKinds(joint, scene.parts, byId)
+  // Nothing to choose: either this pairing admits no second kind, or the panels have moved and the
+  // joint is stale. Both are cases where a change could only produce geometry that means nothing.
+  if (kinds.length < 2) return null
+  return (
+    <div className="flex items-center gap-1.5 mb-1">
+      <Label className="w-10 shrink-0 text-right">Kind</Label>
+      <Select
+        value={joint.kind}
+        onValueChange={(v) =>
+          onUpdateJoint(
+            joint.id,
+            (jt) => changeJointKind(jt, v as ConvertibleKind, scene.parts, byId) ?? jt,
+          )
+        }
+      >
+        <SelectTrigger className="h-7 flex-1 text-[11px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {kinds.map((k) => (
+            <SelectItem key={k} value={k}>
+              {CONVERTIBLE_KIND_LABEL[k]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
@@ -365,6 +418,12 @@ export function JointsPanel({
                 {j.throughPartId === part.id ? '→ into ' : '← through '}
                 {partLabel(scene, other)}
               </p>
+              <JointKindSelect
+                joint={j}
+                scene={scene}
+                byId={componentMap}
+                onUpdateJoint={onUpdateJoint}
+              />
               <JointNumInput
                 label="Screws"
                 value={j.screwCount}
@@ -431,6 +490,12 @@ export function JointsPanel({
             )}
             {isHousing ? (
               <>
+                <JointKindSelect
+                  joint={j}
+                  scene={scene}
+                  byId={componentMap}
+                  onUpdateJoint={onUpdateJoint}
+                />
                 <div className="flex items-center gap-1.5 mb-1">
                   <Label className="w-10 shrink-0 text-right">Profile</Label>
                   <Select

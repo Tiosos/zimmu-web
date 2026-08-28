@@ -103,6 +103,13 @@ function regenerateOne(
     if (p.kind === 'board') seats.set(roles[i].role, { part: p, label: roles[i].label })
   })
 
+  // A joint the user has taken carries `driven: false`, exactly as a detached part does. Keyed by
+  // the id the emit below reproduces from the role pair, so finding it needs nothing stored — the
+  // same lookup byRole does for a part.
+  const ownedJoints = new Map(
+    joints.filter((j) => j.sourceComponentId === component.id).map((j) => [j.id, j] as const),
+  )
+
   const emitted = carcaseJoints(component.params, thicknessOf, component.id).flatMap(
     (d): Joint[] => {
       const housing = seats.get(d.housingRole)
@@ -112,6 +119,13 @@ function regenerateOne(
       // Derived from the component and the role pair, so a regeneration reproduces the same id
       // without looking anything up.
       const id = `joint_${component.id}_${d.housingRole}__${d.housedRole}`
+
+      const existing = ownedJoints.get(id)
+      // The mirror of the detached-part line in the role pass: the user's, so it is neither rebuilt
+      // nor shipped alongside the twin this descriptor would have emitted. Unlike a part it is not
+      // also kept once the params stop implying its role pair — a joint is a relation between two
+      // panels, and it names the one regeneration has just deleted.
+      if (existing !== undefined && !existing.driven) return [existing]
       const kindLabel = { dado: 'Dado', finger: 'Finger joint', screw: 'Screw fixing' }[d.kind]
       const label = `${kindLabel} — ${housing.label} / ${housed.label}`
       // A screw descriptor names the same two panels in the same order a dado does — the housing is

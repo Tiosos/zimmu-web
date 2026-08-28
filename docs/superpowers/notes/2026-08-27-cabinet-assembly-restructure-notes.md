@@ -331,3 +331,44 @@ losing side of that race the usual one.
 - Not done, deliberately: no `frontMaterial` (Stage E, with the fronts that need it);
   `adjustableShelves` still on `CarcaseParams` (Stage D); joints still use `jointMethod` (Stage C of
   the wider restructure).
+
+### 2026-08-28 — Stage C group D: a joint the user chose
+
+- **Preservation is the detached-part line, moved.** `regenerateOne` builds `ownedJoints` (this
+  component's joints, by id) and the emit returns the existing joint untouched when it is
+  `driven: false` — the mirror of `if (existing !== undefined && !existing.driven) return existing`
+  in the role pass. The deterministic id `joint_{componentId}_{housingRole}__{housedRole}` is what
+  matches a kept joint to the descriptor it replaces, so nothing new is stored and the twin is never
+  emitted beside it.
+- **Where a joint parts company with a detached part.** A detached part is *also* kept when its role
+  disappears (with its role key released). A joint is not: it is a relation between two panels, and
+  when the params stop implying its role pair one of those panels has just been deleted. Keeping it
+  would leave a dangling reference whose last-good cuts sit on a panel nothing seats into. For the
+  same reason `sourceComponentId` is **kept** on a taken joint rather than cleared: clearing it is
+  the joint analogue of releasing the role key, but the id stays deterministic, so a later
+  regeneration would emit a second joint carrying the same id.
+- **Deleting the cabinet takes the joint with it**, user-owned or not — it falls out of
+  `onRemoveComponent`'s existing `sourceComponentId` filter, and follows from the same reasoning:
+  both panels it names are driven and go with the cabinet, and unlike a part there is nowhere to
+  promote a relation to.
+- **Only dado ↔ screw are offered.** They are the two kinds naming one pairing — a panel's face and
+  the perpendicular end meeting it — and `carcaseJoints` emits one *or the other* for identical role
+  pairs with identical faces, which is the evidence that they are interchangeable. Finger is not
+  offered anywhere: it meets two *ends* at a corner and needs the housing panel's end, which a joint
+  naming its face does not carry (`carcaseJoints` computes it from the role, not from the joint).
+  Mortise & tenon shares the face/end shape and could join the list later; it was left out as
+  unasked-for. Legality is checked, not assumed: `isValidDadoSeat` for both, plus
+  `faceAxes(housedEnd).depth !== 'z'` for the screw — a pilot centred in a panel's broad face is
+  what `deriveScrewJoint` returns null for.
+- **The override does not resize the panel, and that is visible.** Measured: on a screwed Base 600,
+  converting `left-side__bottom` to a dado leaves the bottom at 564 mm and moves it from x = 18 to
+  x = 12, so it reaches 6 mm into the side's groove and leaves a 6 mm gap at the right-hand side.
+  The result is stable (a second pipeline pass does not move it again). The cause is that
+  `carcaseRoles`' extension pass reads the cabinet's `jointMethod`, not the joints the scene
+  actually holds, so a per-joint override is invisible to panel sizing. Fixing it means the layout
+  reading joints — a real design change, out of group D's scope. A user overriding one joint on a
+  cabinet today gets the right cuts and a panel sized for the cabinet's method.
+- **The label keeps the old kind's name.** The plan requires the id *and* label to survive, so a
+  screw converted to a dado still reads "Screw fixing — Left Side / Bottom" in the panel and on its
+  derived cut labels. Kept deliberately; renaming would have to re-derive the label from the roles,
+  which the joint does not carry either.

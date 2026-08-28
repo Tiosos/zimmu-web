@@ -43,6 +43,7 @@ import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { carcaseRoles } from './carcaseRoles'
 import { roleThicknessFor } from './resolveThickness'
 import { jointInvolves } from './jointInvolves'
+import { changeJointKind } from './changeJointKind'
 import { FILE_FORMAT_VERSION, parseFile } from './useFile'
 
 describe('useScene', () => {
@@ -2592,6 +2593,31 @@ describe('detach', () => {
     expect(survivor!.parentId).toBeNull()
     // Every board the cabinet was still driving goes with it.
     expect(result.current.scene.parts.filter((p) => p.driven)).toHaveLength(0)
+  })
+
+  // A detached part is promoted to top level and kept. A joint cannot be: it is a relation between
+  // two of the cabinet's driven panels, and both go with the cabinet. Taking its kind does not make
+  // it outlive the panels it names.
+  it('takes a joint the user chose with the cabinet it belongs to', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const cmpId = result.current.scene.components[0].id
+    const joint = result.current.scene.joints[0]
+    const { parts, components } = result.current.scene
+
+    act(() =>
+      result.current.onUpdateJoint(
+        joint.id,
+        (j) => changeJointKind(j, 'dado', parts, componentsById(components)) ?? j,
+      ),
+    )
+    const taken = result.current.scene.joints.find((j) => j.id === joint.id)!
+    expect(taken.kind).toBe('dado')
+    expect(taken.driven).toBe(false)
+
+    act(() => result.current.onRemoveComponent(cmpId))
+
+    expect(result.current.scene.joints).toHaveLength(0)
   })
 
   it('undoes a detach', () => {

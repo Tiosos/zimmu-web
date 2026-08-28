@@ -5,6 +5,7 @@ import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { carcaseBoxes } from './carcaseRoles'
 import { legacyToSection } from './migrateSections'
 import { dadoDepthFor } from '../geom/dado'
+import { defaultScrewJoint } from './defaultJoint'
 import { roleThicknessFor, type PartOverrides, type RoleThickness } from './resolveThickness'
 import type {
   BoardPart,
@@ -563,7 +564,9 @@ describe('joint emission', () => {
     for (const j of joints) {
       const bores = out.parts.flatMap((p) =>
         p.kind === 'board'
-          ? p.cuts.filter((c) => c.kind === 'hole-array' && c.sourceJointId === j.id).map(() => p.id)
+          ? p.cuts
+              .filter((c) => c.kind === 'hole-array' && c.sourceJointId === j.id)
+              .map(() => p.id)
           : [],
       )
       // One clearance row and one pilot row, and never both on the same panel — you screw through
@@ -605,6 +608,61 @@ describe('joint emission', () => {
 
     expect(second.joints.find((j) => j.id === 'j_hand')).toEqual(handMade)
     expect(ownedJoints(second)).toHaveLength(12)
+  })
+
+  // The joint equivalent of detaching a part: the user takes the joint the cabinet emitted, keeping
+  // its id and its component tag, and regeneration must leave that choice standing.
+  const SIDE_BOTTOM = 'joint_cmp_1_left-side__bottom'
+
+  function takenAsScrew(s: Scene, id: string): Scene {
+    const dado = s.joints.find((j) => j.id === id) as DadoJoint
+    const housing = s.parts.find((p) => p.id === dado.housingPartId) as BoardPart
+    const housed = s.parts.find((p) => p.id === dado.housedPartId) as BoardPart
+    const screw: Joint = {
+      ...defaultScrewJoint(housing, housed, dado.housingFace, dado.housedEnd, id, dado.label),
+      sourceComponentId: 'cmp_1',
+    }
+    return { ...s, joints: s.joints.map((j) => (j.id === id ? screw : j)) }
+  }
+
+  it('keeps a joint the user took through a parameter change', () => {
+    const first = takenAsScrew(regenerateComponents(presetScene), SIDE_BOTTOM)
+    const second = withPresetParams(first, { depth: 600 })
+    const kept = second.joints.find((j) => j.id === SIDE_BOTTOM)
+
+    expect(kept?.kind).toBe('screw')
+    expect(kept?.driven).toBe(false)
+  })
+
+  it('emits no generated twin beside the joint the user took', () => {
+    const first = takenAsScrew(regenerateComponents(presetScene), SIDE_BOTTOM)
+    const second = withPresetParams(first, { depth: 600 })
+
+    expect(second.joints.filter((j) => j.id === SIDE_BOTTOM)).toHaveLength(1)
+    expect(ownedJoints(second)).toHaveLength(12)
+    expect(ownedJoints(second).filter((j) => j.kind === 'screw')).toHaveLength(1)
+  })
+
+  it('still replaces a driven joint on regeneration', () => {
+    const first = regenerateComponents(presetScene)
+    const edited: Scene = {
+      ...first,
+      joints: first.joints.map((j) =>
+        j.id === SIDE_BOTTOM ? ({ ...j, depth: 99 } as DadoJoint) : j,
+      ),
+    }
+    const second = withPresetParams(edited, { depth: 600 })
+
+    expect((second.joints.find((j) => j.id === SIDE_BOTTOM) as DadoJoint).depth).not.toBe(99)
+  })
+
+  // Where a joint parts company with a detached part: a detached part is kept when its role goes,
+  // because a board exists on its own. A joint is a relation, and the top it named is now deleted.
+  it('drops a joint the user took once its role pair is gone', () => {
+    const first = takenAsScrew(regenerateComponents(presetScene), 'joint_cmp_1_left-side__top')
+    const second = withPresetParams(first, { hasTop: false })
+
+    expect(second.joints.some((j) => j.id === 'joint_cmp_1_left-side__top')).toBe(false)
   })
 
   it('preserves last-good joints when params are invalid', () => {
