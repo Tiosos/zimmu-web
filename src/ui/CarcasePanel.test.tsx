@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CarcasePanel } from './CarcasePanel'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import { openingRect } from '../scene/carcaseRoles'
+import { resolvedOf } from '../scene/__fixtures__/resolve'
 import { legacyToSection } from '../scene/migrateSections'
 import {
   defaultInterior,
@@ -13,8 +13,6 @@ import {
   sectionOpenings,
   setInterior,
 } from '../scene/sectionInterior'
-import { roleThicknessFor } from '../scene/resolveThickness'
-import { resolveSections } from '../scene/sectionTree'
 import type { CarcaseComponent, CarcaseParams, Component } from '../scene/types'
 
 function carcase(params: Partial<CarcaseParams> = {}): CarcaseComponent {
@@ -44,13 +42,6 @@ function renderPanel(component = carcase(), onUpdate = vi.fn(), materials = PRES
 // state one by default because the shim's two fields are what they exercise.
 const sec = (dividers: number[], fixedShelves = 1) =>
   legacyToSection(dividers, fixedShelves, 600, 18)
-
-const resolvedOf = (p: CarcaseParams) => {
-  const thicknessOf = roleThicknessFor(p, PRESET_MATERIALS, new Map())
-  return resolveSections(p.section, openingRect(p, thicknessOf), (parentId, index) =>
-    thicknessOf(`division-${parentId}-${index}`),
-  )
-}
 
 // Where the partitions a set of params describes actually land, as fractions of the width — the
 // same reading the divider field shows.
