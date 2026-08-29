@@ -11,9 +11,8 @@ import {
   firstInterior,
   sectionInteriors,
   sectionOpenings,
-  setInterior,
 } from '../scene/sectionInterior'
-import type { CarcaseComponent, CarcaseParams, Component } from '../scene/types'
+import type { CarcaseComponent, CarcaseParams, Component, SectionId } from '../scene/types'
 
 function carcase(params: Partial<CarcaseParams> = {}): CarcaseComponent {
   return {
@@ -29,10 +28,28 @@ function carcase(params: Partial<CarcaseParams> = {}): CarcaseComponent {
   }
 }
 
-function renderPanel(component = carcase(), onUpdate = vi.fn(), materials = PRESET_MATERIALS) {
+// `selectedSectionId` defaults to the cabinet's first opening, because almost every test here is
+// about editing one and the elevation is what supplies it in the app. The tests that are about
+// having *no* selection pass null explicitly.
+function renderPanel(
+  component = carcase(),
+  onUpdate = vi.fn(),
+  materials = PRESET_MATERIALS,
+  selectedSectionId: SectionId | null | undefined = undefined,
+) {
+  const pick =
+    selectedSectionId === undefined
+      ? (sectionOpenings(component.params.section, resolvedOf(component.params))[0]?.sectionId ??
+        null)
+      : selectedSectionId
   render(
     <TooltipProvider>
-      <CarcasePanel component={component} materials={materials} onUpdate={onUpdate} />
+      <CarcasePanel
+        component={component}
+        materials={materials}
+        onUpdate={onUpdate}
+        selectedSectionId={pick}
+      />
     </TooltipProvider>,
   )
   return onUpdate
@@ -130,6 +147,7 @@ describe('CarcasePanel', () => {
           component={carcase({ section: sec([0.5]) })}
           materials={PRESET_MATERIALS}
           onUpdate={vi.fn()}
+          selectedSectionId={null}
         />
       </TooltipProvider>,
     )
@@ -139,6 +157,7 @@ describe('CarcasePanel', () => {
           component={carcase({ section: sec([0.25, 0.75]) })}
           materials={PRESET_MATERIALS}
           onUpdate={vi.fn()}
+          selectedSectionId={null}
         />
       </TooltipProvider>,
     )
@@ -224,14 +243,6 @@ describe('CarcasePanel shelving', () => {
     await waitFor(() => expect(onUpdate.mock.calls.length).toBeGreaterThan(before))
   }
 
-  it('names each opening by its place and its size', async () => {
-    renderPanel(twoBays())
-    await userEvent.click(screen.getByLabelText('Opening'))
-    const options = screen.getAllByRole('option').map((o) => o.textContent)
-    // 600 wide less two 18 mm sides, split by an 18 mm partition: two 273 mm bays, 584 tall.
-    expect(options).toEqual(['Opening 1 — 273 × 584', 'Opening 2 — 273 × 584'])
-  })
-
   // The whole point of the stage, stated at the UI: one opening's shelving is not the cabinet's.
   it('gives shelves to the opening picked and to no other', async () => {
     const c = twoBays()
@@ -242,11 +253,12 @@ describe('CarcasePanel shelving', () => {
     expect(shelvesOf(appliedParams(onUpdate, c))).toEqual([3, undefined])
   })
 
-  it('edits the second opening once it is picked', async () => {
+  // The panel edits whichever section the elevation selected — it holds no pick of its own, so the
+  // second opening is reached by handing its id in, not by a control inside the panel.
+  it('edits the section the elevation selected', async () => {
     const c = twoBays()
-    const onUpdate = renderPanel(c)
-    await userEvent.click(screen.getByLabelText('Opening'))
-    await userEvent.click(screen.getByRole('option', { name: 'Opening 2 — 273 × 584' }))
+    const [, second] = sectionOpenings(c.params.section, resolvedOf(c.params))
+    const onUpdate = renderPanel(c, vi.fn(), PRESET_MATERIALS, second.sectionId)
     await typeInto('Shelves', '2', onUpdate)
     expect(shelvesOf(appliedParams(onUpdate, c))).toEqual([undefined, 2])
   })
@@ -270,7 +282,6 @@ describe('CarcasePanel shelving', () => {
   it('exposes a control for every field of a section interior', () => {
     renderPanel(twoBays())
     const labels = [
-      'Opening',
       'Shelves',
       'Pin count',
       'Adjustable rows',
@@ -282,41 +293,20 @@ describe('CarcasePanel shelving', () => {
     }
   })
 
-  // The shim rebuilds the tree with new ids whenever the divider or fixed-shelf field is touched,
-  // so a pick made before the rebuild names a section that no longer exists. Falling back to the
-  // first opening is what keeps the fields live; a pick held by index would instead have pointed
-  // at a different opening and silently edited it.
-  it('falls back to the first opening when the picked one is rebuilt away', async () => {
-    const shelvedBays = (first: number, second: number) => {
-      const root = legacyToSection([0.5], 0, 600, 18)
-      if (root.content.kind !== 'split') throw new Error('fixture is not a split')
-      const [a, b] = root.content.children
-      return setInterior(
-        setInterior(root, a.id, defaultInterior(first)),
-        b.id,
-        defaultInterior(second),
-      )
-    }
-    const before = carcase({ section: shelvedBays(1, 5) })
-    const { rerender } = render(
-      <TooltipProvider>
-        <CarcasePanel component={before} materials={PRESET_MATERIALS} onUpdate={vi.fn()} />
-      </TooltipProvider>,
-    )
-    await userEvent.click(screen.getByLabelText('Opening'))
-    await userEvent.click(screen.getByRole('option', { name: 'Opening 2 — 273 × 584' }))
-    expect((screen.getByLabelText('Shelves') as HTMLInputElement).value).toBe('5')
+  // The elevation *is* the picker now. Two ways to choose an opening is one way to choose the
+  // wrong one, and the dropdown was the second: it held a pick of its own that the elevation's
+  // selection could disagree with.
+  it('no longer offers an opening dropdown', () => {
+    renderPanel(twoBays())
+    expect(screen.queryByLabelText('Opening')).toBeNull()
+  })
 
-    rerender(
-      <TooltipProvider>
-        <CarcasePanel
-          component={carcase({ section: shelvedBays(7, 9) })}
-          materials={PRESET_MATERIALS}
-          onUpdate={vi.fn()}
-        />
-      </TooltipProvider>,
-    )
-    expect((screen.getByLabelText('Shelves') as HTMLInputElement).value).toBe('7')
+  // With nothing selected the panel has nothing to edit and must say so, rather than falling back
+  // to the first opening — which is what the dropdown did, and what silently shelved the wrong bay.
+  it('says to pick an opening in the elevation when none is selected', () => {
+    renderPanel(twoBays(), vi.fn(), PRESET_MATERIALS, null)
+    expect(screen.getByText(/pick an opening in the elevation to shelve it/i)).toBeTruthy()
+    expect(screen.queryByLabelText('Shelves')).toBeNull()
   })
 })
 

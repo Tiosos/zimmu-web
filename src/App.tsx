@@ -518,6 +518,7 @@ function App() {
           onUnlinkCuts={onUnlinkCuts}
           lastPlacedCutId={mode.lastPlacedCutId}
           selection={selection}
+          selectedSectionId={selectedSectionId}
           onSelect={onSelect}
           onToggleVisible={handleToggleVisible}
           activeMode={mode.activeMode}

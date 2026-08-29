@@ -4,7 +4,8 @@ import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CabinetEditor, type CabinetTab } from './CabinetEditor'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import type { CarcaseComponent } from '../scene/types'
+import { setSectionSize, splitSection } from '../scene/editSection'
+import type { CarcaseComponent, CarcaseParams, Component } from '../scene/types'
 
 const cabinet: CarcaseComponent = {
   kind: 'carcase',
@@ -85,5 +86,111 @@ describe('CabinetEditor', () => {
   it('names the cabinet it is editing', () => {
     render(<CabinetEditor {...props()} />)
     expect(screen.getByText('Base 600')).toBeTruthy()
+  })
+})
+
+describe('the section toolbar', () => {
+  afterEach(cleanup)
+
+  const base = CARCASE_PRESETS[0].params
+  const rootId = base.section.id
+
+  // Asserted through the applied params rather than through the SVG: the picture is the elevation's
+  // claim, and this toolbar's is that the buttons change the tree.
+  const applied = (onUpdate: ReturnType<typeof vi.fn>): CarcaseParams => {
+    const updater = onUpdate.mock.calls.at(-1)![0] as (c: Component) => Component
+    const next = updater(cabinet)
+    if (next.kind !== 'carcase') throw new Error('updater must return a carcase')
+    return next.params
+  }
+
+  it.each([
+    ['Split across', 'horizontal'],
+    ['Split down', 'vertical'],
+  ])('%s divides the selected section', async (label, axis) => {
+    const onUpdate = vi.fn()
+    render(<CabinetEditor {...props({ selectedSectionId: rootId, onUpdate })} />)
+    await userEvent.click(screen.getByRole('button', { name: label }))
+
+    const content = applied(onUpdate).section.content
+    if (content.kind !== 'split') throw new Error('expected a split')
+    expect(content.axis).toBe(axis)
+    expect(content.children).toHaveLength(2)
+  })
+
+  it('merges a split back and keeps the first child’s front', async () => {
+    const DOOR = { kind: 'door', leaves: 1, hinge: 'left' } as const
+    const split = splitSection({ ...base.section, front: DOOR }, rootId, 'vertical', 'panel', 2)
+    const onUpdate = vi.fn()
+    render(
+      <CabinetEditor
+        {...props({
+          component: { ...cabinet, params: { ...base, section: split } },
+          selectedSectionId: rootId,
+          onUpdate,
+        })}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Merge' }))
+
+    const next = applied(onUpdate).section
+    expect(next.content.kind).toBe('leaf')
+    expect(next.front).toEqual(DOOR)
+  })
+
+  it('sets a fixed size on the selected section', async () => {
+    const split = splitSection(base.section, rootId, 'vertical', 'panel', 2)
+    if (split.content.kind !== 'split') throw new Error('fixture is not a split')
+    const childId = split.content.children[0].id
+    const onUpdate = vi.fn()
+    render(
+      <CabinetEditor
+        {...props({
+          component: { ...cabinet, params: { ...base, section: split } },
+          selectedSectionId: childId,
+          onUpdate,
+        })}
+      />,
+    )
+    await userEvent.click(screen.getByLabelText('Size'))
+    await userEvent.click(screen.getByRole('option', { name: 'Fixed' }))
+
+    const content = applied(onUpdate).section.content
+    if (content.kind !== 'split') throw new Error('expected a split')
+    expect(content.children[0].size).toEqual({ kind: 'fixed', mm: 300 })
+  })
+
+  // The mm field only exists once a size is Fixed — an Equal section has no millimetres to show —
+  // so the fixture sets one before asking what it is called.
+  it('labels the size by the axis its parent splits on', () => {
+    const across = splitSection(base.section, rootId, 'horizontal', 'panel', 2)
+    if (across.content.kind !== 'split') throw new Error('fixture is not a split')
+    const childId = across.content.children[0].id
+    const sized = setSectionSize(across, childId, { kind: 'fixed', mm: 300 })
+    render(
+      <CabinetEditor
+        {...props({
+          component: { ...cabinet, params: { ...base, section: sized } },
+          selectedSectionId: childId,
+        })}
+      />,
+    )
+    // Stacked children are sized by height. Labelling it 'Width' would be wrong half the time.
+    expect(screen.getByLabelText('Height', { exact: true })).toBeTruthy()
+    expect(screen.queryByLabelText('Width', { exact: true })).toBeNull()
+  })
+
+  // The root has no parent to claim space inside, so there is nothing to size and no split to
+  // merge. Offering either would be offering a control that cannot do anything.
+  it('offers neither Merge nor Size for a root leaf', () => {
+    render(<CabinetEditor {...props({ selectedSectionId: rootId })} />)
+    expect(screen.queryByRole('button', { name: 'Merge' })).toBeNull()
+    expect(screen.queryByLabelText('Size')).toBeNull()
+  })
+
+  it('offers nothing at all when no section is selected', () => {
+    render(<CabinetEditor {...props({ selectedSectionId: null })} />)
+    expect(screen.queryByRole('button', { name: 'Split across' })).toBeNull()
+    expect(screen.getByText(/pick an opening/i)).toBeTruthy()
   })
 })

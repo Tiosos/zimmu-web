@@ -1,4 +1,5 @@
 import { SectionElevation } from './SectionElevation'
+import { SectionToolbar } from './SectionToolbar'
 import type { CarcaseComponent, Component, MaterialDef, SectionId } from '../scene/types'
 
 // The cabinet edit level: selecting a cabinet turns the main pane into its editor. The tabs are the
@@ -26,6 +27,7 @@ export function CabinetEditor({
   onTabChange,
   selectedSectionId,
   onSelectSection,
+  onUpdate,
 }: {
   component: CarcaseComponent
   materials: Record<string, MaterialDef>
@@ -63,12 +65,21 @@ export function CabinetEditor({
       {tab !== '3d' && (
         <div data-testid="cabinet-editor-panel" className="flex-1 min-h-0 overflow-auto p-3">
           {tab === 'section' ? (
-            <SectionElevation
-              params={component.params}
-              materials={materials}
-              selected={selectedSectionId}
-              onSelect={onSelectSection}
-            />
+            <div className="h-full flex gap-3 min-h-0">
+              <div className="flex-1 min-w-0">
+                <SectionElevation
+                  params={component.params}
+                  materials={materials}
+                  selected={selectedSectionId}
+                  onSelect={onSelectSection}
+                />
+              </div>
+              <SectionToolbar
+                params={component.params}
+                selected={selectedSectionId}
+                onUpdate={onUpdate}
+              />
+            </div>
           ) : (
             <p className="text-[11px] text-muted-foreground">
               The {LABELS[tab]} projection is not built yet.

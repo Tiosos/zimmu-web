@@ -106,6 +106,7 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     onApplySuggestion: vi.fn(),
     onHoverSuggestion: vi.fn(),
     onHoverPair: vi.fn(),
+    selectedSectionId: null,
     ...overrides,
   }
 }

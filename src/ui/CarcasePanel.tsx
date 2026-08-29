@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CarcaseParams, CarcaseComponent, Component, MaterialDef } from '../scene/types'
+import type {
+  CarcaseParams,
+  CarcaseComponent,
+  Component,
+  MaterialDef,
+  SectionId,
+} from '../scene/types'
 import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
 import { roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
@@ -12,7 +18,7 @@ import {
   setInterior,
 } from '../scene/sectionInterior'
 import type { AdjustableSpec, FrontSpec } from '../scene/sectionTree'
-import { resolveSections, type Rect } from '../scene/sectionTree'
+import { resolveSections } from '../scene/sectionTree'
 import { DimInput } from './DimInput'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -95,15 +101,6 @@ function legacyViewOf(
   }
 }
 
-// What an opening is called in the picker. Numbered in the order `sectionOpenings` returns them —
-// bottom-left first — and carrying its size, because "Opening 2" alone says nothing about which
-// hole in the cabinet it is and a cabinet's openings differ mostly by how big they are.
-function openingLabel(rect: Rect, index: number): string {
-  const w = Math.round(rect.x1 - rect.x0)
-  const h = Math.round(rect.z1 - rect.z0)
-  return `Opening ${index + 1} — ${w} × ${h}`
-}
-
 // What a front can be. 'none' is the absence of a spec, not a member of FrontSpec — the select
 // needs a value for it, the model does not.
 const FRONT_KINDS: { value: 'none' | FrontSpec['kind']; label: string }[] = [
@@ -131,10 +128,12 @@ export function CarcasePanel({
   component,
   materials,
   onUpdate,
+  selectedSectionId,
 }: {
   component: CarcaseComponent
   materials: Record<string, MaterialDef>
   onUpdate: (updater: (c: Component) => Component) => void
+  selectedSectionId: SectionId | null
 }) {
   const [sizeOpen, setSizeOpen] = useState(true)
   const [structureOpen, setStructureOpen] = useState(false)
@@ -197,8 +196,11 @@ export function CarcasePanel({
       thicknessOf(`division-${parentId}-${index}`),
     ),
   )
-  const [pickedOpening, setPickedOpening] = useState<string | null>(null)
-  const opening = openings.find((o) => o.sectionId === pickedOpening) ?? openings[0]
+  // The elevation is the picker now. Two ways to choose an opening is one way to choose the wrong
+  // one, so this reads the selection rather than holding a second — and when there is none it says
+  // so rather than falling back to the first, which is what the dropdown did and what made it a
+  // second selection that could disagree.
+  const opening = openings.find((o) => o.sectionId === selectedSectionId)
 
   // A bare opening is given the same shelving a preset ships, less its shelves — otherwise the
   // first keystroke in any field would have to invent values for all the others.
@@ -424,27 +426,10 @@ export function CarcasePanel({
 
           {opening === undefined ? (
             <p className="text-[11px] text-muted-foreground py-1">
-              This cabinet has no opening to shelve.
+              Pick an opening in the elevation to shelve it.
             </p>
           ) : (
             <>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Label htmlFor="carcase-opening" className="w-20 shrink-0 text-right">
-                  Opening
-                </Label>
-                <Select value={opening.sectionId} onValueChange={setPickedOpening}>
-                  <SelectTrigger id="carcase-opening" className="h-7 flex-1 text-[11px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {openings.map((o, i) => (
-                      <SelectItem key={o.sectionId} value={o.sectionId}>
-                        {openingLabel(o.rect, i)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <DimInput
                 labelWidth="w-20"
                 label="Shelves"
@@ -493,7 +478,7 @@ export function CarcasePanel({
         <CollapsibleContent forceMount className="data-[state=closed]:hidden">
           {opening === undefined ? (
             <p className="text-[11px] text-muted-foreground py-1">
-              This cabinet has no opening to cover.
+              Pick an opening in the elevation to cover it.
             </p>
           ) : (
             <>

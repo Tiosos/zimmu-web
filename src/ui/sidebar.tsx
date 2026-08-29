@@ -9,6 +9,7 @@ import type {
   ComponentId,
   Component,
   CarcaseParams,
+  SectionId,
 } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
 import type { JointSuggestion } from '../scene/suggestJoints'
@@ -48,6 +49,9 @@ interface SidebarProps {
   onUnlinkCuts: (partId: PartId, cutId: CutId) => void
   lastPlacedCutId: CutId | null
   selection: Selection | null
+  // Which section the elevation has selected. The sidebar reads it rather than holding a second
+  // pick: two ways to choose an opening is one way to choose the wrong one.
+  selectedSectionId: SectionId | null
   onSelect: (s: Selection | null) => void
   activeMode: InteractionMode
   onSetMode: (mode: InteractionMode) => void
@@ -87,6 +91,7 @@ export function Sidebar({
   onUnlinkCuts,
   lastPlacedCutId,
   selection,
+  selectedSectionId,
   onSelect,
   activeMode,
   onSetMode,
@@ -236,6 +241,7 @@ export function Sidebar({
             component={selectedCarcase}
             materials={scene.materials}
             onUpdate={(updater) => onUpdateComponent(selectedCarcase.id, updater)}
+            selectedSectionId={selectedSectionId}
           />
         )}
 
