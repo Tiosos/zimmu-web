@@ -372,7 +372,11 @@ function pinnedSide(): BoardPart {
     rotation: { x: 0, y: 0, z: 0 },
     rotationOrder: 'XYZ',
     visible: true,
-    params: CARCASE_PRESETS[0].params,
+    // The preset's door taken off. A hinge plate screw shares the pin row's 37 mm front setback —
+    // deliberately, they are the same 32 mm-system figure — so with a door on, the side carries two
+    // families in one column on the Face view and these tests could no longer isolate a row. They
+    // are about how a hole array is *drawn*, not about which families a cabinet has.
+    params: { ...CARCASE_PRESETS[0].params, section: { ...CARCASE_PRESETS[0].params.section, front: undefined } },
   }
   const scene = regenerateComponents({
     parts: [],

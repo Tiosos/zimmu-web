@@ -2237,6 +2237,132 @@ describe('front machining', () => {
     expect(r.cup.start.y).toBeCloseTo(r.panel.width - CUP_EDGE_DISTANCE, 9)
   })
 
+  // The mirror of the Stage D pin-row test, and the same defect it guards: a row bored into the
+  // upright a door is not hinged on is a row of holes nothing will ever use.
+  it('bores plate screws into the hinged side only', () => {
+    const p = doored()
+    expect(carcaseMachining(p, 'left-side').length).toBeGreaterThan(0)
+    expect(carcaseMachining(p, 'right-side')).toEqual([])
+
+    const other: CarcaseParams = {
+      ...base,
+      section: { ...sec([], 0), front: { kind: 'door', leaves: 1, hinge: 'right' } },
+    }
+    expect(carcaseMachining(other, 'left-side')).toEqual([])
+    expect(carcaseMachining(other, 'right-side').length).toBeGreaterThan(0)
+  })
+
+  // A pair is hinged at both outer edges, so both uprights carry plates.
+  it('bores plate screws into both uprights for a two-leaf door', () => {
+    const pair: CarcaseParams = {
+      ...base,
+      section: { ...sec([], 0), front: { kind: 'door', leaves: 2, hinge: 'left' } },
+    }
+    expect(carcaseMachining(pair, 'left-side').length).toBeGreaterThan(0)
+    expect(carcaseMachining(pair, 'right-side').length).toBeGreaterThan(0)
+  })
+
+  it('bores slide screws into both uprights of a drawer section', () => {
+    const p: CarcaseParams = { ...base, section: { ...sec([], 0), front: { kind: 'drawer-front' } } }
+    expect(carcaseMachining(p, 'left-side')).toHaveLength(1)
+    expect(carcaseMachining(p, 'right-side')).toHaveLength(1)
+    expect(carcaseMachining(p, frontRole(p))).toEqual([])
+  })
+
+  it('machines nothing for a false front or a panel', () => {
+    for (const kind of ['false-front', 'panel'] as const) {
+      const p: CarcaseParams = { ...base, section: { ...sec([], 0), front: { kind } } }
+      for (const role of ['left-side', 'right-side', frontRole(p)]) {
+        expect(carcaseMachining(p, role), `${kind} ${role}`).toEqual([])
+      }
+    }
+  })
+
+  // A partition between a door bay and a drawer bay takes both families, on opposite faces — the
+  // same inversion Stage D made for pin rows, one family further out.
+  it('gives a partition the machining of each bay it flanks, on that bay’s face', () => {
+    const divided: CarcaseParams = { ...base, section: sec([0.5], 0) }
+    if (divided.section.content.kind !== 'split') throw new Error('fixture is not a split')
+    const [leftBay, rightBay] = divided.section.content.children
+    const p: CarcaseParams = {
+      ...divided,
+      section: {
+        ...divided.section,
+        content: {
+          ...divided.section.content,
+          children: [
+            { ...leftBay, front: { kind: 'door', leaves: 1, hinge: 'right' } as const },
+            { ...rightBay, front: { kind: 'drawer-front' } as const },
+          ],
+        },
+      },
+    }
+    const rows = carcaseMachining(p, partitionRole(p))
+    expect(rows.filter((c) => c.id.startsWith('plate_')).length).toBeGreaterThan(0)
+    expect(rows.filter((c) => c.id.startsWith('slide_'))).toHaveLength(1)
+    expect(new Set(rows.map((c) => c.face)).size).toBe(2)
+  })
+
+  // Stage D widened a hole-array id after one row silently replaced another on the same panel. A
+  // side now carries three unrelated families; this is the test that says so.
+  it('never collides an id with the pin rows on the same panel', () => {
+    const p = doored()
+    for (const role of ['left-side', 'right-side']) {
+      const ids = [
+        ...carcaseHoleArrays(p, role).map((c) => c.id),
+        ...carcaseMachining(p, role).map((c) => c.id),
+      ]
+      expect(new Set(ids).size, role).toBe(ids.length)
+    }
+  })
+
+  // A plate screw carries the hinge whose cup is at that height. Two rows at different heights is a
+  // door that will not hang. Compared in *carcase* space, exactly as the partition-pin test compares
+  // a divider's pin heights against a side's — the two panels have different board frames and
+  // different origins, so a board-space comparison would prove nothing.
+  it('puts the plate screws at the same heights as the cups they carry', () => {
+    const p = doored()
+    const panelOf = (role: string) => carcaseRoles(p).find((r) => r.role === role)!.panel
+    const doorRole = frontRole(p)
+
+    const [cup] = carcaseMachining(p, doorRole)
+    const door = panelOf(doorRole)
+    const cupHeights = Array.from({ length: cup.count }, (_, i) =>
+      toCarcase(door, { ...cup.start, x: cup.start.x + cup.pitch * i }).z.toFixed(6),
+    )
+
+    const side = panelOf('left-side')
+    const plateHeights = carcaseMachining(p, 'left-side')
+      .filter((c) => c.id.startsWith('plate_'))
+      .map((c) => toCarcase(side, c.start).z.toFixed(6))
+
+    expect(plateHeights).toHaveLength(cup.count)
+    expect(plateHeights.sort()).toEqual(cupHeights.sort())
+  })
+
+  // Swept, like the pin-row containment test: the interesting failures are a shallow cabinet whose
+  // slide row runs off the back and a short door whose plate screws run off the top.
+  it('puts every screw inside the panel it bores', () => {
+    for (const depth of [250, 400, 560, 700]) {
+      for (const height of [400, 720, 1200, 2100]) {
+        const p = doored({ depth, height })
+        if (validateCarcaseParams(p).length > 0) continue
+        for (const role of ['left-side', 'right-side']) {
+          const panel = carcaseRoles(p).find((r) => r.role === role)!.panel
+          for (const c of carcaseMachining(p, role)) {
+            const where = `d=${depth} h=${height} ${role} ${c.id}`
+            const last = c.start.x + c.pitch * (c.count - 1)
+            expect(c.start.x, where).toBeGreaterThanOrEqual(0)
+            expect(last, where).toBeLessThanOrEqual(panel.length)
+            expect(c.start.y, where).toBeGreaterThanOrEqual(0)
+            expect(c.start.y, where).toBeLessThanOrEqual(panel.width)
+            expect(c.depth, where).toBeLessThan(panel.thickness)
+          }
+        }
+      }
+    }
+  })
+
   // Every cup inside the door it is bored into, over a swept range — a 35 mm bore is the largest
   // the app makes, so a row that fits at 600 mm can still run off a narrow one.
   it('keeps every cup inside the door', () => {

@@ -17,7 +17,7 @@ import {
 } from './sectionTree'
 import { sectionInteriors, type AdjustableSpec } from './sectionInterior'
 import { frontCells, type FrontCell } from './frontCells'
-import { cupRow } from './frontMachining'
+import { cupRow, plateScrewRows, slideScrewRow } from './frontMachining'
 
 export type { ThicknessAxis }
 
@@ -1076,6 +1076,51 @@ export function carcaseMachining(
       if (cell.spec.kind !== 'door' || cell.hinge === undefined) continue
       const cup = cupRow(panel, cell.hinge, frontRole)
       if (cup !== null) cuts.push(cup)
+      continue
+    }
+
+    // On the carcase: which side of this cell is this panel, if either? The same question the pin
+    // rows ask, through the same two helpers, so the two families cannot disagree about which
+    // upright bounds which opening.
+    const bounds = tree.boundsOf(cell.sectionId)
+    const side = (['left', 'right'] as const).find((s) => boundRole(bounds[s], s) === role)
+    if (side === undefined) continue
+    const face = BOUND_FACE[side]
+
+    if (cell.spec.kind === 'door') {
+      // The upright a door is *hinged on* carries its plates, and no other. A row bored into the
+      // upright on the handle side is a row of holes nothing will ever use — the same defect Stage D
+      // fixed for pin rows, one family further out. A two-leaf pair is hinged at both outer edges,
+      // so each leaf claims its own side and between them they claim both.
+      if (cell.hinge !== side) continue
+      const door = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === frontRole)?.panel
+      if (door === undefined) continue
+      const cup = cupRow(door, cell.hinge, frontRole)
+      if (cup === null) continue
+      // Carried across through *carcase* space, reading each panel's own origin: board x on the
+      // door runs the carcase height from the door's bottom edge, board y on the upright runs it
+      // from the upright's. The two edges are at different heights — a toe-kick side starts on the
+      // floor and the door it carries starts above the bottom panel — so a figure copied straight
+      // over would hang the door on a slope.
+      const heights = Array.from(
+        { length: cup.count },
+        (_, i) => door.position.z + cup.start.x + cup.pitch * i - panel.position.z,
+      )
+      cuts.push(...plateScrewRows(panel, face, heights, frontRole))
+      continue
+    }
+
+    if (cell.spec.kind === 'drawer-front') {
+      // No drawer box exists yet, so the runner height comes off the front's own centreline. When
+      // boxes land this figure is expected to move, which is why it is derived here in one place.
+      cuts.push(
+        slideScrewRow(
+          panel,
+          face,
+          (cell.rect.z0 + cell.rect.z1) / 2 - panel.position.z,
+          frontRole,
+        ),
+      )
     }
   }
   return cuts
