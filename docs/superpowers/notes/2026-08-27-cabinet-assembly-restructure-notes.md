@@ -852,3 +852,50 @@ read as "through" would put that at 0.
 - **Still owed: a woodworker's eye on the figure table.** ⌀35 / 12.5 deep / 22.5 from the edge and
   the 2-3-4-5 hinge-count table are claims about real hardware that no test in this repo can
   falsify.
+
+### 2026-08-29 — Stage G1: the elevation replaced a picker rather than joining one
+
+The plan called for the elevation to become "the" opening picker, and the temptation was to leave
+`CarcasePanel`'s Opening dropdown alongside it as a keyboard-reachable alternative. It had to go.
+Two selections for one thing is one way to select the wrong thing — and the dropdown's fallback
+(*no pick? edit the first opening*) was the specific failure mode: a user who cleared the elevation
+selection would have gone on silently shelving bay 1. The panel now reads `selectedSectionId` and,
+finding nothing, says so. The mutation that reinstates `?? openings[0]` fails exactly one test,
+which is the test that was written for it.
+
+The same reasoning retired two e2e steps: both opening tests now click a cell in the elevation,
+which is a strictly better assertion than the dropdown was — it proves the click, the pick, the
+panel and the pipeline are one chain.
+
+### 2026-08-29 — the axis names the division, not the stacking
+
+`axis: 'vertical'` puts children side by side under a *vertical* partition; `axis: 'horizontal'`
+stacks them under a *horizontal* shelf. Every time this is read quickly it reads backwards, which is
+why the toolbar's buttons are labelled by what the user sees ("Split across" makes a shelf and passes
+`'horizontal'`) and why the size field's label is derived — `Width` only when the parent splits
+vertically. Hardcoding `'Width'` is wrong half the time and looks right in every symmetric fixture;
+the mutation that hardcodes it fails only the test built on a stacked parent.
+
+### 2026-08-29 — the viewport is hidden, and only the browser can prove it
+
+`viewport.tsx` builds its renderer, camera and every mesh in a mount-once effect. Rendering the
+cabinet editor *in place of* it would tear all that down on every tab change, and nothing in a unit
+test would notice — happy-dom has no WebGL context to lose. So `CabinetEditor` renders nothing at all
+for its 3D tab, `App` toggles `display` on the wrapper, and the e2e stamps an attribute on the live
+canvas and requires the same element back after a Section → 3D → Section → 3D round trip. Worth
+recording: the first version of that assertion was `toHaveCount(1)` over every canvas on the page,
+which fails in dev because `stats.js` renders the FPS overlay into a second one.
+
+### 2026-08-29 — Stage G1 closed
+
+- Unit tests **1477 → 1512**; e2e **18 → 20** (the elevation split/merge round trip, plus the
+  viewport-never-remounted proof).
+- Five guards mutation-tested, each killed by the test written for it: the size label's axis, the two
+  split axes, the `parent !== null` gate on Size, the `isSplit` gate on Merge, `unsplitSection`
+  adopting the first child's front, and the panel's missing fallback.
+- Deferred to G2/G3: the Front, Top and End projections (stubbed with a visible "not built yet"
+  rather than a blank pane — a tab that silently shows nothing reads as broken), and mirroring the
+  section tree in the scene tree.
+- Not built, on purpose: drag-to-resize a division in the elevation. A size is typed, which is what a
+  cabinetmaker actually wants for a 300 mm drawer bank; dragging is a nicety that would need its own
+  snapping rules and a second way to write `setSectionSize`.

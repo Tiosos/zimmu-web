@@ -354,12 +354,17 @@
             <td><code>scene/frontCells.ts</code>, <code>scene/carcaseRoles.ts</code>, <code>ui/CarcasePanel.tsx</code></td>
           </tr>
           <tr>
+            <td><strong>The cabinet editor</strong><br><span style="color:var(--muted);font-size:12px">Selecting a cabinet turns the main pane into its editor. Its elevation is a picture you draw on: click a cell to select an opening, split it across or down, merge it back, fix its size. Front / Top / End projections are stubbed</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>ui/CabinetEditor.tsx</code>, <code>ui/SectionElevation.tsx</code>, <code>ui/SectionToolbar.tsx</code>, <code>scene/editSection.ts</code></td>
+          </tr>
+          <tr>
             <td><strong>Front machining — hinge cups, plate and slide screws</strong><br><span style="color:var(--muted);font-size:12px">Cups in the door's back, plate screws in the upright it is hinged on, slide screws in both uprights of a drawer bay — at the 32 mm system positions</span></td>
             <td><span class="badge badge-green">Done</span></td>
             <td><code>scene/frontMachining.ts</code>, <code>scene/carcaseRoles.ts</code></td>
           </tr>
           <tr>
-            <td><strong>The cabinet editor and its subtabs</strong></td>
+            <td><strong>Front / Top / End projections in the cabinet editor</strong></td>
             <td><span class="badge badge-yellow">Next</span></td>
             <td>—</td>
           </tr>
@@ -505,6 +510,7 @@
 │   └── viewport.tsx
 ├── scene/
 │   ├── __fixtures__/
+│   │   ├── resolve.ts
 │   │   └── sweep.ts
 │   ├── carcasePresets.test.ts
 │   ├── carcasePresets.ts
@@ -519,6 +525,8 @@
 │   ├── cutOwnership.test.ts
 │   ├── cutOwnership.ts
 │   ├── defaultJoint.ts
+│   ├── editSection.test.ts
+│   ├── editSection.ts
 │   ├── fitCamera.test.ts
 │   ├── fitCamera.ts
 │   ├── frontCells.test.ts
@@ -598,6 +606,8 @@
 │   ├── buildSheetSvg.ts
 │   ├── buildSvg.test.ts
 │   ├── buildSvg.ts
+│   ├── CabinetEditor.test.tsx
+│   ├── CabinetEditor.tsx
 │   ├── CarcasePanel.test.tsx
 │   ├── CarcasePanel.tsx
 │   ├── CuttingList.test.tsx
@@ -626,6 +636,9 @@
 │   ├── SceneSuggestionsPanel.tsx
 │   ├── SceneTree.test.tsx
 │   ├── SceneTree.tsx
+│   ├── SectionElevation.test.tsx
+│   ├── SectionElevation.tsx
+│   ├── SectionToolbar.tsx
 │   ├── SheetsTab.test.tsx
 │   ├── SheetsTab.tsx
 │   ├── sidebar.test.tsx
@@ -736,7 +749,10 @@
           <tr><td><code>FileMenu.tsx</code></td><td>Top menu bar: File menu, project name, undo/redo buttons, BOM modal trigger, 3D/2D export buttons.</td></tr>
           <tr><td><code>sidebar.tsx</code></td><td>Composition shell: the <code>SceneTree</code>, the selected-node editor (<code>EditPanel</code> for a part, <code>CarcasePanel</code> for a carcase), and the Cut / Snap / joint mode buttons.</td></tr>
           <tr><td><code>SceneTree.tsx</code></td><td>Sidebar hierarchy over <code>components</code> + <code>parts</code>: expand/collapse, selection, per-node visibility, driven/detached badges.</td></tr>
-          <tr><td><code>CarcasePanel.tsx</code></td><td>Carcase parameter form in collapsible sections (size, structure, shelving, front, joinery) that drives <code>regenerateComponents</code>. Shelving and Front both name an <em>opening</em> and edit that section — its interior, its front — while mount and reveal stay cabinet-wide; Dividers and Fixed shelves are a v12 shim that rebuilds the whole tree, carrying the cabinet's one interior spec across.</td></tr>
+          <tr><td><code>CarcasePanel.tsx</code></td><td>Carcase parameter form in collapsible sections (size, structure, shelving, front, joinery) that drives <code>regenerateComponents</code>. Shelving and Front both edit the <em>opening</em> the elevation has selected — its interior, its front — while mount and reveal stay cabinet-wide; with nothing selected they say to pick one rather than falling back to the first. Dividers and Fixed shelves are a v12 shim that rebuilds the whole tree, carrying the cabinet's interior specs across.</td></tr>
+          <tr><td><code>CabinetEditor.tsx</code></td><td>The cabinet edit level: selecting a cabinet turns the main pane into its editor, with Section / Front / Top / End / 3D subtabs. Renders <em>nothing</em> for 3D — the viewport lives behind it and <code>App</code> toggles its visibility, because <code>viewport.tsx</code> builds its renderer and every mesh in a mount-once effect that a remount would tear down.</td></tr>
+          <tr><td><code>SectionElevation.tsx</code></td><td>The cabinet's front elevation as interactive SVG — a clickable cell per leaf of the section tree, a bar per division. The codebase's first interactive SVG (<code>buildSvg.ts</code> and <code>buildSheetSvg.ts</code> emit strings), and the only opening picker. Carcase z runs up and SVG y runs down; that flip is written once, in <code>toSvg</code>.</td></tr>
+          <tr><td><code>SectionToolbar.tsx</code></td><td>What can be done to the selected cell: split across (a shelf), split down (a partition), merge, and a size that is labelled <em>Width</em> or <em>Height</em> by the axis its parent splits on. Every button routes through <code>scene/editSection.ts</code>.</td></tr>
           <tr><td><code>SheetsTab.tsx</code></td><td>Per-material yield: sheet count, utilisation, cost, and a per-sheet SVG from <code>buildSheetSvg.ts</code>. Owns the nest's <code>enabled</code> flag and clears it on unmount.</td></tr>
           <tr><td><code>SceneSuggestionsPanel.tsx</code></td><td>The scene-wide joinery checklist: one collapsed line per cabinet, expanding to jointed / open / no-joint-needed rows.</td></tr>
           <tr><td><code>EditPanel.tsx</code></td><td>Selected-part editor (moved verbatim out of <code>sidebar.tsx</code>): label, material, ColorControl, dimensions, position, rotation, cuts (with cut-linking), joints, hole-arrays, read-only derived-cut rows, linked hardware.</td></tr>
@@ -773,7 +789,7 @@
       <table>
         <thead><tr><th>File</th><th>Role</th></tr></thead>
         <tbody>
-          <tr><td><code>App.tsx</code></td><td>Composition root. Wires <code>useScene</code> + <code>useFile</code> + <code>useSnap</code> + <code>useAddCut</code> + <code>useAddJoint</code> + <code>useMaterialLibrary</code> + <code>Viewport</code> + <code>Sidebar</code> + <code>FileMenu</code> + <code>BomModal</code> + <code>DrawingViewer</code>. Owns global keyboard shortcut handler.</td></tr>
+          <tr><td><code>App.tsx</code></td><td>Composition root. Wires <code>useScene</code> + <code>useFile</code> + <code>useSnap</code> + <code>useAddCut</code> + <code>useAddJoint</code> + <code>useMaterialLibrary</code> + <code>Viewport</code> + <code>Sidebar</code> + <code>FileMenu</code> + <code>BomModal</code> + <code>DrawingViewer</code> + <code>CabinetEditor</code>. Owns the global keyboard shortcut handler, the selected cabinet, its subtab, and the section pick — which it holds with the cabinet id it belongs to, so a pick never survives onto a different cabinet.</td></tr>
           <tr><td><code>main.tsx</code></td><td>React DOM render entry point.</td></tr>
           <tr><td><code>index.css</code></td><td>Tailwind base + custom CSS variables for design tokens.</td></tr>
           <tr><td><code>vite-env.d.ts</code></td><td>Ambient declarations for opencascade.js types.</td></tr>
@@ -1259,7 +1275,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->77<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-29 the full Vitest run is 1477 passing (10 skipped) across 78 files (the 78th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 86 test files total including 9 Playwright specs in <code>e2e/</code>, which run 18 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->80<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-29 the full Vitest run is 1512 passing (10 skipped) across 81 files (the 81st, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 90 test files total including 9 Playwright specs in <code>e2e/</code>, which run 20 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1410,7 +1426,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-28-cabinet-restructure-stage-c-screw-joints.md
     │   ├── 2026-08-28-cabinet-restructure-stage-d-section-interiors.md
     │   ├── 2026-08-29-cabinet-restructure-stage-e-fronts.md
-    │   └── 2026-08-29-cabinet-restructure-stage-f-front-machining.md
+    │   ├── 2026-08-29-cabinet-restructure-stage-f-front-machining.md
+    │   └── 2026-08-29-cabinet-restructure-stage-g1-section-editor.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md

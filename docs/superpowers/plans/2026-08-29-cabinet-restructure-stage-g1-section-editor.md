@@ -103,7 +103,7 @@ the finished editor.
 - Create: `src/scene/editSection.ts`
 - Create: `src/scene/editSection.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -236,12 +236,12 @@ describe('setSectionSize', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm the whole file fails to import**
+- [x] **Step 2: Run and confirm the whole file fails to import**
 
 Run: `pnpm vitest run src/scene/editSection.test.ts`
 Expected: FAIL — `Failed to resolve import "./editSection"`.
 
-- [ ] **Step 3: Write `src/scene/editSection.ts`**
+- [x] **Step 3: Write `src/scene/editSection.ts`**
 
 ```ts
 // Every change to the section tree's *shape*. Its two siblings write what a section holds —
@@ -319,22 +319,22 @@ export function setSectionSize(root: Section, id: SectionId, size: SectionSize):
 }
 ```
 
-- [ ] **Step 4: Run and confirm they pass**
+- [x] **Step 4: Run and confirm they pass**
 
-- [ ] **Step 5: Mutation check — the inheritance rule**
+- [x] **Step 5: Mutation check — the inheritance rule**
 
 Back up first (`cp src/scene/editSection.ts "$SCRATCHPAD"/es.bak`), then substitute
 `      ...(s.front === undefined ? {} : { front: s.front }),` → `` (delete the line). Grep to
 confirm. Expected: FAIL on *carries the front and the interior onto every child*. Restore from the
 copy and grep again.
 
-- [ ] **Step 6: Mutation check — the parent's stale fields**
+- [x] **Step 6: Mutation check — the parent's stale fields**
 
 Substitute the `next` object's construction so it spreads `s` first:
 `    const next: Section = {\n      id: s.id,` → `    const next: Section = {\n      ...s,\n      id: s.id,`.
 Grep. Expected: FAIL on *clears the parent's own front and interior*. Restore and grep.
 
-- [ ] **Acceptance:** the full suite passes with its count unchanged apart from your additions. Nothing consumes this yet.
+- [x] **Acceptance:** the full suite passes with its count unchanged apart from your additions. Nothing consumes this yet.
 
 ## Group B — the editor frame
 
@@ -368,7 +368,7 @@ The tab strip follows `BomModal.tsx:284` — a plain `<button role="tab" aria-se
 one-line "not built yet" note naming G2; a tab that silently shows nothing is worse than one that
 says why.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```tsx
 describe('CabinetEditor', () => {
@@ -437,9 +437,9 @@ describe('CabinetEditor', () => {
 })
 ```
 
-- [ ] **Step 2: Run, confirm failure, implement, run again**
+- [x] **Step 2: Run, confirm failure, implement, run again**
 
-- [ ] **Step 3: Wire it into `App.tsx`**
+- [x] **Step 3: Wire it into `App.tsx`**
 
 ```tsx
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -470,7 +470,7 @@ describe('CabinetEditor', () => {
       </div>
 ```
 
-- [ ] **Step 4: Filter the 3D tab to this cabinet**
+- [x] **Step 4: Filter the 3D tab to this cabinet**
 
 The spec says 3D is "the existing viewport, **filtered to this cabinet**". Pass `Viewport` the parts
 whose `parentId` is in this cabinet's subtree (`descendantIds` in `componentTree.ts` already answers
@@ -481,7 +481,7 @@ for add and remove — so a filter is not a new capability. It does mean switchi
 rebuilds meshes for the parts that came and went; that is the cost of the feature and it is bounded
 by one cabinet's part count, not the scene's.
 
-- [ ] **Step 5: An e2e that the viewport survives a tab round trip**
+- [x] **Step 5: An e2e that the viewport survives a tab round trip**
 
 The claim this group rests on is that the canvas is never rebuilt. A unit test cannot see that; a
 browser can:
@@ -532,7 +532,7 @@ Drawn from `resolveSections`: the opening rect is the frame, every **leaf** rect
 every division a filled bar. Carcase z is up and SVG y is down, so the transform flips it — the one
 place that conversion happens, stated once.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```tsx
 describe('SectionElevation', () => {
@@ -612,16 +612,16 @@ export const resolvedOf = (p: CarcaseParams, materials = PRESET_MATERIALS) => {
 
 Run the suite after the move and before writing anything new.
 
-- [ ] **Step 2: Run, confirm failure, implement, run again**
+- [x] **Step 2: Run, confirm failure, implement, run again**
 
-- [ ] **Step 3: Lift `selectedSectionId` into `App`**
+- [x] **Step 3: Lift `selectedSectionId` into `App`**
 
 The elevation sets it and `CarcasePanel` reads it, so the two are one selection rather than two that
 agree by luck. Clear it when the selected cabinet changes — a section id from another cabinet names
 nothing in this one, and the pure functions treat that as a no-op, so the symptom would be a panel
 that silently edits nothing.
 
-- [ ] **Step 4: Mutation check — the flip**
+- [x] **Step 4: Mutation check — the flip**
 
 Substitute the y transform for one that does not flip. Expected: FAIL on *draws the cabinet the right
 way up* and on nothing else. If the selection tests fail too, they are reading position where they
@@ -656,7 +656,7 @@ split axis: a width for a section side by side with its siblings, a height for o
 them. A field labelled "Width" on a stacked section is wrong half the time — the same class of defect
 as offering a hinge side on a two-leaf door.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```tsx
 describe('the section toolbar', () => {
@@ -802,19 +802,19 @@ and in `CarcasePanel.test.tsx`:
 
 `renderPanel` gains a fourth argument for the props the panel no longer derives for itself.
 
-- [ ] **Step 2: Retire the picker**
+- [x] **Step 2: Retire the picker**
 
 `CarcasePanel`'s `pickedOpening` state and its Opening `Select` come out; `opening` becomes the
 section `App` says is selected. The Shelving and Front sections then edit that, unchanged otherwise.
 
-- [ ] **Step 3: Mutation check — the split axis**
+- [x] **Step 3: Mutation check — the split axis**
 
 Substitute the axis passed at the "Split across" call site for `'vertical'`, so both buttons make a
 partition. Grep to confirm. Expected: FAIL on *Split across divides the selected section* and pass on
 *Split down* — the table above is exactly the thing that is easy to wire backwards, and both buttons
 still "work" when it is. Restore from the backup and grep again.
 
-- [ ] **Step 4: e2e**
+- [x] **Step 4: e2e**
 
 Extend `e2e/carcase.spec.ts`: drop a Base 600, select it, click a cell in the elevation, split it
 across, and see the board count rise by the division the split created. That is the whole stage in
@@ -822,21 +822,21 @@ one gesture.
 
 ## Group E — close the stage
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test`, exit codes read directly, **never piped through `tail`/`head`**
-- [ ] `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e`. Do **not** run `playwright install`. Expect the existing carcase and sheets specs to need a selection step: selecting a cabinet now changes the main pane, so a test that selected one and then looked for the viewport will need the 3D tab. Fix them to the new truth and list which moved.
-- [ ] `CLAUDE.md`: `editSection.ts` and `CabinetEditor.tsx` in the tree; an invariant that the viewport is hidden and never unmounted, and one that the elevation is the only place a section is picked.
-- [ ] `node scripts/update-structure-html.mjs`, then the hand-written prose: the `src/scene/` and `src/ui/` tables, the Features row, the invariants table.
-- [ ] Notes: the mount-once finding; the split/unsplit inheritance rule and why; which e2e moved.
+- [x] `pnpm typecheck && pnpm lint && pnpm test`, exit codes read directly, **never piped through `tail`/`head`**
+- [x] `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e`. Do **not** run `playwright install`. Expect the existing carcase and sheets specs to need a selection step: selecting a cabinet now changes the main pane, so a test that selected one and then looked for the viewport will need the 3D tab. Fix them to the new truth and list which moved.
+- [x] `CLAUDE.md`: `editSection.ts` and `CabinetEditor.tsx` in the tree; an invariant that the viewport is hidden and never unmounted, and one that the elevation is the only place a section is picked.
+- [x] `node scripts/update-structure-html.mjs`, then the hand-written prose: the `src/scene/` and `src/ui/` tables, the Features row, the invariants table.
+- [x] Notes: the mount-once finding; the split/unsplit inheritance rule and why; which e2e moved.
 
 ## Acceptance
 
-- [ ] Selecting a cabinet shows the editor; the **3D** tab shows the same viewport, never a rebuilt one
-- [ ] The elevation draws one cell per leaf and one bar per division, the right way up
-- [ ] Clicking a cell selects that section, in the elevation *and* in the sidebar panel
-- [ ] Split across, split down, merge and size all change the tree through `editSection`
-- [ ] Splitting a doored bay gives two doored bays; merging keeps the first child's front
-- [ ] The sidebar's opening dropdown is gone
-- [ ] Every mutation check above was run and reported
+- [x] Selecting a cabinet shows the editor; the **3D** tab shows the same viewport, never a rebuilt one
+- [x] The elevation draws one cell per leaf and one bar per division, the right way up
+- [x] Clicking a cell selects that section, in the elevation *and* in the sidebar panel
+- [x] Split across, split down, merge and size all change the tree through `editSection`
+- [x] Splitting a doored bay gives two doored bays; merging keeps the first child's front
+- [x] The sidebar's opening dropdown is gone
+- [x] Every mutation check above was run and reported
 
 ## What Stage G1 deliberately does not do
 
