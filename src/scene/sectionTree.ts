@@ -25,6 +25,17 @@ export interface InteriorSpec {
   adjustable: AdjustableSpec
 }
 
+// What covers a section. Absent means nothing does — the same convention `interior` uses, so the
+// model has one way to say "no front" rather than a field and a union member that both mean it.
+//
+// `hinge` is read only when `leaves === 1`: a pair of doors is hinged at both outer edges, and a
+// field that is meaningless half the time is a field that will be set wrong.
+export type FrontSpec =
+  | { kind: 'door'; leaves: 1 | 2; hinge: 'left' | 'right' }
+  | { kind: 'drawer-front' }
+  | { kind: 'false-front' }
+  | { kind: 'panel' }
+
 export type SectionSize =
   | { kind: 'equal' }
   | { kind: 'fixed'; mm: number }
@@ -50,6 +61,8 @@ export interface Section {
   // Per-section shelving. Optional because most sections want nothing, and a required field would
   // put an empty spec on every leaf of every saved file.
   interior?: InteriorSpec
+  // What covers this section. Optional for the same reason `interior` is.
+  front?: FrontSpec
 }
 
 export function newSectionId(): SectionId {
