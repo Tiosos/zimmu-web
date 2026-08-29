@@ -879,7 +879,56 @@ describe('a component-owned cut of a new kind', () => {
   })
 })
 
-// Task 8.3 — the pin rows a cabinet drills for its adjustable shelves. Component-owned like the
+// The machining a front implies is component-owned exactly as the pin rows are, so the same
+// ownership rules govern it: re-derived on every pass, never added to what the last pass left.
+describe('front machining through regeneration', () => {
+  const withDoor: CarcaseComponent = {
+    ...cabinet,
+    params: {
+      ...params,
+      section: {
+        ...legacyToSection([], 0, 600, 18),
+        front: { kind: 'door', leaves: 1, hinge: 'left' },
+      },
+    },
+  }
+  const scene: Scene = { ...empty, components: [withDoor] }
+
+  // Narrowed to hole arrays first: a MitreCut carries no ownership tag at all, so `CutDef` is the
+  // wrong type to ask about one.
+  // Narrowed to hole arrays first: a MitreCut carries no ownership tag at all, so `CutDef` is the
+  // wrong type to ask about one.
+  const cupsOn = (s: Scene): HoleArrayCut[] =>
+    partsOf(s)
+      .flatMap((p) => (p.kind === 'board' ? p.cuts : []))
+      .filter((c): c is HoleArrayCut => c.kind === 'hole-array' && c.id.startsWith('cups_'))
+
+  it('bores the cups and tags them with the component that owns them', () => {
+    const out = regenerateComponents(scene)
+    const cups = cupsOn(out)
+    expect(cups).toHaveLength(1)
+    for (const c of cups) expect(c.sourceComponentId).toBe('cmp_1')
+  })
+
+  // The stale-cut filter keys on the ownership tag alone. Were it to name kinds instead, every
+  // regeneration would append another copy of the row behind the fresh one.
+  it('re-derives the cups instead of accumulating them', () => {
+    let out = regenerateComponents(scene)
+    const once = cupsOn(out).length
+    for (let i = 0; i < 3; i++) out = regenerateComponents(out)
+    expect(cupsOn(out)).toHaveLength(once)
+  })
+
+  it('takes the cups away with the door', () => {
+    const bare: Scene = {
+      ...empty,
+      components: [{ ...cabinet, params: { ...params, section: legacyToSection([], 0, 600, 18) } }],
+    }
+    expect(cupsOn(regenerateComponents(bare))).toEqual([])
+  })
+})
+
+// Task 8.3 — the pin rows a cabinet drills for its adjustable shelves.// Task 8.3 — the pin rows a cabinet drills for its adjustable shelves. Component-owned like the
 // toe-kick notch, so the ownership rules above govern them: re-derived on every pass, never added
 // to what the last pass left behind.
 describe('shelf-pin hole arrays', () => {

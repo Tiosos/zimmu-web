@@ -8,7 +8,13 @@ import type {
   Part,
   Scene,
 } from './types'
-import { carcaseCuts, carcaseHoleArrays, carcaseJoints, carcaseRoles } from './carcaseRoles'
+import {
+  carcaseCuts,
+  carcaseHoleArrays,
+  carcaseJoints,
+  carcaseMachining,
+  carcaseRoles,
+} from './carcaseRoles'
 import { componentsById } from './componentTree'
 import { defaultDadoJoint, defaultFingerJoint, defaultScrewJoint } from './defaultJoint'
 import { materialForRole, overridesOf, roleThicknessFor } from './resolveThickness'
@@ -61,6 +67,7 @@ function regenerateOne(
     const componentCuts = [
       ...carcaseCuts(component.params, thicknessOf, r.role),
       ...carcaseHoleArrays(component.params, thicknessOf, kindOf, r.role),
+      ...carcaseMachining(component.params, thicknessOf, kindOf, r.role),
     ].map((c) => ({ ...c, sourceComponentId: component.id }))
     const existingCuts = existing?.kind === 'board' ? existing.cuts : []
 

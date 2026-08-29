@@ -5,6 +5,7 @@ import {
   carcaseCuts as cutsOf,
   carcaseHoleArrays as holeArraysOf,
   carcaseJoints as jointsOf,
+  carcaseMachining as machiningOf,
   carcaseRoles as rolesOf,
   orientedPanel,
   validateCarcaseParams as validateOf,
@@ -14,6 +15,7 @@ import { roleThicknessFor } from './resolveThickness'
 import { jointKindFor } from './resolveJointKind'
 import type { JointDescriptor, PanelSpec, RoleSpec } from './carcaseRoles'
 import { dadoDepthFor } from '../geom/dado'
+import { CUP_EDGE_DISTANCE } from './frontMachining'
 import { legacyToSection } from './migrateSections'
 import { seedInteriors } from './sectionInterior'
 import type { FrontSpec, Section } from './sectionTree'
@@ -169,6 +171,8 @@ const carcaseJoints = (p: CarcaseParams, componentId: string) =>
 const carcaseCuts = (p: CarcaseParams, role: string) => cutsOf(p, tOf(p), role)
 const carcaseHoleArrays = (p: CarcaseParams, role: string) =>
   holeArraysOf(p, tOf(p), jointKindFor([], ''), role)
+const carcaseMachining = (p: CarcaseParams, role: string) =>
+  machiningOf(p, tOf(p), jointKindFor([], ''), role)
 
 // The shelving `base` and its variants carry. A pin row now belongs to the section that needs it,
 // so a cabinet states its shelving by seeding it onto the openings rather than holding one bundle.
@@ -985,6 +989,14 @@ function centreOf(p: PanelSpec): Vec3 {
   }
 }
 
+// A board-local point in carcase space. Module scope because two describes need it: two panels have
+// different board frames and different origins, so anything comparing a position on one against a
+// position on the other has to come through here.
+function toCarcase(panel: PanelSpec, v: Vec3): Vec3 {
+  const [x, y, z] = applyMatrixToPoint(composeWorldMatrix(boardOf(panel)), v.x, v.y, v.z)
+  return { x, y, z }
+}
+
 function faceDirInCarcase(p: PanelSpec, face: Face): Vec3 {
   const m = composeWorldMatrix(boardOf(p))
   const sign = face[0] === '+' ? 1 : -1
@@ -1601,11 +1613,6 @@ describe('carcaseHoleArrays', () => {
     }))
   }
 
-  function toCarcase(panel: PanelSpec, v: Vec3): Vec3 {
-    const [x, y, z] = applyMatrixToPoint(composeWorldMatrix(boardOf(panel)), v.x, v.y, v.z)
-    return { x, y, z }
-  }
-
   const inside = (v: Vec3, b: { min: Vec3; max: Vec3 }) =>
     v.x > b.min.x &&
     v.x < b.max.x &&
@@ -2177,6 +2184,80 @@ describe('fronts', () => {
     const pair = fronted(oneBay, { kind: 'door', leaves: 2, hinge: 'left' })
     const [l, r] = frontBoxes(pair).sort((a, b) => a.box.x0 - b.box.x0)
     expect(r.box.x0).toBeGreaterThan(l.box.x1)
+  })
+})
+
+describe('front machining', () => {
+  const DOOR = { kind: 'door', leaves: 1, hinge: 'left' } as const
+  const doored = (over: Partial<CarcaseParams> = {}): CarcaseParams => ({
+    ...base,
+    ...over,
+    section: { ...sec([], 0), front: DOOR },
+  })
+  const frontRole = (p: CarcaseParams) =>
+    carcaseBoxes(p).find((b) => b.role.startsWith('front-'))!.role
+
+  it('bores a cup row into the door', () => {
+    const p = doored()
+    expect(carcaseMachining(p, frontRole(p))).toHaveLength(1)
+  })
+
+  it('bores no cups into a drawer front, a false front or a panel', () => {
+    for (const kind of ['drawer-front', 'false-front', 'panel'] as const) {
+      const p: CarcaseParams = { ...base, section: { ...sec([], 0), front: { kind } } }
+      expect(carcaseMachining(p, frontRole(p)), kind).toEqual([])
+    }
+  })
+
+  // The self-check, the same shape as the pin-row face test: asserting the letters '+Z' would only
+  // prove the table matches itself. The cup must open *into* the cabinet, and it must do so in both
+  // mounts — where the board face is the same and the carcase-space coordinate is not.
+  it.each(['overlay', 'inset'] as const)('opens the cup into the cabinet (%s)', (frontMount) => {
+    const p = doored({ frontMount })
+    const role = frontRole(p)
+    const panel = carcaseRoles(p).find((r) => r.role === role)!.panel
+    const [cup] = carcaseMachining(p, role)
+    const dir = faceDirInCarcase(panel, cup.face)
+    expect(dir.y).toBeGreaterThan(0) // into the cabinet, never out through the front
+  })
+
+  it('hinges a two-leaf pair at opposite edges', () => {
+    const pair: CarcaseParams = {
+      ...base,
+      section: { ...sec([], 0), front: { kind: 'door', leaves: 2, hinge: 'left' } },
+    }
+    const [l, r] = carcaseBoxes(pair)
+      .filter((b) => b.role.startsWith('front-'))
+      .map((b) => b.role)
+      .map((role) => ({
+        panel: carcaseRoles(pair).find((x) => x.role === role)!.panel,
+        cup: carcaseMachining(pair, role)[0],
+      }))
+    expect(l.cup.start.y).toBeCloseTo(CUP_EDGE_DISTANCE, 9)
+    expect(r.cup.start.y).toBeCloseTo(r.panel.width - CUP_EDGE_DISTANCE, 9)
+  })
+
+  // Every cup inside the door it is bored into, over a swept range — a 35 mm bore is the largest
+  // the app makes, so a row that fits at 600 mm can still run off a narrow one.
+  it('keeps every cup inside the door', () => {
+    for (const width of [300, 450, 600, 900]) {
+      for (const height of [400, 720, 1200, 2100]) {
+        const p = doored({ width, height })
+        if (validateCarcaseParams(p).length > 0) continue
+        const role = frontRole(p)
+        const panel = carcaseRoles(p).find((r) => r.role === role)!.panel
+        for (const c of carcaseMachining(p, role)) {
+          const where = `w=${width} h=${height}`
+          const r = c.diameter / 2
+          const last = c.start.x + c.pitch * (c.count - 1)
+          expect(c.start.x - r, where).toBeGreaterThanOrEqual(0)
+          expect(last + r, where).toBeLessThanOrEqual(panel.length)
+          expect(c.start.y - r, where).toBeGreaterThanOrEqual(0)
+          expect(c.start.y + r, where).toBeLessThanOrEqual(panel.width)
+          expect(c.depth, where).toBeLessThan(panel.thickness)
+        }
+      }
+    }
   })
 })
 

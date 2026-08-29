@@ -17,6 +17,7 @@ import {
 } from './sectionTree'
 import { sectionInteriors, type AdjustableSpec } from './sectionInterior'
 import { frontCells, type FrontCell } from './frontCells'
+import { cupRow } from './frontMachining'
 
 export type { ThicknessAxis }
 
@@ -1036,6 +1037,45 @@ export function carcaseHoleArrays(
         diameter: PIN_DIAMETER,
         depth,
       })
+    }
+  }
+  return cuts
+}
+
+// The machining a front implies, asked the same way `carcaseHoleArrays` is: given a panel, what
+// does it need? Most of the answer is not on the front — a cup is bored into the door, the plate
+// screws that carry it into the upright beside it — so this answers for a side as readily as for a
+// door. `frontMachining.ts` owns every figure; this owns only which panel gets which row.
+export function carcaseMachining(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+  kindOf: RoleJointKind,
+  role: string,
+): HoleArrayCut[] {
+  // Empty for a carcase whose parameters do not build, which is what makes every line below safe.
+  const panel = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === role)?.panel
+  if (panel === undefined) return []
+
+  const tree = resolveSections(
+    p.section,
+    openingRect(p, thicknessOf),
+    sectionThickness(thicknessOf),
+  )
+  const cells = frontCells(p.section, tree, {
+    outer: { x0: 0, x1: p.width, z0: floorZ(p), z1: p.height },
+    mount: p.frontMount,
+    reveal: p.frontReveal,
+  })
+
+  const cuts: HoleArrayCut[] = []
+  for (const cell of cells) {
+    const frontRole = `front-${cell.sectionId}-${cell.leaf}`
+
+    // On the front itself: only a door, and only its cups.
+    if (role === frontRole) {
+      if (cell.spec.kind !== 'door' || cell.hinge === undefined) continue
+      const cup = cupRow(panel, cell.hinge, frontRole)
+      if (cup !== null) cuts.push(cup)
     }
   }
   return cuts
