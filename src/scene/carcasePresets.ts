@@ -36,10 +36,11 @@ const COMMON = {
 } satisfies Partial<CarcaseParams>
 
 // The shelving every preset section carries — the pin geometry the cabinet itself used to state,
-// now said by each opening that wants it. `shelves: 0` because a preset has never shipped shelf
-// boards, and inventing some here would change what dropping in a cabinet produces.
+// now said by each opening that wants it, plus one loose shelf in each. One, not a number per
+// preset: the pin rows are there so an opening holds an adjustable shelf, and a preset that bored
+// them and seated nothing would ship a cabinet whose cutting list denies what its panels are for.
 const PRESET_INTERIOR: InteriorSpec = {
-  adjustable: { shelves: 0, count: 10, rows: 2, pitch: 32, setback: 37, backSetback: 37 },
+  adjustable: { shelves: 1, count: 10, rows: 2, pitch: 32, setback: 37, backSetback: 37 },
 }
 
 // Every opening a preset makes wants the same shelving, which is exactly what the one cabinet-wide

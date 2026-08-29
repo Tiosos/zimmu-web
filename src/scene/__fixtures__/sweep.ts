@@ -1,6 +1,15 @@
 import { CARCASE_PRESETS } from '../carcasePresets'
 import { legacyToSection } from '../migrateSections'
+import { seedInteriors } from '../sectionInterior'
+import type { InteriorSpec } from '../sectionTree'
 import type { CarcaseParams } from '../types'
+
+// Every opening in the sweep holds shelving. Without it the sweep reaches neither a pin row nor an
+// adjustable shelf, and the role-coverage test would pass while `grainAxisOf` had no answer for a
+// family the generator emits — the same gap the ladder fixture exists to close.
+const SWEPT_INTERIOR: InteriorSpec = {
+  adjustable: { shelves: 1, count: 10, rows: 2, pitch: 32, setback: 37, backSetback: 37 },
+}
 
 // The presets reach neither a ladder base, nor dividers, nor a multi-bay shelf. Without this the
 // role coverage test would pass while `grainAxisOf` had no answer for five roles.
@@ -31,7 +40,10 @@ export const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as
               baseMode,
               backMode,
               hasTop,
-              section: legacyToSection(dividers, fixedShelves, 1400, 18),
+              section: seedInteriors(
+                legacyToSection(dividers, fixedShelves, 1400, 18),
+                SWEPT_INTERIOR,
+              ),
             }),
           ),
         ),

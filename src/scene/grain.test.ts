@@ -32,6 +32,9 @@ const splitOf = (b: RoleBox): 'vertical' | 'horizontal' =>
 // is the kind of panel it is — the section id in its role is an identity, not a family.
 function familyOf(b: RoleBox): string {
   if (b.role.startsWith('division-')) return splitOf(b) === 'vertical' ? 'partition' : 'shelf'
+  // Same argument, same shape: an adjustable shelf's role carries the section it sits in, and
+  // stripping only the trailing index would leave that identity in the family name.
+  if (b.role.startsWith('adj-shelf-')) return 'adj-shelf'
   return b.role.replace(/-\d+$/, '')
 }
 

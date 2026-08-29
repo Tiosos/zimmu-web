@@ -18,8 +18,9 @@ test('a cabinet preset drops real boards and resizes when a parameter changes', 
   await page.getByLabel('Add cabinet').click()
   await page.getByRole('option', { name: 'Base 600' }).click()
 
-  // A Base 600 emits 7 roles: two sides, bottom, top, back, toe kick, one shelf.
-  await expect(page.getByTestId(/^node-board_/)).toHaveCount(partsBefore + 7)
+  // A Base 600 emits 9 roles: two sides, bottom, top, back, toe kick, one fixed shelf, and one
+  // adjustable shelf in each of the two openings that shelf makes.
+  await expect(page.getByTestId(/^node-board_/)).toHaveCount(partsBefore + 9)
   await expect(page.getByTestId(/^node-cmp_/)).toHaveCount(1)
 
   // Selecting the cabinet shows its parameters, not a board's dimensions.

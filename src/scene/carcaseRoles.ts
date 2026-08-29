@@ -13,7 +13,7 @@ import {
   type ResolvedTree,
   type SectionBounds,
 } from './sectionTree'
-import { sectionInteriors } from './sectionInterior'
+import { sectionInteriors, type AdjustableSpec } from './sectionInterior'
 
 export type { ThicknessAxis }
 
@@ -221,6 +221,45 @@ function ladderMidRails(p: CarcaseParams, thicknessOf: RoleThickness): string[] 
   return roles
 }
 
+const PIN_DIAMETER = 5
+
+// How far above a section's own floor its first pin hole sits. A chosen figure — one increment of
+// the system being modelled — not one derived from the panel or from the shelf: nothing can rest
+// flush on a section's bottom, and 32 mm is the step every other hole in the row takes.
+const FIRST_PIN_INSET = 32
+
+// How much narrower than its opening a loose shelf is cut, on each side. A chosen figure like
+// MAX_LADDER_SPAN — enough that a shelf lifts in and out without binding, small enough not to read
+// as a gap — not one derived from the material or from any tolerance the app knows about.
+const SHELF_CLEARANCE = 2
+
+// The pin positions a section actually has: what its spec asked for, capped by what fits between
+// its own floor and its own ceiling. Stated once because two things read it — the row of bores,
+// and the shelves that have to sit on pins that exist.
+function pinRow(rect: Rect, a: AdjustableSpec): { first: number; count: number } {
+  const first = rect.z0 + FIRST_PIN_INSET
+  const count = Math.min(a.count, Math.floor((rect.z1 - PIN_DIAMETER / 2 - first) / a.pitch) + 1)
+  return { first, count }
+}
+
+// Which pins the shelves sit on: `shelves` of them spread as evenly as the row allows. Spread over
+// the *pin positions*, not over the section's height — a shelf can only rest where a pin is, and a
+// ten-position row covers 288 mm of a 584 mm opening.
+function shelfPins(shelves: number, pins: number): number[] {
+  const seated: number[] = []
+  for (let k = 0; k < shelves; k++) {
+    const ideal = Math.round(((k + 1) * (pins - 1)) / (shelves + 1))
+    // Strictly increasing: rounding puts two shelves on one pin as soon as the row is nearly as
+    // short as the shelf count, and two boards in one place is worse than one pin higher up.
+    const next = seated.length === 0 ? ideal : Math.max(ideal, seated[seated.length - 1] + 1)
+    // A section with fewer pins than shelves seats what it can. Invalidating the whole cabinet
+    // over one over-full opening is what the pin-count rule beside it already declines to do.
+    if (next > pins - 1) break
+    seated.push(next)
+  }
+  return seated
+}
+
 export interface RoleSpec {
   role: string
   label: string
@@ -407,6 +446,42 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
         z1: d.rect.z1,
       },
       thicknessAxis: vertical ? 'x' : 'z',
+    })
+  }
+
+  // Loose shelves on pins, after the divisions: the build order runs shell, then what divides it,
+  // then what sits inside. Keyed on the section's own id, the same way a division is keyed on the
+  // id of the section it splits, so two openings that both hold shelves cannot name one board.
+  let seated = 0
+  for (const { sectionId, rect, spec } of sectionInteriors(p.section, tree)) {
+    const a = spec.adjustable
+    const { first, count } = pinRow(rect, a)
+    shelfPins(a.shelves, count).forEach((pin, i) => {
+      const role = `adj-shelf-${sectionId}-${i}`
+      // The board's underside on the pin's centreline: an L-pin carries the shelf on an arm at
+      // about the height of the hole it sits in, and modelling the pin itself would put hardware
+      // in the cutting list to hold up a board.
+      const z0 = first + pin * a.pitch
+      seated += 1
+      boxes.push({
+        role,
+        // A cabinet-wide ordinal, like the pin rows label: which bay a leaf is in takes an ancestor
+        // walk, and a shelf that only says "Adj Shelf" is a worse cutting list than a numbered one.
+        label: `Adj Shelf ${seated}`,
+        box: {
+          x0: rect.x0 + SHELF_CLEARANCE,
+          x1: rect.x1 - SHELF_CLEARANCE,
+          // Front edge flush with the carcase, where a fixed shelf sits and where the user looks;
+          // the back edge clear of the back panel. A shelf that jams against the back cannot be
+          // tilted out past the pins, and a shelf touching a panel it is not fixed to would read
+          // as an unjoined contact on the joinery checklist.
+          y0: 0,
+          y1: shelfBackY - SHELF_CLEARANCE,
+          z0,
+          z1: z0 + thicknessOf(role),
+        },
+        thicknessAxis: 'z',
+      })
     })
   }
 
@@ -727,13 +802,6 @@ export function carcaseCuts(p: CarcaseParams, thicknessOf: RoleThickness, role: 
   ]
 }
 
-const PIN_DIAMETER = 5
-
-// How far above a section's own floor its first pin hole sits. A chosen figure — one increment of
-// the system being modelled — not one derived from the panel or from the shelf: nothing can rest
-// flush on a section's bottom, and 32 mm is the step every other hole in the row takes.
-const FIRST_PIN_INSET = 32
-
 // Which board face of a bounding upright looks into a section. A section's left bound is the panel
 // on its *left*, so the section lies on that panel's +x side — board +Z, the same face the joinery
 // table names. Only the left and right bounds appear here: a shelf rests on pins in the uprights
@@ -784,14 +852,12 @@ export function carcaseHoleArrays(
     const side = (['left', 'right'] as const).find((s) => boundRole(bounds[s], s) === role)
     if (side === undefined) continue
 
-    // Board y runs the carcase height and the panel's origin is its own bottom edge, so the
-    // section's floor and ceiling are carried across into the panel's frame.
-    const first = rect.z0 + FIRST_PIN_INSET - panel.position.z
-    const ceiling = rect.z1 - panel.position.z
-    // A section can be too short to hold the configured count. Dropping the holes that would run
-    // past its own ceiling is the only alternative to boring pins no shelf in it could reach.
-    const count = Math.min(a.count, Math.floor((ceiling - radius - first) / a.pitch) + 1)
+    // The same row the shelves are seated on, so a shelf can never rest on a pin the cabinet did
+    // not bore. Carried into the panel's frame: board y runs the carcase height and the panel's
+    // origin is its own bottom edge.
+    const { first: firstZ, count } = pinRow(rect, a)
     if (count < 1) continue
+    const first = firstZ - panel.position.z
 
     const face = BOUND_FACE[side]
     const rows = [a.setback, panel.length - a.backSetback].slice(0, a.rows)

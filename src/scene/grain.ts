@@ -25,6 +25,10 @@ export function grainAxisOf(role: string, splitAxis?: 'vertical' | 'horizontal')
     }
     return splitAxis === 'vertical' ? 'z' : 'x'
   }
+  // A loose shelf lies flat and runs its grain across the cabinet, exactly as the bottom and a
+  // fixed shelf do. It is a family rather than a name because its role carries the section it
+  // sits in.
+  if (role.startsWith('adj-shelf-')) return 'x'
   if (role === 'left-side' || role === 'right-side') return 'z'
   if (role === 'back') return 'z'
   if (role === 'bottom' || role === 'top') return 'x'

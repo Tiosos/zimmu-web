@@ -1789,6 +1789,113 @@ describe('carcaseHoleArrays', () => {
   })
 })
 
+describe('adjustable shelves', () => {
+  // How much narrower than its opening a loose shelf is cut, on each side. Restated here rather
+  // than imported: a test that reads the constant out of the module proves only that the module
+  // agrees with itself.
+  const CLEARANCE = 2
+
+  const shelfBoxes = (p: CarcaseParams) =>
+    carcaseBoxes(p).filter((b) => b.role.startsWith('adj-shelf-'))
+
+  const oneBay = (shelves: number, over: Partial<typeof ADJ> = {}): CarcaseParams => ({
+    ...base,
+    section: shelved(sec([], 0), { shelves, ...over }),
+  })
+
+  // `base` less its two 18 mm sides, so a shelf in it spans 600 − 36 − 2 × 2.
+  const OPENING = { x0: 18, x1: 582, z0: 118, z1: 702 }
+
+  it('emits one board per shelf the section asks for', () => {
+    expect(shelfBoxes(oneBay(3))).toHaveLength(3)
+  })
+
+  it('emits none when the section asks for none', () => {
+    expect(shelfBoxes(oneBay(0))).toEqual([])
+  })
+
+  it('cuts each shelf narrower than its opening by the clearance on both sides', () => {
+    for (const b of shelfBoxes(oneBay(3))) {
+      expect(b.box.x0).toBeCloseTo(OPENING.x0 + CLEARANCE, 9)
+      expect(b.box.x1).toBeCloseTo(OPENING.x1 - CLEARANCE, 9)
+    }
+  })
+
+  // A shelf rests on pins, so it can only sit where a pin actually is. Checked against the rows
+  // the same cabinet bores rather than against the arithmetic that places them — the two are
+  // derived separately and a shelf floating between two pins is the failure worth catching.
+  it('seats every shelf on a pin the cabinet actually bores', () => {
+    const p = oneBay(3)
+    const panel = carcaseRoles(p).find((r) => r.role === 'left-side')!.panel
+    const pinHeights = new Set(
+      carcaseHoleArrays(p, 'left-side').flatMap((c) =>
+        Array.from({ length: c.count }, (_, i) =>
+          (panel.position.z + c.start.y + c.pitch * i).toFixed(6),
+        ),
+      ),
+    )
+    const seated = shelfBoxes(p).map((b) => b.box.z0.toFixed(6))
+    expect(seated).toHaveLength(3)
+    for (const z of seated) expect(pinHeights.has(z), `${z} is not a pin height`).toBe(true)
+  })
+
+  it('spreads the shelves through the pin row rather than stacking them', () => {
+    const heights = shelfBoxes(oneBay(3)).map((b) => b.box.z0)
+    expect(new Set(heights).size).toBe(3)
+    for (let i = 1; i < heights.length; i++) expect(heights[i]).toBeGreaterThan(heights[i - 1])
+  })
+
+  it('is as thick as the carcase material and lies flat', () => {
+    for (const b of shelfBoxes(oneBay(2))) {
+      expect(b.thicknessAxis).toBe('z')
+      expect(b.box.z1 - b.box.z0).toBeCloseTo(T, 9)
+    }
+  })
+
+  // Grain across the cabinet, like the bottom and a fixed shelf. `grainAxisOf` throws on a role it
+  // has no convention for, so a new family that forgot to state one takes the cabinet down.
+  it('runs grain along its length, across the cabinet', () => {
+    for (const r of carcaseRoles(oneBay(2)).filter((r) => r.role.startsWith('adj-shelf-'))) {
+      expect(r.grain).toBe('length')
+    }
+  })
+
+  // A loose shelf is joined to nothing: it lifts out. A joint would extend it into a groove that
+  // does not exist and a contact would claim it is screwed to something.
+  it('is joined to nothing and touches nothing', () => {
+    const p = oneBay(3)
+    const shelves = new Set(shelfBoxes(p).map((b) => b.role))
+    for (const d of carcaseJoints(p, 'cmp_1')) {
+      expect(shelves.has(d.housingRole), d.housingRole).toBe(false)
+      expect(shelves.has(d.housedRole), d.housedRole).toBe(false)
+    }
+    for (const [a, b] of carcaseContactPairs(p)) {
+      expect(shelves.has(a), a).toBe(false)
+      expect(shelves.has(b), b).toBe(false)
+    }
+  })
+
+  // The role carries the section's own id, so two openings that both hold shelves cannot name the
+  // same board — which is the same reason a pin row is keyed per section.
+  it('keys a shelf on the section that holds it', () => {
+    const divided = { ...base, section: shelved(sec([0.5], 0), { shelves: 2 }) }
+    const roles = shelfBoxes(divided).map((b) => b.role)
+    expect(roles).toHaveLength(4)
+    expect(new Set(roles).size).toBe(4)
+    const sections = new Set(roles.map((r) => r.replace(/-\d+$/, '')))
+    expect(sections.size).toBe(2)
+  })
+
+  // A section with fewer pin positions than shelves seats what it can. Invalidating the whole
+  // cabinet over one over-full opening is what the neighbouring pin-count rule already declines to
+  // do, and the cabinet is still buildable — just fuller than asked.
+  it('seats no more shelves than the section has pins', () => {
+    const p = oneBay(6, { count: 3 })
+    expect(shelfBoxes(p).length).toBeLessThanOrEqual(3)
+    expect(shelfBoxes(p).length).toBeGreaterThan(0)
+  })
+})
+
 describe('the section tree in the generator', () => {
   // Contacts are derived from the same resolved tree the boxes are, so a role that appears in one
   // and not the other would mean the two had drifted apart — which is what the shared `bayEdges`

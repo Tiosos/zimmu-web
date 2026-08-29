@@ -533,3 +533,46 @@ rather than being weakened:
   panels get drilled, not about how division multiplies rows.
 - `drawing.test.ts` filters a row's circles by its own span as well as its setback, because the
   preset's side panel now carries two rows at each setback, stacked.
+
+### 2026-08-29 — an adjustable shelf is joined to nothing, and the suite said so first
+
+Group C's first cut ran the shelf to `shelfBackY`, the same depth extent a fixed shelf has. Twelve
+tests failed at once — `carcaseJoints`' "covers every touching pair exactly once" and the whole
+joinery checklist — because a board flush against the back panel *touches* it, and a contact the
+generator does not name is an unjoined pair on the checklist forever.
+
+That is the suite catching a modelling error rather than a fixture needing an update. A loose shelf
+that jams against the back cannot be tilted out past its pins. `SHELF_CLEARANCE` now applies to the
+back edge as well as both sides; the front edge stays flush with the carcase, where a fixed shelf
+sits and where the user looks.
+
+### 2026-08-29 — shelves sit on pins, and the pin row is stated once
+
+`pinRow(rect, spec)` is now the single answer to "which pin positions does this section have" —
+what it asked for, capped by what fits between its own floor and ceiling. Both readers use it: the
+row of bores, and `shelfPins`, which spreads `shelves` boards across those positions. Two copies of
+that cap would eventually seat a shelf on a pin the cabinet never bored, and nothing downstream
+would notice.
+
+Shelves spread over the **pin positions**, not over the section's height. A ten-position row covers
+288 mm of a 584 mm opening, so the two are not the same thing and the shelves cluster low. That is
+what "adjustable" means here: they sit where pins exist.
+
+A section asking for more shelves than it has pins seats what it can, matching the neighbouring
+pin-count rule rather than invalidating the whole cabinet over one over-full opening.
+
+### 2026-08-29 — the presets now ship a shelf, and a Base 600 spills onto a second sheet
+
+`PRESET_INTERIOR` moved from `shelves: 0` to `shelves: 1`. A preset that bored two pin rows into
+every opening and seated nothing would ship a cabinet whose cutting list denies what its panels are
+for — and until the group D UI lands, a preset is the only way shelving reaches the app at all.
+
+The yield consequence is real and worth stating: a Base 600's eight ply panels are **81 % of a
+2440 × 1220 sheet by area**, and the bottom-left packer spills the toe kick onto a second sheet at
+1.9 %. The Sheets e2e moved from "1 sheet, 61 % used" to "2 sheets, 41 % used" (the row reports the
+mean). That is the packer, not the arithmetic; the existing comment already anticipated the figure
+moving when the packer changes.
+
+The sweep was seeded too. Without it `SWEEP` reached neither a pin row nor an adjustable shelf, so
+the role-coverage test in `grain.test.ts` — the one that proves `grainAxisOf` is total over the
+whole role space — would have passed while the new family was unreachable from it.
