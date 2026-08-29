@@ -3,6 +3,7 @@ import {
   defaultInterior,
   sectionInteriors,
   sectionOpenings,
+  setFrontOn,
   setInterior,
   type AdjustableSpec,
   type InteriorSpec,
@@ -254,5 +255,41 @@ describe('defaultInterior', () => {
 
   it('takes the shelf count from its argument', () => {
     expect(defaultInterior(3).adjustable.shelves).toBe(3)
+  })
+})
+
+describe('setFrontOn', () => {
+  const DOOR = { kind: 'door', leaves: 1, hinge: 'left' } as const
+  const root: Section = {
+    id: 'root',
+    size: { kind: 'equal' },
+    content: {
+      kind: 'split',
+      axis: 'horizontal',
+      division: 'panel',
+      children: [leaf('a'), { ...leaf('b'), front: DOOR }],
+    },
+  }
+  const childrenOf = (s: Section) => {
+    if (s.content.kind !== 'split') throw new Error('structure changed')
+    return s.content.children
+  }
+
+  it('puts a front on the section named and on no other', () => {
+    const next = setFrontOn(root, 'a', { kind: 'panel' })
+    expect(childrenOf(next)[0].front).toEqual({ kind: 'panel' })
+    expect(childrenOf(next)[1].front).toEqual(DOOR)
+  })
+
+  // Absence is how the model says "no front", so removing one must leave the key gone rather than
+  // an empty spec behind — otherwise there are two ways to say the same thing.
+  it('deletes the key when the front is undefined', () => {
+    const next = setFrontOn(root, 'b', undefined)
+    expect(childrenOf(next)[1].front).toBeUndefined()
+    expect('front' in childrenOf(next)[1]).toBe(false)
+  })
+
+  it('leaves the tree alone when the id names nothing', () => {
+    expect(setFrontOn(root, 'nobody', DOOR)).toEqual(root)
   })
 })

@@ -8,9 +8,10 @@ import {
   firstInterior,
   seedInteriors,
   sectionOpenings,
+  setFrontOn,
   setInterior,
 } from '../scene/sectionInterior'
-import type { AdjustableSpec } from '../scene/sectionTree'
+import type { AdjustableSpec, FrontSpec } from '../scene/sectionTree'
 import { resolveSections, type Rect } from '../scene/sectionTree'
 import { DimInput } from './DimInput'
 import { Input } from '@/components/ui/input'
@@ -103,6 +104,21 @@ function openingLabel(rect: Rect, index: number): string {
   return `Opening ${index + 1} — ${w} × ${h}`
 }
 
+// What a front can be. 'none' is the absence of a spec, not a member of FrontSpec — the select
+// needs a value for it, the model does not.
+const FRONT_KINDS: { value: 'none' | FrontSpec['kind']; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'door', label: 'Door' },
+  { value: 'drawer-front', label: 'Drawer front' },
+  { value: 'false-front', label: 'False front' },
+  { value: 'panel', label: 'Panel' },
+]
+
+const FRONT_MOUNTS: { value: CarcaseParams['frontMount']; label: string }[] = [
+  { value: 'overlay', label: 'Overlay' },
+  { value: 'inset', label: 'Inset' },
+]
+
 const JOINT_METHODS: { value: CarcaseParams['jointMethod']; label: string }[] = [
   { value: 'dado-rabbet', label: 'Dado + rabbet' },
   { value: 'finger', label: 'Box / finger' },
@@ -123,6 +139,7 @@ export function CarcasePanel({
   const [sizeOpen, setSizeOpen] = useState(true)
   const [structureOpen, setStructureOpen] = useState(false)
   const [shelvingOpen, setShelvingOpen] = useState(false)
+  const [frontOpen, setFrontOpen] = useState(false)
   const [joineryOpen, setJoineryOpen] = useState(false)
 
   const p = component.params
@@ -196,6 +213,22 @@ export function CarcasePanel({
     })
   }
   const adjustable = opening?.spec?.adjustable ?? defaultInterior(0).adjustable
+
+  const front = opening?.section.front
+  const setFront = (next: FrontSpec | undefined) => {
+    if (opening === undefined) return
+    setParams({ section: setFrontOn(p.section, opening.sectionId, next) })
+  }
+  // A door needs two more fields than the other kinds, and switching to it has to supply them: a
+  // single leaf hinged left is what a cabinet door is unless someone says otherwise.
+  const setFrontKind = (v: string) =>
+    setFront(
+      v === 'none'
+        ? undefined
+        : v === 'door'
+          ? { kind: 'door', leaves: 1, hinge: 'left' }
+          : { kind: v as 'drawer-front' | 'false-front' | 'panel' },
+    )
 
   return (
     // Matches EditPanel's container, and bounds its own height: with 17 fields an unbounded panel
@@ -452,6 +485,110 @@ export function CarcasePanel({
               />
             </>
           )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Collapsible open={frontOpen} onOpenChange={setFrontOpen}>
+        <SectionHeader open={frontOpen} label="Front" />
+        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+          {opening === undefined ? (
+            <p className="text-[11px] text-muted-foreground py-1">
+              This cabinet has no opening to cover.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label htmlFor="carcase-front" className="w-20 shrink-0 text-right">
+                  Front
+                </Label>
+                <Select value={front?.kind ?? 'none'} onValueChange={setFrontKind}>
+                  <SelectTrigger id="carcase-front" className="h-7 flex-1 text-[11px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FRONT_KINDS.map((k) => (
+                      <SelectItem key={k.value} value={k.value}>
+                        {k.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {front?.kind === 'door' && (
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Label htmlFor="carcase-leaves" className="w-20 shrink-0 text-right">
+                    Leaves
+                  </Label>
+                  <Select
+                    value={String(front.leaves)}
+                    onValueChange={(v) =>
+                      setFront({ ...front, leaves: v === '2' ? 2 : 1 })
+                    }
+                  >
+                    <SelectTrigger id="carcase-leaves" className="h-7 flex-1 text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Single</SelectItem>
+                      <SelectItem value="2">Pair</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {/* A pair is hinged at both outer edges, so the field would be wrong half the time. */}
+              {front?.kind === 'door' && front.leaves === 1 && (
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Label htmlFor="carcase-hinge" className="w-20 shrink-0 text-right">
+                    Hinge
+                  </Label>
+                  <Select
+                    value={front.hinge}
+                    onValueChange={(v) =>
+                      setFront({ ...front, hinge: v === 'right' ? 'right' : 'left' })
+                    }
+                  >
+                    <SelectTrigger id="carcase-hinge" className="h-7 flex-1 text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="left">Left</SelectItem>
+                      <SelectItem value="right">Right</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </>
+          )}
+          {/* Below the divider: the cabinet's, not the opening's. A reveal is one number for the
+              whole carcase — a per-opening reveal is a cabinet with uneven gaps. */}
+          <div className="flex items-center gap-1.5 mb-1">
+            <Label htmlFor="carcase-mount" className="w-20 shrink-0 text-right">
+              Mount
+            </Label>
+            <Select
+              value={p.frontMount}
+              onValueChange={(v) => setParams({ frontMount: v as CarcaseParams['frontMount'] })}
+            >
+              <SelectTrigger id="carcase-mount" className="h-7 flex-1 text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FRONT_MOUNTS.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DimInput
+            labelWidth="w-20"
+            label="Reveal"
+            value={p.frontReveal}
+            suffix="mm"
+            min={0}
+            onCommit={(v) => setParams({ frontReveal: v })}
+          />
         </CollapsibleContent>
       </Collapsible>
 

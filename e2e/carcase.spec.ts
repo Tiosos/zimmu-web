@@ -74,6 +74,38 @@ test('setting an opening\u2019s shelf count drops that many boards', async ({ pa
   await expect(shelves).toHaveCount(0)
 })
 
+// A front is chosen per opening, so the panel has to name one before it can be covered. Together
+// with the shelf test above this is the only place that proves the picker, the debounce and the
+// regeneration line up: a unit test asserts what the updater would produce, not that boards appear.
+test('changing an opening\u2019s front changes the board that covers it', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+  await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
+
+  // The preset hangs a single door.
+  const doors = page.locator('[data-testid^="node-board_"]').filter({ hasText: 'Door' })
+  await expect(doors).toHaveCount(1)
+
+  // Collapsed by default, and its content is `hidden` rather than unmounted — a unit test finds
+  // these fields without opening the section and a browser does not.
+  await page.getByRole('button', { name: /Front/ }).click()
+
+  // A pair splits the one cell into two boards with a reveal between them.
+  await page.getByLabel('Leaves').click()
+  await page.getByRole('option', { name: 'Pair' }).click()
+  await expect(doors).toHaveCount(2)
+
+  // …and None takes the front off the opening entirely.
+  await page.getByLabel('Front', { exact: true }).click()
+  await page.getByRole('option', { name: 'None' }).click()
+  await expect(doors).toHaveCount(0)
+})
+
 // The detach contract, end to end. This is the promise the whole live-regeneration design rests
 // on: a part the user takes ownership of must survive a parameter change untouched.
 test('a detached part keeps its own size when the cabinet changes', async ({ page }) => {

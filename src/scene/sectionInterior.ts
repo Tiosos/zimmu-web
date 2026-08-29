@@ -1,4 +1,5 @@
 import type {
+  FrontSpec,
   InteriorSpec,
   Rect,
   ResolvedTree,
@@ -6,7 +7,7 @@ import type {
   SectionBounds,
   SectionId,
 } from './sectionTree'
-export type { AdjustableSpec, InteriorSpec } from './sectionTree'
+export type { AdjustableSpec, FrontSpec, InteriorSpec } from './sectionTree'
 
 export interface SectionInterior {
   sectionId: SectionId
@@ -54,6 +55,9 @@ export interface SectionOpening {
   sectionId: SectionId
   rect: Rect
   spec: InteriorSpec | undefined
+  // The leaf itself, so a caller that needs more than the shelving — the front, say — reads it here
+  // rather than walking the tree a second time to find the section it was just handed.
+  section: Section
 }
 
 // Every leaf, whether or not it asks for anything. The difference from `sectionInteriors` is the
@@ -75,6 +79,7 @@ export function sectionOpenings(root: Section, tree: ResolvedTree): SectionOpeni
       sectionId: section.id,
       rect: tree.rects.get(section.id)!,
       spec: section.interior,
+      section,
     })
   }
 
@@ -93,6 +98,33 @@ export function setInterior(root: Section, id: SectionId, spec: InteriorSpec): S
     content: {
       ...root.content,
       children: root.content.children.map((c) => setInterior(c, id, spec)),
+    },
+  }
+}
+
+// The mirror of `setInterior` for the other thing a section can carry. `undefined` **deletes** the
+// key rather than storing a spec that means nothing: absence is how the model says "no front", so
+// leaving an empty one behind would give it two ways to say it.
+export function setFrontOn(
+  root: Section,
+  id: SectionId,
+  front: FrontSpec | undefined,
+): Section {
+  if (root.id === id) {
+    if (front !== undefined) return { ...root, front }
+    // Deleted, not set to `undefined`. Both serialise the same, but `'front' in section` tells them
+    // apart, and absence is how the model says "no front" — a key holding undefined is a second way
+    // to say it.
+    const bare = { ...root }
+    delete bare.front
+    return bare
+  }
+  if (root.content.kind === 'leaf') return root
+  return {
+    ...root,
+    content: {
+      ...root.content,
+      children: root.content.children.map((c) => setFrontOn(c, id, front)),
     },
   }
 }

@@ -328,3 +328,63 @@ describe('CarcasePanel shelving', () => {
     expect((screen.getByLabelText('Shelves') as HTMLInputElement).value).toBe('7')
   })
 })
+
+describe('CarcasePanel fronts', () => {
+  afterEach(cleanup)
+
+  const DOOR = { kind: 'door', leaves: 1, hinge: 'left' } as const
+  const twoBays = () => carcase({ section: sec([0.5], 0) })
+  const withDoor = () => carcase({ section: { ...sec([], 0), front: DOOR } })
+
+  const frontsOf = (params: CarcaseParams) =>
+    sectionOpenings(params.section, resolvedOf(params)).map((o) => o.section.front?.kind)
+
+  it('gives a front to the opening picked and to no other', async () => {
+    const c = twoBays()
+    const onUpdate = renderPanel(c)
+    await userEvent.click(screen.getByLabelText('Front'))
+    await userEvent.click(screen.getByRole('option', { name: 'Door' }))
+    expect(frontsOf(appliedParams(onUpdate, c))).toEqual(['door', undefined])
+  })
+
+  it('offers None, which removes the front rather than storing an empty one', async () => {
+    const c = withDoor()
+    const onUpdate = renderPanel(c)
+    await userEvent.click(screen.getByLabelText('Front'))
+    await userEvent.click(screen.getByRole('option', { name: 'None' }))
+    expect(frontsOf(appliedParams(onUpdate, c))).toEqual([undefined])
+  })
+
+  it('exposes the cabinet-wide mount and reveal', () => {
+    renderPanel(twoBays())
+    expect(screen.getByLabelText('Mount')).toBeTruthy()
+    expect(screen.getByLabelText('Reveal')).toBeTruthy()
+  })
+
+  // Hinge is meaningless on a pair — each leaf is hinged on its own outer edge — so offering it
+  // there would be a field that is wrong half the time.
+  it('offers a hinge side only for a single-leaf door', () => {
+    renderPanel(withDoor())
+    expect(screen.getByLabelText('Hinge')).toBeTruthy()
+    cleanup()
+    renderPanel(
+      carcase({ section: { ...sec([], 0), front: { kind: 'door', leaves: 2, hinge: 'left' } } }),
+    )
+    expect(screen.queryByLabelText('Hinge')).toBeNull()
+  })
+
+  // Leaves and hinge belong to a door and to nothing else; a drawer front has neither.
+  it('offers neither leaves nor hinge for a front that is not a door', () => {
+    renderPanel(carcase({ section: { ...sec([], 0), front: { kind: 'drawer-front' } } }))
+    expect(screen.queryByLabelText('Leaves')).toBeNull()
+    expect(screen.queryByLabelText('Hinge')).toBeNull()
+  })
+
+  it('writes the mount to the cabinet, not to the opening', async () => {
+    const c = twoBays()
+    const onUpdate = renderPanel(c)
+    await userEvent.click(screen.getByLabelText('Mount'))
+    await userEvent.click(screen.getByRole('option', { name: 'Inset' }))
+    expect(appliedParams(onUpdate, c).frontMount).toBe('inset')
+  })
+})
