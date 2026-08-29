@@ -119,7 +119,7 @@ Plus `sectionInteriors(root, tree)` returning, for every **leaf** section that a
 Tests: a lone leaf with shelves is listed; a leaf asking for nothing is not; a split section is never
 listed but its children are; a nested tree lists every leaf at every depth.
 
-- [ ] **Acceptance:** the full suite passes with its count unchanged apart from your additions. Nothing consumes this yet.
+- [x] **Acceptance:** the full suite passes with its count unchanged apart from your additions. Nothing consumes this yet.
 
 ## Group B — the switch
 
@@ -146,7 +146,7 @@ ask for?* For each such section, one row per `rows`, spanning that section's own
 **The test that matters:** a divider between a section with shelves and a section without gets rows
 on **one face only**. That is the defect this stage exists to fix, and it is unrepresentable today.
 
-- [ ] **Mutation check:** bore every section's rows into both of a divider's faces regardless. Confirm that test FAILS. Restore. **Grep after applying** — a replacement that matches nothing looks exactly like a surviving mutation; I hit that twice in this session.
+- [x] **Mutation check:** bore every section's rows into both of a divider's faces regardless. Confirmed FAILS (4 cuts on 2 faces, expected 2 on 1), restored, grep-verified both ways.
 
 ### B4 — file format v16
 
@@ -193,21 +193,27 @@ selection already exists — the scene tree selects parts, and a part knows its 
 key. **If that route is not clean, stop and report** rather than building a section picker; that is
 Stage G's job.
 
+**Stopped, 2026-08-29.** The route does not exist: `sidebar.tsx` renders `CarcasePanel` only for a
+selected *carcase* and `EditPanel` only for a selected *part*, so selecting an `Adj Shelf` hides the
+panel that would edit it. And a section with `shelves: 0` has no board to select, so the route could
+never *add* shelving — only edit an opening that already has some. See the notes entry for the full
+finding. The Shelving section keeps its two v12 shim fields until Stage G.
+
 ## Group E — close the stage
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test`, exit codes read directly, **never piped through `tail`/`head`**
-- [ ] `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e` → 15 passed. Do **not** run `playwright install`. Expect group C to have moved the part-count and Sheets specs; fix them to the new truth and list which moved.
-- [ ] `CLAUDE.md`: v16, `sectionInterior.ts`, and an invariant that a pin row belongs to a section, not a panel.
-- [ ] `node scripts/update-structure-html.mjs`
-- [ ] Notes: the pin-count-vs-shelf-count finding; that pre-v16 rows move and why; which e2e moved.
+- [x] `pnpm typecheck && pnpm lint && pnpm test` — 1379 passed, 10 skipped, 76 files
+- [x] e2e → 15 passed. Three specs moved to the new truth: `carcase.spec.ts` (7 → 9 roles) and both `sheets-tab.spec.ts` tests (8 → 10 boards; 1 sheet at 61% → 2 sheets at 41% mean).
+- [x] `CLAUDE.md`: v16, `sectionInterior.ts`, and three invariants — the pin row belongs to a section, a shelf sits on a pin that exists, a loose shelf touches nothing.
+- [x] `node scripts/update-structure-html.mjs`, plus the hand-written version prose, which was stale at v12.
+- [x] Notes: the pin-count-vs-shelf-count finding; that pre-v16 rows move and why; which e2e moved; the group D blocker.
 
 ## Acceptance
 
-- [ ] A divider between a shelved section and a drawer bay is bored on **one face only**
-- [ ] A section's rows start at its own bottom, not at an absolute cabinet height
-- [ ] `shelves: 3` produces three boards that appear in the cutting list
-- [ ] A pre-v16 file opens, keeps its pin geometry, and gains no shelf boards it did not have
-- [ ] Every mutation check above was run and reported
+- [x] A divider between a shelved section and a drawer bay is bored on **one face only**
+- [x] A section's rows start at its own bottom, not at an absolute cabinet height
+- [x] `shelves: 3` produces three boards that appear in the cutting list
+- [x] A pre-v16 file opens, keeps its pin geometry, and gains no shelf boards it did not have
+- [x] Every mutation check above was run and reported
 
 ## What Stage D deliberately does not do
 

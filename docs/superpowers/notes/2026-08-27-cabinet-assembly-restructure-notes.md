@@ -576,3 +576,37 @@ moving when the packer changes.
 The sweep was seeded too. Without it `SWEEP` reached neither a pin row nor an adjustable shelf, so
 the role-coverage test in `grain.test.ts` — the one that proves `grainAxisOf` is total over the
 whole role space — would have passed while the new family was unreachable from it.
+
+### 2026-08-29 — Stage D group D stopped, as the plan said to
+
+The plan's group D says to move `CarcasePanel`'s Shelving section onto **the selected section's**
+interior, using "whatever selection already exists — the scene tree selects parts, and a part knows
+its section from its role key", and to **stop and report** if that route is not clean rather than
+build a section picker, which is Stage G's job.
+
+The route does not exist. `sidebar.tsx` renders `CarcasePanel` only when a **carcase** is selected
+and `EditPanel` only when a **part** is selected — they are mutually exclusive, so selecting an
+`Adj Shelf` board hides the panel that would edit it. Two further problems stand even if that were
+solved:
+
+- Only an `adj-shelf-{sectionId}-{i}` role names a *leaf* section. A `division-{parentId}-{index}`
+  role names the section that was **split**, whose interior lives on its children, and a side panel
+  bounds many sections at once.
+- A section with `shelves: 0` has no board to select, so the route can never *add* shelving to an
+  opening — only edit an opening that already has some. That is the primary case.
+
+So the Shelving section keeps the two v12 shim fields (Dividers, Fixed shelves) and shelving is
+stated by the presets and by the v16 migration until Stage G's elevation editor makes a section
+selectable. `firstInterior` + `seedInteriors` keep the shim from destroying what those set. The
+alternative the plan explicitly forbids — falling back to editing every section at once — would put
+the cabinet-wide bundle back and undo the stage.
+
+### 2026-08-29 — Stage D closed
+
+- Unit tests **1369 → 1379**; e2e 15/15, with three specs moved to the new truth: the Base 600 part
+  count (7 → 9 roles) and both Sheets specs.
+- `project-structure.html`'s hand-written prose was stale at **v12** — Stages A, B and C each bumped
+  the format without touching it. The three version mentions are now correct at v16; the rest of
+  that page's prose has not been re-audited against Stages A–C.
+- Deferred as planned: `interior.fixedShelves` (Stage E, with the front that gives "behind the door"
+  a meaning), the section picker (Stage G), and rollouts/pull-outs — a shelf is a board on pins.

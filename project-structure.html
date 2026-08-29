@@ -501,6 +501,8 @@
 │   ├── resolveJointKind.ts
 │   ├── resolveThickness.test.ts
 │   ├── resolveThickness.ts
+│   ├── sectionInterior.test.ts
+│   ├── sectionInterior.ts
 │   ├── sectionTree.test.ts
 │   ├── sectionTree.ts
 │   ├── snapMath.test.ts
@@ -710,7 +712,7 @@
       <h2>Data model</h2>
       <p>All canonical types live in <code>src/scene/types.ts</code>. The file format serializes a <code>ZimmuFile</code> to <code>.zimmu</code> (flat JSON).</p>
 
-      <pre><code>// File format (FILE_FORMAT_VERSION = 12)
+      <pre><code>// File format (FILE_FORMAT_VERSION = 16)
 interface ZimmuFile {
   version: number       // must equal FILE_FORMAT_VERSION
   name: string
@@ -931,7 +933,7 @@ interface FaceHit {
           </tr>
           <tr>
             <td><strong>ZimmuFile float precision</strong></td>
-            <td>Serialization rounds floats to 6 decimal places. <code>FILE_FORMAT_VERSION = 12</code> in <code>useFile.ts</code> (v11 added the component tree; v12 added the carcase <code>backSetback</code>). Unrelated to the IDB <code>DB_VERSION</code>, which is separately 2.</td>
+            <td>Serialization rounds floats to 6 decimal places. <code>FILE_FORMAT_VERSION = 16</code> in <code>useFile.ts</code> (v11 added the component tree; v12 the carcase <code>backSetback</code>; v13 replaced <code>dividers</code>/<code>fixedShelves</code> with the section tree; v14 moved panel thickness onto the material; v15 added the <code>screw</code> joint kind; v16 moved <code>adjustableShelves</code> onto each section's <code>interior</code>). Unrelated to the IDB <code>DB_VERSION</code>, which is separately 3.</td>
           </tr>
           <tr>
             <td><strong>IDB schema bumps</strong></td>
@@ -1040,7 +1042,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->74<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-24 the full Vitest run is 1105 passing (10 skipped) across 60 files (the 60th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 68 test files total including 8 Playwright specs in <code>e2e/</code>.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->75<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-29 the full Vitest run is 1379 passing (10 skipped) across 76 files (the 76th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 84 test files total including 9 Playwright specs in <code>e2e/</code>, which run 15 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1188,7 +1190,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-25-sheet-yield-stage-4-worker-and-report.md
     │   ├── 2026-08-27-cabinet-restructure-stage-a-section-tree.md
     │   ├── 2026-08-27-cabinet-restructure-stage-b-materials-own-thickness.md
-    │   └── 2026-08-28-cabinet-restructure-stage-c-screw-joints.md
+    │   ├── 2026-08-28-cabinet-restructure-stage-c-screw-joints.md
+    │   └── 2026-08-28-cabinet-restructure-stage-d-section-interiors.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1254,7 +1257,10 @@ import { useScene } from './useScene'</code></pre>
       <p style="color:var(--muted);font-size:13px">
         <strong>Version history:</strong> v1 (initial) → v2 (added <code>materials</code> and <code>hardware</code> to Scene) →
         … → v11 (component tree: <code>components</code> on Scene, <code>parentId</code>/<code>driven</code> on every part and joint) →
-        v12 (carcase <code>backSetback</code>). Now at <code>FILE_FORMAT_VERSION = 12</code>.
+        v12 (carcase <code>backSetback</code>) → v13 (the <code>section</code> tree replaces <code>dividers</code> and <code>fixedShelves</code>) →
+        v14 (panel thickness moves onto <code>MaterialDef</code>) → v15 (the <code>screw</code> joint kind) →
+        v16 (<code>adjustableShelves</code> moves onto each section's <code>interior</code>; <code>startHeight</code> is dropped).
+        Now at <code>FILE_FORMAT_VERSION = 16</code>.
         Migration logic lives in <code>useFile.ts</code>; a missing <code>parentId</code> loads as top-level, a dangling one is promoted.
       </p>
 
