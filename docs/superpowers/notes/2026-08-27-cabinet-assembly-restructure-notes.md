@@ -641,3 +641,32 @@ lift past the panels beside and behind it, the setback keeps it out of whatever 
 wearing. A shelf level with the carcase face rubs any door with an inset, and the door is not there
 to be measured against when the shelf is generated. Stage E may make it a function of the front
 rather than a constant; it is named and commented so that change has one place to happen.
+
+### 2026-08-29 — the opening picker, and why group D's original route was the wrong one
+
+Group D was reopened on the user's instruction after being stopped. The plan's route — reach the
+section through a selected *part* — was still unusable for the reasons recorded above, but a
+picker inside `CarcasePanel` turned out to be about eighty lines rather than a stage's worth:
+
+- `sectionOpenings(root, tree)` lists **every leaf**, shelved or not. That is the whole difference
+  from `sectionInteriors`, and the reason a separate function exists: an opening with no shelving
+  is exactly the one a user wants to give some, and `sectionInteriors` deliberately omits it.
+- `setInterior(root, id, spec)` writes one section's spec and leaves the rest alone. An id naming
+  nothing is not an error — the divider shim rebuilds the tree with fresh ids constantly, so a
+  stale selection is ordinary and must leave the cabinet as it was.
+- The pick is held **by section id, not by index**. Held by index, touching the Dividers field
+  would have kept "Opening 2" selected while the tree underneath became a different cabinet, and
+  the next keystroke would have edited a different opening with no visible sign. Held by id it
+  falls back to the first opening, which is what the rerender test pins.
+- A bare opening's first edit creates `defaultInterior(0)` and applies the one field being edited.
+  Without that, typing a shelf count would leave the other five fields undefined. `defaultInterior`
+  is now also what the presets read, so a preset cannot drift from what the panel creates.
+
+Openings are ordered bottom-left first and labelled `Opening 1 — 273 × 584`. Numbering by tree
+order would have put "Opening 2" in different places for the same cabinet depending on how it was
+built, and a bare ordinal says nothing about which hole in the cabinet it names.
+
+The e2e caught two things no unit test could: the Shelving section is collapsed by default and its
+content is `hidden` rather than unmounted, so `getByLabelText` finds the fields and a browser does
+not; and Playwright's label lookup is substring and case-insensitive, so `Shelves` also matches
+`Fixed shelves`.

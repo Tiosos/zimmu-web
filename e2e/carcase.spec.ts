@@ -39,6 +39,40 @@ test('a cabinet preset drops real boards and resizes when a parameter changes', 
   await expect(page.getByLabel('L', { exact: true }).first()).toHaveValue('600')
 })
 
+// Shelving belongs to an opening now, so the panel has to name one before it can be edited. This
+// is the only place that proves the picker, the debounce and the regeneration line up: a unit test
+// asserts what the updater would produce, not that boards appear.
+test('setting an opening\u2019s shelf count drops that many boards', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+  await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
+
+  const shelves = page.locator('[data-testid^="node-board_"]').filter({ hasText: 'Adj Shelf' })
+  await expect(shelves).toHaveCount(1)
+
+  // The Shelving section is collapsed by default and its content is hidden rather than unmounted,
+  // so a unit test finds these fields without opening it and a browser does not.
+  await page.getByRole('button', { name: /Shelving/ }).click()
+
+  // The preset's single opening, named by its size. Picking it explicitly is what the test is for.
+  await page.getByLabel('Opening').click()
+  await page.getByRole('option', { name: /^Opening 1/ }).click()
+
+  // Exact: "Fixed shelves" is a substring match on the same word, and Playwright's label lookup is
+  // substring and case-insensitive by default.
+  const field = page.getByLabel('Shelves', { exact: true })
+  await field.fill('3')
+  await expect(shelves).toHaveCount(3)
+
+  await field.fill('0')
+  await expect(shelves).toHaveCount(0)
+})
+
 // The detach contract, end to end. This is the promise the whole live-regeneration design rests
 // on: a part the user takes ownership of must survive a parameter change untouched.
 test('a detached part keeps its own size when the cabinet changes', async ({ page }) => {

@@ -1,12 +1,18 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CarcasePanel } from './CarcasePanel'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { openingRect } from '../scene/carcaseRoles'
 import { legacyToSection } from '../scene/migrateSections'
-import { firstInterior, sectionInteriors } from '../scene/sectionInterior'
+import {
+  defaultInterior,
+  firstInterior,
+  sectionInteriors,
+  sectionOpenings,
+  setInterior,
+} from '../scene/sectionInterior'
 import { roleThicknessFor } from '../scene/resolveThickness'
 import { resolveSections } from '../scene/sectionTree'
 import type { CarcaseComponent, CarcaseParams, Component } from '../scene/types'
@@ -204,5 +210,121 @@ describe('CarcasePanel', () => {
     for (const label of labels) {
       expect(screen.getByLabelText(label), `no control for "${label}"`).toBeTruthy()
     }
+  })
+})
+
+describe('CarcasePanel shelving', () => {
+  afterEach(cleanup)
+
+  // Two bays and no fixed shelf: two openings side by side, which is the smallest cabinet where
+  // "edits the one you picked and not the other" means anything.
+  const twoBays = () => carcase({ section: sec([0.5], 0) })
+
+  const shelvesOf = (params: CarcaseParams) =>
+    sectionOpenings(params.section, resolvedOf(params)).map((o) => o.spec?.adjustable.shelves)
+
+  // DimInput commits on change behind a 150 ms debounce, so an assertion made straight after
+  // typing would read the params before the edit reached them.
+  async function typeInto(label: string, text: string, onUpdate: ReturnType<typeof vi.fn>) {
+    const before = onUpdate.mock.calls.length
+    const field = screen.getByLabelText(label)
+    await userEvent.clear(field)
+    await userEvent.type(field, text)
+    await waitFor(() => expect(onUpdate.mock.calls.length).toBeGreaterThan(before))
+  }
+
+  it('names each opening by its place and its size', async () => {
+    renderPanel(twoBays())
+    await userEvent.click(screen.getByLabelText('Opening'))
+    const options = screen.getAllByRole('option').map((o) => o.textContent)
+    // 600 wide less two 18 mm sides, split by an 18 mm partition: two 273 mm bays, 584 tall.
+    expect(options).toEqual(['Opening 1 — 273 × 584', 'Opening 2 — 273 × 584'])
+  })
+
+  // The whole point of the stage, stated at the UI: one opening's shelving is not the cabinet's.
+  it('gives shelves to the opening picked and to no other', async () => {
+    const c = twoBays()
+    const onUpdate = renderPanel(c)
+    await typeInto('Shelves', '3', onUpdate)
+    // `undefined`, not `0`: the opening that was not picked is left with no spec at all, rather
+    // than being given an empty one as a side effect of editing its neighbour.
+    expect(shelvesOf(appliedParams(onUpdate, c))).toEqual([3, undefined])
+  })
+
+  it('edits the second opening once it is picked', async () => {
+    const c = twoBays()
+    const onUpdate = renderPanel(c)
+    await userEvent.click(screen.getByLabelText('Opening'))
+    await userEvent.click(screen.getByRole('option', { name: 'Opening 2 — 273 × 584' }))
+    await typeInto('Shelves', '2', onUpdate)
+    expect(shelvesOf(appliedParams(onUpdate, c))).toEqual([undefined, 2])
+  })
+
+  // An opening that has never been shelved has no spec at all. Typing one number must not leave
+  // the other five undefined, so the first edit creates the whole default and changes one field.
+  it('gives a bare opening the whole default spec on its first edit', async () => {
+    const bare = carcase({ section: legacyToSection([], 0, 600, 18) })
+    expect(sectionOpenings(bare.params.section, resolvedOf(bare.params))[0].spec).toBeUndefined()
+
+    const onUpdate = renderPanel(bare)
+    await typeInto('Shelves', '1', onUpdate)
+
+    const opened = sectionOpenings(
+      appliedParams(onUpdate, bare).section,
+      resolvedOf(appliedParams(onUpdate, bare)),
+    )
+    expect(opened[0].spec).toEqual(defaultInterior(1))
+  })
+
+  it('exposes a control for every field of a section interior', () => {
+    renderPanel(twoBays())
+    const labels = [
+      'Opening',
+      'Shelves',
+      'Pin count',
+      'Adjustable rows',
+      'Pin setback',
+      'Pin back setback',
+    ]
+    for (const label of labels) {
+      expect(screen.getByLabelText(label), `no control for "${label}"`).toBeTruthy()
+    }
+  })
+
+  // The shim rebuilds the tree with new ids whenever the divider or fixed-shelf field is touched,
+  // so a pick made before the rebuild names a section that no longer exists. Falling back to the
+  // first opening is what keeps the fields live; a pick held by index would instead have pointed
+  // at a different opening and silently edited it.
+  it('falls back to the first opening when the picked one is rebuilt away', async () => {
+    const shelvedBays = (first: number, second: number) => {
+      const root = legacyToSection([0.5], 0, 600, 18)
+      if (root.content.kind !== 'split') throw new Error('fixture is not a split')
+      const [a, b] = root.content.children
+      return setInterior(
+        setInterior(root, a.id, defaultInterior(first)),
+        b.id,
+        defaultInterior(second),
+      )
+    }
+    const before = carcase({ section: shelvedBays(1, 5) })
+    const { rerender } = render(
+      <TooltipProvider>
+        <CarcasePanel component={before} materials={PRESET_MATERIALS} onUpdate={vi.fn()} />
+      </TooltipProvider>,
+    )
+    await userEvent.click(screen.getByLabelText('Opening'))
+    await userEvent.click(screen.getByRole('option', { name: 'Opening 2 — 273 × 584' }))
+    expect((screen.getByLabelText('Shelves') as HTMLInputElement).value).toBe('5')
+
+    rerender(
+      <TooltipProvider>
+        <CarcasePanel
+          component={carcase({ section: shelvedBays(7, 9) })}
+          materials={PRESET_MATERIALS}
+          onUpdate={vi.fn()}
+        />
+      </TooltipProvider>,
+    )
+    expect((screen.getByLabelText('Shelves') as HTMLInputElement).value).toBe('7')
   })
 })

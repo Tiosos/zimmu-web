@@ -84,7 +84,7 @@ The gate is a Claude Code `PreToolUse` hook running `pnpm typecheck`; `--no-veri
 | **A** | `InteriorSpec` type + `sectionInteriors(tree, root)` listing every leaf's spec, rect and bounds | new module, no consumer |
 | **B** | the switch — `Section.interior`, `adjustableShelves` off `CarcaseParams`, per-section bores, v16 migration, presets | behaviour changes deliberately |
 | **C** | adjustable shelves become real driven boards | adds parts; re-baselines part counts and the nest |
-| **D** | per-section shelf editing in the UI | |
+| **D** | per-section shelf editing in the UI — an opening picker, not the part-selection route | |
 | **E** | close-out | |
 
 **B and C are separate on purpose.** B changes where holes go; C changes how many parts exist. C moves
@@ -193,11 +193,16 @@ selection already exists — the scene tree selects parts, and a part knows its 
 key. **If that route is not clean, stop and report** rather than building a section picker; that is
 Stage G's job.
 
-**Stopped, 2026-08-29.** The route does not exist: `sidebar.tsx` renders `CarcasePanel` only for a
-selected *carcase* and `EditPanel` only for a selected *part*, so selecting an `Adj Shelf` hides the
-panel that would edit it. And a section with `shelves: 0` has no board to select, so the route could
-never *add* shelving — only edit an opening that already has some. See the notes entry for the full
-finding. The Shelving section keeps its two v12 shim fields until Stage G.
+**Stopped, then reopened on the user's instruction, 2026-08-29.** The route the plan named does not
+exist: `sidebar.tsx` renders `CarcasePanel` only for a selected *carcase* and `EditPanel` only for a
+selected *part*, so selecting an `Adj Shelf` hides the panel that would edit it — and a section with
+`shelves: 0` has no board to select, so it could never *add* shelving.
+
+What shipped instead is an **opening picker inside `CarcasePanel`**: `sectionOpenings` lists every
+leaf, `setInterior` writes one section's spec, the pick is held by section id so the divider shim's
+rebuild falls back to the first opening rather than silently editing a different one, and a bare
+opening's first edit creates `defaultInterior`. Stage G's elevation editor replaces the picker with
+a click on the cabinet itself; it does not replace either pure function.
 
 ## Group E — close the stage
 

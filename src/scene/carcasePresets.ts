@@ -1,5 +1,5 @@
 import { legacyToSection } from './migrateSections'
-import { seedInteriors, type InteriorSpec } from './sectionInterior'
+import { defaultInterior, seedInteriors } from './sectionInterior'
 import type { CarcaseParams, MaterialDef } from './types'
 
 export interface CarcasePreset {
@@ -35,17 +35,14 @@ const COMMON = {
   jointMethod: 'butt-screw',
 } satisfies Partial<CarcaseParams>
 
-// The pin geometry every preset opening carries — what the cabinet itself used to state, now said
-// by each opening. How many shelves actually sit in it is the one thing that differs per preset,
-// so it is the argument.
-const interior = (shelves: number): InteriorSpec => ({
-  adjustable: { shelves, count: 10, rows: 2, pitch: 32, setback: 37, backSetback: 37 },
-})
-
 // Every opening a preset makes wants the same shelving, which is exactly what the one cabinet-wide
-// bundle meant.
+// bundle meant. The pin geometry is `defaultInterior`'s — the same one the panel gives a bare
+// opening — so how many shelves sit in it is the only thing a preset states for itself.
 const shelved = (dividers: number[], fixedShelves: number, width: number, shelves: number) =>
-  seedInteriors(legacyToSection(dividers, fixedShelves, width, CARCASE_THICKNESS), interior(shelves))
+  seedInteriors(
+    legacyToSection(dividers, fixedShelves, width, CARCASE_THICKNESS),
+    defaultInterior(shelves),
+  )
 
 export const CARCASE_PRESETS: CarcasePreset[] = [
   {

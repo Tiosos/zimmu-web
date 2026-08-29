@@ -3,8 +3,15 @@ import type { CarcaseParams, CarcaseComponent, Component, MaterialDef } from '..
 import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
 import { roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
-import { firstInterior, seedInteriors } from '../scene/sectionInterior'
-import { resolveSections } from '../scene/sectionTree'
+import {
+  defaultInterior,
+  firstInterior,
+  seedInteriors,
+  sectionOpenings,
+  setInterior,
+} from '../scene/sectionInterior'
+import type { AdjustableSpec } from '../scene/sectionTree'
+import { resolveSections, type Rect } from '../scene/sectionTree'
 import { DimInput } from './DimInput'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -87,6 +94,15 @@ function legacyViewOf(
   }
 }
 
+// What an opening is called in the picker. Numbered in the order `sectionOpenings` returns them —
+// bottom-left first — and carrying its size, because "Opening 2" alone says nothing about which
+// hole in the cabinet it is and a cabinet's openings differ mostly by how big they are.
+function openingLabel(rect: Rect, index: number): string {
+  const w = Math.round(rect.x1 - rect.x0)
+  const h = Math.round(rect.z1 - rect.z0)
+  return `Opening ${index + 1} — ${w} × ${h}`
+}
+
 const JOINT_METHODS: { value: CarcaseParams['jointMethod']; label: string }[] = [
   { value: 'dado-rabbet', label: 'Dado + rabbet' },
   { value: 'finger', label: 'Box / finger' },
@@ -153,6 +169,32 @@ export function CarcasePanel({
     const interior = firstInterior(p.section)
     return interior === undefined ? tree : seedInteriors(tree, interior)
   }
+
+  // Shelving belongs to an opening, so an opening has to be chosen before it can be edited. The
+  // pick is held by id rather than by index: the shim rebuilds the tree with new ids whenever the
+  // divider or fixed-shelf field is touched, and an index would then silently point at a different
+  // opening instead of falling back to the first.
+  const openings = sectionOpenings(
+    p.section,
+    resolveSections(p.section, openingRect(p, thicknessOf), (parentId, index) =>
+      thicknessOf(`division-${parentId}-${index}`),
+    ),
+  )
+  const [pickedOpening, setPickedOpening] = useState<string | null>(null)
+  const opening = openings.find((o) => o.sectionId === pickedOpening) ?? openings[0]
+
+  // A bare opening is given the same shelving a preset ships, less its shelves — otherwise the
+  // first keystroke in any field would have to invent values for all the others.
+  const setShelving = (patch: Partial<AdjustableSpec>) => {
+    if (opening === undefined) return
+    const current = opening.spec ?? defaultInterior(0)
+    setParams({
+      section: setInterior(p.section, opening.sectionId, {
+        adjustable: { ...current.adjustable, ...patch },
+      }),
+    })
+  }
+  const adjustable = opening?.spec?.adjustable ?? defaultInterior(0).adjustable
 
   return (
     // Matches EditPanel's container, and bounds its own height: with 17 fields an unbounded panel
@@ -345,6 +387,70 @@ export function CarcasePanel({
             min={0}
             onCommit={(v) => setParams({ section: relaid(legacy.dividers, Math.round(v)) })}
           />
+
+          {opening === undefined ? (
+            <p className="text-[11px] text-muted-foreground py-1">
+              This cabinet has no opening to shelve.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label htmlFor="carcase-opening" className="w-20 shrink-0 text-right">
+                  Opening
+                </Label>
+                <Select value={opening.sectionId} onValueChange={setPickedOpening}>
+                  <SelectTrigger id="carcase-opening" className="h-7 flex-1 text-[11px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {openings.map((o, i) => (
+                      <SelectItem key={o.sectionId} value={o.sectionId}>
+                        {openingLabel(o.rect, i)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <DimInput
+                labelWidth="w-20"
+                label="Shelves"
+                value={adjustable.shelves}
+                suffix=""
+                min={0}
+                onCommit={(v) => setShelving({ shelves: Math.round(v) })}
+              />
+              <DimInput
+                labelWidth="w-20"
+                label="Pin count"
+                value={adjustable.count}
+                suffix=""
+                min={0}
+                onCommit={(v) => setShelving({ count: Math.round(v) })}
+              />
+              <DimInput
+                labelWidth="w-20"
+                label="Adjustable rows"
+                value={adjustable.rows}
+                suffix=""
+                min={1}
+                onCommit={(v) => setShelving({ rows: Math.round(v) === 1 ? 1 : 2 })}
+              />
+              <DimInput
+                labelWidth="w-20"
+                label="Pin setback"
+                value={adjustable.setback}
+                suffix="mm"
+                onCommit={(v) => setShelving({ setback: v })}
+              />
+              <DimInput
+                labelWidth="w-20"
+                label="Pin back setback"
+                value={adjustable.backSetback}
+                suffix="mm"
+                onCommit={(v) => setShelving({ backSetback: v })}
+              />
+            </>
+          )}
         </CollapsibleContent>
       </Collapsible>
 
