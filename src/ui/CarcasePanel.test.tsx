@@ -34,7 +34,8 @@ function renderPanel(component = carcase(), onUpdate = vi.fn(), materials = PRES
   return onUpdate
 }
 
-// Preset 0 is 600 wide on 18 mm stock and carries one fixed shelf.
+// Preset 0 is 600 wide on 18 mm stock. Its own section carries no fixed shelf, but these fixtures
+// state one by default because the shim's two fields are what they exercise.
 const sec = (dividers: number[], fixedShelves = 1) =>
   legacyToSection(dividers, fixedShelves, 600, 18)
 
@@ -158,7 +159,9 @@ describe('CarcasePanel', () => {
     await userEvent.type(screen.getByLabelText('Dividers'), '0.5')
     const after = appliedParams(onUpdate, c).section
     expect(firstInterior(after)).toEqual(before)
-    expect(sectionInteriors(after, resolvedOf(appliedParams(onUpdate, c)))).toHaveLength(4)
+    // Two bays, one opening each: the preset ships no fixed shelf, so typing a divider splits its
+    // single opening in two rather than four.
+    expect(sectionInteriors(after, resolvedOf(appliedParams(onUpdate, c)))).toHaveLength(2)
   })
 
   // 'legs' is still in the CarcaseParams union so saved files load, but no generator branch

@@ -1029,10 +1029,14 @@ describe('carcaseJoints', () => {
   // and nothing is claimed for panels that do not meet.
   it('covers every touching pair exactly once, as either a joint or a contact pair', () => {
     const cases: [string, CarcaseParams, number, number][] = [
-      ['Base 600', CARCASE_PRESETS[0].params, 12, 2],
-      ['Wall 600', CARCASE_PRESETS[1].params, 10, 1],
+      // The presets hold one adjustable shelf and no fixed one, and a loose shelf is joined to
+      // nothing and touches nothing — so its board appears in neither column. Every figure here is
+      // two joints and one contact below what it was when these cabinets carried a fixed shelf:
+      // its two dados into the sides, and its back edge against the back panel.
+      ['Base 600', CARCASE_PRESETS[0].params, 10, 1],
+      ['Wall 600', CARCASE_PRESETS[1].params, 8, 0],
       ['Base 600 + divider', { ...CARCASE_PRESETS[0].params, section: sec([0.5], 1) }, 16, 4],
-      ['Ladder 600', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder' }, 14, 11],
+      ['Ladder 600', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder' }, 12, 10],
       [
         'Ladder 600 + divider',
         { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', section: sec([0.5], 1) },
@@ -1048,16 +1052,16 @@ describe('carcaseJoints', () => {
       // An applied back is screwed onto the back of the shell instead of being let into it, so
       // its four panel pairs move from the joint column to the contact column without changing
       // the total.
-      ['Applied back', { ...CARCASE_PRESETS[0].params, backMode: 'applied' }, 8, 6],
+      ['Applied back', { ...CARCASE_PRESETS[0].params, backMode: 'applied' }, 6, 5],
       // One more contact pair than a captured back on the same frame: covering the shell, the
       // applied back reaches the top of the frame and lands on the back rail.
       [
         'Applied back on a ladder base',
         { ...CARCASE_PRESETS[0].params, backMode: 'applied', baseMode: 'ladder' },
-        10,
-        16,
+        8,
+        15,
       ],
-      ['Ladder 1200', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', width: 1200 }, 16, 12],
+      ['Ladder 1200', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', width: 1200 }, 14, 11],
     ]
     for (const [name, p, jointCount, contactCount] of cases) {
       const joints = carcaseJoints(p, 'cmp_1')
@@ -1821,6 +1825,28 @@ describe('adjustable shelves', () => {
     }
   })
 
+  // Three different reasons, three different edges. The sides and the back are panels the shelf
+  // must lift past; the front is whatever the cabinet ends up wearing, and a shelf level with the
+  // carcase face would rub any door with an inset. `base` has a captured 12 mm back at depth 560.
+  it('sets the front edge back and holds the back edge clear of the back panel', () => {
+    const FRONT_SETBACK = 5
+    for (const b of shelfBoxes(oneBay(3))) {
+      expect(b.box.y0).toBeCloseTo(FRONT_SETBACK, 9)
+      expect(b.box.y1).toBeCloseTo(560 - 12 - CLEARANCE, 9)
+    }
+  })
+
+  // Nothing is nested against the carcase depth, so a shelf that lost its setback and a shelf that
+  // never had one read the same on a dimension. This is the difference stated as a difference.
+  it('is shallower than a fixed shelf in the same cabinet', () => {
+    const p = oneBay(1)
+    const [shelf] = shelfBoxes(p)
+    const fixed = carcaseBoxes({ ...base, section: sec([], 1) }).find(
+      (b) => b.role.startsWith('division-') && b.thicknessAxis === 'z',
+    )!
+    expect(shelf.box.y1 - shelf.box.y0).toBeLessThan(fixed.box.y1 - fixed.box.y0)
+  })
+
   // A shelf rests on pins, so it can only sit where a pin actually is. Checked against the rows
   // the same cabinet bores rather than against the arithmetic that places them — the two are
   // derived separately and a shelf floating between two pins is the failure worth catching.
@@ -1910,13 +1936,14 @@ describe('the section tree in the generator', () => {
     }
   })
 
-  // All three presets ship fixed shelves, which is why Stage A could not also move
-  // adjustableShelves into the tree.
+  // A fixed shelf is a *division* — a horizontal split with a panel in it — and an adjustable one
+  // is a loose board that divides nothing. Only the pantry ships divisions now, which is the
+  // difference between the two stated as a test.
   it.each([
-    ['Base 600', 1],
-    ['Wall 600', 1],
+    ['Base 600', 0],
+    ['Wall 600', 0],
     ['Tall 600', 4],
-  ])('%s still has %i fixed shelves', (name, expected) => {
+  ])('%s ships %i fixed shelves', (name, expected) => {
     const params = CARCASE_PRESETS.find((p) => p.name === name)!.params
     const divisions = carcaseBoxes(params).filter((b) => b.role.startsWith('division-'))
     expect(divisions).toHaveLength(expected)

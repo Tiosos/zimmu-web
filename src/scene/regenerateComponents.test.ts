@@ -527,11 +527,13 @@ describe('joint emission', () => {
     return s.joints.filter((j) => j.sourceComponentId === 'cmp_1')
   }
 
-  it('creates twelve driven joints for a base cabinet', () => {
+  // Ten, not twelve: the preset trades a fixed shelf for an adjustable one, and a loose shelf is
+  // joined to nothing.
+  it('creates ten driven joints for a base cabinet', () => {
     const out = regenerateComponents(presetScene)
 
-    expect(ownedJoints(out)).toHaveLength(12)
-    expect(out.joints).toHaveLength(12)
+    expect(ownedJoints(out)).toHaveLength(10)
+    expect(out.joints).toHaveLength(10)
     expect(out.joints.every((j) => j.driven)).toBe(true)
   })
 
@@ -579,7 +581,7 @@ describe('joint emission', () => {
     const before = first.joints.map((j) => j.id).sort()
     const second = withPresetParams(first, { depth: 600 })
 
-    expect(before).toHaveLength(12)
+    expect(before).toHaveLength(10)
 
     expect(second.joints.map((j) => j.id).sort()).toEqual(before)
   })
@@ -588,8 +590,8 @@ describe('joint emission', () => {
     const first = regenerateComponents(presetScene)
     const second = withPresetParams(first, { hasTop: false })
 
-    // Loses both side/top dados, the top/back dado and the top/divider row it never had: 12 → 9.
-    expect(ownedJoints(second)).toHaveLength(9)
+    // Loses both side/top dados and the top/back dado: 10 → 7.
+    expect(ownedJoints(second)).toHaveLength(7)
     expect(second.joints.some((j) => j.id.includes('top'))).toBe(false)
   })
 
@@ -605,7 +607,7 @@ describe('joint emission', () => {
     const second = regenerateComponents({ ...first, joints: [...first.joints, handMade] })
 
     expect(second.joints.find((j) => j.id === 'j_hand')).toEqual(handMade)
-    expect(ownedJoints(second)).toHaveLength(12)
+    expect(ownedJoints(second)).toHaveLength(10)
   })
 
   // The joint equivalent of detaching a part: the user takes the joint the cabinet emitted, keeping
@@ -637,7 +639,7 @@ describe('joint emission', () => {
     const second = withPresetParams(first, { depth: 600 })
 
     expect(second.joints.filter((j) => j.id === SIDE_BOTTOM)).toHaveLength(1)
-    expect(ownedJoints(second)).toHaveLength(12)
+    expect(ownedJoints(second)).toHaveLength(10)
     expect(ownedJoints(second).filter((j) => j.kind === 'screw')).toHaveLength(1)
   })
 
@@ -667,7 +669,7 @@ describe('joint emission', () => {
     const first = regenerateComponents(presetScene)
     const second = withPresetParams(first, { width: 5 })
 
-    expect(first.joints).toHaveLength(12)
+    expect(first.joints).toHaveLength(10)
     expect(second.joints).toEqual(first.joints)
   })
 
@@ -803,7 +805,7 @@ describe('emitted joints through reconcileJoints', () => {
         : [],
     )
 
-    expect(derived).toHaveLength(12)
+    expect(derived).toHaveLength(10)
     for (const { partId, cut } of derived) {
       const joint = jointById.get(cut.sourceJointId!) as DadoJoint
       expect(joint).toBeDefined()

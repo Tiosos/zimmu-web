@@ -338,8 +338,12 @@ function rowWith(rows: ChecklistRow[], a: PartId, b: PartId): ChecklistRow | und
 }
 
 describe('contact rows', () => {
+  // Given a fixed shelf explicitly: the preset ships an adjustable one now, and a loose shelf is
+  // held clear of the back precisely so it touches nothing. It is a division that meets the back.
   test('marks a shelf against the back as contact, not open', () => {
-    const scene = cabinetScene([carcase('cmp_1', 'Base 600')])
+    const scene = cabinetScene([
+      carcase('cmp_1', 'Base 600', { section: legacyToSection([], 1, 600, 18) }),
+    ])
     const back = idOfRole(scene, 'cmp_1', 'back')
     const shelf = idOfShelf(scene, 'cmp_1')
     const c = checklistOf(scene)
@@ -349,30 +353,33 @@ describe('contact rows', () => {
     expect(rowWith(c.unresolved, back, shelf)).toBeUndefined()
   })
 
-  // 14 touching pairs, 12 of them jointed: the two contact pairs are what would otherwise make this
-  // read 12 / 14 with nothing the user could ever do about the remaining two.
-  test('leaves a fully jointed base cabinet reading 12 / 12', () => {
+  // 11 touching pairs, 10 of them jointed: the one contact pair is what would otherwise make this
+  // read 10 / 11 with nothing the user could ever do about the remainder. Every figure in this
+  // file dropped by two joints and one contact when the preset traded its fixed shelf for an
+  // adjustable one — and the adjustable board adds nothing back, which is the claim that a loose
+  // shelf touches nothing, measured here through `boardsTouch` rather than asserted.
+  test('leaves a fully jointed base cabinet reading 10 / 10', () => {
     const c = checklistOf(cabinetScene([carcase('cmp_1', 'Base 600')]))
-    expect(c.jointedCount).toBe(12)
-    expect(c.actionableTotal).toBe(12)
-    expect(c.contact).toHaveLength(2)
+    expect(c.jointedCount).toBe(10)
+    expect(c.actionableTotal).toBe(10)
+    expect(c.contact).toHaveLength(1)
   })
 
   test('still marks contact pairs when the cabinet uses a fastener method', () => {
     const c = checklistOf(cabinetScene([carcase('cmp_1', 'Base 600', { jointMethod: 'dowel' })]))
-    expect(c.contact).toHaveLength(2)
+    expect(c.contact).toHaveLength(1)
     expect(c.contact.every((r) => r.state === 'contact')).toBe(true)
     expect(c.jointedCount).toBe(0)
-    expect(c.actionableTotal).toBe(12)
+    expect(c.actionableTotal).toBe(10)
   })
 
   test('matches the measured pair counts for the wall and divider cabinets', () => {
     const wall = checklistOf(
       cabinetScene([carcase('cmp_1', 'Wall 600', CARCASE_PRESETS[1].params)]),
     )
-    expect(wall.jointedCount).toBe(10)
-    expect(wall.actionableTotal).toBe(10)
-    expect(wall.contact).toHaveLength(1)
+    expect(wall.jointedCount).toBe(8)
+    expect(wall.actionableTotal).toBe(8)
+    expect(wall.contact).toHaveLength(0)
 
     const divided = checklistOf(
       cabinetScene([
@@ -387,11 +394,11 @@ describe('contact rows', () => {
   // 25 touching pairs: the four base-frame corners join, and the ten pairs across the plane the
   // carcase is set down on are contact. Four of those ten had no offer at all, so before the ladder
   // table this read 10 / 24 with four rows in the muted "no joint available" list.
-  test('leaves a fully jointed ladder cabinet reading 14 / 14 with nothing unresolved', () => {
+  test('leaves a fully jointed ladder cabinet reading 12 / 12 with nothing unresolved', () => {
     const c = checklistOf(cabinetScene([carcase('cmp_1', 'Ladder 600', { baseMode: 'ladder' })]))
-    expect(c.jointedCount).toBe(14)
-    expect(c.actionableTotal).toBe(14)
-    expect(c.contact).toHaveLength(11)
+    expect(c.jointedCount).toBe(12)
+    expect(c.actionableTotal).toBe(12)
+    expect(c.contact).toHaveLength(10)
     expect(c.unresolved).toHaveLength(0)
     expect(c.rows).toHaveLength(0)
     expect(c.groups[0].complete).toBe(true)
@@ -399,24 +406,24 @@ describe('contact rows', () => {
 
   // Same 14 pairs as a captured back; four of them move from the joint column to the contact
   // column, because an applied back is screwed onto the rear edges rather than let into them.
-  test('leaves an applied-back cabinet reading 8 / 8 with nothing unresolved', () => {
+  test('leaves an applied-back cabinet reading 6 / 6 with nothing unresolved', () => {
     const c = checklistOf(cabinetScene([carcase('cmp_1', 'Applied back', { backMode: 'applied' })]))
-    expect(c.jointedCount).toBe(8)
-    expect(c.actionableTotal).toBe(8)
-    expect(c.contact).toHaveLength(6)
+    expect(c.jointedCount).toBe(6)
+    expect(c.actionableTotal).toBe(6)
+    expect(c.contact).toHaveLength(5)
     expect(c.unresolved).toHaveLength(0)
     expect(c.rows).toHaveLength(0)
     expect(c.groups[0].complete).toBe(true)
   })
 
   // The mid rail adds three pairs: housed in the front and back rails, carrying the bottom.
-  test('leaves a wide ladder cabinet reading 16 / 16 with nothing unresolved', () => {
+  test('leaves a wide ladder cabinet reading 14 / 14 with nothing unresolved', () => {
     const c = checklistOf(
       cabinetScene([carcase('cmp_1', 'Ladder 1200', { baseMode: 'ladder', width: 1200 })]),
     )
-    expect(c.jointedCount).toBe(16)
-    expect(c.actionableTotal).toBe(16)
-    expect(c.contact).toHaveLength(12)
+    expect(c.jointedCount).toBe(14)
+    expect(c.actionableTotal).toBe(14)
+    expect(c.contact).toHaveLength(11)
     expect(c.unresolved).toHaveLength(0)
     expect(c.rows).toHaveLength(0)
     expect(c.groups[0].complete).toBe(true)
@@ -429,7 +436,7 @@ describe('checklist grouping by component', () => {
     expect(c.groups).toHaveLength(1)
     expect(c.groups[0].componentId).toBe('cmp_1')
     expect(c.groups[0].label).toBe('Base 600')
-    expect(c.groups[0].rows).toHaveLength(12)
+    expect(c.groups[0].rows).toHaveLength(10)
     expect(c.rows).toEqual([])
   })
 
@@ -457,7 +464,7 @@ describe('checklist grouping by component', () => {
     const left = idOfRole(scene, 'cmp_2', 'left-side')
 
     expect(c.groups.map((g) => g.componentId)).toEqual(['cmp_1', 'cmp_2'])
-    expect(c.groups.every((g) => g.rows.length === 12)).toBe(true)
+    expect(c.groups.every((g) => g.rows.length === 10)).toBe(true)
     expect(c.groups.every((g) => rowWith(g.rows, right, left) === undefined)).toBe(true)
     expect(rowWith(c.unresolved, right, left)).toBeTruthy()
   })
@@ -477,11 +484,11 @@ describe('checklist grouping by component', () => {
     const c = checklistOf({ ...scene, parts: [...scene.parts, loose] })
 
     expect(c.groups).toHaveLength(1)
-    expect(c.groups[0].rows).toHaveLength(12)
+    expect(c.groups[0].rows).toHaveLength(10)
     expect(c.rows).toHaveLength(1)
     expect(c.rows[0].state).toBe('open')
     expect([c.rows[0].aId, c.rows[0].bId]).toContain('LOOSE')
-    expect(c.actionableTotal).toBe(13)
+    expect(c.actionableTotal).toBe(11)
   })
 
   test('produces no groups for two loose touching boards', () => {

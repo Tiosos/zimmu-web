@@ -610,3 +610,34 @@ the cabinet-wide bundle back and undo the stage.
   that page's prose has not been re-audited against Stages A–C.
 - Deferred as planned: `interior.fixedShelves` (Stage E, with the front that gives "behind the door"
   a meaning), the section picker (Stage G), and rollouts/pull-outs — a shelf is a board on pins.
+
+### 2026-08-29 — the presets trade their fixed shelf for an adjustable one
+
+A Base 600 shipping one fixed *and* one adjustable shelf per opening was an artefact, not a design:
+the fixed shelf came from the v12 `fixedShelves: 1` parameter Stage A inherited, and group C then
+seated an adjustable board in each of the two openings it made. Three shelves in a 720 mm base unit
+is not a cabinet anyone asked for, and its ply spilled onto a second sheet at 1.9 %.
+
+Base 600 and Wall 600 are now one clear opening holding **one adjustable shelf and no fixed one** —
+a base unit is shelved by what the user moves, not by a partition built into it. Tall 600 keeps its
+four fixed shelves, because a pantry's shelves *are* its structure; its five openings are bored for
+pins and seat none, since nine shelves in a 2100 mm cabinet is worse than none.
+
+Every count in the suite moved by exactly **−2 joints and −1 contact** per cabinet: the fixed
+shelf's two dados into the sides, and its back edge against the back panel. Measured before
+editing, and the uniformity is itself the check — the adjustable board adds nothing back, which is
+the "a loose shelf touches nothing" claim verified through `boardsTouch` rather than asserted.
+A Base 600 is now 7 boards on one sheet at 60.38 %, cleaner than the 61.30 % it was before Stage D.
+
+`jointChecklist.test.ts`'s *marks a shelf against the back as contact* now states its fixed shelf
+explicitly. The preset no longer has one, and an adjustable shelf is held clear of the back
+precisely so it never becomes that contact — testing it against the new preset would have quietly
+inverted what the test claims.
+
+### 2026-08-29 — the shelf front is set back, before there is a front to measure against
+
+`SHELF_FRONT_SETBACK = 5` is separate from `SHELF_CLEARANCE` on purpose: the clearance lets a shelf
+lift past the panels beside and behind it, the setback keeps it out of whatever the cabinet ends up
+wearing. A shelf level with the carcase face rubs any door with an inset, and the door is not there
+to be measured against when the shelf is generated. Stage E may make it a function of the front
+rather than a constant; it is named and commented so that change has one place to happen.

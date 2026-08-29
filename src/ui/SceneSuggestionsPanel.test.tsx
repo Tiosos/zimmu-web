@@ -257,18 +257,18 @@ function cabinetScene(): Scene {
 
 test('a fully jointed cabinet renders as one collapsed group line', () => {
   panel({ suggestions: [], scene: cabinetScene() })
-  expect(screen.getByText(/Joints — 12 \/ 12/)).toBeTruthy()
+  expect(screen.getByText(/Joints — 10 \/ 10/)).toBeTruthy()
   expand()
-  expect(screen.getByText(/✓ Base 600 — 12 \/ 12/)).toBeTruthy()
+  expect(screen.getByText(/✓ Base 600 — 10 \/ 10/)).toBeTruthy()
   expect(screen.queryByText(/Left Side \+ Bottom/)).toBeNull()
-  fireEvent.click(screen.getByText(/Base 600 — 12 \/ 12/))
+  fireEvent.click(screen.getByText(/Base 600 — 10 \/ 10/))
   expect(screen.getByText(/✓ Left Side \+ Bottom/)).toBeTruthy()
 })
 
 test('contact pairs are listed as needing no joint, not as unavailable', () => {
   panel({ suggestions: [], scene: cabinetScene() })
   expand()
-  expect(screen.getByText(/No joint needed \(2\)/)).toBeTruthy()
+  expect(screen.getByText(/No joint needed \(1\)/)).toBeTruthy()
   fireEvent.click(screen.getByText(/No joint needed/))
   expect(screen.getByText('Bottom + Toe Kick')).toBeTruthy()
 })

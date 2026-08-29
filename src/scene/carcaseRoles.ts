@@ -233,6 +233,12 @@ const FIRST_PIN_INSET = 32
 // as a gap — not one derived from the material or from any tolerance the app knows about.
 const SHELF_CLEARANCE = 2
 
+// How far behind the carcase face a loose shelf's front edge sits. A different figure for a
+// different reason: `SHELF_CLEARANCE` clears panels the shelf has to lift past, this clears
+// whatever the cabinet ends up wearing. A shelf level with the carcase face rubs any door with an
+// inset, and the door is not there to be measured against when the shelf is generated.
+const SHELF_FRONT_SETBACK = 5
+
 // The pin positions a section actually has: what its spec asked for, capped by what fits between
 // its own floor and its own ceiling. Stated once because two things read it — the row of bores,
 // and the shelves that have to sit on pins that exist.
@@ -471,11 +477,11 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
         box: {
           x0: rect.x0 + SHELF_CLEARANCE,
           x1: rect.x1 - SHELF_CLEARANCE,
-          // Front edge flush with the carcase, where a fixed shelf sits and where the user looks;
-          // the back edge clear of the back panel. A shelf that jams against the back cannot be
-          // tilted out past the pins, and a shelf touching a panel it is not fixed to would read
-          // as an unjoined contact on the joinery checklist.
-          y0: 0,
+          // Set back at the front for the door it does not know about, and clear of the back panel
+          // at the other end. A shelf that jams against the back cannot be tilted out past the
+          // pins, and a shelf touching a panel it is not fixed to would read as an unjoined
+          // contact on the joinery checklist.
+          y0: SHELF_FRONT_SETBACK,
           y1: shelfBackY - SHELF_CLEARANCE,
           z0,
           z1: z0 + thicknessOf(role),

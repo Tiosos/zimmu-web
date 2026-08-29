@@ -2526,8 +2526,9 @@ describe('detach', () => {
   it('detaches a driven part and stops regenerating it', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-    // The Base 600's one fixed shelf: a division role carries its section's uuid, not a shelf index.
-    const shelf = result.current.scene.parts.find((p) => p.role?.startsWith('division-'))!
+    // The Base 600's one adjustable shelf. A driven board like any other, so the detach contract
+    // covers it — and its position follows the section rect, which the height change below moves.
+    const shelf = result.current.scene.parts.find((p) => p.role?.startsWith('adj-shelf-'))!
     const cmpId = result.current.scene.components[0].id
 
     act(() => result.current.onDetachPart(shelf.id))

@@ -35,18 +35,17 @@ const COMMON = {
   jointMethod: 'butt-screw',
 } satisfies Partial<CarcaseParams>
 
-// The shelving every preset section carries — the pin geometry the cabinet itself used to state,
-// now said by each opening that wants it, plus one loose shelf in each. One, not a number per
-// preset: the pin rows are there so an opening holds an adjustable shelf, and a preset that bored
-// them and seated nothing would ship a cabinet whose cutting list denies what its panels are for.
-const PRESET_INTERIOR: InteriorSpec = {
-  adjustable: { shelves: 1, count: 10, rows: 2, pitch: 32, setback: 37, backSetback: 37 },
-}
+// The pin geometry every preset opening carries — what the cabinet itself used to state, now said
+// by each opening. How many shelves actually sit in it is the one thing that differs per preset,
+// so it is the argument.
+const interior = (shelves: number): InteriorSpec => ({
+  adjustable: { shelves, count: 10, rows: 2, pitch: 32, setback: 37, backSetback: 37 },
+})
 
 // Every opening a preset makes wants the same shelving, which is exactly what the one cabinet-wide
 // bundle meant.
-const shelved = (dividers: number[], fixedShelves: number, width: number) =>
-  seedInteriors(legacyToSection(dividers, fixedShelves, width, CARCASE_THICKNESS), PRESET_INTERIOR)
+const shelved = (dividers: number[], fixedShelves: number, width: number, shelves: number) =>
+  seedInteriors(legacyToSection(dividers, fixedShelves, width, CARCASE_THICKNESS), interior(shelves))
 
 export const CARCASE_PRESETS: CarcasePreset[] = [
   {
@@ -60,7 +59,10 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       baseMode: 'toe-kick',
       toeKickHeight: 100,
       toeKickSetback: 60,
-      section: shelved([], 1, 600),
+      // One clear opening holding one adjustable shelf. A base unit is shelved by what the user
+      // moves, not by a partition built into it — the fixed shelf this preset used to carry was
+      // inherited from the v12 `fixedShelves: 1` parameter, not chosen.
+      section: shelved([], 0, 600, 1),
     },
   },
   {
@@ -74,7 +76,7 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       baseMode: 'none',
       toeKickHeight: 100,
       toeKickSetback: 60,
-      section: shelved([], 1, 600),
+      section: shelved([], 0, 600, 1),
     },
   },
   {
@@ -88,7 +90,10 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       baseMode: 'toe-kick',
       toeKickHeight: 100,
       toeKickSetback: 60,
-      section: shelved([], 4, 600),
+      // The one preset whose shelves are structure rather than convenience: a pantry's four fixed
+      // shelves are what it is. Its five openings are bored for pins so a user can add more, and
+      // seat none — nine shelves in a 2100 mm cabinet is not a cabinet anyone asked for.
+      section: shelved([], 4, 600, 0),
     },
   },
 ]
