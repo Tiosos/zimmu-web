@@ -106,6 +106,43 @@ test('changing an opening\u2019s front changes the board that covers it', async 
   await expect(doors).toHaveCount(0)
 })
 
+// The claim the cabinet editor rests on: the viewport is hidden, never unmounted. A unit test
+// cannot see that — a marker set on the live canvas, and still there after a round trip, can.
+// `viewport.tsx` builds its renderer, camera and every mesh in a mount-once effect, so a remount
+// would have produced a fresh element without the marker.
+test('the cabinet editor never rebuilds the viewport', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+
+  await page.evaluate(() => {
+    const c = document.querySelector('canvas')
+    if (c === null) throw new Error('no canvas')
+    c.setAttribute('data-zimmu-mark', 'kept')
+  })
+
+  // Selecting the cabinet swaps the pane for the editor; 3D swaps it back; Section hides it again.
+  await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
+  await expect(page.getByRole('tab', { name: 'Section' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await page.getByRole('tab', { name: '3D' }).click()
+  await page.getByRole('tab', { name: 'Section' }).click()
+  await page.getByRole('tab', { name: '3D' }).click()
+
+  // Still the same element, and still the one being shown — a remount would have produced a fresh
+  // canvas without the marker. Not asserted as "exactly one canvas on the page": `stats.js` renders
+  // the dev FPS overlay into a second one (viewport.tsx:273), which has nothing to do with this.
+  const kept = page.locator('canvas[data-zimmu-mark="kept"]')
+  await expect(kept).toHaveCount(1)
+  await expect(kept).toBeVisible()
+})
+
 // The detach contract, end to end. This is the promise the whole live-regeneration design rests
 // on: a part the user takes ownership of must survive a parameter change untouched.
 test('a detached part keeps its own size when the cabinet changes', async ({ page }) => {

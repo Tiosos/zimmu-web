@@ -4,10 +4,11 @@ import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
 import { suggestJointsFor, suggestJointsForScene, synthHit, pairIdsOf } from './scene/suggestJoints'
 import { suggestionOutlines } from './scene/suggestionOutline'
-import { componentsById, isNodeVisible } from './scene/componentTree'
+import { componentsById, descendantIds, isNodeVisible } from './scene/componentTree'
 import type { JointSuggestion } from './scene/suggestJoints'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
+import { CabinetEditor, type CabinetTab } from './ui/CabinetEditor'
 import { FileMenu } from './ui/FileMenu'
 import { BomModal } from './ui/BomModal'
 import { useMaterialLibrary } from './scene/useMaterialLibrary'
@@ -17,7 +18,14 @@ import { downloadBlob } from './ui/download'
 import { buildDrawingSheets } from './geom/drawing'
 import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
-import type { CameraState, MaterialDef, PartId, Selection } from './scene/types'
+import type {
+  CameraState,
+  ComponentId,
+  MaterialDef,
+  PartId,
+  SectionId,
+  Selection,
+} from './scene/types'
 
 const supported = 'showOpenFilePicker' in window
 
@@ -67,6 +75,49 @@ function App() {
   } = useScene()
 
   const componentMap = useMemo(() => componentsById(scene.components), [scene.components])
+
+  // Derived here rather than in the sidebar, which is where it used to live: with the editor in the
+  // main pane two panes need the answer, and deriving it twice is how they come to disagree about
+  // which cabinet is open.
+  const selectedCarcase = useMemo(() => {
+    if (selection?.kind !== 'component') return null
+    const c = scene.components.find((x) => x.id === selection.id)
+    return c?.kind === 'carcase' ? c : null
+  }, [selection, scene.components])
+
+  const [cabinetTab, setCabinetTab] = useState<CabinetTab>('section')
+
+  // The pick carries the cabinet it was made in, so switching cabinets clears it by *derivation*
+  // rather than by an effect that resets it a render later. A section id from one cabinet names
+  // nothing in another, and every `editSection` operation treats an unknown id as a no-op — so
+  // carrying one across would show a panel that silently edits nothing rather than an error.
+  const [sectionPick, setSectionPick] = useState<{
+    cabinetId: ComponentId
+    sectionId: SectionId
+  } | null>(null)
+  const selectedSectionId =
+    sectionPick !== null && sectionPick.cabinetId === selectedCarcase?.id
+      ? sectionPick.sectionId
+      : null
+  const onSelectSection = useCallback(
+    (sectionId: SectionId | null) => {
+      const cabinetId = selectedCarcase?.id
+      setSectionPick(cabinetId === undefined || sectionId === null ? null : { cabinetId, sectionId })
+    },
+    [selectedCarcase?.id],
+  )
+
+  // The 3D tab is the viewport "filtered to this cabinet": while one is open it shows that
+  // cabinet's own parts. `Viewport` keys meshes by part id and already handles parts coming and
+  // going — it must, for add and remove — so this is not a new capability, and the rebuild it costs
+  // is bounded by one cabinet's part count.
+  const cabinetParts = useMemo(() => {
+    if (selectedCarcase === null) return scene.parts
+    const mine = new Set(
+      descendantIds(selectedCarcase.id, scene.components, scene.parts).partIds,
+    )
+    return scene.parts.filter((p) => mine.has(p.id))
+  }, [selectedCarcase, scene.components, scene.parts])
 
   const suggestions = useMemo(
     () => suggestJointsFor(selectedId, scene.parts, scene.joints, componentMap),
@@ -402,25 +453,49 @@ function App() {
         canExport={canExport}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Viewport
-          parts={scene.parts}
-          componentMap={componentMap}
-          geometries={geometries}
-          selectedId={selectedId}
-          onPartClick={onSelectPart}
-          cameraStateRef={cameraStateRef}
-          loadedCamera={loadedCamera}
-          fitRequest={fitRequest}
-          interactionActive={mode.interactionActive}
-          onFaceClick={mode.onFaceClick}
-          onFaceHover={mode.onFaceHover}
-          sourceFace={mode.sourceFace}
-          hoveredFace={mode.hoveredFace}
-          snapPhase={mode.snapPhase}
-          flashTarget={flashTarget}
-          highlightedIds={highlightedIds}
-          suggestionOutlines={hoveredOutlines}
-        />
+        {/* Hidden, never unmounted. `viewport.tsx` builds its renderer, camera, controls and every
+            mesh in a mount-once effect, so rendering the editor *instead of* it would tear all of
+            that down on every selection and rebuild it on every trip to the 3D tab. A hidden canvas
+            keeps rendering, which is what the app already does behind the BOM modal. */}
+        <div
+          style={{
+            display: selectedCarcase === null || cabinetTab === '3d' ? 'flex' : 'none',
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          <Viewport
+            parts={cabinetParts}
+            componentMap={componentMap}
+            geometries={geometries}
+            selectedId={selectedId}
+            onPartClick={onSelectPart}
+            cameraStateRef={cameraStateRef}
+            loadedCamera={loadedCamera}
+            fitRequest={fitRequest}
+            interactionActive={mode.interactionActive}
+            onFaceClick={mode.onFaceClick}
+            onFaceHover={mode.onFaceHover}
+            sourceFace={mode.sourceFace}
+            hoveredFace={mode.hoveredFace}
+            snapPhase={mode.snapPhase}
+            flashTarget={flashTarget}
+            highlightedIds={highlightedIds}
+            suggestionOutlines={hoveredOutlines}
+          />
+        </div>
+        {selectedCarcase !== null && (
+          <CabinetEditor
+            key={selectedCarcase.id}
+            component={selectedCarcase}
+            materials={scene.materials}
+            tab={cabinetTab}
+            onTabChange={setCabinetTab}
+            selectedSectionId={selectedSectionId}
+            onSelectSection={onSelectSection}
+            onUpdate={(updater) => onUpdateComponent(selectedCarcase.id, updater)}
+          />
+        )}
         <Sidebar
           scene={scene}
           occtReady={occtReady}
