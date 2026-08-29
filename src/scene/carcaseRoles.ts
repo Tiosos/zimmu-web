@@ -13,9 +13,10 @@ import {
   type FrontSpec,
   type ResolvedTree,
   type SectionBounds,
+  type SectionId,
 } from './sectionTree'
 import { sectionInteriors, type AdjustableSpec } from './sectionInterior'
-import { frontCells } from './frontCells'
+import { frontCells, type FrontCell } from './frontCells'
 
 export type { ThicknessAxis }
 
@@ -466,7 +467,7 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
     })
   }
 
-  const cells = frontCells(p.section, tree, {
+  const cells: FrontCell[] = frontCells(p.section, tree, {
     // The carcase *body*, which is what a front covers: from the bottom panel's underside to the
     // top. `floorZ` already returns `toeKickHeight` for both a toe kick and a ladder and 0
     // otherwise, so no base-mode branch is needed. Not `carcaseZ0`: under a toe kick the sides run
@@ -475,6 +476,15 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
     mount: p.frontMount,
     reveal: p.frontReveal,
   })
+
+  const frontedSections = new Set(cells.map((c) => c.sectionId))
+  // 0 unless this section actually wears an inset front: an opening with no door has nothing to
+  // clear, and asking the *cabinet* instead of the section would set every shelf in the carcase
+  // back because one opening has a door.
+  const insetDepthOf = (sectionId: SectionId): number =>
+    p.frontMount === 'inset' && frontedSections.has(sectionId)
+      ? thicknessOf(`front-${sectionId}-0`)
+      : 0
 
   // Loose shelves on pins, after the divisions: the build order runs shell, then what divides it,
   // then what sits inside. Keyed on the section's own id, the same way a division is keyed on the
@@ -502,7 +512,10 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
           // at the other end. A shelf that jams against the back cannot be tilted out past the
           // pins, and a shelf touching a panel it is not fixed to would read as an unjoined
           // contact on the joinery checklist.
-          y0: SHELF_FRONT_SETBACK,
+          // An inset front stands in the first FT millimetres of the opening, so the shelf starts
+          // behind it plus the same clearance it keeps from every other panel. An overlay front is
+          // in front of y = 0 and costs nothing. The constant is the floor, never the answer.
+          y0: Math.max(SHELF_FRONT_SETBACK, insetDepthOf(sectionId) + SHELF_CLEARANCE),
           y1: shelfBackY - SHELF_CLEARANCE,
           z0,
           z1: z0 + thicknessOf(role),

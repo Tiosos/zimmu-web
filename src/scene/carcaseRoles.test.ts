@@ -2036,6 +2036,34 @@ describe('fronts', () => {
     ).toEqual([])
   })
 
+  // An inset front occupies the first FT millimetres of the opening. A shelf seated in front of it
+  // is a shelf driven through a closed door — invisible from outside, and wrong in the cutting
+  // list's depth. An overlay front is in front of y = 0 and costs the shelf nothing, which is why
+  // the constant stays the floor rather than becoming the answer.
+  it('holds a shelf behind an inset front, and does not move it for an overlay one', () => {
+    const shelvedBay = (mount: 'inset' | 'overlay'): CarcaseParams => ({
+      ...base,
+      frontMount: mount,
+      section: { ...shelved(sec([], 0), { shelves: 1 }), front: DOOR },
+    })
+    const shelfOf = (p: CarcaseParams) =>
+      carcaseBoxes(p).find((b) => b.role.startsWith('adj-shelf-'))!
+
+    expect(shelfOf(shelvedBay('inset')).box.y0).toBeGreaterThanOrEqual(T)
+    expect(shelfOf(shelvedBay('overlay')).box.y0).toBeCloseTo(5, 9)
+  })
+
+  // Only the section that actually wears the front pays for it. Asking the cabinet instead would
+  // set every shelf in the carcase back because one opening has a door.
+  it('does not set back a shelf in an opening with no front', () => {
+    const p: CarcaseParams = {
+      ...base,
+      frontMount: 'inset',
+      section: shelved(sec([], 0), { shelves: 1 }),
+    }
+    expect(carcaseBoxes(p).find((b) => b.role.startsWith('adj-shelf-'))!.box.y0).toBeCloseTo(5, 9)
+  })
+
   it('gives a two-leaf door two boards that do not overlap', () => {
     const pair = fronted(oneBay, { kind: 'door', leaves: 2, hinge: 'left' })
     const [l, r] = frontBoxes(pair).sort((a, b) => a.box.x0 - b.box.x0)
