@@ -60,9 +60,10 @@ test('setting an opening\u2019s shelf count drops that many boards', async ({ pa
   // so a unit test finds these fields without opening it and a browser does not.
   await page.getByRole('button', { name: /Shelving/ }).click()
 
-  // The preset's single opening, named by its size. Picking it explicitly is what the test is for.
-  await page.getByLabel('Opening').click()
-  await page.getByRole('option', { name: /^Opening 1/ }).click()
+  // The elevation is the picker. Selecting the cabinet opened the Section tab beside the sidebar,
+  // and clicking the preset's single cell is what hands the panel a section to edit — without it
+  // the panel says to pick one instead of showing a field.
+  await page.locator('[data-testid^="section-cell-"]').first().click()
 
   // Exact: "Fixed shelves" is a substring match on the same word, and Playwright's label lookup is
   // substring and case-insensitive by default.
@@ -94,6 +95,7 @@ test('changing an opening\u2019s front changes the board that covers it', async 
   // Collapsed by default, and its content is `hidden` rather than unmounted — a unit test finds
   // these fields without opening the section and a browser does not.
   await page.getByRole('button', { name: /Front/ }).click()
+  await page.locator('[data-testid^="section-cell-"]').first().click()
 
   // A pair splits the one cell into two boards with a reveal between them.
   await page.getByLabel('Leaves').click()
@@ -127,10 +129,7 @@ test('the cabinet editor never rebuilds the viewport', async ({ page }) => {
 
   // Selecting the cabinet swaps the pane for the editor; 3D swaps it back; Section hides it again.
   await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
-  await expect(page.getByRole('tab', { name: 'Section' })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  )
+  await expect(page.getByRole('tab', { name: 'Section' })).toHaveAttribute('aria-selected', 'true')
   await page.getByRole('tab', { name: '3D' }).click()
   await page.getByRole('tab', { name: 'Section' }).click()
   await page.getByRole('tab', { name: '3D' }).click()
@@ -197,4 +196,44 @@ test('a detached part keeps its own size when the cabinet changes', async ({ pag
     .first()
   await rightRow.click()
   await expect(page.getByLabel('L', { exact: true }).first()).toHaveValue('600')
+})
+
+// The elevation edits the cabinet, not just its own picture: clicking a cell and splitting it has
+// to reach the generator and come back as boards. A unit test asserts what the updater would
+// produce; only this proves the click, the tree edit, the pipeline and the kernel line up.
+test('splitting a cell in the elevation adds the panel it divides with', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+  await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
+
+  const cells = page.locator('[data-testid^="section-cell-"]')
+  await expect(cells).toHaveCount(1)
+
+  const boards = page.getByTestId(/^node-board_/)
+  const before = await boards.count()
+  await cells.first().click()
+  await page.getByRole('button', { name: 'Split across' }).click()
+
+  // One cell becomes two, with a shelf between them. The children inherit what their parent wore,
+  // so the preset's door and its adjustable shelf are each duplicated: +1 shelf panel, +1 door,
+  // +1 adjustable shelf.
+  await expect(cells).toHaveCount(2)
+  // Exact, and by the label element rather than the row: "Adj Shelf 1" contains "Shelf 1", and the
+  // split makes one of each — a substring match would count two and read as a doubled division.
+  await expect(page.getByText('Shelf 1', { exact: true })).toHaveCount(1)
+  await expect(
+    page.locator('[data-testid^="node-board_"]').filter({ hasText: 'Door' }),
+  ).toHaveCount(2)
+  await expect(boards).toHaveCount(before + 3)
+
+  // …and Merge puts it back, which is the only proof the two operations are inverses in the app
+  // rather than only in `editSection`.
+  await page.getByRole('button', { name: 'Merge' }).click()
+  await expect(cells).toHaveCount(1)
+  await expect(boards).toHaveCount(before)
 })
