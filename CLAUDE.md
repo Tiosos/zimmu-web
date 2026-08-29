@@ -307,6 +307,22 @@ src/
 - OCCT unit tests must skip when the WASM file is unavailable (`it.skip(...)`).
 - Aim for tests on the geom seam (inputs → outputs) rather than Three.js internals.
 
+### Mutation testing
+
+A test that cannot fail is not evidence, so every guard added should be mutation-tested: break the
+rule deliberately, watch the test fail, restore. Three rules earned the hard way:
+
+- **Back the file up first, and restore from that copy** — `cp src/…/file.ts "$SCRATCHPAD"/file.bak`,
+  then `cp` it back. **Never `git checkout`** to undo a mutation: mid-group the file carries
+  uncommitted work, and `git checkout` throws all of it away. That has happened, and cost a whole
+  group's edits.
+- **Grep after applying, and again after restoring.** A `sed` or Python replacement that matched
+  nothing looks exactly like a surviving mutation — a green run you will read as proof.
+- **Predict which tests should fail before running.** When fewer fail than expected, the gap is
+  usually real: a mutation that broke only the placement test and not the contact test is what
+  revealed that the contact rule was reading a flag instead of the geometry it was supposed to
+  follow.
+
 ## Documentation
 
 ### `docs/` directory layout

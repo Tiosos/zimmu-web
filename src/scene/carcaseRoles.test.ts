@@ -292,6 +292,63 @@ describe('validateCarcaseParams', () => {
     expect(validateCarcaseParams(squeezed)).toEqual(['the sections do not fit in the carcase'])
   })
 
+  // A reveal is subtracted from every edge of every front, so a big enough one turns the door
+  // inside out: an inset front at 400 mm comes out −236 × −216, which reaches OCCT as a degenerate
+  // solid. The validator is the total function that has to catch it, exactly as it catches sections
+  // squeezed past each other.
+  const doored = (frontReveal: number, frontMount: 'inset' | 'overlay'): CarcaseParams => ({
+    ...base,
+    frontMount,
+    frontReveal,
+    section: { ...sec([], 0), front: { kind: 'door', leaves: 1, hinge: 'left' } },
+  })
+
+  // Swept rather than fixtured, because the reveal that inverts a door differs by mount: an inset
+  // cell starts from the 564 mm opening and an overlay cell from the 600 mm cabinet, so the same
+  // number is fatal to one and merely silly on the other. The rule that holds for both is the one
+  // asserted — either the validator rejects it, or every front it emits has real width and height.
+  it('never emits an inverted front for any reveal it accepts', () => {
+    for (const frontMount of ['inset', 'overlay'] as const) {
+      for (const reveal of [0, 3, 20, 100, 280, 281, 282, 300, 400, 599, 600, 601, 700]) {
+        const p = doored(reveal, frontMount)
+        const where = `${frontMount} reveal=${reveal}`
+        if (validateCarcaseParams(p).length > 0) continue
+        const fronts = carcaseBoxes(p).filter((b) => b.role.startsWith('front-'))
+        expect(fronts.length, where).toBeGreaterThan(0)
+        for (const f of fronts) {
+          expect(f.box.x1 - f.box.x0, where).toBeGreaterThan(0)
+          expect(f.box.z1 - f.box.z0, where).toBeGreaterThan(0)
+        }
+      }
+    }
+  })
+
+  // The two named cases, one per mount, so the message is pinned as well as the property. The
+  // thresholds differ because the two cells are measured off different rectangles *and* give back
+  // different amounts: an inset front takes a full reveal from each edge of the 564 mm opening, so
+  // it dies at 564 / 2 = 282; an overlay front takes half a reveal from each edge of the 600 mm
+  // cabinet, so it survives to 600. Numbers that look adjacent, arithmetic that is not.
+  it('rejects a reveal that leaves a front with no width', () => {
+    expect(validateCarcaseParams(doored(282, 'inset'))).toContain('the reveal leaves no front')
+    expect(validateCarcaseParams(doored(600, 'overlay'))).toContain('the reveal leaves no front')
+    expect(validateCarcaseParams(doored(3, 'inset'))).toEqual([])
+    expect(validateCarcaseParams(doored(3, 'overlay'))).toEqual([])
+  })
+
+  // Meaningless whether or not the cabinet has a front: a negative reveal grows every door *past*
+  // the carcase it is supposed to sit on.
+  it('rejects a negative reveal', () => {
+    expect(validateCarcaseParams({ ...base, frontReveal: -1 })).toContain(
+      'the reveal must be 0 or more',
+    )
+  })
+
+  // Nothing to invert. The rule reads the fronts the cabinet actually emits, so a cabinet with no
+  // door is not failed for a number that could not hurt it.
+  it('does not fail an absurd reveal on a cabinet with no front', () => {
+    expect(validateCarcaseParams({ ...base, frontReveal: 400 })).toEqual([])
+  })
+
   // Defect 3: the side rails run y:[KS+T, D-T], so they invert one thickness before the front
   // rail alone would run out of depth — 70 + 18 = 88 clears a 100 deep cabinet, 70 + 36 does not.
   it('rejects a ladder setback that inverts the side rails', () => {

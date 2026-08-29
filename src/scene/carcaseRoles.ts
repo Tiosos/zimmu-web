@@ -196,6 +196,23 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
       break
     }
   }
+
+  // A reveal is taken off every edge of every front, so a big enough one turns the door inside out
+  // — an inset front at 400 mm on a 600 cabinet comes out −236 × −216, which reaches OCCT as a
+  // degenerate solid. Read off the cells the cabinet would actually emit rather than off the number
+  // alone: a cabinet with no front cannot be hurt by any reveal, and failing it would reject a
+  // parameter that costs it nothing.
+  if (p.frontReveal < 0) errors.push('the reveal must be 0 or more')
+  else {
+    const cells = frontCells(p.section, resolved, {
+      outer: { x0: 0, x1: p.width, z0: floorZ(p), z1: p.height },
+      mount: p.frontMount,
+      reveal: p.frontReveal,
+    })
+    if (cells.some((c) => c.rect.x1 - c.rect.x0 <= 0 || c.rect.z1 - c.rect.z0 <= 0)) {
+      errors.push('the reveal leaves no front')
+    }
+  }
   return errors
 }
 

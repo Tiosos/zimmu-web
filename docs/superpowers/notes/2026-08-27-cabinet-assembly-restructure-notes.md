@@ -765,3 +765,37 @@ fixed shelves and %i loose` test now states all three shelf-shaped things side b
   changing the lint rule for one line would have been the wrong way round.
 - Deferred as planned: hinge cups, hinge plate screws and drawer slide screws (Stage F); drawer
   boxes; frame-and-panel door construction.
+
+### 2026-08-29 — the reveal could turn a door inside out
+
+Re-reading the Stage E reveal code turned up a defect the whole stage had missed: `frontReveal` is
+subtracted from every edge of every front, and nothing bounded it. An inset front at 400 mm on a
+600 mm cabinet came out **−236 × −216 mm** — an inverted box, reaching OCCT as a degenerate solid —
+and `validateCarcaseParams` reported no error at all. A *negative* reveal grew the door past the
+carcase it is supposed to sit on.
+
+`validateCarcaseParams` now rejects both, in the same shape as the existing "the sections do not fit
+in the carcase" rule: read off the cells the cabinet would actually emit, so a cabinet with no front
+is not failed for a number that cannot hurt it. Last-good parts survive, and the message lands
+beside the field.
+
+**The thresholds differ by mount, and the arithmetic is not what it looks like.** An inset front
+takes a *full* reveal from each edge of the 564 mm opening, so it dies at 282. An overlay front
+takes *half* a reveal from each edge of the 600 mm cabinet — which is one whole reveal across — so
+it survives to 600. My first test asserted 400 was fatal to both; it is fatal to one and merely
+silly on the other, and the test was wrong rather than the code. It is now a swept property (either
+the validator rejects the reveal, or every front it emits has real width and height) plus one named
+case per mount with the arithmetic spelled out.
+
+### 2026-08-29 — three decisions taken, two needing no code
+
+- **One `frontReveal` for both mounts**, not a separate inset figure. `frontMount` is cabinet-wide,
+  so a cabinet cannot mix mounts, and a second field would only ever hold the number the user did
+  not currently want.
+- **A door stays a contact on the joinery checklist.** "No joint needed" is accurate — there is no
+  joinery cut. The hinges become visible in Stage F as bores and in the hardware BOM; inventing a
+  third checklist state before that machinery exists would change the checklist's type and every
+  count in it for a distinction nothing can yet act on.
+- **The mutation-testing discipline moved into `CLAUDE.md`**, where every future stage inherits it,
+  rather than being restated in each plan: back the file up and restore from the copy, grep after
+  applying *and* after restoring, and predict which tests should fail before running.
