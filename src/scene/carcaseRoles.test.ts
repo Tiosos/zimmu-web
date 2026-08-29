@@ -16,7 +16,7 @@ import type { JointDescriptor, PanelSpec, RoleSpec } from './carcaseRoles'
 import { dadoDepthFor } from '../geom/dado'
 import { legacyToSection } from './migrateSections'
 import { seedInteriors } from './sectionInterior'
-import type { Section } from './sectionTree'
+import type { FrontSpec, Section } from './sectionTree'
 import { reconcileJoints } from './reconcileJoints'
 import type {
   BoardPart,
@@ -222,6 +222,9 @@ const base: CarcaseParams = {
   toeKickSetback: 60,
   section: sec([], 1),
   jointMethod: 'dado-rabbet',
+  frontMaterial: '18mm Ply',
+  frontMount: 'overlay',
+  frontReveal: 3,
 }
 
 describe('validateCarcaseParams', () => {
@@ -1030,13 +1033,17 @@ describe('carcaseJoints', () => {
   it('covers every touching pair exactly once, as either a joint or a contact pair', () => {
     const cases: [string, CarcaseParams, number, number][] = [
       // The presets hold one adjustable shelf and no fixed one, and a loose shelf is joined to
-      // nothing and touches nothing — so its board appears in neither column. Every figure here is
-      // two joints and one contact below what it was when these cabinets carried a fixed shelf:
-      // its two dados into the sides, and its back edge against the back panel.
-      ['Base 600', CARCASE_PRESETS[0].params, 10, 1],
-      ['Wall 600', CARCASE_PRESETS[1].params, 8, 0],
+      // nothing and touches nothing — so its board appears in neither column.
+      //
+      // The door does appear, in the contact column only: an overlay front lands on the four
+      // panels it covers and is hung off them, which is a contact and never joinery. Every preset
+      // case below is therefore four contacts above what it was before Stage E, and its joint count
+      // is unchanged — which is the "a front is housed in nothing" claim, counted. The cases that
+      // override `section` carry no door and move not at all.
+      ['Base 600', CARCASE_PRESETS[0].params, 10, 5],
+      ['Wall 600', CARCASE_PRESETS[1].params, 8, 4],
       ['Base 600 + divider', { ...CARCASE_PRESETS[0].params, section: sec([0.5], 1) }, 16, 4],
-      ['Ladder 600', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder' }, 12, 10],
+      ['Ladder 600', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder' }, 12, 14],
       [
         'Ladder 600 + divider',
         { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', section: sec([0.5], 1) },
@@ -1052,16 +1059,16 @@ describe('carcaseJoints', () => {
       // An applied back is screwed onto the back of the shell instead of being let into it, so
       // its four panel pairs move from the joint column to the contact column without changing
       // the total.
-      ['Applied back', { ...CARCASE_PRESETS[0].params, backMode: 'applied' }, 6, 5],
+      ['Applied back', { ...CARCASE_PRESETS[0].params, backMode: 'applied' }, 6, 9],
       // One more contact pair than a captured back on the same frame: covering the shell, the
       // applied back reaches the top of the frame and lands on the back rail.
       [
         'Applied back on a ladder base',
         { ...CARCASE_PRESETS[0].params, backMode: 'applied', baseMode: 'ladder' },
         8,
-        15,
+        19,
       ],
-      ['Ladder 1200', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', width: 1200 }, 14, 11],
+      ['Ladder 1200', { ...CARCASE_PRESETS[0].params, baseMode: 'ladder', width: 1200 }, 14, 15],
     ]
     for (const [name, p, jointCount, contactCount] of cases) {
       const joints = carcaseJoints(p, 'cmp_1')
@@ -1919,6 +1926,120 @@ describe('adjustable shelves', () => {
     const p = oneBay(6, { count: 3 })
     expect(shelfBoxes(p).length).toBeLessThanOrEqual(3)
     expect(shelfBoxes(p).length).toBeGreaterThan(0)
+  })
+})
+
+describe('fronts', () => {
+  const DOOR = { kind: 'door', leaves: 1, hinge: 'left' } as const
+
+  const fronted = (p: CarcaseParams, front: FrontSpec = DOOR): CarcaseParams => ({
+    ...p,
+    section: { ...p.section, front },
+  })
+
+  const frontBoxes = (p: CarcaseParams) =>
+    carcaseBoxes(p).filter((b) => b.role.startsWith('front-'))
+
+  const oneBay: CarcaseParams = { ...base, section: sec([], 0) }
+
+  it('emits one board per front cell', () => {
+    expect(frontBoxes(fronted(oneBay))).toHaveLength(1)
+  })
+
+  it('emits none for a section with no front', () => {
+    expect(frontBoxes(oneBay)).toEqual([])
+  })
+
+  // Overlay sits in front of the carcase face, inset sits in the opening. The y extent is the whole
+  // difference between the two mounts, so it is asserted as the difference.
+  it('places an overlay front before the carcase face and an inset front in the opening', () => {
+    const [overlay] = frontBoxes(fronted({ ...oneBay, frontMount: 'overlay' }))
+    expect(overlay.box.y0).toBeCloseTo(-T, 9)
+    expect(overlay.box.y1).toBeCloseTo(0, 9)
+
+    const [inset] = frontBoxes(fronted({ ...oneBay, frontMount: 'inset' }))
+    expect(inset.box.y0).toBeCloseTo(0, 9)
+    expect(inset.box.y1).toBeCloseTo(T, 9)
+  })
+
+  it('is a thickness-on-y panel that runs grain along its length', () => {
+    for (const r of carcaseRoles(fronted(oneBay)).filter((r) => r.role.startsWith('front-'))) {
+      expect(r.grain).toBe('length')
+    }
+    expect(frontBoxes(fronted(oneBay))[0].thicknessAxis).toBe('y')
+  })
+
+  // A front hangs on hardware and is housed in nothing, so it appears in no joint descriptor and
+  // `extendToward` never reaches it. Were it ever to appear, its length would grow by a groove
+  // depth and every reveal on the cabinet would be wrong.
+  it('is housed in nothing, so no joint extends it', () => {
+    const p = fronted(oneBay)
+    const fronts = new Set(frontBoxes(p).map((b) => b.role))
+    for (const d of carcaseJoints(p, 'cmp_1')) {
+      expect(fronts.has(d.housingRole), d.housingRole).toBe(false)
+      expect(fronts.has(d.housedRole), d.housedRole).toBe(false)
+    }
+  })
+
+  // The governing rule, measured on the emitted boxes rather than on the cell arithmetic. The two
+  // mounts state it differently and that difference is real: overlay fronts cover the division and
+  // meet over it, so the gap between *them* is one reveal; inset fronts sit either side of a
+  // division that stays visible, so each clears *it* by one reveal. Asserting a front-to-front gap
+  // for both would be asserting a cabinet that does not exist.
+  const twoDoors = (frontMount: 'overlay' | 'inset'): CarcaseParams => {
+    const divided: CarcaseParams = { ...base, frontMount, section: sec([0.5], 0) }
+    if (divided.section.content.kind !== 'split') throw new Error('fixture is not a split')
+    return {
+      ...divided,
+      section: {
+        ...divided.section,
+        content: {
+          ...divided.section.content,
+          children: divided.section.content.children.map((c) => ({ ...c, front: DOOR })),
+        },
+      },
+    }
+  }
+
+  it('leaves one reveal between two overlay fronts', () => {
+    const p = twoDoors('overlay')
+    const [left, right] = frontBoxes(p).sort((a, b) => a.box.x0 - b.box.x0)
+    expect(right.box.x0 - left.box.x1).toBeCloseTo(p.frontReveal, 9)
+  })
+
+  it('clears the partition by one reveal on each side when inset', () => {
+    const p = twoDoors('inset')
+    const [left, right] = frontBoxes(p).sort((a, b) => a.box.x0 - b.box.x0)
+    const partition = carcaseBoxes(p).find(
+      (b) => b.role.startsWith('division-') && b.thicknessAxis === 'x',
+    )!
+    expect(partition.box.x0 - left.box.x1).toBeCloseTo(p.frontReveal, 9)
+    expect(right.box.x0 - partition.box.x1).toBeCloseTo(p.frontReveal, 9)
+  })
+
+  // An overlay front lands on the carcase face and is fixed to it; an inset one is a reveal clear
+  // of everything. The asymmetry is the point — a contact the generator does not name becomes an
+  // unjoined pair on the joinery checklist forever, which is what Stage D learned from a shelf.
+  it('contacts the panels it covers when overlaid, and nothing when inset', () => {
+    const overlay = fronted({ ...oneBay, frontMount: 'overlay' })
+    const role = frontBoxes(overlay)[0].role
+    const covered = carcaseContactPairs(overlay)
+      .filter(([a, b]) => a === role || b === role)
+      .map(([a, b]) => (a === role ? b : a))
+      .sort()
+    expect(covered).toEqual(['bottom', 'left-side', 'right-side', 'top'])
+
+    const inset = fronted({ ...oneBay, frontMount: 'inset' })
+    const insetRole = frontBoxes(inset)[0].role
+    expect(
+      carcaseContactPairs(inset).filter(([a, b]) => a === insetRole || b === insetRole),
+    ).toEqual([])
+  })
+
+  it('gives a two-leaf door two boards that do not overlap', () => {
+    const pair = fronted(oneBay, { kind: 'door', leaves: 2, hinge: 'left' })
+    const [l, r] = frontBoxes(pair).sort((a, b) => a.box.x0 - b.box.x0)
+    expect(r.box.x0).toBeGreaterThan(l.box.x1)
   })
 })
 

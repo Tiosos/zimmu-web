@@ -268,7 +268,8 @@ test('a fully jointed cabinet renders as one collapsed group line', () => {
 test('contact pairs are listed as needing no joint, not as unavailable', () => {
   panel({ suggestions: [], scene: cabinetScene() })
   expand()
-  expect(screen.getByText(/No joint needed \(1\)/)).toBeTruthy()
+  // Five: the bottom on the toe kick, plus the door on each of the four panels it covers.
+  expect(screen.getByText(/No joint needed \(5\)/)).toBeTruthy()
   fireEvent.click(screen.getByText(/No joint needed/))
   expect(screen.getByText('Bottom + Toe Kick')).toBeTruthy()
 })

@@ -83,6 +83,10 @@ the commonest cabinet there is.
 The gate is a Claude Code `PreToolUse` hook running `pnpm typecheck`; `--no-verify` is inert.
 **Never** edit `.claude/settings.json` or `.claude/hooks/`.
 
+**Before every mutation check, `cp` the file to the scratchpad and restore from that copy.** Not
+`git checkout`: within a group the file carries uncommitted work, and `git checkout` throws all of
+it away. That happened in this session, in Group B, and cost the whole `carcaseRoles.ts` edit.
+
 | commit | covers | why it is green |
 |---|---|---|
 | **A** | `FrontSpec` + `frontCells(root, tree, geometry)` — rectangles with reveals applied | new module, no consumer |
@@ -835,8 +839,9 @@ open(p, 'w').write(s.replace(old, new, 1))
 Grep to confirm: `grep -n "\-FT - 6" src/scene/carcaseRoles.ts`
 Run: `pnpm vitest run src/scene/carcaseRoles.test.ts -t fronts`
 Expected: FAIL on *places an overlay front before the carcase face* **and** on *contacts the panels
-it covers* — the front no longer reaches `y = 0`, so nothing touches it. Restore with
-`git checkout src/scene/carcaseRoles.ts` and grep again.
+it covers* — the front no longer reaches `y = 0`, so nothing touches it. Restore by copying the file back from a `cp` you took **before** mutating it — **never**
+`git checkout` on a file whose group is not yet committed, which is how this exact step destroyed a
+group's worth of uncommitted work in this session. Grep again after restoring.
 
 - [ ] **Step 7: Run the full suite; expect the checklist counts to move**
 
@@ -1262,7 +1267,7 @@ open(p, 'w').write(s.replace(old, new, 1))
 
 Grep to confirm: `grep -n "n \* t) / n" src/scene/carcaseRoles.ts`
 Expected: FAIL on *emits a fixed shelf per interior, evenly spaced and jointed* — the shelves march
-past the section's ceiling. Restore with `git checkout src/scene/carcaseRoles.ts` and grep again.
+past the section's ceiling. Restore from the `cp` backup, not `git checkout` — the group is not committed yet. Grep again.
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 

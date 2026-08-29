@@ -187,11 +187,22 @@ export interface CarcaseParams {
   // says which. There is no `frontMaterial` until there are fronts to use it.
   carcaseMaterial: string
   backMaterial: string
+  // Fronts draw on their own slot, so a shaker door in oak on a ply carcase is one field, not a
+  // per-part override on every door. Material is the nest's grouping key, so this also gives the
+  // fronts their own sheet count and cost line in the yield report.
+  frontMaterial: string
   hasTop: boolean
   backMode: 'captured' | 'applied' | 'none'
   baseMode: 'toe-kick' | 'ladder' | 'legs' | 'none'
   toeKickHeight: number
   toeKickSetback: number
+  // Inset sits the front in the opening, `y ∈ [0, FT]`; overlay puts it in front of the carcase,
+  // `y ∈ [−FT, 0]`. The difference is not cosmetic: an overlay front lands on the carcase face and
+  // is a contact pair, an inset one is a reveal clear of everything.
+  frontMount: 'overlay' | 'inset'
+  // The visible gap, everywhere. One number governs the gap between two fronts, between a front and
+  // the carcase, and between the doors of two cabinets standing side by side.
+  frontReveal: number
   // The cabinet's interior division *and* its shelving: a pin row belongs to the section that
   // needs it, so there is no cabinet-wide adjustable-shelf bundle to state one.
   section: Section

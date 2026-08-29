@@ -1,5 +1,6 @@
 import { legacyToSection } from './migrateSections'
 import { defaultInterior, seedInteriors } from './sectionInterior'
+import type { FrontSpec, Section } from './sectionTree'
 import type { CarcaseParams, MaterialDef } from './types'
 
 export interface CarcasePreset {
@@ -24,6 +25,10 @@ export const PRESET_MATERIALS: Record<string, MaterialDef> = {
   [DEFAULT_BACK_MATERIAL]: { thickness: 12 },
 }
 
+// Fronts are the same 18 mm ply as the carcase until someone says otherwise. A separate slot with
+// the same default is the point: changing it is one edit, and the nest reports it separately.
+export const DEFAULT_FRONT_MATERIAL = DEFAULT_CARCASE_MATERIAL
+
 // Shared by every preset: the parameters a cabinet's *size* does not change.
 const COMMON = {
   carcaseMaterial: DEFAULT_CARCASE_MATERIAL,
@@ -33,6 +38,13 @@ const COMMON = {
   // the user makes, not the one they get by default — and unlike dowel or confirmat, screwing is a
   // joint the app can derive geometry for, so the cabinet it drops in is fully described.
   jointMethod: 'butt-screw',
+  frontMaterial: DEFAULT_FRONT_MATERIAL,
+  // Overlay, because it is what a frameless cabinet is: the doors cover the carcase edges. Inset is
+  // a decision, not a default — it needs tighter tolerances and it moves every shelf back.
+  frontMount: 'overlay',
+  // 3 mm: the gap a frameless kitchen is usually built to, and small enough that a wrong reveal
+  // reads as a defect rather than as a style.
+  frontReveal: 3,
 } satisfies Partial<CarcaseParams>
 
 // Every opening a preset makes wants the same shelving, which is exactly what the one cabinet-wide
@@ -43,6 +55,17 @@ const shelved = (dividers: number[], fixedShelves: number, width: number, shelve
     legacyToSection(dividers, fixedShelves, width, CARCASE_THICKNESS),
     defaultInterior(shelves),
   )
+
+// A cabinet that bores hinge positions and hangs nothing on them is a carcase, not a cabinet — the
+// same argument that gave the presets their shelves. Hinged left because a single door has to be
+// hinged somewhere and the user flips it in one click.
+const DOOR: FrontSpec = { kind: 'door', leaves: 1, hinge: 'left' }
+
+// Only a leaf wears a front. Tall 600's root is a *split* — four fixed shelves make five stacked
+// sections — so it cannot carry one door over the whole cabinet, and five doors on a pantry is not
+// a pantry. It stays bare until `interior.fixedShelves` lets a section hold shelves and stay a leaf.
+const doored = (root: Section): Section =>
+  root.content.kind === 'leaf' ? { ...root, front: DOOR } : root
 
 export const CARCASE_PRESETS: CarcasePreset[] = [
   {
@@ -59,7 +82,7 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       // One clear opening holding one adjustable shelf. A base unit is shelved by what the user
       // moves, not by a partition built into it — the fixed shelf this preset used to carry was
       // inherited from the v12 `fixedShelves: 1` parameter, not chosen.
-      section: shelved([], 0, 600, 1),
+      section: doored(shelved([], 0, 600, 1)),
     },
   },
   {
@@ -73,7 +96,7 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       baseMode: 'none',
       toeKickHeight: 100,
       toeKickSetback: 60,
-      section: shelved([], 0, 600, 1),
+      section: doored(shelved([], 0, 600, 1)),
     },
   },
   {

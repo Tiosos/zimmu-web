@@ -1497,6 +1497,77 @@ describe('v12 loader defaults a carcase back setback', () => {
 
 // `base.params` is typed loosely in useFile.ts, so `tsc` cannot see a file-format regression here.
 // A v16 migration needs a parseFile test, not a green typecheck.
+// `base.params` is typed loosely in useFile.ts, so `tsc` cannot see a file-format regression here.
+// A v17 migration needs a parseFile test, not a green typecheck.
+describe('v16 → v17 migration', () => {
+  const v16 = (params: Record<string, unknown>) =>
+    JSON.stringify({
+      version: 16,
+      scene: {
+        parts: [],
+        materials: { '18mm Ply': { thickness: 18 }, '12mm MDF': { thickness: 12 } },
+        hardware: [],
+        joints: [],
+        components: [
+          {
+            kind: 'carcase',
+            id: 'cmp_1',
+            label: 'Base',
+            parentId: null,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            visible: true,
+            params: {
+              width: 600,
+              height: 720,
+              depth: 560,
+              carcaseMaterial: '18mm Ply',
+              backMaterial: '12mm MDF',
+              hasTop: true,
+              backMode: 'captured',
+              baseMode: 'toe-kick',
+              toeKickHeight: 100,
+              toeKickSetback: 60,
+              jointMethod: 'butt-screw',
+              section: legacyToSection([], 0, 600, 18),
+              ...params,
+            },
+          },
+        ],
+      },
+    })
+
+  const carcaseOf = (text: string) => {
+    const c = parseFile(text).scene.components[0]
+    if (c.kind !== 'carcase') throw new Error('not a carcase')
+    return c.params
+  }
+
+  // A pre-v17 file states no front slot at all, and every read site downstream treats the three
+  // fields as present — `carcaseBoxes` dereferences `frontMount` on every call.
+  it('fills the three front fields a pre-v17 file cannot state', () => {
+    const p = carcaseOf(v16({}))
+    expect(p.frontMaterial).toBe('18mm Ply')
+    expect(p.frontMount).toBe('overlay')
+    expect(p.frontReveal).toBe(3)
+  })
+
+  // A file that has no fronts must not gain any: a door appearing in someone's saved cabinet is a
+  // change to what they drew, not a migration.
+  it('invents no fronts', () => {
+    const p = carcaseOf(v16({}))
+    const boxes = boxesOf(p, roleThicknessFor(p, PRESET_MATERIALS, new Map()))
+    expect(boxes.filter((b) => b.role.startsWith('front-'))).toEqual([])
+  })
+
+  it('leaves the three fields alone when the file already states them', () => {
+    const p = carcaseOf(v16({ frontMaterial: '12mm MDF', frontMount: 'inset', frontReveal: 2 }))
+    expect(p.frontMaterial).toBe('12mm MDF')
+    expect(p.frontMount).toBe('inset')
+    expect(p.frontReveal).toBe(2)
+  })
+})
+
 describe('v15 → v16 migration', () => {
   const shelves = { rows: 2, pitch: 32, setback: 50, backSetback: 44, startHeight: 200, count: 10 }
   const v15 = (params: Record<string, unknown>) =>

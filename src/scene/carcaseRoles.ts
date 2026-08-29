@@ -10,10 +10,12 @@ import {
   type DivisionThickness,
   type Rect,
   type ResolvedDivision,
+  type FrontSpec,
   type ResolvedTree,
   type SectionBounds,
 } from './sectionTree'
 import { sectionInteriors, type AdjustableSpec } from './sectionInterior'
+import { frontCells } from './frontCells'
 
 export type { ThicknessAxis }
 
@@ -239,6 +241,15 @@ const SHELF_CLEARANCE = 2
 // inset, and the door is not there to be measured against when the shelf is generated.
 const SHELF_FRONT_SETBACK = 5
 
+// What a front is called in the cutting list. A door and a false front are different parts to make
+// and to price, so they are different words even where the geometry is identical.
+const FRONT_LABEL: Record<FrontSpec['kind'], string> = {
+  door: 'Door',
+  'drawer-front': 'Drawer Front',
+  'false-front': 'False Front',
+  panel: 'Panel',
+}
+
 // The pin positions a section actually has: what its spec asked for, capped by what fits between
 // its own floor and its own ceiling. Stated once because two things read it — the row of bores,
 // and the shelves that have to sit on pins that exist.
@@ -455,6 +466,16 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
     })
   }
 
+  const cells = frontCells(p.section, tree, {
+    // The carcase *body*, which is what a front covers: from the bottom panel's underside to the
+    // top. `floorZ` already returns `toeKickHeight` for both a toe kick and a ladder and 0
+    // otherwise, so no base-mode branch is needed. Not `carcaseZ0`: under a toe kick the sides run
+    // to the ground and a door that followed them would cover the kick.
+    outer: { x0: 0, x1: W, z0: floorZ(p), z1: H },
+    mount: p.frontMount,
+    reveal: p.frontReveal,
+  })
+
   // Loose shelves on pins, after the divisions: the build order runs shell, then what divides it,
   // then what sits inside. Keyed on the section's own id, the same way a division is keyed on the
   // id of the section it splits, so two openings that both hold shelves cannot name one board.
@@ -488,6 +509,31 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
         },
         thicknessAxis: 'z',
       })
+    })
+  }
+
+  // Fronts last: the build order runs shell, then what divides it, then what sits inside, then what
+  // covers it. A front is housed in nothing, so no joint descriptor names it and the extension pass
+  // in `carcaseRoles` passes it through face-to-face sized.
+  let faced = 0
+  for (const cell of cells) {
+    const role = `front-${cell.sectionId}-${cell.leaf}`
+    const FT = thicknessOf(role)
+    faced += 1
+    boxes.push({
+      role,
+      label: `${FRONT_LABEL[cell.spec.kind]} ${faced}`,
+      box: {
+        x0: cell.rect.x0,
+        x1: cell.rect.x1,
+        // Inset sits in the opening, overlay in front of the carcase face. Both are measured from
+        // y = 0, which is the cabinet's front throughout the generator.
+        y0: p.frontMount === 'inset' ? 0 : -FT,
+        y1: p.frontMount === 'inset' ? FT : 0,
+        z0: cell.rect.z0,
+        z1: cell.rect.z1,
+      },
+      thicknessAxis: 'y',
     })
   }
 
@@ -778,6 +824,28 @@ export function carcaseContactPairs(
       sectionThickness(thicknessOf),
     )
     for (const d of tree.divisions) pairs.push(['back', `division-${d.parentId}-${d.index}`])
+  }
+
+  // A front that reaches the carcase face lands flat on every panel it covers, and is fixed to it —
+  // by hinges, by screws through a drawer box, by whatever hangs it. That is a contact, not
+  // joinery, and a contact the generator does not name is an unjoined pair on the checklist
+  // forever. An inset front stands in the opening, a reveal clear of everything, and contributes
+  // none.
+  //
+  // Read off the emitted boxes rather than off `frontMount`: the mount is what *decides* where the
+  // front sits, so asking it here would let the box and the contact disagree silently if either
+  // moved. `y1 === 0` is the front's inner face on the carcase face, which is the contact itself.
+  const boxes = carcaseBoxes(p, thicknessOf)
+  const fronts = boxes.filter((b) => b.role.startsWith('front-') && b.box.y1 === 0)
+  for (const f of fronts) {
+    for (const b of boxes) {
+      // The carcase face is y = 0. Every panel that reaches it and lies behind the front's
+      // rectangle is under it; the toe kick and the ladder rails are set back and are not.
+      if (b.box.y0 !== 0 || b.role.startsWith('front-')) continue
+      if (b.box.x1 <= f.box.x0 || b.box.x0 >= f.box.x1) continue
+      if (b.box.z1 <= f.box.z0 || b.box.z0 >= f.box.z1) continue
+      pairs.push([f.role, b.role])
+    }
   }
   return pairs
 }

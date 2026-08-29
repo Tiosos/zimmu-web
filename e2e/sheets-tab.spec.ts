@@ -23,12 +23,14 @@ test('the Sheets tab nests a real cabinet through the nest worker', async ({ pag
     timeout: OCCT_READY_TIMEOUT,
   })
 
-  // A Base 600 emits 7 boards: six of "18mm Ply" and a back of "12mm MDF", which is the material
+  // A Base 600 emits 8 boards: seven of "18mm Ply" and a back of "12mm MDF", which is the material
   // its back slot names (src/scene/carcasePresets.ts). Only the ply is given stock below, so the
-  // back is simply absent from the yield report — a material with no sheet is not nested.
+  // back is simply absent from the yield report — a material with no sheet is not nested. The door
+  // draws on `frontMaterial`, which is the same ply by default; point that slot elsewhere and it
+  // becomes its own nest group with its own sheet count.
   await page.getByLabel('Add cabinet').click()
   await page.getByRole('option', { name: 'Base 600' }).click()
-  await expect(page.getByTestId(/^node-board_/)).toHaveCount(8) // 7 + the seeded Board 1
+  await expect(page.getByTestId(/^node-board_/)).toHaveCount(9) // 8 + the seeded Board 1
 
   await page.getByRole('button', { name: /^File/ }).click()
   await page.getByRole('button', { name: /Cutting List/ }).click()
@@ -50,20 +52,19 @@ test('the Sheets tab nests a real cabinet through the nest worker', async ({ pag
   await panel.getByRole('tab', { name: 'Sheets' }).click()
 
   // Ground truth, computed directly from `regenerateComponents` → `reconcileJoints` →
-  // `occupancyMask` → `nestSheets` at the default 14 mm clearance: one sheet, 60.38% used, nothing
+  // `occupancyMask` → `nestSheets` at the default 14 mm clearance: one sheet, 72.76% used, nothing
   // left over. Pinned exactly because a figure that merely looks plausible is what this test
   // exists to rule out — if the packer is ever improved, this number is expected to move with it.
-  // It was 72.83% while the back was nested here too, and 61.30% while the preset's one shelf was
-  // a fixed one rather than the adjustable board that replaced it.
+  // It was 60.38% before the preset hung a door, and 61.30% before its one shelf became adjustable.
   const row = panel.getByTestId('sheets-row-18mm Ply')
   await expect(row).toContainText('2440 × 1220 mm')
   await expect(row).toContainText('sheets 1')
-  await expect(row).toContainText('used 60%')
+  await expect(row).toContainText('used 73%')
   await expect(panel.getByRole('alert')).toHaveCount(0)
 
   const svgs = panel.locator('svg[role="img"]')
   await expect(svgs).toHaveCount(1)
-  await expect(svgs.first().locator('[data-part]')).toHaveCount(6)
+  await expect(svgs.first().locator('[data-part]')).toHaveCount(7)
 
   const drawn: SheetSvg = await svgs.first().evaluate((el) => {
     const num = (r: Element, a: string) => parseFloat(r.getAttribute(a) ?? 'NaN')
@@ -111,6 +112,7 @@ test('the Sheets tab nests a real cabinet through the nest worker', async ({ pag
   expect(drawn.labels.sort()).toEqual([
     'Adj Shelf 1',
     'Bottom',
+    'Door 1',
     'Left Side',
     'Right Side',
     'Toe Kick',
@@ -128,7 +130,7 @@ test('stock too small for any panel reports every part as unplaced', async ({ pa
 
   await page.getByLabel('Add cabinet').click()
   await page.getByRole('option', { name: 'Base 600' }).click()
-  await expect(page.getByTestId(/^node-board_/)).toHaveCount(8)
+  await expect(page.getByTestId(/^node-board_/)).toHaveCount(9)
 
   await page.getByRole('button', { name: /^File/ }).click()
   await page.getByRole('button', { name: /Cutting List/ }).click()
@@ -156,6 +158,7 @@ test('stock too small for any panel reports every part as unplaced', async ({ pa
     'Bottom',
     'Top',
     'Adj Shelf 1',
+    'Door 1',
     'Toe Kick',
   ]) {
     await expect(alert).toContainText(label)

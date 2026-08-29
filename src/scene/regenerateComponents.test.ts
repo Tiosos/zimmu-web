@@ -39,6 +39,9 @@ const params: CarcaseParams = {
   // and a section that asks for nothing is now the same statement.
   section: legacyToSection([], 1, 600, 18),
   jointMethod: 'dado-rabbet',
+  frontMaterial: '18mm Ply',
+  frontMount: 'overlay',
+  frontReveal: 3,
 }
 
 // A division's role key carries the uuid of the section it splits, so tests name one by what it is

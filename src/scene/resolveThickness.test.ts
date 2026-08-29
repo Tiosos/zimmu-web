@@ -9,7 +9,11 @@ const MATERIALS: Record<string, MaterialDef> = {
   Dowel: { costPerM: 2 }, // no thickness — not a sheet good
 }
 
-const slots = { carcaseMaterial: '18mm Ply', backMaterial: '12mm MDF' }
+const slots = {
+  carcaseMaterial: '18mm Ply',
+  backMaterial: '12mm MDF',
+  frontMaterial: '25mm Ply',
+}
 
 describe('roleThicknessFor', () => {
   it('gives every carcase role the carcase slot thickness', () => {
@@ -21,6 +25,16 @@ describe('roleThicknessFor', () => {
 
   it('gives the back its own slot thickness', () => {
     expect(roleThicknessFor(slots, MATERIALS, new Map())('back')).toBe(12)
+  })
+
+  // Three slots, three answers from one resolver. A front is a family rather than a name — its role
+  // carries the section it covers and which leaf it is — so a `startsWith` is what tells them apart.
+  it('draws a front on the front slot, not the carcase slot', () => {
+    const t = roleThicknessFor(slots, MATERIALS, new Map())
+    expect(t('front-sec_a-0')).toBe(25)
+    expect(t('front-sec_a-1')).toBe(25)
+    expect(t('left-side')).toBe(18)
+    expect(t('back')).toBe(12)
   })
 
   it('a material override takes that material thickness', () => {

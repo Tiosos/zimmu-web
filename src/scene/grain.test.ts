@@ -35,6 +35,7 @@ function familyOf(b: RoleBox): string {
   // Same argument, same shape: an adjustable shelf's role carries the section it sits in, and
   // stripping only the trailing index would leave that identity in the family name.
   if (b.role.startsWith('adj-shelf-')) return 'adj-shelf'
+  if (b.role.startsWith('front-')) return 'front'
   return b.role.replace(/-\d+$/, '')
 }
 
@@ -94,10 +95,11 @@ describe('every generated role states a grain direction', () => {
     expect(() => grainAxisOf('division-sec_root-0')).toThrow(/needs its split axis/)
   })
 
-  // The plan and the baseline both assume 96. A sweep that silently changed size would make the
-  // equivalence test cover less than it claims.
-  it('the sweep is 96 cases', () => {
-    expect(SWEEP).toHaveLength(96)
+  // A sweep that silently changed size would make the role-coverage test above cover less than it
+  // claims. 192 = 4 base modes × 3 back modes × 2 tops × 2 front mounts × 2 divider sets × 2 shelf
+  // counts; it was 96 before the front mount became a loop variable in Stage E.
+  it('the sweep is 192 cases', () => {
+    expect(SWEEP).toHaveLength(192)
   })
 })
 

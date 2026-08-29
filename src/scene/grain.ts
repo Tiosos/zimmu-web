@@ -31,6 +31,10 @@ export function grainAxisOf(role: string, splitAxis?: 'vertical' | 'horizontal')
   if (role.startsWith('adj-shelf-')) return 'x'
   if (role === 'left-side' || role === 'right-side') return 'z'
   if (role === 'back') return 'z'
+  // Grain runs vertical on every front, and a front is a thickness-on-y panel exactly like the
+  // back — so it joins that branch verbatim and `grainFieldFor('y', 'z')` resolves it to 'length'
+  // through the existing GRAIN_IN_PLANE map. No new map entry.
+  if (role.startsWith('front-')) return 'z'
   if (role === 'bottom' || role === 'top') return 'x'
   if (role === 'toe-kick' || role === 'ladder-front' || role === 'ladder-back') return 'x'
   if (role === 'ladder-left' || role === 'ladder-right' || role.startsWith('ladder-mid-'))

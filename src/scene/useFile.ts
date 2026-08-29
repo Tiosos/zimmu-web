@@ -11,12 +11,17 @@ import type {
 } from './types'
 import * as idb from './idb'
 import { breakComponentCycles, promoteOrphans } from './componentTree'
-import { DEFAULT_BACK_MATERIAL, DEFAULT_CARCASE_MATERIAL, PRESET_MATERIALS } from './carcasePresets'
+import {
+  DEFAULT_BACK_MATERIAL,
+  DEFAULT_CARCASE_MATERIAL,
+  DEFAULT_FRONT_MATERIAL,
+  PRESET_MATERIALS,
+} from './carcasePresets'
 import { legacyToSection } from './migrateSections'
 import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
 
-export const FILE_FORMAT_VERSION = 16
+export const FILE_FORMAT_VERSION = 17
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -240,6 +245,9 @@ export function parseFile(text: string): ZimmuFile {
             backSetback?: number
             count: number
           }
+          frontMaterial?: string
+          frontMount?: 'overlay' | 'inset'
+          frontReveal?: number
         }
         const divided =
           legacy.section ??
@@ -294,6 +302,14 @@ export function parseFile(text: string): ZimmuFile {
           section,
           carcaseMaterial: materialAtThickness(materials, carcaseName, legacy.thickness),
           backMaterial: materialAtThickness(materials, backName, legacy.backThickness),
+          // v16→v17: fronts arrive. A pre-v17 file states no front slot, so the three fields are
+          // defaulted here and nowhere else — every read site downstream treats them as present,
+          // and `carcaseBoxes` dereferences `frontMount` on every call. No `front` is seeded on any
+          // section: a door appearing in a saved cabinet is a change to what the user drew, not a
+          // migration of it.
+          frontMaterial: legacy.frontMaterial ?? DEFAULT_FRONT_MATERIAL,
+          frontMount: legacy.frontMount ?? 'overlay',
+          frontReveal: legacy.frontReveal ?? 3,
         }
         // Dropped, not kept alongside the tree: two descriptions of the same divisions would
         // disagree the moment either is edited. The same argument retires the per-carcase

@@ -353,21 +353,24 @@ describe('contact rows', () => {
     expect(rowWith(c.unresolved, back, shelf)).toBeUndefined()
   })
 
-  // 11 touching pairs, 10 of them jointed: the one contact pair is what would otherwise make this
-  // read 10 / 11 with nothing the user could ever do about the remainder. Every figure in this
-  // file dropped by two joints and one contact when the preset traded its fixed shelf for an
-  // adjustable one — and the adjustable board adds nothing back, which is the claim that a loose
-  // shelf touches nothing, measured here through `boardsTouch` rather than asserted.
+  // 15 touching pairs, 10 of them jointed: the five contact pairs are what would otherwise make
+  // this read 10 / 15 with nothing the user could ever do about the remaining five. Four of those
+  // five are the door landing on the panels it covers — an overlay front is hung off the carcase,
+  // never joined into it — and the fifth is the bottom on the toe kick.
+  //
+  // The counts here are measured through `boardsTouch` on the real generated parts, so they are
+  // also where two claims get checked rather than asserted: a loose shelf touches nothing (it adds
+  // no pair), and a front is housed in nothing (it adds no *joint*).
   test('leaves a fully jointed base cabinet reading 10 / 10', () => {
     const c = checklistOf(cabinetScene([carcase('cmp_1', 'Base 600')]))
     expect(c.jointedCount).toBe(10)
     expect(c.actionableTotal).toBe(10)
-    expect(c.contact).toHaveLength(1)
+    expect(c.contact).toHaveLength(5)
   })
 
   test('still marks contact pairs when the cabinet uses a fastener method', () => {
     const c = checklistOf(cabinetScene([carcase('cmp_1', 'Base 600', { jointMethod: 'dowel' })]))
-    expect(c.contact).toHaveLength(1)
+    expect(c.contact).toHaveLength(5)
     expect(c.contact.every((r) => r.state === 'contact')).toBe(true)
     expect(c.jointedCount).toBe(0)
     expect(c.actionableTotal).toBe(10)
@@ -379,7 +382,7 @@ describe('contact rows', () => {
     )
     expect(wall.jointedCount).toBe(8)
     expect(wall.actionableTotal).toBe(8)
-    expect(wall.contact).toHaveLength(0)
+    expect(wall.contact).toHaveLength(4)
 
     const divided = checklistOf(
       cabinetScene([
@@ -398,7 +401,7 @@ describe('contact rows', () => {
     const c = checklistOf(cabinetScene([carcase('cmp_1', 'Ladder 600', { baseMode: 'ladder' })]))
     expect(c.jointedCount).toBe(12)
     expect(c.actionableTotal).toBe(12)
-    expect(c.contact).toHaveLength(10)
+    expect(c.contact).toHaveLength(14)
     expect(c.unresolved).toHaveLength(0)
     expect(c.rows).toHaveLength(0)
     expect(c.groups[0].complete).toBe(true)
@@ -410,7 +413,7 @@ describe('contact rows', () => {
     const c = checklistOf(cabinetScene([carcase('cmp_1', 'Applied back', { backMode: 'applied' })]))
     expect(c.jointedCount).toBe(6)
     expect(c.actionableTotal).toBe(6)
-    expect(c.contact).toHaveLength(5)
+    expect(c.contact).toHaveLength(9)
     expect(c.unresolved).toHaveLength(0)
     expect(c.rows).toHaveLength(0)
     expect(c.groups[0].complete).toBe(true)
@@ -423,7 +426,7 @@ describe('contact rows', () => {
     )
     expect(c.jointedCount).toBe(14)
     expect(c.actionableTotal).toBe(14)
-    expect(c.contact).toHaveLength(11)
+    expect(c.contact).toHaveLength(15)
     expect(c.unresolved).toHaveLength(0)
     expect(c.rows).toHaveLength(0)
     expect(c.groups[0].complete).toBe(true)

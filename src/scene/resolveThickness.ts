@@ -8,6 +8,7 @@ export interface PartOverrides {
 export interface MaterialSlots {
   carcaseMaterial: string
   backMaterial: string
+  frontMaterial: string
 }
 
 export type RoleThickness = (role: string) => number
@@ -38,16 +39,19 @@ export function roleThicknessFor(
 }
 
 // Which material a role is made of: its own override, else the slot its role belongs to. The one
-// place the back's slot is told apart from every other panel's — the thickness rule above reads it,
-// and so does the regeneration that writes the name onto the part.
+// place the three slots are told apart — the thickness rule above reads it, and so does the
+// regeneration that writes the name onto the part.
 export function materialForRole(
   slots: MaterialSlots,
   overrides: Map<string, PartOverrides>,
   role: string,
 ): string {
-  return (
-    overrides.get(role)?.material ?? (role === 'back' ? slots.backMaterial : slots.carcaseMaterial)
-  )
+  const own = overrides.get(role)?.material
+  if (own !== undefined) return own
+  if (role === 'back') return slots.backMaterial
+  // A family, not a name: a front's role carries the section it covers and which leaf it is.
+  if (role.startsWith('front-')) return slots.frontMaterial
+  return slots.carcaseMaterial
 }
 
 // The overrides a component's own parts carry, keyed by role. Both the generator and anything that
