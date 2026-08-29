@@ -466,7 +466,7 @@ Substitute `depth: Math.min(PLATE_SCREW_DEPTH, (panel.thickness * 2) / 3),` →
 rather than 1 in the replace). Expected: FAIL on *never bores through the panel* at thickness 12.
 Restore from the backup and grep both sites.
 
-- [ ] **Acceptance:** the full suite passes with its count unchanged apart from your additions. Nothing consumes this yet.
+- [x] **Acceptance:** the full suite passes with its count unchanged apart from your additions. Nothing consumes this yet.
 
 ## Group B — cups reach the door
 
@@ -751,23 +751,23 @@ things that must match were asked separately. Restore from the backup and grep.
 
 ## Group D — close the stage
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test`, exit codes read directly, **never piped through `tail`/`head`**
-- [ ] `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e` → 17 passed. Do **not** run `playwright install`. No part count moves — this stage adds cuts, not boards — so a moved count is a bug, not a re-baseline.
-- [ ] Add a live-kernel assertion to `e2e/geom-kernel.spec.ts`: a ⌀35 cup is the largest bore the app makes, and the only one whose diameter is a meaningful fraction of the panel it goes into. The existing hole-array spec proves the kernel drills a pin row in the right place; extend it to prove a cup does too, and that a 12.5 mm blind bore leaves material behind it.
-- [ ] `CLAUDE.md`: `frontMachining.ts` in the tree, and an invariant that the module owns the machining fronts *imply* — two of its three families land on the carcase, not the front.
-- [ ] `node scripts/update-structure-html.mjs`, then the hand-written prose: the `src/scene/` table, the Features row, and the invariants table. The page was audited to Stage E; keep it there.
-- [ ] Notes: the board +Z finding; the figures being stated rather than derived and needing a woodworker's eye; anything the ⌀35 bore turns up in the live kernel.
+- [x] `pnpm typecheck && pnpm lint && pnpm test` — 1477 passed, 10 skipped, 78 files
+- [x] e2e → **18 passed** (17 + the new live-kernel cup). No part count moved, as predicted. Do **not** run `playwright install`. No part count moves — this stage adds cuts, not boards — so a moved count is a bug, not a re-baseline.
+- [x] Added a live-kernel assertion to `e2e/geom-kernel.spec.ts` — 24 052 mm³ removed, bore stops at z = 5.5: a ⌀35 cup is the largest bore the app makes, and the only one whose diameter is a meaningful fraction of the panel it goes into. The existing hole-array spec proves the kernel drills a pin row in the right place; extend it to prove a cup does too, and that a 12.5 mm blind bore leaves material behind it.
+- [x] `CLAUDE.md`: `frontMachining.ts` in the tree, and four invariants — machining is not on fronts, board +Z is the door's back in both mounts, a height between panels goes through carcase space, and the figures are stated — two of its three families land on the carcase, not the front.
+- [x] `node scripts/update-structure-html.mjs`, then the hand-written prose: the `src/scene/` table, the Features row, and the invariants table. The page was audited to Stage E; keep it there.
+- [x] Notes: the board +Z finding; the carcase-space height bug and the pattern it completes; the shared 37 mm setback that broke a drawing test; the figures being stated rather than derived and needing a woodworker's eye; anything the ⌀35 bore turns up in the live kernel.
 
 ## Acceptance
 
-- [ ] A door has a cup row on its **back**, verified by following the face into carcase space in **both** mounts
-- [ ] Cups sit at the hinge positions, blind, and a door too thin for one gets none
-- [ ] Plate screws land in the upright on the **hinged side only**, at the heights of the cups they carry
-- [ ] A drawer front puts slide screws in **both** flanking uprights and nothing on itself
-- [ ] A false front and a panel are machined nowhere
-- [ ] No id collides with the pin rows already on the same panel
-- [ ] Every bore lies inside its panel and short of its far face, across a swept range
-- [ ] Every mutation check above was run and reported
+- [x] A door has a cup row on its **back**, verified by following the face into carcase space in **both** mounts
+- [x] Cups sit at the hinge positions, blind, and a door too thin for one gets none
+- [x] Plate screws land in the upright on the **hinged side only**, at the heights of the cups they carry
+- [x] A drawer front puts slide screws in **both** flanking uprights and nothing on itself
+- [x] A false front and a panel are machined nowhere
+- [x] No id collides with the pin rows already on the same panel
+- [x] Every bore lies inside its panel and short of its far face, across a swept range
+- [x] Every mutation check above was run and reported
 
 ## What Stage F deliberately does not do
 

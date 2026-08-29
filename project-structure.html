@@ -354,7 +354,12 @@
             <td><code>scene/frontCells.ts</code>, <code>scene/carcaseRoles.ts</code>, <code>ui/CarcasePanel.tsx</code></td>
           </tr>
           <tr>
-            <td><strong>Front machining — hinge cups, plate and slide screws</strong></td>
+            <td><strong>Front machining — hinge cups, plate and slide screws</strong><br><span style="color:var(--muted);font-size:12px">Cups in the door's back, plate screws in the upright it is hinged on, slide screws in both uprights of a drawer bay — at the 32 mm system positions</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/frontMachining.ts</code>, <code>scene/carcaseRoles.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>The cabinet editor and its subtabs</strong></td>
             <td><span class="badge badge-yellow">Next</span></td>
             <td>—</td>
           </tr>
@@ -386,7 +391,7 @@
             <li>2D shop drawings (SVG + DXF)</li>
             <li>3D export (STL + STEP)</li>
             <li>Parametric cabinets, section tree, first-class joints</li>
-            <li>Fronts — doors, drawer fronts, panels</li>
+            <li>Fronts — doors, drawer fronts, panels — and the hardware machining they imply</li>
             <li>Sheet yield / nesting</li>
           </ul>
         </div>
@@ -518,6 +523,8 @@
 │   ├── fitCamera.ts
 │   ├── frontCells.test.ts
 │   ├── frontCells.ts
+│   ├── frontMachining.test.ts
+│   ├── frontMachining.ts
 │   ├── grain.test.ts
 │   ├── grain.ts
 │   ├── groupSuggestions.test.ts
@@ -680,6 +687,7 @@
           <tr><td><code>carcaseRoles.ts</code></td><td>Pure <code>CarcaseParams</code> → ordered <code>RoleSpec[]</code> (role key, dims, local position/rotation) — the whole geometry of a carcase: sides, back, top/bottom, toe-kick or ladder base, the divisions the section tree resolves, the fixed shelves an opening holds behind its front, the shelf-pin rows each opening asks for, the loose shelves seated on those pins, and the fronts that cover it all.</td></tr>
           <tr><td><code>sectionTree.ts</code></td><td>The cabinet's interior division as a recursive tree: <code>Section</code>, <code>InteriorSpec</code>, <code>resolveSections</code> (tree → rectangles + division boxes), <code>boundsOf</code> (what encloses a section), <code>validateSection</code>. Pure.</td></tr>
           <tr><td><code>sectionInterior.ts</code></td><td><code>sectionInteriors</code> — every leaf that asks for shelving, with its rect and bounds. <code>sectionOpenings</code> lists every leaf whether shelved or not, <code>setInterior</code> and <code>setFrontOn</code> write one section's spec, and <code>defaultInterior</code> / <code>seedInteriors</code> / <code>firstInterior</code> serve the presets, the migrations and the legacy shim.</td></tr>
+          <tr><td><code>frontMachining.ts</code></td><td>Every hinge and slide figure as a named constant — Blum-style 32 mm-system values, <em>stated rather than derived</em> — plus <code>cupRow</code>, <code>plateScrewRows</code> and <code>slideScrewRow</code>. It owns the machining a front <em>implies</em>, which is not the same as machining on fronts: only the cup lands on the door.</td></tr>
           <tr><td><code>frontCells.ts</code></td><td>The section tree as rectangles on the cabinet's front face, reveals already taken — the one statement of the reveal rule. An overlay cell reaches to the material midline and gives back half a reveal; an inset cell is the section's own rectangle and gives back a full reveal against carcase material, half against another front.</td></tr>
           <tr><td><code>migrateSections.ts</code></td><td><code>legacyToSection(dividers, fixedShelves, width, thickness)</code> — the one place pre-v13 divider/shelf parameters become a tree. Needs width and thickness: a v12 divider is centred on a fraction of the gross width, a section percentage is a share of the clear span.</td></tr>
           <tr><td><code>resolveThickness.ts</code></td><td><code>roleThicknessFor(slots, materials, overrides)</code> → <code>(role) =&gt; thickness</code>. The single statement of where a panel's thickness comes from: explicit override, else its own material, else the cabinet's slot for that role.</td></tr>
@@ -1152,6 +1160,18 @@ interface FaceHit {
             <td><code>SHELF_FRONT_SETBACK</code> is the floor, never the answer: the setback is <code>max(SHELF_FRONT_SETBACK, insetFrontThickness + SHELF_CLEARANCE)</code>. Only the section actually wearing a front pays — asking the cabinet would set every shelf back because one opening has a door.</td>
           </tr>
           <tr>
+            <td><strong>Front machining is not machining <em>on</em> fronts</strong></td>
+            <td>Three families, one on the door: a cup is bored into the door, the plate screws that carry it into the upright beside it, a drawer's slide screws into two uprights with nothing on the front. So <code>carcaseMachining</code> is asked <strong>per role</strong>, and plate screws go in the upright the door is <em>hinged on</em> and no other.</td>
+          </tr>
+          <tr>
+            <td><strong>A door's board +Z is its back in both mounts</strong></td>
+            <td>…at carcase y = 0 for overlay and y = FT for inset. Asserting the letters <code>'+Z'</code> proves only that the table agrees with itself: follow the face into carcase space, and require the wrong-face mutation to fail for <strong>both</strong> mounts.</td>
+          </tr>
+          <tr>
+            <td><strong>The hardware figures are stated, not derived</strong></td>
+            <td>⌀35 cups, 22.5 mm edge distance, the hinge-count table — read off standard hardware and falsifiable by no test here. A wrong figure produces a self-consistent cabinet that does not close.</td>
+          </tr>
+          <tr>
             <td><strong>A fixed shelf on an <code>interior</code> is not a division</strong></td>
             <td>A split with <code>division: 'panel'</code> makes a shelf <em>and</em> cuts the section in two, so each half is its own opening wanting its own front. <code>interior.fixedShelves</code> divides nothing: the section stays one leaf and wears one front, which is the only way to express a shelf behind a door.</td>
           </tr>
@@ -1239,7 +1259,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->76<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-29 the full Vitest run is 1436 passing (10 skipped) across 77 files (the 77th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 85 test files total including 9 Playwright specs in <code>e2e/</code>, which run 17 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->77<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-29 the full Vitest run is 1477 passing (10 skipped) across 78 files (the 78th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 86 test files total including 9 Playwright specs in <code>e2e/</code>, which run 18 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1389,7 +1409,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-27-cabinet-restructure-stage-b-materials-own-thickness.md
     │   ├── 2026-08-28-cabinet-restructure-stage-c-screw-joints.md
     │   ├── 2026-08-28-cabinet-restructure-stage-d-section-interiors.md
-    │   └── 2026-08-29-cabinet-restructure-stage-e-fronts.md
+    │   ├── 2026-08-29-cabinet-restructure-stage-e-fronts.md
+    │   └── 2026-08-29-cabinet-restructure-stage-f-front-machining.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md

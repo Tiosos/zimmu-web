@@ -799,3 +799,56 @@ case per mount with the arithmetic spelled out.
 - **The mutation-testing discipline moved into `CLAUDE.md`**, where every future stage inherits it,
   rather than being restated in each plan: back the file up and restore from the copy, grep after
   applying *and* after restoring, and predict which tests should fail before running.
+
+### 2026-08-29 — Stage F: a height carried between two panels needs carcase space
+
+The first cut of the plate-screw rows copied the cup's board-x straight onto the upright as a
+board-y. It came out 101.5 mm low, and the test that caught it is the one comparing the two families
+in **carcase** space:
+
+```
+expected [ '100.000000', '517.000000' ] to deeply equal [ '201.500000', '618.500000' ]
+```
+
+Board x on a door runs the height from the *door's* bottom edge; board y on an upright runs it from
+the *upright's*. On a toe-kick cabinet the side reaches the floor and the door starts above the
+bottom panel, so those origins are 100 mm apart plus half a reveal. The fix reads each panel's own
+`position.z` rather than translating through the cell rect — the two panels the figure has to agree
+across are the two panels it is read from.
+
+This is the third time in this restructure that two things which must agree were computed separately
+and drifted: the Stage C per-joint override (sizing followed the cabinet, seating followed the
+joint), the Stage E overlay contact (the contact read the mount flag, the box read the geometry), and
+now this. The pattern is worth naming: **when two outputs must line up, derive the second from the
+first, not from the first's inputs.**
+
+### 2026-08-29 — a 37 mm setback is shared on purpose, and it broke a drawing test
+
+`drawing.test.ts`'s hole-array tests isolate one row by filtering circles to a single column on the
+Face view. A hinge plate screw uses `PLATE_SCREW_SETBACK = 37` and the front shelf-pin row uses
+`setback: 37` — the same 32 mm-system figure, deliberately — so once the Base 600 preset hung a door,
+its left side carried two families in that one column and the filter stopped isolating anything.
+
+The fixture takes the door off rather than the assertion being loosened. Those tests are about how a
+hole array is *drawn*, not about which families a cabinet happens to have, and filtering by the pitch
+lattice would have asserted the spacing by assuming it.
+
+### 2026-08-29 — the live kernel on a ⌀35 cup
+
+A cup is the largest bore the app makes and the only one whose diameter is a real fraction of the
+panel. `e2e/geom-kernel.spec.ts` now drills two into a Base 600 door and measures what came out:
+**24 052 mm³** removed (2 · π · 17.5² · 12.5 ≈ 24 052), centroid midway between the two cups, and the
+bore's `minZ` at **5.5** — the 5.5 mm of face an 18 mm door keeps behind a 12.5 mm cup. A `depth`
+read as "through" would put that at 0.
+
+### 2026-08-29 — Stage F closed
+
+- Unit tests **1436 → 1477**; e2e **17 → 18**, the new one being the live-kernel cup.
+- No part count moved anywhere, which is the check that this stage added *cuts* and not boards.
+- Deferred as planned: hardware BOM entries for the hinges themselves, drawer boxes (so a slide
+  height still comes off the front's own centreline and will move when boxes land), frame-and-panel
+  door construction, and any hinge or slide *parameter* — every figure is a constant until the
+  hardware model supersedes it.
+- **Still owed: a woodworker's eye on the figure table.** ⌀35 / 12.5 deep / 22.5 from the edge and
+  the 2-3-4-5 hinge-count table are claims about real hardware that no test in this repo can
+  falsify.

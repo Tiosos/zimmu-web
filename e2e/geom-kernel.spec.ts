@@ -230,7 +230,91 @@ test('a hole array drills the right material out of the right place', async ({ p
   expect(maxZ).toBeCloseTo(18, 1)
 })
 
-// Task 8.2 Step 1b — the cost of a hole array, measured rather than asserted.
+// A hinge cup is the largest bore the app makes — ⌀35 into an 18 mm door — and the only one whose
+// diameter is a meaningful fraction of the panel it goes into. The pin-row test above proves the
+// kernel drills a small array in the right place; this proves a cup does too, and that 12.5 mm blind
+// leaves material behind it rather than punching through.
+test('a hinge cup is drilled blind, and leaves material behind it', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  const result = await page.evaluate(async () => {
+    // @ts-expect-error dev-only source import served by Vite; occt is untyped here
+    const occt = await import('/src/geom/occt.ts')
+    const oc = await occt.initOCCT()
+
+    // A Base 600 door: 617 tall, 597 wide, 18 thick, two cups 22.5 in from the hinged edge.
+    const door = { length: 617, width: 597, thickness: 18 }
+    const plain = occt.makeShape(oc, { ...door, cuts: [] })
+    const bored = occt.makeShape(oc, {
+      ...door,
+      cuts: [
+        {
+          kind: 'hole-array',
+          id: 'c1',
+          label: 'Hinge cups',
+          face: '+Z',
+          axis: 'U',
+          start: { x: 100, y: 22.5, z: 18 },
+          pitch: 417,
+          count: 2,
+          diameter: 35,
+          depth: 12.5,
+        },
+      ],
+    })
+
+    const op = new oc.BRepAlgoAPI_Cut_3(plain, bored)
+    const removed = op.Shape()
+    const g = new oc.GProp_GProps_1()
+    oc.BRepGProp.VolumeProperties_1(removed, g, false, false, false)
+    const removedVolume = g.Mass()
+    const c = g.CentreOfMass()
+    const removedCentroid: [number, number, number] = [c.X(), c.Y(), c.Z()]
+    g.delete()
+
+    const box = new oc.Bnd_Box_1()
+    oc.BRepBndLib.Add(removed, box, false)
+    const lo = box.CornerMin()
+    const hi = box.CornerMax()
+    const removedBbox: [number, number, number, number, number, number] = [
+      lo.X(),
+      lo.Y(),
+      lo.Z(),
+      hi.X(),
+      hi.Y(),
+      hi.Z(),
+    ]
+    box.delete()
+
+    return { removedVolume, removedCentroid, removedBbox }
+  })
+
+  // Two ⌀35 cups 12.5 deep ≈ 2 · π · 17.5² · 12.5 ≈ 24 052 mm³.
+  expect(result.removedVolume).toBeGreaterThan(23_000)
+  expect(result.removedVolume).toBeLessThan(25_000)
+
+  // Two cups at x = 100 and 517, so the centroid sits midway at 308.5; the row is 22.5 in from the
+  // hinged edge and bored 12.5 down from the +Z face at z = 18.
+  expect(result.removedCentroid[0]).toBeCloseTo(308.5, 1)
+  expect(result.removedCentroid[1]).toBeCloseTo(22.5, 1)
+  expect(result.removedCentroid[2]).toBeCloseTo(11.75, 1)
+
+  // Blind: the far face is z = 0 and the bore stops at 5.5. That gap is the whole point — a cup
+  // 12.5 into an 18 mm door leaves 5.5 mm of face, and a `depth` read as "through" would show
+  // minZ = 0 here.
+  const [minX, minY, minZ, maxX, maxY, maxZ] = result.removedBbox
+  expect(minZ).toBeCloseTo(5.5, 1)
+  expect(maxZ).toBeCloseTo(18, 1)
+  expect(minX).toBeCloseTo(82.5, 1)
+  expect(maxX).toBeCloseTo(534.5, 1)
+  expect(minY).toBeCloseTo(5, 1)
+  expect(maxY).toBeCloseTo(40, 1)
+})
+
+// Task 8.2 Step 1b — the cost of a hole array, measured rather than asserted.// Task 8.2 Step 1b — the cost of a hole array, measured rather than asserted.
 // The phase's claim is that hole arrays do not make the app slow, and the reason
 // given is that an array is one compound boolean instead of one boolean per hole.
 // This times a realistic worst case (six cabinets' worth of side panels, two shelf-pin
