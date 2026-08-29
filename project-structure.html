@@ -299,7 +299,7 @@
             <td><code>scene/useScene.ts</code>, <code>App.tsx</code></td>
           </tr>
           <tr>
-            <td><strong>3D export — STL &amp; STEP</strong><br><span style="color:var(--muted);font-size:12px">Binary STL (world-space), XCAF STEP (named solids). Visible parts only.</span></td>
+            <td><strong>3D export — STL &amp; STEP</strong><br><span style="color:var(--muted);font-size:12px">Binary STL (world-space), STEP as an unnamed compound of all solids in mm. Visible parts only.</span></td>
             <td><span class="badge badge-green">Done</span></td>
             <td><code>geom/stl.ts</code>, <code>geom/occt.ts</code> (<code>writeStep</code>), <code>geom/transform.ts</code></td>
           </tr>
@@ -322,6 +322,36 @@
             <td><strong>Hardware BOM with linked boards</strong><br><span style="color:var(--muted);font-size:12px">Hardware items link to board parts; linked items visible in sidebar EditPanel</span></td>
             <td><span class="badge badge-green">Done</span></td>
             <td><code>ui/HardwareEditPanel.tsx</code>, <code>ui/HardwareTab.tsx</code>, <code>ui/sidebar.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>Parametric cabinets</strong><br><span style="color:var(--muted);font-size:12px">Presets emit driven boards and driven joints; a recursive section tree describes the interior; panel thickness comes from the material; a detached part is the user's forever</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/carcaseRoles.ts</code>, <code>scene/sectionTree.ts</code>, <code>scene/regenerateComponents.ts</code>, <code>ui/CarcasePanel.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>Adjustable shelving per opening</strong><br><span style="color:var(--muted);font-size:12px">Each opening states its own pin rows and shelves; a divider beside a drawer bank is bored on one face only; shelves are real boards on real pins and reach the cutting list</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/sectionInterior.ts</code>, <code>scene/carcaseRoles.ts</code>, <code>ui/CarcasePanel.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>First-class joints</strong><br><span style="color:var(--muted);font-size:12px">Dado/rabbet, half-lap, mortise &amp; tenon, box/finger, tongue &amp; groove, screw fixing. A joint owns its cuts and the housed part's seat; a cabinet is screwed together by default</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/reconcileJoints.ts</code>, <code>geom/dado.ts</code>, <code>geom/screw.ts</code>, <code>scene/resolveJointKind.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Joinery checklist</strong><br><span style="color:var(--muted);font-size:12px">Every touching pair accounted for exactly once — jointed, open, or needing no joint — grouped per cabinet</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/jointChecklist.ts</code>, <code>scene/suggestJoints.ts</code>, <code>ui/SceneSuggestionsPanel.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>Sheet yield / nesting</strong><br><span style="color:var(--muted);font-size:12px">Bottom-left first fit onto stock sheets, off-thread, with per-sheet SVG and utilisation</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>nest/mask.ts</code>, <code>nest/nest.ts</code>, <code>nest/nest.worker.ts</code>, <code>ui/SheetsTab.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>Doors, drawer fronts and applied panels</strong></td>
+            <td><span class="badge badge-yellow">Next</span></td>
+            <td>—</td>
           </tr>
           <tr>
             <td><strong>FSAPI fallback for non-Chromium browsers</strong></td>
@@ -350,6 +380,8 @@
             <li>BOM + cutting list + hardware</li>
             <li>2D shop drawings (SVG + DXF)</li>
             <li>3D export (STL + STEP)</li>
+            <li>Parametric cabinets, section tree, first-class joints</li>
+            <li>Sheet yield / nesting</li>
           </ul>
         </div>
         <div class="card">
@@ -595,7 +627,7 @@
       <table>
         <thead><tr><th>File</th><th>Role</th></tr></thead>
         <tbody>
-          <tr><td><code>occt.ts</code></td><td>Lazy singleton OCCT bootstrap. <code>makeShape()</code> (box + cut chain), <code>makeTransformedShape()</code>, <code>writeStep()</code> (XCAF named solids). Exports <code>ExportSpec</code>.</td></tr>
+          <tr><td><code>occt.ts</code></td><td>Lazy singleton OCCT bootstrap. <code>makeShape()</code> (box + cut chain), <code>makeTransformedShape()</code>, <code>writeStep()</code> — an <em>unnamed</em> <code>STEPControl_Writer</code> compound of all solids in mm; the XCAF named-solid path is absent at runtime in opencascade.js v1.1.1. Exports <code>ExportSpec</code>.</td></tr>
           <tr><td><code>occt.worker.ts</code></td><td>Comlink Web Worker — exposes <code>buildPart()</code> and <code>exportStep()</code> to the main thread.</td></tr>
           <tr><td><code>mesh.ts</code></td><td><code>TopoDS_Shape</code> → <code>MeshData</code> (Float32Arrays) + <code>THREE.BufferGeometry</code> via <code>BRepMesh_IncrementalMesh</code>.</td></tr>
           <tr><td><code>transform.ts</code></td><td><code>composeWorldMatrix(part)</code> + <code>resolveWorldMatrix(part, byId)</code> (composes placement through ancestor components) + <code>multiplyMatrix</code> — THREE-free. <code>resolveWorldMatrix</code> is the single source of truth for part placement; equals <code>composeWorldMatrix</code> exactly for a top-level part.</td></tr>
@@ -606,6 +638,9 @@
           <tr><td><code>mortisetenon.ts</code></td><td>Pure mortise-&amp;-tenon-joint geometry — <code>isValidMortiseTenon</code>, <code>computeTenonShoulders</code> (0/2/4 shoulder cuts leaving a centered tongue), <code>computeMortisePocket</code> (blind or through pocket, axis-aligned to the tenon), <code>computeMortiseOffset</code>, and <code>computeMortiseTenonSeat</code>/<code>deriveMortiseTenon</code>. Self-contained (no runtime import from <code>dado.ts</code>). Three-typed but browser-free.</td></tr>
           <tr><td><code>fingerjoint.ts</code></td><td>Pure box-&amp;-finger-joint geometry — <code>isValidFingerJoint</code>, <code>computeFingerCuts</code> (world-parity-aware finger removal so mating slots interlock), <code>computeFingerSeat</code>, and <code>deriveFingerJoint</code>. Self-contained (no runtime import from <code>dado.ts</code>). Three-typed but browser-free.</td></tr>
           <tr><td><code>tonguegroove.ts</code></td><td>Tongue &amp; groove joint geometry (groove + centered tongue + edge seat).</td></tr>
+          <tr><td><code>screw.ts</code></td><td>Pure screw-fixing geometry — <code>deriveScrewJoint</code> emits a clearance row through the housed panel and a pilot row into the housing, never both on one panel. The pilot depth is clamped rather than trusted: a screw that reaches the far face bursts out of it.</td></tr>
+          <tr><td><code>mitre.ts</code></td><td>Mitre geometry (flat and bevel).</td></tr>
+          <tr><td><code>dowelCut.ts</code></td><td>Dowel bore geometry.</td></tr>
           <tr><td><code class="tree-test">occt.test.ts</code></td><td>Smoke tests (live OCCT skipped in Node with <code>it.skip</code>).</td></tr>
           <tr><td><code class="tree-test">transform.test.ts</code></td><td>Element-wise parity tests against <code>THREE.Matrix4</code>.</td></tr>
           <tr><td><code class="tree-test">stl.test.ts</code></td><td>Binary STL output validation.</td></tr>
@@ -634,9 +669,19 @@
           <tr><td><code>useAddTongueGroove.ts</code></td><td>Tongue &amp; groove two-click gesture.</td></tr>
           <tr><td><code>useInteractionMode.ts</code></td><td>Coordinator composing the seven gesture hooks (snap, cut, dado, half-lap, mortise-tenon, finger, tongue-groove) into one exclusive <code>activeMode</code> + normalized <code>{ onFaceClick, onFaceHover, sourceFace, hoveredFace, interactionActive, snapPhase }</code> bundle for the viewport.</td></tr>
           <tr><td><code>componentTree.ts</code></td><td>Pure tree helpers — <code>componentsById</code>, <code>ancestorsOf</code>, <code>descendantIds</code>, <code>wouldCycle</code> (reparent guard), <code>promoteOrphans</code> (a dangling <code>parentId</code> costs hierarchy, never parts). No React, no THREE.</td></tr>
-          <tr><td><code>carcaseRoles.ts</code></td><td>Pure <code>CarcaseParams</code> → ordered <code>RoleSpec[]</code> (role key, dims, local position/rotation) — the whole geometry of a carcase (sides, back, top/bottom, shelves, toe-kick, dividers, shelf-pin hole arrays).</td></tr>
+          <tr><td><code>carcaseRoles.ts</code></td><td>Pure <code>CarcaseParams</code> → ordered <code>RoleSpec[]</code> (role key, dims, local position/rotation) — the whole geometry of a carcase: sides, back, top/bottom, toe-kick or ladder base, the divisions the section tree resolves, the shelf-pin rows each opening asks for, and the loose shelves seated on them.</td></tr>
+          <tr><td><code>sectionTree.ts</code></td><td>The cabinet's interior division as a recursive tree: <code>Section</code>, <code>InteriorSpec</code>, <code>resolveSections</code> (tree → rectangles + division boxes), <code>boundsOf</code> (what encloses a section), <code>validateSection</code>. Pure.</td></tr>
+          <tr><td><code>sectionInterior.ts</code></td><td><code>sectionInteriors</code> — every leaf that asks for shelving, with its rect and bounds. <code>sectionOpenings</code> lists every leaf whether shelved or not, <code>setInterior</code> writes one section's spec, and <code>defaultInterior</code> / <code>seedInteriors</code> / <code>firstInterior</code> serve the presets, the v16 migration and the legacy shim.</td></tr>
+          <tr><td><code>migrateSections.ts</code></td><td><code>legacyToSection(dividers, fixedShelves, width, thickness)</code> — the one place pre-v13 divider/shelf parameters become a tree. Needs width and thickness: a v12 divider is centred on a fraction of the gross width, a section percentage is a share of the clear span.</td></tr>
+          <tr><td><code>resolveThickness.ts</code></td><td><code>roleThicknessFor(slots, materials, overrides)</code> → <code>(role) =&gt; thickness</code>. The single statement of where a panel's thickness comes from: explicit override, else its own material, else the cabinet's slot for that role.</td></tr>
+          <tr><td><code>resolveJointKind.ts</code></td><td><code>jointKindFor(joints, componentId)</code> → <code>(housingRole, housedRole) =&gt; kind</code>. Its mirror for joinery, read before the layout resolves boxes, plus <code>carcaseJointId</code> — the one place a joint's deterministic id is spelled.</td></tr>
+          <tr><td><code>changeJointKind.ts</code></td><td>Converts a joint between <code>dado</code> and <code>screw</code>, checking the pairing is legal. Only those two are convertible: the generator emits one <em>or</em> the other for identical role pairs.</td></tr>
+          <tr><td><code>cutOwnership.ts</code></td><td><code>isJointOwned</code> / <code>isOwnedBy</code> — the ownership question seven call sites ask, stated once. A copy that forgot a cut kind is how a stale bore survives its joint.</td></tr>
+          <tr><td><code>grain.ts</code></td><td>The grain convention in carcase axes (<code>grainAxisOf</code>) and its derivation into a board field (<code>grainFieldFor</code>). Deliberately fatal on an unknown role — a silent default would give a new family an arbitrary grain no test would notice.</td></tr>
+          <tr><td><code>defaultJoint.ts</code></td><td>The default parameters of each joint kind a cabinet emits.</td></tr>
+          <tr><td><code>useNest.ts</code></td><td>Drives the nest worker for the Sheets tab: groups boards by nestable material and re-runs only when the job signature changes. <code>enabled</code> is held by the tab, so a six-cabinet nest never runs for a figure nobody is looking at.</td></tr>
           <tr><td><code>regenerateComponents.ts</code></td><td>Pure <code>Scene → Scene</code>. Each carcase emits driven parts + driven joints, reconciled against existing parts by stable role key so ids survive and a <code>driven: false</code> part is never touched. Sibling of <code>reconcileJoints</code>; runs immediately before it.</td></tr>
-          <tr><td><code>carcasePresets.ts</code></td><td><code>CARCASE_PRESETS</code> — named parameter bundles (Base 600, Wall 600, Tall 600). Data only.</td></tr>
+          <tr><td><code>carcasePresets.ts</code></td><td><code>CARCASE_PRESETS</code> — named parameter bundles (Base 600, Wall 600, Tall 600) and <code>PRESET_MATERIALS</code>. Data only. Base and Wall are one opening holding one adjustable shelf; Tall keeps four fixed shelves and seats none.</td></tr>
           <tr><td><code>reconcileJoints.ts</code></td><td>Pure, idempotent regeneration of joint-derived groove cuts + seated positions from <code>Scene.joints</code>. Run after <code>regenerateComponents</code>, after every joint-affecting mutation, and on file load.</td></tr>
           <tr><td><code>suggestJoints.ts</code></td><td>Selection-driven joint suggestions: <code>contactPair</code> face + <code>cornerPair</code> corner detection + per-type validity → <code>JointSuggestion[]</code>; <code>synthHit</code> replays through existing <code>onAdd*</code> creators.</td></tr>
           <tr><td><code>groupSuggestions.ts</code></td><td>Collapses scene-wide suggestions to one <code>PairGroup</code> per board pair for the sidebar rows; <code>orientationArrow</code> disambiguates the two-orientation kinds. Does not cap — the row caps live in <code>jointChecklist.ts</code>.</td></tr>
@@ -645,6 +690,17 @@
           <tr><td><code>useMaterialLibrary.ts</code></td><td>Loads/persists material cost rates via the IDB <code>library</code> store.</td></tr>
           <tr><td><code>palette.ts</code></td><td><code>PART_COLORS</code> preset swatches array.</td></tr>
           <tr><td><code class="tree-test">useScene.test.ts</code>, <code class="tree-test">useFile.test.ts</code>, etc.</td><td>Co-located unit tests for each module.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>src/nest/ — Sheet nesting</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:8px">Bottom-left first-fit nesting onto stock sheets, run off-thread. A six-cabinet job is ~4.8 s, so it runs only while the Sheets tab is open.</p>
+      <table>
+        <thead><tr><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>mask.ts</code></td><td><code>occupancyMask(part, clearance)</code> — a 1 mm occupancy bitmask in <em>board</em> axes, dilated by half the clearance on every side and carrying its own <code>pad</code>. Never recompute the padding formula elsewhere.</td></tr>
+          <tr><td><code>nest.ts</code></td><td><code>allowedRotations</code> + <code>rotateMask</code> + <code>nestSheets</code> — bottom-left first fit, reporting placements, per-sheet utilisation and <code>unplaced</code>. Positions the dilated mask and reports the undilated rectangle.</td></tr>
+          <tr><td><code>nest.worker.ts</code></td><td>Comlink worker taking <code>PARTS</code> and masking them <em>in</em> the worker: a dilated mask for a 2100 mm panel is over a megabyte, so posting masks would transfer megabytes to save nothing.</td></tr>
         </tbody>
       </table>
 
@@ -663,7 +719,9 @@
           <tr><td><code>FileMenu.tsx</code></td><td>Top menu bar: File menu, project name, undo/redo buttons, BOM modal trigger, 3D/2D export buttons.</td></tr>
           <tr><td><code>sidebar.tsx</code></td><td>Composition shell: the <code>SceneTree</code>, the selected-node editor (<code>EditPanel</code> for a part, <code>CarcasePanel</code> for a carcase), and the Cut / Snap / joint mode buttons.</td></tr>
           <tr><td><code>SceneTree.tsx</code></td><td>Sidebar hierarchy over <code>components</code> + <code>parts</code>: expand/collapse, selection, per-node visibility, driven/detached badges.</td></tr>
-          <tr><td><code>CarcasePanel.tsx</code></td><td>Carcase parameter form in collapsible sections (dimensions, back, base, shelves, joint method, dividers) that drives <code>regenerateComponents</code>.</td></tr>
+          <tr><td><code>CarcasePanel.tsx</code></td><td>Carcase parameter form in collapsible sections (size, structure, shelving, joinery) that drives <code>regenerateComponents</code>. Shelving names an <em>opening</em> and edits that section's interior; Dividers and Fixed shelves are a v12 shim that rebuilds the whole tree, carrying the cabinet's one interior spec across.</td></tr>
+          <tr><td><code>SheetsTab.tsx</code></td><td>Per-material yield: sheet count, utilisation, cost, and a per-sheet SVG from <code>buildSheetSvg.ts</code>. Owns the nest's <code>enabled</code> flag and clears it on unmount.</td></tr>
+          <tr><td><code>SceneSuggestionsPanel.tsx</code></td><td>The scene-wide joinery checklist: one collapsed line per cabinet, expanding to jointed / open / no-joint-needed rows.</td></tr>
           <tr><td><code>EditPanel.tsx</code></td><td>Selected-part editor (moved verbatim out of <code>sidebar.tsx</code>): label, material, ColorControl, dimensions, position, rotation, cuts (with cut-linking), joints, hole-arrays, read-only derived-cut rows, linked hardware.</td></tr>
           <tr><td><code>DimInput.tsx</code></td><td>Dimension number field with debounced commit, used across the edit and carcase panels.</td></tr>
           <tr><td><code>JointsPanel.tsx</code></td><td>Per-part joints subsection in <code>EditPanel</code> — edit depth/clearance/offset (housing side), remove joint, stale banner.</td></tr>
@@ -736,7 +794,7 @@ interface Scene {
 // regenerateComponents(scene) turns those params into driven parts + driven joints,
 // reconciling against existing parts by stable role key so a detached part survives.
 interface Component {
-  id: ComponentId        // "cmp_<uuid>"
+  id: ComponentId        // "cmp_&lt;uuid&gt;"
   kind: 'group' | 'carcase'
   label: string
   parentId: ComponentId | null
@@ -750,7 +808,7 @@ interface Component {
 // reconcileJoints() regenerates both from these fields.
 interface DadoJoint {
   kind: 'dado'
-  id: string            // "joint_<uuid>"
+  id: string            // "joint_&lt;uuid&gt;"
   label: string
   housingPartId: PartId; housingFace: Face   // board + face carrying the groove
   housedPartId: PartId; housedEnd: Face      // board + end that seats in
@@ -762,15 +820,31 @@ interface DadoJoint {
   rabbetFace: '+Z' | '-Z'         // housed thickness face the rabbet removes from
   driven: boolean; sourceComponentId?: string  // set on joints a carcase emits
 }
+// A screw fixing is the first joint whose geometry is bores rather than a groove: two
+// hole arrays, never both on the same panel. It is also the cabinet default — and a
+// screwed butt joint extends no panel, unlike a dado, which is why the layout has to
+// read the joint kind *before* it resolves boxes.
+interface ScrewJoint {
+  kind: 'screw'
+  id: string; label: string
+  throughPartId: PartId; throughFace: Face      // clearance holes, right through
+  receivingPartId: PartId; receivingEnd: Face   // pilots, blind and clamped
+  screwCount: number; endInset: number
+  clearanceDiameter: number; pilotDiameter: number; pilotDepth: number
+  driven: boolean; sourceComponentId?: string
+}
+
 // Every joint interface adds { driven, sourceComponentId? }
-type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint | FingerJoint | TongueGrooveJoint
+type Joint = DadoJoint | HalfLapJoint | MortiseTenonJoint | FingerJoint
+           | TongueGrooveJoint | ScrewJoint
 
 interface BoardPart {
   kind: 'board'
   id: PartId            // UUID string
   label: string
   length: number; width: number; thickness: number  // millimetres
-  material: string      // "" = unspecified
+  grain: 'length' | 'width' | 'free'
+  material: string      // "" = unspecified; the material states the thickness
   color: string         // hex e.g. "#d4a373"
   position: Vec3; rotation: Vec3                    // mm / degrees
   rotationOrder: 'XYZ'
@@ -779,6 +853,7 @@ interface BoardPart {
   parentId: ComponentId | null  // owning component, or null when top-level
   driven: boolean               // true = emitted by a carcase; false = the user's, never touched
   role?: string                 // regeneration identity key, set only on driven parts
+  overrides?: { thickness?: number; material?: string }  // read *before* the layout resolves boxes
 }
 
 // BoxCut is the boolean-subtract rectangle; 'hole-array' is the shelf-pin bore pattern
@@ -793,7 +868,44 @@ interface CutDef {         // = BoxCut | HoleArrayCut
   sourceComponentId?: string  // set on cuts a component places directly (toe-kick notch, holes)
 }
 
-interface MaterialDef { costPerM2: number }
+// The material is the authority on panel thickness: a part may override it, but nothing
+// else states it. `sheet` absent means the material is not nested at all.
+interface MaterialDef {
+  costPerM2?: number    // areal rate for sheet/board stock
+  costPerM?: number     // linear rate for round/linear stock (dowels)
+  thickness?: number    // panel thickness in mm; required of a carcase or back slot
+  sheet?: { length: number; width: number; costPerSheet?: number }
+  hasGrain?: boolean    // absent = has grain, the safe default
+}
+
+// A cabinet's parameters. Its interior division — and the shelving inside it — is the
+// section tree, not a set of scalars: splitting a section is what *creates* the
+// partition or shelf between its children.
+interface CarcaseParams {
+  width: number; height: number; depth: number
+  carcaseMaterial: string; backMaterial: string   // slots, each naming a MaterialDef
+  hasTop: boolean
+  backMode: 'captured' | 'applied' | 'none'
+  baseMode: 'toe-kick' | 'ladder' | 'legs' | 'none'
+  toeKickHeight: number; toeKickSetback: number
+  section: Section
+  jointMethod: 'dado-rabbet' | 'finger' | 'dowel' | 'butt-screw' | 'confirmat'
+}
+
+interface Section {
+  id: SectionId          // "sec_&lt;uuid&gt;", never a path: an index would renumber siblings
+  size: { kind: 'equal' } | { kind: 'fixed'; mm: number } | { kind: 'percent'; pct: number }
+  content:
+    | { kind: 'leaf' }
+    | { kind: 'split'; axis: 'vertical' | 'horizontal'
+        division: 'none' | 'panel' | 'rail'; children: Section[] }
+  interior?: { adjustable: {
+    shelves: number      // boards actually seated in this opening
+    count: number        // pin positions per row — not a shelf count
+    rows: 1 | 2; pitch: 32
+    setback: number; backSetback: number
+  } }
+}
 
 interface HardwareItem {
   id: string            // UUID
@@ -810,12 +922,13 @@ interface FaceHit {
   localFaceNormal: Vec3; localHitPoint: Vec3
 }</code></pre>
 
-      <h3>IndexedDB schema (v2)</h3>
+      <h3>IndexedDB schema (v3)</h3>
       <table>
         <thead><tr><th>Store</th><th>Key</th><th>Value</th><th>Purpose</th></tr></thead>
         <tbody>
           <tr><td><code>handles</code></td><td><code>"lastHandle"</code></td><td><code>FileSystemFileHandle</code></td><td>Auto-reopen last file on startup</td></tr>
-          <tr><td><code>library</code></td><td>material name string</td><td><code>MaterialDef</code></td><td>Persistent cost rates across sessions/files</td></tr>
+          <tr><td><code>library</code></td><td>material name string</td><td><code>MaterialDef</code></td><td>Persistent cost rates and sheet stock across sessions/files</td></tr>
+          <tr><td><code>settings</code></td><td><code>"toolClearance"</code></td><td><code>number</code></td><td>The global tool clearance the nest dilates masks by</td></tr>
         </tbody>
       </table>
     </section>
@@ -845,7 +958,7 @@ interface FaceHit {
       </div>
 
       <h3>Regenerate → reconcile pipeline</h3>
-      <p style="color:var(--muted);font-size:13px;margin-bottom:8px">Every scene mutation flows through <code>applyPipeline</code> in <code>useScene</code> before it becomes state: regeneration first, joint reconciliation second, both pure and idempotent. A carcase parameter change re-emits its driven parts (including 32&nbsp;mm shelf-pin <code>hole-array</code> cuts) and driven joints; a detached (<code>driven: false</code>) part is preserved untouched.</p>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:8px">Every scene mutation flows through <code>applyPipeline</code> in <code>useScene</code> before it becomes state: regeneration first, joint reconciliation second, both pure and idempotent. A carcase parameter change re-emits its driven parts — the shell, the divisions its section tree resolves, the 32&nbsp;mm shelf-pin <code>hole-array</code> cuts each opening asks for, and the loose shelves seated on those pins — and its driven joints; a detached (<code>driven: false</code>) part is preserved untouched.</p>
       <div class="flow">
         <div class="flow-box">mutation<br><span style="color:var(--muted);font-size:11px">param edit, drop preset, detach</span></div>
         <div class="flow-arrow">→</div>
@@ -960,6 +1073,50 @@ interface FaceHit {
             <td><code>driven: false</code> means no regeneration and no deletion — a parameter change, a role disappearing, and deleting the whole component all preserve it.</td>
           </tr>
           <tr>
+            <td><strong>The section tree is the only description of interior division</strong></td>
+            <td><code>dividers</code> and <code>fixedShelves</code> are gone: splitting a section is what <em>creates</em> the partition or shelf between its children. A pre-v13 file is converted by <code>legacyToSection</code> at the <code>parseFile</code> boundary and nowhere else, so the generator never sees a legacy field.</td>
+          </tr>
+          <tr>
+            <td><strong>Thickness comes from the material, and overrides are read before layout</strong></td>
+            <td><code>MaterialDef.thickness</code> is the authority; <code>roleThicknessFor</code> states the whole rule once. The layout <em>reads overrides before resolving boxes</em>, never applies them after — a 25&nbsp;mm side is what makes the bottom come out at <code>W − 43</code> beside an 18&nbsp;mm one. Overrides in, boxes out; an override must never depend on a generated dimension.</td>
+          </tr>
+          <tr>
+            <td><strong>A cabinet is screwed together by default, and a screw extends no panel</strong></td>
+            <td><code>extensionFor</code> returns 0 for <code>screw</code>; getting that wrong lengthens every housed panel silently. A per-joint override is read <em>before</em> the layout resolves boxes, exactly as a thickness override is — <code>resolveJointKind.ts</code> mirrors <code>resolveThickness.ts</code>. Sizing that followed the cabinet default while the joint followed the override left a 6&nbsp;mm hole in the cabinet.</td>
+          </tr>
+          <tr>
+            <td><strong>A joint-owned cut may be a box <em>or</em> a hole array</strong></td>
+            <td>Screw fixing is the first joint whose geometry is bores, so <code>sourceJointId</code> lives on <code>HoleArrayCut</code> too. <code>cutOwnership.ts</code> states the ownership question once; seven call sites ask it, and a copy that forgot a kind is how a stale bore survives its joint.</td>
+          </tr>
+          <tr>
+            <td><strong>A pin row belongs to the section that needs it, not to the panel</strong></td>
+            <td><code>carcaseHoleArrays</code> asks each section what it wants and contributes those rows to the panels bounding it, so a divider between a shelved bay and a drawer bank is bored on <em>one face only</em>. A row starts above its <em>own section's</em> floor; there is no absolute <code>startHeight</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>An adjustable shelf sits on a pin the cabinet actually bored</strong></td>
+            <td><code>pinRow(rect, spec)</code> states the available pin positions once and both the row of bores and <code>shelfPins</code> read it. Shelves spread over the <em>pin positions</em>, not over the section's height: a ten-position row covers 288&nbsp;mm of a 584&nbsp;mm opening.</td>
+          </tr>
+          <tr>
+            <td><strong>A loose shelf is joined to nothing and touches nothing</strong></td>
+            <td><code>SHELF_CLEARANCE</code> holds it clear of both uprights <em>and</em> of the back — a contact the generator does not name is an unjoined pair on the joinery checklist forever. <code>SHELF_FRONT_SETBACK</code> is a separate figure for a separate reason: the front the cabinet will wear.</td>
+          </tr>
+          <tr>
+            <td><strong>Shelving is edited per opening, and an opening is chosen by id</strong></td>
+            <td><code>sectionOpenings</code> lists every leaf, shelved or not; <code>setInterior</code> writes one section's spec. <code>CarcasePanel</code> holds the pick by section id, never by index: the v12 divider shim rebuilds the tree with fresh ids on every keystroke, so an index would silently edit a different opening.</td>
+          </tr>
+          <tr>
+            <td><strong>Grain is stated in carcase axes and derived into a board field</strong></td>
+            <td><code>grainAxisOf(role)</code> names the direction; <code>grainFieldFor</code> turns it into <code>'length'</code> or <code>'width'</code> through the same map <code>orientedPanel</code> uses. Never assume grain runs along a panel's longer dimension — a 1200 × 400 wall unit's back runs it along the shorter one.</td>
+          </tr>
+          <tr>
+            <td><strong><code>useFile.ts</code> types <code>base.params</code> loosely</strong></td>
+            <td><code>tsc</code> cannot see a file-format regression there: the parser compiles while producing objects that lack a required field, and the failure appears only when the generator dereferences it. Any change to <code>CarcaseParams</code> needs a <code>parseFile</code> test, not a green typecheck.</td>
+          </tr>
+          <tr>
+            <td><strong>The nest runs off-thread, and only while the Sheets tab is open</strong></td>
+            <td>A six-cabinet job is ~4.8&nbsp;s. <code>BomModal</code> drives <code>useNest</code>'s <code>enabled</code> flag from its tab state and clears it on unmount. Masks are built <em>in</em> the worker, never posted to it.</td>
+          </tr>
+          <tr>
             <td><strong>resolveWorldMatrix is the single source of world placement</strong></td>
             <td>For <code>parentId: null</code> it is byte-identical to <code>composeWorldMatrix</code>; never call <code>composeWorldMatrix</code> outside <code>transform.ts</code>. The one remaining mention elsewhere (in <code>occt.ts</code>) is a comment, not a call.</td>
           </tr>
@@ -977,6 +1134,7 @@ pnpm typecheck       # tsc -b --noEmit
 pnpm lint            # eslint .
 pnpm build           # tsc + vite build (output: dist/)
 pnpm coverage        # vitest coverage report
+pnpm test:e2e        # playwright (real browser, live OCCT)
 
 # Run a single test file
 pnpm vitest run src/scene/useScene.test.ts
@@ -1239,7 +1397,7 @@ import { useScene } from './useScene'</code></pre>
       <h2>File format</h2>
       <p>Projects are saved as <code>.zimmu</code> files — flat JSON, human-readable, floats rounded to 6 decimal places.</p>
       <pre><code>{
-  "version": 12,
+  "version": 16,
   "name": "My Cabinet",
   "appVersion": "0.0.0",
   "units": "mm",
@@ -1248,7 +1406,7 @@ import { useScene } from './useScene'</code></pre>
   "camera": { "position": { "x": 500, "y": -800, "z": 600 }, "target": { "x": 0, "y": 0, "z": 0 } },
   "scene": {
     "parts": [ { "kind": "board", "id": "…", "label": "Side Panel", "parentId": "cmp_…", "driven": true, … } ],
-    "materials": { "18mm Birch Ply": { "costPerM2": 42.50 } },
+    "materials": { "18mm Birch Ply": { "costPerM2": 42.50, "thickness": 18 } },
     "hardware": [ { "id": "…", "name": "Hinge", "qty": 4, "unit": "pcs", "linkedComponentIds": [], … } ],
     "joints": [ … ],
     "components": [ { "id": "cmp_…", "kind": "carcase", "label": "Base 600", "params": { … } } ]

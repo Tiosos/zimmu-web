@@ -670,3 +670,35 @@ The e2e caught two things no unit test could: the Shelving section is collapsed 
 content is `hidden` rather than unmounted, so `getByLabelText` finds the fields and a browser does
 not; and Playwright's label lookup is substring and case-insensitive, so `Shelves` also matches
 `Fixed shelves`.
+
+### 2026-08-29 — the architecture page audited against Stages A–D
+
+`project-structure.html`'s hand-written prose had not been touched since before Stage A. What it
+claimed, and what is true:
+
+- **File format v12** in three places, and a `"version": 12` sample. Now v16, with the intervening
+  history spelled out.
+- **`src/scene/` table** listed none of the modules the four stages added. Added `sectionTree`,
+  `sectionInterior`, `migrateSections`, `resolveThickness`, `resolveJointKind`, `changeJointKind`,
+  `cutOwnership`, `grain`, `defaultJoint`, `useNest`; corrected `carcaseRoles` (it claimed
+  "dividers") and `carcasePresets`.
+- **`src/nest/` had no section at all** — three files and the reason masks are built inside the
+  worker rather than posted to it.
+- **`geom/`** was missing `screw.ts`, `mitre.ts` and `dowelCut.ts`, and claimed `writeStep` uses
+  XCAF named solids. It does not: the XCAF path is absent at runtime in opencascade.js v1.1.1 and
+  the writer emits an unnamed compound. The Features table repeated the same claim.
+- **Data model**: `MaterialDef` was shown as `{ costPerM2: number }`; `Joint` omitted `ScrewJoint`;
+  `BoardPart` omitted `grain` and `overrides`; `CarcaseParams` and `Section` were absent entirely.
+- **IndexedDB** heading said v2 while the text said v3, and the store table omitted `settings`.
+- **Invariants table** carried none of the eleven the four stages established.
+- **Features table** had no row for parametric cabinets, per-opening shelving, first-class joints,
+  the joinery checklist or sheet nesting.
+
+Two **pre-existing markup bugs** turned up while checking the result: `"cmp_<uuid>"` and
+`"joint_<uuid>"` inside `<pre><code>` were parsed as unknown HTML elements, swallowing the text
+after them in the browser. Browsers parse tags inside `<pre>` — only `<script>` and `<style>` are
+raw text — so these were rendering wrong the whole time. Escaped, along with the `sec_<uuid>` this
+audit would otherwise have added as a third.
+
+Verified by loading the page in Chromium: 15 sections, no page errors, and every corrected string
+present in the rendered text.
