@@ -349,7 +349,12 @@
             <td><code>nest/mask.ts</code>, <code>nest/nest.ts</code>, <code>nest/nest.worker.ts</code>, <code>ui/SheetsTab.tsx</code></td>
           </tr>
           <tr>
-            <td><strong>Doors, drawer fronts and applied panels</strong></td>
+            <td><strong>Doors, drawer fronts and applied panels</strong><br><span style="color:var(--muted);font-size:12px">A front per opening, inset or overlaid, on its own material slot; every visible gap one reveal; a pair of doors splits one opening</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/frontCells.ts</code>, <code>scene/carcaseRoles.ts</code>, <code>ui/CarcasePanel.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>Front machining — hinge cups, plate and slide screws</strong></td>
             <td><span class="badge badge-yellow">Next</span></td>
             <td>—</td>
           </tr>
@@ -381,6 +386,7 @@
             <li>2D shop drawings (SVG + DXF)</li>
             <li>3D export (STL + STEP)</li>
             <li>Parametric cabinets, section tree, first-class joints</li>
+            <li>Fronts — doors, drawer fronts, panels</li>
             <li>Sheet yield / nesting</li>
           </ul>
         </div>
@@ -510,6 +516,8 @@
 │   ├── defaultJoint.ts
 │   ├── fitCamera.test.ts
 │   ├── fitCamera.ts
+│   ├── frontCells.test.ts
+│   ├── frontCells.ts
 │   ├── grain.test.ts
 │   ├── grain.ts
 │   ├── groupSuggestions.test.ts
@@ -669,9 +677,10 @@
           <tr><td><code>useAddTongueGroove.ts</code></td><td>Tongue &amp; groove two-click gesture.</td></tr>
           <tr><td><code>useInteractionMode.ts</code></td><td>Coordinator composing the seven gesture hooks (snap, cut, dado, half-lap, mortise-tenon, finger, tongue-groove) into one exclusive <code>activeMode</code> + normalized <code>{ onFaceClick, onFaceHover, sourceFace, hoveredFace, interactionActive, snapPhase }</code> bundle for the viewport.</td></tr>
           <tr><td><code>componentTree.ts</code></td><td>Pure tree helpers — <code>componentsById</code>, <code>ancestorsOf</code>, <code>descendantIds</code>, <code>wouldCycle</code> (reparent guard), <code>promoteOrphans</code> (a dangling <code>parentId</code> costs hierarchy, never parts). No React, no THREE.</td></tr>
-          <tr><td><code>carcaseRoles.ts</code></td><td>Pure <code>CarcaseParams</code> → ordered <code>RoleSpec[]</code> (role key, dims, local position/rotation) — the whole geometry of a carcase: sides, back, top/bottom, toe-kick or ladder base, the divisions the section tree resolves, the shelf-pin rows each opening asks for, and the loose shelves seated on them.</td></tr>
+          <tr><td><code>carcaseRoles.ts</code></td><td>Pure <code>CarcaseParams</code> → ordered <code>RoleSpec[]</code> (role key, dims, local position/rotation) — the whole geometry of a carcase: sides, back, top/bottom, toe-kick or ladder base, the divisions the section tree resolves, the fixed shelves an opening holds behind its front, the shelf-pin rows each opening asks for, the loose shelves seated on those pins, and the fronts that cover it all.</td></tr>
           <tr><td><code>sectionTree.ts</code></td><td>The cabinet's interior division as a recursive tree: <code>Section</code>, <code>InteriorSpec</code>, <code>resolveSections</code> (tree → rectangles + division boxes), <code>boundsOf</code> (what encloses a section), <code>validateSection</code>. Pure.</td></tr>
-          <tr><td><code>sectionInterior.ts</code></td><td><code>sectionInteriors</code> — every leaf that asks for shelving, with its rect and bounds. <code>sectionOpenings</code> lists every leaf whether shelved or not, <code>setInterior</code> writes one section's spec, and <code>defaultInterior</code> / <code>seedInteriors</code> / <code>firstInterior</code> serve the presets, the v16 migration and the legacy shim.</td></tr>
+          <tr><td><code>sectionInterior.ts</code></td><td><code>sectionInteriors</code> — every leaf that asks for shelving, with its rect and bounds. <code>sectionOpenings</code> lists every leaf whether shelved or not, <code>setInterior</code> and <code>setFrontOn</code> write one section's spec, and <code>defaultInterior</code> / <code>seedInteriors</code> / <code>firstInterior</code> serve the presets, the migrations and the legacy shim.</td></tr>
+          <tr><td><code>frontCells.ts</code></td><td>The section tree as rectangles on the cabinet's front face, reveals already taken — the one statement of the reveal rule. An overlay cell reaches to the material midline and gives back half a reveal; an inset cell is the section's own rectangle and gives back a full reveal against carcase material, half against another front.</td></tr>
           <tr><td><code>migrateSections.ts</code></td><td><code>legacyToSection(dividers, fixedShelves, width, thickness)</code> — the one place pre-v13 divider/shelf parameters become a tree. Needs width and thickness: a v12 divider is centred on a fraction of the gross width, a section percentage is a share of the clear span.</td></tr>
           <tr><td><code>resolveThickness.ts</code></td><td><code>roleThicknessFor(slots, materials, overrides)</code> → <code>(role) =&gt; thickness</code>. The single statement of where a panel's thickness comes from: explicit override, else its own material, else the cabinet's slot for that role.</td></tr>
           <tr><td><code>resolveJointKind.ts</code></td><td><code>jointKindFor(joints, componentId)</code> → <code>(housingRole, housedRole) =&gt; kind</code>. Its mirror for joinery, read before the layout resolves boxes, plus <code>carcaseJointId</code> — the one place a joint's deterministic id is spelled.</td></tr>
@@ -681,7 +690,7 @@
           <tr><td><code>defaultJoint.ts</code></td><td>The default parameters of each joint kind a cabinet emits.</td></tr>
           <tr><td><code>useNest.ts</code></td><td>Drives the nest worker for the Sheets tab: groups boards by nestable material and re-runs only when the job signature changes. <code>enabled</code> is held by the tab, so a six-cabinet nest never runs for a figure nobody is looking at.</td></tr>
           <tr><td><code>regenerateComponents.ts</code></td><td>Pure <code>Scene → Scene</code>. Each carcase emits driven parts + driven joints, reconciled against existing parts by stable role key so ids survive and a <code>driven: false</code> part is never touched. Sibling of <code>reconcileJoints</code>; runs immediately before it.</td></tr>
-          <tr><td><code>carcasePresets.ts</code></td><td><code>CARCASE_PRESETS</code> — named parameter bundles (Base 600, Wall 600, Tall 600) and <code>PRESET_MATERIALS</code>. Data only. Base and Wall are one opening holding one adjustable shelf; Tall keeps four fixed shelves and seats none.</td></tr>
+          <tr><td><code>carcasePresets.ts</code></td><td><code>CARCASE_PRESETS</code> — named parameter bundles (Base 600, Wall 600, Tall 600) and <code>PRESET_MATERIALS</code>. Data only. Base and Wall are one opening holding one adjustable shelf under a single door; Tall is one opening holding four fixed shelves under a pair of doors.</td></tr>
           <tr><td><code>reconcileJoints.ts</code></td><td>Pure, idempotent regeneration of joint-derived groove cuts + seated positions from <code>Scene.joints</code>. Run after <code>regenerateComponents</code>, after every joint-affecting mutation, and on file load.</td></tr>
           <tr><td><code>suggestJoints.ts</code></td><td>Selection-driven joint suggestions: <code>contactPair</code> face + <code>cornerPair</code> corner detection + per-type validity → <code>JointSuggestion[]</code>; <code>synthHit</code> replays through existing <code>onAdd*</code> creators.</td></tr>
           <tr><td><code>groupSuggestions.ts</code></td><td>Collapses scene-wide suggestions to one <code>PairGroup</code> per board pair for the sidebar rows; <code>orientationArrow</code> disambiguates the two-orientation kinds. Does not cap — the row caps live in <code>jointChecklist.ts</code>.</td></tr>
@@ -719,7 +728,7 @@
           <tr><td><code>FileMenu.tsx</code></td><td>Top menu bar: File menu, project name, undo/redo buttons, BOM modal trigger, 3D/2D export buttons.</td></tr>
           <tr><td><code>sidebar.tsx</code></td><td>Composition shell: the <code>SceneTree</code>, the selected-node editor (<code>EditPanel</code> for a part, <code>CarcasePanel</code> for a carcase), and the Cut / Snap / joint mode buttons.</td></tr>
           <tr><td><code>SceneTree.tsx</code></td><td>Sidebar hierarchy over <code>components</code> + <code>parts</code>: expand/collapse, selection, per-node visibility, driven/detached badges.</td></tr>
-          <tr><td><code>CarcasePanel.tsx</code></td><td>Carcase parameter form in collapsible sections (size, structure, shelving, joinery) that drives <code>regenerateComponents</code>. Shelving names an <em>opening</em> and edits that section's interior; Dividers and Fixed shelves are a v12 shim that rebuilds the whole tree, carrying the cabinet's one interior spec across.</td></tr>
+          <tr><td><code>CarcasePanel.tsx</code></td><td>Carcase parameter form in collapsible sections (size, structure, shelving, front, joinery) that drives <code>regenerateComponents</code>. Shelving and Front both name an <em>opening</em> and edit that section — its interior, its front — while mount and reveal stay cabinet-wide; Dividers and Fixed shelves are a v12 shim that rebuilds the whole tree, carrying the cabinet's one interior spec across.</td></tr>
           <tr><td><code>SheetsTab.tsx</code></td><td>Per-material yield: sheet count, utilisation, cost, and a per-sheet SVG from <code>buildSheetSvg.ts</code>. Owns the nest's <code>enabled</code> flag and clears it on unmount.</td></tr>
           <tr><td><code>SceneSuggestionsPanel.tsx</code></td><td>The scene-wide joinery checklist: one collapsed line per cabinet, expanding to jointed / open / no-joint-needed rows.</td></tr>
           <tr><td><code>EditPanel.tsx</code></td><td>Selected-part editor (moved verbatim out of <code>sidebar.tsx</code>): label, material, ColorControl, dimensions, position, rotation, cuts (with cut-linking), joints, hole-arrays, read-only derived-cut rows, linked hardware.</td></tr>
@@ -770,7 +779,7 @@
       <h2>Data model</h2>
       <p>All canonical types live in <code>src/scene/types.ts</code>. The file format serializes a <code>ZimmuFile</code> to <code>.zimmu</code> (flat JSON).</p>
 
-      <pre><code>// File format (FILE_FORMAT_VERSION = 16)
+      <pre><code>// File format (FILE_FORMAT_VERSION = 17)
 interface ZimmuFile {
   version: number       // must equal FILE_FORMAT_VERSION
   name: string
@@ -883,12 +892,16 @@ interface MaterialDef {
 // partition or shelf between its children.
 interface CarcaseParams {
   width: number; height: number; depth: number
-  carcaseMaterial: string; backMaterial: string   // slots, each naming a MaterialDef
+  // Three slots, each naming a MaterialDef. A front draws on its own, so a shaker door in oak
+  // on a ply carcase is one field — and its own nest group, since material is the grouping key.
+  carcaseMaterial: string; backMaterial: string; frontMaterial: string
   hasTop: boolean
   backMode: 'captured' | 'applied' | 'none'
   baseMode: 'toe-kick' | 'ladder' | 'legs' | 'none'
   toeKickHeight: number; toeKickSetback: number
   section: Section
+  frontMount: 'overlay' | 'inset'  // in front of the carcase face, or in the opening
+  frontReveal: number              // the visible gap, everywhere
   jointMethod: 'dado-rabbet' | 'finger' | 'dowel' | 'butt-screw' | 'confirmat'
 }
 
@@ -899,12 +912,22 @@ interface Section {
     | { kind: 'leaf' }
     | { kind: 'split'; axis: 'vertical' | 'horizontal'
         division: 'none' | 'panel' | 'rail'; children: Section[] }
-  interior?: { adjustable: {
-    shelves: number      // boards actually seated in this opening
-    count: number        // pin positions per row — not a shelf count
-    rows: 1 | 2; pitch: 32
-    setback: number; backSetback: number
-  } }
+  interior?: {
+    // Shelves that do NOT divide the section — the section stays one leaf and wears one front,
+    // which is the only way to say "a shelf behind a door". A split would make two openings.
+    fixedShelves: number
+    adjustable: {
+      shelves: number    // boards actually seated in this opening
+      count: number      // pin positions per row — not a shelf count
+      rows: 1 | 2; pitch: 32
+      setback: number; backSetback: number
+    }
+  }
+  // What covers this section. Absent means nothing does. `hinge` is read only for a single leaf:
+  // a pair is hinged at both outer edges.
+  front?:
+    | { kind: 'door'; leaves: 1 | 2; hinge: 'left' | 'right' }
+    | { kind: 'drawer-front' } | { kind: 'false-front' } | { kind: 'panel' }
 }
 
 interface HardwareItem {
@@ -1046,7 +1069,7 @@ interface FaceHit {
           </tr>
           <tr>
             <td><strong>ZimmuFile float precision</strong></td>
-            <td>Serialization rounds floats to 6 decimal places. <code>FILE_FORMAT_VERSION = 16</code> in <code>useFile.ts</code> (v11 added the component tree; v12 the carcase <code>backSetback</code>; v13 replaced <code>dividers</code>/<code>fixedShelves</code> with the section tree; v14 moved panel thickness onto the material; v15 added the <code>screw</code> joint kind; v16 moved <code>adjustableShelves</code> onto each section's <code>interior</code>). Unrelated to the IDB <code>DB_VERSION</code>, which is separately 3.</td>
+            <td>Serialization rounds floats to 6 decimal places. <code>FILE_FORMAT_VERSION = 17</code> in <code>useFile.ts</code> (v11 added the component tree; v12 the carcase <code>backSetback</code>; v13 replaced <code>dividers</code>/<code>fixedShelves</code> with the section tree; v14 moved panel thickness onto the material; v15 added the <code>screw</code> joint kind; v16 moved <code>adjustableShelves</code> onto each section's <code>interior</code>; v17 added the front slot, <code>Section.front</code> and <code>interior.fixedShelves</code>). Unrelated to the IDB <code>DB_VERSION</code>, which is separately 3.</td>
           </tr>
           <tr>
             <td><strong>IDB schema bumps</strong></td>
@@ -1115,6 +1138,22 @@ interface FaceHit {
           <tr>
             <td><strong>The nest runs off-thread, and only while the Sheets tab is open</strong></td>
             <td>A six-cabinet job is ~4.8&nbsp;s. <code>BomModal</code> drives <code>useNest</code>'s <code>enabled</code> flag from its tab state and clears it on unmount. Masks are built <em>in</em> the worker, never posted to it.</td>
+          </tr>
+          <tr>
+            <td><strong>Every visible gap equals <code>frontReveal</code></strong></td>
+            <td>…and the two mounts measure it between different things. Two <em>overlay</em> fronts sit one reveal apart because they cover the division between them; two <em>inset</em> fronts sit a division plus two reveals apart, because that division stays visible and each clears it by one. <code>frontCells.ts</code> states the rule once for both.</td>
+          </tr>
+          <tr>
+            <td><strong>An overlay front is a contact; an inset front touches nothing</strong></td>
+            <td>An overlay front lands on the carcase face and is hung off it — a contact, never joinery. The rule reads the emitted boxes (<code>y1 === 0</code>), not <code>frontMount</code>, so the box and the contact cannot drift apart. A front appears in no joint descriptor, so <code>extendToward</code> never reaches it and it comes out face-to-face sized.</td>
+          </tr>
+          <tr>
+            <td><strong>A shelf sits behind an inset front</strong></td>
+            <td><code>SHELF_FRONT_SETBACK</code> is the floor, never the answer: the setback is <code>max(SHELF_FRONT_SETBACK, insetFrontThickness + SHELF_CLEARANCE)</code>. Only the section actually wearing a front pays — asking the cabinet would set every shelf back because one opening has a door.</td>
+          </tr>
+          <tr>
+            <td><strong>A fixed shelf on an <code>interior</code> is not a division</strong></td>
+            <td>A split with <code>division: 'panel'</code> makes a shelf <em>and</em> cuts the section in two, so each half is its own opening wanting its own front. <code>interior.fixedShelves</code> divides nothing: the section stays one leaf and wears one front, which is the only way to express a shelf behind a door.</td>
           </tr>
           <tr>
             <td><strong>resolveWorldMatrix is the single source of world placement</strong></td>
@@ -1200,7 +1239,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->75<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-29 the full Vitest run is 1379 passing (10 skipped) across 76 files (the 76th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 84 test files total including 9 Playwright specs in <code>e2e/</code>, which run 15 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->76<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-29 the full Vitest run is 1436 passing (10 skipped) across 77 files (the 77th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 85 test files total including 9 Playwright specs in <code>e2e/</code>, which run 17 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1349,7 +1388,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-27-cabinet-restructure-stage-a-section-tree.md
     │   ├── 2026-08-27-cabinet-restructure-stage-b-materials-own-thickness.md
     │   ├── 2026-08-28-cabinet-restructure-stage-c-screw-joints.md
-    │   └── 2026-08-28-cabinet-restructure-stage-d-section-interiors.md
+    │   ├── 2026-08-28-cabinet-restructure-stage-d-section-interiors.md
+    │   └── 2026-08-29-cabinet-restructure-stage-e-fronts.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1397,7 +1437,7 @@ import { useScene } from './useScene'</code></pre>
       <h2>File format</h2>
       <p>Projects are saved as <code>.zimmu</code> files — flat JSON, human-readable, floats rounded to 6 decimal places.</p>
       <pre><code>{
-  "version": 16,
+  "version": 17,
   "name": "My Cabinet",
   "appVersion": "0.0.0",
   "units": "mm",
@@ -1416,9 +1456,10 @@ import { useScene } from './useScene'</code></pre>
         <strong>Version history:</strong> v1 (initial) → v2 (added <code>materials</code> and <code>hardware</code> to Scene) →
         … → v11 (component tree: <code>components</code> on Scene, <code>parentId</code>/<code>driven</code> on every part and joint) →
         v12 (carcase <code>backSetback</code>) → v13 (the <code>section</code> tree replaces <code>dividers</code> and <code>fixedShelves</code>) →
-        v14 (panel thickness moves onto <code>MaterialDef</code>) → v15 (the <code>screw</code> joint kind) →
-        v16 (<code>adjustableShelves</code> moves onto each section's <code>interior</code>; <code>startHeight</code> is dropped).
-        Now at <code>FILE_FORMAT_VERSION = 16</code>.
+          v14 (panel thickness moves onto <code>MaterialDef</code>) → v15 (the <code>screw</code> joint kind) →
+        v16 (<code>adjustableShelves</code> moves onto each section's <code>interior</code>; <code>startHeight</code> is dropped) →
+        v17 (fronts: <code>frontMaterial</code> / <code>frontMount</code> / <code>frontReveal</code>, <code>Section.front</code>, and <code>interior.fixedShelves</code>).
+        Now at <code>FILE_FORMAT_VERSION = 17</code>.
         Migration logic lives in <code>useFile.ts</code>; a missing <code>parentId</code> loads as top-level, a dangling one is promoted.
       </p>
 

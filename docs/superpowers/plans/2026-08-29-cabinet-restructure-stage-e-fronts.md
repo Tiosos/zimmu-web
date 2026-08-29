@@ -462,7 +462,7 @@ git add src/scene/frontCells.ts src/scene/frontCells.test.ts src/scene/sectionTr
 git commit -m "feat(scene): a section can state the front that covers it"
 ```
 
-- [ ] **Acceptance:** the full suite passes with its count unchanged apart from your additions. Nothing consumes this yet.
+- [x] **Acceptance:** the full suite passes with its count unchanged apart from your additions. Nothing consumes this yet.
 
 ## Group B — the switch
 
@@ -994,7 +994,7 @@ and add `frontMount` to the sweep's loop variables, beside `baseMode` and `backM
 doubles from 96 to 192; `grain.test.ts` asserts the sweep's size, so update that number and its
 comment.
 
-- [ ] **Step 2: DECISION REQUIRED — do the presets ship a door?**
+- [x] **Step 2: DECISION — the presets ship a door. Answered yes by the user, 2026-08-29.**
 
 **Do not decide this alone.** Stage D's equivalent question was put to the user and answered against
 the recommendation, and preset content is a product decision with a visible cost: a Base 600 gaining
@@ -1439,23 +1439,23 @@ git commit -am "feat(ui): a front is chosen one opening at a time"
 
 ## Group F — close the stage
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test`, exit codes read directly, **never piped through `tail`/`head`**
-- [ ] `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome pnpm test:e2e` → 16 passed. Do **not** run `playwright install`. If B6 gave the presets a door, expect `carcase.spec.ts`'s part count and both `sheets-tab.spec.ts` figures to move; recompute the nest ground truth rather than guessing it, and list which moved.
-- [ ] Add an e2e that sets a front from the panel and sees the board appear, alongside the Stage D shelf one. Remember what that one cost: the section is collapsed by default and its content is `hidden` rather than unmounted, so click the section header first; and Playwright's `getByLabel` is substring and case-insensitive, so pass `{ exact: true }` for any label that is a substring of another.
-- [ ] `CLAUDE.md`: v17, `frontCells.ts`, `DEFAULT_FRONT_MATERIAL`, and invariants for the reveal rule, the overlay contact, and the inset shelf setback.
-- [ ] `node scripts/update-structure-html.mjs`, then update the hand-written prose the script does not touch: the `src/scene/` table, the data-model `CarcaseParams`/`Section` blocks, the version history, the Features table, and the invariants table. The page was audited to Stage D on 2026-08-29; keep it there rather than letting it drift four versions again.
-- [ ] Notes: the overlay-contact finding; the inset shelf setback; whether the presets took a door and what moved; the 96 → 192 sweep.
+- [x] `pnpm typecheck && pnpm lint && pnpm test` — 1436 passed, 10 skipped, 77 files
+- [x] e2e → **17 passed**. Three specs moved to the new truth: `carcase.spec.ts` (7 → 8 roles) and both `sheets-tab.spec.ts` figures (8 → 9 boards; one sheet 60% → 73%). Original line follows. Do **not** run `playwright install`. If B6 gave the presets a door, expect `carcase.spec.ts`'s part count and both `sheets-tab.spec.ts` figures to move; recompute the nest ground truth rather than guessing it, and list which moved.
+- [x] Added an e2e that sets a front from the panel and sees the board appear, alongside the Stage D shelf one. Remember what that one cost: the section is collapsed by default and its content is `hidden` rather than unmounted, so click the section header first; and Playwright's `getByLabel` is substring and case-insensitive, so pass `{ exact: true }` for any label that is a substring of another.
+- [x] `CLAUDE.md`: v17, `frontCells.ts`, and four invariants — the reveal rule for both mounts, the overlay contact, the inset shelf setback, and a fixed shelf that is not a division.
+- [x] `node scripts/update-structure-html.mjs`, then updated the hand-written prose the script does not touch: the `src/scene/` table, the data-model `CarcaseParams`/`Section` blocks, the version history, the Features table, and the invariants table. The page was audited to Stage D on 2026-08-29; keep it there rather than letting it drift four versions again.
+- [x] Notes: the overlay-contact finding; the inset shelf setback; the presets taking doors and what moved; the 96 → 192 sweep; the two-mounts reveal error; the `git checkout` mistake.
 
 ## Acceptance
 
-- [ ] Every visible gap equals `frontReveal`, measured on the emitted boxes: between two **overlay** fronts, and between an **inset** front and every piece of carcase material around it. The two mounts state the rule differently because an inset cabinet's divisions stay visible and an overlay cabinet's do not
-- [ ] An overlay front contacts every panel it covers; an inset front contacts nothing
-- [ ] No joint descriptor names a front, so the extension pass never lengthens one
-- [ ] A shelf behind an inset front is behind it, by the front's own thickness plus the shelf clearance
-- [ ] A two-leaf door is two boards, hinged at opposite edges, one reveal apart
-- [ ] Fronts draw on `frontMaterial` and form their own nest group
-- [ ] A pre-v17 file opens, gains the three fields at their defaults, and gains no fronts
-- [ ] Every mutation check above was run and reported
+- [x] Every visible gap equals `frontReveal`, measured on the emitted boxes: between two **overlay** fronts, and between an **inset** front and every piece of carcase material around it. The two mounts state the rule differently because an inset cabinet's divisions stay visible and an overlay cabinet's do not
+- [x] An overlay front contacts every panel it covers; an inset front contacts nothing — and the rule reads the boxes, not `frontMount`
+- [x] No joint descriptor names a front, so the extension pass never lengthens one — counted: every preset case gains four contacts and zero joints
+- [x] A shelf behind an inset front is behind it, by the front's own thickness plus the shelf clearance
+- [x] A two-leaf door is two boards, hinged at opposite edges, one reveal apart
+- [x] Fronts draw on `frontMaterial` and form their own nest group
+- [x] A pre-v17 file opens, gains the three fields at their defaults, and gains no fronts
+- [x] Every mutation check above was run and reported
 
 ## What Stage E deliberately does not do
 

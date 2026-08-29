@@ -702,3 +702,66 @@ audit would otherwise have added as a third.
 
 Verified by loading the page in Chromium: 15 sections, no page errors, and every corrected string
 present in the rendered text.
+
+### 2026-08-29 — Stage E: the two mounts do not measure the reveal between the same things
+
+Writing the group A tests turned up an error in the plan's own test, and it is the sort that would
+have shipped a wrong cabinet with a green suite. "Every visible gap equals `frontReveal`" is true,
+but *between what* differs by mount:
+
+- **Overlay** fronts cover the division between them and meet over its midline, so the gap is
+  front-to-front and equals one reveal.
+- **Inset** fronts sit either side of a division that stays **visible**, so the gap between them is
+  the division plus *two* reveals, and the rule that holds is each front clearing the material by
+  one.
+
+The plan had a single parameterised test asserting a front-to-front reveal for both. It would have
+failed against correct code, and "fixing" it by halving the inset reveal would have shipped doors
+that fouled the partition. Split into two tests, each stating its own mount's rule.
+
+### 2026-08-29 — an overlay front is a contact, and the rule must read the geometry
+
+The first cut gated the contact pairs on `p.frontMount === 'overlay'`. The mutation that holds the
+door 6 mm further forward then failed only the placement test, not the contact test — because the
+contact was derived from the *flag* that decides the placement rather than from the placement
+itself. Two things that must agree, asked separately.
+
+Rewritten to read the emitted boxes: a front contacts what it covers when `y1 === 0`, its inner face
+on the carcase face. The mutation that holds the door 2 mm off the face now fails both tests, which
+is the point — the box and the contact cannot drift apart.
+
+Counted rather than asserted, too: every preset case in the pair table gains exactly **four contacts
+and zero joints**. That uniformity *is* the "a front is housed in nothing" claim.
+
+### 2026-08-29 — `git checkout` is the wrong way to undo a mutation
+
+Restoring a mutated `carcaseRoles.ts` with `git checkout` threw away the whole group's uncommitted
+work, because the group had not been committed yet. The plan said to do exactly that; it now says to
+`cp` the file to the scratchpad first and restore from that copy. Cost: one re-application of a
+large edit, and the only reason it was cheap is that the patches were still in the transcript.
+
+### 2026-08-29 — a pantry's shelves had to stop being splits
+
+Only a leaf wears a front. Tall 600's four fixed shelves were *splits*, so its root was a split with
+five stacked children — five openings, each wanting its own door. Five doors on a pantry is not a
+pantry, and Group B had to ship with Tall bare.
+
+`interior.fixedShelves` is what resolves it, and this is precisely the distinction Stage D could not
+draw: a split shelf **divides the opening**, an interior shelf does not. As one leaf with four
+interior shelves, Tall takes one pair of doors over the whole front. The `%s ships %i divisions, %i
+fixed shelves and %i loose` test now states all three shelf-shaped things side by side, because
+"fixed shelf" no longer names one thing.
+
+### 2026-08-29 — Stage E closed
+
+- Unit tests **1419 → 1436**; e2e **17/17**, with three specs moved to the new truth (the Base 600
+  part count 7 → 8 roles, and both Sheets figures: one sheet at 60.38% → 72.76%).
+- The sweep is **96 → 192** cases: the front mount joined `baseMode`, `backMode` and `hasTop` as a
+  loop variable, because an inset cabinet and an overlay one are different geometry everywhere.
+- `setFrontOn` **deletes** the key rather than storing `undefined`. Both serialise identically, but
+  `'front' in section` tells them apart and absence is how the model says "no front".
+- The lint config ignores unused *arguments* only, not vars, so the idiomatic
+  `const { front: _dropped, ...rest }` does not pass. Written as an explicit `delete` instead —
+  changing the lint rule for one line would have been the wrong way round.
+- Deferred as planned: hinge cups, hinge plate screws and drawer slide screws (Stage F); drawer
+  boxes; frame-and-panel door construction.
