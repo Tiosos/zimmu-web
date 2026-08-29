@@ -29,6 +29,9 @@ export function grainAxisOf(role: string, splitAxis?: 'vertical' | 'horizontal')
   // fixed shelf do. It is a family rather than a name because its role carries the section it
   // sits in.
   if (role.startsWith('adj-shelf-')) return 'x'
+  // The same convention, and for the same reason: it lies flat. A family because its role carries
+  // the section it sits in.
+  if (role.startsWith('fixed-shelf-')) return 'x'
   if (role === 'left-side' || role === 'right-side') return 'z'
   if (role === 'back') return 'z'
   // Grain runs vertical on every front, and a front is a thickness-on-y panel exactly like the

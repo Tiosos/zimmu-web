@@ -890,6 +890,7 @@ describe('shelf-pin hole arrays', () => {
       // Two bays, no fixed shelf, so each panel bounds one section per face: the counts below are
       // about which panels get drilled, not about how a divided cabinet multiplies rows.
       section: seedInteriors(legacyToSection([0.5], 0, 600, 18), {
+        fixedShelves: 0,
         adjustable: { shelves: 0, count: 10, rows: 1, pitch: 32, setback: 37, backSetback: 37 },
       }),
     },

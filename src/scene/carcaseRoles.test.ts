@@ -181,7 +181,7 @@ const ADJ = {
   backSetback: 37,
 }
 const shelved = (s: Section, over: Partial<typeof ADJ> = {}): Section =>
-  seedInteriors(s, { adjustable: { ...ADJ, ...over } })
+  seedInteriors(s, { fixedShelves: 0, adjustable: { ...ADJ, ...over } })
 
 // These tests describe cabinets the way the parameters used to: n bays across, m fixed shelves in
 // each. `legacyToSection` is the conversion the app itself uses, so a fixture and a migrated file
@@ -1929,6 +1929,58 @@ describe('adjustable shelves', () => {
   })
 })
 
+describe('fixed shelves inside a section', () => {
+  const fixedBoxes = (p: CarcaseParams) =>
+    carcaseBoxes(p).filter((b) => b.role.startsWith('fixed-shelf-'))
+
+  const withFixed = (n: number): CarcaseParams => ({
+    ...base,
+    section: seedInteriors(sec([], 0), { fixedShelves: n, adjustable: { ...ADJ, shelves: 0 } }),
+  })
+
+  // A fixed shelf inside a section is not a split: a split makes two sections and would want two
+  // doors, so a shelf *behind one door* has to come from the interior instead. It divides the
+  // section's clear height into equal bays, exactly as a split with n children would.
+  it('emits one board per fixed shelf, dividing the opening into equal bays', () => {
+    const fixed = fixedBoxes(withFixed(2)).sort((a, b) => a.box.z0 - b.box.z0)
+    expect(fixed).toHaveLength(2)
+    const gaps = [
+      fixed[0].box.z0 - 118,
+      fixed[1].box.z0 - fixed[0].box.z1,
+      702 - fixed[1].box.z1,
+    ]
+    for (const g of gaps) expect(g).toBeCloseTo(gaps[0], 6)
+  })
+
+  it('emits none when the interior asks for none', () => {
+    expect(fixedBoxes(withFixed(0))).toEqual([])
+  })
+
+  // Structure, unlike the loose shelves beside it: housed in the panels bounding its section, and
+  // therefore in the joint column rather than nowhere.
+  it('is housed in the panels that bound its section', () => {
+    const p = withFixed(1)
+    const [shelf] = fixedBoxes(p)
+    const housed = carcaseJoints(p, 'cmp_1').filter((d) => d.housedRole === shelf.role)
+    expect(housed.map((d) => d.housingRole).sort()).toEqual(['left-side', 'right-side'])
+  })
+
+  it('meets the back, and is declared as a contact rather than left unjoined', () => {
+    const p = withFixed(1)
+    const [shelf] = fixedBoxes(p)
+    expect(
+      carcaseContactPairs(p).some(([a, b]) => a === 'back' && b === shelf.role),
+    ).toBe(true)
+  })
+
+  it('lies flat and runs grain across the cabinet', () => {
+    const p = withFixed(1)
+    expect(fixedBoxes(p)[0].thicknessAxis).toBe('z')
+    const spec = carcaseRoles(p).find((r) => r.role.startsWith('fixed-shelf-'))!
+    expect(spec.grain).toBe('length')
+  })
+})
+
 describe('fronts', () => {
   const DOOR = { kind: 'door', leaves: 1, hinge: 'left' } as const
 
@@ -2085,17 +2137,27 @@ describe('the section tree in the generator', () => {
     }
   })
 
-  // A fixed shelf is a *division* — a horizontal split with a panel in it — and an adjustable one
-  // is a loose board that divides nothing. Only the pantry ships divisions now, which is the
-  // difference between the two stated as a test.
+  // Three shelf-shaped things, told apart by what they divide. A *division* is a split with a panel
+  // in it: it cuts the section in two, and each half is its own opening wanting its own front. An
+  // *interior* fixed shelf divides nothing — the section stays one leaf, so it wears one front and
+  // the shelves sit behind it, which is the whole reason Stage E added the field. An adjustable
+  // shelf is a loose board that divides nothing and is joined to nothing.
+  //
+  // No preset ships a division any more: the pantry's four shelves are interior ones, so it can
+  // hang one pair of doors over the lot.
   it.each([
-    ['Base 600', 0],
-    ['Wall 600', 0],
-    ['Tall 600', 4],
-  ])('%s ships %i fixed shelves', (name, expected) => {
+    ['Base 600', 0, 0, 1],
+    ['Wall 600', 0, 0, 1],
+    ['Tall 600', 0, 4, 0],
+  ])('%s ships %i divisions, %i fixed shelves and %i loose', (name, splits, fixed, loose) => {
     const params = CARCASE_PRESETS.find((p) => p.name === name)!.params
-    const divisions = carcaseBoxes(params).filter((b) => b.role.startsWith('division-'))
-    expect(divisions).toHaveLength(expected)
-    for (const d of divisions) expect(d.thicknessAxis).toBe('z')
+    const of = (prefix: string) =>
+      carcaseBoxes(params).filter((b) => b.role.startsWith(prefix))
+    expect(of('division-'), 'divisions').toHaveLength(splits)
+    expect(of('fixed-shelf-'), 'fixed shelves').toHaveLength(fixed)
+    expect(of('adj-shelf-'), 'loose shelves').toHaveLength(loose)
+    for (const b of [...of('division-'), ...of('fixed-shelf-')]) {
+      expect(b.thicknessAxis).toBe('z')
+    }
   })
 })

@@ -11,7 +11,7 @@ import { useFile, parseFile } from './useFile'
 import * as idb from './idb'
 import type { BoardPart, CarcaseParams, MaterialDef, ZimmuFile, Scene, Part } from './types'
 import type { Section } from './sectionTree'
-import { firstInterior } from './sectionInterior'
+import { firstInterior, seedInteriors } from './sectionInterior'
 import { legacyToSection } from './migrateSections'
 import { defaultScrewJoint } from './defaultJoint'
 import { carcaseBoxes as boxesOf, validateCarcaseParams as validateOf } from './carcaseRoles'
@@ -1558,6 +1558,25 @@ describe('v16 → v17 migration', () => {
     const p = carcaseOf(v16({}))
     const boxes = boxesOf(p, roleThicknessFor(p, PRESET_MATERIALS, new Map()))
     expect(boxes.filter((b) => b.role.startsWith('front-'))).toEqual([])
+  })
+
+  // v17 also widened `InteriorSpec`. A migrated interior missing `fixedShelves` compiles — the
+  // parser types `base.params` loosely — and only fails when the generator dereferences it, which
+  // is the exact regression CLAUDE.md says a parseFile test is required to catch.
+  it('gives a migrated interior no fixed shelves', () => {
+    const p = carcaseOf(
+      v16({
+        section: seedInteriors(legacyToSection([], 1, 600, 18), {
+          fixedShelves: 0,
+          adjustable: { shelves: 0, count: 10, rows: 2, pitch: 32, setback: 37, backSetback: 37 },
+        }),
+      }),
+    )
+    const leaves = (s: Section): Section[] =>
+      s.content.kind === 'leaf' ? [s] : s.content.children.flatMap(leaves)
+    const all = leaves(p.section)
+    expect(all.length).toBeGreaterThan(0)
+    for (const leaf of all) expect(leaf.interior?.fixedShelves).toBe(0)
   })
 
   it('leaves the three fields alone when the file already states them', () => {

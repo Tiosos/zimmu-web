@@ -477,6 +477,31 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
     reveal: p.frontReveal,
   })
 
+  // Fixed shelves inside a section, before the loose ones: a fixed shelf is structure and the pins
+  // hold boards between them. Not a split — a split makes two sections and would want two fronts,
+  // so a shelf *behind one door* has to come from the interior instead.
+  let housed = 0
+  for (const { sectionId, rect, spec } of sectionInteriors(p.section, tree)) {
+    const n = spec.fixedShelves
+    if (n < 1) continue
+    const t = thicknessOf(`fixed-shelf-${sectionId}-0`)
+    // The clear height the bays share, once the shelves have taken their own thickness out of it —
+    // the same subtraction `resolveSpans` makes for a split, so n shelves leave n + 1 equal bays.
+    const bay = (rect.z1 - rect.z0 - n * t) / (n + 1)
+    for (let i = 0; i < n; i++) {
+      const z0 = rect.z0 + (i + 1) * bay + i * t
+      housed += 1
+      boxes.push({
+        role: `fixed-shelf-${sectionId}-${i}`,
+        label: `Fixed Shelf ${housed}`,
+        // The same depth extent a horizontal division has, because it is the same part. Jointed to
+        // the uprights, so unlike a loose shelf it neither needs nor wants the clearances.
+        box: { x0: rect.x0, x1: rect.x1, y0: 0, y1: shelfBackY, z0, z1: z0 + t },
+        thicknessAxis: 'z',
+      })
+    }
+  }
+
   const frontedSections = new Set(cells.map((c) => c.sectionId))
   // 0 unless this section actually wears an inset front: an opening with no door has nothing to
   // clear, and asking the *cabinet* instead of the section would set every shelf in the carcase
@@ -785,6 +810,26 @@ export function carcaseJoints(
     }
   }
 
+  // A fixed shelf inside a section is housed exactly as a horizontal division is — in the two
+  // uprights bounding its own section, whether those are the sides or the partitions beside them.
+  // `housingsFor` already answers that for a horizontal split, so the shelf is handed to it as one
+  // rather than growing a second copy of the same table.
+  for (const { sectionId, rect, spec } of sectionInteriors(p.section, tree)) {
+    const bounds = tree.boundsOf(sectionId)
+    for (let i = 0; i < spec.fixedShelves; i++) {
+      const asDivision: ResolvedDivision = {
+        parentId: sectionId,
+        index: i,
+        axis: 'horizontal',
+        kind: 'panel',
+        rect,
+      }
+      for (const h of housingsFor(p, asDivision, bounds)) {
+        add(joinery, h.role, `fixed-shelf-${sectionId}-${i}`, h.housingFace, h.housedEnd)
+      }
+    }
+  }
+
   return out
 }
 
@@ -837,6 +882,13 @@ export function carcaseContactPairs(
       sectionThickness(thicknessOf),
     )
     for (const d of tree.divisions) pairs.push(['back', `division-${d.parentId}-${d.index}`])
+    // A fixed shelf stops at the back exactly as a division does: it meets it, it is not housed
+    // in it.
+    for (const { sectionId, spec } of sectionInteriors(p.section, tree)) {
+      for (let i = 0; i < spec.fixedShelves; i++) {
+        pairs.push(['back', `fixed-shelf-${sectionId}-${i}`])
+      }
+    }
   }
 
   // A front that reaches the carcase face lands flat on every panel it covers, and is fixed to it —

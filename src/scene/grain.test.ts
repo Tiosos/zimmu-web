@@ -35,6 +35,7 @@ function familyOf(b: RoleBox): string {
   // Same argument, same shape: an adjustable shelf's role carries the section it sits in, and
   // stripping only the trailing index would leave that identity in the family name.
   if (b.role.startsWith('adj-shelf-')) return 'adj-shelf'
+  if (b.role.startsWith('fixed-shelf-')) return 'fixed-shelf'
   if (b.role.startsWith('front-')) return 'front'
   return b.role.replace(/-\d+$/, '')
 }

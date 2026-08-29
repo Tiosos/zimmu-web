@@ -268,6 +268,8 @@ export function parseFile(text: string): ZimmuFile {
           shelves === undefined
             ? divided
             : seedInteriors(divided, {
+                // v16→v17: a pre-v17 interior states no fixed shelves, and it had none.
+                fixedShelves: 0,
                 adjustable: {
                   shelves: 0,
                   count: shelves.count,

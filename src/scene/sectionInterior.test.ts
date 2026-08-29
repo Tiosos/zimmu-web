@@ -13,6 +13,7 @@ const OPENING: Rect = { x0: 0, x1: 1000, z0: 0, z1: 2000 }
 
 function spec(overrides: Partial<AdjustableSpec> = {}): InteriorSpec {
   return {
+    fixedShelves: 0,
     adjustable: {
       shelves: 2,
       count: 4,

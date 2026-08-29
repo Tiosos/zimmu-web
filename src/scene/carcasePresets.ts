@@ -61,11 +61,12 @@ const shelved = (dividers: number[], fixedShelves: number, width: number, shelve
 // hinged somewhere and the user flips it in one click.
 const DOOR: FrontSpec = { kind: 'door', leaves: 1, hinge: 'left' }
 
-// Only a leaf wears a front. Tall 600's root is a *split* — four fixed shelves make five stacked
-// sections — so it cannot carry one door over the whole cabinet, and five doors on a pantry is not
-// a pantry. It stays bare until `interior.fixedShelves` lets a section hold shelves and stay a leaf.
-const doored = (root: Section): Section =>
-  root.content.kind === 'leaf' ? { ...root, front: DOOR } : root
+const PAIR: FrontSpec = { kind: 'door', leaves: 2, hinge: 'left' }
+
+// Only a leaf wears a front, which is exactly why a pantry's shelves are stated as `fixedShelves`
+// on its interior rather than as splits: four splits would make five stacked sections, and five
+// doors on a pantry is not a pantry. As one leaf it takes one pair of doors over the whole front.
+const doored = (root: Section, front: FrontSpec = DOOR): Section => ({ ...root, front })
 
 export const CARCASE_PRESETS: CarcasePreset[] = [
   {
@@ -111,9 +112,14 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
       toeKickHeight: 100,
       toeKickSetback: 60,
       // The one preset whose shelves are structure rather than convenience: a pantry's four fixed
-      // shelves are what it is. Its five openings are bored for pins so a user can add more, and
-      // seat none — nine shelves in a 2100 mm cabinet is not a cabinet anyone asked for.
-      section: shelved([], 4, 600, 0),
+      // shelves are what it is. Stated on the interior rather than as splits so the cabinet stays
+      // one opening and wears one pair of doors; bored for pins so a user can add loose shelves,
+      // and seating none, because nine shelves in a 2100 mm cabinet is not a cabinet anyone asked
+      // for.
+      section: doored(
+        seedInteriors(legacyToSection([], 0, 600, CARCASE_THICKNESS), defaultInterior(0, 4)),
+        PAIR,
+      ),
     },
   },
 ]

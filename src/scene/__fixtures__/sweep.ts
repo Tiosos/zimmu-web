@@ -8,6 +8,9 @@ import type { CarcaseParams } from '../types'
 // adjustable shelf, and the role-coverage test would pass while `grainAxisOf` had no answer for a
 // family the generator emits — the same gap the ladder fixture exists to close.
 const SWEPT_INTERIOR: InteriorSpec = {
+  // One, not zero: a fixed shelf stated on the interior is a different part from a fixed shelf made
+  // by a split, and the sweep has to reach both or the role-coverage test covers less than it says.
+  fixedShelves: 1,
   adjustable: { shelves: 1, count: 10, rows: 2, pitch: 32, setback: 37, backSetback: 37 },
 }
 

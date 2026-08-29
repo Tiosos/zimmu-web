@@ -22,6 +22,11 @@ export interface AdjustableSpec {
 }
 
 export interface InteriorSpec {
+  // Shelves that do not divide the section. A *split* with `division: 'panel'` makes a shelf too,
+  // and until fronts existed the two were observationally identical — but a split section is two
+  // sections and would want two doors, so a shelf behind *one* door has to be stated here. That is
+  // the whole reason this field waited for Stage E.
+  fixedShelves: number
   adjustable: AdjustableSpec
 }
 
@@ -259,6 +264,9 @@ export function validateSection(root: Section): string[] {
     // section that states it is now the only place it can be caught.
     if (s.interior !== undefined && s.interior.adjustable.count < 0) {
       errors.push('adjustable shelf count must be 0 or more')
+    }
+    if (s.interior !== undefined && s.interior.fixedShelves < 0) {
+      errors.push('fixed shelf count must be 0 or more')
     }
     if (s.content.kind === 'leaf') return
 

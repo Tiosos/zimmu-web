@@ -190,6 +190,7 @@ export function CarcasePanel({
     const current = opening.spec ?? defaultInterior(0)
     setParams({
       section: setInterior(p.section, opening.sectionId, {
+        ...current,
         adjustable: { ...current.adjustable, ...patch },
       }),
     })

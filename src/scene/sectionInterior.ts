@@ -19,7 +19,7 @@ export interface SectionInterior {
 // holes, or both. `shelves: 0, count: 0` is what an interior looks like when nothing was asked for
 // — the same as no interior at all — so it is excluded rather than emitted as an empty row.
 function asksForSomething(spec: InteriorSpec): boolean {
-  return spec.adjustable.shelves > 0 || spec.adjustable.count > 0
+  return spec.fixedShelves > 0 || spec.adjustable.shelves > 0 || spec.adjustable.count > 0
 }
 
 // Every leaf section that asks for something, with where it landed and what encloses it. A split
@@ -100,8 +100,9 @@ export function setInterior(root: Section, id: SectionId, spec: InteriorSpec): S
 // What a cabinet means by "shelving" before anyone has said otherwise. Stated here because two
 // callers create one — the presets, and the panel giving a bare opening its first shelf — and a
 // second copy would let a preset drift from what the panel creates.
-export function defaultInterior(shelves: number): InteriorSpec {
+export function defaultInterior(shelves: number, fixedShelves = 0): InteriorSpec {
   return {
+    fixedShelves,
     adjustable: { shelves, count: 10, rows: 2, pitch: 32, setback: 37, backSetback: 37 },
   }
 }
