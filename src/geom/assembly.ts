@@ -266,7 +266,8 @@ export function buildAssemblyViews(
       .sort((a, b) => a.proj.depthMin - b.proj.depthMin)
 
     const assembled = projected.map(({ part, box, proj }, i): AssemblyPart => {
-      // Only an axis-aligned box occludes or is occluded. A part that is neither draws solid.
+      // Hidden-line removal here is rectangle subtraction: a shape that is not a rectangle has
+      // no edges this machinery can meaningfully cut, so it neither occludes nor is occluded.
       const occluders = box.axisAligned
         ? projected
             .slice(0, i)

@@ -351,6 +351,15 @@ describe('occlusion', () => {
     const bottom = partNamed(front, 'Bottom')
     expect(bottom.hidden.length).toBeGreaterThan(0)
     expect(bottom.solid.length).toBeGreaterThan(0)
+
+    // Per-edge, not per-part. The door spans z[101.5, 718.5] and this edge lies at z=100, so the
+    // door does not cross it at all and it must survive whole. Asserting only that the panel has
+    // *some* solid left would still pass if this edge went dark and another survived instead.
+    const alongBottom = bottom.solid.filter(
+      (s) => Math.abs(s.y1 - 100) < 1e-6 && Math.abs(s.y2 - 100) < 1e-6,
+    )
+    expect(alongBottom).toHaveLength(1)
+    expect(alongBottom[0].x2 - alongBottom[0].x1).toBeCloseTo(564, 6)
   })
 
   // An inset door sits BETWEEN the sides, so it hides neither of them — and their rectangles do not
@@ -467,5 +476,37 @@ describe('occlusion', () => {
     expect(s.hidden).toEqual([])
 
     expect(front.parts.find((q) => q.label === 'Behind')!.hidden).toEqual([])
+  })
+
+  // Nothing else makes `overlaps` the deciding factor: every other pair is separated in depth, so
+  // the depth filter answers first and the rectangle test is never consulted. Here the depth
+  // ordering says "the near board could occlude the far one" and only the rectangles say otherwise.
+  it('does not occlude a part that is nearer but somewhere else entirely', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    // Front rects x[0,100] and x[200,300] — disjoint. Depths [0,10] and [100,110] — cleanly
+    // ordered, so the near board passes the depth filter and is rejected only by its rectangle.
+    const near = board({
+      id: 'board_n',
+      label: 'Near',
+      length: 100,
+      width: 10,
+      thickness: 100,
+      position: { x: 0, y: 0, z: 0 },
+    })
+    const far = board({
+      id: 'board_f',
+      label: 'Far',
+      length: 100,
+      width: 10,
+      thickness: 100,
+      position: { x: 200, y: 100, z: 0 },
+    })
+    const [front] = buildAssemblyViews([near, far], ids, c, PRESET_MATERIALS)
+    for (const part of front.parts) {
+      expect(part.hidden).toEqual([])
+      expect(part.solid).toHaveLength(4)
+    }
   })
 })
