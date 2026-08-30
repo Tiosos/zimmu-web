@@ -478,15 +478,16 @@ describe('occlusion', () => {
     expect(front.parts.find((q) => q.label === 'Behind')!.hidden).toEqual([])
   })
 
-  // Nothing else makes `overlaps` the deciding factor: every other pair is separated in depth, so
-  // the depth filter answers first and the rectangle test is never consulted. Here the depth
-  // ordering says "the near board could occlude the far one" and only the rectangles say otherwise.
+  // A pair the depth filter admits and the geometry must then reject: the near board really is
+  // wholly in front, and only its position in the view plane says it hides nothing. There is no
+  // rectangle pre-filter to do that — `splitEdge` reaches the same answer per edge, which is why
+  // the pre-filter could be deleted.
   it('does not occlude a part that is nearer but somewhere else entirely', () => {
     const p = lopsided()
     const c = withParams(p)
     const ids = new Map<ComponentId, Component>([[c.id, c]])
     // Front rects x[0,100] and x[200,300] — disjoint. Depths [0,10] and [100,110] — cleanly
-    // ordered, so the near board passes the depth filter and is rejected only by its rectangle.
+    // ordered, so the near board passes the depth filter and nothing but the geometry stops it.
     const near = board({
       id: 'board_n',
       label: 'Near',

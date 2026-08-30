@@ -205,9 +205,6 @@ export interface AssemblyView {
   dims: AssemblyDim[]
 }
 
-const overlaps = (a: Rect2D, b: Rect2D): boolean =>
-  a.x < b.x + b.w - EPS && b.x < a.x + a.w - EPS && a.y < b.y + b.h - EPS && b.y < a.y + a.h - EPS
-
 // The four edges of a rectangle, each as a span along its own axis at a fixed other coordinate.
 function edgesOf(r: Rect2D): { horizontal: boolean; at: number; span: Span }[] {
   return [
@@ -272,7 +269,11 @@ export function buildAssemblyViews(
         ? projected
             .slice(0, i)
             .filter((q) => q.box.axisAligned && q.proj.depthMax <= proj.depthMin + EPS)
-            .filter((q) => overlaps(q.proj.rect, proj.rect))
+            // No rectangle pre-filter here. `splitEdge` already decomposes the intersection into
+            // two exact 1-D tests on each occluder's real coordinates — its crossing guard on one
+            // axis and `subtractIntervals` on the other — so admitting a candidate that does not
+            // really overlap costs a little work and changes no output. A pre-filter would be code
+            // no test could falsify.
             .map((q) => q.proj.rect)
         : []
 
