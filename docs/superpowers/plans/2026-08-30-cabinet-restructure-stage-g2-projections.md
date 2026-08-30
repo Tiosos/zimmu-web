@@ -789,8 +789,12 @@ grep -n "label: 'End'" src/geom/assembly.ts
 ```
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: FAIL on _culls the near side from End and keeps the far one_ (the cull takes the far side
-instead) **and** on _puts the cabinet's front on the right of the End view_ (the view flips).
+Expected: **3 failures** — _puts the cabinet's front on the right of the End view_, _orients depth so
+that smaller is nearer in every view_, and _culls the near side from End and keeps the far one_.
+
+End's `depthSign`/`uSign` pair is load-bearing for three separate claims, not two: the view flips,
+the near/far ordering inverts, and the cull then takes the far side. (Measured twice, independently.
+An earlier draft of this plan predicted two.)
 
 ```bash
 cp "$SCRATCHPAD"/assembly-t3.bak src/geom/assembly.ts
