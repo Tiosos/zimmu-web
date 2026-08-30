@@ -969,6 +969,17 @@ describe('occlusion', () => {
     expect([...zs].sort((a, b) => a - b)).toEqual(zs)
   })
 
+  // Handed to this task by Task 3's quality review: `Math.min(d0,d1)`/`Math.max(d0,d1)` were not
+  // pinned to the near and far edge of *this* box — plain `d0`/`d1` passed, because the only depth
+  // test compared two well-separated boxes, where either endpoint preserves the ordering.
+  it('reports a single box’s own near and far edges, not an arbitrary endpoint', () => {
+    const { top } = viewsOf(lopsided())
+    const bottom = top.parts.find((q) => q.label === 'Bottom')!
+    // Top looks down, so oriented depth is -z and the bottom panel z[100,118] comes out [-118,-100].
+    expect(bottom.depthMin).toBeCloseTo(-118, 6)
+    expect(bottom.depthMax).toBeCloseTo(-100, 6)
+  })
+
   it('reports every part solid plus hidden equal to its whole perimeter', () => {
     const { front } = viewsOf(lopsided())
     for (const p of front.parts) {
@@ -1112,10 +1123,13 @@ export function buildAssemblyViews(
         partId: part.id,
         label: part.label,
         color: part.color,
+        // For a part that is not an axis-aligned box, `rects` is its bounding rectangle and serves
+        // only as the hit shape; `outline` is what gets drawn. Its `hidden` comes out empty on its
+        // own, because it has no occluders — no branch needed to force it.
         rects,
         outline: box.axisAligned ? undefined : hullOf(box, view, p),
-        solid: box.axisAligned ? solid : solid,
-        hidden: box.axisAligned ? hidden : [],
+        solid,
+        hidden,
         circles: [],
         cutRects: [],
         depthMin: proj.depthMin,
@@ -1129,7 +1143,7 @@ export function buildAssemblyViews(
       label: view.label,
       bounds: { x: 0, y: 0, w: eu.hi - eu.lo, h: ev.hi - ev.lo },
       parts: assembled,
-      dims: buildDims(view, p, thicknessOf), // Task 5 gives this its real body
+      dims: buildDims(),
     }
   })
 
@@ -1158,11 +1172,35 @@ function hullOf(box: CabinetBox, view: ViewSpec, p: CarcaseParams): Point2D[] {
 }
 ```
 
+Task 4 also declares the dimension type and a stub, because `AssemblyView.dims` needs a type to
+exist now. **Task 5 fills in the body — do not write the chains here:**
+
+```ts
+// A dimension in unscaled millimetres, placed by which side of the view it sits on and which ring
+// out from it. Never a page offset: `renderDimLine` reads `offset` in sheet millimetres while it
+// reads start/end as already scaled, so only a consumer that knows the scale can fill that in.
+export interface AssemblyDim {
+  axis: 'h' | 'v'
+  side: 'above' | 'below' | 'left' | 'right'
+  ring: 1 | 2
+  start: number
+  end: number
+  label: string
+}
+
+// Task 5 gives this its body. A view with no dimensions is a legitimate intermediate state — the
+// projector's geometry is what this task is for.
+function buildDims(): AssemblyDim[] {
+  return []
+}
+```
+
+and the view returns `dims: buildDims()`.
+
 - [ ] **Step 5: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: PASS — Task 2's and Task 3's tests included. (`buildDims` lands in Task 5; until then stub it as
-`const buildDims = (): AssemblyDim[] => []` and replace it there.)
+Expected: PASS — Task 2's and Task 3's tests included.
 
 - [ ] **Step 6: Mutation check — the comparator, and Top's inversion**
 
@@ -1324,7 +1362,8 @@ Expected: FAIL — `buildDims` returns `[]`.
 
 - [ ] **Step 3: Implement**
 
-Replace the `buildDims` stub in `src/geom/assembly.ts`:
+Replace Task 4's `buildDims` stub in `src/geom/assembly.ts` (keep the `AssemblyDim` interface it
+declared) and change the call to `buildDims(view, p, thicknessOf)`:
 
 ```ts
 import { openingRect } from '../scene/carcaseRoles'
@@ -1332,20 +1371,8 @@ import { overridesOf, roleThicknessFor } from '../scene/resolveThickness'
 import { resolveSections } from '../scene/sectionTree'
 import { sectionOpenings } from '../scene/sectionInterior'
 
-// A dimension in unscaled millimetres, placed by which side of the view it sits on and which ring
-// out from it. Never a page offset: renderDimLine reads `offset` in sheet millimetres while it
-// reads start/end as already scaled, so only a consumer that knows the scale can fill that in.
-//
 // Collision is prevented by construction — no two families share a side AND a ring — so nothing
 // here needs a placement search, which is most of what drawing.ts's complexity actually is.
-export interface AssemblyDim {
-  axis: 'h' | 'v'
-  side: 'above' | 'below' | 'left' | 'right'
-  ring: 1 | 2
-  start: number
-  end: number
-  label: string
-}
 
 const mm = (n: number): string => String(Math.round(n * 100) / 100)
 
