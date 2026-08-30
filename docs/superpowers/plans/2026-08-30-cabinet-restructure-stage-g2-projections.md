@@ -993,6 +993,56 @@ describe('occlusion', () => {
     expect(bottom.depthMax).toBeCloseTo(-100, 6)
   })
 
+  // The one rule this task is about, and no fixture above falsifies its DIRECTION: every pair in a
+  // real cabinet either fails the rect-overlap test or is cleanly separated in depth, so
+  // `Q.depthMax <= P.depthMin` and its reverse agree on all of them. Two slabs driven through each
+  // other tell them apart, and the answer is the stated one — genuine interpenetration is reachable
+  // only by moving a detached part by hand, and neither part then occludes the other.
+  it('lets two interpenetrating parts occlude each other in neither direction', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const near = board({ id: 'board_a', label: 'Slab A', length: 100, width: 100, thickness: 10, position: { x: 0, y: 0, z: 0 } })
+    const far = board({ id: 'board_b', label: 'Slab B', length: 100, width: 100, thickness: 10, position: { x: 0, y: 50, z: 0 } })
+    // Identical Front rectangles, depths [0,100] and [50,150] — overlapping, not separated.
+    const [front] = buildAssemblyViews([near, far], ids, c, PRESET_MATERIALS)
+    for (const part of front.parts) {
+      expect(part.hidden).toEqual([])
+      expect(part.solid).toHaveLength(4)
+    }
+  })
+
+  // hullOf and the whole non-axis-aligned path are unreached by every other fixture here, because
+  // carcaseRoles only ever emits axis-aligned boards. A skewed part is reachable — a user can
+  // rotate a detached one — and the rule has two halves: it is drawn as its own outline, and it
+  // takes no part in occlusion in either direction. A 100x100x10 board turned 30 degrees about z at
+  // (200,200,200) spans x[150, 286.6], y[200, 336.6], z[200,210], so `Behind` sits inside its Front
+  // rect and past its depth — without which the second assertion would prove nothing.
+  it('draws a skewed part as its own outline and lets it occlude nothing', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const skew = board({
+      id: 'board_skew', label: 'Skew',
+      length: 100, width: 100, thickness: 10,
+      rotation: { x: 0, y: 0, z: 30 },
+      position: { x: 200, y: 200, z: 200 },
+    })
+    const behind = board({
+      id: 'board_behind', label: 'Behind',
+      length: 50, width: 50, thickness: 5,
+      position: { x: 200, y: 400, z: 202 },
+    })
+    const [front] = buildAssemblyViews([skew, behind], ids, c, PRESET_MATERIALS)
+
+    const s = front.parts.find((q) => q.label === 'Skew')!
+    expect(s.outline).toBeDefined()
+    expect(s.outline!.length).toBeGreaterThan(2)
+    expect(s.hidden).toEqual([])
+
+    expect(front.parts.find((q) => q.label === 'Behind')!.hidden).toEqual([])
+  })
+
   it('reports every part solid plus hidden equal to its whole perimeter', () => {
     const { front } = viewsOf(lopsided())
     for (const p of front.parts) {
@@ -1231,9 +1281,18 @@ grep -n "q.proj.depthMin <= proj.depthMax" src/geom/assembly.ts
 ```
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: FAIL on _does not hide the sides behind an inset door_ — the loosened test now hides them.
-It must fail on the inset case as well as the overlay one: a rule that reads only one case is the
-Stage E defect repeating.
+Expected: FAIL on _lets two interpenetrating parts occlude each other in neither direction_ — and on
+that test **only**.
+
+An earlier draft of this plan predicted _does not hide the sides behind an inset door_. That is
+wrong, measured twice: an inset door's rect never overlaps a side's rect, so `overlaps()` rejects
+the pair before the depth comparator is consulted at all, and the test passes whichever way the
+inequality points. The same is true of every other pair in a real cabinet — each is either
+rect-disjoint or cleanly separated in depth, so both directions agree on all of them.
+
+**So the comparator's direction is pinned by exactly one test, and it is the interpenetration test
+below.** Without it, a flipped inequality ships green. If you are ever tempted to drop that test as
+artificial, this is why it is not.
 
 ```bash
 cp "$SCRATCHPAD"/assembly-t4.bak src/geom/assembly.ts
@@ -1257,6 +1316,14 @@ the bottom.
 cp "$SCRATCHPAD"/assembly-t4.bak src/geom/assembly.ts
 grep -n "depthSign: -1, uSign: 1" src/geom/assembly.ts
 ```
+
+**(c) let skewed parts occlude** — drop the `q.box.axisAligned &&` conjunct from the occluders
+filter *and* the `box.axisAligned ?` guard beside it.
+
+Expected: FAIL on _draws a skewed part as its own outline and lets it occlude nothing_, and
+specifically on its **`Behind`** assertion. The two halves of that rule fail separately: replacing
+`hullOf` with a throw breaks the *drawn as an outline* half, this breaks the *occludes nothing* half.
+If only the outline assertion fails here, the second half is still unpinned — say so.
 
 - [ ] **Step 7: Full suite and commit**
 
