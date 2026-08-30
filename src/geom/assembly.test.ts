@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { cabinetSpaceBox } from './assembly'
-import type { BoardPart, CarcaseComponent, Component, ComponentId } from '../scene/types'
+import type {
+  BoardPart,
+  CarcaseComponent,
+  Component,
+  ComponentId,
+  GroupComponent,
+} from '../scene/types'
 import { CARCASE_PRESETS } from '../scene/carcasePresets'
 
 const cabinet: CarcaseComponent = {
@@ -105,6 +111,29 @@ describe('cabinetSpaceBox', () => {
     expect(b.min).toEqual({ x: 96, y: 96, z: 0 })
     expect(b.max).toEqual({ x: 104, y: 104, z: 40 })
     // A cylinder is never an occluder: its box is not its shape.
+    expect(b.axisAligned).toBe(false)
+  })
+
+  // A board can be axis-aligned in its OWN frame and not in the cabinet's: its rotation is zero,
+  // but a group between it and the cabinet is turned 45 degrees. This is the case that separates
+  // "read the corners" from "read the rotation" — every other fixture here is a multiple of 90,
+  // which a rotation-based test gets right by luck.
+  it('is not axis-aligned when an intervening group is rotated', () => {
+    const group: GroupComponent = {
+      kind: 'group',
+      id: 'cmp_2',
+      label: 'Skewed',
+      parentId: cabinet.id,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 45 },
+      rotationOrder: 'XYZ',
+      visible: true,
+    }
+    const nested = new Map<ComponentId, Component>([
+      [cabinet.id, cabinet],
+      [group.id, group],
+    ])
+    const b = cabinetSpaceBox(board({ parentId: group.id }), nested, cabinet)
     expect(b.axisAligned).toBe(false)
   })
 })
