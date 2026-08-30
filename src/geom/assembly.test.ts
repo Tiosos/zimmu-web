@@ -398,4 +398,74 @@ describe('occlusion', () => {
       expect(total).toBeCloseTo(perimeter, 4)
     }
   })
+
+  // The one rule this task is about, and no fixture above falsifies its DIRECTION: every pair in a
+  // real cabinet either fails the rect-overlap test or is cleanly separated in depth, so
+  // `Q.depthMax <= P.depthMin` and its reverse agree on all of them. Two slabs driven through each
+  // other tell them apart, and the answer is the stated one — genuine interpenetration is reachable
+  // only by moving a detached part by hand, and neither part then occludes the other.
+  it('lets two interpenetrating parts occlude each other in neither direction', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const near = board({
+      id: 'board_a',
+      label: 'Slab A',
+      length: 100,
+      width: 100,
+      thickness: 10,
+      position: { x: 0, y: 0, z: 0 },
+    })
+    const far = board({
+      id: 'board_b',
+      label: 'Slab B',
+      length: 100,
+      width: 100,
+      thickness: 10,
+      position: { x: 0, y: 50, z: 0 },
+    })
+    // Identical Front rectangles, depths [0,100] and [50,150] — overlapping, not separated.
+    const [front] = buildAssemblyViews([near, far], ids, c, PRESET_MATERIALS)
+    for (const part of front.parts) {
+      expect(part.hidden).toEqual([])
+      expect(part.solid).toHaveLength(4)
+    }
+  })
+
+  // hullOf and the whole non-axis-aligned path are unreached by every other fixture here, because
+  // carcaseRoles only ever emits axis-aligned boards. A skewed part is reachable — a user can
+  // rotate a detached one — and the rule has two halves: it is drawn as its own outline, and it
+  // takes no part in occlusion in either direction.
+  it('draws a skewed part as its own outline and lets it occlude nothing', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const skew = board({
+      id: 'board_skew',
+      label: 'Skew',
+      length: 100,
+      width: 100,
+      thickness: 10,
+      rotation: { x: 0, y: 0, z: 30 },
+      position: { x: 200, y: 200, z: 200 },
+    })
+    // Wholly inside the skewed part's bounding rectangle in Front, and wholly behind it in depth —
+    // so it would be hidden if a skewed part were allowed to occlude.
+    const behind = board({
+      id: 'board_behind',
+      label: 'Behind',
+      length: 50,
+      width: 50,
+      thickness: 5,
+      position: { x: 200, y: 400, z: 202 },
+    })
+    const [front] = buildAssemblyViews([skew, behind], ids, c, PRESET_MATERIALS)
+
+    const s = front.parts.find((q) => q.label === 'Skew')!
+    expect(s.outline).toBeDefined()
+    expect(s.outline!.length).toBeGreaterThan(2)
+    expect(s.hidden).toEqual([])
+
+    expect(front.parts.find((q) => q.label === 'Behind')!.hidden).toEqual([])
+  })
 })
