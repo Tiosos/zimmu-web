@@ -1,14 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { cabinetSpaceBox, VIEWS, projectBox, culled } from './assembly'
-import type { CabinetBox } from './assembly'
+import { cabinetSpaceBox, VIEWS, projectBox, culled, buildAssemblyViews } from './assembly'
+import type { AssemblyView, CabinetBox } from './assembly'
 import type {
   BoardPart,
   CarcaseComponent,
+  CarcaseParams,
   Component,
   ComponentId,
   GroupComponent,
+  Part,
 } from '../scene/types'
-import { CARCASE_PRESETS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
+import { carcaseRoles } from '../scene/carcaseRoles'
+import { roleThicknessFor } from '../scene/resolveThickness'
+import { jointKindFor } from '../scene/resolveJointKind'
 
 const cabinet: CarcaseComponent = {
   kind: 'carcase',
@@ -240,5 +245,157 @@ describe('the near-half cull', () => {
   it('culls a part sitting within a whisker of the cut plane', () => {
     const onThePlane = box(params.width / 2 - 1e-13, 400, 0, 560, 0, 720)
     expect(culled(onThePlane, view('End'), params)).toBe(true)
+  })
+})
+
+// A cabinet asymmetric in every axis. G1 taught this twice: a symmetric fixture passes every
+// mutation. W != D != H separates the three planes from each other.
+function lopsided(over: Partial<CarcaseParams> = {}): CarcaseParams {
+  return { ...CARCASE_PRESETS[0].params, width: 600, height: 720, depth: 560, ...over }
+}
+
+// The parts a cabinet's parameters imply, built the way regenerateComponents builds them, so the
+// projector is tested against what the app actually holds.
+function partsOf(params: CarcaseParams): Part[] {
+  const thicknessOf = roleThicknessFor(params, PRESET_MATERIALS, new Map())
+  return carcaseRoles(params, thicknessOf, jointKindFor([], cabinet.id)).map((r, i) => ({
+    kind: 'board',
+    id: `board_${i}`,
+    label: r.label,
+    length: r.panel.length,
+    width: r.panel.width,
+    thickness: r.panel.thickness,
+    grain: r.grain,
+    material: '',
+    color: '#888',
+    position: r.panel.position,
+    rotation: r.panel.rotation,
+    rotationOrder: r.panel.rotationOrder,
+    cuts: [],
+    visible: true,
+    parentId: cabinet.id,
+    driven: true,
+    role: r.role,
+  }))
+}
+
+const withParams = (params: CarcaseParams): CarcaseComponent => ({ ...cabinet, params })
+
+function viewsOf(params: CarcaseParams, materials = PRESET_MATERIALS) {
+  const c = withParams(params)
+  const ids = new Map<ComponentId, Component>([[c.id, c]])
+  const [front, top, end] = buildAssemblyViews(partsOf(params), ids, c, materials)
+  return { front, top, end }
+}
+
+const labels = (v: { parts: { label: string }[] }) => v.parts.map((p) => p.label)
+
+describe('the assembled views', () => {
+  it('gives each view the extent its own two axes imply', () => {
+    const { front, top, end } = viewsOf(lopsided())
+    expect([front.bounds.w, front.bounds.h]).toEqual([600, 720]) // W x H
+    expect([top.bounds.w, top.bounds.h]).toEqual([600, 560]) // W x D
+    expect([end.bounds.w, end.bounds.h]).toEqual([560, 720]) // D x H
+  })
+
+  // The whole reason the cull exists. Without it this count is 1.
+  it('leaves more than one part visible in the End view', () => {
+    expect(labels(viewsOf(lopsided()).end).length).toBeGreaterThan(1)
+  })
+
+  it('drops the near side from End and the top panel from Top, and nothing from Front', () => {
+    const { front, top, end } = viewsOf(lopsided())
+    expect(labels(end)).toContain('Left Side')
+    expect(labels(end)).not.toContain('Right Side')
+    expect(labels(top)).toContain('Bottom')
+    expect(labels(top)).not.toContain('Top')
+    expect(labels(front).sort()).toEqual(
+      partsOf(lopsided())
+        .map((p) => p.label)
+        .sort(),
+    )
+  })
+
+  // Task 2's quality review asked for this at the seam that consumes `corners`, which is the
+  // outline path below.
+  it('keeps eight corners per part', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    for (const part of partsOf(p)) {
+      expect(cabinetSpaceBox(part, ids, c).corners).toHaveLength(8)
+    }
+  })
+})
+
+describe('occlusion', () => {
+  const partNamed = (v: AssemblyView, label: string) => v.parts.find((p) => p.label === label)!
+
+  // An overlay door lands ON the carcase face, so it hides what is behind it. That is what overlay
+  // means, and it is the case the whole hidden-line machinery exists for.
+  it('hides the carcase behind an overlay door in the Front view', () => {
+    const { front } = viewsOf(lopsided({ frontMount: 'overlay' }))
+    // The shelf, not the bottom panel. A Base 600's door spans z[101.5, 718.5] while its bottom
+    // spans z[100, 118], so 1.5 mm of the bottom genuinely shows below the door and asserting it
+    // fully hidden would be asserting a cabinet that does not exist. The shelf at z[310, 328],
+    // x[20, 580] sits wholly inside the door's rectangle and wholly behind it.
+    const shelf = front.parts.find((q) => q.label.startsWith('Adj Shelf'))!
+    expect(shelf.hidden.length).toBeGreaterThan(0)
+    expect(shelf.solid).toEqual([])
+  })
+
+  // …and the sliver that does show is itself worth pinning: an occluder must not swallow an edge
+  // it only partly covers.
+  it('leaves the strip of the bottom panel that shows below the door', () => {
+    const { front } = viewsOf(lopsided({ frontMount: 'overlay' }))
+    const bottom = partNamed(front, 'Bottom')
+    expect(bottom.hidden.length).toBeGreaterThan(0)
+    expect(bottom.solid.length).toBeGreaterThan(0)
+  })
+
+  // An inset door sits BETWEEN the sides, so it hides neither of them — and their rectangles do not
+  // even overlap. A comparator that read "nearer" as "overlapping in depth" would hide them.
+  it('does not hide the sides behind an inset door', () => {
+    const { front } = viewsOf(lopsided({ frontMount: 'inset' }))
+    expect(partNamed(front, 'Left Side').solid.length).toBeGreaterThan(0)
+  })
+
+  // Nothing is in front of the frontmost part, so every edge of it is solid.
+  it('leaves the nearest part entirely solid', () => {
+    const { front } = viewsOf(lopsided({ frontMount: 'overlay' }))
+    const door = front.parts.find((p) => p.label.startsWith('Door'))!
+    expect(door.hidden).toEqual([])
+    expect(door.solid.length).toBe(4)
+  })
+
+  // Top looks DOWN, so nearer is larger z. Dropping that inversion makes the bottom panel occlude
+  // the top one instead of the other way round.
+  it('orders Top by height, nearest first', () => {
+    const { top } = viewsOf(lopsided())
+    const zs = top.parts.map((p) => p.depthMin)
+    expect([...zs].sort((a, b) => a - b)).toEqual(zs)
+  })
+
+  // Handed to this task by Task 3's quality review: `Math.min(d0,d1)`/`Math.max(d0,d1)` were not
+  // pinned to the near and far edge of *this* box — plain `d0`/`d1` passed, because the only depth
+  // test compared two well-separated boxes, where either endpoint preserves the ordering.
+  it('reports a single box’s own near and far edges, not an arbitrary endpoint', () => {
+    const { top } = viewsOf(lopsided())
+    const bottom = top.parts.find((q) => q.label === 'Bottom')!
+    // Top looks down, so oriented depth is -z and the bottom panel z[100,118] comes out [-118,-100].
+    expect(bottom.depthMin).toBeCloseTo(-118, 6)
+    expect(bottom.depthMax).toBeCloseTo(-100, 6)
+  })
+
+  it('reports every part solid plus hidden equal to its whole perimeter', () => {
+    const { front } = viewsOf(lopsided())
+    for (const p of front.parts) {
+      const total = [...p.solid, ...p.hidden].reduce(
+        (n, s) => n + Math.abs(s.x2 - s.x1) + Math.abs(s.y2 - s.y1),
+        0,
+      )
+      const perimeter = p.rects.reduce((n, r) => n + 2 * (r.w + r.h), 0)
+      expect(total).toBeCloseTo(perimeter, 4)
+    }
   })
 })

@@ -1,14 +1,16 @@
 import { applyInverseToPoint, applyMatrixToPoint, resolveWorldMatrix } from './transform'
-import { EPS } from './hiddenLine'
+import { EPS, subtractIntervals, type Span } from './hiddenLine'
 import type {
   CarcaseComponent,
   CarcaseParams,
   Component,
   ComponentId,
+  MaterialDef,
   Part,
+  PartId,
   Vec3,
 } from '../scene/types'
-import type { Rect2D } from './drawing'
+import type { DrawCircle, DrawRect, Point2D, Rect2D } from './drawing'
 
 // Whole-cabinet orthographic projection. Pure, THREE-free, and in **unscaled millimetres** — two
 // consumers read it (the interactive pane and the assembly sheet) and they scale differently, so a
@@ -155,4 +157,183 @@ export function culled(box: CabinetBox, view: ViewSpec, p: CarcaseParams): boole
     view.depthSign * box.max[view.depth],
   )
   return farthest <= plane + EPS
+}
+
+export interface Segment {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+}
+
+export interface AssemblyPart {
+  partId: PartId
+  label: string
+  color: string
+  // The silhouette, after through-cuts have been taken out of it. Also the occluder set and the
+  // hit shape: one list answers all three, so a click can never land somewhere the drawing says is
+  // empty.
+  rects: Rect2D[]
+  // Replaces `rects` for a part that is not an axis-aligned box. Such a part is drawn solid and
+  // takes no part in occlusion in either direction.
+  outline?: Point2D[]
+  solid: Segment[]
+  hidden: Segment[]
+  circles: DrawCircle[]
+  cutRects: DrawRect[]
+  depthMin: number
+  depthMax: number
+}
+
+// A dimension in unscaled millimetres, placed by which side of the view it sits on and which ring
+// out from it. Never a page offset: `renderDimLine` reads `offset` in sheet millimetres while it
+// reads start/end as already scaled, so only a consumer that knows the scale can fill that in.
+export interface AssemblyDim {
+  axis: 'h' | 'v'
+  side: 'above' | 'below' | 'left' | 'right'
+  ring: 1 | 2
+  start: number
+  end: number
+  label: string
+}
+
+export interface AssemblyView {
+  label: 'Front' | 'Top' | 'End'
+  bounds: Rect2D
+  // Nearest first. Consumers read this order for hit-testing and for painting.
+  parts: AssemblyPart[]
+  dims: AssemblyDim[]
+}
+
+const overlaps = (a: Rect2D, b: Rect2D): boolean =>
+  a.x < b.x + b.w - EPS && b.x < a.x + a.w - EPS && a.y < b.y + b.h - EPS && b.y < a.y + a.h - EPS
+
+// The four edges of a rectangle, each as a span along its own axis at a fixed other coordinate.
+function edgesOf(r: Rect2D): { horizontal: boolean; at: number; span: Span }[] {
+  return [
+    { horizontal: true, at: r.y, span: { a: r.x, b: r.x + r.w } },
+    { horizontal: true, at: r.y + r.h, span: { a: r.x, b: r.x + r.w } },
+    { horizontal: false, at: r.x, span: { a: r.y, b: r.y + r.h } },
+    { horizontal: false, at: r.x + r.w, span: { a: r.y, b: r.y + r.h } },
+  ]
+}
+
+// Splits one edge against the occluders in front of it. `hidden` is the complement of `visible`
+// within the same span, from the same function — a second implementation is a second thing to get
+// wrong.
+function splitEdge(
+  edge: { horizontal: boolean; at: number; span: Span },
+  occluders: Rect2D[],
+): { solid: Segment[]; hidden: Segment[] } {
+  const holes: Span[] = []
+  for (const o of occluders) {
+    const across = edge.horizontal ? { lo: o.y, hi: o.y + o.h } : { lo: o.x, hi: o.x + o.w }
+    if (edge.at < across.lo - EPS || edge.at > across.hi + EPS) continue
+    holes.push(edge.horizontal ? { a: o.x, b: o.x + o.w } : { a: o.y, b: o.y + o.h })
+  }
+  const visible = subtractIntervals(edge.span, holes)
+  const covered = subtractIntervals(edge.span, visible)
+  const seg = (s: Span): Segment =>
+    edge.horizontal
+      ? { x1: s.a, y1: edge.at, x2: s.b, y2: edge.at }
+      : { x1: edge.at, y1: s.a, x2: edge.at, y2: s.b }
+  return { solid: visible.map(seg), hidden: covered.map(seg) }
+}
+
+// Task 5 gives this its body. A view with no dimensions is a legitimate intermediate state — the
+// projector's geometry is what this task is for.
+function buildDims(): AssemblyDim[] {
+  return []
+}
+
+export function buildAssemblyViews(
+  parts: Part[],
+  byId: Map<ComponentId, Component>,
+  cabinet: CarcaseComponent,
+  // Unused until Task 6/7 draw hatching or bore fills that key off material — kept in the
+  // signature now so every call site (and the sheet consumer) is already shaped for it.
+  _materials: Record<string, MaterialDef>,
+): [AssemblyView, AssemblyView, AssemblyView] {
+  const p = cabinet.params
+  const boxes = parts
+    .filter((part) => part.visible)
+    .map((part) => ({ part, box: cabinetSpaceBox(part, byId, cabinet) }))
+
+  const views = VIEWS.map((view): AssemblyView => {
+    const kept = boxes.filter(({ box }) => !culled(box, view, p))
+    const projected = kept
+      .map(({ part, box }) => ({ part, box, proj: projectBox(box, view, p) }))
+      .sort((a, b) => a.proj.depthMin - b.proj.depthMin)
+
+    const assembled = projected.map(({ part, box, proj }, i): AssemblyPart => {
+      // Only an axis-aligned box occludes or is occluded. A part that is neither draws solid.
+      const occluders = box.axisAligned
+        ? projected
+            .slice(0, i)
+            .filter((q) => q.box.axisAligned && q.proj.depthMax <= proj.depthMin + EPS)
+            .filter((q) => overlaps(q.proj.rect, proj.rect))
+            .map((q) => q.proj.rect)
+        : []
+
+      const rects = [proj.rect]
+      const solid: Segment[] = []
+      const hidden: Segment[] = []
+      for (const r of rects) {
+        for (const e of edgesOf(r)) {
+          const split = splitEdge(e, occluders)
+          solid.push(...split.solid)
+          hidden.push(...split.hidden)
+        }
+      }
+
+      return {
+        partId: part.id,
+        label: part.label,
+        color: part.color,
+        // For a part that is not an axis-aligned box, `rects` is its bounding rectangle and serves
+        // only as the hit shape; `outline` is what gets drawn. Its `hidden` comes out empty on its
+        // own, because it has no occluders — no branch needed to force it.
+        rects,
+        outline: box.axisAligned ? undefined : hullOf(box, view, p),
+        solid,
+        hidden,
+        circles: [],
+        cutRects: [],
+        depthMin: proj.depthMin,
+        depthMax: proj.depthMax,
+      }
+    })
+
+    const eu = cabinetExtent(p, view.u)
+    const ev = cabinetExtent(p, view.v)
+    return {
+      label: view.label,
+      bounds: { x: 0, y: 0, w: eu.hi - eu.lo, h: ev.hi - ev.lo },
+      parts: assembled,
+      dims: buildDims(),
+    }
+  })
+
+  return [views[0], views[1], views[2]]
+}
+
+// The convex hull of a non-axis-aligned part's projected corners, as a closed polygon. Monotone
+// chain: eight points at most, so the simplest correct algorithm is the right one.
+function hullOf(box: CabinetBox, view: ViewSpec, p: CarcaseParams): Point2D[] {
+  const uOrigin = view.uSign === 1 ? 0 : -cabinetExtent(p, view.u).hi
+  const pts = box.corners
+    .map((c) => ({ x: view.uSign * c[view.u] - uOrigin, y: c[view.v] }))
+    .sort((a, b) => a.x - b.x || a.y - b.y)
+  const cross = (o: Point2D, a: Point2D, b: Point2D) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+  const half = (source: Point2D[]): Point2D[] => {
+    const out: Point2D[] = []
+    for (const q of source) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], q) <= 0) out.pop()
+      out.push(q)
+    }
+    out.pop()
+    return out
+  }
+  return [...half(pts), ...half([...pts].reverse())]
 }
