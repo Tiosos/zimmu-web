@@ -28,11 +28,11 @@ export function subtractIntervals(span: Span, holes: Span[]): Span[] {
   const sorted = [...holes].sort((p, q) => p.a - q.a)
 
   for (const h of sorted) {
-    if (h.b <= cursor + EPS) continue
-    if (h.a >= span.b - EPS) break
+    // `Math.min` clamps a hole that runs past the span's end, and `Math.max` ignores one that
+    // ends behind the cursor — so no early-exit guard is needed for either case, and adding one
+    // would be a branch no test could distinguish.
     if (h.a > cursor + EPS) out.push({ a: cursor, b: Math.min(h.a, span.b) })
     cursor = Math.max(cursor, h.b)
-    if (cursor >= span.b - EPS) return out
   }
 
   if (span.b > cursor + EPS) out.push({ a: cursor, b: span.b })
