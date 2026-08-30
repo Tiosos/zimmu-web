@@ -48,6 +48,9 @@ pane and a new sheet variant. Neither contains projection logic, so neither can 
 | 8 | Cuts | Through-cuts shape the silhouette; internal cuts drawn dashed |
 | 9 | Thickness overrides | Fixed in the projector **and** in the two existing call sites |
 | 10 | Staging | Six groups; the projector splits into B1 (geometry) and B2 (cuts) |
+| 11 | Top and End are unreadable under pure HLR | Near-half cull: they are section views; Front is not |
+| 12 | Which way End faces | From **+x**, matching `buildBoardSheet` |
+| 13 | Sheet layout | Three views in a **row**, not stacked |
 
 ## Architecture
 
@@ -74,6 +77,27 @@ buildAssemblyViews(
 ): [AssemblyView, AssemblyView, AssemblyView]   // Front, Top, End
 ```
 
+```ts
+export interface AssemblyView {
+  label: 'Front' | 'Top' | 'End'
+  bounds: Rect2D                 // the cabinet's extent in this view, mm
+  parts: AssemblyPart[]          // nearest first — the hit-test order
+  dims: DimLine[]
+}
+
+export interface AssemblyPart {
+  partId: PartId
+  label: string
+  color: string
+  rects: Rect2D[]                // silhouette after through-cuts; also the occluder and hit shape
+  outline?: Point2D[]            // replaces rects for a part that is not an axis-aligned box
+  solid: Segment[]               // visible edges
+  hidden: Segment[]              // occluded edges, drawn dashed
+  circles: DrawCircle[]          // bores square-on to this view
+  cutRects: DrawRect[]           // internal cuts, dashed, clipped to the silhouette
+}
+```
+
 **Output is millimetres, unscaled.** `DrawingView` bakes `scale` into every rect, which is right
 when there is one consumer with a fixed sheet area. Here there are two, and they need different
 scale rules: the pane fits to whatever size it is, the sheet picks from `STANDARD_SCALES`. If the
@@ -92,14 +116,19 @@ a group.
 
 ### The three planes
 
-| view | u | v | depth | nearer |
-|---|---|---|---|---|
-| Front | x | z | y | smaller y (y = 0 is the front face) |
-| Top | x | y | z | larger z |
-| End | y | z | x | smaller x — the cabinet's front on the left |
+| view | u | v | depth | nearer | culled |
+|---|---|---|---|---|---|
+| Front | x | z | y | smaller y (y = 0 is the front face) | — |
+| Top | x | −y | −z | larger z | z > H/2 |
+| End | −y | z | −x | larger x — the cabinet's front on the **right** | x > W/2 |
 
-**Depth is emitted pre-oriented so that smaller means nearer.** Top's inversion is resolved once, in
-the projector, so no consumer carries a per-view sign.
+**Depth is emitted pre-oriented so that smaller means nearer.** Top's and End's inversions are
+resolved once, in the projector, so no consumer carries a per-view sign.
+
+**End looks from +x**, matching `buildBoardSheet`, which builds its End view from `['+X', '-X']` and
+places it to the right. A cabinet's End view and a part's End view sit in the same deck; they must
+mean the same thing. Looking from +x with +z up puts screen-right at −y, so the cabinet's front
+appears on the right of the view.
 
 ### Axis-aligned or not, decided by geometry
 
@@ -165,6 +194,51 @@ An occluder is a **list** of rectangles, not one, so that a part with a through-
 everywhere except through the cut. `subtractIntervals` takes a list of holes already, so this costs
 nothing.
 
+## The near-half cull
+
+Pure hidden-line removal of a closed box produces a solid rectangle with everything dashed behind
+it. Measured on a Base 600, in the End view:
+
+```
+left-side   x[0,18]     y[0,560]   z[0,720]     <- the entire End-view rectangle
+right-side  x[582,600]  y[0,560]   z[0,720]     HIDDEN
+bottom      x[18,582]   y[0,560]   z[100,118]   HIDDEN
+top         x[18,582]   y[0,560]   z[702,720]   HIDDEN
+back        x[18,582]   y[548,560] z[118,702]   HIDDEN
+toe-kick    x[18,582]   y[60,78]   z[0,100]     HIDDEN
+adj-shelf   x[20,580]   y[5,546]   z[310,328]   HIDDEN
+
+6 of 7 other parts completely hidden
+```
+
+That is correct output and a useless drawing. So **Top and End are section views**:
+
+- A cut plane at the **midpoint of that view's depth axis**, taken from the cabinet's own parameters
+  (`x = W/2` for End, `z = H/2` for Top) rather than from the parts' bounding box — otherwise one
+  stray detached part moves the plane and culls a shelf.
+- Parts lying **entirely** on the near side of the plane are omitted.
+- Parts **crossing** the plane are drawn whole. No partial-cutting geometry is needed, and everything
+  that crosses is what you want to read in elevation anyway.
+
+Checked: End culls only `right-side` and leaves the far side, bottom, top, back, shelf, toe kick and
+the door edge all drawn. Top culls only `top` and leaves the rest, whose rectangles do not overlap,
+so nothing dashes needlessly.
+
+**Front is not culled.** A front elevation must show its doors, and it does not need culling — the
+same probe shows the toe kick below the door, slivers of both sides past its edges, and the carcase
+correctly dashed behind it. The asymmetry is deliberate and is the whole point: a front elevation is
+a view, a plan and an end are sections.
+
+Three consequences to hold:
+
+- **The cull lives in the projector**, not in either consumer, so the pane and the printed sheet
+  cannot diverge about which parts exist.
+- **Dimensions are unaffected.** Overall figures come from `CarcaseParams` and the chains from
+  `resolveSections`, never from the surviving parts — so a culled view still dimensions the whole
+  cabinet.
+- **A culled part is not clickable in that view.** It remains reachable in Front and in the scene
+  tree, the same escape hatch a fully occluded part has.
+
 ## Cuts
 
 ### Through in one view, internal in another
@@ -205,6 +279,13 @@ A bore seen edge-on draws nothing, matching the convention `drawing.ts` already 
 
 Cuts live in **board** axes (`position` is the min corner, `size` the extent), so each must be
 transformed board → part-local → cabinet, through the same matrices the silhouettes use.
+
+**A cut rectangle is clipped to its part's silhouette.** Cuts routinely overshoot the part on
+purpose: the toe-kick notch is built at `position.z = −T/2, size.z = 2T` precisely so OCCT resolves
+it as an unambiguous through-cut rather than leaving a coplanar face. Projected unclipped into the
+Front view of an 18 mm side, that notch spans `x ∈ [−9, 27]` against a panel occupying `x ∈ [0, 18]`
+— a dashed box hanging 9 mm past the panel on both sides. Clip on the way in, not on the way out:
+a consumer that had to clip would be a second place the rule lived.
 
 The per-kind branch is an **exhaustive switch with a `never` check**, copying `buildBoardSheet`: a
 new `CutDef` member must become a compile error, not a shape that silently vanishes from every
@@ -307,9 +388,29 @@ cabinet renders at under two pixels. Fit-to-pane means no scale label. The proje
 A cabinet whose parameters do not build renders the same "no elevation to draw" message
 `SectionElevation` already shows, rather than throwing — the params are mid-keystroke, not wrong.
 
-**The sheet** reuses `STANDARD_SCALES` / `selectScale` / `toScaleLabel` unchanged, laying Front
-top-left, End top-right, Top bottom-left — the third-angle arrangement `buildBoardSheet` already
-uses.
+**The sheet** reuses `STANDARD_SCALES` and `toScaleLabel`, but needs its own scale selector and its
+own layout. `selectScale` is board-shaped — it assumes the third dimension is a thickness. A
+cabinet's is 560 mm, and stacking Front over Top costs `H + D` against 120 mm of usable height:
+
+```
+                       stacked            in a row
+Base 600      1:20   30 x  36 mm      1:10   60 x  72 mm
+Wall 600      1:10   60 x  72 mm      1:10   60 x  72 mm
+Tall 600      1:20   30 x 105 mm      1:20   30 x 105 mm
+```
+
+A Base 600 stacked comes out smaller than its own dimension labels. So the three views go **in a
+row** — Front, End, Top — and
+
+```ts
+selectAssemblyScale = min((AREA_W - 2 * GAP) / (W + D + W), AREA_H / max(H, D))
+```
+
+This keeps Front and End aligned horizontally, which is the alignment that matters for reading
+heights across two views. It gives up Top sitting under Front on a shared width axis; that is the
+stated cost of doubling the drawing for the commonest preset. A fitted non-standard scale was
+rejected on the numbers — 1:10.7 at 56 × 68 mm is *worse* than the row layout's rounded 1:10 at
+60 × 72 mm, and it would put a scale nobody can measure against on a shop drawing.
 
 `buildDrawingSheets` gains an **optional** third parameter (the cabinets and their materials).
 Optional rather than required: there are **52 existing call sites** across five test files plus
@@ -317,7 +418,12 @@ Optional rather than required: there are **52 existing call sites** across five 
 no behavioural benefit. `App` passes the extra; one assembly sheet
 per cabinet is inserted after the cover, ahead of the per-part sheets.
 
-`sheetFilename` moves out of `DrawingViewer` so the tab's own export buttons share it. Both consumers
+`DrawingViewer`'s label is `Part ${idx} of ${sheets.length - 1}`, which assumes sheet 0 is the cover
+and every other sheet is a part. Assembly sheets in between make that lie, so the label is derived
+from the sheet's own `kind` instead of from its index.
+
+`sheetFilename` moves out of `DrawingViewer` so the tab's own export buttons share it. It also needs
+a branch: an assembly sheet has no `partLabel`, so its filename comes from the cabinet's label. Both consumers
 call the same `buildSvg(sheet)` / `buildDxf(sheet)` on the same object — "both places" costs two
 buttons and one moved helper, not a second plumbing stack.
 
@@ -342,13 +448,24 @@ The projector's fixture has W ≠ D ≠ H, an uneven section tree, and — follo
 | 6 | chain the section tree's percentages instead of the resolved rectangles | the uneven fixture's chain drifts |
 | 7 | set End's `u` axis to `x` | End becomes Front — invisible unless depth ≠ width |
 | 8 | pass an empty override map in the projector | the 25 mm-side fixture's opening chain |
+| 9 | disable the near-half cull | the End view regains `right-side`, and 6 of 7 parts go hidden |
+| 10 | cull Front as well as Top and End | the door disappears from the front elevation |
+| 11 | look from −x instead of +x | the cull takes the *far* side: `left-side` survives, `right-side` does not |
+| 12 | drop the clip of a cut rect to its silhouette | the toe-kick notch's dashed rect exceeds the side panel by 9 mm in Front |
+
+Mutations 9 and 11 need the **same** fixture to distinguish them, which is why the cabinet is
+asymmetric in x: with `left-side` and `right-side` at equal thickness, culling the wrong one looks
+identical. Give one side 25 mm and the other 18 mm and the two mutations separate.
 
 ### e2e
 
 - Select a cabinet, open Front, click a part → it is selected, the sidebar shows it, **and the Front
   tab is still open**. That last clause is the regression this stage's selection change exists to
   prevent.
-- The drawings modal carries an assembly sheet for a cabinet, ahead of its part sheets.
+- The drawings modal carries an assembly sheet for a cabinet, ahead of its part sheets, and its
+  navigation label names it as an assembly rather than counting it as a part.
+- The End tab shows more than one part. A unit test can assert the cull by role; only the browser
+  proves the tab is worth opening, which is the defect that made the cull necessary.
 
 ## Staging
 
@@ -357,7 +474,7 @@ Six groups, each green.
 | group | content |
 |---|---|
 | **A** | `hiddenLine.ts` — `subtractIntervals` and its epsilon. Pure, no consumers |
-| **B1** | `assembly.ts` geometry — three planes, axis-alignment, occlusion, dimension chains. A complete projector for a cabinet with no cuts |
+| **B1** | `assembly.ts` geometry — three planes, axis-alignment, occlusion, the near-half cull, dimension chains. A complete projector for a cabinet with no cuts |
 | **B2** | cuts — board→cabinet transform, per-view through-detection, silhouette and occluder subtraction, dashed internal detail, the exhaustive switch |
 | **C** | `CabinetProjection.tsx`, the three tabs, the selection change, the override fixes |
 | **D** | the `assembly` sheet variant, three serializers, `sheetFilename`, both export paths |
@@ -376,8 +493,11 @@ own, so D can slip without leaving the stage half-built.
 - **No per-part dimensions in a projection.** Twenty dimension chains on a tall unit is unreadable,
   and per-part sizes already have a sheet each.
 - **No exploded or isometric view.** A different projector, not a parameter of this one.
-- **No section cut through the cabinet.** "Section" already names the elevation tab; a true sectional
-  view is a further feature and would need a cut plane the user positions.
+- **No user-positioned cut plane.** Top and End cull the near half at a fixed midpoint, which is
+  enough to make them readable, but the plane is not placeable and nothing is drawn *cut* — a part
+  crossing it is drawn whole. A true sectional view, with a plane the user drags and hatched cut
+  faces, is a further feature. (Note the word "section" is overloaded here: the Section tab is the
+  elevation editor over the section *tree*, unrelated to a sectional view.)
 - **No scene-wide assembly sheet.** One sheet per cabinet; parts belonging to no cabinet keep their
   own sheets and appear on no assembly drawing.
 - **No dimension editing from the drawing.** Dimensions are read-only; sizes are typed in the panel.
