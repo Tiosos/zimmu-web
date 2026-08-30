@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { cabinetSpaceBox } from './assembly'
+import { cabinetSpaceBox, VIEWS, projectBox, culled } from './assembly'
+import type { CabinetBox } from './assembly'
 import type {
   BoardPart,
   CarcaseComponent,
@@ -135,5 +136,100 @@ describe('cabinetSpaceBox', () => {
     ])
     const b = cabinetSpaceBox(board({ parentId: group.id }), nested, cabinet)
     expect(b.axisAligned).toBe(false)
+  })
+})
+
+// A Base 600's real dimensions, so the numbers below are the ones a cabinet actually produces.
+const params = CARCASE_PRESETS[0].params // 600 wide, 720 high, 560 deep
+
+const box = (
+  x0: number,
+  x1: number,
+  y0: number,
+  y1: number,
+  z0: number,
+  z1: number,
+): CabinetBox => ({
+  min: { x: x0, y: y0, z: z0 },
+  max: { x: x1, y: y1, z: z1 },
+  axisAligned: true,
+  corners: [],
+})
+
+// The real roles, so a mistake shows up as a cabinet part in the wrong place rather than as an
+// abstract number.
+const LEFT_SIDE = box(0, 18, 0, 560, 0, 720)
+const RIGHT_SIDE = box(582, 600, 0, 560, 0, 720)
+const BACK = box(18, 582, 548, 560, 118, 702)
+const TOP_PANEL = box(18, 582, 0, 560, 702, 720)
+const BOTTOM = box(18, 582, 0, 560, 100, 118)
+
+const view = (label: 'Front' | 'Top' | 'End') => VIEWS.find((v) => v.label === label)!
+
+describe('the three planes', () => {
+  it('names the views Front, Top and End in that order', () => {
+    expect(VIEWS.map((v) => v.label)).toEqual(['Front', 'Top', 'End'])
+  })
+
+  // W != D != H, so a view that took the wrong axis for u or v is visible in the extent alone.
+  it('maps each view to its own two axes', () => {
+    expect(projectBox(LEFT_SIDE, view('Front'), params).rect).toEqual({ x: 0, y: 0, w: 18, h: 720 })
+    expect(projectBox(LEFT_SIDE, view('Top'), params).rect).toEqual({ x: 0, y: 0, w: 18, h: 560 })
+  })
+
+  // End looks from +x, so screen-right is -y and the cabinet's FRONT lands on the right. The back
+  // panel is the clearest witness: it sits at the far left of the view, not the far right.
+  it('puts the cabinet’s front on the right of the End view', () => {
+    const back = projectBox(BACK, view('End'), params).rect
+    expect(back.x).toBeCloseTo(0, 6)
+    expect(back.w).toBeCloseTo(12, 6)
+  })
+
+  // Depth is emitted pre-oriented so smaller always means nearer. Top looks DOWN, so a high part
+  // must come out with a smaller depth than a low one — the inversion is resolved here, once, and
+  // no consumer carries a per-view sign.
+  it('orients depth so that smaller is nearer in every view', () => {
+    const frontNear = projectBox(box(0, 600, -18, 0, 0, 720), view('Front'), params)
+    const frontFar = projectBox(LEFT_SIDE, view('Front'), params)
+    expect(frontNear.depthMin).toBeLessThan(frontFar.depthMin)
+
+    expect(projectBox(TOP_PANEL, view('Top'), params).depthMin).toBeLessThan(
+      projectBox(BOTTOM, view('Top'), params).depthMin,
+    )
+
+    expect(projectBox(RIGHT_SIDE, view('End'), params).depthMin).toBeLessThan(
+      projectBox(LEFT_SIDE, view('End'), params).depthMin,
+    )
+  })
+})
+
+describe('the near-half cull', () => {
+  // Pure hidden-line removal of a closed box is one solid rectangle: measured on a Base 600's End
+  // view, six of seven parts are completely hidden by the near side. Top and End are therefore
+  // sections, cut at the parameter midpoint.
+  it('culls the near side from End and keeps the far one', () => {
+    expect(culled(RIGHT_SIDE, view('End'), params)).toBe(true)
+    expect(culled(LEFT_SIDE, view('End'), params)).toBe(false)
+  })
+
+  it('culls the top panel from Top and keeps the bottom', () => {
+    expect(culled(TOP_PANEL, view('Top'), params)).toBe(true)
+    expect(culled(BOTTOM, view('Top'), params)).toBe(false)
+  })
+
+  // A part crossing the plane is drawn whole — that is what makes the section need no
+  // partial-cutting geometry.
+  it('keeps a part that straddles the cut plane', () => {
+    expect(culled(LEFT_SIDE, view('Top'), params)).toBe(false) // z 0..720 spans the H/2 plane
+    expect(culled(BACK, view('End'), params)).toBe(false) // x 18..582 spans the W/2 plane
+  })
+
+  // Front is a view, not a section. An elevation that dropped its door would be useless, and the
+  // door is the nearest thing in it.
+  it('never culls anything from Front', () => {
+    for (const b of [LEFT_SIDE, RIGHT_SIDE, BACK, TOP_PANEL, BOTTOM]) {
+      expect(culled(b, view('Front'), params)).toBe(false)
+    }
+    expect(culled(box(0, 600, -18, 0, 100, 718), view('Front'), params)).toBe(false)
   })
 })

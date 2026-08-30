@@ -1,6 +1,14 @@
 import { applyInverseToPoint, applyMatrixToPoint, resolveWorldMatrix } from './transform'
 import { EPS } from './hiddenLine'
-import type { CarcaseComponent, Component, ComponentId, Part, Vec3 } from '../scene/types'
+import type {
+  CarcaseComponent,
+  CarcaseParams,
+  Component,
+  ComponentId,
+  Part,
+  Vec3,
+} from '../scene/types'
+import type { Rect2D } from './drawing'
 
 // Whole-cabinet orthographic projection. Pure, THREE-free, and in **unscaled millimetres** — two
 // consumers read it (the interactive pane and the assembly sheet) and they scale differently, so a
@@ -72,4 +80,72 @@ export function cabinetSpaceBox(
     )
 
   return { min, max, axisAligned, corners }
+}
+
+export type Axis = 'x' | 'y' | 'z'
+
+export interface ViewSpec {
+  label: 'Front' | 'Top' | 'End'
+  u: Axis
+  v: Axis
+  depth: Axis
+  // -1 when larger means nearer. Applied once here so no consumer carries a per-view sign: every
+  // emitted depth reads "smaller is nearer".
+  depthSign: 1 | -1
+  uSign: 1 | -1
+  // Front is a view; Top and End are sections. A closed box under hidden-line removal is one solid
+  // rectangle, so the two that look at a closed face cull their near half.
+  cull: boolean
+}
+
+// End looks from +x, matching buildBoardSheet's End view (built from ['+X','-X'] and placed to the
+// right). Looking from +x with +z up puts screen-right at -y, so the cabinet's front lands on the
+// right of that view.
+export const VIEWS: [ViewSpec, ViewSpec, ViewSpec] = [
+  { label: 'Front', u: 'x', v: 'z', depth: 'y', depthSign: 1, uSign: 1, cull: false },
+  { label: 'Top', u: 'x', v: 'y', depth: 'z', depthSign: -1, uSign: 1, cull: true },
+  { label: 'End', u: 'y', v: 'z', depth: 'x', depthSign: -1, uSign: -1, cull: true },
+]
+
+// The cabinet's own extent along an axis, from its parameters rather than from the parts. A stray
+// detached part must not move the cut plane and cull a shelf with it.
+function cabinetExtent(p: CarcaseParams, axis: Axis): { lo: number; hi: number } {
+  if (axis === 'x') return { lo: 0, hi: p.width }
+  if (axis === 'z') return { lo: 0, hi: p.height }
+  return { lo: 0, hi: p.depth }
+}
+
+export interface ProjectedBox {
+  rect: Rect2D
+  depthMin: number
+  depthMax: number
+}
+
+// A cabinet-space box seen through one view spec, with depth already oriented so smaller is nearer.
+export function projectBox(box: CabinetBox, view: ViewSpec, p: CarcaseParams): ProjectedBox {
+  const uLo = view.uSign === 1 ? box.min[view.u] : -box.max[view.u]
+  const uHi = view.uSign === 1 ? box.max[view.u] : -box.min[view.u]
+  const uOrigin = view.uSign === 1 ? 0 : -cabinetExtent(p, view.u).hi
+  const d0 = view.depthSign * box.min[view.depth]
+  const d1 = view.depthSign * box.max[view.depth]
+  return {
+    rect: {
+      x: uLo - uOrigin,
+      y: box.min[view.v],
+      w: uHi - uLo,
+      h: box.max[view.v] - box.min[view.v],
+    },
+    depthMin: Math.min(d0, d1),
+    depthMax: Math.max(d0, d1),
+  }
+}
+
+// Parts lying entirely on the near side of the cut plane are omitted; a part crossing it is drawn
+// whole. That keeps the section honest to read without any partial-cutting geometry, and everything
+// crossing the plane is what you want to see in elevation anyway.
+export function culled(box: CabinetBox, view: ViewSpec, p: CarcaseParams): boolean {
+  if (!view.cull) return false
+  const { lo, hi } = cabinetExtent(p, view.depth)
+  const mid = (lo + hi) / 2
+  return view.depthSign === 1 ? box.max[view.depth] <= mid + EPS : box.min[view.depth] >= mid - EPS
 }
