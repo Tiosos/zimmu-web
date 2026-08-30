@@ -232,4 +232,13 @@ describe('the near-half cull', () => {
     }
     expect(culled(box(0, 600, -18, 0, 100, 718), view('Front'), params)).toBe(false)
   })
+
+  // A panel whose face lands on the cut plane arrives a hair off it, because its position came out
+  // of float arithmetic — a centre division in an even-width cabinet is exactly this. Without the
+  // tolerance such a panel flips between culled and kept on noise a thousand times smaller than a
+  // wood fibre.
+  it('culls a part sitting within a whisker of the cut plane', () => {
+    const onThePlane = box(params.width / 2 - 1e-13, 400, 0, 560, 0, 720)
+    expect(culled(onThePlane, view('End'), params)).toBe(true)
+  })
 })

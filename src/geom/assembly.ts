@@ -146,6 +146,13 @@ export function projectBox(box: CabinetBox, view: ViewSpec, p: CarcaseParams): P
 export function culled(box: CabinetBox, view: ViewSpec, p: CarcaseParams): boolean {
   if (!view.cull) return false
   const { lo, hi } = cabinetExtent(p, view.depth)
-  const mid = (lo + hi) / 2
-  return view.depthSign === 1 ? box.max[view.depth] <= mid + EPS : box.min[view.depth] >= mid - EPS
+  // In oriented depth — the same `depthSign * raw` that projectBox emits — "entirely on the near
+  // side" is one comparison for either sign: the box's own farthest point is still nearer than the
+  // plane. Written this way there is no branch that the three views cannot reach.
+  const plane = view.depthSign * ((lo + hi) / 2)
+  const farthest = Math.max(
+    view.depthSign * box.min[view.depth],
+    view.depthSign * box.max[view.depth],
+  )
+  return farthest <= plane + EPS
 }
