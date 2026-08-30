@@ -941,9 +941,22 @@ describe('occlusion', () => {
   // means, and it is the case the whole hidden-line machinery exists for.
   it('hides the carcase behind an overlay door in the Front view', () => {
     const { front } = viewsOf(lopsided({ frontMount: 'overlay' }))
+    // The shelf, not the bottom panel. A Base 600's door spans z[101.5, 718.5] while its bottom
+    // spans z[100, 118], so 1.5 mm of the bottom genuinely shows below the door and asserting it
+    // fully hidden would be asserting a cabinet that does not exist. The shelf at z[310, 328],
+    // x[20, 580] sits wholly inside the door's rectangle and wholly behind it.
+    const shelf = front.parts.find((q) => q.label.startsWith('Adj Shelf'))!
+    expect(shelf.hidden.length).toBeGreaterThan(0)
+    expect(shelf.solid).toEqual([])
+  })
+
+  // …and the sliver that does show is itself worth pinning: an occluder must not swallow an edge
+  // it only partly covers.
+  it('leaves the strip of the bottom panel that shows below the door', () => {
+    const { front } = viewsOf(lopsided({ frontMount: 'overlay' }))
     const bottom = partNamed(front, 'Bottom')
     expect(bottom.hidden.length).toBeGreaterThan(0)
-    expect(bottom.solid).toEqual([])
+    expect(bottom.solid.length).toBeGreaterThan(0)
   })
 
   // An inset door sits BETWEEN the sides, so it hides neither of them — and their rectangles do not
