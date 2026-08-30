@@ -1366,6 +1366,7 @@ Append to `src/geom/assembly.test.ts`:
 
 ```ts
 import { legacyToSection } from '../scene/migrateSections'
+import { splitSection } from '../scene/editSection'
 
 describe('dimensions', () => {
   const dim = (v: { dims: { side: string; ring: number; label: string }[] }, side: string) =>
@@ -1395,6 +1396,16 @@ describe('dimensions', () => {
     expect(chain).toHaveLength(2)
     expect(chain[0]).toBeLessThan(chain[1])
     expect(chain[0] + chain[1] + 18).toBe(564)
+  })
+
+  // Two leaves stacked in one bay share that bay's x-span. Without the dedupe the chain would
+  // dimension the same 564 mm twice, one line on top of the other.
+  it('dimensions a shared span once, however many leaves sit in it', () => {
+    const root = legacyToSection([], 0, 600, 18)
+    const split = splitSection(root, root.id, 'horizontal', 'panel', 2)
+    const across = dim(viewsOf(lopsided({ section: split })).front, 'above')
+    expect(across).toHaveLength(1)
+    expect(across[0].label).toBe('564')
   })
 
   it('puts the toe kick on its own ring so it cannot collide with the opening chain', () => {
@@ -1429,7 +1440,9 @@ describe('dimensions', () => {
     )
     const c = withParams(p)
     const ids = new Map<ComponentId, Component>([[c.id, c]])
-    const [front] = buildAssemblyViews(parts, ids, c, THICK)
+    // PRESET_MATERIALS, not a thicker fixture: `roleThicknessFor` returns an explicit override
+    // before it ever consults the materials map, so the override alone is what this asserts.
+    const [front] = buildAssemblyViews(parts, ids, c, PRESET_MATERIALS)
     expect(front.dims.filter((d) => d.side === 'above')[0].label).toBe('557')
   })
 })
@@ -1484,34 +1497,28 @@ function buildDims(view: ViewSpec, p: CarcaseParams, thicknessOf: RoleThickness)
     const leaves = sectionOpenings(p.section, tree)
     // Read off the RESOLVED rectangles, never re-walked from the tree's percentages: a chain
     // derived from the same rectangles the elevation draws cannot disagree with it.
-    const edges = (
+    //
+    // The chain lists the OPENINGS themselves, deduped — two leaves stacked inside one bay share
+    // that bay's x-span and must not dimension it twice. Deliberately it does not sum to the
+    // overall: the panels between openings are a material spec, not a dimension. Taking gaps
+    // between every distinct edge instead would emit those panels too, giving `273 | 18 | 273`
+    // for a two-bay cabinet.
+    const chain = (
       pick: (r: { x0: number; x1: number; z0: number; z1: number }) => [number, number],
-    ) => {
-      const set = new Set<number>()
-      for (const l of leaves) for (const e of pick(l.rect)) set.add(Math.round(e * 1e6) / 1e6)
-      return [...set].sort((a, b) => a - b)
+    ): [number, number][] => {
+      const seen = new Map<string, [number, number]>()
+      for (const l of leaves) {
+        const span = pick(l.rect)
+        seen.set(span.map((n) => Math.round(n * 1e6)).join(':'), span)
+      }
+      return [...seen.values()].sort((a, b) => a[0] - b[0])
     }
-    const across = edges((r) => [r.x0, r.x1])
-    for (let i = 0; i + 1 < across.length; i++) {
-      dims.push({
-        axis: 'h',
-        side: 'above',
-        ring: 1,
-        start: across[i],
-        end: across[i + 1],
-        label: mm(across[i + 1] - across[i]),
-      })
+
+    for (const [a, b] of chain((r) => [r.x0, r.x1])) {
+      dims.push({ axis: 'h', side: 'above', ring: 1, start: a, end: b, label: mm(b - a) })
     }
-    const up = edges((r) => [r.z0, r.z1])
-    for (let i = 0; i + 1 < up.length; i++) {
-      dims.push({
-        axis: 'v',
-        side: 'left',
-        ring: 1,
-        start: up[i],
-        end: up[i + 1],
-        label: mm(up[i + 1] - up[i]),
-      })
+    for (const [a, b] of chain((r) => [r.z0, r.z1])) {
+      dims.push({ axis: 'v', side: 'left', ring: 1, start: a, end: b, label: mm(b - a) })
     }
   }
 
