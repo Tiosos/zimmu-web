@@ -182,11 +182,11 @@ export function subtractIntervals(span: Span, holes: Span[]): Span[] {
   const sorted = [...holes].sort((p, q) => p.a - q.a)
 
   for (const h of sorted) {
-    if (h.b <= cursor + EPS) continue
-    if (h.a >= span.b - EPS) break
+    // `Math.min` clamps a hole that runs past the span's end, and `Math.max` ignores one that
+    // ends behind the cursor — so no early-exit guard is needed for either case, and adding one
+    // would be a branch no test could distinguish.
     if (h.a > cursor + EPS) out.push({ a: cursor, b: Math.min(h.a, span.b) })
     cursor = Math.max(cursor, h.b)
-    if (cursor >= span.b - EPS) return out
   }
 
   if (span.b > cursor + EPS) out.push({ a: cursor, b: span.b })
@@ -213,8 +213,12 @@ grep -n "if (h.a >= cursor)" src/geom/hiddenLine.ts
 ```
 
 Run: `pnpm vitest run src/geom/hiddenLine.test.ts`
-Expected: FAIL on _emits nothing for a hole that only touches an endpoint_ and on _treats a
-sub-epsilon remainder as nothing_.
+Expected: **3 failures** — _returns empty when the hole covers the span exactly_, _treats a
+sub-epsilon remainder as nothing_, and _is the complement of itself_.
+
+The endpoint-touch test **survives** this mutation, and that is correct rather than a gap: a hole
+touching an endpoint is handled by `Math.min(h.a, span.b)`, not by this comparison. (An earlier
+draft of this plan predicted it would fail. It does not — measured.)
 
 Restore and confirm:
 
@@ -222,6 +226,18 @@ Restore and confirm:
 cp "$SCRATCHPAD"/hiddenLine.bak src/geom/hiddenLine.ts
 grep -n "if (h.a > cursor + EPS)" src/geom/hiddenLine.ts
 ```
+
+Then prove every remaining line is load-bearing — this function is what the whole stage's
+correctness rests on, so it must contain no branch a test cannot distinguish. Apply each of these
+in turn, backing up and restoring from the copy each time:
+
+| mutation | expected |
+|---|---|
+| `s/Math.min(h.a, span.b)/h.a/` | 1 failure |
+| `s/cursor = Math.max(cursor, h.b)/cursor = h.b/` | 1 failure |
+| `s/if (span.b > cursor + EPS)/if (span.b > cursor)/` | 1 failure |
+
+If any of them survives, the function has a branch no test reaches — say so rather than proceeding.
 
 - [ ] **Step 6: Full suite and commit**
 
