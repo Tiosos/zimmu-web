@@ -550,132 +550,114 @@ culled** — a front elevation must show its doors.
 places it to the right. Looking from +x with +z up puts screen-right at −y, so the cabinet's front
 appears on the right of that view.
 
-- [ ] **Step 1: Add the shared fixture to `src/geom/assembly.test.ts`**
+- [ ] **Step 1: Write the failing tests**
 
-Append to the imports at the top of the file:
+These test `projectBox` and `culled` **directly**, with explicit boxes rather than through a whole
+cabinet. That keeps Task 3 self-contained and green on its own commit: `buildAssemblyViews` does not
+exist until Task 4, so a view-level test here could not pass. The view-level assertions (labels,
+bounds, cull by part label) live in Task 4, where that function arrives.
 
-```ts
-import { buildAssemblyViews, VIEWS } from './assembly'
-import { carcaseRoles } from '../scene/carcaseRoles'
-import { roleThicknessFor } from '../scene/resolveThickness'
-import { jointKindFor } from '../scene/resolveJointKind'
-import { PRESET_MATERIALS } from '../scene/carcasePresets'
-import type { CarcaseParams, MaterialDef, Part } from '../scene/types'
-```
-
-Then append this fixture block:
+Append to `src/geom/assembly.test.ts`, adding `VIEWS`, `projectBox`, `culled` and `type CabinetBox`
+to the import from `./assembly`:
 
 ```ts
-// A cabinet that is asymmetric in every axis. G1 taught this twice: a symmetric fixture passes
-// every mutation. W != D != H separates the three planes from each other; a 25 mm left side beside
-// an 18 mm right side separates "cull the near half" from "cull the far half", which look
-// identical when both sides are the same thickness.
-const THICK: Record<string, MaterialDef> = {
-  ...PRESET_MATERIALS,
-  'Ply 25mm': { name: 'Ply 25mm', costPerM2: 40, thickness: 25 },
-}
+// A Base 600's real dimensions, so the numbers below are the ones a cabinet actually produces.
+const params = CARCASE_PRESETS[0].params // 600 wide, 720 high, 560 deep
 
-function lopsided(over: Partial<CarcaseParams> = {}): CarcaseParams {
-  return { ...CARCASE_PRESETS[0].params, width: 600, height: 720, depth: 560, ...over }
-}
+const box = (
+  x0: number, x1: number, y0: number, y1: number, z0: number, z1: number,
+): CabinetBox => ({
+  min: { x: x0, y: y0, z: z0 },
+  max: { x: x1, y: y1, z: z1 },
+  axisAligned: true,
+  corners: [],
+})
 
-// The parts a cabinet's parameters imply, built the way regenerateComponents builds them so the
-// projector is tested against what the app actually holds.
-function partsOf(params: CarcaseParams, materials = PRESET_MATERIALS): Part[] {
-  const thicknessOf = roleThicknessFor(params, materials, new Map())
-  const kindOf = jointKindFor([], cabinet.id)
-  return carcaseRoles(params, thicknessOf, kindOf).map((r, i) => ({
-    kind: 'board',
-    id: `board_${i}`,
-    label: r.label,
-    length: r.panel.length,
-    width: r.panel.width,
-    thickness: r.panel.thickness,
-    grain: r.grain,
-    material: '',
-    color: '#888',
-    position: r.panel.position,
-    rotation: r.panel.rotation,
-    rotationOrder: r.panel.rotationOrder,
-    cuts: [],
-    visible: true,
-    parentId: cabinet.id,
-    driven: true,
-    role: r.role,
-  }))
-}
+// The real roles, so a mistake shows up as a cabinet part in the wrong place rather than as an
+// abstract number.
+const LEFT_SIDE = box(0, 18, 0, 560, 0, 720)
+const RIGHT_SIDE = box(582, 600, 0, 560, 0, 720)
+const BACK = box(18, 582, 548, 560, 118, 702)
+const TOP_PANEL = box(18, 582, 0, 560, 702, 720)
+const BOTTOM = box(18, 582, 0, 560, 100, 118)
 
-const withParams = (params: CarcaseParams): CarcaseComponent => ({ ...cabinet, params })
+const view = (label: 'Front' | 'Top' | 'End') => VIEWS.find((v) => v.label === label)!
 
-function viewsOf(params: CarcaseParams, materials = PRESET_MATERIALS) {
-  const c = withParams(params)
-  const ids = new Map<ComponentId, Component>([[c.id, c]])
-  const [front, top, end] = buildAssemblyViews(partsOf(params, materials), ids, c, materials)
-  return { front, top, end }
-}
-
-const labels = (v: { parts: { label: string }[] }) => v.parts.map((p) => p.label)
-```
-
-- [ ] **Step 2: Write the failing tests**
-
-Append to `src/geom/assembly.test.ts`:
-
-```ts
 describe('the three planes', () => {
   it('names the views Front, Top and End in that order', () => {
-    const { front, top, end } = viewsOf(lopsided())
-    expect([front.label, top.label, end.label]).toEqual(['Front', 'Top', 'End'])
+    expect(VIEWS.map((v) => v.label)).toEqual(['Front', 'Top', 'End'])
   })
 
-  // W != D, so a view that took the wrong axis for u is visible in the bounds alone.
-  it('gives each view the extent its own two axes imply', () => {
-    const { front, top, end } = viewsOf(lopsided())
-    expect([front.bounds.w, front.bounds.h]).toEqual([600, 720]) // W x H
-    expect([top.bounds.w, top.bounds.h]).toEqual([600, 560]) // W x D
-    expect([end.bounds.w, end.bounds.h]).toEqual([560, 720]) // D x H
+  // W != D != H, so a view that took the wrong axis for u or v is visible in the extent alone.
+  it('maps each view to its own two axes', () => {
+    expect(projectBox(LEFT_SIDE, view('Front'), params).rect).toEqual({ x: 0, y: 0, w: 18, h: 720 })
+    expect(projectBox(LEFT_SIDE, view('Top'), params).rect).toEqual({ x: 0, y: 0, w: 18, h: 560 })
   })
 
-  // The whole reason the cull exists. Without it this count is 1.
-  it('leaves more than one part visible in the End view', () => {
-    expect(labels(viewsOf(lopsided()).end).length).toBeGreaterThan(1)
+  // End looks from +x, so screen-right is -y and the cabinet's FRONT lands on the right. The back
+  // panel is the clearest witness: it sits at the far left of the view, not the far right.
+  it('puts the cabinet’s front on the right of the End view', () => {
+    const back = projectBox(BACK, view('End'), params).rect
+    expect(back.x).toBeCloseTo(0, 6)
+    expect(back.w).toBeCloseTo(12, 6)
   })
 
-  // End looks from +x, so the near half is the RIGHT side. Culling the far half instead would keep
-  // the right side and drop the left — identical unless the two differ, which is why the fixture
-  // gives one of them 25 mm stock.
-  it('culls the right side from the End view and keeps the left', () => {
-    const p = lopsided({ carcaseMaterial: 'Ply 18mm' })
-    const parts = partsOf(p)
-    const c = withParams(p)
-    const ids = new Map<ComponentId, Component>([[c.id, c]])
-    const [, , end] = buildAssemblyViews(parts, ids, c, PRESET_MATERIALS)
-    expect(labels(end)).toContain('Left Side')
-    expect(labels(end)).not.toContain('Right Side')
+  // Depth is emitted pre-oriented so smaller always means nearer. Top looks DOWN, so a high part
+  // must come out with a smaller depth than a low one — the inversion is resolved here, once, and
+  // no consumer carries a per-view sign.
+  it('orients depth so that smaller is nearer in every view', () => {
+    const frontNear = projectBox(box(0, 600, -18, 0, 0, 720), view('Front'), params)
+    const frontFar = projectBox(LEFT_SIDE, view('Front'), params)
+    expect(frontNear.depthMin).toBeLessThan(frontFar.depthMin)
+
+    expect(projectBox(TOP_PANEL, view('Top'), params).depthMin).toBeLessThan(
+      projectBox(BOTTOM, view('Top'), params).depthMin,
+    )
+
+    expect(projectBox(RIGHT_SIDE, view('End'), params).depthMin).toBeLessThan(
+      projectBox(LEFT_SIDE, view('End'), params).depthMin,
+    )
+  })
+})
+
+describe('the near-half cull', () => {
+  // Pure hidden-line removal of a closed box is one solid rectangle: measured on a Base 600's End
+  // view, six of seven parts are completely hidden by the near side. Top and End are therefore
+  // sections, cut at the parameter midpoint.
+  it('culls the near side from End and keeps the far one', () => {
+    expect(culled(RIGHT_SIDE, view('End'), params)).toBe(true)
+    expect(culled(LEFT_SIDE, view('End'), params)).toBe(false)
   })
 
-  it('culls the top panel from the Top view and keeps the bottom', () => {
-    const { top } = viewsOf(lopsided())
-    expect(labels(top)).toContain('Bottom')
-    expect(labels(top)).not.toContain('Top')
+  it('culls the top panel from Top and keeps the bottom', () => {
+    expect(culled(TOP_PANEL, view('Top'), params)).toBe(true)
+    expect(culled(BOTTOM, view('Top'), params)).toBe(false)
   })
 
-  // Front is deliberately not a section: an elevation that dropped its door would be useless, and
-  // the door is the nearest thing in the view.
-  it('culls nothing from the Front view', () => {
-    const { front } = viewsOf(lopsided())
-    const all = partsOf(lopsided()).map((p) => p.label)
-    expect(labels(front).sort()).toEqual(all.sort())
+  // A part crossing the plane is drawn whole — that is what makes the section need no
+  // partial-cutting geometry.
+  it('keeps a part that straddles the cut plane', () => {
+    expect(culled(LEFT_SIDE, view('Top'), params)).toBe(false) // z 0..720 spans the H/2 plane
+    expect(culled(BACK, view('End'), params)).toBe(false) // x 18..582 spans the W/2 plane
+  })
+
+  // Front is a view, not a section. An elevation that dropped its door would be useless, and the
+  // door is the nearest thing in it.
+  it('never culls anything from Front', () => {
+    for (const b of [LEFT_SIDE, RIGHT_SIDE, BACK, TOP_PANEL, BOTTOM]) {
+      expect(culled(b, view('Front'), params)).toBe(false)
+    }
+    expect(culled(box(0, 600, -18, 0, 100, 718), view('Front'), params)).toBe(false)
   })
 })
 ```
 
-- [ ] **Step 3: Run and confirm failure**
+- [ ] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: FAIL — `buildAssemblyViews` and `VIEWS` are not exported.
+Expected: FAIL — `VIEWS`, `projectBox` and `culled` are not exported.
 
-- [ ] **Step 4: Implement the planes and the cull**
+- [ ] **Step 3: Implement the planes and the cull**
 
 Append to `src/geom/assembly.ts`:
 
@@ -751,13 +733,12 @@ export function culled(box: CabinetBox, view: ViewSpec, p: CarcaseParams): boole
 }
 ```
 
-- [ ] **Step 5: Run the tests**
+- [ ] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: PASS. (`buildAssemblyViews` itself lands in Task 4 — until then these tests fail on it; if
-you are executing strictly task-by-task, mark Step 5 done once Task 4 Step 4 is in.)
+Expected: PASS — 7 from Task 2 plus 8 here, 15 in the file.
 
-- [ ] **Step 6: Mutation check — cull direction, and cull at all**
+- [ ] **Step 5: Mutation check — cull direction, and cull at all**
 
 ```bash
 cp src/geom/assembly.ts "$SCRATCHPAD"/assembly-t3.bak
@@ -773,8 +754,8 @@ grep -n "if (true) return false" src/geom/assembly.ts
 ```
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: FAIL on _culls the right side from the End view_, _culls the top panel from the Top view_
-and _leaves more than one part visible in the End view_.
+Expected: FAIL on _culls the near side from End and keeps the far one_ and on _culls the top panel
+from Top and keeps the bottom_.
 
 ```bash
 cp "$SCRATCHPAD"/assembly-t3.bak src/geom/assembly.ts
@@ -791,7 +772,7 @@ grep -n "label: 'Front'" src/geom/assembly.ts
 ```
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: FAIL on _culls nothing from the Front view_ — the door goes missing from the elevation.
+Expected: FAIL on _never culls anything from Front_ — the door would go missing from the elevation.
 
 ```bash
 cp "$SCRATCHPAD"/assembly-t3.bak src/geom/assembly.ts
@@ -808,15 +789,15 @@ grep -n "label: 'End'" src/geom/assembly.ts
 ```
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: FAIL on _culls the right side from the End view and keeps the left_ — the cull takes the
-far side instead. **This is the mutation that only an x-asymmetric fixture separates.**
+Expected: FAIL on _culls the near side from End and keeps the far one_ (the cull takes the far side
+instead) **and** on _puts the cabinet's front on the right of the End view_ (the view flips).
 
 ```bash
 cp "$SCRATCHPAD"/assembly-t3.bak src/geom/assembly.ts
 grep -n "depthSign: -1, uSign: -1" src/geom/assembly.ts
 ```
 
-- [ ] **Step 7: Commit (after Task 4 makes the file green)**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/geom/assembly.ts src/geom/assembly.test.ts
@@ -849,11 +830,105 @@ inset door `y ∈ [0,18]` does not (`18 > 0`) and its rect does not overlap the 
 door does hide the shelf behind it at `y ∈ [20,537]` (`18 <= 20`), where the 20 comes from Stage E's
 `max(SHELF_FRONT_SETBACK, insetFrontThickness + SHELF_CLEARANCE)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Add the whole-cabinet fixture**
+
+Task 3 tested `projectBox` and `culled` directly, with explicit boxes. `buildAssemblyViews` needs a
+real cabinet, so add the fixture here. Append to the imports:
+
+```ts
+import { buildAssemblyViews } from './assembly'
+import { carcaseRoles } from '../scene/carcaseRoles'
+import { roleThicknessFor } from '../scene/resolveThickness'
+import { jointKindFor } from '../scene/resolveJointKind'
+import { PRESET_MATERIALS } from '../scene/carcasePresets'
+import type { CarcaseParams, Part } from '../scene/types'
+```
+
+Then the fixture:
+
+```ts
+// A cabinet asymmetric in every axis. G1 taught this twice: a symmetric fixture passes every
+// mutation. W != D != H separates the three planes from each other.
+function lopsided(over: Partial<CarcaseParams> = {}): CarcaseParams {
+  return { ...CARCASE_PRESETS[0].params, width: 600, height: 720, depth: 560, ...over }
+}
+
+// The parts a cabinet's parameters imply, built the way regenerateComponents builds them, so the
+// projector is tested against what the app actually holds.
+function partsOf(params: CarcaseParams): Part[] {
+  const thicknessOf = roleThicknessFor(params, PRESET_MATERIALS, new Map())
+  return carcaseRoles(params, thicknessOf, jointKindFor([], cabinet.id)).map((r, i) => ({
+    kind: 'board',
+    id: `board_${i}`,
+    label: r.label,
+    length: r.panel.length,
+    width: r.panel.width,
+    thickness: r.panel.thickness,
+    grain: r.grain,
+    material: '',
+    color: '#888',
+    position: r.panel.position,
+    rotation: r.panel.rotation,
+    rotationOrder: r.panel.rotationOrder,
+    cuts: [],
+    visible: true,
+    parentId: cabinet.id,
+    driven: true,
+    role: r.role,
+  }))
+}
+
+const withParams = (params: CarcaseParams): CarcaseComponent => ({ ...cabinet, params })
+
+function viewsOf(params: CarcaseParams, materials = PRESET_MATERIALS) {
+  const c = withParams(params)
+  const ids = new Map<ComponentId, Component>([[c.id, c]])
+  const [front, top, end] = buildAssemblyViews(partsOf(params), ids, c, materials)
+  return { front, top, end }
+}
+
+const labels = (v: { parts: { label: string }[] }) => v.parts.map((p) => p.label)
+```
+
+- [ ] **Step 2: Write the failing tests**
 
 Append to `src/geom/assembly.test.ts`:
 
 ```ts
+describe('the assembled views', () => {
+  it('gives each view the extent its own two axes imply', () => {
+    const { front, top, end } = viewsOf(lopsided())
+    expect([front.bounds.w, front.bounds.h]).toEqual([600, 720]) // W x H
+    expect([top.bounds.w, top.bounds.h]).toEqual([600, 560]) // W x D
+    expect([end.bounds.w, end.bounds.h]).toEqual([560, 720]) // D x H
+  })
+
+  // The whole reason the cull exists. Without it this count is 1.
+  it('leaves more than one part visible in the End view', () => {
+    expect(labels(viewsOf(lopsided()).end).length).toBeGreaterThan(1)
+  })
+
+  it('drops the near side from End and the top panel from Top, and nothing from Front', () => {
+    const { front, top, end } = viewsOf(lopsided())
+    expect(labels(end)).toContain('Left Side')
+    expect(labels(end)).not.toContain('Right Side')
+    expect(labels(top)).toContain('Bottom')
+    expect(labels(top)).not.toContain('Top')
+    expect(labels(front).sort()).toEqual(partsOf(lopsided()).map((p) => p.label).sort())
+  })
+
+  // Task 2's quality review asked for this at the seam that consumes `corners`, which is the
+  // outline path below.
+  it('keeps eight corners per part', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    for (const part of partsOf(p)) {
+      expect(cabinetSpaceBox(part, ids, c).corners).toHaveLength(8)
+    }
+  })
+})
+
 describe('occlusion', () => {
   const partNamed = (v: { parts: { label: string }[] }, label: string) =>
     v.parts.find((p) => p.label === label)!
@@ -904,12 +979,12 @@ describe('occlusion', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [ ] **Step 3: Run and confirm failure**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: FAIL — `buildAssemblyViews` is not exported.
 
-- [ ] **Step 3: Implement**
+- [ ] **Step 4: Implement**
 
 Append to `src/geom/assembly.ts`:
 
@@ -1079,13 +1154,13 @@ function hullOf(box: CabinetBox, view: ViewSpec, p: CarcaseParams): Point2D[] {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [ ] **Step 5: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: PASS — Task 3's tests included. (`buildDims` lands in Task 5; until then stub it as
+Expected: PASS — Task 2's and Task 3's tests included. (`buildDims` lands in Task 5; until then stub it as
 `const buildDims = (): AssemblyDim[] => []` and replace it there.)
 
-- [ ] **Step 5: Mutation check — the comparator, and Top's inversion**
+- [ ] **Step 6: Mutation check — the comparator, and Top's inversion**
 
 ```bash
 cp src/geom/assembly.ts "$SCRATCHPAD"/assembly-t4.bak
@@ -1128,7 +1203,7 @@ cp "$SCRATCHPAD"/assembly-t4.bak src/geom/assembly.ts
 grep -n "depthSign: -1, uSign: 1" src/geom/assembly.ts
 ```
 
-- [ ] **Step 6: Full suite and commit**
+- [ ] **Step 7: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
