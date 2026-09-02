@@ -1953,16 +1953,44 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 - Modify: `src/geom/assembly.ts`
 - Test: `src/geom/assembly.test.ts`
 
-Measured machining, so the volume is known rather than feared: Base 600 **46 bores / 2 box cuts**,
-Wall 600 **46 / 0**, Tall 600 **64 / 2**. Worst single view is 28 dashed circles on a Tall side seen
-face-on — a normal drawing. A bore seen **edge-on draws nothing**, matching the convention
-`drawing.ts` already states.
+Measured machining, so the volume is known rather than feared: Base 600 **46 bores**, Wall 600 **46**,
+Tall 600 **64**. Worst single view is 28 dashed circles on a Tall side seen face-on — a normal
+drawing. A bore seen **edge-on draws nothing**, matching the convention `drawing.ts` already states.
+
+> **Six corrections to this task's first draft**, all found by reading the real generators rather
+> than the plan. Each one is a mutation the draft's own two tests could not see, because every hole
+> array a preset emits lands on a `±Z` face — the one face for which each mistake is a no-op.
+>
+> 1. The draft's `squareOn` built its drill direction as `start.z + depth`, hardcoding board **+Z**.
+>    The drill axis is `faceAxes(h.face).depth`. `screw.ts` emits pilots on `joint.receivingEnd`
+>    (an end face — `±X`/`±Y`), so this is wrong on any cabinet with a screw joint.
+> 2. The draft's `boreCircles` stepped `step.x` for `axis: 'U'` and `step.y` otherwise, hardcoding
+>    face `±Z`'s in-face axes. The row marches along `faceAxes(h.face).u` or `.v` — `drawing.ts`
+>    already does exactly this.
+> 3. The draft's `marches` guard tested a box built from `boxFromLocal(centre, centre, …)`. That box
+>    is degenerate in **all three** axes, so both comparisons were `0 < EPS` and the guard was dead.
+>    The test is live only when applied to the *drill direction's* span.
+> 4. The draft asked `squareOn(holes[0], …)` once per part. A left side carries pin rows through its
+>    face **and** plate screws through its face **and**, once a screw joint exists, pilots into its
+>    end — one answer for all of them is wrong for at least one. Asked per array, `squareOn`
+>    collapses into `boreCircles`'s own loop and stops being a function.
+> 5. The draft's `squareOn` returned "the drill span has extent along `view.depth`". For a skewed
+>    part the drill axis has extent along *every* axis, so that says square-on in all three views.
+>    The right test is that the span is **flat in the view's own two axes**, which rejects skew.
+> 6. The draft said mitres "take the non-axis-aligned path already written" and then named
+>    `mitreFaceOutline` to build the outline. Those contradict each other: `mitreFaceOutline` returns
+>    **board-local 2-D** points for a Face or Edge view of that board, which mean nothing in cabinet
+>    space. The intent was right and the mechanism wrong — take the path already written, and import
+>    nothing.
 
 - [ ] **Step 1: Write the failing tests**
 
+Add to the test imports: `carcaseHoleArrays` from `../scene/carcaseRoles`, and `Vec3` and `CutDef`
+from `../scene/types`.
+
 ```ts
 describe('machining', () => {
-  const withBores = (p: CarcaseParams) => {
+  const withBores = (p: CarcaseParams): Part[] => {
     const thicknessOf = roleThicknessFor(p, PRESET_MATERIALS, new Map())
     const kindOf = jointKindFor([], cabinet.id)
     return partsOf(p).map((part) =>
@@ -1972,40 +2000,145 @@ describe('machining', () => {
     )
   }
 
-  it('draws pin bores as circles in the view they are drilled square to', () => {
+  const boredViews = (p: CarcaseParams) => {
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const [front, top, end] = buildAssemblyViews(withBores(p), ids, c, PRESET_MATERIALS)
+    return { front, top, end }
+  }
+
+  // One board, alone in the cabinet, carrying exactly the arrays a test hands it. Every fixture
+  // below is unrotated, so board axes ARE cabinet axes and the expected view can be read off the
+  // face letter directly.
+  const bored = (cuts: CutDef[], over: Partial<BoardPart> = {}) => {
     const p = lopsided()
     const c = withParams(p)
     const ids = new Map<ComponentId, Component>([[c.id, c]])
-    const [, , end] = buildAssemblyViews(withBores(p), ids, c, PRESET_MATERIALS)
-    const side = end.parts.find((q) => q.label === 'Left Side')!
-    expect(side.circles.length).toBeGreaterThan(0)
+    const part = board({ label: 'Bored', cuts, ...over })
+    const [front, top, end] = buildAssemblyViews([part], ids, c, PRESET_MATERIALS)
+    const of = (v: AssemblyView) => v.parts.find((q) => q.label === 'Bored')!
+    return { front: of(front), top: of(top), end: of(end) }
+  }
+
+  const holes = (over: Partial<HoleArrayCut> = {}): HoleArrayCut => ({
+    kind: 'hole-array',
+    id: 'cut_h1',
+    label: 'Row',
+    face: '+Y',
+    axis: 'V',
+    start: { x: 100, y: 720, z: 9 },
+    pitch: 5,
+    count: 3,
+    diameter: 8,
+    depth: 10,
+    ...over,
+  })
+
+  // Counted against what the generator actually emitted, never against a number typed here: a
+  // circle-per-array implementation and a circle-per-bore one both pass `length > 0`.
+  it('draws every pin bore as a circle in the view drilled square to it', () => {
+    const p = lopsided()
+    const side = withBores(p).find((q) => q.label === 'Left Side') as BoardPart
+    const expected = side.cuts.reduce((n, c) => n + (c.kind === 'hole-array' ? c.count : 0), 0)
+    expect(expected).toBeGreaterThan(0)
+    expect(boredViews(p).end.parts.find((q) => q.label === 'Left Side')!.circles.length).toBe(
+      expected,
+    )
   })
 
   // Edge-on a bore is a slot, not a circle. drawing.ts draws nothing for it and so does this.
   it('draws nothing for a bore seen edge-on', () => {
+    const { front, top } = boredViews(lopsided())
+    expect(front.parts.find((q) => q.label === 'Left Side')!.circles).toEqual([])
+    expect(top.parts.find((q) => q.label === 'Left Side')!.circles).toEqual([])
+  })
+
+  // The drill axis comes from the FACE. A `+Y` row is square-on to Front and to nothing else; code
+  // that hardcodes board +Z puts it in Top instead.
+  it('takes the drill axis from the face, not from board +Z', () => {
+    const v = bored([holes()])
+    expect(v.front.circles.length).toBe(3)
+    expect(v.top.circles).toEqual([])
+    expect(v.end.circles).toEqual([])
+  })
+
+  // The row marches along one of the FACE's two in-face axes. On `+Y` that is board z for 'V' —
+  // code that hardcodes board y for 'V' stacks all three bores on one spot in Front.
+  it('marches the row along the face axis its `axis` names', () => {
+    const v = bored([holes()])
+    expect(v.front.circles.map((c) => [c.cx, c.cy])).toEqual([
+      [100, 9],
+      [100, 14],
+      [100, 19],
+    ])
+    expect(v.front.circles.map((c) => c.r)).toEqual([4, 4, 4])
+  })
+
+  // Two rows on two faces. Asking `holes[0]` once for the whole part answers for both, which puts
+  // three circles in Front and none in Top.
+  it('asks each array its own question, not the first array once', () => {
+    const v = bored([holes(), holes({ id: 'cut_h2', face: '+Z', axis: 'U', count: 2 })])
+    expect(v.front.circles.length).toBe(3)
+    expect(v.top.circles.length).toBe(2)
+  })
+
+  // A tilted part's drill axis points at no view at all. A square-on test that only asks for extent
+  // along the view's depth says yes to Front AND Top here.
+  it('draws no circle on a part tilted out of every view', () => {
+    const v = bored([holes({ face: '+Z', start: { x: 100, y: 100, z: 18 } })], {
+      rotation: { x: 30, y: 0, z: 0 },
+    })
+    expect([v.front.circles, v.top.circles, v.end.circles]).toEqual([[], [], []])
+  })
+
+  // A mitre bevels the silhouette away from the bounding box, so the box stops being the shape.
+  it('draws a mitred board as an outline and lets it occlude nothing', () => {
     const p = lopsided()
     const c = withParams(p)
     const ids = new Map<ComponentId, Component>([[c.id, c]])
-    const [front] = buildAssemblyViews(withBores(p), ids, c, PRESET_MATERIALS)
-    const side = front.parts.find((q) => q.label === 'Left Side')!
-    expect(side.circles).toEqual([])
+    const mitre: CutDef = {
+      kind: 'mitre',
+      id: 'cut_m1',
+      label: 'Mitre',
+      end: '+X',
+      axis: 'Z',
+      angle: 45,
+    }
+    const far = board({ id: 'board_far', label: 'Far', position: { x: 0, y: 300, z: 0 } })
+    const near = board({ id: 'board_near', label: 'Near', position: { x: 0, y: 0, z: 0 } })
+    const plain = buildAssemblyViews([far, near], ids, c, PRESET_MATERIALS)[0]
+    const cut = buildAssemblyViews([far, { ...near, cuts: [mitre] }], ids, c, PRESET_MATERIALS)[0]
+
+    // Without the mitre the near board hides the far one; the fixture is only evidence if it does.
+    expect(plain.parts.find((q) => q.label === 'Far')!.hidden.length).toBeGreaterThan(0)
+    expect(cut.parts.find((q) => q.label === 'Far')!.hidden).toEqual([])
+    expect(cut.parts.find((q) => q.label === 'Near')!.outline).not.toBeUndefined()
+    expect(plain.parts.find((q) => q.label === 'Near')!.outline).toBeUndefined()
+  })
+
+  // The never guard is what forces a future CutDef member to be classified deliberately instead of
+  // vanishing from every drawing. Reaching it requires defeating the type system, which is the point.
+  it('throws on an unknown cut kind rather than dropping it silently', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const bogus = board({ cuts: [{ kind: 'chamfer', id: 'cut_x', label: 'x' }] as unknown as CutDef[] })
+    expect(() => buildAssemblyViews([bogus], ids, c, PRESET_MATERIALS)).toThrow(/unknown cut kind/)
   })
 })
 ```
 
-Add `carcaseHoleArrays` to the test imports.
-
 - [ ] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: FAIL — `circles` is always empty.
+Expected: FAIL — `circles` is always `[]`, a mitred board still occludes, and nothing throws.
 
-- [ ] **Step 3: Implement the exhaustive switch**
+- [ ] **Step 3: Implement**
+
+Imports to add to `src/geom/assembly.ts`: `faceAxes` from `../scene/snapMath`, and `HoleArrayCut`
+and `MitreCut` to the type import from `../scene/types`.
 
 ```ts
-import { mitreFaceOutline } from './mitre'
-import type { HoleArrayCut, MitreCut } from '../scene/types'
-
 // Every cut kind, named. The `never` check makes a new CutDef member a COMPILE error rather than a
 // shape that silently vanishes from every drawing — the same discipline buildBoardSheet uses.
 interface SortedCuts {
@@ -2036,8 +2169,13 @@ function sortCuts(cuts: CutDef[]): SortedCuts {
   return out
 }
 
-// A row of bores reads as circles only in the view whose normal is the drill axis; edge-on it is a
-// slot the other two views draw nothing for. Same convention as drawing.ts:projectHoleArray.
+// A row of bores reads as circles only in the view whose depth axis IS the drill axis; the other two
+// see it edge-on and draw nothing, the convention drawing.ts already states. Asked per array rather
+// than once per part: a side panel carries pin rows drilled through its face and, wherever a screw
+// joint lands, pilots drilled into its end — one answer for both is wrong for one of them.
+//
+// Every bore is dashed. In a whole-cabinet projection machining is interior detail whichever face it
+// is on; the through/blind distinction buildBoardSheet draws is about one board seen alone.
 function boreCircles(
   holes: HoleArrayCut[],
   part: Part,
@@ -2048,23 +2186,21 @@ function boreCircles(
 ): DrawCircle[] {
   const out: DrawCircle[] = []
   for (const h of holes) {
-    const step = { x: 0, y: 0, z: 0 }
-    if (h.axis === 'U') step.x = h.pitch
-    else step.y = h.pitch
+    const ax = faceAxes(h.face)
+    // A unit step along the drill axis, carried into cabinet space. Square-on exactly when that step
+    // is flat in BOTH of the view's own axes — which is also what rejects a skewed part, whose drill
+    // axis has extent along all three and so points at no view at all.
+    const tip: Vec3 = { ...h.start }
+    tip[ax.depth] += 1
+    const drill = boxFromLocal(h.start, tip, part, byId, cabinet)
+    const flat = (a: Axis) => Math.abs(drill.max[a] - drill.min[a]) < EPS
+    if (!flat(view.u) || !flat(view.v)) continue
+
+    const along = h.axis === 'U' ? ax.u : ax.v
     for (let i = 0; i < h.count; i++) {
-      const centre = {
-        x: h.start.x + step.x * i,
-        y: h.start.y + step.y * i,
-        z: h.start.z + step.z * i,
-      }
-      const box = boxFromLocal(centre, centre, part, byId, cabinet)
-      // Square-on when the drill axis is this view's depth axis: the row's two marching axes are
-      // then both in the view's plane.
-      const marches =
-        Math.abs(box.max[view.u] - box.min[view.u]) < EPS &&
-        Math.abs(box.max[view.v] - box.min[view.v]) < EPS
-      if (!marches) continue
-      const proj = projectBox(box, view, p)
+      const centre: Vec3 = { ...h.start }
+      centre[along] += h.pitch * i
+      const proj = projectBox(boxFromLocal(centre, centre, part, byId, cabinet), view, p)
       out.push({ cx: proj.rect.x, cy: proj.rect.y, r: h.diameter / 2, dashed: true })
     }
   }
@@ -2072,64 +2208,81 @@ function boreCircles(
 }
 ```
 
-Replace the per-part `circles: []` with a call that first checks the drill axis maps to this view's
-depth axis:
+In `buildAssemblyViews`, replace the `isBoxCut` filter with the sort, and derive a local
+`axisAligned` from it:
 
 ```ts
-const sorted = part.kind === 'board' ? sortCuts(part.cuts) : { boxes: [], holes: [], mitres: [] }
-const circles = squareOn(sorted.holes, part, byId, cabinet, view)
-  ? boreCircles(sorted.holes, part, byId, cabinet, view, p)
-  : []
+const withCuts = projected.map(({ part, box, proj }) => {
+  const sorted = part.kind === 'board' ? sortCuts(part.cuts) : { boxes: [], holes: [], mitres: [] }
+  // A mitre bevels the silhouette away from its bounding box, so a mitred board is no longer "the
+  // box is the shape": it draws as its hull and takes no part in occlusion, exactly like a
+  // cylinder. The hull still overstates it — the bevel itself is not drawn — but it can never hide
+  // a part it does not really cover.
+  const axisAligned = box.axisAligned && sorted.mitres.length === 0
+  const projectedCuts = sorted.boxes.map(/* unchanged */)
+  …
+  const rects = axisAligned ? subtractRects(proj.rect, through) : [proj.rect]
+  …
+  return { part, box, proj, axisAligned, rects, cutRects,
+           circles: boreCircles(sorted.holes, part, byId, cabinet, view, p) }
+})
 ```
 
-with
+and thread it through `assembled`: the occluder gate becomes `axisAligned ? … .filter((q) =>
+q.axisAligned && …) : []`, `outline` becomes `axisAligned ? undefined : hullOf(box, view, p)`, and
+`circles: []` becomes `circles`.
 
-```ts
-// The drill axis in cabinet space is the row's normal. A bore is square-on to a view exactly when
-// that normal is the view's depth axis.
-function squareOn(
-  holes: HoleArrayCut[],
-  part: Part,
-  byId: Map<ComponentId, Component>,
-  cabinet: CarcaseComponent,
-  view: ViewSpec,
-): boolean {
-  if (holes.length === 0) return false
-  const h = holes[0]
-  const tip = { x: h.start.x, y: h.start.y, z: h.start.z + h.depth }
-  const span = boxFromLocal(h.start, tip, part, byId, cabinet)
-  return Math.abs(span.max[view.depth] - span.min[view.depth]) > EPS
-}
-```
-
-Mitres reshape the silhouette through `mitreFaceOutline`; a carcase generates none, so a part
-carrying one takes the non-axis-aligned path already written — set `outline` from
-`mitreFaceOutline` when `sorted.mitres.length > 0`.
+`isBoxCut` is now unused — delete it. Its own comment says why it existed: "so the exhaustive switch
+in Task 7 is the only place cut kinds are enumerated."
 
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Full suite and commit**
+- [ ] **Step 5: Mutation-test the new rules**
+
+Back the file up with `cp` first and restore from that copy — never `git checkout`. Grep after
+applying and again after restoring. Predicted victims, to be checked against what actually fails:
+
+| # | Mutation | Predicted to fail |
+|---|---|---|
+| 1 | `tip[ax.depth]` → `tip.z` | takes the drill axis from the face |
+| 2 | `h.axis === 'U' ? ax.u : ax.v` → `h.axis === 'U' ? 'x' : 'y'` | marches the row along the face axis |
+| 3 | `if (!flat(view.u) \|\| !flat(view.v)) continue` → `if (flat(view.depth)) continue` | takes the drill axis from the face; draws nothing edge-on |
+| 4 | drop the `flat` guard entirely | draws nothing for a bore seen edge-on |
+| 5 | `centre[along] += h.pitch * i` → `+= 0` | marches the row along the face axis |
+| 6 | `sorted.mitres.length === 0` → `true` | draws a mitred board as an outline |
+| 7 | `h.diameter / 2` → `h.diameter` | marches the row along the face axis (the `r` assertion) |
+
+A mutation that survives is a gap in the tests, not a licence to skip it: add the test that kills it
+or delete the line it proves is dead.
+
+- [ ] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
-```bash
-git add src/geom/assembly.ts src/geom/assembly.test.ts
-git commit -m "feat(geom): bores and mitres in a cabinet projection
+Commit with `git commit -F -` and a heredoc (the message carries backticks):
+
+```
+feat(geom): bores and mitres in a cabinet projection
 
 Pin rows, screw pilots and hinge cups draw as dashed circles in the view they
 are drilled square to and nothing in the other two, matching the convention
 drawing.ts already states. Measured volume: 46 bores on a Base 600, 64 on a
 Tall, worst single view 28 circles.
 
+The drill axis comes from the cut's face and the row marches along that face's
+own in-plane axis, both asked per array. A side panel carries pin rows through
+its face and screw pilots into its end; one answer for the whole part is wrong
+for one of them.
+
+A mitre bevels the silhouette away from its bounding box, so a mitred board
+stops being an axis-aligned box: it draws as its hull and occludes nothing.
+
 Cut kinds go through one exhaustive switch with a never check, so a new
 CutDef member is a compile error rather than a shape that silently vanishes
 from every drawing.
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 ```
 
 ---
