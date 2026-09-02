@@ -479,7 +479,7 @@ export function cabinetSpaceBox(
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
-Expected: PASS, 6 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 5: Mutation check — axis-alignment read from `rotation`**
 
@@ -2289,6 +2289,68 @@ from every drawing.
 
 # Group C — the pane, the selection, the override fixes
 
+## Before Task 8: the shared carcase-parts fixture
+
+Three test files need "the parts a carcase's parameters imply, built the way `regenerateComponents`
+builds them": `assembly.test.ts` already has it as a local `partsOf`, Task 8 needs it, and Tasks
+11-14 all need it again. That is three copies of one twenty-line block, each free to drift from
+`regenerateComponents` independently. Create `src/geom/__fixtures__/cabinetSheet.ts` **first** and
+import from it everywhere, `assembly.test.ts` included - parameterized, because `assembly.test.ts`
+builds lopsided cabinets while the sheet tasks only ever want a Base 600.
+
+```ts
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../../scene/carcasePresets'
+import { carcaseRoles } from '../../scene/carcaseRoles'
+import { roleThicknessFor } from '../../scene/resolveThickness'
+import { jointKindFor } from '../../scene/resolveJointKind'
+import type { CarcaseComponent, CarcaseParams, ComponentId, Part } from '../../scene/types'
+
+export const cabinet: CarcaseComponent = {
+  kind: 'carcase',
+  id: 'cmp_1',
+  label: 'Base 600',
+  parentId: null,
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  rotationOrder: 'XYZ',
+  visible: true,
+  params: CARCASE_PRESETS[0].params,
+}
+
+// The parts a carcase's parameters imply, built the way regenerateComponents builds them, so every
+// consumer of the projector is tested against what the app actually holds.
+export function partsOfCarcase(params: CarcaseParams, parentId: ComponentId = cabinet.id): Part[] {
+  return carcaseRoles(
+    params,
+    roleThicknessFor(params, PRESET_MATERIALS, new Map()),
+    jointKindFor([], parentId),
+  ).map((r, i) => ({
+    kind: 'board',
+    id: `board_${i}`,
+    label: r.label,
+    length: r.panel.length,
+    width: r.panel.width,
+    thickness: r.panel.thickness,
+    grain: r.grain,
+    material: '',
+    color: '#888',
+    position: r.panel.position,
+    rotation: r.panel.rotation,
+    rotationOrder: r.panel.rotationOrder,
+    cuts: [],
+    visible: true,
+    parentId,
+    driven: true,
+    role: r.role,
+  }))
+}
+
+export const partsOfBase600 = (): Part[] => partsOfCarcase(cabinet.params)
+```
+
+Then delete `partsOf` from `src/geom/assembly.test.ts` and import `partsOfCarcase` in its place.
+The full suite is the check that the swap changed nothing: 1573 tests must still pass.
+
 ## Task 8: `CabinetProjection.tsx`
 
 **Files:**
@@ -2310,49 +2372,13 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CabinetProjection } from './CabinetProjection'
-import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import type { CarcaseComponent, Component, ComponentId, Part } from '../scene/types'
-import { carcaseRoles } from '../scene/carcaseRoles'
-import { roleThicknessFor } from '../scene/resolveThickness'
-import { jointKindFor } from '../scene/resolveJointKind'
-
-const cabinet: CarcaseComponent = {
-  kind: 'carcase',
-  id: 'cmp_1',
-  label: 'Base 600',
-  parentId: null,
-  position: { x: 0, y: 0, z: 0 },
-  rotation: { x: 0, y: 0, z: 0 },
-  rotationOrder: 'XYZ',
-  visible: true,
-  params: CARCASE_PRESETS[0].params,
-}
+import { PRESET_MATERIALS } from '../scene/carcasePresets'
+import type { Component, ComponentId, Part } from '../scene/types'
+import { cabinet, partsOfBase600 } from '../geom/__fixtures__/cabinetSheet'
 
 const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
 
-const parts: Part[] = carcaseRoles(
-  cabinet.params,
-  roleThicknessFor(cabinet.params, PRESET_MATERIALS, new Map()),
-  jointKindFor([], cabinet.id),
-).map((r, i) => ({
-  kind: 'board',
-  id: `board_${i}`,
-  label: r.label,
-  length: r.panel.length,
-  width: r.panel.width,
-  thickness: r.panel.thickness,
-  grain: r.grain,
-  material: '',
-  color: '#888',
-  position: r.panel.position,
-  rotation: r.panel.rotation,
-  rotationOrder: r.panel.rotationOrder,
-  cuts: [],
-  visible: true,
-  parentId: cabinet.id,
-  driven: true,
-  role: r.role,
-}))
+const parts: Part[] = partsOfBase600()
 
 const draw = (
   view: 'Front' | 'Top' | 'End' = 'Front',
@@ -2405,10 +2431,49 @@ describe('CabinetProjection', () => {
     expect(end).toBeLessThan(screen.getAllByTestId(/^projection-part-/).length)
   })
 
+  // getAllByText, not getByText: an opening-chain label is free to equal an overall figure on some
+  // future preset, and a duplicate should not turn this into a confusing failure about the wrong
+  // thing. What is asserted is that the overall figures are labelled at all.
   it('labels the overall dimensions', () => {
     draw()
-    expect(screen.getByText('600')).toBeTruthy()
-    expect(screen.getByText('720')).toBeTruthy()
+    expect(screen.getAllByText('600').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('720').length).toBeGreaterThan(0)
+  })
+
+  // A part that is not an axis-aligned box carries `outline` — its real silhouette — while `rects`
+  // is only the bounding rectangle it is hit-tested by. Drawing `solid` for such a part puts a box
+  // around a tilted dowel, which is what this catches. Mutation: render `solid` unconditionally.
+  it('draws a non-axis-aligned part as its outline, not as a box', () => {
+    const dowel = {
+      kind: 'cylinder' as const,
+      id: 'board_dowel',
+      label: 'Dowel 1',
+      diameter: 8,
+      length: 40,
+      material: '',
+      color: '#ca8',
+      position: { x: 100, y: 100, z: 100 },
+      rotation: { x: 0, y: 30, z: 0 },
+      rotationOrder: 'XYZ' as const,
+      cuts: [],
+      visible: true,
+      parentId: cabinet.id,
+      driven: false,
+    }
+    render(
+      <CabinetProjection
+        view="Front"
+        parts={[dowel]}
+        byId={byId}
+        cabinet={cabinet}
+        materials={PRESET_MATERIALS}
+        selectedId={null}
+        onSelect={vi.fn()}
+      />,
+    )
+    const g = screen.getByTestId('projection-part-board_dowel')
+    expect(g.querySelectorAll('polygon')).toHaveLength(1)
+    expect(g.querySelectorAll('line')).toHaveLength(0)
   })
 
   it('renders a message rather than throwing for a cabinet that does not build', () => {
@@ -2437,7 +2502,6 @@ Expected: FAIL — `Failed to resolve import "./CabinetProjection"`.
 - [ ] **Step 3: Write `src/ui/CabinetProjection.tsx`**
 
 ```tsx
-import { useMemo } from 'react'
 import { buildAssemblyViews, type AssemblyDim, type AssemblyView } from '../geom/assembly'
 import { validateCarcaseParams } from '../scene/carcaseRoles'
 import { overridesOf, roleThicknessFor } from '../scene/resolveThickness'
@@ -2459,6 +2523,8 @@ import type {
 // pixels once the viewBox is fitted to the pane.
 
 const PADDING = 60
+// Indexed by `AssemblyDim.ring`, which is 1 or 2 — index 0 is never read and is here so the
+// index IS the ring number rather than one less than it.
 const DIM_RING = [0, 18, 36]
 
 export function CabinetProjection({
@@ -2481,10 +2547,10 @@ export function CabinetProjection({
   const thicknessOf = roleThicknessFor(cabinet.params, materials, overridesOf(parts, cabinet.id))
   const buildable = validateCarcaseParams(cabinet.params, thicknessOf).length === 0
 
-  const views = useMemo(
-    () => (buildable ? buildAssemblyViews(parts, byId, cabinet, materials) : null),
-    [buildable, parts, byId, cabinet, materials],
-  )
+  // Not memoised. `parts`, `byId`, `cabinet` and `materials` are all rebuilt by App on every
+  // render, so a useMemo over them would recompute every time anyway while reading as though it
+  // did not. A whole-cabinet projection is a few hundred rectangles; measure before adding one.
+  const views = buildable ? buildAssemblyViews(parts, byId, cabinet, materials) : null
 
   if (views === null) {
     return (
@@ -2545,18 +2611,32 @@ export function CabinetProjection({
                 className={selected ? 'fill-primary/25' : 'fill-transparent hover:fill-accent/40'}
               />
             ))}
-            {part.solid.map((s, i) => (
-              <line
-                key={`s${i}`}
-                x1={s.x1}
-                y1={flip(s.y1, 0)}
-                x2={s.x2}
-                y2={flip(s.y2, 0)}
+            {/* A part that is not an axis-aligned box has `outline` — its real silhouette — while
+                its `rects` is only the bounding rectangle it is hit-tested by. Drawing `solid` for
+                one would draw a box around a tilted dowel, so the two are alternatives, never
+                both. */}
+            {part.outline === undefined ? (
+              part.solid.map((s, i) => (
+                <line
+                  key={`s${i}`}
+                  x1={s.x1}
+                  y1={flip(s.y1, 0)}
+                  x2={s.x2}
+                  y2={flip(s.y2, 0)}
+                  stroke={selected ? 'currentColor' : '#333'}
+                  strokeWidth={selected ? 2 : 1}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))
+            ) : (
+              <polygon
+                points={part.outline.map((q) => `${q.x},${flip(q.y, 0)}`).join(' ')}
+                fill="none"
                 stroke={selected ? 'currentColor' : '#333'}
                 strokeWidth={selected ? 2 : 1}
                 vectorEffect="non-scaling-stroke"
               />
-            ))}
+            )}
             {part.hidden.map((s, i) => (
               <line
                 key={`h${i}`}
@@ -2668,6 +2748,34 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 `selectedCarcase`, unmounts `CabinetEditor` and reveals the viewport. Clicking a part in a projection
 would destroy the surface it was clicked in. The open cabinet becomes the cabinet _containing_ the
 selection.
+
+> **STOP — this task has an unresolved fork. Do not execute it without the answer.**
+>
+> The rule as drafted has a side effect neither its tests nor `CabinetEditor.test.tsx` can see,
+> because they render the editor rather than `App`:
+>
+> - `App.tsx:461` shows the viewport when `selectedCarcase === null || cabinetTab === '3d'`.
+> - Once the ancestry rule lands, clicking a part **inside a cabinet** makes `selectedCarcase`
+>   non-null, and `cabinetTab` defaults to `'section'` — so **clicking a part in the 3D viewport
+>   replaces the viewport with the Section elevation.**
+> - Separately, `cabinetParts` (`App.tsx:114`) returns the whole scene only while
+>   `selectedCarcase === null`, so selecting any part silently filters 3D to one cabinet.
+>
+> Options:
+>
+> 1. **Narrow the rule to its purpose.** Keep the *currently open* cabinet when the new selection
+>    lies inside it; otherwise fall back to today's component-only rule. This is exactly the stated
+>    goal — "clicking a part in a projection must not close the projection" — and nothing more.
+>    Costs one piece of state (the open cabinet id) or a ref to the previous value.
+> 2. **Force `cabinetTab` to `'3d'`** when a part is selected with no cabinet open. Keeps the
+>    viewport visible, but moves the tab under the user.
+> 3. **Accept it.** Selecting a part anywhere opens its cabinet's editor on the Section tab —
+>    the "cabinet is the edit level" model taken literally.
+> 4. **Split the two questions.** `openCabinet` (explicit, mounts the editor) and
+>    `selectionCabinet` (derived, highlights only). Each answer then serves exactly one consumer.
+>
+> Whichever is chosen, this task needs a test that renders `App` — the regression is invisible at
+> the `CabinetEditor` level, which is why the draft did not see it.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2890,6 +2998,11 @@ Thread `parts` from `App` → `Sidebar` → `CarcasePanel`, and `App` → `Cabin
 
 `src/scene/__fixtures__/resolve.ts` keeps its empty map: a fixture states its own inputs.
 
+**`parts` is a required prop, so two existing test files stop compiling** — `CarcasePanel.test.tsx`
+and `sidebar.test.tsx` both construct `CarcasePanel` without it. Add `parts: []` to their prop
+builders. An empty array is the honest value there: neither file is testing overrides, and
+`overridesOf([], id)` is an empty map, which is exactly what they resolve with today.
+
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/ui/SectionElevation.test.tsx src/ui/CarcasePanel.test.tsx`
@@ -2936,61 +3049,6 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 ---
 
 # Group D — the sheet
-
-## Before Task 11: the shared sheet fixture
-
-Tasks 11–14 add tests to four different files that all need the same cabinet and its parts. Create
-`src/geom/__fixtures__/cabinetSheet.ts` **first**, and import `cabinet` and `partsOfBase600` from it
-in each of those test files — do not paste a copy into any of them.
-
-```ts
-import { CARCASE_PRESETS, PRESET_MATERIALS } from '../../scene/carcasePresets'
-import { carcaseRoles } from '../../scene/carcaseRoles'
-import { roleThicknessFor } from '../../scene/resolveThickness'
-import { jointKindFor } from '../../scene/resolveJointKind'
-import type { CarcaseComponent, Part } from '../../scene/types'
-
-export const cabinet: CarcaseComponent = {
-  kind: 'carcase',
-  id: 'cmp_1',
-  label: 'Base 600',
-  parentId: null,
-  position: { x: 0, y: 0, z: 0 },
-  rotation: { x: 0, y: 0, z: 0 },
-  rotationOrder: 'XYZ',
-  visible: true,
-  params: CARCASE_PRESETS[0].params,
-}
-
-// The parts a Base 600 implies, built the way regenerateComponents builds them.
-export function partsOfBase600(): Part[] {
-  const p = cabinet.params
-  return carcaseRoles(
-    p,
-    roleThicknessFor(p, PRESET_MATERIALS, new Map()),
-    jointKindFor([], cabinet.id),
-  ).map((r, i) => ({
-    kind: 'board',
-    id: `board_${i}`,
-    label: r.label,
-    length: r.panel.length,
-    width: r.panel.width,
-    thickness: r.panel.thickness,
-    grain: r.grain,
-    material: '',
-    color: '#888',
-    position: r.panel.position,
-    rotation: r.panel.rotation,
-    rotationOrder: r.panel.rotationOrder,
-    cuts: [],
-    visible: true,
-    parentId: cabinet.id,
-    driven: true,
-    role: r.role,
-  }))
-}
-```
-
 
 ## Task 11: the `assembly` sheet variant
 
