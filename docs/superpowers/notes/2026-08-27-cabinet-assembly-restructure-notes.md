@@ -933,3 +933,48 @@ cabinet space. And every bore is dashed regardless of depth: in a whole-cabinet 
 is interior detail whichever face it is on, so the through/blind distinction `buildBoardSheet` draws
 for one board seen alone does not carry over. Circles and internal cut rectangles are also not
 clipped by occluders — only by their own part's silhouette.
+
+### 2026-09-02 — the projection pane: what its own tests could not see, and one figure that is wrong
+
+Task 8's seven planned tests leave five of the pane's rules undefended, found by mutating each one
+and watching nothing fail:
+
+- **Paint order.** Dropping `.reverse()` on `v.parts` passes all seven. The projector sorts nearest
+  first and the pane paints backwards so the nearest part is drawn last and takes the click; with
+  the reverse gone the carcase paints over the door and every click on a door selects what is behind
+  it. Defended now by requiring the last `projection-part-*` group in the DOM to be the front.
+- **The z flip.** `flip` returning `y` also passes all seven — nothing in the plan's set reads a
+  coordinate. The elevation learned this in G1: an upside-down cabinet looks entirely plausible. The
+  test reads the rendered `y` of the bottom panel and the top panel and requires the bottom to be
+  lower on screen.
+- **Three of the five draw families.** Deleting the `rects`, `hidden`, `cutRects` or `circles` map
+  leaves all seven green. `rects` is not decoration — it is the only fill in the group, so with it
+  gone nothing in a real browser is clickable at all, while a `userEvent.click` on the `<g>` in
+  happy-dom still passes. `partsOfCarcase` builds parts with **no cuts**, so a Base 600 fixture
+  reaches neither a cut rectangle nor a bore; the machining has to be attached from `carcaseCuts`
+  and `carcaseHoleArrays` for those two families to exist at all.
+- **The dimension ring.** `DIM_RING = [0, 18, 18]` — ring 2 collapsed onto ring 1 — passes
+  everything. On a Base 600 the two left-side dimensions happen not to overlap in y, so only the
+  ordering is assertable: the toe-kick label (ring 2) must sit further out than the opening-height
+  label (ring 1).
+
+**A measured defect, not a stylistic one: `PADDING` is absolute and `font` is proportional.** The
+label size is `max(W, H) / 45` while the viewBox padding is a flat 60 mm, so the annotation ring
+does not scale with the cabinet. Measured across all three presets and all three views, at a 0.55 em
+digit advance: Base 600 and Wall 600 fit with ~6 mm of slack on the right, and **Tall 600's "2100"
+overflows the viewBox by ~71 mm in both Front and End** (font 46.7 mm, four digits ≈ 103 mm, anchored
+at `W + 28` with the right edge at `W + 60`). It is clipped silently — SVG reports nothing. The same
+mismatch puts a 46.7 mm label in an 18 mm gap between rings. The fix is to derive `PADDING` and
+`DIM_RING` from `font` rather than to state them in millimetres; left undone deliberately, because it
+is a design decision the sheet variant (Tasks 11-14) shares and should be settled once for both.
+The `it.each` viewBox test can only check anchor points — happy-dom lays out no text — so that
+overflow is invisible to the suite and would have to be an e2e assertion or a computed-width check.
+
+**`hullOf` is sane for a rotated cylinder**, checked because the outline test depends on it. Its
+input is the eight corners of the prism around the cylinder, and for a rotation about the view's own
+depth axis the eight project onto four distinct points — the monotone chain dedupes the pairs
+correctly and returns exactly 4 points, an exact 8 × 40 rectangle for a ⌀8 × 40 dowel at 30°. A
+general rotation (20°, 40°, 60°) returns a 6-point centrally symmetric hexagon. Never degenerate,
+always closed and convex. It still overstates a cylinder — it is the square prism's shadow, so a
+diagonal orientation reads ⌀8 as up to 11.3 wide — which is the same stated limitation the mitre
+hull carries: it can never hide a part it does not really cover.
