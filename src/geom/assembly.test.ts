@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { cabinetSpaceBox, VIEWS, projectBox, culled, buildAssemblyViews } from './assembly'
-import type { AssemblyView, CabinetBox } from './assembly'
+import type { AssemblyPart, AssemblyView, CabinetBox } from './assembly'
 import type {
   BoardPart,
   CarcaseComponent,
@@ -11,7 +11,7 @@ import type {
   Part,
 } from '../scene/types'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import { carcaseRoles } from '../scene/carcaseRoles'
+import { carcaseCuts, carcaseRoles } from '../scene/carcaseRoles'
 import { roleThicknessFor } from '../scene/resolveThickness'
 import { jointKindFor } from '../scene/resolveJointKind'
 
@@ -604,5 +604,171 @@ describe('dimensions', () => {
     // before it ever consults the materials map, so the override alone is what this asserts.
     const [front] = buildAssemblyViews(parts, ids, c, PRESET_MATERIALS)
     expect(front.dims.filter((d) => d.side === 'above')[0].label).toBe('557')
+  })
+})
+
+describe('cuts', () => {
+  const sideIn = (v: { parts: AssemblyPart[] }, label: string) =>
+    v.parts.find((q) => q.label === label)!
+
+  // A Base 600 with the toe-kick notch actually cut into its sides. `partsOf` builds parts with no
+  // cuts, so the notch has to be attached here, from the same `carcaseCuts` the generator uses.
+  const notched = () => {
+    const p = lopsided({ baseMode: 'toe-kick' })
+    const thicknessOf = roleThicknessFor(p, PRESET_MATERIALS, new Map())
+    const parts = partsOf(p).map((part) =>
+      part.kind === 'board' && part.role === 'left-side'
+        ? { ...part, cuts: carcaseCuts(p, thicknessOf, 'left-side') }
+        : part,
+    )
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const [front, top, end] = buildAssemblyViews(parts, ids, c, PRESET_MATERIALS)
+    return { front, top, end }
+  }
+
+  // The stage's headline test. One cut, two views, two different answers.
+  it('makes the toe-kick notch through in End and internal in Front', () => {
+    const { front, end } = notched()
+
+    // End: the notch is taken out of the silhouette, so the side is no longer one rectangle.
+    expect(sideIn(end, 'Left Side').rects.length).toBeGreaterThan(1)
+    expect(sideIn(end, 'Left Side').cutRects).toEqual([])
+
+    // Front: still one rectangle, and the notch shows as dashed internal detail.
+    expect(sideIn(front, 'Left Side').rects).toHaveLength(1)
+    expect(sideIn(front, 'Left Side').cutRects.length).toBe(1)
+  })
+
+  // A cut is built oversize on purpose (position.z = -T/2, size.z = 2T) so OCCT sees an
+  // unambiguous through-cut. Drawn unclipped that is a dashed box 9 mm outside an 18 mm panel.
+  it('clips a cut rectangle to its own part', () => {
+    const side = sideIn(notched().front, 'Left Side')
+    const box = side.rects[0]
+    for (const cut of side.cutRects) {
+      expect(cut.rect.x).toBeGreaterThanOrEqual(box.x - 1e-6)
+      expect(cut.rect.x + cut.rect.w).toBeLessThanOrEqual(box.x + box.w + 1e-6)
+      expect(cut.rect.y).toBeGreaterThanOrEqual(box.y - 1e-6)
+      expect(cut.rect.y + cut.rect.h).toBeLessThanOrEqual(box.y + box.h + 1e-6)
+    }
+  })
+
+  // A part with a through-cut stops occluding through the hole — which is why an occluder is a
+  // LIST of rectangles rather than one. No real cabinet can witness this, and it is worth saying
+  // why rather than writing a test that passes for the wrong reason:
+  //
+  //   * the toe-kick notch is the only through-cut a generated cabinet has, and it is through in
+  //     the End view alone (in Front it spans 60 of 560, in Top 100 of 720);
+  //   * in End, nearer is larger x, so the notched left side at x[0,18] is the FARTHEST part and
+  //     occludes nothing at all. Its notch cannot reveal anything because nothing is behind it.
+  //
+  // An earlier draft asserted that the toe kick "shows through the recess". It does not: the toe
+  // kick spans x[18,582] and is *nearer* than the side, so it was never occluded and the assertion
+  // passed without touching the rule. Two synthetic boards are the honest witness — and the case
+  // is reachable, since a user can cut a hole in a panel.
+  // A cut sized exactly to the panel it passes through arrives a hair off it, its extent having
+  // come out of float arithmetic. The toe-kick notch cannot show this: it is built at -T/2 .. 3T/2
+  // and overshoots by 9 mm, thousands of times the tolerance. Without EPS such a cut flips to
+  // "internal" and the silhouette silently keeps material that was machined away.
+  it('counts a cut flush with the panel as through', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const flush = board({
+      id: 'board_flush',
+      label: 'Flush',
+      length: 100,
+      width: 18,
+      thickness: 100,
+      position: { x: 0, y: 0, z: 0 },
+      cuts: [
+        {
+          kind: 'box',
+          id: 'cut_flush',
+          label: 'Flush cut',
+          face: '-Z',
+          // Spans the panel's full 18 mm thickness, short of each face by a ten-thousandth of a
+          // micron — which is what a coordinate computed rather than typed actually looks like.
+          position: { x: 25, y: 1e-13, z: 25 },
+          size: { x: 50, y: 18 - 2e-13, z: 50 },
+        },
+      ],
+    })
+    const [front] = buildAssemblyViews([flush], ids, c, PRESET_MATERIALS)
+    const part = sideIn(front, 'Flush')
+    expect(part.rects.length).toBeGreaterThan(1)
+    expect(part.cutRects).toEqual([])
+  })
+
+  // A cut that only touches a part's edge overlaps it in no area at all. Without the guard the
+  // clip emits a zero-width rectangle, drawn as a dashed line where the panel has no cut.
+  it('emits no rectangle for a cut that merely touches the edge', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const touched = board({
+      id: 'board_touched',
+      label: 'Touched',
+      length: 100,
+      width: 18,
+      thickness: 100,
+      position: { x: 0, y: 0, z: 0 },
+      cuts: [
+        {
+          kind: 'box',
+          id: 'cut_beside',
+          label: 'Beside',
+          face: '-Z',
+          // Starts exactly where the panel ends, and stops short of its far face so it stays
+          // internal rather than through.
+          position: { x: 100, y: 0, z: 25 },
+          size: { x: 50, y: 5, z: 50 },
+        },
+      ],
+    })
+    const [front] = buildAssemblyViews([touched], ids, c, PRESET_MATERIALS)
+    expect(sideIn(front, 'Touched').cutRects).toEqual([])
+  })
+
+  it('stops occluding through a through-cut', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+
+    // Front view: u = x, v = z, depth = y. A 200x200 panel 10 deep, with a 100x100 hole clean
+    // through it — the cut oversized in y exactly as `carcaseCuts` oversizes the notch.
+    const holed = board({
+      id: 'board_holed',
+      label: 'Holed',
+      length: 200,
+      width: 10,
+      thickness: 200,
+      position: { x: 0, y: 0, z: 0 },
+      cuts: [
+        {
+          kind: 'box',
+          id: 'cut_hole',
+          label: 'Hole',
+          face: '-Z',
+          position: { x: 50, y: -5, z: 50 },
+          size: { x: 100, y: 20, z: 100 },
+        },
+      ],
+    })
+    // Squarely inside the hole (x 75..125, z 75..125 against the hole's 50..150) and well behind
+    // the panel in depth, so it would be wholly hidden if the hole did not open the occluder.
+    const behind = board({
+      id: 'board_behind_hole',
+      label: 'Seen Through',
+      length: 50,
+      width: 10,
+      thickness: 50,
+      position: { x: 75, y: 100, z: 75 },
+    })
+
+    const [front] = buildAssemblyViews([holed, behind], ids, c, PRESET_MATERIALS)
+    const seen = sideIn(front, 'Seen Through')
+    expect(seen.hidden).toEqual([])
+    expect(seen.solid).toHaveLength(4)
   })
 })

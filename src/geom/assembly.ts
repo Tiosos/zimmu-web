@@ -11,6 +11,7 @@ import type {
   Vec3,
 } from '../scene/types'
 import type { DrawCircle, DrawRect, Point2D, Rect2D } from './drawing'
+import type { BoxCut, CutDef } from '../scene/types'
 import { openingRect } from '../scene/carcaseRoles'
 import { overridesOf, roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { resolveSections } from '../scene/sectionTree'
@@ -241,6 +242,85 @@ function splitEdge(
   return { solid: visible.map(seg), hidden: covered.map(seg) }
 }
 
+// A cut's box in cabinet space. Cuts live in BOARD axes — `position` is the min corner, `size` the
+// extent — so each goes through the same matrices the silhouette does.
+function boxFromLocal(
+  lo: Vec3,
+  hi: Vec3,
+  part: Part,
+  byId: Map<ComponentId, Component>,
+  cabinet: CarcaseComponent,
+): CabinetBox {
+  const mPart = resolveWorldMatrix(part, byId)
+  const mCabinet = resolveWorldMatrix(cabinet, byId)
+  const corners: Vec3[] = []
+  for (const x of [lo.x, hi.x])
+    for (const y of [lo.y, hi.y])
+      for (const z of [lo.z, hi.z]) {
+        const [wx, wy, wz] = applyMatrixToPoint(mPart, x, y, z)
+        const [cx, cy, cz] = applyInverseToPoint(mCabinet, wx, wy, wz)
+        corners.push({ x: cx, y: cy, z: cz })
+      }
+  const min = {
+    x: Math.min(...corners.map((c) => c.x)),
+    y: Math.min(...corners.map((c) => c.y)),
+    z: Math.min(...corners.map((c) => c.z)),
+  }
+  const max = {
+    x: Math.max(...corners.map((c) => c.x)),
+    y: Math.max(...corners.map((c) => c.y)),
+    z: Math.max(...corners.map((c) => c.z)),
+  }
+  return { min, max, axisAligned: true, corners }
+}
+
+// Asked PER VIEW, never once per cut. The toe-kick notch is through in End (it spans the side's
+// whole thickness) and internal in Front (there is still material behind it) — one cut, two
+// answers, and an implementation that decides once gets one of them wrong.
+function isThrough(cut: CabinetBox, part: CabinetBox, view: ViewSpec): boolean {
+  return (
+    cut.min[view.depth] <= part.min[view.depth] + EPS &&
+    cut.max[view.depth] >= part.max[view.depth] - EPS
+  )
+}
+
+const clip = (r: Rect2D, to: Rect2D): Rect2D | null => {
+  const x = Math.max(r.x, to.x)
+  const y = Math.max(r.y, to.y)
+  const w = Math.min(r.x + r.w, to.x + to.w) - x
+  const h = Math.min(r.y + r.h, to.y + to.h) - y
+  return w > EPS && h > EPS ? { x, y, w, h } : null
+}
+
+// A rectangle minus a list of rectangles, as a list of rectangles. Horizontal bands split by the
+// same interval subtraction the edges use — an occluder is a list, so this is all it takes for a
+// notched part to stop occluding through its notch.
+function subtractRects(base: Rect2D, holes: Rect2D[]): Rect2D[] {
+  const ys = new Set<number>([base.y, base.y + base.h])
+  for (const h of holes) {
+    if (h.y > base.y + EPS && h.y < base.y + base.h - EPS) ys.add(h.y)
+    if (h.y + h.h > base.y + EPS && h.y + h.h < base.y + base.h - EPS) ys.add(h.y + h.h)
+  }
+  const rows = [...ys].sort((a, b) => a - b)
+  const out: Rect2D[] = []
+  for (let i = 0; i + 1 < rows.length; i++) {
+    const y = rows[i]
+    const h = rows[i + 1] - y
+    const mid = y + h / 2
+    const spans = holes
+      .filter((q) => q.y <= mid && q.y + q.h >= mid)
+      .map((q): Span => ({ a: q.x, b: q.x + q.w }))
+    for (const s of subtractIntervals({ a: base.x, b: base.x + base.w }, spans)) {
+      out.push({ x: s.a, y, w: s.b - s.a, h })
+    }
+  }
+  return out
+}
+
+// Named rather than inlined so the exhaustive switch in Task 7 is the only place cut kinds are
+// enumerated.
+const isBoxCut = (c: CutDef): c is BoxCut => c.kind === 'box'
+
 // Collision is prevented by construction — no two families share a side AND a ring — so nothing
 // here needs a placement search, which is most of what drawing.ts's complexity actually is.
 
@@ -322,11 +402,48 @@ export function buildAssemblyViews(
       .map(({ part, box }) => ({ part, box, proj: projectBox(box, view, p) }))
       .sort((a, b) => a.proj.depthMin - b.proj.depthMin)
 
-    const assembled = projected.map(({ part, box, proj }, i): AssemblyPart => {
+    // Cuts are resolved before occlusion, in their own pass: `rects` (the part's silhouette AFTER
+    // its through-cuts are taken out) is also the occluder set — a part cut clean through must stop
+    // occluding through the hole, and reading occluders off `rects` rather than the raw projected
+    // rectangle is the only way that holds.
+    const withCuts = projected.map(({ part, box, proj }) => {
+      const boxCuts = part.kind === 'board' ? part.cuts.filter(isBoxCut) : []
+      const projectedCuts = boxCuts.map((cut) => ({
+        cut,
+        cabinet: boxFromLocal(
+          cut.position,
+          {
+            x: cut.position.x + cut.size.x,
+            y: cut.position.y + cut.size.y,
+            z: cut.position.z + cut.size.z,
+          },
+          part,
+          byId,
+          cabinet,
+        ),
+      }))
+      const through = projectedCuts
+        .filter((c) => isThrough(c.cabinet, box, view))
+        .map((c) => projectBox(c.cabinet, view, p).rect)
+      const internal = projectedCuts
+        .filter((c) => !isThrough(c.cabinet, box, view))
+        .map((c) => projectBox(c.cabinet, view, p).rect)
+
+      const rects = box.axisAligned ? subtractRects(proj.rect, through) : [proj.rect]
+      // Clipped on the way IN. A consumer that had to clip would be a second place the rule lived.
+      const cutRects: DrawRect[] = internal
+        .map((r) => clip(r, proj.rect))
+        .filter((r): r is Rect2D => r !== null)
+        .map((rect) => ({ rect, dashed: true }))
+
+      return { part, box, proj, rects, cutRects }
+    })
+
+    const assembled = withCuts.map(({ part, box, proj, rects, cutRects }, i): AssemblyPart => {
       // Hidden-line removal here is rectangle subtraction: a shape that is not a rectangle has
       // no edges this machinery can meaningfully cut, so it neither occludes nor is occluded.
       const occluders = box.axisAligned
-        ? projected
+        ? withCuts
             .slice(0, i)
             .filter((q) => q.box.axisAligned && q.proj.depthMax <= proj.depthMin + EPS)
             // No rectangle pre-filter here. `splitEdge` already decomposes the intersection into
@@ -334,10 +451,9 @@ export function buildAssemblyViews(
             // axis and `subtractIntervals` on the other — so admitting a candidate that does not
             // really overlap costs a little work and changes no output. A pre-filter would be code
             // no test could falsify.
-            .map((q) => q.proj.rect)
+            .flatMap((q) => q.rects)
         : []
 
-      const rects = [proj.rect]
       const solid: Segment[] = []
       const hidden: Segment[] = []
       for (const r of rects) {
@@ -360,7 +476,7 @@ export function buildAssemblyViews(
         solid,
         hidden,
         circles: [],
-        cutRects: [],
+        cutRects,
         depthMin: proj.depthMin,
         depthMax: proj.depthMax,
       }
