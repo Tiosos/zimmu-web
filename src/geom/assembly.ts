@@ -11,6 +11,10 @@ import type {
   Vec3,
 } from '../scene/types'
 import type { DrawCircle, DrawRect, Point2D, Rect2D } from './drawing'
+import { openingRect } from '../scene/carcaseRoles'
+import { overridesOf, roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
+import { resolveSections } from '../scene/sectionTree'
+import { sectionOpenings } from '../scene/sectionInterior'
 
 // Whole-cabinet orthographic projection. Pure, THREE-free, and in **unscaled millimetres** — two
 // consumers read it (the interactive pane and the assembly sheet) and they scale differently, so a
@@ -237,21 +241,77 @@ function splitEdge(
   return { solid: visible.map(seg), hidden: covered.map(seg) }
 }
 
-// Task 5 gives this its body. A view with no dimensions is a legitimate intermediate state — the
-// projector's geometry is what this task is for.
-function buildDims(): AssemblyDim[] {
-  return []
+// Collision is prevented by construction — no two families share a side AND a ring — so nothing
+// here needs a placement search, which is most of what drawing.ts's complexity actually is.
+
+const mm = (n: number): string => String(Math.round(n * 100) / 100)
+
+function buildDims(view: ViewSpec, p: CarcaseParams, thicknessOf: RoleThickness): AssemblyDim[] {
+  const eu = cabinetExtent(p, view.u)
+  const ev = cabinetExtent(p, view.v)
+  const dims: AssemblyDim[] = [
+    { axis: 'h', side: 'below', ring: 1, start: 0, end: eu.hi - eu.lo, label: mm(eu.hi - eu.lo) },
+    { axis: 'v', side: 'right', ring: 1, start: 0, end: ev.hi - ev.lo, label: mm(ev.hi - ev.lo) },
+  ]
+
+  if (p.baseMode !== 'none') {
+    dims.push({
+      axis: 'v',
+      side: 'left',
+      ring: 2,
+      start: 0,
+      end: p.toeKickHeight,
+      label: mm(p.toeKickHeight),
+    })
+  }
+
+  // Openings are chained only where they divide along one of this view's own axes: nothing divides
+  // in y, so the Top view carries overall figures alone.
+  if (view.label === 'Front') {
+    const tree = resolveSections(p.section, openingRect(p, thicknessOf), (parentId, index) =>
+      thicknessOf(`division-${parentId}-${index}`),
+    )
+    const leaves = sectionOpenings(p.section, tree)
+    // Read off the RESOLVED rectangles, never re-walked from the tree's percentages: a chain
+    // derived from the same rectangles the elevation draws cannot disagree with it.
+    //
+    // The chain lists the OPENINGS themselves, deduped — two leaves stacked inside one bay share
+    // that bay's x-span and must not dimension it twice. Deliberately it does not sum to the
+    // overall: the panels between openings are a material spec, not a dimension. Taking gaps
+    // between every distinct edge instead would emit those panels too, giving `273 | 18 | 273`
+    // for a two-bay cabinet.
+    const chain = (
+      pick: (r: { x0: number; x1: number; z0: number; z1: number }) => [number, number],
+    ): [number, number][] => {
+      const seen = new Map<string, [number, number]>()
+      for (const l of leaves) {
+        const span = pick(l.rect)
+        seen.set(span.map((n) => Math.round(n * 1e6)).join(':'), span)
+      }
+      return [...seen.values()].sort((a, b) => a[0] - b[0])
+    }
+
+    for (const [a, b] of chain((r) => [r.x0, r.x1])) {
+      dims.push({ axis: 'h', side: 'above', ring: 1, start: a, end: b, label: mm(b - a) })
+    }
+    for (const [a, b] of chain((r) => [r.z0, r.z1])) {
+      dims.push({ axis: 'v', side: 'left', ring: 1, start: a, end: b, label: mm(b - a) })
+    }
+  }
+
+  return dims
 }
 
 export function buildAssemblyViews(
   parts: Part[],
   byId: Map<ComponentId, Component>,
   cabinet: CarcaseComponent,
-  // Unused until Task 6/7 draw hatching or bore fills that key off material — kept in the
-  // signature now so every call site (and the sheet consumer) is already shaped for it.
-  _materials: Record<string, MaterialDef>,
+  materials: Record<string, MaterialDef>,
 ): [AssemblyView, AssemblyView, AssemblyView] {
   const p = cabinet.params
+  // Overrides are read BEFORE the layout resolves, exactly as the generator does. A drawing that
+  // used the cabinet's nominal thickness would show openings the boards it dimensions do not have.
+  const thicknessOf = roleThicknessFor(p, materials, overridesOf(parts, cabinet.id))
   const boxes = parts
     .filter((part) => part.visible)
     .map((part) => ({ part, box: cabinetSpaceBox(part, byId, cabinet) }))
@@ -312,7 +372,7 @@ export function buildAssemblyViews(
       label: view.label,
       bounds: { x: 0, y: 0, w: eu.hi - eu.lo, h: ev.hi - ev.lo },
       parts: assembled,
-      dims: buildDims(),
+      dims: buildDims(view, p, thicknessOf),
     }
   })
 

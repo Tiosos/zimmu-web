@@ -511,3 +511,98 @@ describe('occlusion', () => {
     }
   })
 })
+
+import { legacyToSection } from '../scene/migrateSections'
+import { splitSection } from '../scene/editSection'
+
+describe('dimensions', () => {
+  const dim = (v: { dims: { side: string; ring: number; label: string }[] }, side: string) =>
+    v.dims.filter((d) => d.side === side)
+
+  it('dimensions the whole cabinet on every view', () => {
+    const { front, top, end } = viewsOf(lopsided())
+    expect(dim(front, 'below')[0].label).toBe('600')
+    expect(dim(front, 'right')[0].label).toBe('720')
+    expect(dim(top, 'below')[0].label).toBe('600')
+    expect(dim(top, 'right')[0].label).toBe('560')
+    expect(dim(end, 'below')[0].label).toBe('560')
+    expect(dim(end, 'right')[0].label).toBe('720')
+  })
+
+  // Two bays of a 600 on 18 mm stock: 600 - 2*18 = 564 clear, less an 18 mm partition, halved.
+  it('chains the openings across the top of the Front view', () => {
+    const p = lopsided({ section: legacyToSection([0.5], 0, 600, 18) })
+    expect(dim(viewsOf(p).front, 'above').map((d) => d.label)).toEqual(['273', '273'])
+  })
+
+  // An uneven tree is what separates "read the resolved rectangles" from "read the tree's
+  // percentages": with equal bays the two agree.
+  it('chains uneven bays at their resolved sizes', () => {
+    const p = lopsided({ section: legacyToSection([0.25], 0, 600, 18) })
+    const chain = dim(viewsOf(p).front, 'above').map((d) => Number(d.label))
+    expect(chain).toHaveLength(2)
+    expect(chain[0]).toBeLessThan(chain[1])
+    expect(chain[0] + chain[1] + 18).toBe(564)
+  })
+
+  // Two leaves stacked in one bay share that bay's x-span. Without the dedupe the chain would
+  // dimension the same 564 mm twice, one line on top of the other.
+  it('dimensions a shared span once, however many leaves sit in it', () => {
+    const root = legacyToSection([], 0, 600, 18)
+    const split = splitSection(root, root.id, 'horizontal', 'panel', 2)
+    const across = dim(viewsOf(lopsided({ section: split })).front, 'above')
+    expect(across).toHaveLength(1)
+    expect(across[0].label).toBe('564')
+  })
+
+  it('puts the toe kick on its own ring so it cannot collide with the opening chain', () => {
+    const { front } = viewsOf(lopsided())
+    const left = dim(front, 'left')
+    const kick = left.find((d) => d.label === '100')
+    expect(kick).toBeDefined()
+    expect(kick!.ring).toBe(2)
+    expect(left.filter((d) => d.ring === 1).every((d) => d.label !== '100')).toBe(true)
+  })
+
+  // The claim is not that two dimensions never share a side and a ring — a chain is by nature
+  // several entries laid end to end on one — but that two on the same side and ring never
+  // *overlap*. That is what "collision prevented by construction" means. Keying on the exact span
+  // instead, as an earlier version did, catches only an exact duplicate and lets two families
+  // quietly land on top of each other.
+  it('never lets two dimensions on one side and ring overlap', () => {
+    const twoBays = lopsided({ section: legacyToSection([0.5], 0, 600, 18) })
+    for (const v of Object.values(viewsOf(twoBays))) {
+      const byRing = new Map<string, { start: number; end: number }[]>()
+      for (const d of v.dims) {
+        const key = `${d.side}:${d.ring}`
+        const span = { start: Math.min(d.start, d.end), end: Math.max(d.start, d.end) }
+        for (const other of byRing.get(key) ?? []) {
+          const overlaps = span.start < other.end - 1e-6 && other.start < span.end - 1e-6
+          expect(
+            overlaps,
+            `${v.label} ${key}: ${span.start}..${span.end} overlaps ${other.start}..${other.end}`,
+          ).toBe(false)
+        }
+        byRing.set(key, [...(byRing.get(key) ?? []), span])
+      }
+    }
+  })
+
+  // The override-before-layout rule: a 25 mm left side makes the clear opening 564 - 7 = 557 wide.
+  // Passing an empty override map instead reads 564 and draws an opening the boards do not have.
+  it('reads per-part thickness overrides in the opening chain', () => {
+    const p = lopsided()
+    const base = partsOf(p)
+    const parts = base.map((part) =>
+      part.kind === 'board' && part.role === 'left-side'
+        ? { ...part, overrides: { thickness: 25 } }
+        : part,
+    )
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    // PRESET_MATERIALS, not a thicker fixture: `roleThicknessFor` returns an explicit override
+    // before it ever consults the materials map, so the override alone is what this asserts.
+    const [front] = buildAssemblyViews(parts, ids, c, PRESET_MATERIALS)
+    expect(front.dims.filter((d) => d.side === 'above')[0].label).toBe('557')
+  })
+})
