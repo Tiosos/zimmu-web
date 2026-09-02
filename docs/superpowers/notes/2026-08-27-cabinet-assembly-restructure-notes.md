@@ -899,3 +899,37 @@ which fails in dev because `stats.js` renders the FPS overlay into a second one.
 - Not built, on purpose: drag-to-resize a division in the elevation. A size is typed, which is what a
   cabinetmaker actually wants for a 300 mm drawer bank; dragging is a nicety that would need its own
   snapping rules and a second way to write `setSectionSize`.
+
+### 2026-09-02 — a bore's axes all come from its face, and one fixture family hid that
+
+`carcaseHoleArrays` and `carcaseMachining` between them emit **every** bore a preset carries on a
+`±Z` face — 46 on a Base 600, 46 on a Wall, 64 on a Tall, measured rather than assumed. `±Z` is the
+one face for which `faceAxes` returns `{ depth: 'z', u: 'x', v: 'y' }`, which is exactly the tuple a
+naive implementation hardcodes. So a projector that reads the drill axis as board **+Z** and marches
+the row along board **x/y** is indistinguishable from the correct one on every fixture the presets
+can build — and stays that way until the first screw joint, whose pilots land on
+`joint.receivingEnd`, an *end* face. The synthetic `+Y` fixture in `assembly.test.ts` exists for that
+reason alone; nothing a preset produces can stand in for it.
+
+Same trap one level down: a square-on test written as "the drill span has extent along the view's
+depth axis" is **behaviourally identical** to the correct "the drill step is flat in both of the
+view's own axes" for every axis-aligned part, and differs only on a skewed one, where it claims
+square-on in all three views at once. Measured, not predicted: mutating the rule to the wrong form
+fails exactly one test — the tilted-part one — and 49 others pass. That test is load-bearing; the
+plan predicted two entirely different witnesses for the same mutation and was wrong about both.
+
+Also worth recording, because it cost a fixture rewrite: a `board()` two-part occlusion fixture must
+clear the near board in **depth**, not merely sit behind its min corner. The default board is 720
+deep and the Front view's depth axis is board y, so two boards 300 mm apart overlap and the occluder
+gate (`depthMax <= depthMin`) never fires — the "without the mitre it really does hide it" honesty
+check fails before the rule under test is reached.
+
+**Stated limitations, not oversights.** A mitred board is treated as not-an-axis-aligned-box: it
+draws as its convex hull and takes no part in occlusion in either direction. The hull still
+overstates it — the bevel itself is not drawn — but it can never hide a part it does not really
+cover, which is the failure that matters. `mitreFaceOutline` is deliberately *not* called here: it
+returns board-local 2-D points for a Face or Edge view of that board, and those mean nothing in
+cabinet space. And every bore is dashed regardless of depth: in a whole-cabinet projection machining
+is interior detail whichever face it is on, so the through/blind distinction `buildBoardSheet` draws
+for one board seen alone does not carry over. Circles and internal cut rectangles are also not
+clipped by occluders — only by their own part's silhouette.
