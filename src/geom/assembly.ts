@@ -11,8 +11,9 @@ import type {
   Vec3,
 } from '../scene/types'
 import type { DrawCircle, DrawRect, Point2D, Rect2D } from './drawing'
-import type { BoxCut, CutDef } from '../scene/types'
+import type { BoxCut, CutDef, HoleArrayCut, MitreCut } from '../scene/types'
 import { openingRect } from '../scene/carcaseRoles'
+import { faceAxes } from '../scene/snapMath'
 import { overridesOf, roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { resolveSections } from '../scene/sectionTree'
 import { sectionOpenings } from '../scene/sectionInterior'
@@ -317,9 +318,73 @@ function subtractRects(base: Rect2D, holes: Rect2D[]): Rect2D[] {
   return out
 }
 
-// Named rather than inlined so the exhaustive switch in Task 7 is the only place cut kinds are
-// enumerated.
-const isBoxCut = (c: CutDef): c is BoxCut => c.kind === 'box'
+// Every cut kind, named. The `never` check makes a new CutDef member a COMPILE error rather than a
+// shape that silently vanishes from every drawing — the same discipline buildBoardSheet uses.
+interface SortedCuts {
+  boxes: BoxCut[]
+  holes: HoleArrayCut[]
+  mitres: MitreCut[]
+}
+
+function sortCuts(cuts: CutDef[]): SortedCuts {
+  const out: SortedCuts = { boxes: [], holes: [], mitres: [] }
+  for (const c of cuts) {
+    switch (c.kind) {
+      case 'box':
+        out.boxes.push(c)
+        break
+      case 'hole-array':
+        out.holes.push(c)
+        break
+      case 'mitre':
+        out.mitres.push(c)
+        break
+      default: {
+        const exhaustive: never = c
+        throw new Error(`unknown cut kind: ${(exhaustive as { kind: string }).kind}`)
+      }
+    }
+  }
+  return out
+}
+
+// A row of bores reads as circles only in the view whose depth axis IS the drill axis; the other two
+// see it edge-on and draw nothing, the convention drawing.ts already states. Asked per array rather
+// than once per part: a side panel carries pin rows drilled through its face and, wherever a screw
+// joint lands, pilots drilled into its end — one answer for both is wrong for one of them.
+//
+// Every bore is dashed. In a whole-cabinet projection machining is interior detail whichever face it
+// is on; the through/blind distinction buildBoardSheet draws is about one board seen alone.
+function boreCircles(
+  holes: HoleArrayCut[],
+  part: Part,
+  byId: Map<ComponentId, Component>,
+  cabinet: CarcaseComponent,
+  view: ViewSpec,
+  p: CarcaseParams,
+): DrawCircle[] {
+  const out: DrawCircle[] = []
+  for (const h of holes) {
+    const ax = faceAxes(h.face)
+    // A unit step along the drill axis, carried into cabinet space. Square-on exactly when that step
+    // is flat in BOTH of the view's own axes — which is also what rejects a skewed part, whose drill
+    // axis has extent along all three and so points at no view at all.
+    const tip: Vec3 = { ...h.start }
+    tip[ax.depth] += 1
+    const drill = boxFromLocal(h.start, tip, part, byId, cabinet)
+    const flat = (a: Axis) => Math.abs(drill.max[a] - drill.min[a]) < EPS
+    if (!flat(view.u) || !flat(view.v)) continue
+
+    const along = h.axis === 'U' ? ax.u : ax.v
+    for (let i = 0; i < h.count; i++) {
+      const centre: Vec3 = { ...h.start }
+      centre[along] += h.pitch * i
+      const proj = projectBox(boxFromLocal(centre, centre, part, byId, cabinet), view, p)
+      out.push({ cx: proj.rect.x, cy: proj.rect.y, r: h.diameter / 2, dashed: true })
+    }
+  }
+  return out
+}
 
 // Collision is prevented by construction — no two families share a side AND a ring — so nothing
 // here needs a placement search, which is most of what drawing.ts's complexity actually is.
@@ -407,8 +472,14 @@ export function buildAssemblyViews(
     // occluding through the hole, and reading occluders off `rects` rather than the raw projected
     // rectangle is the only way that holds.
     const withCuts = projected.map(({ part, box, proj }) => {
-      const boxCuts = part.kind === 'board' ? part.cuts.filter(isBoxCut) : []
-      const projectedCuts = boxCuts.map((cut) => ({
+      const sorted: SortedCuts =
+        part.kind === 'board' ? sortCuts(part.cuts) : { boxes: [], holes: [], mitres: [] }
+      // A mitre bevels the silhouette away from its bounding box, so a mitred board is no longer
+      // "the box is the shape": it draws as its hull and takes no part in occlusion, exactly like a
+      // cylinder. The hull still overstates it — the bevel itself is not drawn — but it can never
+      // hide a part it does not really cover.
+      const axisAligned = box.axisAligned && sorted.mitres.length === 0
+      const projectedCuts = sorted.boxes.map((cut) => ({
         cut,
         cabinet: boxFromLocal(
           cut.position,
@@ -429,58 +500,68 @@ export function buildAssemblyViews(
         .filter((c) => !isThrough(c.cabinet, box, view))
         .map((c) => projectBox(c.cabinet, view, p).rect)
 
-      const rects = box.axisAligned ? subtractRects(proj.rect, through) : [proj.rect]
+      const rects = axisAligned ? subtractRects(proj.rect, through) : [proj.rect]
       // Clipped on the way IN. A consumer that had to clip would be a second place the rule lived.
       const cutRects: DrawRect[] = internal
         .map((r) => clip(r, proj.rect))
         .filter((r): r is Rect2D => r !== null)
         .map((rect) => ({ rect, dashed: true }))
 
-      return { part, box, proj, rects, cutRects }
-    })
-
-    const assembled = withCuts.map(({ part, box, proj, rects, cutRects }, i): AssemblyPart => {
-      // Hidden-line removal here is rectangle subtraction: a shape that is not a rectangle has
-      // no edges this machinery can meaningfully cut, so it neither occludes nor is occluded.
-      const occluders = box.axisAligned
-        ? withCuts
-            .slice(0, i)
-            .filter((q) => q.box.axisAligned && q.proj.depthMax <= proj.depthMin + EPS)
-            // No rectangle pre-filter here. `splitEdge` already decomposes the intersection into
-            // two exact 1-D tests on each occluder's real coordinates — its crossing guard on one
-            // axis and `subtractIntervals` on the other — so admitting a candidate that does not
-            // really overlap costs a little work and changes no output. A pre-filter would be code
-            // no test could falsify.
-            .flatMap((q) => q.rects)
-        : []
-
-      const solid: Segment[] = []
-      const hidden: Segment[] = []
-      for (const r of rects) {
-        for (const e of edgesOf(r)) {
-          const split = splitEdge(e, occluders)
-          solid.push(...split.solid)
-          hidden.push(...split.hidden)
-        }
-      }
-
       return {
-        partId: part.id,
-        label: part.label,
-        color: part.color,
-        // For a part that is not an axis-aligned box, `rects` is its bounding rectangle and serves
-        // only as the hit shape; `outline` is what gets drawn. Its `hidden` comes out empty on its
-        // own, because it has no occluders — no branch needed to force it.
+        part,
+        box,
+        proj,
+        axisAligned,
         rects,
-        outline: box.axisAligned ? undefined : hullOf(box, view, p),
-        solid,
-        hidden,
-        circles: [],
         cutRects,
-        depthMin: proj.depthMin,
-        depthMax: proj.depthMax,
+        circles: boreCircles(sorted.holes, part, byId, cabinet, view, p),
       }
     })
+
+    const assembled = withCuts.map(
+      ({ part, box, proj, axisAligned, rects, cutRects, circles }, i): AssemblyPart => {
+        // Hidden-line removal here is rectangle subtraction: a shape that is not a rectangle has
+        // no edges this machinery can meaningfully cut, so it neither occludes nor is occluded.
+        const occluders = axisAligned
+          ? withCuts
+              .slice(0, i)
+              .filter((q) => q.axisAligned && q.proj.depthMax <= proj.depthMin + EPS)
+              // No rectangle pre-filter here. `splitEdge` already decomposes the intersection into
+              // two exact 1-D tests on each occluder's real coordinates — its crossing guard on one
+              // axis and `subtractIntervals` on the other — so admitting a candidate that does not
+              // really overlap costs a little work and changes no output. A pre-filter would be code
+              // no test could falsify.
+              .flatMap((q) => q.rects)
+          : []
+
+        const solid: Segment[] = []
+        const hidden: Segment[] = []
+        for (const r of rects) {
+          for (const e of edgesOf(r)) {
+            const split = splitEdge(e, occluders)
+            solid.push(...split.solid)
+            hidden.push(...split.hidden)
+          }
+        }
+
+        return {
+          partId: part.id,
+          label: part.label,
+          color: part.color,
+          // For a part that is not an axis-aligned box, `rects` is its bounding rectangle and serves
+          // only as the hit shape; `outline` is what gets drawn. Its `hidden` comes out empty on its
+          // own, because it has no occluders — no branch needed to force it.
+          rects,
+          outline: axisAligned ? undefined : hullOf(box, view, p),
+          solid,
+          hidden,
+          circles,
+          cutRects,
+          depthMin: proj.depthMin,
+          depthMax: proj.depthMax,
+        }
+      },
+    )
 
     const eu = cabinetExtent(p, view.u)
     const ev = cabinetExtent(p, view.v)

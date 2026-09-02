@@ -7,11 +7,13 @@ import type {
   CarcaseParams,
   Component,
   ComponentId,
+  CutDef,
   GroupComponent,
+  HoleArrayCut,
   Part,
 } from '../scene/types'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import { carcaseCuts, carcaseRoles } from '../scene/carcaseRoles'
+import { carcaseCuts, carcaseHoleArrays, carcaseRoles } from '../scene/carcaseRoles'
 import { roleThicknessFor } from '../scene/resolveThickness'
 import { jointKindFor } from '../scene/resolveJointKind'
 
@@ -770,5 +772,148 @@ describe('cuts', () => {
     const seen = sideIn(front, 'Seen Through')
     expect(seen.hidden).toEqual([])
     expect(seen.solid).toHaveLength(4)
+  })
+})
+
+describe('machining', () => {
+  const withBores = (p: CarcaseParams): Part[] => {
+    const thicknessOf = roleThicknessFor(p, PRESET_MATERIALS, new Map())
+    const kindOf = jointKindFor([], cabinet.id)
+    return partsOf(p).map((part) =>
+      part.kind === 'board' && part.role !== undefined
+        ? { ...part, cuts: carcaseHoleArrays(p, thicknessOf, kindOf, part.role) }
+        : part,
+    )
+  }
+
+  const boredViews = (p: CarcaseParams) => {
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const [front, top, end] = buildAssemblyViews(withBores(p), ids, c, PRESET_MATERIALS)
+    return { front, top, end }
+  }
+
+  // One board, alone in the cabinet, carrying exactly the arrays a test hands it. Every fixture
+  // below is unrotated, so board axes ARE cabinet axes and the expected view can be read off the
+  // face letter directly.
+  const bored = (cuts: CutDef[], over: Partial<BoardPart> = {}) => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const part = board({ label: 'Bored', cuts, ...over })
+    const [front, top, end] = buildAssemblyViews([part], ids, c, PRESET_MATERIALS)
+    const of = (v: AssemblyView) => v.parts.find((q) => q.label === 'Bored')!
+    return { front: of(front), top: of(top), end: of(end) }
+  }
+
+  const holes = (over: Partial<HoleArrayCut> = {}): HoleArrayCut => ({
+    kind: 'hole-array',
+    id: 'cut_h1',
+    label: 'Row',
+    face: '+Y',
+    axis: 'V',
+    start: { x: 100, y: 720, z: 9 },
+    pitch: 5,
+    count: 3,
+    diameter: 8,
+    depth: 10,
+    ...over,
+  })
+
+  // Counted against what the generator actually emitted, never against a number typed here: a
+  // circle-per-array implementation and a circle-per-bore one both pass `length > 0`.
+  it('draws every pin bore as a circle in the view drilled square to it', () => {
+    const p = lopsided()
+    const side = withBores(p).find((q) => q.label === 'Left Side') as BoardPart
+    const expected = side.cuts.reduce((n, c) => n + (c.kind === 'hole-array' ? c.count : 0), 0)
+    expect(expected).toBeGreaterThan(0)
+    expect(boredViews(p).end.parts.find((q) => q.label === 'Left Side')!.circles.length).toBe(
+      expected,
+    )
+  })
+
+  // Edge-on a bore is a slot, not a circle. drawing.ts draws nothing for it and so does this.
+  it('draws nothing for a bore seen edge-on', () => {
+    const { front, top } = boredViews(lopsided())
+    expect(front.parts.find((q) => q.label === 'Left Side')!.circles).toEqual([])
+    expect(top.parts.find((q) => q.label === 'Left Side')!.circles).toEqual([])
+  })
+
+  // The drill axis comes from the FACE. A `+Y` row is square-on to Front and to nothing else; code
+  // that hardcodes board +Z puts it in Top instead.
+  it('takes the drill axis from the face, not from board +Z', () => {
+    const v = bored([holes()])
+    expect(v.front.circles.length).toBe(3)
+    expect(v.top.circles).toEqual([])
+    expect(v.end.circles).toEqual([])
+  })
+
+  // The row marches along one of the FACE's two in-face axes. On `+Y` that is board z for 'V' —
+  // code that hardcodes board y for 'V' stacks all three bores on one spot in Front.
+  it('marches the row along the face axis its `axis` names', () => {
+    const v = bored([holes()])
+    expect(v.front.circles.map((c) => [c.cx, c.cy])).toEqual([
+      [100, 9],
+      [100, 14],
+      [100, 19],
+    ])
+    expect(v.front.circles.map((c) => c.r)).toEqual([4, 4, 4])
+  })
+
+  // Two rows on two faces. Asking `holes[0]` once for the whole part answers for both, which puts
+  // three circles in Front and none in Top.
+  it('asks each array its own question, not the first array once', () => {
+    const v = bored([holes(), holes({ id: 'cut_h2', face: '+Z', axis: 'U', count: 2 })])
+    expect(v.front.circles.length).toBe(3)
+    expect(v.top.circles.length).toBe(2)
+  })
+
+  // A tilted part's drill axis points at no view at all. A square-on test that only asks for extent
+  // along the view's depth says yes to Front AND Top here.
+  it('draws no circle on a part tilted out of every view', () => {
+    const v = bored([holes({ face: '+Z', start: { x: 100, y: 100, z: 18 } })], {
+      rotation: { x: 30, y: 0, z: 0 },
+    })
+    expect([v.front.circles, v.top.circles, v.end.circles]).toEqual([[], [], []])
+  })
+
+  // A mitre bevels the silhouette away from the bounding box, so the box stops being the shape.
+  it('draws a mitred board as an outline and lets it occlude nothing', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const mitre: CutDef = {
+      kind: 'mitre',
+      id: 'cut_m1',
+      label: 'Mitre',
+      end: '+X',
+      axis: 'Z',
+      angle: 45,
+    }
+    // Clear of the near board in depth, not merely behind its min corner: the occluder gate wants
+    // the whole of one box in front of the whole of the other, and two 720-deep boards 300 apart
+    // overlap. At y = 800 the near board ends (720) before the far one starts.
+    const far = board({ id: 'board_far', label: 'Far', position: { x: 0, y: 800, z: 0 } })
+    const near = board({ id: 'board_near', label: 'Near', position: { x: 0, y: 0, z: 0 } })
+    const plain = buildAssemblyViews([far, near], ids, c, PRESET_MATERIALS)[0]
+    const cut = buildAssemblyViews([far, { ...near, cuts: [mitre] }], ids, c, PRESET_MATERIALS)[0]
+
+    // Without the mitre the near board hides the far one; the fixture is only evidence if it does.
+    expect(plain.parts.find((q) => q.label === 'Far')!.hidden.length).toBeGreaterThan(0)
+    expect(cut.parts.find((q) => q.label === 'Far')!.hidden).toEqual([])
+    expect(cut.parts.find((q) => q.label === 'Near')!.outline).not.toBeUndefined()
+    expect(plain.parts.find((q) => q.label === 'Near')!.outline).toBeUndefined()
+  })
+
+  // The never guard is what forces a future CutDef member to be classified deliberately instead of
+  // vanishing from every drawing. Reaching it requires defeating the type system, which is the point.
+  it('throws on an unknown cut kind rather than dropping it silently', () => {
+    const p = lopsided()
+    const c = withParams(p)
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    const bogus = board({
+      cuts: [{ kind: 'chamfer', id: 'cut_x', label: 'x' }] as unknown as CutDef[],
+    })
+    expect(() => buildAssemblyViews([bogus], ids, c, PRESET_MATERIALS)).toThrow(/unknown cut kind/)
   })
 })
