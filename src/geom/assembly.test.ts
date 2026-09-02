@@ -13,21 +13,10 @@ import type {
   Part,
 } from '../scene/types'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import { carcaseCuts, carcaseHoleArrays, carcaseRoles } from '../scene/carcaseRoles'
+import { carcaseCuts, carcaseHoleArrays } from '../scene/carcaseRoles'
 import { roleThicknessFor } from '../scene/resolveThickness'
 import { jointKindFor } from '../scene/resolveJointKind'
-
-const cabinet: CarcaseComponent = {
-  kind: 'carcase',
-  id: 'cmp_1',
-  label: 'Base 600',
-  parentId: null,
-  position: { x: 0, y: 0, z: 0 },
-  rotation: { x: 0, y: 0, z: 0 },
-  rotationOrder: 'XYZ',
-  visible: true,
-  params: CARCASE_PRESETS[0].params,
-}
+import { cabinet, partsOfCarcase } from './__fixtures__/cabinetSheet'
 
 const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
 
@@ -256,37 +245,12 @@ function lopsided(over: Partial<CarcaseParams> = {}): CarcaseParams {
   return { ...CARCASE_PRESETS[0].params, width: 600, height: 720, depth: 560, ...over }
 }
 
-// The parts a cabinet's parameters imply, built the way regenerateComponents builds them, so the
-// projector is tested against what the app actually holds.
-function partsOf(params: CarcaseParams): Part[] {
-  const thicknessOf = roleThicknessFor(params, PRESET_MATERIALS, new Map())
-  return carcaseRoles(params, thicknessOf, jointKindFor([], cabinet.id)).map((r, i) => ({
-    kind: 'board',
-    id: `board_${i}`,
-    label: r.label,
-    length: r.panel.length,
-    width: r.panel.width,
-    thickness: r.panel.thickness,
-    grain: r.grain,
-    material: '',
-    color: '#888',
-    position: r.panel.position,
-    rotation: r.panel.rotation,
-    rotationOrder: r.panel.rotationOrder,
-    cuts: [],
-    visible: true,
-    parentId: cabinet.id,
-    driven: true,
-    role: r.role,
-  }))
-}
-
 const withParams = (params: CarcaseParams): CarcaseComponent => ({ ...cabinet, params })
 
 function viewsOf(params: CarcaseParams, materials = PRESET_MATERIALS) {
   const c = withParams(params)
   const ids = new Map<ComponentId, Component>([[c.id, c]])
-  const [front, top, end] = buildAssemblyViews(partsOf(params), ids, c, materials)
+  const [front, top, end] = buildAssemblyViews(partsOfCarcase(params), ids, c, materials)
   return { front, top, end }
 }
 
@@ -312,7 +276,7 @@ describe('the assembled views', () => {
     expect(labels(top)).toContain('Bottom')
     expect(labels(top)).not.toContain('Top')
     expect(labels(front).sort()).toEqual(
-      partsOf(lopsided())
+      partsOfCarcase(lopsided())
         .map((p) => p.label)
         .sort(),
     )
@@ -324,7 +288,7 @@ describe('the assembled views', () => {
     const p = lopsided()
     const c = withParams(p)
     const ids = new Map<ComponentId, Component>([[c.id, c]])
-    for (const part of partsOf(p)) {
+    for (const part of partsOfCarcase(p)) {
       expect(cabinetSpaceBox(part, ids, c).corners).toHaveLength(8)
     }
   })
@@ -594,7 +558,7 @@ describe('dimensions', () => {
   // Passing an empty override map instead reads 564 and draws an opening the boards do not have.
   it('reads per-part thickness overrides in the opening chain', () => {
     const p = lopsided()
-    const base = partsOf(p)
+    const base = partsOfCarcase(p)
     const parts = base.map((part) =>
       part.kind === 'board' && part.role === 'left-side'
         ? { ...part, overrides: { thickness: 25 } }
@@ -613,12 +577,13 @@ describe('cuts', () => {
   const sideIn = (v: { parts: AssemblyPart[] }, label: string) =>
     v.parts.find((q) => q.label === label)!
 
-  // A Base 600 with the toe-kick notch actually cut into its sides. `partsOf` builds parts with no
-  // cuts, so the notch has to be attached here, from the same `carcaseCuts` the generator uses.
+  // A Base 600 with the toe-kick notch actually cut into its sides. `partsOfCarcase` builds parts
+  // with no cuts, so the notch has to be attached here, from the same `carcaseCuts` the generator
+  // uses.
   const notched = () => {
     const p = lopsided({ baseMode: 'toe-kick' })
     const thicknessOf = roleThicknessFor(p, PRESET_MATERIALS, new Map())
-    const parts = partsOf(p).map((part) =>
+    const parts = partsOfCarcase(p).map((part) =>
       part.kind === 'board' && part.role === 'left-side'
         ? { ...part, cuts: carcaseCuts(p, thicknessOf, 'left-side') }
         : part,
@@ -779,7 +744,7 @@ describe('machining', () => {
   const withBores = (p: CarcaseParams): Part[] => {
     const thicknessOf = roleThicknessFor(p, PRESET_MATERIALS, new Map())
     const kindOf = jointKindFor([], cabinet.id)
-    return partsOf(p).map((part) =>
+    return partsOfCarcase(p).map((part) =>
       part.kind === 'board' && part.role !== undefined
         ? { ...part, cuts: carcaseHoleArrays(p, thicknessOf, kindOf, part.role) }
         : part,
