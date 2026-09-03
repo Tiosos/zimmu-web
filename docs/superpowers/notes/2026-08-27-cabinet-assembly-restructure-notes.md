@@ -1017,3 +1017,42 @@ of the scene.
 - **Consequence worth knowing:** while a cabinet is open the 3D tab shows `cabinetParts`, so a part
   of *another* cabinet cannot be clicked there — leaving the open cabinet is done from the scene
   tree. STL/STEP export is unaffected: it reads `visibleParts`, the whole scene.
+
+## Task 11 — the `assembly` sheet variant (2026-09-03)
+
+- **Adding a member to `DrawingSheet` breaks four renderers at `tsc`, and the plan listed only
+  `drawing.ts`.** `buildSvg`, `buildDxf`, `buildPdf` and `DrawingViewer` all narrow with
+  `sheet.kind === 'cover'` and then read `shape` or `partLabel` off "everything else". An
+  `assembly` branch that renders nothing went into each of them so the commit compiles; Tasks 12–14
+  fill them in. The alternative — deferring the union member — would have left the task's own tests
+  unwritable.
+- **Row versus stack does not change any preset's scale.** The plan's motivation ("stacked puts a
+  Base 600 at 1:20") was measured against the *board* sheet's usable height of 120 mm
+  (`AREA_H - GAP`). Once the ring replaces `DIM_MARGIN + GAP`, the height available is 132.75 mm,
+  and a stacked Base 600 comes out at 132.75 / 1280 = 0.1037 → **1:10, the same as the row**. Wall
+  600 and Tall 600 are unchanged too. The row is still right — Front and End share a top edge, so
+  heights read straight across — but the scale is not the argument for it.
+- **Which is why mutations 1, 2 and 6 all survived the three presets.** Standard scales step by 2x
+  and every preset sits far inside its band, so a stacked selector, a selector reserving no ring at
+  all, and a ring computed from a constant label width all pick the same scale for all three. Two
+  tests were added rather than the checks dropped:
+  - `a wide low unit` (800 x 700 x 500) in the scale table. Its row bound is 2W + D = 2100 mm
+    against a stacked W + D of 1300, so the row says 1:20 where both a stacked and a ringless
+    selector say 1:10 — which then overruns the page by 9.75 mm and fails `fits(sheet.scale)`.
+  - `reserves a wider ring for a cabinet whose dimension labels are longer`. Every fit assertion
+    measures the ring *the sheet itself reports*, so none of them can see a ring that is simply too
+    small for its own text — the layout stays self-consistent and the label overflows. Comparing
+    Tall 600 (`2100`, four characters, 12.75 mm) against Base 600 (three characters, 11.125 mm)
+    pins the ring to the labels without restating the em formula in the test.
+- **Measured scales:** Base 600 1:10 (row 242.75 of 267 mm), Wall 600 1:10 (219.75), Tall 600 1:20
+  (164.50). The plan's comment quoting "14.5 mm to spare" for a Base 600 used Tall's 12.75 mm ring;
+  a Base 600's labels are three characters, its ring is 11.125 mm, and it has 24.25 mm to spare.
+- **`assemblyRing` is safe on a view with no dims** — `Math.max(...[], 1)` is 1, not `-Infinity` —
+  but the case cannot arise: `buildDims` always emits the two overall figures from the parameters,
+  so even `parts: []` carries labels.
+- **The em constants are duplicated.** `RING_EM` / `TICK_EM` / `TEXT_GAP_EM` / `CHAR_EM` now exist
+  in both `CabinetProjection.tsx` and `drawing.ts`, which the plan's own comment describes as "one
+  rule, two consumers" while writing it twice. `geom` importing from a `.tsx` component is the
+  wrong direction, so the honest fix is to move them into `assembly.ts` beside `AssemblyDim.ring`
+  (the field that indexes `RING_EM`) and have both read them there. Not done here to keep the task
+  surgical; it is the first thing to do if the ring geometry is ever touched again.

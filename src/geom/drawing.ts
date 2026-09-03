@@ -1,15 +1,20 @@
 import type {
   BoardPart,
   BoxCut,
+  CarcaseComponent,
+  Component,
+  ComponentId,
   CylinderPart,
   DowelCut,
   Face,
   HoleArrayCut,
+  MaterialDef,
   MitreCut,
   Part,
 } from '../scene/types'
 import { faceAxes } from '../scene/snapMath'
 import { mitreFaceOutline } from './mitre'
+import { buildAssemblyViews, type AssemblyView } from './assembly'
 
 export interface Point2D {
   x: number
@@ -96,6 +101,23 @@ interface PartSheetCommon {
   scaleLabel: string
 }
 
+export interface PlacedAssemblyView extends AssemblyView {
+  placement: Point2D
+}
+
+export interface CabinetSheetInput {
+  cabinet: CarcaseComponent
+  parts: Part[]
+  materials: Record<string, MaterialDef>
+  // Required, not optional. Defaulting it to `new Map([[cabinet.id, cabinet]])` is right for a
+  // top-level cabinet and silently wrong for one inside a group: every part whose parent chain
+  // leaves that map resolves as though it were top-level, so the whole cabinet is drawn in the
+  // wrong place with no error anywhere. `buildDrawingSheets`' third parameter is still optional,
+  // so existing call sites are unaffected — this only binds callers that ask for an assembly
+  // sheet, and those all have a component map already.
+  byId: Map<ComponentId, Component>
+}
+
 export type DrawingSheet =
   | { kind: 'cover'; projectName: string; date: string; rows: CoverRow[] }
   | (PartSheetCommon & {
@@ -108,10 +130,23 @@ export type DrawingSheet =
       shape: 'dowel'
       views: [DowelView, DowelView]
     })
+  | {
+      kind: 'assembly'
+      cabinetLabel: string
+      date: string
+      scaleLabel: string
+      scale: number
+      // The dimension ring, in SHEET millimetres, reserved outside every view's `bounds`. Carried
+      // on the sheet rather than recomputed by each consumer: the renderer needs it to place the
+      // labels and the layout needed it to choose the scale, and two derivations of one figure
+      // drift. It does not scale with the drawing — the sheet font is a fixed page size.
+      ring: number
+      views: [PlacedAssemblyView, PlacedAssemblyView, PlacedAssemblyView]
+    }
 
 const SHEET_H = 210
-const MARGIN = 15
-const TITLE_H = 25
+export const MARGIN = 15
+export const TITLE_H = 25
 const DIM_MARGIN = 20
 const GAP = 15
 const AREA_W = 297 - 2 * MARGIN - DIM_MARGIN // 247
@@ -119,7 +154,7 @@ const AREA_H = SHEET_H - 2 * MARGIN - TITLE_H - DIM_MARGIN // 135
 const BOARD_DIM_OFFSET = 8
 const CUT_DIM_OFFSET = 13
 
-const STANDARD_SCALES = [1, 0.5, 0.2, 0.1, 0.05]
+export const STANDARD_SCALES = [1, 0.5, 0.2, 0.1, 0.05]
 
 function selectScale(L: number, W: number, T: number): number {
   const raw = Math.min((AREA_W - GAP) / (L + W), (AREA_H - GAP) / (W + T))
@@ -365,7 +400,87 @@ function buildDowelSheet(p: CylinderPart, date: string): DrawingSheet {
   }
 }
 
-export function buildDrawingSheets(parts: Part[], projectName: string): DrawingSheet[] {
+// selectScale is board-shaped: it assumes the third dimension is a thickness. A cabinet's is
+// 560 mm, and stacking Front over Top costs H + D against 120 mm of usable height — which puts a
+// Base 600 at 1:20 and 30 x 36 mm on the page. Three views in a ROW is bound by width instead and
+// reaches 1:10.
+//
+// THE RING IS PART OF THE DRAWING. A view's dimension lines and labels live OUTSIDE its `bounds`,
+// so a layout measuring only `bounds` reserves nothing for them — the same bug `CabinetProjection`
+// carried until its ring was expressed in ems. Here the font is a fixed PAGE size rather than a
+// fraction of the cabinet, so the ring is a constant number of sheet millimetres and does not
+// scale with the drawing.
+//
+// THE RING IS ALSO THE GAP. Two adjacent views each carry one, so the white space between two
+// drawings is 2 x ring — already wider than the 15 mm GAP a board sheet puts between its views.
+// Reserving both is what drags a Base 600 back down to 1:20.
+const SHEET_FONT = 2.5
+// Stated in ems for the same reason CabinetProjection states them in ems: one rule, two consumers
+// with different font sizes.
+const RING_EM = [0, 0.5, 1.8]
+const TICK_EM = 0.4
+const TEXT_GAP_EM = 0.3
+const CHAR_EM = 0.65
+
+// DIM_MARGIN is deliberately NOT subtracted. It is a board sheet's single global fudge for
+// "dimensions need some room somewhere"; this computes the room they actually need, per view, so
+// subtracting both would reserve the same millimetres twice.
+const PAGE_W = 297 - 2 * MARGIN
+const PAGE_H = SHEET_H - 2 * MARGIN - TITLE_H
+
+// Read off the labels the views actually carry, exactly as the pane does — not off a guess at the
+// longest one a cabinet might produce.
+function assemblyRing(views: AssemblyView[]): number {
+  const widest = Math.max(...views.flatMap((v) => v.dims.map((d) => d.label.length)), 1)
+  return SHEET_FONT * (RING_EM[2] + TICK_EM + TEXT_GAP_EM + CHAR_EM * widest)
+}
+
+function selectAssemblyScale(W: number, H: number, D: number, ring: number): number {
+  // Six rings across: one either side of each of the three views. Two rings down: the tallest view
+  // carries one above and one below.
+  const raw = Math.min((PAGE_W - 6 * ring) / (W + D + W), (PAGE_H - 2 * ring) / Math.max(H, D))
+  return STANDARD_SCALES.find((s) => s <= raw) ?? STANDARD_SCALES[STANDARD_SCALES.length - 1]
+}
+
+function buildAssemblySheet(input: CabinetSheetInput, date: string): DrawingSheet {
+  const p = input.cabinet.params
+  const [front, top, end] = buildAssemblyViews(
+    input.parts,
+    input.byId,
+    input.cabinet,
+    input.materials,
+  )
+  const ring = assemblyRing([front, top, end])
+  const scale = selectAssemblyScale(p.width, p.height, p.depth, ring)
+
+  // Front, End, Top left to right — Front and End share a top edge, so heights read straight
+  // across between them. `placement` is each view's own origin; the ring sits outside it, which is
+  // why consecutive origins are two rings apart rather than one GAP.
+  const y = MARGIN + ring
+  const x0 = MARGIN + ring
+  const x1 = x0 + front.bounds.w * scale + 2 * ring
+  const x2 = x1 + end.bounds.w * scale + 2 * ring
+
+  return {
+    kind: 'assembly',
+    cabinetLabel: input.cabinet.label,
+    date,
+    scale,
+    scaleLabel: toScaleLabel(scale),
+    ring,
+    views: [
+      { ...front, placement: { x: x0, y } },
+      { ...end, placement: { x: x1, y } },
+      { ...top, placement: { x: x2, y } },
+    ],
+  }
+}
+
+export function buildDrawingSheets(
+  parts: Part[],
+  projectName: string,
+  cabinets: CabinetSheetInput[] = [],
+): DrawingSheet[] {
   const date = new Date().toISOString().slice(0, 10)
 
   const coverRows: CoverRow[] = parts.map((p, i) => ({
@@ -383,7 +498,9 @@ export function buildDrawingSheets(parts: Part[], projectName: string): DrawingS
     p.kind === 'board' ? buildBoardSheet(p, date) : buildDowelSheet(p, date),
   )
 
-  return [cover, ...partSheets]
+  const assemblySheets = cabinets.map((c) => buildAssemblySheet(c, date))
+
+  return [cover, ...assemblySheets, ...partSheets]
 }
 
 // Side view: horizontal = axial z (0..L), vertical = diameter with the centerline at mid-height.

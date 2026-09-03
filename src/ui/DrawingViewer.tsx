@@ -14,7 +14,10 @@ export interface DrawingViewerProps {
 }
 
 function sheetFilename(sheet: DrawingSheet, projectName: string, ext: string): string {
-  const base = sheet.kind === 'cover' ? `${projectName}-cover` : `${projectName}-${sheet.partLabel}`
+  const base =
+    sheet.kind === 'cover'
+      ? `${projectName}-cover`
+      : `${projectName}-${sheet.kind === 'assembly' ? sheet.cabinetLabel : sheet.partLabel}`
   return base.toLowerCase().replace(/\s+/g, '-') + '.' + ext
 }
 
@@ -67,7 +70,11 @@ export function DrawingViewer({ open, onClose, sheets, projectName }: DrawingVie
 
   const sheet = sheets[idx]
   const sheetLabel =
-    sheet.kind === 'cover' ? 'Cover' : `Part ${idx} of ${sheets.length - 1} — ${sheet.partLabel}`
+    sheet.kind === 'cover'
+      ? 'Cover'
+      : sheet.kind === 'assembly'
+        ? `Assembly — ${sheet.cabinetLabel}`
+        : `Part ${idx} of ${sheets.length - 1} — ${sheet.partLabel}`
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">

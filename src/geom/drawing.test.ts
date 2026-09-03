@@ -1,9 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { buildDrawingSheets } from './drawing'
+import { buildDrawingSheets, MARGIN, STANDARD_SCALES, TITLE_H } from './drawing'
 import type { DrawingSheet } from './drawing'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import type { BoardPart, Component, CylinderPart, DowelCut } from '../scene/types'
+import { cabinet, partsOfBase600 } from './__fixtures__/cabinetSheet'
+import type {
+  BoardPart,
+  CarcaseParams,
+  Component,
+  ComponentId,
+  CylinderPart,
+  DowelCut,
+} from '../scene/types'
 
 function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
@@ -376,7 +384,10 @@ function pinnedSide(): BoardPart {
     // deliberately, they are the same 32 mm-system figure — so with a door on, the side carries two
     // families in one column on the Face view and these tests could no longer isolate a row. They
     // are about how a hole array is *drawn*, not about which families a cabinet has.
-    params: { ...CARCASE_PRESETS[0].params, section: { ...CARCASE_PRESETS[0].params.section, front: undefined } },
+    params: {
+      ...CARCASE_PRESETS[0].params,
+      section: { ...CARCASE_PRESETS[0].params.section, front: undefined },
+    },
   }
   const scene = regenerateComponents({
     parts: [],
@@ -475,8 +486,15 @@ describe('buildDrawingSheets — a cut rectangle sits on the board it is cut fro
   // cut offset by half its own size, which on a full-width dado puts half the rectangle off the
   // sheet. Containment is the assertion because it needs no number this test supplies.
   function everyCutRect(part: BoardPart) {
-    const rects: { view: string; x: number; y: number; w: number; h: number; bw: number; bh: number }[] =
-      []
+    const rects: {
+      view: string
+      x: number
+      y: number
+      w: number
+      h: number
+      bw: number
+      bh: number
+    }[] = []
     for (const sheet of buildDrawingSheets([part], 'test')) {
       if (sheet.kind !== 'part' || sheet.shape !== 'board') continue
       for (const v of sheet.views) {
@@ -554,5 +572,114 @@ describe('buildDrawingSheets — a cut rectangle sits on the board it is cut fro
     // 60; the code was right.
     expect(r.y / scale).toBeCloseTo(60, 6)
     expect(r.h / scale).toBeCloseTo(50, 6)
+  })
+})
+
+describe('assembly sheets', () => {
+  const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
+
+  const sheetFor = (params: CarcaseParams): Extract<DrawingSheet, { kind: 'assembly' }> => {
+    const c = { ...cabinet, params }
+    const [, sheet] = buildDrawingSheets([], 'Job', [
+      { cabinet: c, parts: [], byId: new Map([[c.id, c]]), materials: PRESET_MATERIALS },
+    ])
+    if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
+    return sheet
+  }
+
+  it('inserts one assembly sheet per cabinet, after the cover', () => {
+    const sheets = buildDrawingSheets([], 'Job', [
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
+    ])
+    expect(sheets.map((s) => s.kind)).toEqual(['cover', 'assembly'])
+  })
+
+  it('leaves the deck alone when there are no cabinets', () => {
+    const sheets = buildDrawingSheets([], 'Job')
+    expect(sheets.map((s) => s.kind)).toEqual(['cover'])
+  })
+
+  it('carries three views, Front End Top, in a row that does not overlap', () => {
+    const [, sheet] = buildDrawingSheets([], 'Job', [
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
+    ])
+    if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
+    expect(sheet.views.map((v) => v.label)).toEqual(['Front', 'End', 'Top'])
+    // In a row, so every view shares a top edge.
+    expect(new Set(sheet.views.map((v) => v.placement.y)).size).toBe(1)
+    for (let i = 0; i + 1 < sheet.views.length; i++) {
+      const left = sheet.views[i]
+      const right = sheet.views[i + 1]
+      // Each view's own ring sits outside its bounds, so consecutive drawings must clear both.
+      const needed = left.placement.x + left.bounds.w * sheet.scale + 2 * sheet.ring
+      expect(right.placement.x).toBeGreaterThanOrEqual(needed - 1e-9)
+    }
+  })
+
+  it('keeps the row and its dimension rings inside the printable page', () => {
+    const [, sheet] = buildDrawingSheets([], 'Job', [
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
+    ])
+    if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
+    for (const v of sheet.views) {
+      expect(v.placement.x - sheet.ring).toBeGreaterThanOrEqual(MARGIN - 1e-9)
+      expect(v.placement.y - sheet.ring).toBeGreaterThanOrEqual(MARGIN - 1e-9)
+      expect(v.placement.x + v.bounds.w * sheet.scale + sheet.ring).toBeLessThanOrEqual(
+        297 - MARGIN + 1e-9,
+      )
+      expect(v.placement.y + v.bounds.h * sheet.scale + sheet.ring).toBeLessThanOrEqual(
+        210 - MARGIN + 1e-9,
+      )
+    }
+  })
+
+  // Every preset sits far enough inside its scale band that the row bound, a stacked bound and a
+  // bound reserving no ring at all all land on the same standard scale — measured, and it is why
+  // the presets alone cannot pin the rule. This one separates them: 2W + D is 2100 mm against
+  // W + D of 1300, so the row comes out 1:20 where a stacked or ringless selector says 1:10 and
+  // overruns the page by 9.75 mm.
+  const WIDE_LOW: CarcaseParams = {
+    ...CARCASE_PRESETS[0].params,
+    width: 800,
+    height: 700,
+    depth: 500,
+  }
+
+  // The rule is "the largest standard scale at which the row fits", so the test is that it fits at
+  // the chosen scale and does NOT at the next one up. Asserting the literal '1:10' would pin a
+  // constant rather than the rule.
+  it.each([
+    ...CARCASE_PRESETS.map((x) => [x.name, x.params] as const),
+    ['a wide low unit', WIDE_LOW] as const,
+  ])('picks the largest standard scale at which %s fits', (_name, params) => {
+    const sheet = sheetFor(params)
+    const fits = (scale: number) =>
+      (params.width + params.depth + params.width) * scale + 6 * sheet.ring <= 297 - 2 * MARGIN &&
+      Math.max(params.height, params.depth) * scale + 2 * sheet.ring <= 210 - 2 * MARGIN - TITLE_H
+    expect(fits(sheet.scale)).toBe(true)
+    const bigger = STANDARD_SCALES.filter((x) => x > sheet.scale)
+    const next = bigger.length === 0 ? null : Math.min(...bigger)
+    if (next !== null) expect(fits(next)).toBe(false)
+  })
+
+  // Every fit assertion above measures the ring the sheet itself reports, so none of them can see
+  // a ring that is simply too small for its own labels — the layout stays self-consistent and the
+  // text overflows it. What they cannot check is that the ring FOLLOWS the labels: Tall 600
+  // dimensions 2100 where Base 600 dimensions 720, and the band holding the text has to grow.
+  it('reserves a wider ring for a cabinet whose dimension labels are longer', () => {
+    const widestOf = (sheet: Extract<DrawingSheet, { kind: 'assembly' }>) =>
+      Math.max(...sheet.views.flatMap((v) => v.dims.map((d) => d.label.length)))
+    const short = sheetFor(CARCASE_PRESETS[0].params)
+    const long = sheetFor(CARCASE_PRESETS[2].params)
+    expect(widestOf(long)).toBeGreaterThan(widestOf(short))
+    expect(long.ring).toBeGreaterThan(short.ring)
+  })
+
+  it('names the sheet after the cabinet', () => {
+    const [, sheet] = buildDrawingSheets([], 'Job', [
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
+    ])
+    if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
+    expect(sheet.cabinetLabel).toBe('Base 600')
   })
 })

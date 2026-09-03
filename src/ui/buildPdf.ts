@@ -359,6 +359,9 @@ export async function buildPdf(sheets: DrawingSheet[]): Promise<Uint8Array> {
     const page = doc.addPage([PAGE_W_PT, PAGE_H_PT])
     if (sheet.kind === 'cover') {
       renderPdfCoverSheet(page, sheet, font, fontBold)
+    } else if (sheet.kind === 'assembly') {
+      // See buildSvg: the assembly renderer lands in the next step. The page is still added, so a
+      // deck's page count already matches its sheet count.
     } else if (sheet.shape === 'dowel') {
       sheet.views.forEach((v) => renderPdfDowelView(page, v, font))
       renderPdfTitleBlock(page, sheet, font, fontBold)

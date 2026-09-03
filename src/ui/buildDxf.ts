@@ -330,6 +330,10 @@ export function buildDxf(sheet: DrawingSheet): string {
   let entities: string
   if (sheet.kind === 'cover') {
     entities = dxfCoverSheet(sheet)
+  } else if (sheet.kind === 'assembly') {
+    // See buildSvg: the assembly renderer lands in the next step, and the branch keeps the union
+    // exhaustive in the meantime.
+    entities = ''
   } else if (sheet.shape === 'dowel') {
     entities = sheet.views.map(dxfDowelView).join('') + dxfTitleBlock(sheet)
   } else {

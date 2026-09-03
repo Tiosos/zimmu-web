@@ -364,6 +364,10 @@ export function buildSvg(sheet: DrawingSheet): string {
   let body: string
   if (sheet.kind === 'cover') {
     body = renderCoverSheet(sheet)
+  } else if (sheet.kind === 'assembly') {
+    // The assembly renderer is the next step of this stage; the branch exists so the sheet union
+    // stays exhaustive rather than falling into the board branch and reading its views as boards.
+    body = ''
   } else if (sheet.shape === 'dowel') {
     body = sheet.views.map(renderDowelView).join('') + renderTitleBlock(sheet)
   } else {
