@@ -128,6 +128,15 @@ src/
 │   ├── stl.ts           buildBinaryStl(parts, geometries) — world-space binary STL
 │   ├── drawing.ts       buildDrawingSheet(part) → DrawingView[] (Face/Edge/End orthographic
 │   │                    projections with cut rects, dimension lines, and cut labels)
+│   ├── hiddenLine.ts    Span + subtractIntervals + EPS — the occlusion rule, stated once.
+│   │                    Visible spans, then its own complement for the dashed ones
+│   ├── assembly.ts      buildAssemblyViews(parts, byId, cabinet, materials) → three
+│   │                    orthographic views of a whole cabinet in unscaled mm: silhouettes,
+│   │                    hidden edges, the near-half cull, dimension chains, bores. Also
+│   │                    the em table (RING_EM/TICK_EM/TEXT_GAP_EM/CHAR_EM) all three
+│   │                    renderers size their annotation ring from
+│   ├── __fixtures__/cabinetSheet.ts  cabinet + partsOfCarcase(params) — the parts a
+│   │                    carcase implies, built the way regenerateComponents builds them
 │   └── occt.test.ts     Smoke tests (live OCCT skipped in Node)
 ├── scene/
 │   ├── types.ts         Canonical types: ZimmuFile, Scene, Part/BoardPart, CutDef (incl. hole-array),
@@ -195,7 +204,9 @@ src/
 │   │                    per-node visibility, driven/detached badges
 │   ├── CarcasePanel.tsx  Carcase parameter form (collapsible sections) driving regenerateComponents
 │   ├── CabinetEditor.tsx  The cabinet edit level: Section/Front/Top/End/3D subtabs over the main
-│   │                    pane. Renders nothing for 3D — App shows the viewport behind it
+│   │                    pane. Front/Top/End render CabinetProjection; 3D renders nothing —
+│   │                    App shows the viewport behind it. Front/Top/End also carry the
+│   │                    cabinet's own SVG and DXF export buttons
 │   ├── SectionElevation.tsx  The cabinet's front elevation as interactive SVG: a clickable cell
 │   │                    per leaf, a bar per division. The only opening picker
 │   ├── SectionToolbar.tsx  What can be done to the selected cell — split across/down, merge,
@@ -213,6 +224,10 @@ src/
 │   │                    + CSV serialization for cutting list + hardware
 │   ├── buildSvg.ts      DrawingSheet → SVG (orthographic views + dimensions + cut labels)
 │   ├── buildDxf.ts      DrawingSheet → DXF (CAD-friendly format)
+│   ├── CabinetProjection.tsx  One orthographic view of a cabinet, fitted to the pane. Reads
+│   │                    the same AssemblyView the assembly sheet does; clickable per part
+│   ├── sheetFilename.ts  Names a drawing file — shared by the drawings deck and the
+│   │                    cabinet editor's own export buttons, so both agree
 │   ├── download.ts      downloadBlob() — Blob + anchor click (browser-agnostic delivery)
 │   └── useDebouncedCallback.ts  Debounce hook used in dimension inputs
 ├── components/ui/       Radix-based shadcn-style primitives (button, select, tooltip,
@@ -248,7 +263,7 @@ src/
 
 **3D export** (STL + STEP) is hybrid: `resolveWorldMatrix(part, byId)` in `transform.ts` is the single source of truth for a part's world placement — it composes `composeWorldMatrix` (THREE-free, element-wise parity-tested against `THREE.Matrix4`) through every ancestor component, and equals it exactly for a top-level part. STL is built synchronously on the main thread (`buildBinaryStl`, world-space triangle soup with recomputed facet normals). STEP goes through the worker (`exportStep` → `writeStep`, an unnamed `STEPControl_Writer` compound of all solids in mm — the XCAF named-solid path is absent at runtime in opencascade.js v1.1.1, see `docs/superpowers/notes/2026-06-05-3d-export-notes.md`). Both export only **visible** parts and deliver via `downloadBlob`. If you add a `rotationOrder` other than `'XYZ'`, `composeWorldMatrix` must be revisited — it hardcodes Euler XYZ.
 
-**2D export** (shop drawings): `buildDrawingSheet(part)` in `src/geom/drawing.ts` produces `DrawingView[]` (Face/Edge/End orthographic projections) from a single part. The `DrawingViewer` modal renders these as an SVG preview; `buildSvg.ts` and `buildDxf.ts` serialize them to downloadable formats.
+**2D export** (shop drawings) has two shapes. Per **part**: `buildDrawingSheet(part)` in `src/geom/drawing.ts` produces `DrawingView[]` (Face/Edge/End orthographic projections) from a single board, in board axes. Per **cabinet**: `buildAssemblyViews` in `src/geom/assembly.ts` produces three `AssemblyView`s of a whole carcase in cabinet axes, which `buildDrawingSheets` lays out as an `assembly` sheet — three views in a row, Front and End sharing a top edge so heights read straight across. The row is chosen for that alignment, **not** for the scale: once the dimension ring replaces `DIM_MARGIN + GAP`, a stacked layout reaches the same scale as a row on every preset (1:10, 1:10, 1:20). The `DrawingViewer` modal renders both as an SVG preview; `buildSvg.ts`, `buildDxf.ts` and `buildPdf.ts` serialize them, and each has to handle both kinds — a sheet that drew less in DXF than in SVG would not be the same sheet in another format.
 
 ### Key Invariants
 
@@ -288,6 +303,12 @@ src/
 - **The nest runs off-thread, and only while the Sheets tab is open.** A six-cabinet job is ~4.8 s (0.4 s masking, 4.4 s placement), so running one on every scene edit would compute a figure nobody is looking at. `BomModal` drives `useNest`'s `enabled` flag from its tab state *and clears it on unmount*. Masks are built **in** the worker, never posted to it: a dilated mask for a 2100 mm panel is over a megabyte.
 - **A nest mask is in board axes; a placement reports material.** `occupancyMask` is dilated by `mask.pad` on every side, so `nestSheets` positions the dilated mask and reports the undilated rectangle. Never recompute the padding formula outside `mask.ts`.
 - **`resolveWorldMatrix` is the single source of world placement.** For `parentId: null` it is byte-identical to `composeWorldMatrix`; never call `composeWorldMatrix` directly outside `transform.ts`. The one remaining mention of `composeWorldMatrix` elsewhere (in `occt.ts`) is a comment describing the matrix layout, not a call, so the invariant already holds.
+- **A cabinet projection is one pure function with two consumers.** `buildAssemblyViews` returns **unscaled millimetres**; the pane fits them to itself and the sheet picks a standard scale. A projector that scaled would need a page size the pane does not have at render time. `drawing.ts` stays a sheet builder — merging the two would put an `if (kind === 'assembly')` through the middle of a module that does one thing.
+- **Hidden-line removal here is interval subtraction, not polygon clipping.** Every generated panel is an axis-aligned box in the cabinet's frame, so an occluder covers a contiguous run of an edge. `subtractIntervals` answers both halves — `visible`, then its own complement for `hidden` — and a part is an occluder only if its eight **corners** say it is a box. Never read that off `rotation`: a board turned 180° is still axis-aligned, and a `rotation === 0` test silently exempts it. A mitred board is deliberately *not* a box: it draws as its convex hull and occludes nothing.
+- **Top and End are sections; Front is not.** Pure hidden-line removal of a closed box is one solid rectangle. Measured on a Base 600 with the cull disabled: the End view shows **2 of 8** parts carrying any visible edge and Top shows **4 of 8**; with the cull, End shows 7 of 7 and Top 6 of 7. So Top and End omit everything entirely nearer than the parameter midpoint, and a part crossing the plane is drawn whole. Front is never culled — an elevation that dropped its door would be useless. The rule is stated as *a section shows the majority of what it cuts through*, never as a part count: `culled` filters parts **out**, so disabling it raises the count and any `length > 1` assertion survives the mutation.
+- **A cut is through _per view_, never once per cut.** The toe-kick notch clears the side's whole thickness in End — the silhouette becomes an L — but has material behind it in Front, where the full rectangle is correct. Cuts are also built oversize on purpose (`position.z = −T/2`, `size.z = 2T`) so OCCT resolves them without a coplanar face, so a cut rectangle is clipped to its part on the way in.
+- **A dimension is placed by side and ring, and sized in ems.** The projector emits neither a page offset nor a scale, because `renderDimLine` and its DXF and PDF counterparts read `offset` in sheet millimetres while start/end are already scaled — so the conversion belongs to whichever layer knows the scale, and `assemblyDimLine` in `drawing.ts` is the one place it happens. The ring itself is measured in ems from `assembly.ts`'s table, never in absolute millimetres: a ring sized in mm against a font that scaled with the cabinet clipped a Tall 600's "2100" by 71 mm, and the pane, the layout and all three renderers must agree on one statement of it. A dimension only appears in a view whose axis measures it — a toe kick is a height, so Top, whose v axis is the depth, does not carry it.
+- **An open cabinet stays open while the selection lies inside it.** `App.tsx` derives `selectedCarcase` from the previously open cabinet plus the selection, not from the selection's ancestry. The narrow rule is deliberate: "the cabinet containing the selection" opens a cabinet on *any* part click, and `App` shows the viewport only while that is null or the tab is 3D — so clicking a part in the viewport would swap the viewport out for the Section elevation, and `cabinetParts` would filter 3D down to one cabinet. Both regressions are invisible at the `CabinetEditor` level, so the guard is a test that renders `App`.
 
 ## Code Conventions
 

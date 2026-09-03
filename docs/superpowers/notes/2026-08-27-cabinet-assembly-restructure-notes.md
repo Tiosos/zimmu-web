@@ -1206,3 +1206,60 @@ of the scene.
   kick correctly; in **Top** the v axis is the cabinet's depth, so a Base 600's plan view is
   labelled 100 mm across 100 mm of *depth*. Measured in the sheet's own dims. Deserves a line in
   Task 16 or a follow-up.
+
+### 2026-09-03 — Stage G2 closed
+
+**Correct hidden-line output is a useless drawing.** The design was approved with plain HLR and
+would have shipped a tab nobody would open: pure hidden-line removal of a closed box is one solid
+rectangle. Measured with the cull disabled, a Base 600's **End view shows 2 of 8 parts carrying any
+visible edge, and Top shows 4 of 8**; with the cull, End shows 7 of 7 and Top 6 of 7. Front is fine
+either way, because a front elevation looks at a face that is mostly door. The defect is specific to
+the two views that look at a closed face, and the fix is the standard drafting one: Top and End are
+sections, Front is a view.
+
+**That rule is about visibility, not population, and the first test of it could not fail.** It read
+`parts.length > 1` under a comment saying "without the cull this count is 1". `culled` filters parts
+*out*, so disabling it *raises* the count — 7 becomes 8 — and the assertion survived the mutation
+from Task 3 until Task 15, when the same assertion copied into an e2e was mutation-tested and
+passed with the cull off. The honest statement is *a section shows the majority of what it cuts
+through*, and it must not be "every part": in Top the toe-kick rail sits directly beneath the bottom
+panel and is genuinely invisible in a plan view.
+
+**Three views in a row, for the alignment and not for the scale.** The original argument was that
+stacking costs `H + D` = 1280 mm against 120 mm of usable height and drops a Base 600 to 1:20. That
+was measured against `AREA_H - GAP` and **no longer holds**: once the dimension ring replaces
+`DIM_MARGIN + GAP`, usable height is 132.75 mm, `132.75 / 1280 = 0.104`, and stacked reaches 1:10
+too. Row and stacked agree on every preset (1:10, 1:10, 1:20). Fixing the area arithmetic
+invalidated the justification for the layout it was fixing. The row survives on the reason that does
+not depend on scale: Front and End share a top edge, so heights read straight across.
+
+**The recurring failure of this stage was a rule duplicated per consumer.** Three times a figure was
+stated once, then copied into the next renderer rather than shared, and twice the copies disagreed:
+the ring geometry (pane, then `drawing.ts`, then `buildSvg` — with the renderer drawing ring 2 at
+16 mm inside a 12.75 mm reservation), the `outline` polygon branch (missing in `buildSvg`, then
+again in DXF and PDF), and the `AssemblyDim` → `DimLine` conversion (inlined in `buildSvg`, needed
+verbatim by two more). After the second occurrence the extraction became step 0 of each remaining
+task. The lesson is the project's own, arriving again: when two outputs must line up, derive the
+second from the first, not from the first's inputs.
+
+**Defects found next door and fixed here:**
+
+- *Selecting a part unmounted the cabinet editor.* Fixed as "an open cabinet stays open while the
+  selection lies inside it" — deliberately narrower than "the cabinet containing the selection",
+  which opens a cabinet on any part click and would have swapped the 3D viewport for the Section
+  elevation.
+- *The elevation and the panel ignored thickness overrides.* Both passed an empty map to
+  `roleThicknessFor`, so a cabinet with a 25 mm side drew 564 mm openings where its boards make 557.
+  Pre-existing since Stage B.
+- *The toe kick was dimensioned in every view.* Top's v axis is the depth, so a Base 600's plan view
+  carried a "100" drawn across 100 mm of a 560 mm depth. From Task 5, fixed in Task 14.
+
+**Counts.** Unit 1512 → **1661** (10 skipped) across 84 files; e2e 20 → **23**. Every task was
+mutation-tested and no survivor was left unresolved; where a mutation survived, either the test that
+kills it was written or the line it proved dead was deleted (the sheet renderers' paint-order
+reversal was deleted on exactly that basis — nothing on a sheet is filled or clickable, so the order
+is unobservable).
+
+**Still owed**, unchanged from Stage F and now larger: a woodworker's eye on the hardware figure
+table, and on the opening-chain convention (openings listed, deliberately not summing to the
+overall). Neither is falsifiable by any test in this repo.

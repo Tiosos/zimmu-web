@@ -354,7 +354,7 @@
             <td><code>scene/frontCells.ts</code>, <code>scene/carcaseRoles.ts</code>, <code>ui/CarcasePanel.tsx</code></td>
           </tr>
           <tr>
-            <td><strong>The cabinet editor</strong><br><span style="color:var(--muted);font-size:12px">Selecting a cabinet turns the main pane into its editor. Its elevation is a picture you draw on: click a cell to select an opening, split it across or down, merge it back, fix its size. Front / Top / End projections are stubbed</span></td>
+            <td><strong>The cabinet editor</strong><br><span style="color:var(--muted);font-size:12px">Selecting a cabinet turns the main pane into its editor. Its elevation is a picture you draw on: click a cell to select an opening, split it across or down, merge it back, fix its size. Front / Top / End are dimensioned, clickable orthographic projections of the whole cabinet</span></td>
             <td><span class="badge badge-green">Done</span></td>
             <td><code>ui/CabinetEditor.tsx</code>, <code>ui/SectionElevation.tsx</code>, <code>ui/SectionToolbar.tsx</code>, <code>scene/editSection.ts</code></td>
           </tr>
@@ -364,7 +364,12 @@
             <td><code>scene/frontMachining.ts</code>, <code>scene/carcaseRoles.ts</code></td>
           </tr>
           <tr>
-            <td><strong>Front / Top / End projections in the cabinet editor</strong></td>
+            <td><strong>Front / Top / End projections in the cabinet editor</strong><br><span style="color:var(--muted);font-size:12px">Hidden-line removal by interval subtraction; Top and End are sections, Front is a view. Clicking a part selects it without closing the tab. Exports as an assembly sheet in SVG, DXF and PDF, from the drawings deck or the tab's own buttons</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>geom/hiddenLine.ts</code>, <code>geom/assembly.ts</code>, <code>ui/CabinetProjection.tsx</code>, <code>geom/drawing.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>The scene tree mirrors the section tree</strong><br><span style="color:var(--muted);font-size:12px">Openings and divisions appear as nodes under their cabinet, so the tree and the elevation are two views of one structure</span></td>
             <td><span class="badge badge-yellow">Next</span></td>
             <td>—</td>
           </tr>
@@ -470,6 +475,10 @@
 │       ├── separator.tsx
 │       └── tooltip.tsx
 ├── geom/
+│   ├── __fixtures__/
+│   │   └── cabinetSheet.ts
+│   ├── assembly.test.ts
+│   ├── assembly.ts
 │   ├── dado.test.ts
 │   ├── dado.ts
 │   ├── dowelCut.test.ts
@@ -480,6 +489,8 @@
 │   ├── fingerjoint.ts
 │   ├── halflap.test.ts
 │   ├── halflap.ts
+│   ├── hiddenLine.test.ts
+│   ├── hiddenLine.ts
 │   ├── mesh.ts
 │   ├── mitre.test.ts
 │   ├── mitre.ts
@@ -608,6 +619,8 @@
 │   ├── buildSvg.ts
 │   ├── CabinetEditor.test.tsx
 │   ├── CabinetEditor.tsx
+│   ├── CabinetProjection.test.tsx
+│   ├── CabinetProjection.tsx
 │   ├── CarcasePanel.test.tsx
 │   ├── CarcasePanel.tsx
 │   ├── CuttingList.test.tsx
@@ -639,6 +652,7 @@
 │   ├── SectionElevation.test.tsx
 │   ├── SectionElevation.tsx
 │   ├── SectionToolbar.tsx
+│   ├── sheetFilename.ts
 │   ├── SheetsTab.test.tsx
 │   ├── SheetsTab.tsx
 │   ├── sidebar.test.tsx
@@ -660,7 +674,9 @@
           <tr><td><code>mesh.ts</code></td><td><code>TopoDS_Shape</code> → <code>MeshData</code> (Float32Arrays) + <code>THREE.BufferGeometry</code> via <code>BRepMesh_IncrementalMesh</code>.</td></tr>
           <tr><td><code>transform.ts</code></td><td><code>composeWorldMatrix(part)</code> + <code>resolveWorldMatrix(part, byId)</code> (composes placement through ancestor components) + <code>multiplyMatrix</code> — THREE-free. <code>resolveWorldMatrix</code> is the single source of truth for part placement; equals <code>composeWorldMatrix</code> exactly for a top-level part.</td></tr>
           <tr><td><code>stl.ts</code></td><td><code>buildBinaryStl(parts, geometries)</code> — world-space binary STL triangle soup with recomputed facet normals. Visible parts only.</td></tr>
-          <tr><td><code>drawing.ts</code></td><td><code>buildDrawingSheet(part)</code> → <code>DrawingView[]</code>. Face/Edge/End orthographic projections with cut rects, dimension lines, cut labels.</td></tr>
+          <tr><td><code>drawing.ts</code></td><td><code>buildDrawingSheet(part)</code> → <code>DrawingView[]</code>. Face/Edge/End orthographic projections with cut rects, dimension lines, cut labels. Also the <code>assembly</code> sheet variant — three cabinet views in a row — and <code>assemblyDimLine</code>, the one place an <code>AssemblyDim</code> becomes a placed <code>DimLine</code>.</td></tr>
+          <tr><td><code>hiddenLine.ts</code></td><td><code>subtractIntervals(span, holes)</code>. The occlusion rule stated once: visible spans, and its own complement for the dashed ones.</td></tr>
+          <tr><td><code>assembly.ts</code></td><td><code>buildAssemblyViews(parts, byId, cabinet, materials)</code> → three orthographic views of a whole cabinet in unscaled mm. Silhouettes after through-cuts, hidden edges, the near-half cull, dimension chains, bores. Owns the em table the annotation ring is sized from.</td></tr>
           <tr><td><code>dado.ts</code></td><td>Pure dado-joint geometry — <code>isValidDadoSeat</code>, <code>deriveDadoAxes</code>, <code>computeDadoGroove</code>, <code>computeDadoSeat</code>, <code>computeRabbet</code>, <code>hasTongue</code>, <code>computeNotch</code> (stopped/blind-dado housed-corner cut), and <code>deriveJoint</code> (the list of derived cuts + seat consumed by <code>reconcileJoints</code>). Three-typed but browser-free.</td></tr>
           <tr><td><code>halflap.ts</code></td><td>Pure half-lap-joint geometry — <code>worldAabb</code>, <code>stackAxis</code>, <code>isValidHalfLap</code> (same stack axis + coincident thickness range + overlapping footprint), and <code>deriveHalfLap</code> (notches both boards to half thickness at the <code>split</code> plane, widened by <code>clearance</code>). Three-typed but browser-free.</td></tr>
           <tr><td><code>mortisetenon.ts</code></td><td>Pure mortise-&amp;-tenon-joint geometry — <code>isValidMortiseTenon</code>, <code>computeTenonShoulders</code> (0/2/4 shoulder cuts leaving a centered tongue), <code>computeMortisePocket</code> (blind or through pocket, axis-aligned to the tenon), <code>computeMortiseOffset</code>, and <code>computeMortiseTenonSeat</code>/<code>deriveMortiseTenon</code>. Self-contained (no runtime import from <code>dado.ts</code>). Three-typed but browser-free.</td></tr>
@@ -750,6 +766,8 @@
           <tr><td><code>sidebar.tsx</code></td><td>Composition shell: the <code>SceneTree</code>, the selected-node editor (<code>EditPanel</code> for a part, <code>CarcasePanel</code> for a carcase), and the Cut / Snap / joint mode buttons.</td></tr>
           <tr><td><code>SceneTree.tsx</code></td><td>Sidebar hierarchy over <code>components</code> + <code>parts</code>: expand/collapse, selection, per-node visibility, driven/detached badges.</td></tr>
           <tr><td><code>CarcasePanel.tsx</code></td><td>Carcase parameter form in collapsible sections (size, structure, shelving, front, joinery) that drives <code>regenerateComponents</code>. Shelving and Front both edit the <em>opening</em> the elevation has selected — its interior, its front — while mount and reveal stay cabinet-wide; with nothing selected they say to pick one rather than falling back to the first. Dividers and Fixed shelves are a v12 shim that rebuilds the whole tree, carrying the cabinet's interior specs across.</td></tr>
+          <tr><td><code>CabinetProjection.tsx</code></td><td>One orthographic view of a cabinet, fitted to the pane by a millimetre <code>viewBox</code>. Reads the same <code>AssemblyView</code> the printed sheet does; each part is clickable and selecting one does not close the tab.</td></tr>
+          <tr><td><code>sheetFilename.ts</code></td><td>Names a drawing file. Shared by the drawings deck and the cabinet editor's export buttons so the same sheet downloads under the same name from either.</td></tr>
           <tr><td><code>CabinetEditor.tsx</code></td><td>The cabinet edit level: selecting a cabinet turns the main pane into its editor, with Section / Front / Top / End / 3D subtabs. Renders <em>nothing</em> for 3D — the viewport lives behind it and <code>App</code> toggles its visibility, because <code>viewport.tsx</code> builds its renderer and every mesh in a mount-once effect that a remount would tear down.</td></tr>
           <tr><td><code>SectionElevation.tsx</code></td><td>The cabinet's front elevation as interactive SVG — a clickable cell per leaf of the section tree, a bar per division. The codebase's first interactive SVG (<code>buildSvg.ts</code> and <code>buildSheetSvg.ts</code> emit strings), and the only opening picker. Carcase z runs up and SVG y runs down; that flip is written once, in <code>toSvg</code>.</td></tr>
           <tr><td><code>SectionToolbar.tsx</code></td><td>What can be done to the selected cell: split across (a shelf), split down (a partition), merge, and a size that is labelled <em>Width</em> or <em>Height</em> by the axis its parent splits on. Every button routes through <code>scene/editSection.ts</code>.</td></tr>
@@ -1275,7 +1293,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->80<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-08-29 the full Vitest run is 1512 passing (10 skipped) across 81 files (the 81st, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 90 test files total including 9 Playwright specs in <code>e2e/</code>, which run 20 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->83<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-03 the full Vitest run is 1661 passing (10 skipped) across 84 files (the 84th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 93 test files total including 9 Playwright specs in <code>e2e/</code>, which run 23 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1427,7 +1445,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-28-cabinet-restructure-stage-d-section-interiors.md
     │   ├── 2026-08-29-cabinet-restructure-stage-e-fronts.md
     │   ├── 2026-08-29-cabinet-restructure-stage-f-front-machining.md
-    │   └── 2026-08-29-cabinet-restructure-stage-g1-section-editor.md
+    │   ├── 2026-08-29-cabinet-restructure-stage-g1-section-editor.md
+    │   └── 2026-08-30-cabinet-restructure-stage-g2-projections.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1467,7 +1486,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-08-17-joint-checklist-design.md
         ├── 2026-08-18-cabinet-assembly-design.md
         ├── 2026-08-23-sheet-yield-design.md
-        └── 2026-08-27-cabinet-assembly-restructure-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-08-27-cabinet-assembly-restructure-design.md
+        └── 2026-08-30-cabinet-projections-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
