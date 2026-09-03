@@ -4229,7 +4229,16 @@ test('the drawings deck carries an assembly sheet for the cabinet', async ({ pag
 
   await page.getByLabel('Add cabinet').click()
   await page.getByRole('option', { name: 'Base 600' }).click()
-  await page.getByRole('button', { name: /2D/ }).click()
+
+  // "2D Drawings…" is an item INSIDE the File menu, not a top-level button, and it is disabled
+  // until `canExport` is true — which waits on the cabinet's parts building through OCCT. Opening
+  // the menu and waiting for the item to be enabled is the whole difference between this passing
+  // and a timeout that reads like a missing feature.
+  await page.getByRole('button', { name: 'File ▾' }).click()
+  const drawings = page.getByRole('button', { name: '2D Drawings…' })
+  await expect(drawings).toBeEnabled({ timeout: OCCT_READY_TIMEOUT })
+  await drawings.click()
+
   await page.getByLabel('→').click()
   await expect(page.getByText(/Assembly — Base 600/)).toBeVisible()
 })
@@ -4240,8 +4249,13 @@ test('the drawings deck carries an assembly sheet for the cabinet', async ({ pag
 Run: `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npx playwright test e2e/carcase.spec.ts`
 Expected: PASS, 9 tests (6 existing + 3 new).
 
-If the "2D" button name does not match, read the label from `src/ui/FileMenu.tsx` and use the real
-one — do not loosen the assertion to a substring that could match two buttons.
+Counts verified against the tree: `e2e/carcase.spec.ts` holds 6 tests today and the suite holds 20,
+so 9 and 23 are right.
+
+Also verified, so it need not be rediscovered: the sidebar derives its **own** carcase from the
+selection (`sidebar.tsx:117`), not from `App`'s open-cabinet. So clicking a part in a projection
+hides `CarcasePanel` and shows `EditPanel` — which is why `getByLabel('L')` is the right assertion
+that the selection landed, even though the cabinet editor stays mounted in the main pane.
 
 - [ ] **Step 3: Run the whole e2e suite**
 
