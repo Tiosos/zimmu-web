@@ -3453,12 +3453,30 @@ consumers". They are **duplicated, not shared**: `CabinetProjection.tsx` declare
 `geom` must not import from a `.tsx` component, so the honest home is `src/geom/assembly.ts`, beside
 the `AssemblyDim.ring` field that indexes `RING_EM`.
 
-Move and export them from `assembly.ts`; have `drawing.ts` and `CabinetProjection.tsx` both import
-them. `CabinetProjection` keeps its own `FONT_DIVISOR` — its font is a fraction of the cabinet while
-the sheet's is a fixed page size — but the *ring shape* in ems is one statement for all three.
+Move and export **the four em figures only**. `SHEET_FONT` stays in `drawing.ts`: `assembly.ts`
+opens by saying it emits unscaled millimetres because "a projector that scaled would have to be told
+a page size the pane does not have", and `SHEET_FONT` is exactly a page size. What all three
+consumers share is the em *table*; the font each multiplies it by is its own (`FONT_DIVISOR` for the
+pane, `SHEET_FONT` for the sheet).
 
-Verify with a mutation: change `RING_EM[2]` in `assembly.ts` and confirm tests fail in **both**
-`drawing.test.ts` and `CabinetProjection.test.tsx`. If only one fails, the move did not take.
+**How to prove the move took — and how not to.** "Change `RING_EM[2]` and watch tests fail in both
+`drawing.test.ts` and `CabinetProjection.test.tsx`" is unsatisfiable: no single value does. The
+sheet only notices the ring through scale selection, which needs `6 * ring` to overrun the page at
+every standard scale (`RING_EM[2] > 15.2`); the pane only notices when the outer ring falls inside
+the inner one (`RING_EM[2] < ~0.5`). The windows are disjoint. Measured: `1.8 → 0.3` fails 8 tests
+in the pane and none elsewhere; `1.8 → 18` fails 5 in `drawing.test.ts` and none elsewhere.
+
+Two proofs that do work — run either:
+
+- **Structural.** Rename the declaration in `assembly.ts` and run `pnpm typecheck`: errors must
+  appear in `assembly.ts`, `drawing.ts`, `CabinetProjection.tsx` and `buildSvg.ts`. One declaration,
+  three importers.
+- **Behavioural, both directions.** The two mutations above, run separately.
+
+Neither consumer can see a *self-consistent* ring change, and that is not a gap to fill: the pane's
+padding and its ring offsets both derive from `RING_EM`, so a larger ring simply buys a larger
+margin and nothing user-visible moves. This is the same structural blindness Task 11's mutation 6
+hit.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3686,7 +3704,7 @@ NOT `-E`) after applying and after restoring.
 | 3 | drop the `part.hidden` loop | *dashes an assembly sheet's hidden edges* |
 | 4 | `fy` returns `py + v * scale` (no flip) | at least one — if none, the flip is undefended and needs a test on an asymmetric cabinet |
 | 5 | drop the `.reverse()` on `view.parts` | ? — report honestly; if it survives, paint order is undefended |
-| 6 | in `assembly.ts`, change `RING_EM[2]` | tests in **both** `drawing.test.ts` and `CabinetProjection.test.tsx` — this is Step 0's proof |
+| 6 | in `assembly.ts`, `RING_EM[2]` → `0.3`, then separately → `18` | the first fails only `CabinetProjection.test.tsx`, the second only `drawing.test.ts` — see Step 0 for why no single value does both |
 
 No survivor may be left unresolved: write the test that kills it, or delete the line it proves dead.
 
