@@ -3732,22 +3732,132 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 
 **Files:**
 
-- Modify: `src/ui/buildDxf.ts:331`, `src/ui/buildPdf.ts:360`
+- Modify: `src/geom/drawing.ts` (the dimension conversion moves here)
+- Modify: `src/ui/buildSvg.ts` (reads it instead of inlining it)
+- Modify: `src/ui/buildDxf.ts`, `src/ui/buildPdf.ts`
 - Test: `src/ui/buildDxf.test.ts`, `src/ui/buildPdf.test.ts`
 
+> **Nine defects in this task's draft.** Two are the third and fourth appearance of bugs already
+> fixed twice, and one would have produced a malformed DXF. Read this before writing anything.
+>
+> 1. **`part.outline` is not rendered — for the THIRD time.** Both loops draw `solid` and `hidden`
+>    only. The pane got a polygon branch in Task 8, `buildSvg` got one in Task 12, and a dowel or a
+>    mitred board would still get its bounding box drawn here.
+> 2. **The `AssemblyDim` → `DimLine` conversion would become its third and fourth copy.** Task 12
+>    inlined it in `buildSvg.ts`; DXF and PDF each need the identical arithmetic. Step 0 extracts it.
+> 3. **The DXF branch returns a whole document from inside the entity builder.** `buildDxf` composes
+>    `header + dxfTables() + ENTITIES + footer` around an `entities` string. The draft's
+>    `dxfHeader()`/`dxfFooter()` do not exist, and returning early would skip `dxfTables()` — which
+>    is where the `HIDDEN` layer and the `DASHED` linetype are *defined*. The file would reference
+>    both and define neither.
+> 4. **`dxfLine`'s signature is `(layer, x1, y1, x2, y2)`** — layer FIRST. The draft passes it last.
+> 5. **The draft's stated reason for the HIDDEN layer is false.** It claims "DXF has no dash style
+>    here… a solid line for a hidden edge would be a lie the file cannot undo." `dxfDashedLine`
+>    already exists and emits a per-entity `DASHED` linetype override. Use it; delete the claim.
+> 6. **The DXF branch silently drops every dimension.** `dxfDimLine(dim, px, py)` exists and the
+>    board sheets use it. A CAD file of a cabinet with no dimensions on it is most of the point
+>    thrown away.
+> 7. **`drawAssemblyDim` is referenced and never defined.** The real helper is
+>    `renderPdfDimLine` at `buildPdf.ts:35`.
+> 8. **Both test call sites omit `byId`**, required since Task 11.
+> 9. **No mutation step**, and the DXF test counts the substring `'LINE'` — which also matches
+>    `POLYLINE` and `LWPOLYLINE`.
+
+- [ ] **Step 0: The dimension conversion moves to `drawing.ts`**
+
+Task 12 inlined this in `renderAssemblyView`. It is pure arithmetic over an `AssemblyDim`, and three
+renderers now need it. `drawing.ts` is the home: it owns `DimLine` and `SHEET_FONT`, and already
+imports `RING_EM`/`TICK_EM` from `assembly.ts`.
+
+```ts
+// An AssemblyDim placed against one view, in sheet millimetres. The projector emits a side and a
+// ring rather than a page offset — `renderDimLine` and its DXF and PDF counterparts all read
+// `offset` in sheet millimetres while start/end are already scaled — so the conversion belongs to
+// whichever layer knows the scale. Stated ONCE: three renderers need it, and the ring geometry has
+// already been duplicated into three copies once this stage.
+export function assemblyDimLine(d: AssemblyDim, bounds: Rect2D, scale: number): DimLine {
+  const off = SHEET_FONT * (RING_EM[d.ring] + TICK_EM)
+  return d.axis === 'h'
+    ? {
+        axis: 'h',
+        start: d.start * scale,
+        end: d.end * scale,
+        offset: d.side === 'below' ? bounds.h * scale + off : -off,
+        label: d.label,
+      }
+    : {
+        axis: 'v',
+        start: (bounds.h - d.end) * scale,
+        end: (bounds.h - d.start) * scale,
+        offset: d.side === 'right' ? bounds.w * scale + off : -off,
+        label: d.label,
+      }
+}
+```
+
+Replace the inlined block in `buildSvg.ts` with a call. The full suite is the check that the
+extraction changed nothing: **1632 tests must still pass**.
+
 - [ ] **Step 1: Write the failing tests**
+
+Both files: add `byId` to every `buildDrawingSheets` call. Count entities against the projector's own
+totals rather than against a magic threshold.
 
 `src/ui/buildDxf.test.ts`:
 
 ```ts
-it('emits LINE entities for an assembly sheet', () => {
+const assemblySheet = (parts: Part[] = partsOfBase600()) => {
   const [, sheet] = buildDrawingSheets([], 'Job', [
-    { cabinet, parts: partsOfBase600(), materials: PRESET_MATERIALS },
+    { cabinet, parts, byId, materials: PRESET_MATERIALS },
   ])
+  if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
+  return sheet
+}
+
+// `0\nLINE` — the entity marker. Counting the bare substring 'LINE' also matches POLYLINE and
+// LWPOLYLINE, and would pass on a file containing no LINE entity at all.
+const countEntities = (dxf: string, type: string) =>
+  dxf.split(`0\n${type}\n`).length - 1
+
+it('emits one LINE per projected segment, on the right layers', () => {
+  const sheet = assemblySheet()
   const dxf = buildDxf(sheet)
-  expect(dxf).toContain('SECTION')
-  expect(dxf).toContain('LINE')
-  expect(dxf.split('LINE').length - 1).toBeGreaterThan(4)
+  const solid = sheet.views.reduce(
+    (n, v) => n + v.parts.reduce((m, p) => m + (p.outline === undefined ? p.solid.length : 0), 0),
+    0,
+  )
+  const hidden = sheet.views.reduce(
+    (n, v) => n + v.parts.reduce((m, p) => m + p.hidden.length, 0),
+    0,
+  )
+  expect(solid).toBeGreaterThan(0)
+  expect(hidden).toBeGreaterThan(0)
+  // Dimension lines add their own LINEs on the DIM layer, so this is a lower bound, not equality.
+  expect(countEntities(dxf, 'LINE')).toBeGreaterThanOrEqual(solid + hidden)
+  expect(dxf).toContain('HIDDEN')
+  expect(dxf).toContain('DASHED')
+})
+
+// Defect 6: the draft dropped these entirely.
+it('dimensions an assembly sheet', () => {
+  const sheet = assemblySheet()
+  const dxf = buildDxf(sheet)
+  for (const label of sheet.views.flatMap((v) => v.dims.map((d) => d.label))) {
+    expect(dxf).toContain(label)
+  }
+})
+
+// Defect 1, third appearance.
+it('draws a non-axis-aligned part as a closed polyline, not as a box', () => {
+  const dowel: Part = { /* the cylinder fixture from buildSvg.test.ts */ }
+  expect(countEntities(buildDxf(assemblySheet([dowel])), 'POLYLINE')).toBeGreaterThan(0)
+})
+
+// Defect 3: the tables define the HIDDEN layer and the DASHED linetype the entities reference.
+it('keeps the layer tables an assembly sheet references', () => {
+  const dxf = buildDxf(assemblySheet())
+  expect(dxf).toContain('TABLES')
+  expect(dxf.indexOf('TABLES')).toBeLessThan(dxf.indexOf('ENTITIES'))
 })
 ```
 
@@ -3756,116 +3866,101 @@ it('emits LINE entities for an assembly sheet', () => {
 ```ts
 it('renders an assembly sheet as one landscape page', async () => {
   const sheets = buildDrawingSheets([], 'Job', [
-    { cabinet, parts: partsOfBase600(), materials: PRESET_MATERIALS },
+    { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
   ])
   const bytes = await buildPdf(sheets)
-  expect(bytes.byteLength).toBeGreaterThan(1000)
   const doc = await PDFDocument.load(bytes)
   expect(doc.getPageCount()).toBe(sheets.length)
-  const [w, h] = [doc.getPage(1).getWidth(), doc.getPage(1).getHeight()]
-  expect(w).toBeGreaterThan(h)
+  const page = doc.getPage(1)
+  expect(page.getWidth()).toBeGreaterThan(page.getHeight())
 })
 ```
+
+If `pdf-lib` cannot read back drawn content, say so and assert what it can — page count and
+orientation — rather than inventing an assertion that cannot fail.
 
 - [ ] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/ui/buildDxf.test.ts src/ui/buildPdf.test.ts`
-Expected: FAIL — both dispatches fall through to the board branch.
 
 - [ ] **Step 3: Implement**
 
-`src/ui/buildDxf.ts` — add before the cover branch:
+`buildDxf.ts` — contribute **entities only**, inside the existing composition, so `dxfTables()` still
+runs:
 
 ```ts
-if (sheet.kind === 'assembly') {
-  const out: string[] = [dxfHeader()]
+function dxfAssemblySheet(sheet: Extract<DrawingSheet, { kind: 'assembly' }>): string {
+  const out: string[] = []
   for (const view of sheet.views) {
+    const { x: px, y: py } = view.placement
     const H = view.bounds.h
-    const fy = (v: number) => 210 - (view.placement.y + (H - v) * sheet.scale)
+    // DXF y runs up the page, so this flips twice: carcase v to sheet y, then sheet to DXF.
+    const fy = (v: number) => 210 - (py + (H - v) * sheet.scale)
+    const fx = (u: number) => px + u * sheet.scale
     for (const part of view.parts) {
-      // DXF has no dash style here, so hidden edges go on their own layer and the CAD tool
-      // styles them. A solid line for a hidden edge would be a lie the file cannot undo.
-      for (const s of part.solid) {
-        out.push(
-          dxfLine(
-            view.placement.x + s.x1 * sheet.scale,
-            fy(s.y1),
-            view.placement.x + s.x2 * sheet.scale,
-            fy(s.y2),
-            'OUTLINE',
-          ),
-        )
+      if (part.outline !== undefined) {
+        out.push(dxfPolyline('OUTLINE', part.outline.map((q) => ({ x: fx(q.x), y: fy(q.y) }))))
+      } else {
+        for (const s of part.solid) out.push(dxfLine('OUTLINE', fx(s.x1), fy(s.y1), fx(s.x2), fy(s.y2)))
       }
-      for (const s of part.hidden) {
-        out.push(
-          dxfLine(
-            view.placement.x + s.x1 * sheet.scale,
-            fy(s.y1),
-            view.placement.x + s.x2 * sheet.scale,
-            fy(s.y2),
-            'HIDDEN',
-          ),
-        )
-      }
+      // dxfDashedLine already carries the per-entity DASHED override on the HIDDEN layer.
+      for (const s of part.hidden) out.push(dxfDashedLine(fx(s.x1), fy(s.y1), fx(s.x2), fy(s.y2)))
+    }
+    for (const d of view.dims) {
+      out.push(dxfDimLine(assemblyDimLine(d, view.bounds, sheet.scale), px, 210 - py - H * sheet.scale))
     }
   }
-  out.push(dxfFooter())
-  return out.join('\n')
+  return out.join('')
 }
 ```
 
-`src/ui/buildPdf.ts` — add before the cover branch, reusing the module's existing `pt` / `yflip` /
-`C_BLACK` / `C_GRAY` helpers and `page.drawLine`:
+Add a `dxfPolyline(layer, points)` helper if none exists — a closed `POLYLINE`/`VERTEX`/`SEQEND`
+run, or `LWPOLYLINE` with the closed flag. Check what `dxfRect` already does and follow it.
 
-```ts
-if (sheet.kind === 'assembly') {
-  for (const view of sheet.views) {
-    const H = view.bounds.h
-    const fy = (v: number) => yflip(view.placement.y + (H - v) * sheet.scale)
-    for (const part of [...view.parts].reverse()) {
-      for (const s of part.solid) {
-        page.drawLine({
-          start: { x: pt(view.placement.x + s.x1 * sheet.scale), y: fy(s.y1) },
-          end: { x: pt(view.placement.x + s.x2 * sheet.scale), y: fy(s.y2) },
-          thickness: 0.8,
-          color: C_BLACK,
-        })
-      }
-      for (const s of part.hidden) {
-        page.drawLine({
-          start: { x: pt(view.placement.x + s.x1 * sheet.scale), y: fy(s.y1) },
-          end: { x: pt(view.placement.x + s.x2 * sheet.scale), y: fy(s.y2) },
-          thickness: 0.5,
-          color: C_GRAY,
-          dashArray: [3, 2],
-        })
-      }
-    }
-    for (const d of view.dims) drawAssemblyDim(page, font, view, d, sheet.scale)
-  }
-  continue
-}
-```
+`buildPdf.ts` — inside the existing `for (const sheet of sheets)` loop, before the cover branch,
+reusing `renderPdfDimLine`. Do **not** reverse `view.parts`: Task 12 established that nothing on a
+sheet is filled or clickable, so paint order is unobservable and a reversal is a line no test can
+falsify.
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm vitest run src/ui/buildDxf.test.ts src/ui/buildPdf.test.ts`
-Expected: PASS.
+- [ ] **Step 5: Mutation check**
 
-- [ ] **Step 5: Full suite and commit**
+Back up with `cp`, restore from that copy, never `git checkout`. `grep -F`, and prefer
+`diff -q` as the authority.
+
+| # | Mutation | Must fail |
+|---|---|---|
+| 1 | DXF: render `part.solid` unconditionally | *draws a non-axis-aligned part as a closed polyline* |
+| 2 | DXF: `dxfDashedLine` → `dxfLine('OUTLINE', …)` | *emits one LINE per projected segment, on the right layers* |
+| 3 | DXF: drop the `view.dims` loop | *dimensions an assembly sheet* |
+| 4 | DXF: return the document early, skipping `dxfTables()` | *keeps the layer tables an assembly sheet references* |
+| 5 | `assemblyDimLine`: `RING_EM[d.ring]` → `RING_EM[1]` | something in `buildSvg.test.ts` — if nothing, the ring offset is undefended in ALL THREE renderers |
+| 6 | PDF: drop the assembly branch | *renders an assembly sheet as one landscape page* — if it still passes, the test proves only that a page exists |
+
+No survivor may be left unresolved.
+
+- [ ] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
-```bash
-git add src/ui/buildDxf.ts src/ui/buildDxf.test.ts src/ui/buildPdf.ts src/ui/buildPdf.test.ts
-git commit -m "feat(ui): DXF and PDF for an assembly sheet
+Commit with `git commit -F -` and a heredoc:
 
-Hidden edges go on their own DXF layer rather than being drawn solid — the
-format has no dash style at this level, and a solid line for a hidden edge is
-a lie the file cannot undo. The PDF dashes them directly.
+```
+feat(ui): DXF and PDF for an assembly sheet
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
+The AssemblyDim to DimLine conversion moves to drawing.ts first. Task 12
+inlined it in buildSvg; DXF and PDF need the identical arithmetic, and the
+ring geometry has already been duplicated into three copies once this stage.
+
+Hidden edges use dxfDashedLine, which carries a per-entity DASHED override on
+the HIDDEN layer - the draft claimed DXF has no dash style at this level and
+that is simply not true of this codebase. The entities are contributed to the
+existing composition rather than returned as a document, so dxfTables still
+defines the layer and linetype they reference.
+
+A part that is not an axis-aligned box draws as a closed polyline, not as its
+bounding box. Third renderer, same rule.
 ```
 
 ---
