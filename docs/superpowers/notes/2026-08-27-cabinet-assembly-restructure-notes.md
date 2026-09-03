@@ -1056,3 +1056,51 @@ of the scene.
   wrong direction, so the honest fix is to move them into `assembly.ts` beside `AssemblyDim.ring`
   (the field that indexes `RING_EM`) and have both read them there. Not done here to keep the task
   surgical; it is the first thing to do if the ring geometry is ever touched again.
+
+## Task 12 — `buildSvg` renders an assembly sheet (2026-09-03)
+
+- **`SHEET_FONT` did not move with the ring.** The plan moved all five constants into
+  `assembly.ts`; only the four em figures did. `assembly.ts` opens by saying it emits unscaled
+  millimetres because "a projector that scaled would have to be told a page size the pane does not
+  have" — and `SHEET_FONT` is exactly a page size. It stays in `drawing.ts` and is exported. The em
+  table is what all three consumers share; the font each multiplies it by is theirs alone
+  (`FONT_DIVISOR` for the pane, `SHEET_FONT` for the sheet).
+- **Mutation 6 as the plan states it is unsatisfiable, and both directions were needed.** No single
+  value of `RING_EM[2]` fails tests in `drawing.test.ts` *and* `CabinetProjection.test.tsx`: the
+  sheet layout only notices the ring through scale selection, which needs `6 * ring` to overrun the
+  page at every standard scale (`RING_EM[2] > 15.2`), while the pane only notices when the outer
+  ring falls inside the inner one (`RING_EM[2] < ~0.5`). The two windows are disjoint. Measured:
+  `1.8 → 0.3` fails 8 tests in `CabinetProjection.test.tsx` and none elsewhere; `1.8 → 18` fails 5
+  in `drawing.test.ts` and none elsewhere. Together they still prove the move took — before it, a
+  change in `assembly.ts` could not have moved the pane at all.
+- **A polygon, not a polyline.** `hullOf` returns a closed ring of points with no repeated first
+  point, so the drafted `<polyline>` would have left the last edge of every dowel and every mitred
+  board undrawn. `renderView` and `renderDowelView` already use `<polygon>` for the same reason.
+- **The `.reverse()` was deleted rather than tested.** The pane reverses so the nearest part paints
+  last and takes the click. On a sheet nothing is filled and nothing is clickable, so the order is
+  unobservable: reversing it passes all 1632 tests. Mutation 5 therefore resolves by deleting the
+  line, not by pinning it — a test asserting element order would assert the implementation.
+- **Two of the drafted tests could not have failed.** The hidden-edge test asserted only that
+  `stroke-dasharray` appears somewhere, which a dashed cut rect or bore satisfies; it passes on this
+  fixture solely because `partsOfCarcase` gives every part `cuts: []`. It now counts dashed `<line>`
+  elements against the projector's own hidden-segment total. And nothing at all covered the flip —
+  `fy` feeds only the part geometry, never the dimension offsets — so `flips carcase v into SVG y`
+  was added: it compares the Front view's `stroke="#000"` y-coordinates against
+  `py + (H - v) * scale` as a set. The fixture is asymmetric in v (a toe kick at the bottom with
+  nothing matching it at the top), which is what makes the flipped and unflipped sets differ.
+- **The drafted ring test was too loose by 12 mm.** Bounding every `<text>` by
+  `MARGIN ± sheet.ring` across the whole page passes the draft's own `[0, 8, 16]` table: the
+  leftmost label lands at 11.6 mm against a bound of 3.9 mm. The check is now per view — every
+  dimension label lies inside *its own* view's placement plus the ring — which puts that label
+  3.4 mm outside the Front view's band and fails.
+- **`renderDimLine` anchors every vertical label `'start'`, so a left-hand dimension reads back
+  across the drawing it annotates.** This is the bug `CabinetProjection` fixed by anchoring
+  `right ? 'start' : 'end'`, and the assembly sheet inherits it: the ring is reserved on the left
+  and the label is drawn into the cabinet. Not fixed here — `DimLine` carries no side, and the
+  board and dowel sheets share the function, so the fix is a signature change with three call sites
+  rather than a renderer change. The reservation is generous enough that nothing clips; it just
+  reads wrong.
+- **The three views are unlabelled.** `renderView` and `renderDowelView` both write `view.label`
+  above the drawing; the assembly sheet does not, because the plan's renderer does not and a fourth
+  text element would have to be excluded from the ring test by hand. Three unnamed orthographic
+  views on one sheet is a real gap for a shop drawing — worth a line in Task 13/14 or a follow-up.
