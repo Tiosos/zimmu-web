@@ -1,9 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import { buildSvg } from './buildSvg'
-import { buildDrawingSheets } from '../geom/drawing'
+import { buildDrawingSheets, MARGIN, TITLE_H } from '../geom/drawing'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import type { BoardPart, Component, CylinderPart, DowelCut } from '../scene/types'
+import { cabinet, partsOfBase600 } from '../geom/__fixtures__/cabinetSheet'
+import type {
+  BoardPart,
+  Component,
+  ComponentId,
+  CylinderPart,
+  DowelCut,
+  Part,
+} from '../scene/types'
 
 function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
@@ -239,5 +247,129 @@ describe('buildSvg — hole arrays', () => {
     const solid = partSvgCircles(drilledThrough)
     expect(solid.length).toBeGreaterThan(0)
     expect(solid.some((c) => c.getAttribute('stroke-dasharray') !== null)).toBe(false)
+  })
+})
+
+const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
+
+const assemblySheet = (parts: Part[] = partsOfBase600()) => {
+  const [, sheet] = buildDrawingSheets([], 'Job', [
+    { cabinet, parts, byId, materials: PRESET_MATERIALS },
+  ])
+  if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
+  return sheet
+}
+
+const parse = (svg: string): Document => {
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml')
+  expect(doc.querySelector('parsererror')).toBeNull()
+  return doc
+}
+
+const round = (n: number) => Math.round(n * 1e3) / 1e3
+
+describe('buildSvg — assembly sheets', () => {
+  it('renders an assembly sheet with its three views and its dimensions', () => {
+    const sheet = assemblySheet()
+    const svg = buildSvg(sheet)
+    expect(svg).toContain('<svg')
+    expect(svg).toContain('Base 600')
+    // Read off the sheet, not typed here: a literal '1:10' encodes the scale arithmetic rather
+    // than the rule, and a literal '600' assumes how wide a cabinet is.
+    expect(svg).toContain(sheet.scaleLabel)
+    expect(svg).toContain(`>${sheet.views[0].dims[0].label}<`)
+  })
+
+  it('dashes an assembly sheet’s hidden edges', () => {
+    const sheet = assemblySheet()
+    const svg = buildSvg(sheet)
+    // Counted, not merely present: a dashed rect or a dashed bore also carries `stroke-dasharray`,
+    // so a bare `toContain` passes a renderer that drew no hidden edge at all. This fixture has
+    // neither, which is exactly why the count is the honest assertion rather than the lucky one.
+    const dashed = parse(svg).querySelectorAll('line[stroke-dasharray]')
+    const hidden = sheet.views.reduce(
+      (n, v) => n + v.parts.reduce((m, p) => m + p.hidden.length, 0),
+      0,
+    )
+    expect(hidden).toBeGreaterThan(0)
+    expect(dashed).toHaveLength(hidden)
+  })
+
+  // The same defect CabinetProjection carried until its polygon branch was added. A cylinder is
+  // never an axis-aligned box, so it arrives with `outline` set and `rects` holding only its
+  // bounding rectangle — drawing `solid` for it puts a box around a tilted dowel.
+  it('draws a non-axis-aligned part as its outline, not as a box', () => {
+    const dowel: Part = {
+      kind: 'cylinder',
+      id: 'board_dowel',
+      label: 'Dowel 1',
+      diameter: 8,
+      length: 40,
+      material: '',
+      color: '#ca8',
+      position: { x: 100, y: 100, z: 100 },
+      rotation: { x: 0, y: 30, z: 0 },
+      rotationOrder: 'XYZ',
+      cuts: [],
+      visible: true,
+      parentId: cabinet.id,
+      driven: false,
+    }
+    const doc = parse(buildSvg(assemblySheet([dowel])))
+    // A polygon, never a polyline: `hullOf` returns a closed ring of points with no repeated
+    // first point, so a polyline leaves the last edge of the silhouette undrawn.
+    expect(doc.querySelectorAll('polygon').length).toBeGreaterThan(0)
+    // …and the bounding box it is hit-tested by is not drawn at all. The two are alternatives.
+    expect(doc.querySelectorAll('line[stroke="#000"]')).toHaveLength(0)
+  })
+
+  // The ring the renderer draws at must be the ring the layout reserved. Two derivations of one
+  // figure is what put a Tall 600's labels outside their own reservation.
+  it('draws its dimension ring at the offset the sheet reserved', () => {
+    const sheet = assemblySheet()
+    const doc = parse(buildSvg(sheet))
+    // The title block is a band of its own below the drawings; everything above it is a dimension.
+    const labels = [...doc.querySelectorAll('text')].filter(
+      (t) => Number(t.getAttribute('y')) < 210 - MARGIN - TITLE_H,
+    )
+    expect(labels).toHaveLength(sheet.views.reduce((n, v) => n + v.dims.length, 0))
+    const inSomeRing = (x: number, y: number) =>
+      sheet.views.some(
+        (v) =>
+          x >= v.placement.x - sheet.ring - 1e-6 &&
+          x <= v.placement.x + v.bounds.w * sheet.scale + sheet.ring + 1e-6 &&
+          y >= v.placement.y - sheet.ring - 1e-6 &&
+          y <= v.placement.y + v.bounds.h * sheet.scale + sheet.ring + 1e-6,
+      )
+    for (const t of labels) {
+      expect(inSomeRing(Number(t.getAttribute('x')), Number(t.getAttribute('y')))).toBe(true)
+    }
+  })
+
+  // Carcase v runs up and SVG y runs down. The fixture is asymmetric in v — a toe kick at the
+  // bottom and nothing matching it at the top — so the flipped and unflipped sets differ, which a
+  // min/max check on a symmetric elevation could never see.
+  it('flips carcase v into SVG y', () => {
+    const sheet = assemblySheet()
+    const doc = parse(buildSvg(sheet))
+    const front = sheet.views[0]
+    const right = front.placement.x + front.bounds.w * sheet.scale
+    const inFront = (l: Element) =>
+      Number(l.getAttribute('x1')) <= right + 1e-6 && Number(l.getAttribute('x2')) <= right + 1e-6
+    const drawn = new Set(
+      [...doc.querySelectorAll('line[stroke="#000"]')]
+        .filter(inFront)
+        .flatMap((l) => [Number(l.getAttribute('y1')), Number(l.getAttribute('y2'))])
+        .map(round),
+    )
+    const expected = new Set(
+      front.parts
+        .flatMap((p) => p.solid)
+        .flatMap((s) => [s.y1, s.y2])
+        .map((v) => round(front.placement.y + (front.bounds.h - v) * sheet.scale)),
+    )
+    expect(expected.size).toBeGreaterThan(1)
+    const asc = (s: Set<number>) => [...s].sort((a, b) => a - b)
+    expect(asc(drawn)).toEqual(asc(expected))
   })
 })

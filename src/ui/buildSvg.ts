@@ -1,9 +1,12 @@
+import { SHEET_FONT } from '../geom/drawing'
+import { RING_EM, TICK_EM } from '../geom/assembly'
 import type {
   DrawingSheet,
   DrawingView,
   DowelView,
   DimLine,
   DrawCircle,
+  PlacedAssemblyView,
   Rect2D,
 } from '../geom/drawing'
 
@@ -296,6 +299,130 @@ function renderTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): strin
   ].join('')
 }
 
+function renderAssemblyView(view: PlacedAssemblyView, scale: number): string {
+  const out: string[] = []
+  const { x: px, y: py } = view.placement
+  const H = view.bounds.h
+  // Carcase v runs up and SVG y runs down; the flip is written once, here, exactly as the pane
+  // writes it once in CabinetProjection.
+  const fx = (u: number) => px + u * scale
+  const fy = (v: number) => py + (H - v) * scale
+
+  // Nearest first, the order the projector emits. The pane reverses it so the nearest part paints
+  // last and takes the click; nothing here is filled and nothing is clickable, so on a sheet the
+  // order is unobservable and a reversal would be a line no test could falsify.
+  for (const part of view.parts) {
+    // A part that is not an axis-aligned box carries `outline` — its real silhouette — while its
+    // `rects`, and so its `solid`, is only the bounding rectangle. The two are alternatives, never
+    // both: drawing `solid` for such a part puts a box around a tilted dowel. Same rule and same
+    // reason as the polygon branch in CabinetProjection. A POLYGON, not a polyline: `hullOf`
+    // returns a closed ring with no repeated first point, so a polyline leaves one edge undrawn.
+    if (part.outline !== undefined) {
+      const points = part.outline.map((q) => `${fmt(fx(q.x))},${fmt(fy(q.y))}`).join(' ')
+      out.push(el('polygon', { points, stroke: '#000', fill: 'none', 'stroke-width': '0.3' }))
+    } else {
+      for (const s of part.solid) {
+        out.push(
+          svgLine(fx(s.x1), fy(s.y1), fx(s.x2), fy(s.y2), {
+            stroke: '#000',
+            'stroke-width': '0.3',
+          }),
+        )
+      }
+    }
+    for (const s of part.hidden) {
+      out.push(
+        svgLine(fx(s.x1), fy(s.y1), fx(s.x2), fy(s.y2), {
+          stroke: '#888',
+          'stroke-width': '0.2',
+          ...DASH,
+        }),
+      )
+    }
+    for (const c of part.cutRects) {
+      out.push(
+        svgRect(fx(c.rect.x), fy(c.rect.y + c.rect.h), c.rect.w * scale, c.rect.h * scale, {
+          fill: 'none',
+          stroke: '#888',
+          'stroke-width': '0.2',
+          ...DASH,
+        }),
+      )
+    }
+    for (const o of part.circles) {
+      out.push(
+        svgCircle(fx(o.cx), fy(o.cy), o.r * scale, {
+          fill: 'none',
+          stroke: '#888',
+          'stroke-width': '0.15',
+          ...DASH,
+        }),
+      )
+    }
+  }
+
+  // The projector emits side + ring, never a page offset: renderDimLine reads `offset` in sheet
+  // millimetres while start/end are already scaled, so only a consumer that knows the scale can
+  // convert. This is that consumer — and it converts from the SAME statement the layout reserved
+  // the room with, never a second table of its own.
+  const off = (r: 1 | 2) => SHEET_FONT * (RING_EM[r] + TICK_EM)
+
+  for (const d of view.dims) {
+    const line: DimLine =
+      d.axis === 'h'
+        ? {
+            axis: 'h',
+            start: d.start * scale,
+            end: d.end * scale,
+            offset: d.side === 'below' ? view.bounds.h * scale + off(d.ring) : -off(d.ring),
+            label: d.label,
+          }
+        : {
+            axis: 'v',
+            start: (H - d.end) * scale,
+            end: (H - d.start) * scale,
+            offset: d.side === 'right' ? view.bounds.w * scale + off(d.ring) : -off(d.ring),
+            label: d.label,
+          }
+    out.push(renderDimLine(line, px, py))
+  }
+
+  return out.join('')
+}
+
+function renderAssemblyTitleBlock(sheet: Extract<DrawingSheet, { kind: 'assembly' }>): string {
+  const tbY = SHEET_H - MARGIN - TITLE_H
+  const tbX = MARGIN
+  return [
+    svgRect(tbX, tbY, 297 - 2 * MARGIN, TITLE_H, {
+      stroke: '#000',
+      fill: 'none',
+      'stroke-width': '0.3',
+    }),
+    svgText(tbX + 4, tbY + 8, sheet.cabinetLabel, {
+      'font-size': '7',
+      'font-weight': 'bold',
+      fill: '#000',
+      'font-family': 'sans-serif',
+    }),
+    svgText(tbX + 4, tbY + 16, 'Assembly', {
+      'font-size': '4',
+      fill: '#444',
+      'font-family': 'sans-serif',
+    }),
+    svgText(tbX + 100, tbY + 8, `Scale: ${sheet.scaleLabel}`, {
+      'font-size': '4',
+      fill: '#444',
+      'font-family': 'sans-serif',
+    }),
+    svgText(tbX + 100, tbY + 16, `Date: ${sheet.date}`, {
+      'font-size': '4',
+      fill: '#444',
+      'font-family': 'sans-serif',
+    }),
+  ].join('')
+}
+
 function renderCoverSheet(sheet: Extract<DrawingSheet, { kind: 'cover' }>): string {
   const out: string[] = []
   const cx = MARGIN
@@ -365,9 +492,9 @@ export function buildSvg(sheet: DrawingSheet): string {
   if (sheet.kind === 'cover') {
     body = renderCoverSheet(sheet)
   } else if (sheet.kind === 'assembly') {
-    // The assembly renderer is the next step of this stage; the branch exists so the sheet union
-    // stays exhaustive rather than falling into the board branch and reading its views as boards.
-    body = ''
+    body =
+      sheet.views.map((v) => renderAssemblyView(v, sheet.scale)).join('') +
+      renderAssemblyTitleBlock(sheet)
   } else if (sheet.shape === 'dowel') {
     body = sheet.views.map(renderDowelView).join('') + renderTitleBlock(sheet)
   } else {
