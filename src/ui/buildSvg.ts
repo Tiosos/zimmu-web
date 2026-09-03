@@ -1,5 +1,4 @@
-import { SHEET_FONT } from '../geom/drawing'
-import { RING_EM, TICK_EM } from '../geom/assembly'
+import { assemblyDimLine } from '../geom/drawing'
 import type {
   DrawingSheet,
   DrawingView,
@@ -361,30 +360,8 @@ function renderAssemblyView(view: PlacedAssemblyView, scale: number): string {
     }
   }
 
-  // The projector emits side + ring, never a page offset: renderDimLine reads `offset` in sheet
-  // millimetres while start/end are already scaled, so only a consumer that knows the scale can
-  // convert. This is that consumer — and it converts from the SAME statement the layout reserved
-  // the room with, never a second table of its own.
-  const off = (r: 1 | 2) => SHEET_FONT * (RING_EM[r] + TICK_EM)
-
   for (const d of view.dims) {
-    const line: DimLine =
-      d.axis === 'h'
-        ? {
-            axis: 'h',
-            start: d.start * scale,
-            end: d.end * scale,
-            offset: d.side === 'below' ? view.bounds.h * scale + off(d.ring) : -off(d.ring),
-            label: d.label,
-          }
-        : {
-            axis: 'v',
-            start: (H - d.end) * scale,
-            end: (H - d.start) * scale,
-            offset: d.side === 'right' ? view.bounds.w * scale + off(d.ring) : -off(d.ring),
-            label: d.label,
-          }
-    out.push(renderDimLine(line, px, py))
+    out.push(renderDimLine(assemblyDimLine(d, view.bounds, scale), px, py))
   }
 
   return out.join('')

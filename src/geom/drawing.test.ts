@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { buildDrawingSheets, MARGIN, STANDARD_SCALES, TITLE_H } from './drawing'
+import {
+  assemblyDimLine,
+  buildDrawingSheets,
+  MARGIN,
+  SHEET_FONT,
+  STANDARD_SCALES,
+  TITLE_H,
+} from './drawing'
 import type { DrawingSheet } from './drawing'
+import type { AssemblyDim } from './assembly'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { cabinet, partsOfBase600 } from './__fixtures__/cabinetSheet'
@@ -681,5 +689,37 @@ describe('assembly sheets', () => {
     ])
     if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
     expect(sheet.cabinetLabel).toBe('Base 600')
+  })
+})
+
+describe('assemblyDimLine', () => {
+  const bounds = { x: 0, y: 0, w: 600, h: 720 }
+  const dim = (over: Partial<AssemblyDim> = {}): AssemblyDim => ({
+    axis: 'v',
+    side: 'left',
+    ring: 1,
+    start: 0,
+    end: 100,
+    label: '100',
+    ...over,
+  })
+
+  // RING_EM's own claim, and the one thing about this conversion no renderer's output can check:
+  // the gap between rings exceeds one text height, so a label reading off the outer ring cannot
+  // land on the inner one's line. Base 600's Front view puts the toe kick's 100 on ring 2 and the
+  // opening's 584 on ring 1, both on the left — read one ring for both and they overprint, inside
+  // the band the layout reserved, where every fit assertion still passes.
+  it('sets a ring 2 dimension more than one text height outside ring 1', () => {
+    const inner = assemblyDimLine(dim({ ring: 1 }), bounds, 0.1)
+    const outer = assemblyDimLine(dim({ ring: 2 }), bounds, 0.1)
+    expect(Math.abs(outer.offset) - Math.abs(inner.offset)).toBeGreaterThan(SHEET_FONT)
+  })
+
+  // Carcase v runs up; a sheet's y runs down. A toe kick spans v ∈ [0, 100] of a 720 tall cabinet
+  // and must come out at the BOTTOM of the drawing.
+  it('flips a vertical dimension into sheet y', () => {
+    const line = assemblyDimLine(dim({ axis: 'v', start: 0, end: 100 }), bounds, 0.1)
+    expect(line.start).toBeCloseTo((720 - 100) * 0.1, 6)
+    expect(line.end).toBeCloseTo(720 * 0.1, 6)
   })
 })

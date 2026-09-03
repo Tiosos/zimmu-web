@@ -20,6 +20,7 @@ import {
   RING_EM,
   TEXT_GAP_EM,
   TICK_EM,
+  type AssemblyDim,
   type AssemblyView,
 } from './assembly'
 
@@ -436,6 +437,30 @@ const PAGE_H = SHEET_H - 2 * MARGIN - TITLE_H
 function assemblyRing(views: AssemblyView[]): number {
   const widest = Math.max(...views.flatMap((v) => v.dims.map((d) => d.label.length)), 1)
   return SHEET_FONT * (RING_EM[2] + TICK_EM + TEXT_GAP_EM + CHAR_EM * widest)
+}
+
+// An AssemblyDim placed against one view, in sheet millimetres. The projector emits a side and a
+// ring rather than a page offset — every renderer reads `offset` in sheet millimetres while it
+// reads start/end as already scaled — so the conversion belongs to whichever layer knows the scale.
+// Stated ONCE: three renderers need it, and it converts from the SAME ring statement the layout
+// reserved the room with, never a second table of its own.
+export function assemblyDimLine(d: AssemblyDim, bounds: Rect2D, scale: number): DimLine {
+  const off = SHEET_FONT * (RING_EM[d.ring] + TICK_EM)
+  return d.axis === 'h'
+    ? {
+        axis: 'h',
+        start: d.start * scale,
+        end: d.end * scale,
+        offset: d.side === 'below' ? bounds.h * scale + off : -off,
+        label: d.label,
+      }
+    : {
+        axis: 'v',
+        start: (bounds.h - d.end) * scale,
+        end: (bounds.h - d.start) * scale,
+        offset: d.side === 'right' ? bounds.w * scale + off : -off,
+        label: d.label,
+      }
 }
 
 function selectAssemblyScale(W: number, H: number, D: number, ring: number): number {
