@@ -5,7 +5,8 @@ import userEvent from '@testing-library/user-event'
 import { CabinetEditor, type CabinetTab } from './CabinetEditor'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { setSectionSize, splitSection } from '../scene/editSection'
-import type { CarcaseComponent, CarcaseParams, Component } from '../scene/types'
+import { partsOfBase600 } from '../geom/__fixtures__/cabinetSheet'
+import type { CarcaseComponent, CarcaseParams, Component, ComponentId } from '../scene/types'
 
 const cabinet: CarcaseComponent = {
   kind: 'carcase',
@@ -27,6 +28,10 @@ const props = (over: Partial<ComponentProps<typeof CabinetEditor>> = {}) => ({
   selectedSectionId: null,
   onSelectSection: vi.fn(),
   onUpdate: vi.fn(),
+  parts: [],
+  byId: new Map<ComponentId, Component>(),
+  selectedPartId: null,
+  onSelectPart: vi.fn(),
   ...over,
 })
 
@@ -66,15 +71,38 @@ describe('CabinetEditor', () => {
     expect(onTabChange).toHaveBeenLastCalledWith('3d')
   })
 
-  // A tab that silently shows nothing reads as broken. G2 builds these.
-  it.each(['Front', 'Top', 'End'])(
-    'says %s is not built yet rather than showing nothing',
-    (name) => {
-      const tab = name.toLowerCase() as CabinetTab
-      render(<CabinetEditor {...props({ tab })} />)
-      expect(screen.getByText(/not built yet/i)).toBeTruthy()
-    },
-  )
+  // These three said "not built yet" until G2 built them. The placeholder is gone, so the test that
+  // pinned it is this one: each tab draws its own projection, named by the view it is.
+  it.each(['Front', 'Top', 'End'])('renders a projection for %s', (name) => {
+    const tab = name.toLowerCase() as CabinetTab
+    render(<CabinetEditor {...props({ tab })} />)
+    expect(screen.queryByText(/not built yet/i)).toBeNull()
+    expect(screen.getByRole('img', { name: new RegExp(`${name} view`, 'i') })).toBeTruthy()
+  })
+
+  // The projection is a selection surface, not a picture: a part it draws must be the selected one
+  // when it is selected, and clicking it must reach the same handler the viewport uses. Neither
+  // holds unless this component passes both through, and a projection that renders is no evidence
+  // that it did.
+  it('carries the selection into the projection and a click back out', async () => {
+    const onSelectPart = vi.fn()
+    const parts = partsOfBase600()
+    render(
+      <CabinetEditor
+        {...props({
+          tab: 'front',
+          parts,
+          byId: new Map<ComponentId, Component>([[cabinet.id, cabinet]]),
+          selectedPartId: parts[0].id,
+          onSelectPart,
+        })}
+      />,
+    )
+    const drawn = screen.getByTestId(`projection-part-${parts[0].id}`)
+    expect(drawn.getAttribute('data-selected')).toBe('true')
+    await userEvent.click(drawn)
+    expect(onSelectPart).toHaveBeenCalledWith(parts[0].id)
+  })
 
   // The 3D tab is the viewport, which lives outside this component precisely so it is never
   // unmounted — so the editor renders no panel of its own for it and App does the showing.

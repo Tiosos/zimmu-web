@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, act, cleanup, screen, fireEvent, within } from '@testing-library/react'
 import App from './App'
-import type { Part } from './scene/types'
+import { PRESET_MATERIALS } from './scene/carcasePresets'
+import { cabinet, partsOfBase600 } from './geom/__fixtures__/cabinetSheet'
+import type { Part, Selection } from './scene/types'
 
 const mockUndo = vi.fn()
 const mockRedo = vi.fn()
@@ -77,10 +79,13 @@ function makeDefaultSceneReturn() {
 
 const viewportSpy = vi.hoisted(() => ({ fitRequest: 0 }))
 
+// Renders a marker rather than null: App shows and hides the viewport by toggling `display` on the
+// wrapper it sits in, so a test asking whether the viewport is showing has to reach that wrapper,
+// and the only handle on it is its child.
 vi.mock('./render/viewport', () => ({
   Viewport: (props: { fitRequest: number }) => {
     viewportSpy.fitRequest = props.fitRequest
-    return null
+    return <div data-testid="viewport" />
   },
 }))
 
@@ -314,5 +319,135 @@ describe('App BOM integration', () => {
     expect(within(bomPanel).getByText('Diameter (mm)')).toBeTruthy()
     // The dowel itself appears inside the BOM panel (not just the sidebar)
     expect(within(bomPanel).getByText('Dowel 1')).toBeTruthy()
+  })
+})
+
+// Neither half of this rule is visible at the CabinetEditor level — the editor is handed a cabinet,
+// it does not decide which one. App decides, and App is also the only place that knows the viewport
+// is hidden rather than unmounted, so only a test that renders App can see either.
+describe('the open cabinet', () => {
+  const inside = partsOfBase600()
+  const loose: Part = {
+    kind: 'board',
+    id: 'board_loose',
+    label: 'Loose',
+    length: 300,
+    width: 100,
+    thickness: 18,
+    grain: 'length',
+    material: '',
+    color: '#888888',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+    parentId: null,
+    driven: false,
+  }
+  const full = {
+    parts: [...inside, loose],
+    materials: PRESET_MATERIALS,
+    hardware: [],
+    joints: [],
+    components: [cabinet],
+  }
+
+  let mockScene: typeof full = full
+  let mockSelection: Selection | null = null
+
+  beforeEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    mockSnapActive = false
+    mockCutActive = false
+    mockScene = full
+    mockSelection = null
+    mockUseScene.mockImplementation(() => ({
+      ...makeDefaultSceneReturn(),
+      scene: mockScene,
+      selection: mockSelection,
+      selectedId: mockSelection?.kind === 'part' ? mockSelection.id : null,
+      parameterFor: () => null,
+      onDetachPart: vi.fn(),
+      onUpdateComponent: vi.fn(),
+      onAddComponent: vi.fn(),
+      onAddCarcase: vi.fn(),
+      onAddMitre: vi.fn(),
+      onAddJoint: vi.fn(),
+      onAddHalfLap: vi.fn(),
+      onAddMortiseTenon: vi.fn(),
+      onAddFingerJoint: vi.fn(),
+      onAddTongueGroove: vi.fn(),
+      onUpdateJoint: vi.fn(),
+      onRemoveJoint: vi.fn(),
+    }))
+  })
+
+  // The viewport's wrapper is what App toggles `display` on, and the marker the mock leaves behind
+  // is the only handle on it.
+  const viewportShowing = () =>
+    screen.getByTestId('viewport').parentElement!.style.display !== 'none'
+  // '3D' is a tab no other pane offers, so its presence is the editor's.
+  const editorOpen = () => screen.queryByRole('tab', { name: '3D' }) !== null
+
+  const mount = async () => {
+    const { rerender } = render(<App />)
+    await act(async () => {})
+    return async (s: Selection | null) => {
+      mockSelection = s
+      await act(async () => {
+        rerender(<App />)
+      })
+    }
+  }
+
+  // The regression the draft's ancestry rule would have introduced: selecting a part made
+  // selectedCarcase non-null, and App shows the viewport only while that is null or the tab is 3D,
+  // so a click in the 3D viewport replaced the viewport with the Section elevation.
+  it('keeps the viewport when a part is selected and no cabinet is open', async () => {
+    mockSelection = { kind: 'part', id: inside[0].id }
+    render(<App />)
+    await act(async () => {})
+    expect(editorOpen()).toBe(false)
+    expect(viewportShowing()).toBe(true)
+  })
+
+  it('keeps an open cabinet open when a part inside it is selected', async () => {
+    const select = await mount()
+    await select({ kind: 'component', id: cabinet.id })
+    expect(editorOpen()).toBe(true)
+    await select({ kind: 'part', id: inside[0].id })
+    expect(editorOpen()).toBe(true)
+  })
+
+  it('closes the cabinet when the selection moves outside it', async () => {
+    const select = await mount()
+    await select({ kind: 'component', id: cabinet.id })
+    expect(editorOpen()).toBe(true)
+    await select({ kind: 'part', id: loose.id })
+    expect(editorOpen()).toBe(false)
+    expect(viewportShowing()).toBe(true)
+  })
+
+  // Nothing selected is not a selection outside the cabinet: clicking empty space deselects, and
+  // being thrown out of the editor by a stray click is not what "stays open" means.
+  it('leaves an open cabinet open when the selection is cleared', async () => {
+    const select = await mount()
+    await select({ kind: 'component', id: cabinet.id })
+    await select(null)
+    expect(editorOpen()).toBe(true)
+  })
+
+  // The open cabinet is remembered by id, so it can name one the scene has since dropped. It is
+  // resolved against the scene on every render for exactly this reason.
+  it('closes a cabinet the scene no longer holds', async () => {
+    const select = await mount()
+    await select({ kind: 'component', id: cabinet.id })
+    expect(editorOpen()).toBe(true)
+    mockScene = { ...full, parts: [loose], components: [] }
+    await select(null)
+    expect(editorOpen()).toBe(false)
+    expect(viewportShowing()).toBe(true)
   })
 })

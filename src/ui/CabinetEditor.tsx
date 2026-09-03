@@ -1,6 +1,15 @@
+import { CabinetProjection } from './CabinetProjection'
 import { SectionElevation } from './SectionElevation'
 import { SectionToolbar } from './SectionToolbar'
-import type { CarcaseComponent, Component, MaterialDef, SectionId } from '../scene/types'
+import type {
+  CarcaseComponent,
+  Component,
+  ComponentId,
+  MaterialDef,
+  Part,
+  PartId,
+  SectionId,
+} from '../scene/types'
 
 // The cabinet edit level: selecting a cabinet turns the main pane into its editor. The tabs are the
 // ones a cabinet is actually described by — its elevation, its projections, and the model itself.
@@ -28,6 +37,10 @@ export function CabinetEditor({
   selectedSectionId,
   onSelectSection,
   onUpdate,
+  parts,
+  byId,
+  selectedPartId,
+  onSelectPart,
 }: {
   component: CarcaseComponent
   materials: Record<string, MaterialDef>
@@ -36,6 +49,10 @@ export function CabinetEditor({
   selectedSectionId: SectionId | null
   onSelectSection: (id: SectionId | null) => void
   onUpdate: (updater: (c: Component) => Component) => void
+  parts: Part[]
+  byId: Map<ComponentId, Component>
+  selectedPartId: PartId | null
+  onSelectPart: (id: PartId) => void
 }) {
   return (
     <div className="flex-1 min-w-0 h-full flex flex-col bg-background">
@@ -81,9 +98,15 @@ export function CabinetEditor({
               />
             </div>
           ) : (
-            <p className="text-[11px] text-muted-foreground">
-              The {LABELS[tab]} projection is not built yet.
-            </p>
+            <CabinetProjection
+              view={LABELS[tab] as 'Front' | 'Top' | 'End'}
+              parts={parts}
+              byId={byId}
+              cabinet={component}
+              materials={materials}
+              selectedId={selectedPartId}
+              onSelect={onSelectPart}
+            />
           )}
         </div>
       )}

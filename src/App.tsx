@@ -4,7 +4,7 @@ import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
 import { suggestJointsFor, suggestJointsForScene, synthHit, pairIdsOf } from './scene/suggestJoints'
 import { suggestionOutlines } from './scene/suggestionOutline'
-import { componentsById, descendantIds, isNodeVisible } from './scene/componentTree'
+import { ancestorsOf, componentsById, descendantIds, isNodeVisible } from './scene/componentTree'
 import type { JointSuggestion } from './scene/suggestJoints'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
@@ -20,6 +20,7 @@ import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
 import type {
   CameraState,
+  CarcaseComponent,
   ComponentId,
   MaterialDef,
   PartId,
@@ -79,11 +80,52 @@ function App() {
   // Derived here rather than in the sidebar, which is where it used to live: with the editor in the
   // main pane two panes need the answer, and deriving it twice is how they come to disagree about
   // which cabinet is open.
+  //
+  // "Stays open" is a fact about the *previous* answer, so this is a small state machine rather
+  // than a pure derivation. Selecting a part used to null it, which unmounted the editor and
+  // revealed the viewport — so clicking a part in a projection destroyed the surface it was
+  // clicked in.
+  //
+  // Deliberately NOT "the cabinet containing the selection". That opens a cabinet on any part
+  // click, and the viewport shows only while this is null or the tab is 3D — so clicking a part in
+  // the viewport would swap the viewport out for the Section elevation, and `cabinetParts` would
+  // silently filter 3D down to one cabinet. Keeping an open cabinet open is the whole requirement.
+  const [openCabinetId, setOpenCabinetId] = useState<ComponentId | null>(null)
+
   const selectedCarcase = useMemo(() => {
-    if (selection?.kind !== 'component') return null
-    const c = scene.components.find((x) => x.id === selection.id)
-    return c?.kind === 'carcase' ? c : null
-  }, [selection, scene.components])
+    const carcaseAt = (id: ComponentId | null): CarcaseComponent | null => {
+      const c = id === null ? undefined : scene.components.find((x) => x.id === id)
+      return c?.kind === 'carcase' ? c : null
+    }
+    // Selecting a cabinet outright opens it, and closes whatever was open before.
+    if (selection?.kind === 'component') {
+      const picked = carcaseAt(selection.id)
+      if (picked !== null) return picked
+    }
+    // Otherwise the open one stays open, but only while the selection lies inside it. A cabinet
+    // deleted from the scene resolves to null here, so the editor cannot outlive it.
+    const open = carcaseAt(openCabinetId)
+    if (open === null) return null
+    // Nothing selected is not a selection *outside* the cabinet: clicking empty space deselects,
+    // and being evicted from the editor by a stray click is not what "stays open" means.
+    const node =
+      selection?.kind === 'part'
+        ? scene.parts.find((q) => q.id === selection.id)
+        : selection?.kind === 'component'
+          ? scene.components.find((c) => c.id === selection.id)
+          : undefined
+    if (node === undefined) return open
+    return ancestorsOf(node, componentMap).some((x) => x.id === open.id) ? open : null
+  }, [selection, openCabinetId, scene.components, scene.parts, componentMap])
+
+  // Remember what the derivation settled on, so the next selection can be measured against it.
+  // Adjusted during render rather than in an effect: the derivation is idempotent — feed its own
+  // answer back and it returns the same one — so React re-runs this component once and settles,
+  // with no committed render carrying the stale value. `set-state-in-effect` rejects the effect
+  // form for exactly the cascade it would cause here.
+  if ((selectedCarcase?.id ?? null) !== openCabinetId) {
+    setOpenCabinetId(selectedCarcase?.id ?? null)
+  }
 
   const [cabinetTab, setCabinetTab] = useState<CabinetTab>('section')
 
@@ -102,7 +144,9 @@ function App() {
   const onSelectSection = useCallback(
     (sectionId: SectionId | null) => {
       const cabinetId = selectedCarcase?.id
-      setSectionPick(cabinetId === undefined || sectionId === null ? null : { cabinetId, sectionId })
+      setSectionPick(
+        cabinetId === undefined || sectionId === null ? null : { cabinetId, sectionId },
+      )
     },
     [selectedCarcase?.id],
   )
@@ -113,9 +157,7 @@ function App() {
   // is bounded by one cabinet's part count.
   const cabinetParts = useMemo(() => {
     if (selectedCarcase === null) return scene.parts
-    const mine = new Set(
-      descendantIds(selectedCarcase.id, scene.components, scene.parts).partIds,
-    )
+    const mine = new Set(descendantIds(selectedCarcase.id, scene.components, scene.parts).partIds)
     return scene.parts.filter((p) => mine.has(p.id))
   }, [selectedCarcase, scene.components, scene.parts])
 
@@ -494,6 +536,10 @@ function App() {
             selectedSectionId={selectedSectionId}
             onSelectSection={onSelectSection}
             onUpdate={(updater) => onUpdateComponent(selectedCarcase.id, updater)}
+            parts={cabinetParts}
+            byId={componentMap}
+            selectedPartId={selection?.kind === 'part' ? selection.id : null}
+            onSelectPart={onSelectPart}
           />
         )}
         <Sidebar

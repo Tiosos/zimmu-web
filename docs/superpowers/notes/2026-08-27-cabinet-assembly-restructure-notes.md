@@ -978,3 +978,42 @@ general rotation (20°, 40°, 60°) returns a 6-point centrally symmetric hexago
 always closed and convex. It still overstates a cylinder — it is the square prism's shadow, so a
 diagonal orientation reads ⌀8 as up to 11.3 wide — which is the same stated limitation the mitre
 hull carries: it can never hide a part it does not really cover.
+
+### 2026-09-03 — the open cabinet is a memory, and the plan's way of storing it does not lint
+
+Task 9. The rule the user settled on is **not** "the cabinet containing the selection": an
+already-open cabinet stays open while the selection lies inside it, a cabinet selected outright
+opens, otherwise none. So the answer depends on the previous answer and cannot be a pure derivation
+of the scene.
+
+- **The plan's `useEffect` form fails `pnpm lint`.** `react-hooks/set-state-in-effect` (enabled by
+  `reactHooks.configs.flat.recommended`) rejects `useEffect(() => setOpenCabinetId(...), [x])`
+  outright — it is an error, not a warning, so the plan's Step 4 as written cannot be committed.
+  What replaced it is React's documented adjust-during-render: `if ((selectedCarcase?.id ?? null)
+  !== openCabinetId) setOpenCabinetId(...)`. That is safe **only because the derivation is
+  idempotent** — feed it its own answer as `openCabinetId` and it returns the same carcase — which
+  is worth keeping true if anyone edits the rule.
+- **Measured, not assumed:** counting committed child renders through the mocked `Viewport`, opening
+  a cabinet costs 2 and every other selection change costs 1. A control run with the *pure*
+  derivation this task replaced (no state at all) gives exactly the same 2/1/1/1, so the state
+  machine adds no render and lags by none. The second render on open belongs to the editor mounting.
+- **`openCabinetId` can name a component the scene has dropped**, so it is resolved through
+  `scene.components` on every render rather than being stored as an object. Storing the
+  `CarcaseComponent` itself is the obvious alternative and leaves a deleted cabinet's editor on
+  screen; that mutation is what the "closes a cabinet the scene no longer holds" test kills.
+- **A cleared selection leaves the cabinet open.** Nothing selected is not a selection *outside* the
+  cabinet — clicking empty space in a projection or the viewport deselects, and being thrown out of
+  the editor by a stray click is not what "stays open" means. Two separate mutations (the draft's
+  ancestry rule, and `node === undefined → null`) close it, so the branch is pinned rather than
+  incidental.
+- **The plan forgot its own predecessor test.** Step 3 removes the "not built yet" placeholder while
+  Step 1 says only to *append* the new projection test — leaving
+  `says %s is not built yet rather than showing nothing` failing. It was replaced, not appended.
+- **A projection that renders is not a projection that is wired.** The plan's Step 1 test asserts
+  only that an `img` appears. Passing `selectedId={null}` or `onSelect={() => {}}` from
+  `CabinetEditor` survives it, so the pane would draw and be dead to the touch — which is the exact
+  behaviour Task 9 exists to protect. `carries the selection into the projection and a click back
+  out` kills both.
+- **Consequence worth knowing:** while a cabinet is open the 3D tab shows `cabinetParts`, so a part
+  of *another* cabinet cannot be clicked there — leaving the open cabinet is done from the scene
+  tree. STL/STEP export is unaffected: it reads `visibleParts`, the whole scene.
