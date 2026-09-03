@@ -122,7 +122,7 @@ requiring a grep. That is the discipline `CutDef`'s sort and `worldBounds` alrea
 | Consumer | Behaviour with a section selected |
 |---|---|
 | `useScene` | No-op. Delete, duplicate and hide act on parts; a section owns no state to remove |
-| `viewport` | `selectedId: PartId \| null` becomes `highlightIds: ReadonlySet<PartId>`; the `id === selectedIdRef.current` comparison becomes `.has(id)` |
+| `viewport` | Gains `selectedIds: readonly PartId[]`. `selectedId` **stays** — `useScene` derives it and the keyboard shortcuts and `suggestJointsFor` still need it, so converting it to a set would leave both. Line 556 becomes `id === selectedId \|\| selectedIds.includes(id) ? 0x4fc3f7 : …`, so a section's parts read as selected in the colour selection already means, not the amber `highlightedIds` uses for joint suggestions |
 | `sidebar` | Derives the carcase from `cabinetId` and shows `CarcasePanel` with the opening picked |
 | `SceneTree` | Renders the row; a click emits the section selection |
 | `App` | `selectedCarcase` gains a third case — a section selection keeps its own cabinet open |
@@ -158,7 +158,7 @@ section collapses like a component; a section row gets `data-testid="node-{secti
 existing convention; and the row carries no visibility, duplicate or remove control.
 
 **Two callers, each resolving.** `SceneTree` groups the rows; `App` needs the same mapping to build
-`highlightIds` for a section selection. Both resolve through `sectionOpenings` first, and both carry
+`selectedIds` for a section selection. Both resolve through `sectionOpenings` first, and both carry
 the unbuildable guard below. `SceneTree` gains a `materials` prop to do it — `Sidebar` already has
 `scene.materials`, so that is one line at the call site.
 
@@ -214,7 +214,7 @@ section or returned one bucket.
 
 - Selecting a section keeps its cabinet open and the projection mounted.
 - The sidebar shows `CarcasePanel` with that opening picked.
-- `highlightIds` is the section's parts — not one id, not empty.
+- `selectedIds` is the section's parts — not one id, not empty.
 
 `SectionElevation.test.tsx`: cell *n*'s text matches the tree's "Opening *n*" for a three-bay
 cabinet. *Mutation: reverse either ordering.* Both read one `sectionOpenings` call, so they cannot
