@@ -1,4 +1,12 @@
-import { buildAssemblyViews, type AssemblyDim, type AssemblyView } from '../geom/assembly'
+import {
+  buildAssemblyViews,
+  CHAR_EM,
+  RING_EM,
+  TEXT_GAP_EM,
+  TICK_EM,
+  type AssemblyDim,
+  type AssemblyView,
+} from '../geom/assembly'
 import { validateCarcaseParams } from '../scene/carcaseRoles'
 import { overridesOf, roleThicknessFor } from '../scene/resolveThickness'
 import type {
@@ -27,16 +35,6 @@ import type {
 // Stated in ems throughout, the whole apparatus is scale-invariant: the cabinet occupies the same
 // fraction of the pane whatever its size, which is the property the tests pin.
 const FONT_DIVISOR = 30
-// Indexed by `AssemblyDim.ring`, which is 1 or 2 — index 0 is never read and is here so the index
-// IS the ring number rather than one less than it. The gap between rings exceeds 1 em, so a label
-// on the outer ring cannot land on the inner one's line.
-const RING_EM = [0, 0.5, 1.8]
-const TICK_EM = 0.4 // clearance between the view's edge and the innermost ring
-const TEXT_GAP_EM = 0.3 // between a ring's line and the label reading off it
-// An upper bound on a digit's advance, not an average. The padding has to hold the widest glyphs
-// the browser might pick, and being generous here costs a few millimetres of margin while being
-// mean clips a label — which SVG does in silence.
-const CHAR_EM = 0.65
 
 export function CabinetProjection({
   view,
@@ -100,7 +98,15 @@ export function CabinetProjection({
     if (d.axis === 'h') {
       const y = d.side === 'below' ? H + off : -off
       const ty = d.side === 'below' ? y + font : y - font * TEXT_GAP_EM
-      return { x1: d.start, y1: y, x2: d.end, y2: y, tx: (d.start + d.end) / 2, ty, anchor: 'middle' }
+      return {
+        x1: d.start,
+        y1: y,
+        x2: d.end,
+        y2: y,
+        tx: (d.start + d.end) / 2,
+        ty,
+        anchor: 'middle',
+      }
     }
     // A side label reads OUTWARD from its own ring. Anchoring both sides 'start' ran the left-hand
     // labels back across the drawing they annotate.
@@ -227,13 +233,7 @@ export function CabinetProjection({
               strokeWidth={1}
               vectorEffect="non-scaling-stroke"
             />
-            <text
-              x={g.tx}
-              y={g.ty}
-              fontSize={font}
-              fill="#666"
-              textAnchor={g.anchor}
-            >
+            <text x={g.tx} y={g.ty} fontSize={font} fill="#666" textAnchor={g.anchor}>
               {d.label}
             </text>
           </g>

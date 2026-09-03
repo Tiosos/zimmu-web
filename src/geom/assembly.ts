@@ -191,6 +191,22 @@ export interface AssemblyPart {
   depthMax: number
 }
 
+// THE RING GEOMETRY, IN EMS. Three consumers draw or reserve this ring — the interactive pane, the
+// sheet layout and the SVG renderer — at three different font sizes, so the shape is stated here
+// once, in ems, and each multiplies by its own font. It lives beside `AssemblyDim.ring`, the field
+// that indexes it. Millimetres here would have made it a page size, and this module knows no page.
+//
+// Indexed by `AssemblyDim.ring`, which is 1 or 2 — index 0 is never read and is here so the index
+// IS the ring number rather than one less than it. The gap between rings exceeds 1 em, so a label
+// on the outer ring cannot land on the inner one's line.
+export const RING_EM = [0, 0.5, 1.8]
+export const TICK_EM = 0.4 // clearance between the view's edge and the innermost ring
+export const TEXT_GAP_EM = 0.3 // between a ring's line and the label reading off it
+// An upper bound on a digit's advance, not an average. The padding has to hold the widest glyphs
+// the browser might pick, and being generous here costs a few millimetres of margin while being
+// mean clips a label — which SVG does in silence.
+export const CHAR_EM = 0.65
+
 // A dimension in unscaled millimetres, placed by which side of the view it sits on and which ring
 // out from it. Never a page offset: `renderDimLine` reads `offset` in sheet millimetres while it
 // reads start/end as already scaled, so only a consumer that knows the scale can fill that in.

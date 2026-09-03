@@ -14,7 +14,14 @@ import type {
 } from '../scene/types'
 import { faceAxes } from '../scene/snapMath'
 import { mitreFaceOutline } from './mitre'
-import { buildAssemblyViews, type AssemblyView } from './assembly'
+import {
+  buildAssemblyViews,
+  CHAR_EM,
+  RING_EM,
+  TEXT_GAP_EM,
+  TICK_EM,
+  type AssemblyView,
+} from './assembly'
 
 export interface Point2D {
   x: number
@@ -414,13 +421,9 @@ function buildDowelSheet(p: CylinderPart, date: string): DrawingSheet {
 // THE RING IS ALSO THE GAP. Two adjacent views each carry one, so the white space between two
 // drawings is 2 x ring — already wider than the 15 mm GAP a board sheet puts between its views.
 // Reserving both is what drags a Base 600 back down to 1:20.
-const SHEET_FONT = 2.5
-// Stated in ems for the same reason CabinetProjection states them in ems: one rule, two consumers
-// with different font sizes.
-const RING_EM = [0, 0.5, 1.8]
-const TICK_EM = 0.4
-const TEXT_GAP_EM = 0.3
-const CHAR_EM = 0.65
+// Exported for the renderer, which places labels on the same rings this reserves room for. The ring
+// SHAPE is in `assembly.ts`, in ems; this is the one number that is a page size.
+export const SHEET_FONT = 2.5
 
 // DIM_MARGIN is deliberately NOT subtracted. It is a board sheet's single global fudge for
 // "dimensions need some room somewhere"; this computes the room they actually need, per view, so
