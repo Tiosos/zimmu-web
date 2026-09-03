@@ -740,6 +740,19 @@ describe('cuts', () => {
   })
 })
 
+  // A toe kick is a height. Top's v axis is the cabinet's DEPTH, so dimensioning it there drew
+  // "100" across 100 mm of a plan view that contains no toe kick at all — measured on a Base 600,
+  // whose kick is 100 mm and whose depth is 560. Front and End both show height and must keep it.
+  it('dimensions the toe kick only in the views that show height', () => {
+    const p = lopsided({ baseMode: 'toe-kick' })
+    const { front, top, end } = viewsOf(p)
+    const kick = (v: AssemblyView) =>
+      v.dims.filter((d) => d.axis === 'v' && d.end === p.toeKickHeight && d.start === 0)
+    expect(kick(front)).toHaveLength(1)
+    expect(kick(end)).toHaveLength(1)
+    expect(kick(top)).toEqual([])
+  })
+
 describe('machining', () => {
   const withBores = (p: CarcaseParams): Part[] => {
     const thicknessOf = roleThicknessFor(p, PRESET_MATERIALS, new Map())

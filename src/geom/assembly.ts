@@ -415,7 +415,11 @@ function buildDims(view: ViewSpec, p: CarcaseParams, thicknessOf: RoleThickness)
     { axis: 'v', side: 'right', ring: 1, start: 0, end: ev.hi - ev.lo, label: mm(ev.hi - ev.lo) },
   ]
 
-  if (p.baseMode !== 'none') {
+  // A toe kick is a HEIGHT, so it only dimensions a view that shows height. Top's v axis is the
+  // cabinet's depth, and dimensioning it there drew "100" across 100 mm of a plan view that has no
+  // toe kick in it at all. Asked of the view's own axis rather than its label: the rule is about
+  // what the axis measures, not about which of the three this happens to be.
+  if (p.baseMode !== 'none' && view.v === 'z') {
     dims.push({
       axis: 'v',
       side: 'left',
