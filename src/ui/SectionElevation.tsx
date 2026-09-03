@@ -1,8 +1,8 @@
 import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
-import { roleThicknessFor } from '../scene/resolveThickness'
+import { overridesOf, roleThicknessFor } from '../scene/resolveThickness'
 import { resolveSections } from '../scene/sectionTree'
 import { sectionOpenings } from '../scene/sectionInterior'
-import type { CarcaseParams, MaterialDef, SectionId } from '../scene/types'
+import type { CarcaseParams, ComponentId, MaterialDef, Part, SectionId } from '../scene/types'
 
 // The cabinet's front elevation, drawn from the resolved section tree: every leaf a cell you can
 // click, every division a bar between them. The first interactive SVG in the codebase —
@@ -18,15 +18,22 @@ const PADDING = 12
 export function SectionElevation({
   params,
   materials,
+  parts,
+  componentId,
   selected,
   onSelect,
 }: {
   params: CarcaseParams
   materials: Record<string, MaterialDef>
+  // The cabinet's own boards, so a panel the user has overridden is drawn at the thickness it is
+  // built at. Resolving from an empty map drew a 600 mm cabinet with a 25 mm side as a 564 mm
+  // opening its boards make 557.
+  parts: Part[]
+  componentId: ComponentId
   selected: SectionId | null
   onSelect: (id: SectionId | null) => void
 }) {
-  const thicknessOf = roleThicknessFor(params, materials, new Map())
+  const thicknessOf = roleThicknessFor(params, materials, overridesOf(parts, componentId))
   // A cabinet whose parameters do not build has no rectangles to draw. Empty rather than throwing,
   // matching every other consumer of the generator: the params are mid-keystroke, not wrong.
   const buildable = validateCarcaseParams(params, thicknessOf).length === 0

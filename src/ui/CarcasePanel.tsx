@@ -3,11 +3,13 @@ import type {
   CarcaseParams,
   CarcaseComponent,
   Component,
+  ComponentId,
   MaterialDef,
+  Part,
   SectionId,
 } from '../scene/types'
 import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
-import { roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
+import { overridesOf, roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
 import {
   defaultInterior,
@@ -66,8 +68,13 @@ function parseDividers(text: string): number[] | null {
 // The panel renders in states the validator rejects — a slot naming a material with no thickness
 // among them — so the resolver it lays sections out with must not throw. An unknown thickness reads
 // as 0 here and the error list beside the fields is what reports it.
-function panelThickness(p: CarcaseParams, materials: Record<string, MaterialDef>): RoleThickness {
-  const resolve = roleThicknessFor(p, materials, new Map())
+function panelThickness(
+  p: CarcaseParams,
+  materials: Record<string, MaterialDef>,
+  parts: Part[],
+  componentId: ComponentId,
+): RoleThickness {
+  const resolve = roleThicknessFor(p, materials, overridesOf(parts, componentId))
   return (role) => {
     try {
       return resolve(role)
@@ -127,11 +134,15 @@ const JOINT_METHODS: { value: CarcaseParams['jointMethod']; label: string }[] = 
 export function CarcasePanel({
   component,
   materials,
+  parts,
   onUpdate,
   selectedSectionId,
 }: {
   component: CarcaseComponent
   materials: Record<string, MaterialDef>
+  // The scene's boards, filtered to this cabinet's by `overridesOf`: the fields describe the
+  // cabinet the user's overrides actually build, not the one its materials alone imply.
+  parts: Part[]
   onUpdate: (updater: (c: Component) => Component) => void
   selectedSectionId: SectionId | null
 }) {
@@ -142,7 +153,7 @@ export function CarcasePanel({
   const [joineryOpen, setJoineryOpen] = useState(false)
 
   const p = component.params
-  const thicknessOf = panelThickness(p, materials)
+  const thicknessOf = panelThickness(p, materials, parts, component.id)
   const errors = validateCarcaseParams(p, thicknessOf)
   // A slot can only name a material that states a thickness; anything else collapses every panel
   // derived from it. The one already on the carcase is offered too, so a file naming a material
@@ -506,9 +517,7 @@ export function CarcasePanel({
                   </Label>
                   <Select
                     value={String(front.leaves)}
-                    onValueChange={(v) =>
-                      setFront({ ...front, leaves: v === '2' ? 2 : 1 })
-                    }
+                    onValueChange={(v) => setFront({ ...front, leaves: v === '2' ? 2 : 1 })}
                   >
                     <SelectTrigger id="carcase-leaves" className="h-7 flex-1 text-[11px]">
                       <SelectValue />

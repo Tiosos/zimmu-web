@@ -240,6 +240,7 @@ export function Sidebar({
             key={selectedCarcase.id}
             component={selectedCarcase}
             materials={scene.materials}
+            parts={scene.parts}
             onUpdate={(updater) => onUpdateComponent(selectedCarcase.id, updater)}
             selectedSectionId={selectedSectionId}
           />

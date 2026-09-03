@@ -87,6 +87,8 @@ export function CabinetEditor({
                 <SectionElevation
                   params={component.params}
                   materials={materials}
+                  parts={parts}
+                  componentId={component.id}
                   selected={selectedSectionId}
                   onSelect={onSelectSection}
                 />

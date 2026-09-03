@@ -12,7 +12,7 @@ import {
   sectionInteriors,
   sectionOpenings,
 } from '../scene/sectionInterior'
-import type { CarcaseComponent, CarcaseParams, Component, SectionId } from '../scene/types'
+import type { CarcaseComponent, CarcaseParams, Component, Part, SectionId } from '../scene/types'
 
 function carcase(params: Partial<CarcaseParams> = {}): CarcaseComponent {
   return {
@@ -36,6 +36,7 @@ function renderPanel(
   onUpdate = vi.fn(),
   materials = PRESET_MATERIALS,
   selectedSectionId: SectionId | null | undefined = undefined,
+  parts: Part[] = [],
 ) {
   const pick =
     selectedSectionId === undefined
@@ -47,6 +48,7 @@ function renderPanel(
       <CarcasePanel
         component={component}
         materials={materials}
+        parts={parts}
         onUpdate={onUpdate}
         selectedSectionId={pick}
       />
@@ -59,6 +61,27 @@ function renderPanel(
 // state one by default because the shim's two fields are what they exercise.
 const sec = (dividers: number[], fixedShelves = 1) =>
   legacyToSection(dividers, fixedShelves, 600, 18)
+
+// A driven board of the cabinet the fixtures build. Only `parentId`, `role` and `overrides` are
+// read — `overridesOf` keeps a board on the strength of those three alone.
+const sidePart: Part = {
+  kind: 'board',
+  id: 'board_1',
+  label: 'Left Side',
+  length: 560,
+  width: 720,
+  thickness: 25,
+  grain: 'length',
+  material: '',
+  color: '#888',
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  rotationOrder: 'XYZ',
+  cuts: [],
+  visible: true,
+  parentId: 'cmp_1',
+  driven: true,
+}
 
 // Where the partitions a set of params describes actually land, as fractions of the width — the
 // same reading the divider field shows.
@@ -146,6 +169,7 @@ describe('CarcasePanel', () => {
         <CarcasePanel
           component={carcase({ section: sec([0.5]) })}
           materials={PRESET_MATERIALS}
+          parts={[]}
           onUpdate={vi.fn()}
           selectedSectionId={null}
         />
@@ -156,12 +180,34 @@ describe('CarcasePanel', () => {
         <CarcasePanel
           component={carcase({ section: sec([0.25, 0.75]) })}
           materials={PRESET_MATERIALS}
+          parts={[]}
           onUpdate={vi.fn()}
           selectedSectionId={null}
         />
       </TooltipProvider>,
     )
     expect((screen.getByLabelText('Dividers') as HTMLInputElement).value).toBe('0.25, 0.75')
+  })
+
+  // The Dividers field reads divider positions back out of the section tree, and a section
+  // percentage is a share of the CLEAR span — so what it displays depends on the side thicknesses.
+  // That is the v12/v13 relationship CLAUDE.md states: a v12 divider is a fraction of the gross
+  // width while a section percentage is a share of what is left after the sides take their
+  // thickness.
+  //
+  // Asserted as a difference rather than against a number computed here. Recomputing the expected
+  // fraction in the test would just be the implementation written twice; what has to be true is
+  // that the override reaches the field at all.
+  it('reads per-part thickness overrides into the divider field', () => {
+    const divided = carcase({ section: sec([0.5], 0) })
+    const shown = (parts: Part[]) => {
+      renderPanel(divided, vi.fn(), PRESET_MATERIALS, null, parts)
+      const value = (screen.getByLabelText(/dividers/i) as HTMLInputElement).value
+      cleanup()
+      return value
+    }
+    const override: Part[] = [{ ...sidePart, role: 'left-side', overrides: { thickness: 25 } }]
+    expect(shown(override)).not.toBe(shown([]))
   })
 
   // The shim writes a whole new tree on every edit. Shelving now hangs off the sections in that
@@ -281,13 +327,7 @@ describe('CarcasePanel shelving', () => {
 
   it('exposes a control for every field of a section interior', () => {
     renderPanel(twoBays())
-    const labels = [
-      'Shelves',
-      'Pin count',
-      'Adjustable rows',
-      'Pin setback',
-      'Pin back setback',
-    ]
+    const labels = ['Shelves', 'Pin count', 'Adjustable rows', 'Pin setback', 'Pin back setback']
     for (const label of labels) {
       expect(screen.getByLabelText(label), `no control for "${label}"`).toBeTruthy()
     }

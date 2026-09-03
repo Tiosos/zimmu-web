@@ -7,16 +7,23 @@ import { legacyToSection } from '../scene/migrateSections'
 import { sectionOpenings } from '../scene/sectionInterior'
 import { setSectionSize, splitSection } from '../scene/editSection'
 import { resolvedOf } from '../scene/__fixtures__/resolve'
-import type { CarcaseParams } from '../scene/types'
+import type { CarcaseParams, Part } from '../scene/types'
 
 const base = CARCASE_PRESETS[0].params
 const divided = (): CarcaseParams => ({ ...base, section: legacyToSection([0.5], 0, 600, 18) })
 
-const draw = (p: CarcaseParams, selected: string | null = null, onSelect = vi.fn()) => {
+const draw = (
+  p: CarcaseParams,
+  selected: string | null = null,
+  onSelect = vi.fn(),
+  parts: Part[] = [],
+) => {
   render(
     <SectionElevation
       params={p}
       materials={PRESET_MATERIALS}
+      parts={parts}
+      componentId="cmp_1"
       selected={selected}
       onSelect={onSelect}
     />,
@@ -85,5 +92,38 @@ describe('SectionElevation', () => {
     const onSelect = draw(p, sectionOpenings(p.section, resolvedOf(p))[0].sectionId)
     await userEvent.click(screen.getByTestId('section-elevation-background'))
     expect(onSelect).toHaveBeenCalledWith(null)
+  })
+
+  // A 25 mm left side beside an 18 mm right one makes the clear opening 600 - 25 - 18 = 557. Drawn
+  // from an empty override map it reads 564, and the elevation shows an opening the boards do not
+  // have.
+  it('draws the opening the overrides actually produce', () => {
+    const parts: Part[] = [
+      {
+        kind: 'board',
+        id: 'board_1',
+        label: 'Left Side',
+        length: 560,
+        width: 720,
+        thickness: 25,
+        grain: 'length',
+        material: '',
+        color: '#888',
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        rotationOrder: 'XYZ',
+        cuts: [],
+        visible: true,
+        parentId: 'cmp_1',
+        driven: true,
+        role: 'left-side',
+        // The only line that matters. `roleThicknessFor` returns an explicit override before it
+        // ever looks at a material, so naming one here would be dead weight.
+        overrides: { thickness: 25 },
+      },
+    ]
+    draw(base, null, vi.fn(), parts)
+    const cell = screen.getAllByTestId(/^section-cell-/)[0]
+    expect(Number(cell.getAttribute('width'))).toBeCloseTo(557, 3)
   })
 })
