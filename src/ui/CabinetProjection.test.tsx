@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CabinetProjection } from './CabinetProjection'
-import { PRESET_MATERIALS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { carcaseCuts, carcaseHoleArrays } from '../scene/carcaseRoles'
 import { roleThicknessFor } from '../scene/resolveThickness'
 import { jointKindFor } from '../scene/resolveJointKind'
@@ -233,6 +233,128 @@ describe('CabinetProjection', () => {
       }
     },
   )
+
+  // The bug this exists for: `PADDING` was a flat 60 mm while the font scaled with the cabinet, so
+  // a Tall 600's "2100" ran ~71 mm past the viewBox and SVG clipped it in silence. Anchor points
+  // alone cannot see that — the anchor was always inside; it was the GLYPHS that overflowed.
+  //
+  // The width model here is deliberately more pessimistic than the component's (0.6 per character
+  // against its 0.55), so this asserts the padding has real slack rather than mirroring the
+  // component's own arithmetic back at it. `fontSize` and `text-anchor` are read off the rendered
+  // element, never assumed.
+  const labelExtent = (t: Element) => {
+    const x = Number(t.getAttribute('font-size') === null ? NaN : t.getAttribute('x'))
+    const size = Number(t.getAttribute('font-size'))
+    const w = (t.textContent ?? '').length * 0.6 * size
+    const anchor = t.getAttribute('text-anchor')
+    if (anchor === 'end') return { lo: x - w, hi: x, top: Number(t.getAttribute('y')) - size, bottom: Number(t.getAttribute('y')) }
+    if (anchor === 'middle') return { lo: x - w / 2, hi: x + w / 2, top: Number(t.getAttribute('y')) - size, bottom: Number(t.getAttribute('y')) }
+    return { lo: x, hi: x + w, top: Number(t.getAttribute('y')) - size, bottom: Number(t.getAttribute('y')) }
+  }
+
+  it.each(
+    CARCASE_PRESETS.flatMap((preset) =>
+      (['Front', 'Top', 'End'] as const).map((view) => [preset.name, view, preset.params] as const),
+    ),
+  )('keeps every %s %s label wholly inside the viewBox', (_label, view, params) => {
+    const c = { ...cabinet, params }
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    render(
+      <CabinetProjection
+        view={view}
+        parts={partsOfCarcase(params)}
+        byId={ids}
+        cabinet={c}
+        materials={PRESET_MATERIALS}
+        selectedId={null}
+        onSelect={vi.fn()}
+      />,
+    )
+    const svg = screen.getByRole('img')
+    const [x0, y0, w, h] = svg.getAttribute('viewBox')!.split(' ').map(Number)
+    const texts = [...svg.querySelectorAll('text')]
+    expect(texts.length).toBeGreaterThan(0)
+    for (const t of texts) {
+      const e = labelExtent(t)
+      expect(e.lo).toBeGreaterThanOrEqual(x0)
+      expect(e.hi).toBeLessThanOrEqual(x0 + w)
+      expect(e.top).toBeGreaterThanOrEqual(y0)
+      expect(e.bottom).toBeLessThanOrEqual(y0 + h)
+    }
+  })
+
+  // Containment cannot see this one: the padding derives from the font, so a font twice as large
+  // simply buys twice the margin and every label still fits. What goes wrong is legibility — a
+  // 600 x 2100 cabinet sized off its LARGER extent gets a 47 mm label against a 600 mm width, an
+  // annotation that dwarfs the thing it annotates. The rule is that a label stays small against the
+  // view's NARROWER side, and the bound here is looser than the component's divisor so this is a
+  // real constraint with slack rather than the constant read back.
+  it.each(
+    CARCASE_PRESETS.flatMap((preset) =>
+      (['Front', 'Top', 'End'] as const).map((view) => [preset.name, view, preset.params] as const),
+    ),
+  )('keeps %s %s labels small against the narrower side of the view', (_name, view, params) => {
+    const c = { ...cabinet, params }
+    const ids = new Map<ComponentId, Component>([[c.id, c]])
+    render(
+      <CabinetProjection
+        view={view}
+        parts={partsOfCarcase(params)}
+        byId={ids}
+        cabinet={c}
+        materials={PRESET_MATERIALS}
+        selectedId={null}
+        onSelect={vi.fn()}
+      />,
+    )
+    const svg = screen.getByRole('img')
+    const [, , w, h] = svg.getAttribute('viewBox')!.split(' ').map(Number)
+    const texts = [...svg.querySelectorAll('text')]
+    expect(texts.length).toBeGreaterThan(0)
+    // The viewBox is the view plus its own padding on both sides, so the drawn extent is recovered
+    // rather than recomputed from the params — this reads what was rendered.
+    const padding = -Number(svg.getAttribute('viewBox')!.split(' ')[0])
+    const narrower = Math.min(w - padding * 2, h - padding * 2)
+    for (const t of texts) {
+      expect(Number(t.getAttribute('font-size'))).toBeLessThanOrEqual(narrower / 25)
+    }
+  })
+
+  // The padding is read off the labels the view actually carries, not off a guess at the longest one
+  // a cabinet might produce. Both cabinets share a 600 mm smaller extent, so both get the same font;
+  // only the label length differs. A hardcoded character count passes the test above and fails here.
+  it('widens the padding for a longer label at the same font size', () => {
+    const paddingOf = (height: number) => {
+      const c = { ...cabinet, params: { ...cabinet.params, width: 600, height } }
+      const ids = new Map<ComponentId, Component>([[c.id, c]])
+      render(
+        <CabinetProjection
+          view="Front"
+          parts={partsOfCarcase(c.params)}
+          byId={ids}
+          cabinet={c}
+          materials={PRESET_MATERIALS}
+          selectedId={null}
+          onSelect={vi.fn()}
+        />,
+      )
+      const x0 = Number(screen.getByRole('img').getAttribute('viewBox')!.split(' ')[0])
+      cleanup()
+      return -x0
+    }
+    // "700" is three characters; "1700" is four. Same 600 mm width, so the same font either way.
+    expect(paddingOf(1700)).toBeGreaterThan(paddingOf(700))
+  })
+
+  // A side label reads outward from its own ring. Anchoring both sides 'start' ran the left-hand
+  // labels back across the drawing they annotate — which overflows nothing and so is invisible to
+  // the containment test above.
+  it('anchors each side label away from the drawing', () => {
+    draw()
+    const anchorOf = (label: string) => screen.getByText(label).getAttribute('text-anchor')
+    expect(anchorOf('720')).toBe('start') // overall height, on the right
+    expect(anchorOf('100')).toBe('end') // toe-kick height, on the left
+  })
 
   // Two dimensions on the same side of one view are told apart only by their ring, so ring 2 has to
   // sit further out than ring 1 or the two land on the same line. The Front view of a toe-kick

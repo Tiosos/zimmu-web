@@ -18,10 +18,25 @@ import type {
 // strokes are non-scaling: a 3 mm label on a 720 mm cabinet would otherwise render at under two
 // pixels once the viewBox is fitted to the pane.
 
-const PADDING = 60
-// Indexed by `AssemblyDim.ring`, which is 1 or 2 — index 0 is never read and is here so the
-// index IS the ring number rather than one less than it.
-const DIM_RING = [0, 18, 36]
+// The annotation ring is measured in **ems**, never in millimetres, and `font` is a fixed fraction
+// of the view's SMALLER extent. Both halves matter. A ring sized in absolute millimetres against a
+// font that scaled with the cabinet is what clipped a Tall 600's "2100" by 71 mm — the label grew
+// and the margin holding it did not. And sizing the font off the LARGER extent made a label on a
+// 600 x 2100 cabinet 47 mm tall against a 600 mm width, which crowds the view it annotates.
+//
+// Stated in ems throughout, the whole apparatus is scale-invariant: the cabinet occupies the same
+// fraction of the pane whatever its size, which is the property the tests pin.
+const FONT_DIVISOR = 30
+// Indexed by `AssemblyDim.ring`, which is 1 or 2 — index 0 is never read and is here so the index
+// IS the ring number rather than one less than it. The gap between rings exceeds 1 em, so a label
+// on the outer ring cannot land on the inner one's line.
+const RING_EM = [0, 0.5, 1.8]
+const TICK_EM = 0.4 // clearance between the view's edge and the innermost ring
+const TEXT_GAP_EM = 0.3 // between a ring's line and the label reading off it
+// An upper bound on a digit's advance, not an average. The padding has to hold the widest glyphs
+// the browser might pick, and being generous here costs a few millimetres of margin while being
+// mean clips a label — which SVG does in silence.
+const CHAR_EM = 0.65
 
 export function CabinetProjection({
   view,
@@ -59,28 +74,52 @@ export function CabinetProjection({
   const v: AssemblyView = views.find((x) => x.label === view)!
   const W = v.bounds.w
   const H = v.bounds.h
-  const font = Math.max(W, H) / 45
+  const font = Math.min(W, H) / FONT_DIVISOR
+
+  // Derived from the labels this view actually carries, never from a guess at the longest one a
+  // cabinet might produce. A dimension is free to be "2100" or "1234.56"; asking the data removes
+  // that whole class of overflow rather than picking a bound that holds until it does not.
+  const widest = Math.max(...v.dims.map((d) => d.label.length), 1)
+  const padding = font * (RING_EM[2] + TICK_EM + TEXT_GAP_EM + CHAR_EM * widest)
 
   // Carcase v runs up and SVG y runs down. Written once, exactly as SectionElevation does it.
   const flip = (y: number, h: number) => H - y - h
 
   const dimAt = (
     d: AssemblyDim,
-  ): { x1: number; y1: number; x2: number; y2: number; tx: number; ty: number } => {
-    const off = DIM_RING[d.ring]
+  ): {
+    x1: number
+    y1: number
+    x2: number
+    y2: number
+    tx: number
+    ty: number
+    anchor: 'middle' | 'start' | 'end'
+  } => {
+    const off = font * (RING_EM[d.ring] + TICK_EM)
     if (d.axis === 'h') {
-      const y = d.side === 'below' ? H + off + 8 : -off - 8
-      return { x1: d.start, y1: y, x2: d.end, y2: y, tx: (d.start + d.end) / 2, ty: y - 2 }
+      const y = d.side === 'below' ? H + off : -off
+      const ty = d.side === 'below' ? y + font : y - font * TEXT_GAP_EM
+      return { x1: d.start, y1: y, x2: d.end, y2: y, tx: (d.start + d.end) / 2, ty, anchor: 'middle' }
     }
-    const x = d.side === 'right' ? W + off + 8 : -off - 8
-    const y1 = flip(d.start, 0)
-    const y2 = flip(d.end, 0)
-    return { x1: x, y1, x2: x, y2, tx: x + 2, ty: (y1 + y2) / 2 }
+    // A side label reads OUTWARD from its own ring. Anchoring both sides 'start' ran the left-hand
+    // labels back across the drawing they annotate.
+    const right = d.side === 'right'
+    const x = right ? W + off : -off
+    return {
+      x1: x,
+      y1: flip(d.start, 0),
+      x2: x,
+      y2: flip(d.end, 0),
+      tx: right ? x + font * TEXT_GAP_EM : x - font * TEXT_GAP_EM,
+      ty: (flip(d.start, 0) + flip(d.end, 0)) / 2,
+      anchor: right ? 'start' : 'end',
+    }
   }
 
   return (
     <svg
-      viewBox={`${-PADDING} ${-PADDING} ${W + PADDING * 2} ${H + PADDING * 2}`}
+      viewBox={`${-padding} ${-padding} ${W + padding * 2} ${H + padding * 2}`}
       role="img"
       aria-label={`Cabinet ${view} view`}
       className="w-full h-full max-h-full"
@@ -193,7 +232,7 @@ export function CabinetProjection({
               y={g.ty}
               fontSize={font}
               fill="#666"
-              textAnchor={d.axis === 'h' ? 'middle' : 'start'}
+              textAnchor={g.anchor}
             >
               {d.label}
             </text>
