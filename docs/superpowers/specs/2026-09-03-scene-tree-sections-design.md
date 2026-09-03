@@ -48,15 +48,28 @@ the scene tree does not show it.
 ```ts
 export interface SectionNode {
   sectionId: SectionId
-  label: string        // "Opening 1", by leaf order
-  parts: Part[]        // this opening's own parts, in role order
+  parts: Part[]        // this opening's own parts, in role order (driven parts only)
 }
 
 export function sectionNodes(
-  cabinet: CarcaseComponent,
+  openings: SectionOpening[],
   parts: Part[],
 ): { sections: SectionNode[]; carcase: Part[] }
 ```
+
+**It is handed resolved openings, and it does one job: mapping parts to them.** It neither resolves
+the tree nor validates the cabinet, so its tests need no materials and no validator.
+
+**Numbering is the array index, and the array comes from `sectionOpenings`.** `sections` is returned
+in the same order as `openings`, so "Opening 2" is position 1 in both the tree and the elevation —
+one array, read twice, rather than two orderings that must be kept in step.
+
+That ordering **cannot** be recovered from the tree's topology. `sectionOpenings` ends with
+`sort((a, b) => a.rect.x0 - b.rect.x0 || a.rect.z0 - b.rect.z0)` and says why: *"the order the user
+sees them in, not the order the tree happens to be written in. Numbering by tree order would put
+'Opening 2' somewhere different depending on how the same cabinet was built."* So resolved
+rectangles are required, and a topology walk — tempting, because it would need no materials and
+have no failure mode — is wrong.
 
 Every part lands in exactly one list, decided by its role key — which already encodes the answer:
 
@@ -144,8 +157,14 @@ Three changes inside the component: `collapsed: Set<ComponentId>` widens to `Set
 section collapses like a component; a section row gets `data-testid="node-{sectionId}"`, matching the
 existing convention; and the row carries no visibility, duplicate or remove control.
 
-`sectionNodes` is called during render — a pure walk over one cabinet's parts, of which a Base 600
-has nine. No memo until something measures slow, following `CabinetProjection`'s precedent.
+**Two callers, each resolving.** `SceneTree` groups the rows; `App` needs the same mapping to build
+`highlightIds` for a section selection. Both resolve through `sectionOpenings` first, and both carry
+the unbuildable guard below. `SceneTree` gains a `materials` prop to do it — `Sidebar` already has
+`scene.materials`, so that is one line at the call site.
+
+Called during render, not memoised: `resolveSections` is small arithmetic over one cabinet's tree and
+`overridesOf` is a single pass over its parts. Measure before adding a memo, following
+`CabinetProjection`'s precedent.
 
 ## Numbering, in both places
 
@@ -162,7 +181,7 @@ worse than no name.
 |---|---|
 | A role matching no known pattern | Falls to carcase, and the sweep test fails |
 | A section id naming nothing | Renders no selection. The same total-function rule `editSection` follows |
-| **A cabinet whose params do not build** | `{ sections: [], carcase: allParts }` — the tree renders flat, as today |
+| **A cabinet whose params do not build** | The **caller** skips resolving and renders every part flat, as today. `sectionNodes` never sees it |
 
 The last row is load-bearing. `sectionOpenings` needs a resolved tree, which needs valid parameters,
 and `CarcasePanel` renders in states the validator rejects because the params are mid-keystroke. **The
@@ -189,7 +208,7 @@ section or returned one bucket.
 - A divider lands in carcase, not in a section. *Mutation: route `division-` to its parent id.*
 - Fronts, adjustable and fixed shelves land on their own leaf. *Mutation: drop any one pattern.*
 - A part with no `role` lands in carcase. *Mutation: throw on unroled.*
-- An unbuildable cabinet returns every part as carcase. *Mutation: remove the guard.*
+- An unbuildable cabinet renders flat — asserted at the caller, since the guard lives there. *Mutation: remove the guard.*
 
 `App.test.tsx` — the level Stage G2 Task 9 proved is the only one that sees these:
 
@@ -201,8 +220,11 @@ section or returned one bucket.
 cabinet. *Mutation: reverse either ordering.* Both read one `sectionOpenings` call, so they cannot
 drift.
 
-One e2e: click **Opening 2** in the tree, assert the elevation's second cell reads selected and the
-3D highlight covers its door. That crosses all three surfaces, which no unit test does.
+One e2e. **It must split first** — no preset has two openings, so the flow is: add a cabinet, open
+its editor, split the opening, then click **Opening 2** in the tree and assert the elevation's second
+cell reads selected and the 3D highlight covers its door. That crosses all three surfaces, which no
+unit test does. An e2e that skipped the split would be asserting against a cabinet with one opening
+and would pass whether or not the grouping worked.
 
 ## Acceptance
 
