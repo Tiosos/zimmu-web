@@ -103,13 +103,18 @@ function renderDimLine(dim: DimLine, px: number, py: number): string {
   } else {
     const x = px + dim.offset
     const midY = py + (dim.start + dim.end) / 2
+    // A label reads AWAY from the line it belongs to. Anchoring every one at 'start' runs a
+    // left-hand label rightward across the drawing it annotates. Every board vertical dim has a
+    // positive offset, so `offset < 0` identifies an assembly view's left-hand ring exactly and
+    // this branch is a no-op for a board sheet.
+    const left = dim.offset < 0
     return [
       svgLine(x, py + dim.start, x, py + dim.end, lineStyle),
       svgLine(x - TICK, py + dim.start, x + TICK, py + dim.start, lineStyle),
       svgLine(x - TICK, py + dim.end, x + TICK, py + dim.end, lineStyle),
-      svgText(x + 1.5, midY, dim.label, {
+      svgText(left ? x - 1.5 : x + 1.5, midY, dim.label, {
         ...textStyle,
-        'text-anchor': 'start',
+        'text-anchor': left ? 'end' : 'start',
         'dominant-baseline': 'middle',
       }),
     ].join('')
@@ -306,6 +311,16 @@ function renderAssemblyView(view: PlacedAssemblyView, scale: number): string {
   // writes it once in CabinetProjection.
   const fx = (u: number) => px + u * scale
   const fy = (v: number) => py + (H - v) * scale
+
+  // Named exactly where and how a board sheet names its views. Three unnamed orthographic
+  // projections on one page is not a drawing anyone can read.
+  out.push(
+    svgText(px, py - 2, view.label, {
+      'font-size': '3',
+      fill: '#888',
+      'font-family': 'sans-serif',
+    }),
+  )
 
   // Nearest first, the order the projector emits. The pane reverses it so the nearest part paints
   // last and takes the click; nothing here is filled and nothing is clickable, so on a sheet the

@@ -96,8 +96,11 @@ function renderPdfDimLine(
       thickness: pt(0.15),
       color: C_MID_GRAY,
     })
+    // A label reads AWAY from the line it belongs to. pdf-lib draws from the left edge, so a
+    // left-hand label is shifted by its own measured width. Every board vertical dim has a positive
+    // offset, so `offset < 0` identifies an assembly view's left-hand ring exactly.
     page.drawText(dim.label, {
-      x: pt(x + 1.5),
+      x: dim.offset < 0 ? pt(x - 1.5) - font.widthOfTextAtSize(dim.label, fs) : pt(x + 1.5),
       y: yflip(midY) + font.heightAtSize(fs) / 2,
       size: fs,
       font,
@@ -248,6 +251,10 @@ function renderPdfAssemblyView(
       color: dashed ? C_GRAY : C_BLACK,
       dashArray: dashed ? DASH_PT : undefined,
     })
+
+  // Named exactly where and how a board sheet names its views. Three unnamed orthographic
+  // projections on one page is not a drawing anyone can read.
+  page.drawText(view.label, { x: pt(px), y: yflip(py - 2), size: pt(3), font, color: C_GRAY })
 
   // Nearest first, the order the projector emits. Nothing here is filled or clickable, so the paint
   // order is unobservable and a reversal would be a line no test could falsify.

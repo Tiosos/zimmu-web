@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildDxf } from './buildDxf'
-import { buildDrawingSheets } from '../geom/drawing'
+import { assemblyDimLine, buildDrawingSheets } from '../geom/drawing'
 import type { PlacedAssemblyView } from '../geom/drawing'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
@@ -269,6 +269,62 @@ describe('buildDxf — assembly sheets', () => {
     expect(dxf).toContain('0\nLTYPE\n2\nDASHED\n')
     expect(dxf).toContain('0\nLAYER\n2\nHIDDEN\n')
     expect(dxf.indexOf('2\nTABLES')).toBeLessThan(dxf.indexOf('2\nENTITIES'))
+  })
+
+  // A board sheet names every view it draws; the assembly branch drew three unnamed ones. DXF y
+  // runs up, so a label above its own drawing has the GREATER y — placed against the view's own
+  // origin rather than against a typed coordinate.
+  it('names each of its three views, above the drawing it names', () => {
+    const sheet = assemblySheet()
+    const texts = entitiesOf(buildDxf(sheet), 'TEXT')
+    for (const v of sheet.views) {
+      const named = texts.filter((e) => group(e, '1') === v.label)
+      expect(named).toHaveLength(1)
+      expect(Number(group(named[0], '10'))).toBeCloseTo(v.placement.x)
+      expect(Number(group(named[0], '20'))).toBeGreaterThan(210 - v.placement.y)
+    }
+  })
+
+  // A label reads away from its own dimension line. DXF has no anchor, so a left-hand label is
+  // shifted by its own width instead — but the rule it obeys is the same one SVG's anchor obeys,
+  // and it is invisible on a board sheet, where every vertical dim is on the right.
+  it('places a vertical dimension label on the side its line is on', () => {
+    const sheet = assemblySheet()
+    const texts = entitiesOf(buildDxf(sheet), 'TEXT').map((e) => ({
+      label: group(e, '1'),
+      x: Number(group(e, '10')),
+      y: 210 - Number(group(e, '20')),
+    }))
+    let onLeft = 0
+    let onRight = 0
+    for (const v of sheet.views) {
+      // Each view's dimension ring is its own band of the page, which assigns a label to the view
+      // it belongs to even when two views carry the same figure at the same height — a Base 600's
+      // toe kick is dimensioned identically in two of them. A label that lands in the NEXT view's
+      // band fails this, and should: the layout reserved that ring and chose the sheet scale from
+      // it. Shifting a centre-justified label by its whole width does exactly that, measured.
+      const band = texts.filter(
+        (t) =>
+          t.x > v.placement.x - sheet.ring - 1e-6 &&
+          t.x < v.placement.x + v.bounds.w * sheet.scale + sheet.ring + 1e-6,
+      )
+      for (const d of v.dims.filter((x) => x.axis === 'v')) {
+        const line = assemblyDimLine(d, v.bounds, sheet.scale)
+        const lineX = v.placement.x + line.offset
+        const midY = v.placement.y + (line.start + line.end) / 2
+        const found = band.filter((t) => t.label === d.label && Math.abs(t.y - midY) < 1e-6)
+        expect(found).toHaveLength(1)
+        if (line.offset < 0) {
+          onLeft++
+          expect(found[0].x).toBeLessThan(lineX)
+        } else {
+          onRight++
+          expect(found[0].x).toBeGreaterThan(lineX)
+        }
+      }
+    }
+    expect(onLeft).toBeGreaterThan(0)
+    expect(onRight).toBeGreaterThan(0)
   })
 
   it('titles the sheet with the cabinet, the scale and the date', () => {

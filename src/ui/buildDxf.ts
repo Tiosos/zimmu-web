@@ -1,3 +1,4 @@
+import { CHAR_EM } from '../geom/assembly'
 import { assemblyDimLine } from '../geom/drawing'
 import type {
   DrawingSheet,
@@ -108,6 +109,7 @@ function dxfText(layer: string, x: number, y: number, height: number, content: s
 }
 
 const TICK = 1.5
+const DIM_TEXT_H = 2
 
 function dxfDimLine(dim: DimLine, px: number, py: number): string {
   const out: string[] = []
@@ -124,7 +126,17 @@ function dxfDimLine(dim: DimLine, px: number, py: number): string {
     out.push(dxfLine('DIM', x, py + dim.start, x, py + dim.end))
     out.push(dxfLine('DIM', x - TICK, py + dim.start, x + TICK, py + dim.start))
     out.push(dxfLine('DIM', x - TICK, py + dim.end, x + TICK, py + dim.end))
-    out.push(dxfText('TEXT', x + 2, midY, 2, dim.label))
+    // A label reads AWAY from the line it belongs to. DXF has no anchor, so a left-hand label is
+    // shifted by its own estimated width instead. Every board vertical dim has a positive offset,
+    // so `offset < 0` identifies an assembly view's left-hand ring exactly.
+    //
+    // HALF the width, not all of it: `dxfText` writes justification 72=1, so x is the label's
+    // CENTRE, and a full-width shift puts its left edge a width and a half out — measured, that
+    // lands a Base 600's toe-kick label outside the ring the layout reserved for it. Half clears
+    // the line under both readings: centred, the right edge sits 2 mm short of it; and in a viewer
+    // that ignores 72 and draws from x, the whole label still ends before it.
+    const labelX = dim.offset < 0 ? x - 2 - (CHAR_EM * DIM_TEXT_H * dim.label.length) / 2 : x + 2
+    out.push(dxfText('TEXT', labelX, midY, DIM_TEXT_H, dim.label))
   }
   return out.join('')
 }
@@ -229,6 +241,10 @@ function dxfAssemblyView(view: PlacedAssemblyView, scale: number): string {
   const fx = (u: number) => px + u * scale
   const fy = (v: number) => py + (H - v) * scale
   const out: string[] = []
+
+  // Named exactly where and how a board sheet names its views. Three unnamed orthographic
+  // projections on one page is not a drawing anyone can read.
+  out.push(dxfText('TEXT', px, py - 2, 3, view.label))
 
   // Nearest first, the order the projector emits. Nothing on a sheet is filled or clickable, so the
   // order is unobservable and a reversal would be a line no test could falsify.

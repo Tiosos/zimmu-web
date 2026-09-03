@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildSvg } from './buildSvg'
-import { buildDrawingSheets, MARGIN, TITLE_H } from '../geom/drawing'
+import { assemblyDimLine, buildDrawingSheets, MARGIN, TITLE_H } from '../geom/drawing'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { cabinet, partsOfBase600 } from '../geom/__fixtures__/cabinetSheet'
@@ -328,10 +328,15 @@ describe('buildSvg — assembly sheets', () => {
   it('draws its dimension ring at the offset the sheet reserved', () => {
     const sheet = assemblySheet()
     const doc = parse(buildSvg(sheet))
-    // The title block is a band of its own below the drawings; everything above it is a dimension.
-    const labels = [...doc.querySelectorAll('text')].filter(
+    // The title block is a band of its own below the drawings; everything above it is either a
+    // dimension or one of the three view names, and the names are counted rather than filtered
+    // loosely away — a renderer that stopped drawing them would otherwise pass this unchanged.
+    const above = [...doc.querySelectorAll('text')].filter(
       (t) => Number(t.getAttribute('y')) < 210 - MARGIN - TITLE_H,
     )
+    const names = new Set<string>(sheet.views.map((v) => v.label))
+    const labels = above.filter((t) => !names.has(t.textContent ?? ''))
+    expect(above).toHaveLength(labels.length + sheet.views.length)
     expect(labels).toHaveLength(sheet.views.reduce((n, v) => n + v.dims.length, 0))
     const inSomeRing = (x: number, y: number) =>
       sheet.views.some(
@@ -371,5 +376,64 @@ describe('buildSvg — assembly sheets', () => {
     expect(expected.size).toBeGreaterThan(1)
     const asc = (s: Set<number>) => [...s].sort((a, b) => a - b)
     expect(asc(drawn)).toEqual(asc(expected))
+  })
+
+  // A board sheet names every view it draws; the assembly branch drew three unnamed ones. Placed
+  // against the view's own origin rather than against a typed coordinate, so the assertion is
+  // "above its own drawing", not "at 24.125".
+  it('names each of its three views, above the drawing it names', () => {
+    const sheet = assemblySheet()
+    const doc = parse(buildSvg(sheet))
+    const texts = [...doc.querySelectorAll('text')]
+    for (const v of sheet.views) {
+      const named = texts.filter((t) => t.textContent === v.label)
+      expect(named).toHaveLength(1)
+      expect(Number(named[0].getAttribute('x'))).toBeCloseTo(v.placement.x)
+      expect(Number(named[0].getAttribute('y'))).toBeLessThan(v.placement.y)
+    }
+  })
+
+  // A label reads away from its own dimension line. Anchoring every vertical one at 'start' runs a
+  // left-hand label rightward across the drawing it annotates — invisible on a board sheet, where
+  // every vertical dim is on the right, and wrong on every assembly sheet. Both sides are counted
+  // so a fixture that happened to carry only one could not pass this by accident.
+  it('anchors a vertical dimension label on the side its line is on', () => {
+    const sheet = assemblySheet()
+    const texts = [...parse(buildSvg(sheet)).querySelectorAll('text')]
+    let onLeft = 0
+    let onRight = 0
+    for (const v of sheet.views) {
+      // Each view's dimension ring is its own band of the page — the layout puts consecutive
+      // origins two rings apart — so this assigns a label to the view it belongs to even when two
+      // views carry the same figure at the same height, which a Base 600's do.
+      const band = texts.filter((t) => {
+        const x = Number(t.getAttribute('x'))
+        return (
+          x > v.placement.x - sheet.ring - 1e-6 &&
+          x < v.placement.x + v.bounds.w * sheet.scale + sheet.ring + 1e-6
+        )
+      })
+      for (const d of v.dims.filter((x) => x.axis === 'v')) {
+        const line = assemblyDimLine(d, v.bounds, sheet.scale)
+        const lineX = v.placement.x + line.offset
+        const midY = v.placement.y + (line.start + line.end) / 2
+        const found = band.filter(
+          (t) => t.textContent === d.label && Math.abs(Number(t.getAttribute('y')) - midY) < 1e-6,
+        )
+        expect(found).toHaveLength(1)
+        const x = Number(found[0].getAttribute('x'))
+        if (line.offset < 0) {
+          onLeft++
+          expect(found[0].getAttribute('text-anchor')).toBe('end')
+          expect(x).toBeLessThan(lineX)
+        } else {
+          onRight++
+          expect(found[0].getAttribute('text-anchor')).toBe('start')
+          expect(x).toBeGreaterThan(lineX)
+        }
+      }
+    }
+    expect(onLeft).toBeGreaterThan(0)
+    expect(onRight).toBeGreaterThan(0)
   })
 })
