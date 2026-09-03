@@ -2736,46 +2736,39 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 
 ---
 
-## Task 9: the open cabinet comes from the selection's ancestry
+## Task 9: an open cabinet stays open while the selection is inside it
 
 **Files:**
 
 - Modify: `src/App.tsx:82-88`
 - Modify: `src/ui/CabinetEditor.tsx`
-- Test: `src/ui/CabinetEditor.test.tsx`
+- Test: `src/ui/CabinetEditor.test.tsx`, `src/App.test.tsx`
 
 `App.tsx:82` reads `selection?.kind !== 'component' ? null : …`, so selecting a **part** nulls
 `selectedCarcase`, unmounts `CabinetEditor` and reveals the viewport. Clicking a part in a projection
-would destroy the surface it was clicked in. The open cabinet becomes the cabinet _containing_ the
-selection.
+would destroy the surface it was clicked in. An open cabinet now *stays* open while the selection
+lies inside it.
 
-> **STOP — this task has an unresolved fork. Do not execute it without the answer.**
+> **Decided: option 1 — keep the open cabinet.** The rule is *not* "the cabinet containing the
+> selection". It is: **once a cabinet is open it stays open while the selection lies inside it;
+> otherwise the open cabinet is whichever cabinet is selected outright, or none.**
 >
-> The rule as drafted has a side effect neither its tests nor `CabinetEditor.test.tsx` can see,
-> because they render the editor rather than `App`:
+> Why the draft's version was wrong, and why neither its tests nor `CabinetEditor.test.tsx` could
+> see it — they render the editor, not `App`:
 >
 > - `App.tsx:461` shows the viewport when `selectedCarcase === null || cabinetTab === '3d'`.
-> - Once the ancestry rule lands, clicking a part **inside a cabinet** makes `selectedCarcase`
->   non-null, and `cabinetTab` defaults to `'section'` — so **clicking a part in the 3D viewport
->   replaces the viewport with the Section elevation.**
-> - Separately, `cabinetParts` (`App.tsx:114`) returns the whole scene only while
->   `selectedCarcase === null`, so selecting any part silently filters 3D to one cabinet.
+> - Under "the cabinet containing the selection", clicking a part **inside a cabinet** makes
+>   `selectedCarcase` non-null while `cabinetTab` is still its `'section'` default — so **clicking a
+>   part in the 3D viewport replaces the viewport with the Section elevation.**
+> - `cabinetParts` (`App.tsx:114`) returns the whole scene only while `selectedCarcase === null`, so
+>   selecting any part would silently filter 3D down to one cabinet.
 >
-> Options:
+> Option 1 has neither effect: with no cabinet open, selecting a part opens nothing, exactly as
+> today. It only stops an *already open* cabinet from closing — which is the whole reason this task
+> exists, and nothing more.
 >
-> 1. **Narrow the rule to its purpose.** Keep the *currently open* cabinet when the new selection
->    lies inside it; otherwise fall back to today's component-only rule. This is exactly the stated
->    goal — "clicking a part in a projection must not close the projection" — and nothing more.
->    Costs one piece of state (the open cabinet id) or a ref to the previous value.
-> 2. **Force `cabinetTab` to `'3d'`** when a part is selected with no cabinet open. Keeps the
->    viewport visible, but moves the tab under the user.
-> 3. **Accept it.** Selecting a part anywhere opens its cabinet's editor on the Section tab —
->    the "cabinet is the edit level" model taken literally.
-> 4. **Split the two questions.** `openCabinet` (explicit, mounts the editor) and
->    `selectionCabinet` (derived, highlights only). Each answer then serves exactly one consumer.
->
-> Whichever is chosen, this task needs a test that renders `App` — the regression is invisible at
-> the `CabinetEditor` level, which is why the draft did not see it.
+> **This task needs a test that renders `App`.** Both regressions are invisible at the
+> `CabinetEditor` level; that is precisely how the draft came to contain them.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2836,40 +2829,83 @@ and replace the `not built yet` branch:
 
 - [ ] **Step 4: Change the selection derivation in `src/App.tsx`**
 
-Replace lines 82–88:
+Replace lines 82-88. The open cabinet is a small state machine rather than a pure derivation,
+because "stays open" is a fact about the *previous* answer:
 
 ```tsx
-// The cabinet CONTAINING the selection, not only a selected cabinet. Selecting a part used to
-// null this, which unmounted the editor and revealed the viewport — so clicking a part inside a
-// projection destroyed the surface it was clicked in. Deriving it from the ancestry means the
-// scene tree and the projection cannot disagree about which cabinet is open, and it costs no new
-// state to keep in step.
+// A cabinet stays open while the selection lies inside it. Selecting a part used to null this,
+// which unmounted the editor and revealed the viewport — so clicking a part inside a projection
+// destroyed the surface it was clicked in.
+//
+// Deliberately NOT "the cabinet containing the selection". That opens a cabinet on any part click,
+// and App shows the viewport only while this is null or the tab is 3D — so clicking a part in the
+// viewport would swap the viewport out for the Section elevation, and `cabinetParts` would filter
+// 3D down to one cabinet. Keeping an open cabinet open is the whole requirement; opening one that
+// was closed is not part of it.
+const [openCabinetId, setOpenCabinetId] = useState<ComponentId | null>(null)
+
 const selectedCarcase = useMemo(() => {
-  if (selection === null) return null
-  if (selection.kind === 'component') {
-    const c = scene.components.find((x) => x.id === selection.id)
-    if (c?.kind === 'carcase') return c
+  const carcaseAt = (id: ComponentId | null): CarcaseComponent | null => {
+    const c = id === null ? undefined : scene.components.find((x) => x.id === id)
+    return c?.kind === 'carcase' ? c : null
   }
+  // Selecting a cabinet outright opens it, and closes whatever was open before.
+  if (selection?.kind === 'component') {
+    const picked = carcaseAt(selection.id)
+    if (picked !== null) return picked
+  }
+  // Otherwise the open one stays open, but only while the selection is still inside it.
+  const open = carcaseAt(openCabinetId)
+  if (open === null || selection === null) return open
   const node =
     selection.kind === 'part'
-      ? scene.parts.find((p) => p.id === selection.id)
+      ? scene.parts.find((q) => q.id === selection.id)
       : scene.components.find((c) => c.id === selection.id)
-  if (node === undefined) return null
-  for (const ancestor of ancestorsOf(node, componentMap)) {
-    if (ancestor.kind === 'carcase') return ancestor
-  }
-  return null
-}, [selection, scene.components, scene.parts, componentMap])
+  if (node === undefined) return open
+  return ancestorsOf(node, componentMap).some((x) => x.id === open.id) ? open : null
+}, [selection, openCabinetId, scene.components, scene.parts, componentMap])
+
+// One effect, one job: remember what the derivation settled on, so the next selection can be
+// measured against it. Writing `openCabinetId` inside the memo would make the render impure.
+useEffect(() => {
+  setOpenCabinetId(selectedCarcase?.id ?? null)
+}, [selectedCarcase])
 ```
 
-Add `ancestorsOf` to the `componentTree` import on line 7, and pass the new props to
-`<CabinetEditor>`:
+Add `ancestorsOf` to the `componentTree` import, `useEffect` to the React import, and
+`CarcaseComponent` to the type import. Pass the new props to `<CabinetEditor>`:
 
 ```tsx
             parts={cabinetParts}
             byId={componentMap}
             selectedPartId={selection?.kind === 'part' ? selection.id : null}
             onSelectPart={(id) => onSelect({ kind: 'part', id })}
+```
+
+- [ ] **Step 4b: The test that renders `App`**
+
+`CabinetEditor.test.tsx` cannot see either regression. `src/App.test.tsx` already has the harness:
+it mocks `./scene/useScene` through a `mockUseScene` fn whose return comes from
+`makeDefaultSceneReturn()`, so a test can hand `App` any scene it likes and drive selection through
+that return, the way its existing 13 tests do. Add:
+
+```tsx
+it('keeps the viewport when a part is selected and no cabinet is open', async () => {
+  // The regression: selecting a part made selectedCarcase non-null, and App shows the viewport only
+  // while that is null or the tab is 3D — so the viewport was replaced by the Section elevation.
+  // Give App a scene with a carcase and its parts, select a PART with no cabinet open, and assert
+  // the viewport wrapper is still displayed.
+})
+
+it('keeps an open cabinet open when a part inside it is selected', async () => {
+  // Select the carcase (editor mounts), then select a part inside it, and assert the editor is
+  // still mounted. This is the behaviour the task exists for.
+})
+
+it('closes the cabinet when the selection moves outside it', async () => {
+  // The other half of "while the selection lies inside it" — a part in a DIFFERENT component, or a
+  // top-level part, closes the editor. Without this the rule reads "opens and never closes".
+})
 ```
 
 - [ ] **Step 5: Run the tests**
