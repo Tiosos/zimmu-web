@@ -3974,7 +3974,32 @@ bounding box. Third renderer, same rule.
 - Test: `src/ui/DrawingViewer.test.tsx`, `src/ui/CabinetEditor.test.tsx`
 
 `DrawingViewer`'s label is `Part ${idx} of ${sheets.length - 1}`, which assumes sheet 0 is the cover
-and every other sheet is a part. Assembly sheets in between make that lie.
+and every other sheet is a part. Assembly sheets in between make that lie: with one cabinet and one
+board, the board's sheet reads **"Part 2 of 2"**.
+
+> **Only three of the four drafted tests can fail.** Task 11 already added the `Assembly — ${label}`
+> branch at `DrawingViewer.tsx:76` when it stubbed the union member, so *names an assembly sheet as
+> an assembly* is green before this task starts. Keep it — it pins behaviour this task must not
+> regress — but do not report it as a red-to-green.
+>
+> Both drafted call sites also omitted the `byId` Task 11 made required, and passed `parts: []`,
+> which exercises the viewer with a sheet carrying no geometry.
+
+**Two defects live in the renderers this task exports from.** Both are recorded in the notes, both
+are cheap, and both are now in three renderers. Fix them here or open a follow-up, but do not let
+Task 14 close with the export paths shipping them silently:
+
+1. **The three assembly views are unlabelled.** `renderView` and `renderDowelView` both write
+   `view.label` above the drawing; the assembly renderers do not, in SVG, DXF or PDF. Three unnamed
+   orthographic views on one sheet is a real gap for a shop drawing.
+2. **Left-hand vertical dimension labels read backwards.** `renderDimLine` anchors every vertical
+   label `'start'` at `x + 1.5`, so a label at a negative offset runs rightward across the drawing
+   it annotates. **This does NOT need a signature change** — the notes say it does and that is
+   wrong. Every *board* vertical dim has a positive offset (`boardRect.w + …`, `L * scale + …`), so
+   only the assembly path can produce a negative one: `dim.offset < 0` identifies a left-side label
+   exactly, and the change is a no-op for board sheets. SVG flips the anchor to `'end'` at
+   `x - 1.5`; DXF and PDF have no anchor, so they shift `x` left by the measured width
+   (`font.widthOfTextAtSize` in PDF, `CHAR_EM * height * label.length` in DXF).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -3983,7 +4008,7 @@ and every other sheet is a part. Assembly sheets in between make that lie.
 ```tsx
 it('names an assembly sheet as an assembly, not as a part', async () => {
   const sheets = buildDrawingSheets([makeBoard()], 'Job', [
-    { cabinet, parts: [], materials: PRESET_MATERIALS },
+    { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
   ])
   render(<DrawingViewer open onClose={vi.fn()} sheets={sheets} projectName="Job" />)
   await userEvent.click(screen.getByLabelText('→'))
@@ -3992,7 +4017,7 @@ it('names an assembly sheet as an assembly, not as a part', async () => {
 
 it('still numbers the part sheets from one', async () => {
   const sheets = buildDrawingSheets([makeBoard()], 'Job', [
-    { cabinet, parts: [], materials: PRESET_MATERIALS },
+    { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
   ])
   render(<DrawingViewer open onClose={vi.fn()} sheets={sheets} projectName="Job" />)
   await userEvent.click(screen.getByLabelText('→'))
