@@ -265,8 +265,26 @@ describe('the assembled views', () => {
   })
 
   // The whole reason the cull exists. Without it this count is 1.
-  it('leaves more than one part visible in the End view', () => {
-    expect(labels(viewsOf(lopsided()).end).length).toBeGreaterThan(1)
+  // This asserted `parts.length > 1` and could not fail: `culled` filters parts OUT, so disabling
+  // it RAISES the count — 7 becomes 8 in End. The comment claimed "without it this count is 1",
+  // which was wrong about both the direction and the quantity.
+  //
+  // What the cull exists for is visibility, not population: a section must show the majority of
+  // what it cuts through. Measured on a Base 600 — with the cull, End shows 7 of 7 parts and Top
+  // 6 of 7; without it, End shows 2 of 8 and Top 4 of 8. Majority-visible therefore holds only
+  // with the cull, and holds with margin.
+  //
+  // Not "every part": in Top the toe-kick rail sits directly beneath the bottom panel and is
+  // genuinely invisible in a plan view. That is correct, so the rule must not forbid it.
+  it('leaves a section view showing the majority of what it cuts through', () => {
+    const { front, top, end } = viewsOf(lopsided())
+    for (const v of [top, end]) {
+      const visible = v.parts.filter((p) => p.solid.length > 0).length
+      expect(visible).toBeGreaterThan(v.parts.length / 2)
+    }
+    // The contrast that makes the rule mean something: Front is a view, not a section, and does
+    // hide parts completely.
+    expect(front.parts.some((p) => p.solid.length === 0)).toBe(true)
   })
 
   it('drops the near side from End and the top panel from Top, and nothing from Front', () => {
