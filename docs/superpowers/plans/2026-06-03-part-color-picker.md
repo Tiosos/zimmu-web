@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Add a color picker to the EditPanel that lets users change a board's color via 8 preset swatches and a native custom picker, with immediate 3D viewport feedback.
 
 **Architecture:** Three coordinated changes: (1) extract `PART_COLORS` to a shared `palette.ts` module so the sidebar and scene hook share one source of truth; (2) add a `ColorControl` sub-component to the sidebar's `EditPanel`; (3) one-line fix in the viewport's mesh-update branch so color changes on existing meshes appear on the next RAF frame.

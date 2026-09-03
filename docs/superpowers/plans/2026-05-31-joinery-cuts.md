@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Add non-destructive rectangular Boolean cuts (dado, rabbet, half-lap, mortise & tenon) to board parts, stored as `CutDef[]` on `BoardPart`, rebuilt via OCCT Boolean subtraction, with click-to-place UX and full sidebar editing.
 
 **Architecture:** `CutDef[]` stored on `BoardPart`; `shapeKey` encodes cut geometry; OCCT worker chains `BRepAlgoAPI_Cut` per rebuild from scratch. `useAddCut` is a new hook that handles click-to-place state. Viewport routes: cut mode → snap mode → normal select. `useScene` gains `onUpdateCut`, `onRemoveCut`, `onLinkCuts`, `onUnlinkCuts`.

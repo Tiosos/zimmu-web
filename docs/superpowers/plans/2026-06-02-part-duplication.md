@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Complete the part duplication feature by auto-selecting the clone after duplication, fixing undo/redo selection behavior, and adding a `Ctrl/Cmd+D` keyboard shortcut.
 
 **Architecture:** The core `onDuplicate` function in `useScene.ts` and the sidebar `⧉` button already exist and are tested. Two gaps remain: (1) the clone isn't selected after duplication — `onDuplicate` never calls `setSelectedId(clone.id)`; and (2) there is no `Ctrl/Cmd+D` keyboard shortcut in `App.tsx`. Both gaps are narrow, self-contained fixes that follow the existing patterns in `onAdd` (which does select after adding) and the modifier-key handler block in App.tsx.

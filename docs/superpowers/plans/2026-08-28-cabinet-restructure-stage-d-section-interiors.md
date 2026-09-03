@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete.** All tasks landed. Unit tests **1369 → 1379**; e2e **15/15**, with three specs moved to the new truth.
+
 **Goal:** Move adjustable shelving off the cabinet and onto the section that actually holds it, so pin rows stop being bored where nothing can rest on them — and make the shelves themselves real boards that reach the cutting list.
 
 **Architecture:** `Section` gains an `interior`. Pin rows are contributed *by a section to the panels that bound it* rather than owned by a panel, which inverts who asks whom. Shelf boards are new driven roles keyed on the section id.

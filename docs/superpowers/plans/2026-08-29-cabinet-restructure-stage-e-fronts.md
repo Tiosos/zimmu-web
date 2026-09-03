@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete.** All tasks landed. Unit tests **1419 → 1436**; e2e **17/17**; the parameter sweep doubled, **96 → 192** cases.
+
 **Goal:** A section can wear a front — a door, a drawer front, a false front or a panel — mounted inset or overlay, with every visible gap equal to `frontReveal`.
 
 **Architecture:** A new pure module turns the section tree into *front cells* (rectangles on the cabinet's front face, reveals already applied). `carcaseBoxes` emits one board per cell. Nothing else in the generator learns what a front is: a front appears in no joint descriptor, so the extension pass never reaches it.

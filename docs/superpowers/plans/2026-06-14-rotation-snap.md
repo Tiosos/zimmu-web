@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Extend face-to-face snap so clicking any two faces on different parts rotates the source part to face the target and translates it to touch — not just anti-parallel face pairs.
 
 **Architecture:** Add `computeSnapTransform` to `snapMath.ts` (pure function: input faces + source part → new absolute position + rotation in degrees); replace `computeSnapDelta` call in `useSnap.ts` with `computeSnapTransform`, removing the anti-parallel guards; update the ghost mesh in `viewport.tsx` to apply rotation as well as position.

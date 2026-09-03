@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Add a per-part visibility toggle: `visible: boolean` on `BoardPart`, `onToggleVisible(id)` in `useScene` with full undo/redo, an eye icon button in the sidebar part row, Three.js mesh visibility sync in the viewport, and an `H` keyboard shortcut in `App.tsx`.
 
 **Architecture:** `visible` is a serialized field on `BoardPart`. Old files without it default to `true` in `parseFile`. The sidebar row gains an eye button; clicking it calls `onToggleVisible`. The viewport sets `mesh.visible = part.visible` and `el.visible = part.visible` in both the create and update paths of the mesh management `useEffect`. App.tsx adds `H` to the non-modifier keyboard block and passes `onToggleVisible` to `<Sidebar>`. The CuttingList intentionally continues to show hidden parts — visibility is purely visual.

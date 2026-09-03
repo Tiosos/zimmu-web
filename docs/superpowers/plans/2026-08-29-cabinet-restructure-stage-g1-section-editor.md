@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete.** All tasks landed. Unit tests **1477 → 1512**; e2e **18 → 20**.
+
 **Goal:** Selecting a cabinet turns the main pane into its editor, with a **Section** tab that draws the cabinet's elevation and lets a section be clicked, split, resized and given a front — and a **3D** tab that is the viewport it replaced.
 
 **Architecture:** A new pure module owns every change to the tree's *shape*, beside the two that already own its contents. The editor is a React-rendered SVG over `resolveSections`' rectangles — the first interactive SVG in the codebase. The selected section id lifts to `App`, so the elevation and the sidebar panel are two views of one selection.

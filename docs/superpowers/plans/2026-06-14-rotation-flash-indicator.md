@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** After a face-to-face snap that changes the source part's rotation, briefly flash that part's mesh emissive from blue (`#60a5fa`) to black over 400 ms; pure-translation snaps do not flash.
 
 **Architecture:** `useSnap.ts` detects when rotation changed and fires an optional callback; `App.tsx` converts that callback into a `flashTarget` state value and passes it to `<Viewport>`; `viewport.tsx` watches `flashTarget` in a `useEffect`, records flash start times in a ref-backed `Map`, and lerps the mesh emissive in the existing `animate()` loop every frame.

@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete.** All tasks landed. Unit tests **1268 → 1310**; e2e **15/15**.
+
 **Goal:** Move thickness onto the material, so assigning a 25 mm material to the sides resolves the bottom to `W − 50`, and give a part an explicit override that survives regeneration.
 
 **Architecture:** One resolution rule — `roleThicknessFor(params, materials, overrides)` returns `(role) => number` — is threaded into `carcaseBoxes` in place of `p.thickness`. Overrides are read *before* the layout resolves, never applied after. Identity against today's output is proved with a golden master, the same control that worked in Stage A.

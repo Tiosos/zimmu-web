@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete.** All tasks landed. Unit tests **1436 → 1477**; e2e **17 → 18**, the new one being the live-kernel cup. Still owed: a woodworker's eye on the hardware figure table, which no test in this repo can falsify.
+
 **Goal:** The machining a front implies — hinge cups in the door, hinge plate screws and drawer slide screws in the carcase — bored at the 32 mm system positions.
 
 **Architecture:** One new pure module owns every figure and every row. It is asked per role, exactly as `carcaseHoleArrays` is, and joins the same `componentCuts` list in `regenerateOne`. Nothing else changes: no new parameter, no file-format bump, no UI.

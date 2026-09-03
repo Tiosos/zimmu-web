@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete.** All 14 tasks landed. Unit tests **1231 → 1268** (the 193 temporary equivalence assertions retired with the stage); e2e **15/15**.
+
 **Goal:** Replace `dividers` and `fixedShelves` with a recursive section tree that produces exactly the same parts and joints as today, and migrate v12 files onto it.
 
 **Architecture:** A new pure module resolves a `Section` tree into rectangles; `carcaseBoxes` consumes those rectangles instead of `bayEdges()`. Equivalence is proved against a golden-master baseline captured from the current code *before* it changes, compared by geometry rather than by role name. `adjustableShelves` and `thickness` do not move in this stage.

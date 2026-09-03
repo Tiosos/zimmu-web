@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Stand up a thin Playwright end-to-end smoke harness that boots the real Zimmu app (real OCCT WASM + Comlink worker + Three.js render) in headless Chromium, asserts the default board renders, and runs in a dedicated CI job — without changing any production code.
 
 **Architecture:** Playwright drives the Vite dev server (`pnpm dev`). Two browser specs in `e2e/smoke.spec.ts` assert DOM readiness signals (the sidebar part list + the `+ Add board` button enabling once OCCT boots) and a non-blank viewport-canvas pixel check. The pixel logic is a pure function (`e2e/canvas.ts` → `isNonBlank`) unit-tested under Vitest. Vitest and Playwright are partitioned by filename convention: `*.test.ts` → Vitest, `*.spec.ts` → Playwright.

@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Add a `Home` key that frames every visible part in the viewport, so a real carcase can be seen without twelve mouse-wheel steps.
 
 **Architecture:** A new pure module `src/scene/fitCamera.ts` computes `{ position, target }` from the parts, the viewport aspect and the current camera. It is React-free and THREE-free, depending only on `composeWorldMatrix` / `applyMatrixToPoint` from `src/geom/transform.ts`, so it is unit-tested directly. `App.tsx` owns the intent (`Home` increments a `fitRequest` nonce); `viewport.tsx` owns the camera mechanics (reads its own `camera.aspect` / `camera.fov`, calls the module, applies the result to OrbitControls).

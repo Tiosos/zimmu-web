@@ -17,6 +17,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Add a Cutting List modal accessible from the File menu that shows each board's label, dimensions, and cut count as a table, with Copy CSV and Download .csv export actions.
 
 **Architecture:** A pure `buildCsv(parts)` function transforms scene data to CSV text; a `CuttingList` modal component renders the table and action buttons; `FileMenu` gains an `onCuttingList` prop that triggers the modal; `App.tsx` holds the `cuttingListOpen` boolean and wires the four pieces together. No new scene state — the cutting list is a read-only projection of existing `Part[]` data.

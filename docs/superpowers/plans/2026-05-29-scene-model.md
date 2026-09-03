@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Replace the hardcoded `buildBox(100, 100, 50)` call with a JSON-serializable scene model, a `useScene` hook driving a geometry pipeline, and a sidebar UI for adding, removing, duplicating, and editing multiple boards.
 
 **Architecture:** `useScene` (`src/scene/useScene.ts`) owns all scene state, geometry pipeline, and mutations. The viewport is rewritten to maintain `Map<PartId, THREE.Mesh>` and `Map<PartId, THREE.LineSegments>` refs synced to incoming props. The sidebar is a new component with collapsible edit groups and a debounced dimension hook. `App.tsx` is reduced to layout + composition.

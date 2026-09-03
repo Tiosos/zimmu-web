@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Collapse the six mutually-exclusive viewport interaction modes (snap, cut, dado, half-lap, mortise-tenon, finger) from parallel booleans with N² cross-cancellation into one `useInteractionMode` coordinator hook that owns a single `activeMode` and a normalized prop bundle — a behavior-preserving refactor.
 
 **Architecture:** A new `src/scene/useInteractionMode.ts` composes the six existing gesture hooks unchanged, derives one `activeMode`, exposes a toggle-aware exclusive `setMode`, and a normalized `{ onFaceClick, onFaceHover, sourceFace, hoveredFace, interactionActive, snapPhase }` bundle plus pass-throughs. `App.tsx` consumes it (six destructures + six handlers collapse); `Viewport`'s ~29 mode props shrink to ~6; `Sidebar` is fed from the coordinator, unchanged.

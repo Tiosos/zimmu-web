@@ -1,6 +1,8 @@
 # Stage G2 — Cabinet projections (Front / Top / End) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+**Status:** **Complete.** All 16 tasks landed. Unit tests **1512 → 1661** (10 skipped) across 84 files; e2e **20 → 23**. Every task was mutation-tested and no survivor was left unresolved. **Twelve defects in this plan's own text were found and corrected during execution** — including a DXF branch that would have referenced a layer it never defined, a double-flip that mirrored the cabinet, and a cull assertion that could not fail; each is recorded at the point in the plan where it was wrong.
 
 **Goal:** Turn the cabinet editor's Front / Top / End subtabs into dimensioned, exportable, clickable orthographic projections of the whole cabinet.
 
@@ -75,7 +77,7 @@
 - Create: `src/geom/hiddenLine.ts`
 - Test: `src/geom/hiddenLine.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/geom/hiddenLine.test.ts`:
 
@@ -144,12 +146,12 @@ describe('subtractIntervals', () => {
 })
 ```
 
-- [ ] **Step 2: Run it and confirm the file does not import**
+- [x] **Step 2: Run it and confirm the file does not import**
 
 Run: `pnpm vitest run src/geom/hiddenLine.test.ts`
 Expected: FAIL — `Failed to resolve import "./hiddenLine"`.
 
-- [ ] **Step 3: Write `src/geom/hiddenLine.ts`**
+- [x] **Step 3: Write `src/geom/hiddenLine.ts`**
 
 ```ts
 // The occlusion rule, stated once. Every silhouette in a cabinet projection is an axis-aligned
@@ -194,12 +196,12 @@ export function subtractIntervals(span: Span, holes: Span[]): Span[] {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/hiddenLine.test.ts`
 Expected: PASS, 11 tests.
 
-- [ ] **Step 5: Mutation check — the zero-length guard**
+- [x] **Step 5: Mutation check — the zero-length guard**
 
 ```bash
 cp src/geom/hiddenLine.ts "$SCRATCHPAD"/hiddenLine.bak
@@ -239,7 +241,7 @@ in turn, backing up and restoring from the copy each time:
 
 If any of them survives, the function has a branch no test reaches — say so rather than proceeding.
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 Expected: all pass; test count up by 11.
@@ -274,7 +276,7 @@ about z is still an axis-aligned box, and a `rotation === 0` test would wrongly 
 occlusion. This is the Stage E contact-rule failure repeating: the rule must follow the geometry it
 describes, not the input that usually produces it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/geom/assembly.test.ts`:
 
@@ -391,12 +393,12 @@ describe('cabinetSpaceBox', () => {
 })
 ```
 
-- [ ] **Step 2: Run it and confirm the import fails**
+- [x] **Step 2: Run it and confirm the import fails**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: FAIL — `Failed to resolve import "./assembly"`.
 
-- [ ] **Step 3: Write the first part of `src/geom/assembly.ts`**
+- [x] **Step 3: Write the first part of `src/geom/assembly.ts`**
 
 ```ts
 import { applyInverseToPoint, applyMatrixToPoint, resolveWorldMatrix } from './transform'
@@ -476,12 +478,12 @@ export function cabinetSpaceBox(
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Mutation check — axis-alignment read from `rotation`**
+- [x] **Step 5: Mutation check — axis-alignment read from `rotation`**
 
 ```bash
 cp src/geom/assembly.ts "$SCRATCHPAD"/assembly-t2.bak
@@ -512,7 +514,7 @@ cp "$SCRATCHPAD"/assembly-t2.bak src/geom/assembly.ts
 grep -n "corners.every" src/geom/assembly.ts
 ```
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -550,7 +552,7 @@ culled** — a front elevation must show its doors.
 places it to the right. Looking from +x with +z up puts screen-right at −y, so the cabinet's front
 appears on the right of that view.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 These test `projectBox` and `culled` **directly**, with explicit boxes rather than through a whole
 cabinet. That keeps Task 3 self-contained and green on its own commit: `buildAssemblyViews` does not
@@ -652,12 +654,12 @@ describe('the near-half cull', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: FAIL — `VIEWS`, `projectBox` and `culled` are not exported.
 
-- [ ] **Step 3: Implement the planes and the cull**
+- [x] **Step 3: Implement the planes and the cull**
 
 Append to `src/geom/assembly.ts`:
 
@@ -733,12 +735,12 @@ export function culled(box: CabinetBox, view: ViewSpec, p: CarcaseParams): boole
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: PASS — 7 from Task 2 plus 8 here, 15 in the file.
 
-- [ ] **Step 5: Mutation check — cull direction, and cull at all**
+- [x] **Step 5: Mutation check — cull direction, and cull at all**
 
 ```bash
 cp src/geom/assembly.ts "$SCRATCHPAD"/assembly-t3.bak
@@ -801,7 +803,7 @@ cp "$SCRATCHPAD"/assembly-t3.bak src/geom/assembly.ts
 grep -n "depthSign: -1, uSign: -1" src/geom/assembly.ts
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/geom/assembly.ts src/geom/assembly.test.ts
@@ -834,7 +836,7 @@ inset door `y ∈ [0,18]` does not (`18 > 0`) and its rect does not overlap the 
 door does hide the shelf behind it at `y ∈ [20,537]` (`18 <= 20`), where the 20 comes from Stage E's
 `max(SHELF_FRONT_SETBACK, insetFrontThickness + SHELF_CLEARANCE)`.
 
-- [ ] **Step 1: Add the whole-cabinet fixture**
+- [x] **Step 1: Add the whole-cabinet fixture**
 
 Task 3 tested `projectBox` and `culled` directly, with explicit boxes. `buildAssemblyViews` needs a
 real cabinet, so add the fixture here. Append to the imports:
@@ -894,7 +896,7 @@ function viewsOf(params: CarcaseParams, materials = PRESET_MATERIALS) {
 const labels = (v: { parts: { label: string }[] }) => v.parts.map((p) => p.label)
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Append to `src/geom/assembly.test.ts`:
 
@@ -1057,12 +1059,12 @@ describe('occlusion', () => {
 })
 ```
 
-- [ ] **Step 3: Run and confirm failure**
+- [x] **Step 3: Run and confirm failure**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: FAIL — `buildAssemblyViews` is not exported.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 Append to `src/geom/assembly.ts`:
 
@@ -1260,12 +1262,12 @@ function buildDims(): AssemblyDim[] {
 
 and the view returns `dims: buildDims()`.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: PASS — Task 2's and Task 3's tests included.
 
-- [ ] **Step 6: Mutation check — the comparator, and Top's inversion**
+- [x] **Step 6: Mutation check — the comparator, and Top's inversion**
 
 ```bash
 cp src/geom/assembly.ts "$SCRATCHPAD"/assembly-t4.bak
@@ -1325,7 +1327,7 @@ specifically on its **`Behind`** assertion. The two halves of that rule fail sep
 `hullOf` with a throw breaks the *drawn as an outline* half, this breaks the *occludes nothing* half.
 If only the outline assertion fails here, the second half is still unpinned — say so.
 
-- [ ] **Step 7: Full suite and commit**
+- [x] **Step 7: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -1360,7 +1362,7 @@ its own ring, so no two can share both. The projector emits `side` + `ring`, nev
 `renderDimLine` treats `offset` as sheet millimetres while `start`/`end` are scaled, so an unscaled
 projector cannot fill it.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `src/geom/assembly.test.ts`:
 
@@ -1448,12 +1450,12 @@ describe('dimensions', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: FAIL — `buildDims` returns `[]`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace Task 4's `buildDims` stub in `src/geom/assembly.ts` (keep the `AssemblyDim` interface it
 declared) and change the call to `buildDims(view, p, thicknessOf)`:
@@ -1536,12 +1538,12 @@ const thicknessOf = roleThicknessFor(p, materials, overridesOf(parts, cabinet.id
 
 then `dims: buildDims(view, p, thicknessOf)`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation check — the chain source, and the overrides**
+- [x] **Step 5: Mutation check — the chain source, and the overrides**
 
 ```bash
 cp src/geom/assembly.ts "$SCRATCHPAD"/assembly-t5.bak
@@ -1583,7 +1585,7 @@ cp "$SCRATCHPAD"/assembly-t5.bak src/geom/assembly.ts
 grep -n "ring: 2," src/geom/assembly.ts
 ```
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -1630,7 +1632,7 @@ Cuts also routinely **overshoot** the part on purpose, so OCCT resolves a throug
 coplanar face. A cut rectangle must be clipped to the silhouette or the Front view shows a dashed box
 hanging 9 mm past an 18 mm side on both sides.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `src/geom/assembly.test.ts`:
 
@@ -1740,12 +1742,12 @@ describe('cuts', () => {
 
 Add `carcaseCuts` and `AssemblyPart` to the test file's imports.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: FAIL — `rects` is always one rectangle and `cutRects` is always empty.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `src/geom/assembly.ts`:
 
@@ -1871,12 +1873,12 @@ const isBoxCut = (c: CutDef): c is BoxCut => c.kind === 'box'
 
 Set `cutRects` on the returned `AssemblyPart` instead of `[]`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation check — through decided once, and the clip**
+- [x] **Step 5: Mutation check — through decided once, and the clip**
 
 ```bash
 cp src/geom/assembly.ts "$SCRATCHPAD"/assembly-t6.bak
@@ -1923,7 +1925,7 @@ cp "$SCRATCHPAD"/assembly-t6.bak src/geom/assembly.ts
 grep -n "clip(r, proj.rect)" src/geom/assembly.ts
 ```
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -1983,7 +1985,7 @@ drawing. A bore seen **edge-on draws nothing**, matching the convention `drawing
 >    space. The intent was right and the mechanism wrong — take the path already written, and import
 >    nothing.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to the test imports: `carcaseHoleArrays` from `../scene/carcaseRoles`, and `Vec3` and `CutDef`
 from `../scene/types`.
@@ -2128,12 +2130,12 @@ describe('machining', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: FAIL — `circles` is always `[]`, a mitred board still occludes, and nothing throws.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Imports to add to `src/geom/assembly.ts`: `faceAxes` from `../scene/snapMath`, and `HoleArrayCut`
 and `MitreCut` to the type import from `../scene/types`.
@@ -2235,12 +2237,12 @@ q.axisAligned && …) : []`, `outline` becomes `axisAligned ? undefined : hullOf
 `isBoxCut` is now unused — delete it. Its own comment says why it existed: "so the exhaustive switch
 in Task 7 is the only place cut kinds are enumerated."
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/assembly.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation-test the new rules**
+- [x] **Step 5: Mutation-test the new rules**
 
 Back the file up with `cp` first and restore from that copy — never `git checkout`. Grep after
 applying and again after restoring. Predicted victims, to be checked against what actually fails:
@@ -2258,7 +2260,7 @@ applying and again after restoring. Predicted victims, to be checked against wha
 A mutation that survives is a gap in the tests, not a licence to skip it: add the test that kills it
 or delete the line it proves is dead.
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -2363,7 +2365,7 @@ text, so labels are sized as a fraction of the view extent and strokes carry
 `vector-effect="non-scaling-stroke"` — otherwise a 3 mm label on a 720 mm cabinet renders at under
 two pixels.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/ui/CabinetProjection.test.tsx`:
 
@@ -2494,12 +2496,12 @@ describe('CabinetProjection', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/ui/CabinetProjection.test.tsx`
 Expected: FAIL — `Failed to resolve import "./CabinetProjection"`.
 
-- [ ] **Step 3: Write `src/ui/CabinetProjection.tsx`**
+- [x] **Step 3: Write `src/ui/CabinetProjection.tsx`**
 
 ```tsx
 import { buildAssemblyViews, type AssemblyDim, type AssemblyView } from '../geom/assembly'
@@ -2709,12 +2711,12 @@ export function CabinetProjection({
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/ui/CabinetProjection.test.tsx`
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Full suite and commit**
+- [x] **Step 5: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -2770,7 +2772,7 @@ lies inside it.
 > **This task needs a test that renders `App`.** Both regressions are invisible at the
 > `CabinetEditor` level; that is precisely how the draft came to contain them.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/ui/CabinetEditor.test.tsx`:
 
@@ -2795,12 +2797,12 @@ Add `parts` and `onSelectPart` to `props()` in that file:
   onSelectPart: vi.fn(),
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/ui/CabinetEditor.test.tsx`
 Expected: FAIL — "not built yet" is still rendered, and there is no `img` role for the view.
 
-- [ ] **Step 3: Wire `CabinetEditor`**
+- [x] **Step 3: Wire `CabinetEditor`**
 
 In `src/ui/CabinetEditor.tsx`, add to the props:
 
@@ -2827,7 +2829,7 @@ and replace the `not built yet` branch:
           )}
 ```
 
-- [ ] **Step 4: Change the selection derivation in `src/App.tsx`**
+- [x] **Step 4: Change the selection derivation in `src/App.tsx`**
 
 Replace lines 82-88. The open cabinet is a small state machine rather than a pure derivation,
 because "stays open" is a fact about the *previous* answer:
@@ -2882,7 +2884,7 @@ Add `ancestorsOf` to the `componentTree` import, `useEffect` to the React import
             onSelectPart={(id) => onSelect({ kind: 'part', id })}
 ```
 
-- [ ] **Step 4b: The test that renders `App`**
+- [x] **Step 4b: The test that renders `App`**
 
 `CabinetEditor.test.tsx` cannot see either regression. `src/App.test.tsx` already has the harness:
 it mocks `./scene/useScene` through a `mockUseScene` fn whose return comes from
@@ -2908,12 +2910,12 @@ it('closes the cabinet when the selection moves outside it', async () => {
 })
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `pnpm vitest run src/ui/CabinetEditor.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -2948,7 +2950,7 @@ Both pass `new Map()` today, so a cabinet with a 25 mm side draws openings its b
 The projector already reads real overrides (Task 5); leaving these two wrong would make the Section
 tab and the Front tab disagree about the same cabinet, which is worse than one wrong tab.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/ui/SectionElevation.test.tsx`:
 
@@ -3000,7 +3002,7 @@ it('draws the opening the overrides actually produce', () => {
 })
 ```
 
-- [ ] **Step 1b: A test for the panel, which the draft left undefended**
+- [x] **Step 1b: A test for the panel, which the draft left undefended**
 
 `CarcasePanel.tsx:70` is the *other* wrong call site, and the draft tests only the elevation — so a
 mutation putting `new Map()` back there survives the whole suite. Append to
@@ -3033,13 +3035,13 @@ it('reads per-part thickness overrides into the divider field', () => {
 Build `sidePart` from the same shape the elevation test uses. If `getByLabelText` does not find the
 field, read the real markup rather than guessing at a `data-testid`.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/ui/SectionElevation.test.tsx src/ui/CarcasePanel.test.tsx`
 Expected: FAIL — the elevation's width is 564, the divider values match, and the new props do not
 exist on either component.
 
-- [ ] **Step 3: Fix both call sites**
+- [x] **Step 3: Fix both call sites**
 
 `src/ui/SectionElevation.tsx` — add `parts: Part[]` and `componentId: ComponentId` to the props, and
 replace line 29:
@@ -3078,12 +3080,12 @@ and `sidebar.test.tsx` both construct `CarcasePanel` without it. Add `parts: []`
 builders. An empty array is the honest value there: neither file is testing overrides, and
 `overridesOf([], id)` is an empty map, which is exactly what they resolve with today.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/ui/SectionElevation.test.tsx src/ui/CarcasePanel.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation check — BOTH call sites**
+- [x] **Step 5: Mutation check — BOTH call sites**
 
 Back the file up with `cp` and restore from that copy; never `git checkout`. `grep -F` (fixed
 string, not `-E`) after applying and again after restoring.
@@ -3097,7 +3099,7 @@ string, not `-E`) after applying and again after restoring.
 Mutation 3 matters because `overridesOf` filters on `parentId === componentId`: passing the parts
 but the wrong id silently yields an empty map, which looks exactly like the bug being fixed.
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -3139,7 +3141,7 @@ read straight across between them. That is what a cabinetmaker reads two elevati
 scale argument is needed to justify it. Do not restate the 1:20 claim anywhere — it is false under
 the arithmetic this task now uses.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/geom/drawing.test.ts`:
 
@@ -3240,7 +3242,7 @@ describe('assembly sheets', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/geom/drawing.test.ts`
 Expected: FAIL — `buildDrawingSheets` takes two arguments.
@@ -3252,7 +3254,7 @@ promises, not private trivia. Add `export` to each. Do NOT copy their values int
 test that hardcodes 15 and 25 passes when the page changes underneath it, which is the failure this
 whole task is about.
 
-- [ ] **Step 3: Implement in `src/geom/drawing.ts`**
+- [x] **Step 3: Implement in `src/geom/drawing.ts`**
 
 ```ts
 import { buildAssemblyViews, type AssemblyView } from './assembly'
@@ -3370,12 +3372,12 @@ function buildAssemblySheet(input: CabinetSheetInput, date: string): DrawingShee
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/drawing.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation check**
+- [x] **Step 5: Mutation check**
 
 Back up with `cp` and restore from that copy; never `git checkout`. `grep -F` (fixed string, NOT
 `-E` — parentheses are regex groups under `-E` and match nothing) after applying and after
@@ -3397,7 +3399,7 @@ No survivor may be left unresolved — write the test that kills it, or delete t
 dead. If mutation 6 survives, say so: it may mean no preset's labels differ in length, in which case
 the fixture needs one that does rather than the check being dropped.
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -3445,7 +3447,7 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 >
 > **Step 0 fixes the root cause of the first**, so there is no third place to get it wrong.
 
-- [ ] **Step 0: The ring geometry moves to `assembly.ts`**
+- [x] **Step 0: The ring geometry moves to `assembly.ts`**
 
 Task 11 put `SHEET_FONT`, `RING_EM`, `TICK_EM`, `TEXT_GAP_EM` and `CHAR_EM` in `drawing.ts`
 (lines ~417-423) under a comment claiming they are "shared with CabinetProjection — one rule, two
@@ -3478,7 +3480,7 @@ padding and its ring offsets both derive from `RING_EM`, so a larger ring simply
 margin and nothing user-visible moves. This is the same structural blindness Task 11's mutation 6
 hit.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
@@ -3542,12 +3544,12 @@ it('draws its dimension ring at the offset the sheet reserved', () => {
   }
 })
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/ui/buildSvg.test.ts`
 Expected: FAIL — the dispatch falls into the board branch and reads `sheet.views` as `DrawingView[]`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add to `src/ui/buildSvg.ts`:
 
@@ -3686,12 +3688,12 @@ and the branch at line 365:
   } else if (sheet.shape === 'dowel') {
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/ui/buildSvg.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation check**
+- [x] **Step 5: Mutation check**
 
 The draft had none — alone among this plan's tasks it went straight from "run the tests" to
 "commit". Back up with `cp`, restore from that copy, never `git checkout`; `grep -F` (fixed string,
@@ -3708,7 +3710,7 @@ NOT `-E`) after applying and after restoring.
 
 No survivor may be left unresolved: write the test that kills it, or delete the line it proves dead.
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -3763,7 +3765,7 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 > 9. **No mutation step**, and the DXF test counts the substring `'LINE'` — which also matches
 >    `POLYLINE` and `LWPOLYLINE`.
 
-- [ ] **Step 0: The dimension conversion moves to `drawing.ts`**
+- [x] **Step 0: The dimension conversion moves to `drawing.ts`**
 
 Task 12 inlined this in `renderAssemblyView`. It is pure arithmetic over an `AssemblyDim`, and three
 renderers now need it. `drawing.ts` is the home: it owns `DimLine` and `SHEET_FONT`, and already
@@ -3798,7 +3800,7 @@ export function assemblyDimLine(d: AssemblyDim, bounds: Rect2D, scale: number): 
 Replace the inlined block in `buildSvg.ts` with a call. The full suite is the check that the
 extraction changed nothing: **1632 tests must still pass**.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Both files: add `byId` to every `buildDrawingSheets` call. Count entities against the projector's own
 totals rather than against a magic threshold.
@@ -3879,11 +3881,11 @@ it('renders an assembly sheet as one landscape page', async () => {
 If `pdf-lib` cannot read back drawn content, say so and assert what it can — page count and
 orientation — rather than inventing an assertion that cannot fail.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/ui/buildDxf.test.ts src/ui/buildPdf.test.ts`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `buildDxf.ts` — contribute **entities only**, inside the existing composition, so `dxfTables()` still
 runs:
@@ -3922,9 +3924,9 @@ reusing `renderPdfDimLine`. Do **not** reverse `view.parts`: Task 12 established
 sheet is filled or clickable, so paint order is unobservable and a reversal is a line no test can
 falsify.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
-- [ ] **Step 5: Mutation check**
+- [x] **Step 5: Mutation check**
 
 Back up with `cp`, restore from that copy, never `git checkout`. `grep -F`, and prefer
 `diff -q` as the authority.
@@ -3940,7 +3942,7 @@ Back up with `cp`, restore from that copy, never `git checkout`. `grep -F`, and 
 
 No survivor may be left unresolved.
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -4001,7 +4003,7 @@ Task 14 close with the export paths shipping them silently:
    `x - 1.5`; DXF and PDF have no anchor, so they shift `x` left by the measured width
    (`font.widthOfTextAtSize` in PDF, `CHAR_EM * height * label.length` in DXF).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `src/ui/DrawingViewer.test.tsx`:
 
@@ -4041,12 +4043,12 @@ it('offers no export from the Section tab, which is not a drawing', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/ui/DrawingViewer.test.tsx src/ui/CabinetEditor.test.tsx`
 Expected: FAIL on all four.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `src/ui/sheetFilename.ts`:
 
@@ -4136,12 +4138,12 @@ setDrawingSheets(
 
 where `carcases` is `scene.components.filter((c) => c.kind === 'carcase')`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/ui/DrawingViewer.test.tsx src/ui/CabinetEditor.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Full suite and commit**
+- [x] **Step 5: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -4171,7 +4173,7 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 
 - Modify: `e2e/carcase.spec.ts`
 
-- [ ] **Step 1: Write the tests**
+- [x] **Step 1: Write the tests**
 
 Append to `e2e/carcase.spec.ts`:
 
@@ -4244,7 +4246,7 @@ test('the drawings deck carries an assembly sheet for the cabinet', async ({ pag
 })
 ```
 
-- [ ] **Step 2: Run the e2e**
+- [x] **Step 2: Run the e2e**
 
 Run: `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npx playwright test e2e/carcase.spec.ts`
 Expected: PASS, 9 tests (6 existing + 3 new).
@@ -4257,12 +4259,12 @@ selection (`sidebar.tsx:117`), not from `App`'s open-cabinet. So clicking a part
 hides `CarcasePanel` and shows `EditPanel` — which is why `getByLabel('L')` is the right assertion
 that the selection landed, even though the cabinet editor stays mounted in the main pane.
 
-- [ ] **Step 3: Run the whole e2e suite**
+- [x] **Step 3: Run the whole e2e suite**
 
 Run: `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npx playwright test`
 Expected: 23 passed (20 existing + 3 new).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add e2e/carcase.spec.ts
@@ -4287,7 +4289,7 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 - Modify: `project-structure.html`
 - Modify: `docs/superpowers/notes/2026-08-27-cabinet-assembly-restructure-notes.md`
 
-- [ ] **Step 1: `CLAUDE.md` — the file tree**
+- [x] **Step 1: `CLAUDE.md` — the file tree**
 
 Add under `src/geom/`:
 
@@ -4307,7 +4309,7 @@ and under `src/ui/`:
 │   ├── sheetFilename.ts  Names a drawing file; shared by the deck and the tab
 ```
 
-- [ ] **Step 2: `CLAUDE.md` — four invariants**
+- [x] **Step 2: `CLAUDE.md` — four invariants**
 
 ```markdown
 - **A cabinet projection is one pure function with two consumers.** `buildAssemblyViews` returns
@@ -4336,7 +4338,7 @@ and under `src/ui/`:
 Also correct the existing G1 wording where `CabinetEditor` "renders nothing but a not-built-yet
 message" for Front/Top/End.
 
-- [ ] **Step 3: the architecture page**
+- [x] **Step 3: the architecture page**
 
 ```bash
 node scripts/update-structure-html.mjs
@@ -4347,7 +4349,7 @@ the test/e2e counts sentence at `project-structure.html:1270`. Move the roadmap 
 End projections in the cabinet editor_ from **Next** to **Done**, and put G3 (the scene tree
 mirroring the section tree) in its place.
 
-- [ ] **Step 4: notes**
+- [x] **Step 4: notes**
 
 Append to `docs/superpowers/notes/2026-08-27-cabinet-assembly-restructure-notes.md`:
 
@@ -4420,7 +4422,7 @@ the row layout's rounded 1:10 at 60 × 72.
   the opening-chain convention (openings listed, not summing to the overall).
 ```
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 Run: `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npx playwright test`
@@ -4447,17 +4449,17 @@ git push -u origin claude/next-step-suggestion-latrhv
 
 ## Acceptance
 
-- [ ] Front, Top and End draw the cabinet, dimensioned, with hidden edges dashed
-- [ ] The End view shows more than one part — the cull works
-- [ ] Front shows its door — the cull does **not** apply there
-- [ ] Clicking a part selects it, opens its properties, and **leaves the tab open**
-- [ ] The toe-kick notch is an L in End and a dashed rectangle in Front
-- [ ] A cut rectangle never extends past its own part
-- [ ] The opening chain reads 557 for a 25 mm side, in the projector _and_ in the elevation
-- [ ] An assembly sheet reaches the deck, prints, and exports as SVG, DXF and PDF
-- [ ] The same sheet exports from the tab's own buttons with the same filename
-- [ ] A Base 600 assembly sheet is at 1:10
-- [ ] All twelve mutations were run and reported
+- [x] Front, Top and End draw the cabinet, dimensioned, with hidden edges dashed
+- [x] The End view shows more than one part — the cull works
+- [x] Front shows its door — the cull does **not** apply there
+- [x] Clicking a part selects it, opens its properties, and **leaves the tab open**
+- [x] The toe-kick notch is an L in End and a dashed rectangle in Front
+- [x] A cut rectangle never extends past its own part
+- [x] The opening chain reads 557 for a 25 mm side, in the projector _and_ in the elevation
+- [x] An assembly sheet reaches the deck, prints, and exports as SVG, DXF and PDF
+- [x] The same sheet exports from the tab's own buttons with the same filename
+- [x] A Base 600 assembly sheet is at 1:10
+- [x] All twelve mutations were run and reported
 
 ## What this stage deliberately does not do
 

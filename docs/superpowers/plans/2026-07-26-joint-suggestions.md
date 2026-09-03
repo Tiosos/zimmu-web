@@ -19,6 +19,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** When a single board is selected, show a sidebar list of the joints that would actually work between it and its touching neighbours, each applied with one click.
 
 **Architecture:** A pure engine (`src/scene/suggestJoints.ts`) detects the physically-meeting face pair between the selected board and each neighbour (`contactPair`, from world AABBs), classifies it, and validates against the existing joint gates — emitting `JointSuggestion`s for half-lap, dado, mortise-tenon, and tongue-groove. A `SuggestionsPanel` renders them; clicking **Add** replays a suggestion through the existing `useScene` `onAdd*` creators via a synthesised `FaceHit`, so joint creation, cut derivation, and undo/redo are reused unchanged. No data-model, file-format, or kernel change. Finger joints are deferred (they need a separate perpendicular-corner detector).

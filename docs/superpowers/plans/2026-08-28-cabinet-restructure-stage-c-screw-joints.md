@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete.** All tasks landed. Unit tests **1337 → 1357**; e2e **15/15**, with no e2e file touched in the whole stage.
+
 **Goal:** Make screw fixing a first-class joint that shows its holes, make it the default, and let a user override any single joint's kind without regeneration undoing it.
 
 **Architecture:** The joint→cut pipeline is widened from `BoxCut` to `BoxCut | HoleArrayCut` first, so a joint can own a hole array. Then `ScrewJoint` joins the union like any other kind, `carcaseJoints` emits it for `butt-screw`, and the presets flip. A per-joint override reuses `driven: false`, exactly as a detached part does.

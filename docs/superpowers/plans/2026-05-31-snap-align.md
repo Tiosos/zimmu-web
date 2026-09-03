@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** **Complete — the feature is shipped and carries a **Done** badge in `project-structure.html`'s roadmap. Step checkboxes in this file were never ticked as the work went; the record of what landed and why is the Notes file named above.**
+
 **Goal:** Implement face-to-face flush snap — two-click flow, translate only, chained snaps, undoable with labelled history.
 
 **Architecture:** Pure math in `snapMath.ts` (computeSnapDelta, computeFaceCorners, computeLocalFaceCenter); state machine in `useSnap.ts`; visual feedback (LineLoop highlights) in `Viewport`; sidebar button and F/Escape shortcuts wire it together through `App.tsx`.
