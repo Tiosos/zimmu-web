@@ -2957,32 +2957,37 @@ Append to `src/ui/SectionElevation.test.tsx`:
 // from an empty override map it reads 564, and the elevation shows an opening the boards do not
 // have.
 it('draws the opening the overrides actually produce', () => {
-  const p = { ...base, carcaseMaterial: 'Ply 18mm' }
-  const parts = [
+  const parts: Part[] = [
     {
-      kind: 'board' as const,
+      kind: 'board',
       id: 'board_1',
       label: 'Left Side',
       length: 560,
       width: 720,
       thickness: 25,
-      grain: 'length' as const,
-      material: 'Ply 18mm',
+      grain: 'length',
+      material: '',
       color: '#888',
       position: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
-      rotationOrder: 'XYZ' as const,
+      rotationOrder: 'XYZ',
       cuts: [],
       visible: true,
       parentId: 'cmp_1',
       driven: true,
       role: 'left-side',
+      // The ONLY line that matters. `roleThicknessFor` returns an explicit override before it ever
+      // looks at a material (`resolveThickness.ts:30`), so naming one here would be dead weight —
+      // and the draft named `'Ply 18mm'`, which is not a key in `PRESET_MATERIALS`. The real key is
+      // `'18mm Ply'`. With the wrong name every non-overridden role throws, the cabinet fails
+      // validation, and the elevation renders "do not build" — so this test would have failed
+      // loudly for a reason that has nothing to do with what it is testing.
       overrides: { thickness: 25 },
     },
   ]
   render(
     <SectionElevation
-      params={p}
+      params={base}
       materials={PRESET_MATERIALS}
       parts={parts}
       componentId="cmp_1"
@@ -2995,10 +3000,44 @@ it('draws the opening the overrides actually produce', () => {
 })
 ```
 
+- [ ] **Step 1b: A test for the panel, which the draft left undefended**
+
+`CarcasePanel.tsx:70` is the *other* wrong call site, and the draft tests only the elevation — so a
+mutation putting `new Map()` back there survives the whole suite. Append to
+`src/ui/CarcasePanel.test.tsx`:
+
+```tsx
+// The Dividers field reads divider positions back out of the section tree, and a section percentage
+// is a share of the CLEAR span — so what it displays depends on the side thicknesses. That is the
+// v12/v13 relationship CLAUDE.md states: a v12 divider is a fraction of the gross width while a
+// section percentage is a share of what is left after the sides take their thickness.
+//
+// Asserted as a difference rather than against a number computed here. Recomputing the expected
+// fraction in the test would just be the implementation written twice; what has to be true is that
+// the override reaches the field at all.
+it('reads per-part thickness overrides into the divider field', () => {
+  const divided = { ...base, section: legacyToSection([0.5], 0, 600, 18) }
+  const shown = (parts: Part[]) => {
+    render(<CarcasePanel {...props({ component: { ...carcase, params: divided }, parts })} />)
+    const value = (screen.getByLabelText(/dividers/i) as HTMLInputElement).value
+    cleanup()
+    return value
+  }
+  const override: Part[] = [
+    { ...sidePart, role: 'left-side', overrides: { thickness: 25 } },
+  ]
+  expect(shown(override)).not.toBe(shown([]))
+})
+```
+
+Build `sidePart` from the same shape the elevation test uses. If `getByLabelText` does not find the
+field, read the real markup rather than guessing at a `data-testid`.
+
 - [ ] **Step 2: Run and confirm failure**
 
-Run: `pnpm vitest run src/ui/SectionElevation.test.tsx`
-Expected: FAIL — width is 564, and the new props do not exist.
+Run: `pnpm vitest run src/ui/SectionElevation.test.tsx src/ui/CarcasePanel.test.tsx`
+Expected: FAIL — the elevation's width is 564, the divider values match, and the new props do not
+exist on either component.
 
 - [ ] **Step 3: Fix both call sites**
 
@@ -3044,26 +3083,19 @@ builders. An empty array is the honest value there: neither file is testing over
 Run: `pnpm vitest run src/ui/SectionElevation.test.tsx src/ui/CarcasePanel.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation check**
+- [ ] **Step 5: Mutation check — BOTH call sites**
 
-```bash
-cp src/ui/SectionElevation.tsx "$SCRATCHPAD"/se-t10.bak
-python3 - <<'PY'
-p='src/ui/SectionElevation.tsx'; s=open(p).read()
-old="overridesOf(parts, componentId)"
-new="new Map()"
-assert s.count(old)==1; open(p,'w').write(s.replace(old,new))
-PY
-grep -n "new Map()" src/ui/SectionElevation.tsx
-```
+Back the file up with `cp` and restore from that copy; never `git checkout`. `grep -F` (fixed
+string, not `-E`) after applying and again after restoring.
 
-Run: `pnpm vitest run src/ui/SectionElevation.test.tsx`
-Expected: FAIL on _draws the opening the overrides actually produce_.
+| # | File | Mutation | Must fail |
+|---|---|---|---|
+| 1 | `SectionElevation.tsx` | `overridesOf(parts, componentId)` → `new Map()` | *draws the opening the overrides actually produce* |
+| 2 | `CarcasePanel.tsx` | the same, in `panelThickness` | *reads per-part thickness overrides into the divider field* |
+| 3 | `SectionElevation.tsx` | `overridesOf(parts, componentId)` → `overridesOf(parts, 'nope')` | mutation 1's test — proves the component id is used, not just the parts list |
 
-```bash
-cp "$SCRATCHPAD"/se-t10.bak src/ui/SectionElevation.tsx
-grep -n "overridesOf(parts, componentId)" src/ui/SectionElevation.tsx
-```
+Mutation 3 matters because `overridesOf` filters on `parentId === componentId`: passing the parts
+but the wrong id silently yields an empty map, which looks exactly like the bug being fixed.
 
 - [ ] **Step 6: Full suite and commit**
 
