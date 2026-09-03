@@ -3125,10 +3125,19 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 - Modify: `src/geom/drawing.ts`
 - Test: `src/geom/drawing.test.ts`
 
-Three views **in a row**, not stacked. Measured: stacked puts a Base 600 at 1:20 / 30 × 36 mm —
-smaller than its own dimension labels — because `H + D` is 1280 mm against 120 mm of usable height. A
-row gives 1:10 / 60 × 72 mm and keeps Front and End aligned horizontally, which is the alignment that
-matters for reading heights across two views.
+Three views **in a row**, not stacked — for the alignment, not for the scale.
+
+The original argument was that stacking costs `H + D` = 1280 mm against 120 mm of usable height and
+so drops a Base 600 to 1:20. That was measured against `AREA_H - GAP`, and it **no longer holds**:
+once the ring below replaces `DIM_MARGIN + GAP`, usable height is 132.75 mm, `132.75 / 1280 = 0.104`,
+and a stacked Base 600 reaches **1:10 — the same scale the row gives**. Measured for all three
+presets: row and stacked agree at 1:10, 1:10, 1:20. Fixing the area arithmetic invalidated the
+justification for the layout it was fixing.
+
+The row is still right, on the reason that survives: Front and End **share a top edge**, so heights
+read straight across between them. That is what a cabinetmaker reads two elevations for, and no
+scale argument is needed to justify it. Do not restate the 1:20 claim anywhere — it is false under
+the arithmetic this task now uses.
 
 - [ ] **Step 1: Write the failing test**
 
