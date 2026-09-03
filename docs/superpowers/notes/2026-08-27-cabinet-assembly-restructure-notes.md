@@ -1157,3 +1157,52 @@ of the scene.
   `'start'` so a left-hand dimension reads back across the drawing — are now in three renderers
   rather than one. Neither is fixed here; both are cheap in one place each and belong in a
   follow-up.
+
+## Task 14 — both export paths, and the two renderer defects (2026-09-03)
+
+- **Both gaps recorded under Tasks 12 and 13 are fixed here**, in all three renderers, in a commit
+  of their own so the export wiring lands on drawings that are not visibly wrong. Every assembly
+  view now carries its `Front`/`End`/`Top` label at `px, py - 2`, exactly where and how a board
+  sheet writes it, and a vertical dimension label on a left-hand ring reads away from its line.
+- **The anchor fix needed no signature change**, contrary to the Task 12 note. Every board vertical
+  dim has a positive offset (`boardRect.w + …`, `L * scale + …`), and `assemblyDimLine` returns a
+  negative offset for a vertical dim if and only if `side === 'left'` — the `'right'` case is
+  `bounds.w * scale + off`, which cannot be negative. So `dim.offset < 0` identifies a left-hand
+  label exactly, and the branch is unreachable on a board sheet. (A *horizontal* dim on `'above'`
+  is also negative, but the two branches are separate and the h label is centred anyway.)
+- **DXF shifts by HALF the label's width, not all of it.** `dxfText` writes justification `72=1`,
+  so its x is the label's CENTRE, not its left edge — the plan's `x - 2 - CHAR_EM * h * len` puts
+  the left edge a width and a half out. Measured on a Base 600, the End view's toe-kick label
+  landed at x = 96.975 with the Front view's reserved band ending at 97.25: outside the ring the
+  layout reserved and inside its neighbour's. Half the width clears the line under both readings —
+  centred, the right edge sits 2 mm short of it; and in a viewer that ignores 72 and draws from
+  (10,20), the whole label still ends before it.
+- **The ring test had to be updated deliberately, not loosened.** It asserted that every `text`
+  above the title block was a dimension, which the three new view labels make false. It now
+  partitions them and counts both — `above.length === labels.length + views.length` — so a
+  renderer that stopped drawing the names still fails it.
+- **`effectiveMaterials` does not exist in `App`.** The plan's `handleOpenDrawings` snippet reads a
+  binding that is not there; the nearest thing is `nestMaterials`, which merges the IndexedDB
+  library under `scene.materials`. Both paths use **`scene.materials`**: that is what
+  `regenerateComponents` resolved the panels' own thicknesses from, and a sheet resolving them from
+  a different table would dimension panels the cabinet does not have. It is also what `App` already
+  hands `CabinetEditor`, so the deck and the tab cannot disagree.
+- **An assembly sheet's filename now says `-assembly`.** The old local `sheetFilename` gave the
+  cabinet's label alone, so a cabinet and a part sharing a label both wrote `job-base-600.svg`.
+- **`sheetFilename` still lowercases and hyphenates whitespace only.** A label carrying `/` or `:`
+  passes straight through into the `download` attribute. The UA sanitises path separators, so
+  nothing escapes a directory, but "Base 600 / Left" downloads as `job-base-600-/-left.svg`. That
+  behaviour is pre-existing for part labels and was lifted verbatim; worth a slug helper if labels
+  ever come from anywhere but a person typing.
+- **happy-dom does not parse an SVG injected through `dangerouslySetInnerHTML`.** Measured: the
+  string carries 77 `stroke="#000"` line elements and one `<svg>` reaches the DOM with exactly one
+  child — the `<style>` — and the rest is gone. So an App-level test cannot assert on what the
+  viewer draws; the assembly-sheet test reads the `sheets` prop App hands over instead, which is
+  the thing App alone decides. That also kills the sharper mutation: passing the cabinet **no
+  parts** still produces a sheet titled "Assembly — Base 600" with a full dimension ring.
+- **The Top view carries a toe-kick dimension that means nothing** (pre-existing, from Task 5, not
+  fixed here). `buildDims` pushes `{axis:'v', side:'left', ring:2, 0..toeKickHeight}` whenever
+  `baseMode !== 'none'`, for every view. In Front and End the v axis is z, so it dimensions the toe
+  kick correctly; in **Top** the v axis is the cabinet's depth, so a Base 600's plan view is
+  labelled 100 mm across 100 mm of *depth*. Measured in the sheet's own dims. Deserves a line in
+  Task 16 or a follow-up.
