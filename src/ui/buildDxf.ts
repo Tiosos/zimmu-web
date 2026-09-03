@@ -1,9 +1,11 @@
+import { assemblyDimLine } from '../geom/drawing'
 import type {
   DrawingSheet,
   DrawingView,
   DowelView,
   DimLine,
   DrawCircle,
+  PlacedAssemblyView,
   Rect2D,
 } from '../geom/drawing'
 
@@ -218,6 +220,54 @@ function dxfDowelView(view: DowelView): string {
   return out.join('')
 }
 
+function dxfAssemblyView(view: PlacedAssemblyView, scale: number): string {
+  const { x: px, y: py } = view.placement
+  const H = view.bounds.h
+  // Sheet millimetres with y running DOWN — what every dxf* helper below takes, each applying the
+  // single flip onto DXF's y-up page itself. Carcase v runs up, so this is the only flip the
+  // assembly branch performs; a second one here draws the cabinet upside down.
+  const fx = (u: number) => px + u * scale
+  const fy = (v: number) => py + (H - v) * scale
+  const out: string[] = []
+
+  // Nearest first, the order the projector emits. Nothing on a sheet is filled or clickable, so the
+  // order is unobservable and a reversal would be a line no test could falsify.
+  for (const part of view.parts) {
+    // A part that is not an axis-aligned box carries `outline` — its real silhouette — while its
+    // `rects`, and so its `solid`, is only the bounding rectangle. The two are alternatives, never
+    // both: drawing `solid` for such a part puts a box around a tilted dowel. A closed ring of
+    // LINEs, exactly as dxfView draws a mitred board's, wrapping because `hullOf` repeats no point.
+    if (part.outline !== undefined) {
+      for (let i = 0; i < part.outline.length; i++) {
+        const a = part.outline[i]
+        const b = part.outline[(i + 1) % part.outline.length]
+        out.push(dxfLine('OUTLINE', fx(a.x), fy(a.y), fx(b.x), fy(b.y)))
+      }
+    } else {
+      for (const s of part.solid) {
+        out.push(dxfLine('OUTLINE', fx(s.x1), fy(s.y1), fx(s.x2), fy(s.y2)))
+      }
+    }
+    for (const s of part.hidden) {
+      out.push(dxfDashedLine(fx(s.x1), fy(s.y1), fx(s.x2), fy(s.y2)))
+    }
+    for (const c of part.cutRects) {
+      out.push(
+        dxfRect('CUTS', fx(c.rect.x), fy(c.rect.y + c.rect.h), c.rect.w * scale, c.rect.h * scale),
+      )
+    }
+    for (const o of part.circles) {
+      out.push(dxfCircle('CUTS', fx(o.cx), fy(o.cy), o.r * scale, true))
+    }
+  }
+
+  for (const d of view.dims) {
+    out.push(dxfDimLine(assemblyDimLine(d, view.bounds, scale), px, py))
+  }
+
+  return out.join('')
+}
+
 function dxfTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): string {
   const MARGIN = 15
   const tbY = SHEET_H - MARGIN - 25
@@ -228,6 +278,21 @@ function dxfTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): string {
     dxfRect('TITLE', tbX, tbY, tbW, 25),
     dxfText('TITLE', tbX + 4, tbY + 8, 7, sheet.partLabel),
     dxfText('TEXT', tbX + 4, tbY + 16, 4, sheet.material || '—'),
+    dxfText('TEXT', tbX + 100, tbY + 8, 4, `Scale: ${sheet.scaleLabel}`),
+    dxfText('TEXT', tbX + 100, tbY + 16, 4, `Date: ${sheet.date}`),
+  ].join('')
+}
+
+function dxfAssemblyTitleBlock(sheet: Extract<DrawingSheet, { kind: 'assembly' }>): string {
+  const MARGIN = 15
+  const tbY = SHEET_H - MARGIN - 25
+  const tbX = MARGIN
+  const tbW = 297 - 2 * MARGIN
+
+  return [
+    dxfRect('TITLE', tbX, tbY, tbW, 25),
+    dxfText('TITLE', tbX + 4, tbY + 8, 7, sheet.cabinetLabel),
+    dxfText('TEXT', tbX + 4, tbY + 16, 4, 'Assembly'),
     dxfText('TEXT', tbX + 100, tbY + 8, 4, `Scale: ${sheet.scaleLabel}`),
     dxfText('TEXT', tbX + 100, tbY + 16, 4, `Date: ${sheet.date}`),
   ].join('')
@@ -331,9 +396,12 @@ export function buildDxf(sheet: DrawingSheet): string {
   if (sheet.kind === 'cover') {
     entities = dxfCoverSheet(sheet)
   } else if (sheet.kind === 'assembly') {
-    // See buildSvg: the assembly renderer lands in the next step, and the branch keeps the union
-    // exhaustive in the meantime.
-    entities = ''
+    // Entities only, contributed to the composition below — a whole document returned from here
+    // would skip dxfTables(), which is where the HIDDEN layer and the DASHED linetype these
+    // entities reference are defined.
+    entities =
+      sheet.views.map((v) => dxfAssemblyView(v, sheet.scale)).join('') +
+      dxfAssemblyTitleBlock(sheet)
   } else if (sheet.shape === 'dowel') {
     entities = sheet.views.map(dxfDowelView).join('') + dxfTitleBlock(sheet)
   } else {

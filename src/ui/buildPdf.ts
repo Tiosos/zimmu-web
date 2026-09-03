@@ -1,5 +1,12 @@
 import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from 'pdf-lib'
-import type { DrawingSheet, DrawingView, DowelView, DimLine } from '../geom/drawing'
+import { assemblyDimLine } from '../geom/drawing'
+import type {
+  DrawingSheet,
+  DrawingView,
+  DowelView,
+  DimLine,
+  PlacedAssemblyView,
+} from '../geom/drawing'
 
 const MM_TO_PT = 72 / 25.4
 const PAGE_W_PT = 297 * MM_TO_PT // 841.89 pt
@@ -221,6 +228,118 @@ function renderPdfDowelView(page: PDFPage, view: DowelView, font: PDFFont): void
   dims.forEach((d) => renderPdfDimLine(page, d, px, py, font))
 }
 
+function renderPdfAssemblyView(
+  page: PDFPage,
+  view: PlacedAssemblyView,
+  scale: number,
+  font: PDFFont,
+): void {
+  const { x: px, y: py } = view.placement
+  const H = view.bounds.h
+  // Sheet millimetres with y running down, which is what yflip and pt take. Carcase v runs up, so
+  // this is the only flip: the page is reached through the same two helpers every other view uses.
+  const fx = (u: number) => px + u * scale
+  const fy = (v: number) => py + (H - v) * scale
+  const line = (x1: number, y1: number, x2: number, y2: number, dashed: boolean) =>
+    page.drawLine({
+      start: { x: pt(x1), y: yflip(y1) },
+      end: { x: pt(x2), y: yflip(y2) },
+      thickness: pt(dashed ? 0.2 : 0.3),
+      color: dashed ? C_GRAY : C_BLACK,
+      dashArray: dashed ? DASH_PT : undefined,
+    })
+
+  // Nearest first, the order the projector emits. Nothing here is filled or clickable, so the paint
+  // order is unobservable and a reversal would be a line no test could falsify.
+  for (const part of view.parts) {
+    // `outline` and `solid` are alternatives, never both: a part that is not an axis-aligned box
+    // has only its bounding rectangle in `rects`, and drawing that puts a box around a tilted dowel.
+    if (part.outline !== undefined) {
+      for (let i = 0; i < part.outline.length; i++) {
+        const a = part.outline[i]
+        const b = part.outline[(i + 1) % part.outline.length]
+        line(fx(a.x), fy(a.y), fx(b.x), fy(b.y), false)
+      }
+    } else {
+      for (const s of part.solid) line(fx(s.x1), fy(s.y1), fx(s.x2), fy(s.y2), false)
+    }
+    for (const s of part.hidden) line(fx(s.x1), fy(s.y1), fx(s.x2), fy(s.y2), true)
+    for (const c of part.cutRects) {
+      page.drawRectangle({
+        x: pt(fx(c.rect.x)),
+        y: yflip(fy(c.rect.y)),
+        width: pt(c.rect.w * scale),
+        height: pt(c.rect.h * scale),
+        borderColor: C_GRAY,
+        borderWidth: pt(0.2),
+        borderDashArray: DASH_PT,
+      })
+    }
+    for (const o of part.circles) {
+      page.drawCircle({
+        x: pt(fx(o.cx)),
+        y: yflip(fy(o.cy)),
+        size: pt(o.r * scale),
+        borderColor: C_GRAY,
+        borderWidth: pt(0.15),
+        borderDashArray: DASH_PT,
+      })
+    }
+  }
+
+  for (const d of view.dims) {
+    renderPdfDimLine(page, assemblyDimLine(d, view.bounds, scale), px, py, font)
+  }
+}
+
+function renderPdfAssemblyTitleBlock(
+  page: PDFPage,
+  sheet: Extract<DrawingSheet, { kind: 'assembly' }>,
+  font: PDFFont,
+  fontBold: PDFFont,
+): void {
+  const tbY = 170 // 210 - 15 - 25
+  const tbX = 15
+  const tbW = 267 // 297 - 2*15
+
+  page.drawRectangle({
+    x: pt(tbX),
+    y: PAGE_H_PT - pt(tbY + 25),
+    width: pt(tbW),
+    height: pt(25),
+    borderColor: C_BLACK,
+    borderWidth: pt(0.3),
+  })
+  page.drawText(sheet.cabinetLabel, {
+    x: pt(tbX + 4),
+    y: yflip(tbY + 8),
+    size: pt(7),
+    font: fontBold,
+    color: C_BLACK,
+  })
+  page.drawText('Assembly', {
+    x: pt(tbX + 4),
+    y: yflip(tbY + 16),
+    size: pt(4),
+    font,
+    color: C_DARK_GRAY,
+  })
+  page.drawText(`Scale: ${sheet.scaleLabel}`, {
+    x: pt(tbX + 100),
+    y: yflip(tbY + 8),
+    size: pt(4),
+    font,
+    color: C_DARK_GRAY,
+  })
+  page.drawText(`Date: ${sheet.date}`, {
+    x: pt(tbX + 100),
+    y: yflip(tbY + 16),
+    size: pt(4),
+    font,
+    color: C_DARK_GRAY,
+  })
+}
+
 function renderPdfTitleBlock(
   page: PDFPage,
   sheet: Extract<DrawingSheet, { kind: 'part' }>,
@@ -360,8 +479,8 @@ export async function buildPdf(sheets: DrawingSheet[]): Promise<Uint8Array> {
     if (sheet.kind === 'cover') {
       renderPdfCoverSheet(page, sheet, font, fontBold)
     } else if (sheet.kind === 'assembly') {
-      // See buildSvg: the assembly renderer lands in the next step. The page is still added, so a
-      // deck's page count already matches its sheet count.
+      sheet.views.forEach((v) => renderPdfAssemblyView(page, v, sheet.scale, font))
+      renderPdfAssemblyTitleBlock(page, sheet, font, fontBold)
     } else if (sheet.shape === 'dowel') {
       sheet.views.forEach((v) => renderPdfDowelView(page, v, font))
       renderPdfTitleBlock(page, sheet, font, fontBold)
