@@ -237,3 +237,94 @@ test('splitting a cell in the elevation adds the panel it divides with', async (
   await expect(cells).toHaveCount(1)
   await expect(boards).toHaveCount(before)
 })
+
+// The regression the selection change exists to prevent. Before it, selecting a part nulled
+// `selectedCarcase`, which unmounted the editor and revealed the viewport — so a click in a
+// projection destroyed the surface it was clicked in. A unit test cannot see that; only the
+// rendered tab can.
+test('clicking a part in the Front view selects it without closing the editor', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+  await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
+
+  await page.getByRole('tab', { name: 'Front' }).click()
+  // Last, not first. `CabinetProjection` paints farthest-first so the nearest part takes the
+  // click, which puts the back panel at the head of the DOM and the door at its tail — clicking
+  // the first one is a click the door intercepts, and Playwright retries that until the test
+  // times out rather than failing on the assertion.
+  const shapes = page.locator('[data-testid^="projection-part-"]')
+  const nearest = shapes.last()
+  await expect(nearest).toBeVisible()
+
+  await nearest.click()
+  await expect(nearest).toHaveAttribute('data-selected', 'true')
+
+  // Still on Front, and the sidebar now shows a part rather than the carcase parameters.
+  await expect(page.getByRole('tab', { name: 'Front' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByLabel('L', { exact: true }).first()).toBeVisible()
+})
+
+// The End view is a section: the near half is cut away, so the panel standing in front of the cut
+// plane is not drawn at all. Counting parts cannot see that — `culled` filters parts OUT, so
+// turning the cull off RAISES a Base 600's End view from seven parts to eight. Measured: with the
+// cull disabled, "more than one part" still passes. Only the near panel's absence pins it.
+test('the End view cuts the near side away', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+  await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
+
+  // A projection names a part by its own id, so ask the tree for the near panel's.
+  const rowId = await page
+    .locator('[data-testid^="node-board_"]')
+    .filter({ hasText: 'Right Side' })
+    .first()
+    .getAttribute('data-testid')
+  const nearPanel = page.locator(`[data-testid="projection-part-${rowId!.slice('node-'.length)}"]`)
+
+  // Drawn in Front, which is a view rather than a section — so its absence below is the cull and
+  // not a mistyped id.
+  await page.getByRole('tab', { name: 'Front' }).click()
+  await expect(nearPanel).toHaveCount(1)
+
+  await page.getByRole('tab', { name: 'End' }).click()
+  const drawn = page.locator('[data-testid^="projection-part-"]')
+  await expect(drawn.first()).toBeVisible()
+  await expect(nearPanel).toHaveCount(0)
+  // …and what stood behind it is what the section exists to show.
+  expect(await drawn.count()).toBeGreaterThan(1)
+})
+
+// The assembly sheet reaches the deck, and the viewer names it correctly.
+test('the drawings deck carries an assembly sheet for the cabinet', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+
+  // "2D Drawings…" is an item INSIDE the File menu, not a top-level button. Opening the menu is
+  // the whole difference between this passing and a timeout that reads like a missing feature.
+  // The enabled check is a guard, not a wait: `canExport` is `visibleParts.length > 0`, which the
+  // default board already satisfies at boot — it never involves OCCT.
+  await page.getByRole('button', { name: 'File ▾' }).click()
+  const drawings = page.getByRole('button', { name: '2D Drawings…' })
+  await expect(drawings).toBeEnabled({ timeout: OCCT_READY_TIMEOUT })
+  await drawings.click()
+
+  await page.getByLabel('→').click()
+  await expect(page.getByText(/Assembly — Base 600/)).toBeVisible()
+})
