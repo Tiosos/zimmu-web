@@ -3424,31 +3424,105 @@ Claude-Session: https://claude.ai/code/session_01Hrvw5zNsyymkFSh8gmtGVs"
 
 **Files:**
 
-- Modify: `src/ui/buildSvg.ts:365`
+- Modify: `src/geom/assembly.ts` (the ring constants move here)
+- Modify: `src/geom/drawing.ts` (reads them instead of declaring them)
+- Modify: `src/ui/buildSvg.ts` — replace the stub branch Task 11 left at line 367
 - Test: `src/ui/buildSvg.test.ts`
+
+> **Two of this task's defects are bugs already fixed once, arriving in a second consumer.** Read
+> this before writing anything.
+>
+> 1. **The draft invents `const RING = [0, 8, 16]`.** Task 11 *computes* the ring and carries it on
+>    the sheet as `sheet.ring`, precisely so the figure is stated once — and these two disagree:
+>    Task 11 reserves 12.75 mm for the outermost ring on a Tall 600, the draft draws it at 16 mm, so
+>    labels land outside the space reserved for them and clip at the page edge. A rendering glitch
+>    that is really a contradiction between two files.
+> 2. **The draft never renders `part.outline`.** It draws `solid`, `hidden`, `cutRects`, `circles` —
+>    exactly the list `CabinetProjection` had before its `<polygon>` branch was added. A part that
+>    is not an axis-aligned box (a dowel, or any mitred board since Task 7) carries its real
+>    silhouette in `outline` while `rects` is only a bounding rectangle, so the sheet would draw a
+>    box around a tilted dowel.
+>
+> **Step 0 fixes the root cause of the first**, so there is no third place to get it wrong.
+
+- [ ] **Step 0: The ring geometry moves to `assembly.ts`**
+
+Task 11 put `SHEET_FONT`, `RING_EM`, `TICK_EM`, `TEXT_GAP_EM` and `CHAR_EM` in `drawing.ts`
+(lines ~417-423) under a comment claiming they are "shared with CabinetProjection — one rule, two
+consumers". They are **duplicated, not shared**: `CabinetProjection.tsx` declares its own copies.
+`geom` must not import from a `.tsx` component, so the honest home is `src/geom/assembly.ts`, beside
+the `AssemblyDim.ring` field that indexes `RING_EM`.
+
+Move and export them from `assembly.ts`; have `drawing.ts` and `CabinetProjection.tsx` both import
+them. `CabinetProjection` keeps its own `FONT_DIVISOR` — its font is a fraction of the cabinet while
+the sheet's is a fixed page size — but the *ring shape* in ems is one statement for all three.
+
+Verify with a mutation: change `RING_EM[2]` in `assembly.ts` and confirm tests fail in **both**
+`drawing.test.ts` and `CabinetProjection.test.tsx`. If only one fails, the move did not take.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-it('renders an assembly sheet with its three views and its dimensions', () => {
+const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
+const assemblySheet = (parts: Part[] = partsOfBase600()) => {
   const [, sheet] = buildDrawingSheets([], 'Job', [
-    { cabinet, parts: [], materials: PRESET_MATERIALS },
+    { cabinet, parts, byId, materials: PRESET_MATERIALS },
   ])
+  if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
+  return sheet
+}
+
+it('renders an assembly sheet with its three views and its dimensions', () => {
+  const sheet = assemblySheet()
   const svg = buildSvg(sheet)
   expect(svg).toContain('<svg')
   expect(svg).toContain('Base 600')
-  expect(svg).toContain('1:10')
-  // The overall width of the cabinet, dimensioned on the Front view.
-  expect(svg).toContain('>600<')
+  // Read off the sheet, not typed here. The draft asserted the literal '1:10' — a constant, and one
+  // that silently encodes the scale arithmetic Task 11 changed. Same for the dimension: take a real
+  // label from the view rather than assuming a cabinet is 600 wide.
+  expect(svg).toContain(sheet.scaleLabel)
+  expect(svg).toContain(`>${sheet.views[0].dims[0].label}<`)
 })
 
 it('dashes an assembly sheet’s hidden edges', () => {
-  const [, sheet] = buildDrawingSheets([], 'Job', [
-    { cabinet, parts: partsOfBase600(), materials: PRESET_MATERIALS },
-  ])
-  expect(buildSvg(sheet)).toContain('stroke-dasharray')
+  expect(buildSvg(assemblySheet())).toContain('stroke-dasharray')
 })
-```
+
+// D2: the same defect CabinetProjection carried until its polygon branch was added. A cylinder is
+// never an axis-aligned box, so it arrives with `outline` set and `rects` holding only its bounding
+// rectangle — drawing `solid` for it puts a box around a tilted dowel.
+it('draws a non-axis-aligned part as its outline, not as a box', () => {
+  const dowel: Part = {
+    kind: 'cylinder',
+    id: 'board_dowel',
+    label: 'Dowel 1',
+    diameter: 8,
+    length: 40,
+    material: '',
+    color: '#ca8',
+    position: { x: 100, y: 100, z: 100 },
+    rotation: { x: 0, y: 30, z: 0 },
+    rotationOrder: 'XYZ',
+    cuts: [],
+    visible: true,
+    parentId: cabinet.id,
+    driven: false,
+  }
+  expect(buildSvg(assemblySheet([dowel]))).toContain('<polyline')
+})
+
+// D1: the ring the renderer draws at must be the ring the layout reserved. Two derivations of one
+// figure is what put a Tall 600's labels 3 mm outside their own reservation.
+it('draws its dimension ring at the offset the sheet reserved', () => {
+  const sheet = assemblySheet()
+  const svg = buildSvg(sheet)
+  const xs = [...svg.matchAll(/<text[^>]*\sx="([-\d.]+)"/g)].map((m) => Number(m[1]))
+  expect(xs.length).toBeGreaterThan(0)
+  for (const x of xs) {
+    expect(x).toBeGreaterThanOrEqual(MARGIN - sheet.ring - 1e-6)
+    expect(x).toBeLessThanOrEqual(297 - MARGIN + sheet.ring + 1e-6)
+  }
+})
 
 - [ ] **Step 2: Run and confirm failure**
 
@@ -3469,13 +3543,22 @@ function renderAssemblyView(view: PlacedAssemblyView, scale: number): string {
   const fy = (v: number) => py + (H - v) * scale
 
   for (const part of [...view.parts].reverse()) {
-    for (const s of part.solid) {
-      out.push(
-        svgLine(px + s.x1 * scale, fy(s.y1), px + s.x2 * scale, fy(s.y2), {
-          stroke: '#000',
-          'stroke-width': '0.3',
-        }),
-      )
+    // A part that is not an axis-aligned box carries `outline` — its real silhouette — while its
+    // `rects`, and so its `solid`, is only the bounding rectangle. The two are alternatives, never
+    // both: drawing `solid` for such a part puts a box around a tilted dowel. Same rule and same
+    // reason as the polygon branch in CabinetProjection.
+    if (part.outline !== undefined) {
+      const pts = part.outline.map((q) => `${px + q.x * scale},${fy(q.y)}`).join(' ')
+      out.push(`<polyline points="${pts}" fill="none" stroke="#000" stroke-width="0.3"/>`)
+    } else {
+      for (const s of part.solid) {
+        out.push(
+          svgLine(px + s.x1 * scale, fy(s.y1), px + s.x2 * scale, fy(s.y2), {
+            stroke: '#000',
+            'stroke-width': '0.3',
+          }),
+        )
+      }
     }
     for (const s of part.hidden) {
       out.push(
@@ -3512,23 +3595,25 @@ function renderAssemblyView(view: PlacedAssemblyView, scale: number): string {
   // The projector emits side + ring, never a page offset: renderDimLine reads `offset` in sheet
   // millimetres while start/end are already scaled, so only a consumer that knows the scale can
   // convert. This is that consumer.
-  const RING = [0, 8, 16]
+  // Offsets from the SAME statement the layout reserved space with — never a second table. The
+  // draft hardcoded [0, 8, 16], which puts ring 2 at 16 mm inside a 12.75 mm reservation.
+  const off = (r: 1 | 2) => SHEET_FONT * (RING_EM[r] + TICK_EM)
+
   for (const d of view.dims) {
-    const off = RING[d.ring]
     const line: DimLine =
       d.axis === 'h'
         ? {
             axis: 'h',
             start: d.start * scale,
             end: d.end * scale,
-            offset: d.side === 'below' ? view.bounds.h * scale + off : -off,
+            offset: d.side === 'below' ? view.bounds.h * scale + off(d.ring) : -off(d.ring),
             label: d.label,
           }
         : {
             axis: 'v',
             start: (H - d.end) * scale,
             end: (H - d.start) * scale,
-            offset: d.side === 'right' ? view.bounds.w * scale + off : -off,
+            offset: d.side === 'right' ? view.bounds.w * scale + off(d.ring) : -off(d.ring),
             label: d.label,
           }
     out.push(renderDimLine(line, px, py))
@@ -3588,7 +3673,24 @@ and the branch at line 365:
 Run: `pnpm vitest run src/ui/buildSvg.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Full suite and commit**
+- [ ] **Step 5: Mutation check**
+
+The draft had none — alone among this plan's tasks it went straight from "run the tests" to
+"commit". Back up with `cp`, restore from that copy, never `git checkout`; `grep -F` (fixed string,
+NOT `-E`) after applying and after restoring.
+
+| # | Mutation | Must fail |
+|---|---|---|
+| 1 | render `part.solid` unconditionally (drop the `outline` branch) | *draws a non-axis-aligned part as its outline* |
+| 2 | `off` → the draft's `[0, 8, 16]` table | *draws its dimension ring at the offset the sheet reserved* |
+| 3 | drop the `part.hidden` loop | *dashes an assembly sheet's hidden edges* |
+| 4 | `fy` returns `py + v * scale` (no flip) | at least one — if none, the flip is undefended and needs a test on an asymmetric cabinet |
+| 5 | drop the `.reverse()` on `view.parts` | ? — report honestly; if it survives, paint order is undefended |
+| 6 | in `assembly.ts`, change `RING_EM[2]` | tests in **both** `drawing.test.ts` and `CabinetProjection.test.tsx` — this is Step 0's proof |
+
+No survivor may be left unresolved: write the test that kills it, or delete the line it proves dead.
+
+- [ ] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
