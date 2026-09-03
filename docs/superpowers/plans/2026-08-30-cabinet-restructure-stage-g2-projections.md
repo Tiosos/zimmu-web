@@ -3148,9 +3148,13 @@ describe('assembly sheets', () => {
     params: CARCASE_PRESETS[0].params,
   }
 
+  // D5: the draft ran every case with `parts: []`, so the sheet was only ever exercised with no
+  // geometry at all. `partsOfBase600` already exists in `src/geom/__fixtures__/cabinetSheet.ts`.
+  const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
+
   it('inserts one assembly sheet per cabinet, after the cover', () => {
     const sheets = buildDrawingSheets([], 'Job', [
-      { cabinet, parts: [], materials: PRESET_MATERIALS },
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
     ])
     expect(sheets.map((s) => s.kind)).toEqual(['cover', 'assembly'])
   })
@@ -3160,30 +3164,66 @@ describe('assembly sheets', () => {
     expect(sheets.map((s) => s.kind)).toEqual(['cover'])
   })
 
-  it('carries three views, Front End Top, left to right', () => {
+  // D2: the draft asserted `[...xs].sort()` equals `xs` and that the y-set has size 1. Three views
+  // all at (0, 0) passes BOTH — a sorted copy of [0,0,0] is [0,0,0], and one distinct y. It cannot
+  // tell a row from a pile. Strictly increasing AND non-overlapping, rings included, is the rule.
+  it('carries three views, Front End Top, in a row that does not overlap', () => {
     const [, sheet] = buildDrawingSheets([], 'Job', [
-      { cabinet, parts: [], materials: PRESET_MATERIALS },
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
     ])
     if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
     expect(sheet.views.map((v) => v.label)).toEqual(['Front', 'End', 'Top'])
-    const xs = sheet.views.map((v) => v.placement.x)
-    expect([...xs].sort((a, b) => a - b)).toEqual(xs)
     // In a row, so every view shares a top edge.
     expect(new Set(sheet.views.map((v) => v.placement.y)).size).toBe(1)
+    for (let i = 0; i + 1 < sheet.views.length; i++) {
+      const left = sheet.views[i]
+      const right = sheet.views[i + 1]
+      // Each view's own ring sits outside its bounds, so consecutive drawings must clear both.
+      const needed = left.placement.x + left.bounds.w * sheet.scale + 2 * sheet.ring
+      expect(right.placement.x).toBeGreaterThanOrEqual(needed - 1e-9)
+    }
   })
 
-  // Stacked this preset comes out at 1:20 and 30 x 36 mm on the page.
-  it('reaches 1:10 for a Base 600 rather than 1:20', () => {
+  // D1: the whole row, rings included, has to fit the printable page. The draft's layout measured
+  // only `bounds`, so it reserved nothing for the dimension lines and labels that live outside them.
+  it('keeps the row and its dimension rings inside the printable page', () => {
     const [, sheet] = buildDrawingSheets([], 'Job', [
-      { cabinet, parts: [], materials: PRESET_MATERIALS },
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
     ])
     if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
-    expect(sheet.scaleLabel).toBe('1:10')
+    for (const v of sheet.views) {
+      expect(v.placement.x - sheet.ring).toBeGreaterThanOrEqual(MARGIN - 1e-9)
+      expect(v.placement.y - sheet.ring).toBeGreaterThanOrEqual(MARGIN - 1e-9)
+      expect(v.placement.x + v.bounds.w * sheet.scale + sheet.ring).toBeLessThanOrEqual(297 - MARGIN + 1e-9)
+      expect(v.placement.y + v.bounds.h * sheet.scale + sheet.ring).toBeLessThanOrEqual(210 - MARGIN + 1e-9)
+    }
   })
+
+  // D3: the draft asserted `scaleLabel === '1:10'`, which is a constant, not a rule — the same
+  // anti-pattern this stage has now hit three times. The rule is "the largest standard scale at
+  // which the row fits", so the test is that it fits at the chosen scale and does NOT at the next
+  // one up. A 1:20-instead-of-1:10 mutation then dies on the rule rather than on a magic string.
+  it.each(CARCASE_PRESETS.map((x) => [x.name, x.params] as const))(
+    'picks the largest standard scale at which %s fits',
+    (_name, params) => {
+      const c = { ...cabinet, params }
+      const [, sheet] = buildDrawingSheets([], 'Job', [
+        { cabinet: c, parts: [], byId: new Map([[c.id, c]]), materials: PRESET_MATERIALS },
+      ])
+      if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
+      const fits = (scale: number) =>
+        (params.width + params.depth + params.width) * scale + 6 * sheet.ring <= 297 - 2 * MARGIN &&
+        Math.max(params.height, params.depth) * scale + 2 * sheet.ring <= 210 - 2 * MARGIN - TITLE_H
+      expect(fits(sheet.scale)).toBe(true)
+      const bigger = STANDARD_SCALES.filter((x) => x > sheet.scale)
+      const next = bigger.length === 0 ? null : Math.min(...bigger)
+      if (next !== null) expect(fits(next)).toBe(false)
+    },
+  )
 
   it('names the sheet after the cabinet', () => {
     const [, sheet] = buildDrawingSheets([], 'Job', [
-      { cabinet, parts: [], materials: PRESET_MATERIALS },
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
     ])
     if (sheet.kind !== 'assembly') throw new Error('expected an assembly sheet')
     expect(sheet.cabinetLabel).toBe('Base 600')
@@ -3196,6 +3236,13 @@ describe('assembly sheets', () => {
 Run: `pnpm vitest run src/geom/drawing.test.ts`
 Expected: FAIL — `buildDrawingSheets` takes two arguments.
 
+**Before Step 3, export what the tests have to read.** `MARGIN` (15), `TITLE_H` (25) and
+`STANDARD_SCALES` are module-private `const`s in `drawing.ts` today, and the tests above import all
+three — the printable page rectangle and the ladder of standard scales are part of what a sheet
+promises, not private trivia. Add `export` to each. Do NOT copy their values into the test file: a
+test that hardcodes 15 and 25 passes when the page changes underneath it, which is the failure this
+whole task is about.
+
 - [ ] **Step 3: Implement in `src/geom/drawing.ts`**
 
 ```ts
@@ -3206,7 +3253,14 @@ export interface CabinetSheetInput {
   cabinet: CarcaseComponent
   parts: Part[]
   materials: Record<string, MaterialDef>
-  byId?: Map<ComponentId, Component>
+  // Required, not optional. The draft defaulted it to `new Map([[cabinet.id, cabinet]])`, which is
+  // right for a top-level cabinet and silently wrong for one inside a group: every part whose
+  // parent chain leaves that map resolves as though it were top-level, so the whole cabinet is
+  // drawn at the wrong place with no error anywhere. Nothing would have caught it either, because
+  // every test in the draft passed `parts: []`. `buildDrawingSheets`' third parameter is still
+  // optional, so the 52 existing call sites are unaffected — this only binds callers that ask for
+  // an assembly sheet, and those all have a component map already.
+  byId: Map<ComponentId, Component>
 }
 ```
 
@@ -3219,6 +3273,11 @@ Add the variant to the `DrawingSheet` union:
       date: string
       scaleLabel: string
       scale: number
+      // The dimension ring, in SHEET millimetres, reserved outside every view's `bounds`. Carried
+      // on the sheet rather than recomputed by each consumer: the renderer needs it to place the
+      // labels and the layout needed it to choose the scale, and two derivations of one figure
+      // drift. It does not scale with the drawing — the sheet font is a fixed page size.
+      ring: number
       views: [PlacedAssemblyView, PlacedAssemblyView, PlacedAssemblyView]
     }
 
@@ -3234,23 +3293,57 @@ And the scale selector plus the builder:
 // 560 mm, and stacking Front over Top costs H + D against 120 mm of usable height — which puts a
 // Base 600 at 1:20 and 30 x 36 mm on the page. Three views in a ROW is bound by width instead and
 // reaches 1:10.
-function selectAssemblyScale(W: number, H: number, D: number): number {
-  const raw = Math.min((AREA_W - 2 * GAP) / (W + D + W), AREA_H / Math.max(H, D))
+//
+// THE RING IS PART OF THE DRAWING. A view's dimension lines and labels live OUTSIDE its `bounds`,
+// so a layout measuring only `bounds` reserves nothing for them — the same bug `CabinetProjection`
+// carried until its ring was expressed in ems. Here the font is a fixed PAGE size rather than a
+// fraction of the cabinet, so the ring is a constant number of sheet millimetres and does not
+// scale with the drawing.
+//
+// THE RING IS ALSO THE GAP. Two adjacent views each carry one, so the white space between two
+// drawings is 2 x ring — already wider than the 15 mm GAP a board sheet puts between its views.
+// Reserving both is what drags a Base 600 back down to 1:20: 1760s + 6 x 12.75 + 2 x 15 <= 267
+// gives s <= 0.091, while dropping GAP gives s <= 0.108 and keeps 1:10 with 14.5 mm to spare.
+const SHEET_FONT = 2.5
+// Shared with CabinetProjection, and the reason both are stated in ems: one rule, two consumers.
+const RING_EM = [0, 0.5, 1.8]
+const TICK_EM = 0.4
+const TEXT_GAP_EM = 0.3
+const CHAR_EM = 0.65
+
+// DIM_MARGIN is deliberately NOT subtracted. It is a board sheet's single global fudge for
+// "dimensions need some room somewhere"; this computes the room they actually need, per view, so
+// subtracting both would reserve the same millimetres twice.
+const PAGE_W = 297 - 2 * MARGIN // 267
+const PAGE_H = SHEET_H - 2 * MARGIN - TITLE_H // 155
+
+// Read off the labels the views actually carry, exactly as the pane does — not off a guess at the
+// longest one a cabinet might produce.
+function assemblyRing(views: AssemblyView[]): number {
+  const widest = Math.max(...views.flatMap((v) => v.dims.map((d) => d.label.length)), 1)
+  return SHEET_FONT * (RING_EM[2] + TICK_EM + TEXT_GAP_EM + CHAR_EM * widest)
+}
+
+function selectAssemblyScale(W: number, H: number, D: number, ring: number): number {
+  // Six rings across: one either side of each of the three views. Two rings down: the tallest view
+  // carries one above and one below.
+  const raw = Math.min((PAGE_W - 6 * ring) / (W + D + W), (PAGE_H - 2 * ring) / Math.max(H, D))
   return STANDARD_SCALES.find((s) => s <= raw) ?? STANDARD_SCALES[STANDARD_SCALES.length - 1]
 }
 
 function buildAssemblySheet(input: CabinetSheetInput, date: string): DrawingSheet {
   const p = input.cabinet.params
-  const byId = input.byId ?? new Map<ComponentId, Component>([[input.cabinet.id, input.cabinet]])
-  const [front, top, end] = buildAssemblyViews(input.parts, byId, input.cabinet, input.materials)
-  const scale = selectAssemblyScale(p.width, p.height, p.depth)
+  const [front, top, end] = buildAssemblyViews(input.parts, input.byId, input.cabinet, input.materials)
+  const ring = assemblyRing([front, top, end])
+  const scale = selectAssemblyScale(p.width, p.height, p.depth, ring)
 
   // Front, End, Top left to right — Front and End share a top edge, so heights read straight
-  // across between them.
-  const y = MARGIN
-  const x0 = MARGIN
-  const x1 = x0 + front.bounds.w * scale + GAP
-  const x2 = x1 + end.bounds.w * scale + GAP
+  // across between them. `placement` is each view's own origin; the ring sits outside it, which is
+  // why consecutive origins are two rings apart rather than one GAP.
+  const y = MARGIN + ring
+  const x0 = MARGIN + ring
+  const x1 = x0 + front.bounds.w * scale + 2 * ring
+  const x2 = x1 + end.bounds.w * scale + 2 * ring
 
   return {
     kind: 'assembly',
@@ -3258,6 +3351,7 @@ function buildAssemblySheet(input: CabinetSheetInput, date: string): DrawingShee
     date,
     scale,
     scaleLabel: toScaleLabel(scale),
+    ring,
     views: [
       { ...front, placement: { x: x0, y } },
       { ...end, placement: { x: x1, y } },
@@ -3267,45 +3361,32 @@ function buildAssemblySheet(input: CabinetSheetInput, date: string): DrawingShee
 }
 ```
 
-Widen the entry point — **optional**, because there are 52 existing call sites across five test files
-plus `App.tsx` all passing two arguments, and a required parameter would spend a commit on churn:
-
-```ts
-export function buildDrawingSheets(
-  parts: Part[],
-  projectName: string,
-  cabinets: CabinetSheetInput[] = [],
-): DrawingSheet[] {
-  // …existing cover + partSheets…
-  return [cover, ...cabinets.map((c) => buildAssemblySheet(c, date)), ...partSheets]
-}
-```
-
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/geom/drawing.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation check — the row layout**
+- [ ] **Step 5: Mutation check**
 
-```bash
-cp src/geom/drawing.ts "$SCRATCHPAD"/drawing-t11.bak
-python3 - <<'PY'
-p='src/geom/drawing.ts'; s=open(p).read()
-old="  const raw = Math.min((AREA_W - 2 * GAP) / (W + D + W), AREA_H / Math.max(H, D))"
-new="  const raw = Math.min((AREA_W - GAP) / (W + D), (AREA_H - GAP) / (H + D))"
-assert s.count(old)==1; open(p,'w').write(s.replace(old,new))
-PY
-grep -n "AREA_H - GAP" src/geom/drawing.ts
-```
+Back up with `cp` and restore from that copy; never `git checkout`. `grep -F` (fixed string, NOT
+`-E` — parentheses are regex groups under `-E` and match nothing) after applying and after
+restoring. Report what actually failed, never what was predicted.
 
-Run: `pnpm vitest run src/geom/drawing.test.ts`
-Expected: FAIL on _reaches 1:10 for a Base 600 rather than 1:20_.
+| # | Mutation | Must fail |
+|---|---|---|
+| 1 | stack instead of row: `(PAGE_W - 6*ring)/(W + D + W)` → `(PAGE_W - 2*ring)/(W + D)`, and the height term → `(PAGE_H - 2*ring)/(H + D)` | *picks the largest standard scale at which Base 600 fits* |
+| 2 | reserve nothing for the ring: drop `- 6 * ring` and `- 2 * ring` | *picks the largest standard scale…* — at least one preset must now choose a scale whose row does not fit |
+| 3 | `x1 = x0 + front.bounds.w * scale + 2 * ring` → `+ ring` | *carries three views… in a row that does not overlap* |
+| 4 | put all three views at `x0` | *carries three views… in a row that does not overlap* |
+| 5 | `y = MARGIN + ring` → `y = MARGIN` | *keeps the row and its dimension rings inside the printable page* |
+| 6 | `widest` in `assemblyRing` → the constant `3` | *picks the largest standard scale at which Tall 600 fits* (its labels are four characters) |
 
-```bash
-cp "$SCRATCHPAD"/drawing-t11.bak src/geom/drawing.ts
-grep -n "W + D + W" src/geom/drawing.ts
-```
+Mutation 4 is the one the draft's own test could not catch: it asserted that a sorted copy of the
+x-values equalled the x-values and that the y-values were all equal, and `[0, 0, 0]` satisfies both.
+
+No survivor may be left unresolved — write the test that kills it, or delete the line it proves is
+dead. If mutation 6 survives, say so: it may mean no preset's labels differ in length, in which case
+the fixture needs one that does rather than the check being dropped.
 
 - [ ] **Step 6: Full suite and commit**
 
