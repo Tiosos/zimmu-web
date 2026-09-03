@@ -6,6 +6,7 @@ import { CabinetEditor, type CabinetTab } from './CabinetEditor'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { setSectionSize, splitSection } from '../scene/editSection'
 import { partsOfBase600 } from '../geom/__fixtures__/cabinetSheet'
+import * as downloadModule from './download'
 import type { CarcaseComponent, CarcaseParams, Component, ComponentId } from '../scene/types'
 
 const cabinet: CarcaseComponent = {
@@ -32,6 +33,7 @@ const props = (over: Partial<ComponentProps<typeof CabinetEditor>> = {}) => ({
   byId: new Map<ComponentId, Component>(),
   selectedPartId: null,
   onSelectPart: vi.fn(),
+  projectName: 'Job',
   ...over,
 })
 
@@ -114,6 +116,42 @@ describe('CabinetEditor', () => {
   it('names the cabinet it is editing', () => {
     render(<CabinetEditor {...props()} />)
     expect(screen.getByText('Base 600')).toBeTruthy()
+  })
+
+  it.each(['front', 'top', 'end'])('offers SVG and DXF export from the %s tab', (name) => {
+    render(<CabinetEditor {...props({ tab: name as CabinetTab })} />)
+    expect(screen.getByRole('button', { name: 'SVG' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'DXF' })).toBeTruthy()
+  })
+
+  // Section is an editor and 3D is the viewport. Neither is a drawing, and neither is what
+  // `buildDrawingSheets` would put on a sheet, so offering the buttons there would offer a file
+  // that does not correspond to what is on screen.
+  it.each(['section', '3d'])('offers no export from the %s tab, which is not a drawing', (name) => {
+    render(<CabinetEditor {...props({ tab: name as CabinetTab })} />)
+    expect(screen.queryByRole('button', { name: 'SVG' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'DXF' })).toBeNull()
+  })
+
+  // The buttons are wired to the same sheet the drawings deck would show, named by the same
+  // function — a button that renders and downloads nothing is the failure a presence test misses.
+  it.each([
+    ['SVG', 'job-base-600-assembly.svg', 'image/svg+xml'],
+    ['DXF', 'job-base-600-assembly.dxf', 'application/dxf'],
+  ])('exports the cabinet as %s', async (button, filename, mime) => {
+    const spy = vi.spyOn(downloadModule, 'downloadBlob').mockImplementation(() => {})
+    render(
+      <CabinetEditor
+        {...props({
+          tab: 'front',
+          projectName: 'Job',
+          parts: partsOfBase600(),
+          byId: new Map<ComponentId, Component>([[cabinet.id, cabinet]]),
+        })}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: button }))
+    expect(spy).toHaveBeenCalledWith(expect.any(String), filename, mime)
   })
 })
 

@@ -4,6 +4,8 @@ import { render, act, cleanup, screen, fireEvent, within } from '@testing-librar
 import App from './App'
 import { PRESET_MATERIALS } from './scene/carcasePresets'
 import { cabinet, partsOfBase600 } from './geom/__fixtures__/cabinetSheet'
+import * as downloadModule from './ui/download'
+import type { DrawingSheet } from './geom/drawing'
 import type { Part, Selection } from './scene/types'
 
 const mockUndo = vi.fn()
@@ -86,6 +88,17 @@ vi.mock('./render/viewport', () => ({
   Viewport: (props: { fitRequest: number }) => {
     viewportSpy.fitRequest = props.fitRequest
     return <div data-testid="viewport" />
+  },
+}))
+
+// The deck App builds, captured where it is handed over. The viewer's own behaviour has its own
+// tests; what App alone decides is what goes into the deck.
+const drawingsSpy = vi.hoisted(() => ({ sheets: [] as DrawingSheet[] }))
+
+vi.mock('./ui/DrawingViewer', () => ({
+  DrawingViewer: (props: { open: boolean; sheets: DrawingSheet[] }) => {
+    if (props.open) drawingsSpy.sheets = props.sheets
+    return null
   },
 }))
 
@@ -437,6 +450,42 @@ describe('the open cabinet', () => {
     await select({ kind: 'component', id: cabinet.id })
     await select(null)
     expect(editorOpen()).toBe(true)
+  })
+
+  // The deck is built here, not in the viewer, so only App can put a cabinet in it: without the
+  // third argument every carcase is drawn as loose boards and nothing says how they go together.
+  // Asserted on the sheets App hands over rather than on what the viewer draws with them — the
+  // viewer's own label is its test, and happy-dom does not parse the SVG it injects.
+  it('puts an assembly sheet for each carcase in the drawings deck', async () => {
+    render(<App />)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
+    fireEvent.click(screen.getByRole('button', { name: '2D Drawings…' }))
+
+    const assemblies = drawingsSpy.sheets.filter((s) => s.kind === 'assembly')
+    expect(assemblies).toHaveLength(1)
+    const sheet = assemblies[0]
+    if (sheet.kind !== 'assembly') throw new Error('unreachable')
+    expect(sheet.cabinetLabel).toBe('Base 600')
+    // The cabinet's own parts, not none and not the loose board outside it. Front is the view that
+    // culls nothing, so it carries one entry per part the cabinet holds.
+    const front = sheet.views.find((v) => v.label === 'Front')!
+    expect(front.parts).toHaveLength(inside.length)
+  })
+
+  // The tab's own export is the deck's other half, and the file it writes is named after the
+  // project — which only App knows. `useFile` is mocked with projectName 'Test'.
+  it('names a file exported from a projection tab after the project', async () => {
+    const spy = vi.spyOn(downloadModule, 'downloadBlob').mockImplementation(() => {})
+    const select = await mount()
+    await select({ kind: 'component', id: cabinet.id })
+    fireEvent.click(screen.getByRole('tab', { name: 'Front' }))
+    fireEvent.click(screen.getByRole('button', { name: 'SVG' }))
+    expect(spy).toHaveBeenCalledWith(
+      expect.any(String),
+      'test-base-600-assembly.svg',
+      'image/svg+xml',
+    )
   })
 
   // The open cabinet is remembered by id, so it can name one the scene has since dropped. It is

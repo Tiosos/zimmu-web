@@ -308,10 +308,25 @@ function App() {
   const canExport = visibleParts.length > 0
   const closeDrawings = useCallback(() => setDrawingsOpen(false), [])
 
+  // Every carcase gets an assembly sheet ahead of the part sheets. Its parts are the cabinet's own
+  // descendants — the same set the cabinet editor draws, and so the same sheet its own export
+  // buttons build — rather than `visibleParts`, which is the deck's separate question of which
+  // boards get a sheet of their own.
   const handleOpenDrawings = useCallback(() => {
-    setDrawingSheets(buildDrawingSheets(visibleParts, projectName))
+    const cabinets = scene.components
+      .filter((c): c is CarcaseComponent => c.kind === 'carcase')
+      .map((cabinet) => {
+        const mine = new Set(descendantIds(cabinet.id, scene.components, scene.parts).partIds)
+        return {
+          cabinet,
+          parts: scene.parts.filter((p) => mine.has(p.id)),
+          materials: scene.materials,
+          byId: componentMap,
+        }
+      })
+    setDrawingSheets(buildDrawingSheets(visibleParts, projectName, cabinets))
     setDrawingsOpen(true)
-  }, [visibleParts, projectName])
+  }, [visibleParts, projectName, scene.components, scene.parts, scene.materials, componentMap])
 
   const handleExportStl = useCallback(() => {
     downloadBlob(
@@ -540,6 +555,7 @@ function App() {
             byId={componentMap}
             selectedPartId={selection?.kind === 'part' ? selection.id : null}
             onSelectPart={onSelectPart}
+            projectName={projectName}
           />
         )}
         <Sidebar

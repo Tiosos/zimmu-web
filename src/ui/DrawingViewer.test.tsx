@@ -3,7 +3,11 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { DrawingViewer } from './DrawingViewer'
 import { buildDrawingSheets } from '../geom/drawing'
 import * as downloadModule from './download'
-import type { BoardPart, CylinderPart } from '../scene/types'
+import { PRESET_MATERIALS } from '../scene/carcasePresets'
+import { cabinet, partsOfBase600 } from '../geom/__fixtures__/cabinetSheet'
+import type { BoardPart, Component, ComponentId, CylinderPart } from '../scene/types'
+
+const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
 
 // Mock heavy serializers — component tests focus on UI behaviour, not SVG/DXF output.
 vi.mock('./buildSvg', () => ({
@@ -116,11 +120,9 @@ describe('DrawingViewer', () => {
     const spy = vi.spyOn(downloadModule, 'downloadBlob').mockImplementation(() => {})
     render(<DrawingViewer open={true} onClose={vi.fn()} sheets={sheets} projectName="Cabinet" />)
     fireEvent.click(screen.getByRole('button', { name: /Download SVG/ }))
-    expect(spy).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.stringMatching(/\.svg$/),
-      'image/svg+xml',
-    )
+    // The cover's own name, not just the extension: `sheetFilename` moved out to be shared, and a
+    // branch of it that no test names is one the move is free to lose.
+    expect(spy).toHaveBeenCalledWith(expect.any(String), 'cabinet-cover.svg', 'image/svg+xml')
   })
 
   it('Download DXF calls downloadBlob with .dxf extension', () => {
@@ -139,6 +141,47 @@ describe('DrawingViewer', () => {
     render(<DrawingViewer open={true} onClose={vi.fn()} sheets={sheets} projectName="Cabinet" />)
     fireEvent.click(screen.getByRole('button', { name: /^Print this/ }))
     expect(spy).toHaveBeenCalledWith('iframe')
+  })
+
+  // The deck is [cover, assembly, part], which is what made `Part ${idx} of ${sheets.length - 1}`
+  // lie: it assumed sheet 0 was the cover and every other sheet a part, so the one board read
+  // "Part 2 of 2". The numbering is over the part sheets themselves.
+  it('numbers the part sheets among themselves, not by their place in the deck', () => {
+    const cabinetSheets = buildDrawingSheets([makeBoard({ label: 'Top' })], 'Job', [
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
+    ])
+    render(<DrawingViewer open onClose={vi.fn()} sheets={cabinetSheets} projectName="Job" />)
+    fireEvent.click(screen.getByRole('button', { name: '→' }))
+    fireEvent.click(screen.getByRole('button', { name: '→' }))
+    expect(screen.getByText(/Part 1 of 1 — Top/)).toBeTruthy()
+  })
+
+  // Green before this change — Task 11 added the branch when it stubbed the union member. Kept
+  // because the numbering above must not regress it, not as evidence of anything new.
+  it('names an assembly sheet as an assembly', () => {
+    const cabinetSheets = buildDrawingSheets([makeBoard()], 'Job', [
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
+    ])
+    render(<DrawingViewer open onClose={vi.fn()} sheets={cabinetSheets} projectName="Job" />)
+    fireEvent.click(screen.getByRole('button', { name: '→' }))
+    expect(screen.getByText(/Assembly — Base 600/)).toBeTruthy()
+  })
+
+  // An assembly sheet has no partLabel, so it is named after the cabinet it draws. The same
+  // function names the file the cabinet editor's own buttons download.
+  it('downloads an assembly sheet under its cabinet’s name', () => {
+    const spy = vi.spyOn(downloadModule, 'downloadBlob').mockImplementation(() => {})
+    const cabinetSheets = buildDrawingSheets([makeBoard()], 'Job', [
+      { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
+    ])
+    render(<DrawingViewer open onClose={vi.fn()} sheets={cabinetSheets} projectName="Job" />)
+    fireEvent.click(screen.getByRole('button', { name: '→' }))
+    fireEvent.click(screen.getByRole('button', { name: /Download SVG/ }))
+    expect(spy).toHaveBeenCalledWith(
+      expect.any(String),
+      'job-base-600-assembly.svg',
+      'image/svg+xml',
+    )
   })
 
   it('renders a dowel part sheet and downloads with its label (viewer is shape-agnostic)', () => {

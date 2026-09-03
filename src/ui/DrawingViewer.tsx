@@ -5,20 +5,13 @@ import { buildSvg } from './buildSvg'
 import { buildDxf } from './buildDxf'
 import { downloadBlob } from './download'
 import { buildPdf } from './buildPdf'
+import { sheetFilename } from './sheetFilename'
 
 export interface DrawingViewerProps {
   open: boolean
   onClose: () => void
   sheets: DrawingSheet[]
   projectName: string
-}
-
-function sheetFilename(sheet: DrawingSheet, projectName: string, ext: string): string {
-  const base =
-    sheet.kind === 'cover'
-      ? `${projectName}-cover`
-      : `${projectName}-${sheet.kind === 'assembly' ? sheet.cabinetLabel : sheet.partLabel}`
-  return base.toLowerCase().replace(/\s+/g, '-') + '.' + ext
 }
 
 function printSheets(sheetList: DrawingSheet[]): void {
@@ -69,12 +62,16 @@ export function DrawingViewer({ open, onClose, sheets, projectName }: DrawingVie
   if (!open || sheets.length === 0) return null
 
   const sheet = sheets[idx]
+  // Numbered among the part sheets, not by position in the deck: `idx of sheets.length - 1`
+  // assumed sheet 0 was the cover and every other sheet a part, so the assembly sheets between
+  // them made it read "Part 2 of 2" for the only board in the job.
+  const partSheets = sheets.filter((s) => s.kind === 'part')
   const sheetLabel =
     sheet.kind === 'cover'
       ? 'Cover'
       : sheet.kind === 'assembly'
         ? `Assembly — ${sheet.cabinetLabel}`
-        : `Part ${idx} of ${sheets.length - 1} — ${sheet.partLabel}`
+        : `Part ${partSheets.indexOf(sheet) + 1} of ${partSheets.length} — ${sheet.partLabel}`
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">

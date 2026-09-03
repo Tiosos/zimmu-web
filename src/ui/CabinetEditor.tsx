@@ -1,6 +1,12 @@
+import { Button } from '@/components/ui/button'
+import { buildDrawingSheets } from '../geom/drawing'
 import { CabinetProjection } from './CabinetProjection'
 import { SectionElevation } from './SectionElevation'
 import { SectionToolbar } from './SectionToolbar'
+import { buildDxf } from './buildDxf'
+import { buildSvg } from './buildSvg'
+import { downloadBlob } from './download'
+import { sheetFilename } from './sheetFilename'
 import type {
   CarcaseComponent,
   Component,
@@ -41,6 +47,7 @@ export function CabinetEditor({
   byId,
   selectedPartId,
   onSelectPart,
+  projectName,
 }: {
   component: CarcaseComponent
   materials: Record<string, MaterialDef>
@@ -53,7 +60,21 @@ export function CabinetEditor({
   byId: Map<ComponentId, Component>
   selectedPartId: PartId | null
   onSelectPart: (id: PartId) => void
+  projectName: string
 }) {
+  // The same sheet object the drawings deck would show, built from the same projector this pane
+  // reads, so the two export paths cannot produce different files for the same cabinet.
+  const exportSheet = (ext: 'svg' | 'dxf') => {
+    const [, sheet] = buildDrawingSheets([], projectName, [
+      { cabinet: component, parts, materials, byId },
+    ])
+    downloadBlob(
+      ext === 'svg' ? buildSvg(sheet) : buildDxf(sheet),
+      sheetFilename(sheet, projectName, ext),
+      ext === 'svg' ? 'image/svg+xml' : 'application/dxf',
+    )
+  }
+
   return (
     <div className="flex-1 min-w-0 h-full flex flex-col bg-background">
       <div className="flex items-center border-b border-border px-2 shrink-0">
@@ -76,6 +97,19 @@ export function CabinetEditor({
           ))}
         </div>
       </div>
+
+      {/* A projection is a drawing, so it can be exported as one. Section is an editor and 3D is
+          the viewport; neither is what `buildDrawingSheets` would put on a sheet. */}
+      {tab !== '3d' && tab !== 'section' && (
+        <div className="flex gap-2 px-3 pt-2">
+          <Button variant="outline" size="sm" onClick={() => exportSheet('svg')}>
+            SVG
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => exportSheet('dxf')}>
+            DXF
+          </Button>
+        </div>
+      )}
 
       {/* Nothing for 3D: the viewport is behind this component, shown by App. A panel here would
           cover it. */}
