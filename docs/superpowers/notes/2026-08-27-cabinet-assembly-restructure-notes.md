@@ -1104,3 +1104,56 @@ of the scene.
   above the drawing; the assembly sheet does not, because the plan's renderer does not and a fourth
   text element would have to be excluded from the ring test by hand. Three unnamed orthographic
   views on one sheet is a real gap for a shop drawing — worth a line in Task 13/14 or a follow-up.
+
+## Task 13 — `buildDxf` and `buildPdf` learn the variant (2026-09-03)
+
+- **The DXF `fy` in the plan flips twice, and so does the `py` it passes to `dxfDimLine`.** Every
+  `dxf*` helper in the file already applies the single flip itself — `dxfLine` writes
+  `fmt(fy(y1))`, and `fy` is `210 - y`. They take SHEET millimetres with y running down, exactly
+  as the SVG renderer does. The drafted `fy = 210 - (py + (H - v) * scale)` therefore cancels that
+  flip and lands the drawing mirrored in the wrong band of the page, and
+  `dxfDimLine(dim, px, 210 - py - H * scale)` puts every "below" dimension above its view. The
+  branch converts carcase v to sheet y and stops; `px, py` go to `dxfDimLine` unchanged. Pinned by
+  *maps carcase v to DXF y with a single flip*, which fails on the drafted expression (measured).
+- **No POLYLINE, and `LWPOLYLINE` would have been a bug.** The header declares `AC1009` (R12),
+  which has no `LWPOLYLINE` at all — that entity arrives with R14. A closed R12
+  `POLYLINE`/`VERTEX`/`SEQEND` run would be legal, but `dxfRect` does not do that and neither does
+  `dxfView`'s `boardOutline` branch or `dxfDowelView`: both walk the ring and emit one `LINE` per
+  edge, wrapping with `% length`. The assembly branch follows them, so the file keeps one
+  convention. The test therefore counts `LINE`s on the `OUTLINE` layer against the hull's own
+  vertex count and requires one of them to be diagonal — a bounding box has four axis-aligned
+  edges, which is the same count in the End and Top views and would otherwise pass.
+- **The drafted "on the right layers" test could not have failed.** `expect(dxf).toContain('HIDDEN')`
+  and `toContain('DASHED')` are satisfied by `dxfTables`, which *defines* both — a file that drew
+  every hidden edge solid still contains the words. It now counts `LINE` entities carrying
+  `8/HIDDEN` against the projector's hidden-segment total and requires each to carry the per-entity
+  `6/DASHED` override.
+- **The drafted `keeps the layer tables` test would have passed the mutation it names.**
+  `indexOf('TABLES') < indexOf('ENTITIES')` is true when `TABLES` is absent, because `indexOf`
+  returns -1. The presence of `0/LTYPE/2/DASHED` and `0/LAYER/2/HIDDEN` is what actually fails on
+  an early return.
+- **pdf-lib can read back drawn content, but only as a content stream.** There is no model of drawn
+  objects to query. `page.node.get('Contents')` gives a `PDFArray` of one ref to a `PDFRawStream`,
+  Flate-compressed, whose text is written as hex strings (`<4A6F62> Tj`). Page count and
+  orientation alone are NOT enough for mutation 6: the page is added outside the branch, so both
+  still pass when the branch draws nothing. What fails is that an undrawn page carries no
+  `Contents` entry at all. `node:zlib` is not available to `src` (tsconfig sets
+  `types: ["vite/client"]`, so `@types/node` is out), so the test inflates with the platform's
+  `DecompressionStream('deflate')` instead of pulling node types into the app's compile.
+- **Three families the plan dropped, restored deliberately.** The drafted branches draw `solid`,
+  `hidden` and `dims` only. Task 12's SVG draws `cutRects` and `circles` too, and every sheet in
+  the deck carries a title block. A regenerated Base 600 assembly sheet has **26 bores and 4
+  internal cut rectangles**; a Tall 600 has 36 and 4. Dropping them makes the DXF and the PDF show
+  less than the SVG of the same sheet, and a shop drawing with no scale on it is not the same sheet
+  in another format. Both are drawn now, `dxfRect('CUTS', …)` following the convention `dxfView`
+  already uses for cut rectangles (solid, on `CUTS`, ignoring `DrawRect.dashed`).
+- **`assemblyDimLine` was the only thing standing between the ring table and nothing.** Mutating
+  `RING_EM[d.ring]` to `RING_EM[1]` fails **one** test in the whole 1652-test suite, and it is the
+  one added with the extraction. Before it, no renderer's output could see which ring a dimension
+  read: both rings sit inside the band the layout reserved, so the ring-placement test in
+  `buildSvg.test.ts` passes with the toe-kick label printed on top of the opening label.
+- **Still unlabelled, still reading backwards.** The two gaps recorded under Task 12 — the three
+  views carry no `Front`/`End`/`Top` text, and `renderDimLine` anchors every vertical label
+  `'start'` so a left-hand dimension reads back across the drawing — are now in three renderers
+  rather than one. Neither is fixed here; both are cheap in one place each and belong in a
+  follow-up.
