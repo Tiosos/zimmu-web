@@ -437,6 +437,48 @@ Add the third case to `selectedCarcase`'s memo so a section selection keeps its 
 Place it beside the existing `selection?.kind === 'component'` branch, before the open-cabinet
 fallback.
 
+- [ ] **Step 3b: Clear a section selection whose cabinet is deleted**
+
+Found during Task 2's spec review, deferred to here because it is a behaviour change and Task 2's
+success criterion was an unchanged test count.
+
+`useScene.ts:1270` clears a dangling **component** selection when components are removed:
+
+```ts
+setSelection((prev) => (prev?.kind === 'component' && doomed.has(prev.id) ? null : prev))
+```
+
+Its own comment says why — *"a selection pointing at a component that is gone is a dangling
+reference the panel would try to render"* — and that sentence is now true of only one of the two
+kinds that can dangle. A `section` selection whose `cabinetId` is in `doomed` survives the delete.
+
+The Step 3 guard covers the **render** completely: `selectedCarcase` finds no component, falls
+through to the open-cabinet fallback, which also finds nothing, so `selectedSectionId` is `null` and
+no panel mounts. What it does not fix is the **state** — and it leaves Task 4's opening rows resting
+on an unwritten precondition that a dangling selection never names a row that exists.
+
+Widen the clear so the comment above it is true of every kind that can dangle:
+
+```ts
+setSelection((prev) =>
+  prev === null
+    ? prev
+    : prev.kind === 'component' && doomed.has(prev.id)
+      ? null
+      : prev.kind === 'section' && doomed.has(prev.cabinetId)
+        ? null
+        : prev,
+)
+```
+
+`doomed` is a `Set<ComponentId>` (`useScene.ts:1231`) and `cabinetId` is a `ComponentId`, so it is
+the right set to ask.
+
+This needs its own test in `useScene.test.ts`: select a section in a cabinet, remove that cabinet,
+assert the selection is `null`. Then **check what the component case actually does on undo and make
+the section case match it** — do not assume; run it. The two kinds differing there would be an
+unstated behavioural difference, which is the thing this step exists to remove.
+
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/App.test.tsx`
