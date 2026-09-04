@@ -185,8 +185,16 @@ worse than no name.
 
 The last row is load-bearing. `sectionOpenings` needs a resolved tree, which needs valid parameters,
 and `CarcasePanel` renders in states the validator rejects because the params are mid-keystroke. **The
-scene tree must never empty or throw because a width is briefly `6`.** It degrades to the flat tree
-that exists today — the same "empty rather than throwing" rule `SectionElevation` states.
+scene tree must never empty or throw for a cabinet the validator rejects.** It degrades to the flat
+tree that exists today — the same "empty rather than throwing" rule `SectionElevation` states.
+
+Measured during Task 4, correcting this document's first draft: a width of `6` does **not** throw.
+`openingRect` returns an inverted rectangle and the rest of the chain is pure arithmetic that
+propagates it happily, so without the guard such a cabinet would render its rows normally. The
+path that actually throws is an **unresolvable material name**, and it throws in `openingRect`,
+because `roleThicknessFor` returns a resolver that is fatal by design. The guard covers both
+because `validateCarcaseParams` is total — it wraps every thickness read in try/catch, so the
+material comes back as an error string rather than an exception.
 
 ## A preset has one opening
 

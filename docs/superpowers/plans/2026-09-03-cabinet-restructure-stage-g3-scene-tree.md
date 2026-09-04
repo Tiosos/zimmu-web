@@ -602,8 +602,9 @@ Add above `renderChildren`:
 
 ```tsx
   // A carcase's parts are grouped by the opening that owns them; everything else renders flat.
-  // Resolving can throw for a cabinet mid-keystroke, so an unbuildable one falls back to the flat
-  // tree that existed before this — the scene tree must never empty because a width is briefly 6.
+  // `openingRect` reads thicknesses through a resolver that is fatal by design, so a cabinet naming
+  // a material the scene cannot resolve would throw here — an unbuildable one falls back to the
+  // flat tree that existed before this rather than taking the whole tree down with it.
   const carcaseGroups = (component: CarcaseComponent, own: Part[]) => {
     const thicknessOf = roleThicknessFor(component.params, materials, overridesOf(own, component.id))
     if (validateCarcaseParams(component.params, thicknessOf).length > 0) return null
@@ -719,9 +720,11 @@ A carcase expands into its openings, each carrying the fronts and shelves that
 name it, with the shell and any divider below them. A divider is not inside an
 opening: division- names the section that was split, which is always internal.
 
-Resolving can throw for a cabinet mid-keystroke, so an unbuildable one falls
-back to the flat tree that existed before. The scene tree must never empty
-because a width is briefly 6.
+Resolving can throw for a cabinet naming a material the scene cannot resolve -
+roleThicknessFor's resolver is fatal by design and openingRect is where it
+surfaces - so an unbuildable one falls back to the flat tree that existed
+before rather than taking the whole tree down with it. The guard also catches
+merely invalid geometry, which does not throw.
 ```
 
 ---

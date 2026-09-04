@@ -1313,3 +1313,25 @@ not with a section one.
 Task 5 is what closes it (`sidebar.tsx:117` is the file it names). Recorded here because until Task 3
 the state was unreachable, so nothing in Task 3's own diff shows that it opens a window — do not
 merge or demo the branch in it.
+
+**A width of 6 does not throw; an unresolvable material does.** The G3 spec and plan both justified
+the scene tree's unbuildable-cabinet guard with "the scene tree must never empty or throw because a
+width is briefly 6". Measured in Task 4, step by step through the chain `carcaseGroups` calls:
+
+| case | where it errors |
+| --- | --- |
+| `width: 6` | nowhere. `validateCarcaseParams` reports two errors, but `openingRect` returns an inverted rectangle (`x1 < x0`) and `resolveSections` / `sectionOpenings` / `sectionNodes` propagate it without complaint |
+| `carcaseMaterial: 'Unobtanium'` | **`openingRect` throws** — `roleThicknessFor` only builds the closure; the closure is fatal by design |
+
+So without the guard a width-6 cabinet would render its opening rows normally. The guard is still
+right, and covers both, because `validateCarcaseParams` is *total*: it wraps every thickness read in
+try/catch, so an unresolvable material comes back as a string rather than an exception. Its
+placement between `roleThicknessFor` and `openingRect` is what makes that work.
+
+The consequence for testing is the part worth keeping: **a `width: 6` fixture would have survived
+the mutation that deletes the guard.** Task 4's test uses `carcaseMaterial: 'Unobtanium'` for that
+reason. The spec and plan were corrected; Task 4's commit message repeats the original wrong reason
+and cannot be.
+
+The guard was already load-bearing before Task 4, which nothing recorded: deleting it also fails two
+pre-existing `sidebar.test.tsx` cases, whose fixture renders a preset carcase with `materials: {}`.
