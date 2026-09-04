@@ -6,8 +6,9 @@ import type { Part, SectionId } from './types'
 // returned. That is what makes the tree and the elevation number openings identically: they read
 // one array rather than each deriving an order.
 //
-// Ownership is not inferred; the role keys the generator writes already state it. This is the only
-// place a role key is read as structure.
+// Ownership is not inferred; the role keys the generator writes already state it. Five other
+// modules read a role's *family* (`grain.ts`, `resolveThickness.ts`, `carcaseRoles.ts`); this is
+// the only place a key is taken apart to recover the section id inside it.
 
 export interface SectionNode {
   sectionId: SectionId

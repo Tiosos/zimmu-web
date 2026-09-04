@@ -3,8 +3,9 @@ import { sectionNodes } from './sectionNodes'
 import type { SectionOpening } from './sectionInterior'
 import type { BoardPart, Part } from './types'
 
-// Only `sectionId` is read. The rest of SectionOpening is carried for other callers, so a fixture
-// that filled it in would be asserting against fields this module never looks at.
+// Only `sectionId` is read. `section` is required by the type and deliberately absent — the cast
+// is what allows that, so a future read of `.section` fails here at runtime rather than at
+// compile time. Filling it in would assert against fields this module never looks at.
 const opening = (sectionId: string): SectionOpening =>
   ({ sectionId, rect: { x0: 0, x1: 0, z0: 0, z1: 0 }, spec: undefined }) as unknown as SectionOpening
 
@@ -92,8 +93,8 @@ describe('sectionNodes', () => {
   })
 
   it('returns every part as carcase when there are no openings', () => {
-    const { sections, carcase } = sectionNodes([], [part({ role: `front-${A}-0` })])
+    const { sections, carcase } = sectionNodes([], [part({ id: 'board_1', role: `front-${A}-0` })])
     expect(sections).toEqual([])
-    expect(carcase).toHaveLength(1)
+    expect(carcase.map((p) => p.id)).toEqual(['board_1'])
   })
 })
