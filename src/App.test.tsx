@@ -518,10 +518,12 @@ describe('the open cabinet', () => {
     expect(screen.getByRole('button', { name: 'Split across' })).toBeTruthy()
   })
 
-  // A section id outlives the cabinet it names, and two cabinets built from one preset share the
-  // ids in their section trees — so a stale pick can name a real opening in the cabinet that is
-  // open. The cabinet-id guard is the only thing standing between that and editing the wrong bay.
-  it('ignores a section selection made in another cabinet', async () => {
+  // The guard's whole reachable domain: the cabinet on screen is derived from the pick, so a
+  // resolvable `cabinetId` always matches and only an unresolvable one is rejected. That is not
+  // inert — two cabinets built from one preset share the ids in their section trees, so a stale
+  // pick can name a live opening in the cabinet that is open, and the guard is the only thing
+  // standing between that and editing the wrong bay.
+  it('ignores a section selection whose cabinet the scene no longer holds', async () => {
     const select = await mount()
     const sectionId = cabinet.params.section.id
     await select({ kind: 'section', cabinetId: cabinet.id, sectionId })
@@ -534,10 +536,7 @@ describe('the open cabinet', () => {
     expect(screen.queryByRole('button', { name: 'Split across' })).toBeNull()
   })
 
-  // Deselecting an opening selects its cabinet, not nothing: clicking the elevation's background
-  // means "no opening". `null` would leave the editor open too, via the open-cabinet fallback,
-  // so what this pins is the selection rather than the editor — the cabinet stays selected for
-  // the tree and the sidebar to read.
+  // `null` would leave the editor open too, so what this pins is the selection, not the editor.
   it('writes an elevation pick into the selection, and deselects to the cabinet', async () => {
     const select = await mount()
     await select({ kind: 'component', id: cabinet.id })

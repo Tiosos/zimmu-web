@@ -239,8 +239,8 @@ export type Selection =
   | { kind: 'component'; id: ComponentId }
   // Carries the cabinet id as well: finding which cabinet owns a section id otherwise means
   // scanning every carcase's tree. Consumers must check `cabinetId` against the open cabinet —
-  // a section id from one cabinet names nothing in another, and `editSection` treats an unknown
-  // id as a no-op, so an unchecked stale pick shows a panel that silently edits nothing.
+  // section ids are NOT unique across cabinets built from one preset, so an unchecked stale pick
+  // can name a live opening in whichever cabinet is open and edit the wrong bay.
   | { kind: 'section'; cabinetId: ComponentId; sectionId: SectionId }
 
 export interface DadoJoint {

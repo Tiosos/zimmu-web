@@ -1266,8 +1266,9 @@ export function useScene(): UseSceneResult {
         }
       }, 'Delete component')
       // A selection pointing at a component that is gone — or at a section of one — is a dangling
-      // reference the panel would try to render. A part selection is left alone: the part itself
-      // may well have survived.
+      // reference: for a component the panel would try to render it, and for a section it would
+      // leave a pick naming an opening in a cabinet nothing holds. A part selection is left
+      // alone: the part itself may well have survived.
       setSelection((prev) => {
         if (prev?.kind === 'component' && doomed.has(prev.id)) return null
         if (prev?.kind === 'section' && doomed.has(prev.cabinetId)) return null

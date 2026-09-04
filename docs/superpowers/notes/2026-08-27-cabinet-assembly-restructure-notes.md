@@ -1301,3 +1301,15 @@ pins. The design is still right, on different grounds: `null` would make a backg
 load-bearing on a state machine already narrowed once for a regression, and would blank the sidebar
 on a click made inside the cabinet. The comments were corrected; the commit message carries the
 original wrong reason and cannot be.
+
+**The branch is not shippable between Task 3 and Task 5.** Task 3 makes `{kind: 'section'}` a
+*reachable* selection for the first time, so every consumer that narrows on `'component'` now sees
+it — and `sidebar.tsx:117` derives its carcase from `selectedComponent` alone. `CarcasePanel`
+therefore unmounts on the very click that picks the opening its shelving and front controls belong
+to, and `SceneTree.tsx:161` drops the cabinet row's highlight for the same reason. Verified under
+`App`, not inferred: probing for `[for="carcase-material"]` finds it with a component selection and
+not with a section one.
+
+Task 5 is what closes it (`sidebar.tsx:117` is the file it names). Recorded here because until Task 3
+the state was unreachable, so nothing in Task 3's own diff shows that it opens a window — do not
+merge or demo the branch in it.

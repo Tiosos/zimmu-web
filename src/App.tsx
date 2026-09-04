@@ -137,10 +137,10 @@ function App() {
 
   // One selection, not two. This used to be `sectionPick` — a second piece of state the elevation
   // wrote and the panel read — which meant two things could disagree about which opening was
-  // picked. The pick still carries the cabinet it was made in, so switching cabinets clears it by
-  // *derivation*: a section id from one cabinet names nothing in another, and every `editSection`
-  // operation treats an unknown id as a no-op, so carrying one across would show a panel that
-  // silently edits nothing rather than an error.
+  // picked. The pick carries the cabinet it was made in, and the cabinet on screen is derived from
+  // the pick — so the only selection this guard can reject is one naming a cabinet the scene no
+  // longer holds. That is not inert: section ids are NOT unique across cabinets built from one
+  // preset, so a stale id can name a live opening in the cabinet that is open.
   const selectedSectionId =
     selection?.kind === 'section' && selection.cabinetId === selectedCarcase?.id
       ? selection.sectionId
@@ -149,11 +149,9 @@ function App() {
     (sectionId: SectionId | null) => {
       const cabinetId = selectedCarcase?.id
       if (cabinetId === undefined) return
-      // Deselecting an opening means "no opening", not "no cabinet". `null` would in fact leave
-      // the editor open — the open-cabinet fallback below catches it — but only by making a
-      // background click silently load-bearing on a state machine that has already been
-      // narrowed once for a regression. Naming the cabinet says what happened instead of
-      // relying on that, and leaves the cabinet selected for the tree and the sidebar to read.
+      // Deselecting an opening means "no opening", not "no cabinet". `null` would leave the editor
+      // open too — the fallback above catches it — but it would blank the tree row and the
+      // sidebar panel for the cabinet the click was made in.
       onSelect(
         sectionId === null
           ? { kind: 'component', id: cabinetId }
