@@ -536,6 +536,18 @@ describe('the open cabinet', () => {
     expect(screen.queryByRole('button', { name: 'Split across' })).toBeNull()
   })
 
+  // Sidebar's own tests pin the derivation; this is the assembled app moving from the cabinet to
+  // one of its openings on the selection App actually hands the sidebar, with the panel holding
+  // that opening's controls still on screen after. `Dividers` is a CarcasePanel field and nothing
+  // else App renders has one.
+  it('keeps the sidebar carcase panel on screen when an opening is selected', async () => {
+    const select = await mount()
+    await select({ kind: 'component', id: cabinet.id })
+    expect(screen.getByLabelText('Dividers')).toBeTruthy()
+    await select({ kind: 'section', cabinetId: cabinet.id, sectionId: cabinet.params.section.id })
+    expect(screen.getByLabelText('Dividers')).toBeTruthy()
+  })
+
   // `null` would leave the editor open too, so what this pins is the selection, not the editor.
   it('writes an elevation pick into the selection, and deselects to the cabinet', async () => {
     const select = await mount()

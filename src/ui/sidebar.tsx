@@ -114,7 +114,16 @@ export function Sidebar({
     selection?.kind === 'component'
       ? (scene.components.find((c) => c.id === selection.id) ?? null)
       : null
-  const selectedCarcase = selectedComponent?.kind === 'carcase' ? selectedComponent : null
+  // A section belongs to a cabinet, so picking an opening has to keep that cabinet's panel on
+  // screen: deriving from `selectedComponent` alone unmounted CarcasePanel on the very click that
+  // chose the opening whose shelving and front controls it holds. The cabinet is the one
+  // `cabinetId` names — section ids are not unique across cabinets built from one preset, so
+  // nothing else the selection carries identifies it.
+  const carcaseHost =
+    selection?.kind === 'section'
+      ? (scene.components.find((c) => c.id === selection.cabinetId) ?? null)
+      : selectedComponent
+  const selectedCarcase = carcaseHost?.kind === 'carcase' ? carcaseHost : null
 
   return (
     <TooltipProvider delayDuration={300}>

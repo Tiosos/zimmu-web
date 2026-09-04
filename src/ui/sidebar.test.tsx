@@ -982,4 +982,39 @@ describe('Sidebar — carcase', () => {
     )
     expect(screen.queryByLabelText('Width')).toBeNull()
   })
+
+  it('shows the carcase panel for a section selection, so the opening keeps its controls', () => {
+    render(
+      <Sidebar
+        {...props({
+          scene: { parts: [], materials: {}, hardware: [], joints: [], components: [carcase] },
+          selection: { kind: 'section', cabinetId: 'cmp_c1', sectionId: 'sec_x' },
+        })}
+      />,
+    )
+    expect(screen.getByLabelText('Width')).toBeTruthy()
+  })
+
+  // The obligation `Selection` states of its consumers: section ids are not unique across cabinets
+  // built from one preset, so a section selection has to resolve through its own `cabinetId`.
+  // Reaching for whichever carcase comes first instead puts the wrong cabinet's parameters under
+  // the opening that was picked, and a one-cabinet fixture cannot tell the two apart.
+  it('resolves a section selection through its cabinet id, not to whichever carcase is first', () => {
+    const tall = { ...carcase, id: 'cmp_c2', label: 'Tall 600', params: CARCASE_PRESETS[2].params }
+    render(
+      <Sidebar
+        {...props({
+          scene: {
+            parts: [],
+            materials: {},
+            hardware: [],
+            joints: [],
+            components: [carcase, tall],
+          },
+          selection: { kind: 'section', cabinetId: 'cmp_c2', sectionId: 'sec_x' },
+        })}
+      />,
+    )
+    expect((screen.getByLabelText('Height') as HTMLInputElement).value).toBe('2100')
+  })
 })
