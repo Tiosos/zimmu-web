@@ -879,30 +879,52 @@ part, and a section has no single part to flash.
 
 Beside `highlightedIds` (around `src/App.tsx:182`):
 
+> **Step 0 first: extract, do not paste.** This plan originally spelled the whole resolve chain out
+> again here. Task 4 put the identical chain in `SceneTree.tsx` as `carcaseGroups`, and its review
+> made the case that two hand-copied chains are exactly how the tree and the 3D highlight come to
+> disagree about an opening's membership — a bug with no visible cause. The comment below ("so the
+> two cannot disagree") is only true if there is one chain.
+>
+> So **Step 0** is a pure move, no behaviour change: create `src/scene/carcaseOpenings.ts` with
+>
+> ```ts
+> export function carcaseOpenings(
+>   component: CarcaseComponent,
+>   own: Part[],
+>   materials: Record<string, MaterialDef>,
+> ): { sections: SectionNode[]; carcase: Part[] } | null
+> ```
+>
+> carrying `carcaseGroups`' body verbatim — it captures nothing from `SceneTree`'s body except
+> `materials`, so the move is mechanical. Point `SceneTree.tsx` at it, confirm the suite is
+> unchanged at that point, and commit the move on its own before writing any of Task 6.
+>
+> It does **not** belong in `sectionNodes.ts`: that module's header promises it "neither resolves
+> nor validates", and a resolver there would contradict its own contract.
+>
+> While moving it, take the fourth copy of the division lambda with it —
+> `(parentId, index) => thicknessOf(`division-${parentId}-${index}`)` now appears in
+> `SectionElevation.tsx`, `SceneTree.tsx`, `CarcasePanel.tsx` (twice) and `assembly.ts`, while
+> `carcaseRoles.ts:105` holds a private `sectionThickness()` that *is* this function. Exporting it
+> costs one keyword and removes the copy from the extracted module for free. Leave the other call
+> sites alone — they are not this task's.
+
 ```tsx
-// The opening's own parts. Resolved the same way the tree resolves — through `sectionOpenings`, so
-// the two cannot disagree about which parts an opening owns.
+// The opening's own parts. Resolved through the same `carcaseOpenings` the scene tree uses, so the
+// two cannot disagree about which parts an opening owns.
 const selectedIds = useMemo(() => {
   if (selection?.kind !== 'section' || selectedCarcase === null) return []
   const own = scene.parts.filter((p) => p.parentId === selectedCarcase.id)
-  const thicknessOf = roleThicknessFor(
-    selectedCarcase.params,
-    scene.materials,
-    overridesOf(own, selectedCarcase.id),
+  const groups = carcaseOpenings(selectedCarcase, own, scene.materials)
+  return (
+    groups?.sections.find((s) => s.sectionId === selection.sectionId)?.parts.map((p) => p.id) ?? []
   )
-  if (validateCarcaseParams(selectedCarcase.params, thicknessOf).length > 0) return []
-  const tree = resolveSections(
-    selectedCarcase.params.section,
-    openingRect(selectedCarcase.params, thicknessOf),
-    (parentId, index) => thicknessOf(`division-${parentId}-${index}`),
-  )
-  const { sections } = sectionNodes(
-    sectionOpenings(selectedCarcase.params.section, tree),
-    own,
-  )
-  return sections.find((s) => s.sectionId === selection.sectionId)?.parts.map((p) => p.id) ?? []
 }, [selection, selectedCarcase, scene.parts, scene.materials])
 ```
+
+An unbuildable cabinet returns `null` from `carcaseOpenings`, so the `?? []` covers the guard case
+that used to be its own early return — mutation 3 in the table below still applies, now against the
+extracted module.
 
 and pass it at the `<Viewport>` call beside `highlightedIds={highlightedIds}`:
 

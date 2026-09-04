@@ -282,10 +282,10 @@ describe('a cabinet expands into its openings', () => {
 
   it('collapsing an opening hides its parts and leaves the other one alone', () => {
     renderTree({ components: [TWO_BAY_CABINET], parts: TWO_BAY_PARTS })
-    fireEvent.click(screen.getByLabelText('Collapse Opening 1'))
+    fireEvent.click(screen.getByLabelText('Collapse Opening 1 of Base 600'))
     expect(screen.queryByTestId(`node-${shelfOf(BAYS[0]).id}`)).toBeNull()
     expect(screen.getByTestId(`node-${shelfOf(BAYS[1]).id}`)).toBeTruthy()
-    expect(screen.getByLabelText('Expand Opening 1')).toBeTruthy()
+    expect(screen.getByLabelText('Expand Opening 1 of Base 600')).toBeTruthy()
   })
 
   it('marks the selected opening row', () => {
@@ -296,6 +296,38 @@ describe('a cabinet expands into its openings', () => {
     })
     expect(screen.getByTestId(`node-${BAYS[1]}`).getAttribute('data-selected')).toBe('true')
     expect(screen.getByTestId(`node-${BAYS[0]}`).getAttribute('data-selected')).toBe('false')
+  })
+
+  // The convention every other interactive row in this file is held to: without the chevron's
+  // stopPropagation, collapsing an opening also selects it — which in the wired app opens the
+  // cabinet editor on a click that meant only "fold this away".
+  it('the opening chevron does not also select the row', () => {
+    const onSelect = vi.fn()
+    renderTree({ components: [TWO_BAY_CABINET], parts: TWO_BAY_PARTS, onSelect })
+    fireEvent.click(screen.getByLabelText('Collapse Opening 1 of Base 600'))
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  // `Selection` states the cabinet-id check as an obligation on consumers, because section ids are
+  // not unique across cabinets built from one preset. One cabinet is rendered deliberately: two
+  // sharing a preset would collide on `node-sec_*` and make `getByTestId` throw.
+  it('does not mark an opening whose id is selected under another cabinet', () => {
+    renderTree({
+      components: [TWO_BAY_CABINET],
+      parts: TWO_BAY_PARTS,
+      selection: { kind: 'section', cabinetId: 'cmp_elsewhere', sectionId: BAYS[0] },
+    })
+    expect(screen.getByTestId(`node-${BAYS[0]}`).getAttribute('data-selected')).toBe('false')
+  })
+
+  // Reachable through `onReparentComponent` even though nothing creates one here today. Without a
+  // test the line is one a future maintainer deletes while the suite stays green.
+  it('still renders a component nested under a carcase', () => {
+    renderTree({
+      components: [TWO_BAY_CABINET, makeGroup({ id: 'cmp_2', parentId: 'cmp_1' })],
+      parts: TWO_BAY_PARTS,
+    })
+    expect(screen.getByTestId('node-cmp_2')).toBeTruthy()
   })
 
   it('renders an unbuildable cabinet’s parts flat rather than throwing', () => {

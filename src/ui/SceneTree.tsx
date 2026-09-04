@@ -247,6 +247,9 @@ export function SceneTree({
     )
   }
 
+  // No visibility, duplicate or delete: an opening is a region of the cabinet, not an object.
+  // Hiding one has no meaning, and removing one is `unsplitSection`, which belongs to the
+  // elevation's toolbar. Both are implementable-looking, which is why the absence is stated.
   const renderSection = (
     component: CarcaseComponent,
     node: SectionNode,
@@ -254,7 +257,13 @@ export function SceneTree({
     depth: number,
   ) => {
     const open = !collapsed.has(node.sectionId)
-    const isSelected = selection?.kind === 'section' && selection.sectionId === node.sectionId
+    // Both ids, because section ids are not unique across cabinets built from one preset — the
+    // obligation `Selection` states. Matching on the section id alone would light up the
+    // same-numbered opening in every such cabinet.
+    const isSelected =
+      selection?.kind === 'section' &&
+      selection.cabinetId === component.id &&
+      selection.sectionId === node.sectionId
     return (
       <div key={node.sectionId} data-testid={`subtree-${node.sectionId}`}>
         <div
@@ -269,7 +278,7 @@ export function SceneTree({
           <Button
             variant="ghost"
             size="icon"
-            aria-label={`${open ? 'Collapse' : 'Expand'} Opening ${index + 1}`}
+            aria-label={`${open ? 'Collapse' : 'Expand'} Opening ${index + 1} of ${component.label}`}
             className="h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
             onClick={(e) => {
               e.stopPropagation()
