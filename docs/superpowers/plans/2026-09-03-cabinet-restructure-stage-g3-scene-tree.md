@@ -769,14 +769,13 @@ Expected: FAIL — `Unable to find a label with the text of: Dividers`.
 Replace `src/ui/sidebar.tsx:117`:
 
 ```tsx
-  // A section belongs to a cabinet, so selecting one keeps that cabinet's panel on screen with the
-  // opening picked. Deriving only from `selectedComponent` would unmount the panel at the moment
-  // an opening is chosen — the controls for the thing just selected would disappear.
-  const carcaseHost =
+  // A section belongs to a cabinet, so picking an opening must not unmount the panel that holds its
+  // shelving and front controls. Resolved through `cabinetId` — the obligation `Selection` states.
+  const hostComponent =
     selection?.kind === 'section'
       ? (scene.components.find((c) => c.id === selection.cabinetId) ?? null)
       : selectedComponent
-  const selectedCarcase = carcaseHost?.kind === 'carcase' ? carcaseHost : null
+  const selectedCarcase = hostComponent?.kind === 'carcase' ? hostComponent : null
 ```
 
 **The narrowing has to happen outside the `find`.** This plan's first draft wrote

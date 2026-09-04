@@ -338,7 +338,9 @@ describe('App BOM integration', () => {
 
 // Neither half of this rule is visible at the CabinetEditor level — the editor is handed a cabinet,
 // it does not decide which one. App decides, and App is also the only place that knows the viewport
-// is hidden rather than unmounted, so only a test that renders App can see either.
+// is hidden rather than unmounted, so only a test that renders App can see either. The same is
+// true of what the selection reaches: the sidebar's own tests pin its derivation, but only App
+// shows the selection actually arriving there.
 describe('the open cabinet', () => {
   const inside = partsOfBase600()
   const loose: Part = {
@@ -546,6 +548,9 @@ describe('the open cabinet', () => {
     expect(screen.getByLabelText('Dividers')).toBeTruthy()
     await select({ kind: 'section', cabinetId: cabinet.id, sectionId: cabinet.params.section.id })
     expect(screen.getByLabelText('Dividers')).toBeTruthy()
+    // And it is *that opening's* panel: `Shelves` renders only once an opening resolves, so it is
+    // correctly absent under the component selection above.
+    expect(screen.getByLabelText('Shelves')).toBeTruthy()
   })
 
   // `null` would leave the editor open too, so what this pins is the selection, not the editor.

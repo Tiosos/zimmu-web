@@ -1343,3 +1343,20 @@ and cannot be.
 
 The guard was already load-bearing before Task 4, which nothing recorded: deleting it also fails two
 pre-existing `sidebar.test.tsx` cases, whose fixture renders a preset carcase with `materials: {}`.
+
+**Two modules now answer "which carcase does this selection name".** `App.tsx` derives
+`selectedCarcase` for the cabinet editor; `sidebar.tsx` derives its own for `CarcasePanel`. They
+agree on every state reachable today — deleting a component clears a dangling section selection and
+`replaceScene` nulls the selection outright — so this is a note, not a bug.
+
+The one state where they disagree is a `cabinetId` naming a component the scene no longer holds:
+measured, the cabinet editor stays open while the sidebar's parameter panel is gone. That is a
+smaller version of exactly what Task 5 fixed, and it was equally true before Task 5, so nothing
+regressed. If it ever becomes reachable, the cheap permanent fix is for `App` to pass the
+`selectedCarcase` it has already computed down to `Sidebar` rather than have the sidebar re-derive
+it — one source, as `resolveWorldMatrix` and `roleThicknessFor` are for their own questions.
+
+Related precision, worth keeping honest: "one selected row in the tree" holds only while the opening
+row is rendered. A collapsed cabinet, or one whose params the validator rejects, renders no opening
+rows at all, so a section selection then highlights nothing. Pre-existing from Task 4 and correct —
+there is no row to light — but the invariant is narrower than its one-line statement.

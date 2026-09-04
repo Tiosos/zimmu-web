@@ -988,11 +988,14 @@ describe('Sidebar — carcase', () => {
       <Sidebar
         {...props({
           scene: { parts: [], materials: {}, hardware: [], joints: [], components: [carcase] },
-          selection: { kind: 'section', cabinetId: 'cmp_c1', sectionId: 'sec_x' },
+          selection: { kind: 'section', cabinetId: 'cmp_c1', sectionId: carcase.params.section.id },
+          selectedSectionId: carcase.params.section.id,
         })}
       />,
     )
-    expect(screen.getByLabelText('Width')).toBeTruthy()
+    // `Shelves` renders only once an opening resolves, so it is the assertion the name promises.
+    // A cabinet-wide field would have been present whether or not the opening was found.
+    expect(screen.getByLabelText('Shelves')).toBeTruthy()
   })
 
   // The obligation `Selection` states of its consumers: section ids are not unique across cabinets
@@ -1000,7 +1003,14 @@ describe('Sidebar — carcase', () => {
   // Reaching for whichever carcase comes first instead puts the wrong cabinet's parameters under
   // the opening that was picked, and a one-cabinet fixture cannot tell the two apart.
   it('resolves a section selection through its cabinet id, not to whichever carcase is first', () => {
-    const tall = { ...carcase, id: 'cmp_c2', label: 'Tall 600', params: CARCASE_PRESETS[2].params }
+    // The contrast is the fixture's own: reading it off a preset by index would make the test
+    // pass under the mutation if the two presets' heights ever coincided.
+    const tall = {
+      ...carcase,
+      id: 'cmp_c2',
+      label: 'Tall',
+      params: { ...carcase.params, height: 2100 },
+    }
     render(
       <Sidebar
         {...props({
