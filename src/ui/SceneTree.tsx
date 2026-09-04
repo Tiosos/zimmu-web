@@ -1,5 +1,18 @@
 import { useState } from 'react'
-import type { Component, ComponentId, Part, PartId, Selection } from '../scene/types'
+import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
+import { overridesOf, roleThicknessFor } from '../scene/resolveThickness'
+import { sectionNodes, type SectionNode } from '../scene/sectionNodes'
+import { sectionOpenings } from '../scene/sectionInterior'
+import { resolveSections } from '../scene/sectionTree'
+import type {
+  CarcaseComponent,
+  Component,
+  ComponentId,
+  MaterialDef,
+  Part,
+  PartId,
+  Selection,
+} from '../scene/types'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -22,6 +35,8 @@ interface SceneTreeProps {
   pendingIds: Set<PartId>
   onDuplicate: (id: PartId) => void
   onRemove: (id: PartId) => void
+  // A carcase's openings are resolved here, and a panel's thickness comes from its material.
+  materials: Record<string, MaterialDef>
 }
 
 function VisibilityButton({ visible, onToggle }: { visible: boolean; onToggle: () => void }) {
@@ -57,10 +72,12 @@ export function SceneTree({
   pendingIds,
   onDuplicate,
   onRemove,
+  materials,
 }: SceneTreeProps) {
-  const [collapsed, setCollapsed] = useState<Set<ComponentId>>(new Set())
+  // Section ids share this set with component ids: a `sec_` id can never equal a `cmp_` one.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
-  const toggleCollapsed = (id: ComponentId) =>
+  const toggleCollapsed = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev)
       if (!next.delete(id)) next.add(id)
@@ -194,7 +211,77 @@ export function SceneTree({
             onToggle={() => onToggleVisible({ kind: 'component', id: component.id })}
           />
         </div>
-        {open && renderChildren(component.id, depth + 1)}
+        {open &&
+          (component.kind === 'carcase'
+            ? renderCarcaseChildren(component, depth + 1)
+            : renderChildren(component.id, depth + 1))}
+      </div>
+    )
+  }
+
+  // A carcase's parts are grouped by the opening that owns them; everything else renders flat.
+  // `openingRect` reads thicknesses through a resolver that is fatal by design, so a cabinet naming
+  // a material the scene cannot resolve would throw here — an unbuildable one falls back to the
+  // flat tree that existed before this rather than taking the whole tree down with it.
+  const carcaseGroups = (component: CarcaseComponent, own: Part[]) => {
+    const thicknessOf = roleThicknessFor(component.params, materials, overridesOf(own, component.id))
+    if (validateCarcaseParams(component.params, thicknessOf).length > 0) return null
+    const tree = resolveSections(
+      component.params.section,
+      openingRect(component.params, thicknessOf),
+      (parentId, index) => thicknessOf(`division-${parentId}-${index}`),
+    )
+    return sectionNodes(sectionOpenings(component.params.section, tree), own)
+  }
+
+  const renderCarcaseChildren = (component: CarcaseComponent, depth: number) => {
+    const own = parts.filter((p) => p.parentId === component.id)
+    const groups = carcaseGroups(component, own)
+    if (groups === null) return renderChildren(component.id, depth)
+    return (
+      <>
+        {components.filter((c) => c.parentId === component.id).map((c) => renderComponent(c, depth))}
+        {groups.sections.map((node, i) => renderSection(component, node, i, depth))}
+        {groups.carcase.map((p) => renderPart(p, depth))}
+      </>
+    )
+  }
+
+  const renderSection = (
+    component: CarcaseComponent,
+    node: SectionNode,
+    index: number,
+    depth: number,
+  ) => {
+    const open = !collapsed.has(node.sectionId)
+    const isSelected = selection?.kind === 'section' && selection.sectionId === node.sectionId
+    return (
+      <div key={node.sectionId} data-testid={`subtree-${node.sectionId}`}>
+        <div
+          data-testid={`node-${node.sectionId}`}
+          data-selected={String(isSelected)}
+          className={cn(ROW_CLASS, isSelected ? 'bg-secondary' : 'hover:bg-secondary/50')}
+          style={{ paddingLeft: ROW_PADDING + depth * INDENT }}
+          onClick={() =>
+            onSelect({ kind: 'section', cabinetId: component.id, sectionId: node.sectionId })
+          }
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`${open ? 'Collapse' : 'Expand'} Opening ${index + 1}`}
+            className="h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleCollapsed(node.sectionId)
+            }}
+          >
+            {open ? '▾' : '▸'}
+          </Button>
+          <span className="text-xs">▤</span>
+          <span className={cn(LABEL_CLASS, 'text-foreground')}>Opening {index + 1}</span>
+        </div>
+        {open && node.parts.map((p) => renderPart(p, depth + 1))}
       </div>
     )
   }

@@ -229,6 +229,7 @@ export function Sidebar({
               pendingIds={pendingIds}
               onDuplicate={onDuplicate}
               onRemove={onRemove}
+              materials={scene.materials}
             />
           )}
         </ScrollArea>

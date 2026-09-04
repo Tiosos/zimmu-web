@@ -2,6 +2,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { SceneTree } from './SceneTree'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
+import { legacyToSection } from '../scene/migrateSections'
+import { defaultInterior, seedInteriors } from '../scene/sectionInterior'
+import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 import type { BoardPart, Component, GroupComponent, PartId, Selection } from '../scene/types'
 
 function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
@@ -51,6 +55,7 @@ function props(overrides: Partial<Parameters<typeof SceneTree>[0]> = {}) {
     pendingIds: new Set<PartId>(),
     onDuplicate: vi.fn(),
     onRemove: vi.fn(),
+    materials: PRESET_MATERIALS,
     ...overrides,
   }
 }
@@ -223,5 +228,83 @@ describe('driven and detached parts are visually distinguishable', () => {
     renderTree({ components: [], parts: [makeBoard({ id: 'loose', driven: false })] })
     // "Detached" only means something relative to an owner; a loose board was never driven.
     expect(screen.getByTestId('node-loose').textContent).not.toContain('detached')
+  })
+})
+
+// All three presets resolve to exactly one opening, so a fixture taken from CARCASE_PRESETS alone
+// would pass whether or not the grouping worked. One divider makes two bays; one adjustable shelf
+// in each gives every opening a part of its own to own.
+const TWO_BAY_SECTION = seedInteriors(legacyToSection([0.5], 0, 600, 18), defaultInterior(1))
+const TWO_BAY = { ...CARCASE_PRESETS[0].params, section: TWO_BAY_SECTION }
+const TWO_BAY_PARTS = partsOfCarcase(TWO_BAY)
+const TWO_BAY_CABINET = { ...cabinet, params: TWO_BAY }
+
+// The split's children, left to right for a vertical split — so `Opening 1` is BAYS[0], which is
+// what the collapse test below holds. The ternary is narrowing; the fixture is always a split.
+const BAYS =
+  TWO_BAY_SECTION.content.kind === 'split' ? TWO_BAY_SECTION.content.children.map((c) => c.id) : []
+
+const shelfOf = (sectionId: string) =>
+  TWO_BAY_PARTS.find((p) => p.role === `adj-shelf-${sectionId}-0`)!
+
+const divider = TWO_BAY_PARTS.find((p) => p.role?.startsWith('division-'))!
+
+describe('a cabinet expands into its openings', () => {
+  afterEach(cleanup)
+
+  it('nests a cabinet’s parts under the opening that owns them', () => {
+    renderTree({ components: [TWO_BAY_CABINET], parts: TWO_BAY_PARTS })
+    expect(screen.getAllByTestId(/^node-sec_/)).toHaveLength(2)
+    const first = screen.getByTestId(`subtree-${BAYS[0]}`)
+    expect(within(first).getByTestId(`node-${shelfOf(BAYS[0]).id}`)).toBeTruthy()
+    expect(within(first).queryByTestId(`node-${shelfOf(BAYS[1]).id}`)).toBeNull()
+  })
+
+  it('puts a divider among the carcase parts, not inside an opening', () => {
+    renderTree({ components: [TWO_BAY_CABINET], parts: TWO_BAY_PARTS })
+    // `division-` names the section that was split, which is always internal — so the partition
+    // between two bays belongs to neither of them.
+    expect(screen.getByTestId(`node-${divider.id}`).closest('[data-testid^="subtree-sec_"]')).toBe(
+      null,
+    )
+  })
+
+  it('selects the opening when its row is clicked', () => {
+    const onSelect = vi.fn()
+    renderTree({ components: [TWO_BAY_CABINET], parts: TWO_BAY_PARTS, onSelect })
+    fireEvent.click(screen.getByTestId(`node-${BAYS[0]}`))
+    expect(onSelect).toHaveBeenCalledWith({
+      kind: 'section',
+      cabinetId: 'cmp_1',
+      sectionId: BAYS[0],
+    })
+  })
+
+  it('collapsing an opening hides its parts and leaves the other one alone', () => {
+    renderTree({ components: [TWO_BAY_CABINET], parts: TWO_BAY_PARTS })
+    fireEvent.click(screen.getByLabelText('Collapse Opening 1'))
+    expect(screen.queryByTestId(`node-${shelfOf(BAYS[0]).id}`)).toBeNull()
+    expect(screen.getByTestId(`node-${shelfOf(BAYS[1]).id}`)).toBeTruthy()
+    expect(screen.getByLabelText('Expand Opening 1')).toBeTruthy()
+  })
+
+  it('marks the selected opening row', () => {
+    renderTree({
+      components: [TWO_BAY_CABINET],
+      parts: TWO_BAY_PARTS,
+      selection: { kind: 'section', cabinetId: 'cmp_1', sectionId: BAYS[1] },
+    })
+    expect(screen.getByTestId(`node-${BAYS[1]}`).getAttribute('data-selected')).toBe('true')
+    expect(screen.getByTestId(`node-${BAYS[0]}`).getAttribute('data-selected')).toBe('false')
+  })
+
+  it('renders an unbuildable cabinet’s parts flat rather than throwing', () => {
+    // A material the scene no longer defines cannot say how thick it is, and `roleThicknessFor` is
+    // fatal by design — so the opening rectangle this grouping needs cannot be resolved at all.
+    const broken = { ...TWO_BAY_CABINET, params: { ...TWO_BAY, carcaseMaterial: 'Unobtanium' } }
+    renderTree({ components: [broken], parts: TWO_BAY_PARTS })
+    expect(screen.queryAllByTestId(/^node-sec_/)).toEqual([])
+    expect(screen.getByTestId(`node-${shelfOf(BAYS[0]).id}`)).toBeTruthy()
+    expect(screen.getByTestId(`node-${divider.id}`)).toBeTruthy()
   })
 })
