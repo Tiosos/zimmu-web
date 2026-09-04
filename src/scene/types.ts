@@ -1,4 +1,4 @@
-import type { Section } from './sectionTree'
+import type { Section, SectionId } from './sectionTree'
 import type { PartOverrides } from './resolveThickness'
 
 export type { Section, SectionId, SectionSize, SectionContent, DivisionKind } from './sectionTree'
@@ -234,7 +234,13 @@ export interface CarcaseComponent {
 
 export type Component = GroupComponent | CarcaseComponent
 
-export type Selection = { kind: 'part'; id: PartId } | { kind: 'component'; id: ComponentId }
+export type Selection =
+  | { kind: 'part'; id: PartId }
+  | { kind: 'component'; id: ComponentId }
+  // Carries BOTH ids: the cabinet so a consumer can find the carcase without a second lookup, and
+  // the section so the elevation and the tree agree. A section id from one cabinet names nothing in
+  // another, which is what lets a stale pick clear itself.
+  | { kind: 'section'; cabinetId: ComponentId; sectionId: SectionId }
 
 export interface DadoJoint {
   kind: 'dado'

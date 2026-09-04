@@ -253,7 +253,10 @@ function App() {
   const handleToggleVisible = useCallback(
     (s: Selection) => {
       if (s.kind === 'part') onToggleVisible(s.id)
-      else onUpdateComponent(s.id, (c) => ({ ...c, visible: !c.visible }))
+      // A section is a region of a cabinet, not a node the scene can hide, so there is nothing to
+      // toggle.
+      else if (s.kind === 'component')
+        onUpdateComponent(s.id, (c) => ({ ...c, visible: !c.visible }))
     },
     [onToggleVisible, onUpdateComponent],
   )
