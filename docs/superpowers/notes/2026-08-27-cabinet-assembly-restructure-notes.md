@@ -1263,3 +1263,41 @@ is unobservable).
 **Still owed**, unchanged from Stage F and now larger: a woodworker's eye on the hardware figure
 table, and on the opening-chain convention (openings listed, deliberately not summing to the
 overall). Neither is falsifiable by any test in this repo.
+
+## Stage G3
+
+**Two cabinets from the same preset share every section id** — found during Task 3's review, not
+fixed there. `CARCASE_PRESETS` builds each preset's section tree once at module evaluation
+(`carcasePresets.ts:86`, via `legacyToSection` → `newSectionId()`), and `onAddCarcase` assigns
+`params: preset.params` **by reference** (`useScene.ts:1218`). So two Base 600s in one scene carry
+the identical `sec_*` id at every node.
+
+The shared *reference* is harmless: everything downstream is copy-on-write. `edit` in
+`editSection.ts` rebuilds the spine and returns new objects — it guarantees untouched branches stay
+referentially identical, so it never mutates — and `onUpdateComponent` maps to a new component.
+There is no in-place `params.<field> =` write anywhere in `src/`. Editing one Base 600 cannot be
+seen in another.
+
+The **id collision** is the real defect, and it is why Task 3's `cabinetId` guard is load-bearing
+rather than theoretical: a stale section id names a *live* opening in a different cabinet, so
+dropping the guard puts the toolbar on the wrong bay rather than on nothing. That mutation survived
+the entire 1671-test suite until `ignores a section selection made in another cabinet` was written
+for it.
+
+It will surface in Task 4 before it surfaces for a user: opening rows are tagged `node-sec_*`, so
+two expanded cabinets from one preset put duplicate `data-testid`s in the DOM and `getByTestId`
+throws on multiple matches. A Task 4 fixture must therefore use **one** cabinet, or cabinets from
+different presets, until this is fixed.
+
+The fix belongs in `onAddCarcase`: clone the preset params and re-id the tree (a
+`freshSectionIds(section)` beside `newSectionId`), so a cabinet's openings are unique to it. Its own
+change, with its own test — deliberately not folded into a G3 task.
+
+**`null` does not close the cabinet editor.** The Task 3 plan justified emitting a component
+selection on deselect by claiming `null` "would close the editor the click was made in". Measured:
+it does not. With `selection === null`, `selectedCarcase` falls through to the open-cabinet fallback
+and returns it — which is what `leaves an open cabinet open when the selection is cleared` already
+pins. The design is still right, on different grounds: `null` would make a background click silently
+load-bearing on a state machine already narrowed once for a regression, and would blank the sidebar
+on a click made inside the cabinet. The comments were corrected; the commit message carries the
+original wrong reason and cannot be.

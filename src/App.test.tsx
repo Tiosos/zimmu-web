@@ -535,7 +535,9 @@ describe('the open cabinet', () => {
   })
 
   // Deselecting an opening selects its cabinet, not nothing: clicking the elevation's background
-  // means "no opening", and returning null would close the editor the click was made in.
+  // means "no opening". `null` would leave the editor open too, via the open-cabinet fallback,
+  // so what this pins is the selection rather than the editor — the cabinet stays selected for
+  // the tree and the sidebar to read.
   it('writes an elevation pick into the selection, and deselects to the cabinet', async () => {
     const select = await mount()
     await select({ kind: 'component', id: cabinet.id })

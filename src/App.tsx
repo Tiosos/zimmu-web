@@ -149,8 +149,11 @@ function App() {
     (sectionId: SectionId | null) => {
       const cabinetId = selectedCarcase?.id
       if (cabinetId === undefined) return
-      // Deselecting an opening means "no opening", not "no cabinet": selecting nothing would
-      // close the editor the click was made in.
+      // Deselecting an opening means "no opening", not "no cabinet". `null` would in fact leave
+      // the editor open — the open-cabinet fallback below catches it — but only by making a
+      // background click silently load-bearing on a state machine that has already been
+      // narrowed once for a regression. Naming the cabinet says what happened instead of
+      // relying on that, and leaves the cabinet selected for the tree and the sidebar to read.
       onSelect(
         sectionId === null
           ? { kind: 'component', id: cabinetId }

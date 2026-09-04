@@ -521,6 +521,14 @@ editor the click was made in.
 - Modify: `src/ui/sidebar.tsx:222-232`
 - Test: `src/ui/SceneTree.test.tsx`
 
+> **Fixture hazard, found in Task 3's review.** Two cabinets added from the *same preset* share
+> every section id — `CARCASE_PRESETS` builds each tree once at module evaluation and
+> `onAddCarcase` assigns `params: preset.params` by reference. Opening rows are tagged
+> `node-sec_*`, so two expanded Base 600s put duplicate `data-testid`s in the DOM and
+> `getByTestId` throws on multiple matches. Use **one** cabinet in this task's fixtures, or
+> cabinets from different presets. Fixing the collision is its own change (see the notes
+> file) — do not fix it here.
+
 - [ ] **Step 1: Write the failing test**
 
 Append to `src/ui/SceneTree.test.tsx`, matching whatever render helper that file already uses. **A
