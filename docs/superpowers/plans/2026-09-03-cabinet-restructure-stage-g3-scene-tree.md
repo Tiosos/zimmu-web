@@ -772,12 +772,20 @@ Replace `src/ui/sidebar.tsx:117`:
   // A section belongs to a cabinet, so selecting one keeps that cabinet's panel on screen with the
   // opening picked. Deriving only from `selectedComponent` would unmount the panel at the moment
   // an opening is chosen — the controls for the thing just selected would disappear.
-  const carcaseId =
-    selection?.kind === 'section' ? selection.cabinetId : (selectedComponent?.id ?? null)
-  const selectedCarcase = components.find((c) => c.id === carcaseId && c.kind === 'carcase') ?? null
+  const carcaseHost =
+    selection?.kind === 'section'
+      ? (scene.components.find((c) => c.id === selection.cabinetId) ?? null)
+      : selectedComponent
+  const selectedCarcase = carcaseHost?.kind === 'carcase' ? carcaseHost : null
 ```
 
-Check the surrounding lines for the exact name of the components array in scope and use it.
+**The narrowing has to happen outside the `find`.** This plan's first draft wrote
+`components.find((c) => c.id === carcaseId && c.kind === 'carcase') ?? null`, which does not
+compile: `Array.prototype.find` with a plain boolean lambda is not a type guard, so `c.kind ===
+'carcase'` inside it narrows nothing and the result is `Component | null` where `CarcasePanel`
+requires `CarcaseComponent`. The error surfaces at the `<CarcasePanel component={selectedCarcase}>`
+call, not at the `find`. Narrowing a single-variable discriminant afterwards is also the minimal
+edit — it is what the line being replaced already did. (The array in scope is `scene.components`.)
 
 - [ ] **Step 4: Run the tests**
 

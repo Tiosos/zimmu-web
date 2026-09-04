@@ -1302,17 +1302,25 @@ load-bearing on a state machine already narrowed once for a regression, and woul
 on a click made inside the cabinet. The comments were corrected; the commit message carries the
 original wrong reason and cannot be.
 
-**The branch is not shippable between Task 3 and Task 5.** Task 3 makes `{kind: 'section'}` a
-*reachable* selection for the first time, so every consumer that narrows on `'component'` now sees
-it — and `sidebar.tsx:117` derives its carcase from `selectedComponent` alone. `CarcasePanel`
-therefore unmounts on the very click that picks the opening its shelving and front controls belong
-to, and `SceneTree.tsx:161` drops the cabinet row's highlight for the same reason. Verified under
-`App`, not inferred: probing for `[for="carcase-material"]` finds it with a component selection and
-not with a section one.
+**The branch was not shippable between Task 3 and Task 5** — closed by Task 5, kept because it is
+the kind of window that reopens. Task 3 made `{kind: 'section'}` a *reachable* selection for the
+first time, so every consumer that narrowed on `'component'` suddenly saw it, and `sidebar.tsx:117`
+derived its carcase from `selectedComponent` alone. `CarcasePanel` therefore unmounted on the very
+click that picked the opening its shelving and front controls belong to. Verified under `App`, not
+inferred, and then pinned: `App.test.tsx`'s *keeps the sidebar carcase panel on screen when an
+opening is selected* fails on its second assertion against the pre-Task-5 derivation.
 
-Task 5 is what closes it (`sidebar.tsx:117` is the file it names). Recorded here because until Task 3
-the state was unreachable, so nothing in Task 3's own diff shows that it opens a window — do not
-merge or demo the branch in it.
+The lesson is about *where the damage is visible*. Nothing in Task 3's own diff shows it opens a
+window — the state it made reachable was unreachable before, so no test could have been red. A task
+that makes a state reachable for the first time has to be audited against every consumer that
+narrows on the states beside it, and that audit belongs in the task that opens the window rather
+than the one that closes it.
+
+One claim in this entry's first draft has since gone stale, which is worth keeping as its own
+lesson: it said `SceneTree.tsx` "drops the cabinet row's highlight for the same reason". It does,
+and after Task 4 that is *correct* — the opening row now carries its own highlight, so the selection
+moves rather than vanishing. One selected row in the tree is the right invariant. A symptom noted
+before its neighbouring task lands can turn into intended behaviour without anyone editing the note.
 
 **A width of 6 does not throw; an unresolvable material does.** The G3 spec and plan both justified
 the scene tree's unbuildable-cabinet guard with "the scene tree must never empty or throw because a
