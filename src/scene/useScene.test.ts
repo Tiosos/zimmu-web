@@ -2276,6 +2276,36 @@ describe('component CRUD', () => {
     act(() => result.current.onRemoveComponent(cmpId))
     expect(result.current.selection).toEqual({ kind: 'part', id: partId })
   })
+
+  // A section selection dangles the same way a component one does — it names a cabinet by id — so
+  // it is cleared the same way. Undo restores the scene and not the selection, which is what was
+  // measured on the component case rather than assumed.
+  it('clears a section selection when its cabinet is deleted, and undo leaves it cleared', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const cabinetId = result.current.scene.components[0].id
+    act(() => result.current.onSelect({ kind: 'section', cabinetId, sectionId: 'sec_x' }))
+    act(() => result.current.onRemoveComponent(cabinetId))
+    expect(result.current.selection).toBeNull()
+
+    act(() => result.current.undo())
+    expect(result.current.scene.components).toHaveLength(1)
+    expect(result.current.selection).toBeNull()
+  })
+
+  it('keeps a section selection when a different cabinet is deleted', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const [doomed, kept] = result.current.scene.components.map((c) => c.id)
+    act(() => result.current.onSelect({ kind: 'section', cabinetId: kept, sectionId: 'sec_x' }))
+    act(() => result.current.onRemoveComponent(doomed))
+    expect(result.current.selection).toEqual({
+      kind: 'section',
+      cabinetId: kept,
+      sectionId: 'sec_x',
+    })
+  })
 })
 
 describe('deleting a component preserves where detached parts are', () => {

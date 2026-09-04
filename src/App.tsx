@@ -102,6 +102,12 @@ function App() {
       const picked = carcaseAt(selection.id)
       if (picked !== null) return picked
     }
+    // A section selection carries the cabinet it was made in, so picking an opening opens — and
+    // keeps open — that cabinet rather than whichever one happened to be open before.
+    if (selection?.kind === 'section') {
+      const picked = carcaseAt(selection.cabinetId)
+      if (picked !== null) return picked
+    }
     // Otherwise the open one stays open, but only while the selection lies inside it. A cabinet
     // deleted from the scene resolves to null here, so the editor cannot outlive it.
     const open = carcaseAt(openCabinetId)
@@ -129,26 +135,29 @@ function App() {
 
   const [cabinetTab, setCabinetTab] = useState<CabinetTab>('section')
 
-  // The pick carries the cabinet it was made in, so switching cabinets clears it by *derivation*
-  // rather than by an effect that resets it a render later. A section id from one cabinet names
-  // nothing in another, and every `editSection` operation treats an unknown id as a no-op — so
-  // carrying one across would show a panel that silently edits nothing rather than an error.
-  const [sectionPick, setSectionPick] = useState<{
-    cabinetId: ComponentId
-    sectionId: SectionId
-  } | null>(null)
+  // One selection, not two. This used to be `sectionPick` — a second piece of state the elevation
+  // wrote and the panel read — which meant two things could disagree about which opening was
+  // picked. The pick still carries the cabinet it was made in, so switching cabinets clears it by
+  // *derivation*: a section id from one cabinet names nothing in another, and every `editSection`
+  // operation treats an unknown id as a no-op, so carrying one across would show a panel that
+  // silently edits nothing rather than an error.
   const selectedSectionId =
-    sectionPick !== null && sectionPick.cabinetId === selectedCarcase?.id
-      ? sectionPick.sectionId
+    selection?.kind === 'section' && selection.cabinetId === selectedCarcase?.id
+      ? selection.sectionId
       : null
   const onSelectSection = useCallback(
     (sectionId: SectionId | null) => {
       const cabinetId = selectedCarcase?.id
-      setSectionPick(
-        cabinetId === undefined || sectionId === null ? null : { cabinetId, sectionId },
+      if (cabinetId === undefined) return
+      // Deselecting an opening means "no opening", not "no cabinet": selecting nothing would
+      // close the editor the click was made in.
+      onSelect(
+        sectionId === null
+          ? { kind: 'component', id: cabinetId }
+          : { kind: 'section', cabinetId, sectionId },
       )
     },
-    [selectedCarcase?.id],
+    [selectedCarcase?.id, onSelect],
   )
 
   // The 3D tab is the viewport "filtered to this cabinet": while one is open it shows that

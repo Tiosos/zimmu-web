@@ -13,6 +13,7 @@ const mockRedo = vi.fn()
 const mockOnDuplicate = vi.fn()
 const mockOnToggleVisible = vi.fn()
 const mockOnRemove = vi.fn()
+const mockOnSelect = vi.fn()
 
 let mockSnapActive = false
 let mockCutActive = false
@@ -381,6 +382,7 @@ describe('the open cabinet', () => {
       scene: mockScene,
       selection: mockSelection,
       selectedId: mockSelection?.kind === 'part' ? mockSelection.id : null,
+      onSelect: mockOnSelect,
       parameterFor: () => null,
       onDetachPart: vi.fn(),
       onUpdateComponent: vi.fn(),
@@ -498,5 +500,49 @@ describe('the open cabinet', () => {
     await select(null)
     expect(editorOpen()).toBe(false)
     expect(viewportShowing()).toBe(true)
+  })
+
+  // The regression this guards: with sectionPick alive, the tree and the elevation could hold
+  // different opinions about which opening is picked. There is now one place to look.
+  it('keeps one selection: picking a section is the selection, not a second piece of state', async () => {
+    mockSelection = {
+      kind: 'section',
+      cabinetId: cabinet.id,
+      sectionId: cabinet.params.section.id,
+    }
+    render(<App />)
+    await act(async () => {})
+    // The cabinet stays open: a section selection names its own cabinet.
+    expect(editorOpen()).toBe(true)
+    // And the section tab reads that same selection: the toolbar offers what can be done to it.
+    expect(screen.getByRole('button', { name: 'Split across' })).toBeTruthy()
+  })
+
+  // A section id outlives the cabinet it names, and two cabinets built from one preset share the
+  // ids in their section trees — so a stale pick can name a real opening in the cabinet that is
+  // open. The cabinet-id guard is the only thing standing between that and editing the wrong bay.
+  it('ignores a section selection made in another cabinet', async () => {
+    const select = await mount()
+    const sectionId = cabinet.params.section.id
+    await select({ kind: 'section', cabinetId: cabinet.id, sectionId })
+    expect(screen.getByRole('button', { name: 'Split across' })).toBeTruthy()
+
+    // The same section id under a cabinet that is not the open one. The editor stays open on the
+    // cabinet it was open on — so the toolbar is on screen to be asked — and holds no pick.
+    await select({ kind: 'section', cabinetId: 'cmp_elsewhere', sectionId })
+    expect(editorOpen()).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Split across' })).toBeNull()
+  })
+
+  // Deselecting an opening selects its cabinet, not nothing: clicking the elevation's background
+  // means "no opening", and returning null would close the editor the click was made in.
+  it('writes an elevation pick into the selection, and deselects to the cabinet', async () => {
+    const select = await mount()
+    await select({ kind: 'component', id: cabinet.id })
+    const sectionId = cabinet.params.section.id
+    fireEvent.click(screen.getByTestId(`section-cell-${sectionId}`))
+    expect(mockOnSelect).toHaveBeenCalledWith({ kind: 'section', cabinetId: cabinet.id, sectionId })
+    fireEvent.click(screen.getByTestId('section-elevation-background'))
+    expect(mockOnSelect).toHaveBeenLastCalledWith({ kind: 'component', id: cabinet.id })
   })
 })
