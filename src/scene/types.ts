@@ -237,9 +237,10 @@ export type Component = GroupComponent | CarcaseComponent
 export type Selection =
   | { kind: 'part'; id: PartId }
   | { kind: 'component'; id: ComponentId }
-  // Carries BOTH ids: the cabinet so a consumer can find the carcase without a second lookup, and
-  // the section so the elevation and the tree agree. A section id from one cabinet names nothing in
-  // another, which is what lets a stale pick clear itself.
+  // Carries the cabinet id as well: finding which cabinet owns a section id otherwise means
+  // scanning every carcase's tree. Consumers must check `cabinetId` against the open cabinet —
+  // a section id from one cabinet names nothing in another, and `editSection` treats an unknown
+  // id as a no-op, so an unchecked stale pick shows a panel that silently edits nothing.
   | { kind: 'section'; cabinetId: ComponentId; sectionId: SectionId }
 
 export interface DadoJoint {
