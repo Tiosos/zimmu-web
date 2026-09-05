@@ -12,7 +12,7 @@ import type {
 } from '../scene/types'
 import type { DrawCircle, DrawRect, Point2D, Rect2D } from './drawing'
 import type { BoxCut, CutDef, HoleArrayCut, MitreCut } from '../scene/types'
-import { openingRect } from '../scene/carcaseRoles'
+import { openingRect, sectionThickness } from '../scene/carcaseRoles'
 import { faceAxes } from '../scene/snapMath'
 import { overridesOf, roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { resolveSections } from '../scene/sectionTree'
@@ -433,9 +433,7 @@ function buildDims(view: ViewSpec, p: CarcaseParams, thicknessOf: RoleThickness)
   // Openings are chained only where they divide along one of this view's own axes: nothing divides
   // in y, so the Top view carries overall figures alone.
   if (view.label === 'Front') {
-    const tree = resolveSections(p.section, openingRect(p, thicknessOf), (parentId, index) =>
-      thicknessOf(`division-${parentId}-${index}`),
-    )
+    const tree = resolveSections(p.section, openingRect(p, thicknessOf), sectionThickness(thicknessOf))
     const leaves = sectionOpenings(p.section, tree)
     // Read off the RESOLVED rectangles, never re-walked from the tree's percentages: a chain
     // derived from the same rectangles the elevation draws cannot disagree with it.

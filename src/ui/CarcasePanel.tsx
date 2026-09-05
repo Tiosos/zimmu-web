@@ -8,7 +8,7 @@ import type {
   Part,
   SectionId,
 } from '../scene/types'
-import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
+import { openingRect, sectionThickness, validateCarcaseParams } from '../scene/carcaseRoles'
 import { overridesOf, roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
 import {
@@ -92,8 +92,10 @@ function legacyViewOf(
   thicknessOf: RoleThickness,
 ): { dividers: number[]; fixedShelves: number } {
   const root = p.section
-  const divisions = resolveSections(root, openingRect(p, thicknessOf), (parentId, index) =>
-    thicknessOf(`division-${parentId}-${index}`),
+  const divisions = resolveSections(
+    root,
+    openingRect(p, thicknessOf),
+    sectionThickness(thicknessOf),
   ).divisions
   const dividers = divisions
     .filter((d) => d.parentId === root.id && d.axis === 'vertical')
@@ -203,9 +205,7 @@ export function CarcasePanel({
   // opening instead of falling back to the first.
   const openings = sectionOpenings(
     p.section,
-    resolveSections(p.section, openingRect(p, thicknessOf), (parentId, index) =>
-      thicknessOf(`division-${parentId}-${index}`),
-    ),
+    resolveSections(p.section, openingRect(p, thicknessOf), sectionThickness(thicknessOf)),
   )
   // The elevation is the picker now. Two ways to choose an opening is one way to choose the wrong
   // one, so this reads the selection rather than holding a second — and when there is none it says

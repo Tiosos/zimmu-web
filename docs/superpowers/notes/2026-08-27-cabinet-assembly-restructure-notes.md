@@ -1409,10 +1409,23 @@ opening selected on the 3D tab, hovering a checklist row whose pair lies inside 
 no hover feedback at all. Left as is, since changing it is a design decision rather than a fix, but
 recorded so it is not rediscovered as a bug.
 
-**Still owed, deliberately deferred:** four copies of the division-thickness lambda remain inline at
-`SectionElevation.tsx`, `CarcasePanel.tsx` (twice) and `assembly.ts`, plus one in a fixture, now
-that `sectionThickness` is exported. The reason to close them is concrete rather than tidiness:
-`thicknessOf` falls back to the carcase material for any role it does not recognise, so if the
-`division-{parentId}-{index}` key format ever changes, those copies do not throw — they quietly
-return the carcase default instead of the division's own override. That is the same silent
-wrong-geometry class as a 25 mm side beside an 18 mm one. It wants its own mechanical commit.
+**The five copies of the division-thickness lambda are closed**, and closing them found something.
+`SectionElevation.tsx`, `CarcasePanel.tsx` (twice), `assembly.ts` and the shared resolve fixture all
+now call the exported `sectionThickness`. The reason was never tidiness: `thicknessOf` falls back to
+the carcase material for any role it does not recognise, so a change to the
+`division-{parentId}-{index}` key format would not throw — it would quietly return the carcase
+default instead of the division's own override, which is the same silent wrong-geometry class as a
+25 mm side beside an 18 mm one.
+
+**That risk turned out to be entirely unpinned.** Mutating the key to `divisionX-` after the
+consolidation passed all 1689 tests. Every fixture in the suite is uniform enough that the fallback
+returns the right number by coincidence — the divisions had no override of their own, so "read the
+override" and "read the carcase default" were the same answer everywhere. `panelThickness.test.ts`
+now carries the case that kills it: one division overridden to 25 beside a sibling left at 18, which
+distinguishes reading the override from reading the default *and* from applying one override to
+every division. It is the only test in the repo that catches that mutation.
+
+The pattern is the stage's own lesson arriving from a new direction. Consolidating five copies into
+one is worth nothing on its own — what makes it safe is that the one copy is now covered, and it was
+not before. A refactor that leaves the consolidated statement untested has moved the risk, not
+removed it.

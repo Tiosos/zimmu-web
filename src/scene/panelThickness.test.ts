@@ -44,6 +44,32 @@ describe('a panel resolves its own thickness', () => {
     expect(shelf.box.x1).toBe(divided.width - 18)
   })
 
+  // A division's own override, which is what `sectionThickness` exists to fetch. It reads the
+  // `division-{parentId}-{index}` key, and `roleThicknessFor` falls back to the carcase material
+  // for any role it does not recognise — so a key format that stopped matching would not throw, it
+  // would quietly hand back 18 and every division would come out the default thickness. Nothing
+  // caught that until this: the mutation was run against all 1689 tests and survived.
+  //
+  // It needs a division that differs from the carcase default AND a sibling that does not, so
+  // "read the override" is distinguishable from "read the default" and from "read one override for
+  // every division".
+  it('a division takes its own thickness override, and its sibling does not', () => {
+    const divided = SWEEP.find(
+      (p) =>
+        p.section.content.kind === 'split' &&
+        p.section.content.axis === 'vertical' &&
+        p.section.content.division === 'panel',
+    )!
+    const overrides = new Map([[`division-${divided.section.id}-0`, { thickness: 25 }]])
+    const boxes = carcaseBoxes(divided, roleThicknessFor(divided, MATERIALS, overrides))
+    const widthOf = (i: number) => {
+      const b = boxes.find((x) => x.role === `division-${divided.section.id}-${i}`)!
+      return b.box.x1 - b.box.x0
+    }
+    expect(widthOf(0)).toBe(25)
+    expect(widthOf(1)).toBe(18)
+  })
+
   // Same asymmetry through the material rather than through an override, and read on the side
   // panels themselves: the overridden panel is the one that has to get thicker.
   it('a material override on one side thickens only that side', () => {

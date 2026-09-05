@@ -1,4 +1,4 @@
-import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
+import { openingRect, sectionThickness, validateCarcaseParams } from '../scene/carcaseRoles'
 import { overridesOf, roleThicknessFor } from '../scene/resolveThickness'
 import { resolveSections } from '../scene/sectionTree'
 import { sectionOpenings } from '../scene/sectionInterior'
@@ -48,7 +48,7 @@ export function SectionElevation({
   const tree = resolveSections(
     params.section,
     openingRect(params, thicknessOf),
-    (parentId, index) => thicknessOf(`division-${parentId}-${index}`),
+    sectionThickness(thicknessOf),
   )
 
   const W = params.width
