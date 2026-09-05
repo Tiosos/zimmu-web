@@ -1219,6 +1219,9 @@ test('an opening selected in the tree is the opening the elevation shows', async
   await page.goto('/')
   await page.getByLabel('Add cabinet').click()
   await page.getByRole('option', { name: 'Base 600' }).click()
+  // Adding a cabinet does not select it — `onAddCarcase` never calls `onSelect` — and the elevation
+  // exists only inside the editor, so the cabinet's own row has to be clicked before any
+  // `section-cell-` is on screen. This plan's first draft went straight to the cell.
 
   // One opening to start with — every preset has exactly one. Split it so there are two to tell
   // apart; without this the test cannot distinguish grouping from not grouping.

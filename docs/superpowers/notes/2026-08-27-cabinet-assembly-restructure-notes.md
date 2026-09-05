@@ -1477,3 +1477,43 @@ offset would have dropped the coverage in silence. All three sites now say so �
 through a locator declared five lines earlier, so a grep for the selector and `.click()` on one line
 does not see it. The same shape of error as reasoning about the suite instead of running it, one
 level down. Incidental coverage that nobody has written down is one refactor away from not existing.
+
+**The viewport does not refit when the cabinet editor opens beside it.** Found by Task 8's e2e, not
+by looking for it. `viewport.tsx` sizes the renderer from `mount.clientWidth/Height` at mount and
+then refits only on the window's `resize` event (`:224`, `:332`). Opening the editor shrinks the
+mount without resizing the window, so the canvas keeps its old width — measured at **1040 px inside
+a 520 px pane**, with roughly half the cabinet rendering underneath the editor.
+
+This is a real user-visible defect, in the pane arrangement Stage G1 introduced, and it is **not
+fixed**: `viewport.tsx` carries the "hidden, never unmounted" invariant and a change there wants its
+own task. The fix is a `ResizeObserver` on the mount element, replacing or joining the window
+listener. Until then Task 8's colour test nudges the window height by one pixel and presses `Home`,
+so its pixel counts come from a framed cabinet rather than from wherever the overflow happened to
+fall; the workaround is commented at its site so it is removed with the bug rather than outliving
+it.
+
+**A Playwright import in a Vitest-tested module poisons the unit run silently.** Decision 3 said to
+put the pixel helpers in `e2e/canvas.ts`. The pure ones went there; `pollHues` and `viewportCanvas`
+did not, and the reason is measured rather than aesthetic: `canvas.ts` has its own Vitest test, so
+anything it imports is loaded by `pnpm test`, and merely importing `@playwright/test` makes Node
+print a fatal unhandled `ECONNREFUSED 127.0.0.1:3000` across the suite's output. **The suite still
+passes and still exits 0**, which is exactly why it would have been left in place. The Playwright-
+bound helpers live in `e2e/liveCanvas.ts` — the live canvas in a browser, against `canvas.ts`'s
+decoded PNG buffer — with the reason at the top of the file.
+
+The general shape, and the third time this stage has met it: a green suite is not evidence that
+nothing broke. There it was a mutation surviving; here it is a fatal error printed over passing
+output.
+
+**Why the selection-blue matcher is ratios, not channel windows.** The colour lands on 1 px
+anti-aliased edge lines, so pure `rgb(79,195,247)` is a minority of the lit pixels — 231 of them —
+and a channel window misses the blends. The matcher is `r > 40 && b > 120 && g*100 > b*75 && r*100 <
+b*55`. Selection's g/b is 0.79; the hovered-face `0x60a5fa` is 0.66, and blending it toward the
+`0x1a1a1d` background only reaches 0.69 at the dimmest mix still clearing the `b > 120` floor. The
+`r/b < 0.55` bound rejects the two large distractors actually measured — a panel's flat-shaded
+blue-grey `(94,134,153)` at 1487 px **in every frame, selected or not**, and the emissive a *part*
+selection paints, `(87,119,144)` — and the `r > 40` floor drops the dev FPS overlay's cyan.
+
+One honest limit: the hovered-face `LineLoop` only draws in an interaction mode, so it could not be
+made to appear in this test. The separation from it rests on the stated colours' arithmetic and
+claims no measurement, which the comment says.
