@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import { type Match } from './canvas'
+import { pollHues, viewportCanvas } from './liveCanvas'
 
 const OCCT_READY_TIMEOUT = 120_000
 
@@ -378,4 +380,93 @@ test('an opening selected in the tree is the opening the elevation shows', async
 
   // …and the cabinet editor is still open: selecting an opening must not close it.
   await expect(page.getByRole('tab', { name: 'Section' })).toHaveAttribute('aria-selected', 'true')
+})
+
+// Selection blue is 0x4fc3f7 = rgb(79,195,247), painted on 1px anti-aliased edge lines, so most of
+// its pixels are that colour mixed with whatever lies behind them and the pure value is a minority.
+// Two ratios rather than three channel windows:
+//   g/b > 0.75 separates it from 0x60a5fa = rgb(96,165,250) — the hovered-face LineLoop, and the
+//     hue the part-flash emissive ramps through — whose ratio is 0.66. The blue channels are 3
+//     apart and the green ones 30, so green is the whole separation. Mixed with the 0x1a1a1d
+//     background that ratio climbs back toward the background's own 0.90 as the line fades out,
+//     but reaches only 0.69 at the dimmest mix still clearing the b > 120 floor.
+//   r/b < 0.55 rejects a panel's own flat-shaded blue-grey — 1487 px of (94,134,153) sit in every
+//     frame whether anything is selected or not — and the emissive a *part* selection paints
+//     (87,119,144).
+// The r floor drops the dev FPS overlay's cyan (2,231,232), which both ratios would admit.
+// Measured on this scene once framed: nothing selected 0 px, opening 1 selected 1759, opening 2
+// selected 1880.
+const isSelectionBlue: Match = (r, g, b) =>
+  r > 40 && b > 120 && g * 100 > b * 75 && r * 100 < b * 55
+
+// Well below the measured 1759/1880 rather than snug against them.
+const SELECTION_PIXELS = 400
+
+// That `selectedIds` reaches the screen, which is the one claim in this stage no unit test can
+// make: there is no viewport.test.tsx, every unit consumer mocks the viewport and happy-dom has no
+// WebGL, so dropping the `selectedIds?.includes(id)` arm leaves the whole Vitest suite green.
+// Counted by colour rather than by diffing frames — a changed-pixel fraction passes on any repaint,
+// including one that recoloured the wrong parts.
+test('an opening selected in the tree lights its own parts in 3D', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+  const cabinet = page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first()
+  await cabinet.click()
+
+  // Two openings, for the same reason as the test above: one is what every preset resolves to.
+  const cells = page.locator('[data-testid^="section-cell-"]')
+  await expect(cells).toHaveCount(1)
+  await cells.first().click()
+  await page.getByRole('button', { name: 'Split down' }).click()
+  await expect(cells).toHaveCount(2)
+
+  // The opening has to be picked in the tree, not the elevation: `App` shows the viewport only
+  // while no cabinet is open or the tab is 3D, and the elevation lives on the Section tab — so a
+  // screenshot taken after an elevation click captures a `display: none` canvas.
+  await page.getByRole('tab', { name: '3D' }).click()
+
+  // The canvas keeps the size it had before the editor pane opened beside it: `viewport.tsx` refits
+  // on the window's `resize` event and on nothing else. Measured here, that leaves a 1040px-wide
+  // canvas inside a 520px pane, so half the cabinet draws under the editor and what is counted
+  // depends on where the overflow falls. One pixel of window height fires that listener; Home then
+  // frames the cabinet in the pane's own aspect, which is what the counts above were read from.
+  const size = page.viewportSize()!
+  await page.setViewportSize({ width: size.width, height: size.height + 1 })
+  await page.keyboard.press('Home')
+
+  const canvas = await viewportCanvas(page)
+  const box = (await canvas.boundingBox())!
+  const rows = page.getByTestId(/^node-sec_/)
+  await expect(rows).toHaveCount(2)
+  const hues = { blue: isSelectionBlue }
+
+  // Gate 1: the cabinet is selected and no opening is, so nothing wears the colour. The baseline is
+  // taken here rather than with nothing selected at all because `App` always hands the viewport a
+  // `selectedIds` array — measured: a viewport that lit every part whenever it had one fails here.
+  await cabinet.click()
+  await pollHues(canvas, hues, (c) => c.blue === 0, 'no opening selected should paint no blue')
+
+  // Gate 2: selecting the second opening lights that opening's parts. The second, so that a "take
+  // the first opening" fallback cannot pass.
+  await rows.nth(1).click()
+  const { blue } = await pollHues(
+    canvas,
+    hues,
+    (c) => c.blue >= SELECTION_PIXELS,
+    'selecting an opening should paint its own parts in the selection colour',
+  )
+  expect(blue, `selection colour: measured ${blue} px`).toBeGreaterThanOrEqual(SELECTION_PIXELS)
+
+  // Gate 3: and it clears when the selection moves off. Clicking empty canvas is what deselects
+  // without leaving the 3D tab — the elevation background the unit tests click for that is on the
+  // Section tab. Measured to be load-bearing: a viewport that painted the selection but never reset
+  // an edge to 0x1a1a1d passes gates 1 and 2 and fails here.
+  await canvas.click({ position: { x: 20, y: box.height - 20 } })
+  const cleared = await pollHues(canvas, hues, (c) => c.blue === 0, 'deselecting should clear it')
+  expect(cleared).toEqual({ blue: 0 })
 })
