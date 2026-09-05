@@ -158,5 +158,11 @@ describe('SectionElevation', () => {
       labelIn(screen.getByTestId(`section-cell-${o.sectionId}`)),
     )
     expect(numbers).toEqual(['1', '2', '3'])
+
+    // One size for the whole elevation, not a fraction of each cell. This fixture is exactly the
+    // case that separates them: the full-width top is four times the height of either bottom bay,
+    // so a per-cell fraction would give its numeral a different size from its siblings'.
+    const sizes = new Set(labels.map((t) => t.getAttribute('font-size')))
+    expect(sizes.size).toBe(1)
   })
 })

@@ -1108,7 +1108,7 @@ intercepted pointer events.
 | 1 | `{i + 1}` → `{i}` | *numbers each opening in the order…* | killed — read `0, 1, 2` |
 | 2 | Reverse the openings before mapping | same test | killed — read `3, 2, 1` on the cells. The plan's original document-order assertion **survived** this |
 | 2b | Sort by `z0` then `x0` — the reading-order slip, and this fixture's tree order | same test | killed — read `1, 3, 2` |
-| 3 | Remove `pointer-events-none` | an existing "clicking a cell selects it" test — **if none fails, happy-dom is not modelling pointer interception**; say so rather than assuming it is covered | **survived all 1691 tests.** No stylesheet is loaded, so the Tailwind class has no computed effect, and `user-event` checks the clicked element's ancestors rather than hit-testing — the `<text>` is a sibling. Survives Vitest, but **not** uncovered: `e2e/carcase.spec.ts` clicks a cell's centre twice and both tests fail with the class removed — measured. The gap is unit-only |
+| 3 | Remove `pointer-events-none` | an existing "clicking a cell selects it" test — **if none fails, happy-dom is not modelling pointer interception**; say so rather than assuming it is covered | **survived all 1691 tests.** No stylesheet is loaded, so the Tailwind class has no computed effect, and `user-event` checks the clicked element's ancestors rather than hit-testing — the `<text>` is a sibling. Survives Vitest, but **not** uncovered: `e2e/carcase.spec.ts` clicks a cell's centre three times and those tests fail with the class removed — measured. The gap is unit-only |
 
 - [ ] **Step 6: Full suite and commit**
 
@@ -1145,7 +1145,7 @@ Recorded rather than removed, because the reasoning that produced it was wrong i
 Task 7 found that removing `pointer-events-none` from the opening number passes the whole Vitest
 suite, and I routed it here as new e2e work on the stated grounds that "only an e2e clicking a
 cell's centre could pin it". Both halves of that were checked: the first is right, the second is
-not. **`e2e/carcase.spec.ts` already clicks a cell's centre, twice.** Measured by running them with
+not. **`e2e/carcase.spec.ts` already clicks a cell's centre, three times.** Measured by running them with
 the class removed: both fail, on Playwright's actionability check flagging the intercepting
 `<text>`. So the gap never existed at the e2e layer — only at the unit layer, where it cannot be
 closed.

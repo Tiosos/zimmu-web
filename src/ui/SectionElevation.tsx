@@ -15,6 +15,12 @@ import type { CarcaseParams, ComponentId, MaterialDef, Part, SectionId } from '.
 
 const PADDING = 12
 
+// Sized off the whole elevation, never per cell, and the same divisor `CabinetProjection` uses. A
+// per-cell fraction makes numbers meant to be read as one sequence disagree wildly — measured, a
+// 40 mm bay beside a full-height one gave 6.7 against 87.7 — and gives a single-opening cabinet a
+// numeral 16% of its own height, which reads as a watermark rather than a label.
+const FONT_DIVISOR = 30
+
 export function SectionElevation({
   params,
   materials,
@@ -53,6 +59,7 @@ export function SectionElevation({
 
   const W = params.width
   const H = params.height
+  const font = Math.min(W, H) / FONT_DIVISOR
   // The one place carcase space becomes screen space. Carcase z is measured up from the floor and
   // SVG y down from the top, so the height is subtracted rather than scaled.
   const toSvg = (x: number, z0: number, z1: number) => ({
@@ -102,16 +109,18 @@ export function SectionElevation({
               strokeWidth={isSelected ? 3 : 1}
               onClick={() => onSelect(o.sectionId)}
             />
-            {/* The scene tree names this opening by the same index, so the two agree by
-                construction. `pointer-events-none` keeps the number from swallowing the click that
-                selects the cell it sits on. */}
+            {/* `SceneTree` numbers `carcaseOpenings`, which is this same `sectionOpenings` array in
+                order — so the two agree by construction. `pointer-events-none` keeps the number from
+                swallowing the click that selects the cell it sits on; no unit test can see that,
+                because happy-dom loads no stylesheet. Three centre-clicks in `e2e/carcase.spec.ts`
+                are what fail if it goes. */}
             <text
               x={x + width / 2}
               y={y + height / 2}
               textAnchor="middle"
               dominantBaseline="middle"
               className="fill-muted-foreground pointer-events-none"
-              fontSize={Math.min(width, height) / 6}
+              fontSize={font}
             >
               {i + 1}
             </text>

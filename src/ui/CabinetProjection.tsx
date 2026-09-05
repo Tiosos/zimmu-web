@@ -22,9 +22,9 @@ import type {
 // whatever size the pane happens to be. The sheet builder reads the same data and scales it
 // differently — which is why the projector emits neither a scale nor a page offset.
 //
-// Unlike SectionElevation this draws text, so label size is a fraction of the view's own extent and
-// strokes are non-scaling: a 3 mm label on a 720 mm cabinet would otherwise render at under two
-// pixels once the viewBox is fitted to the pane.
+// `SectionElevation` sizes its opening numbers per cell; this sizes dimension labels off the view's
+// own extent, and its strokes are non-scaling: a 3 mm label on a 720 mm cabinet would otherwise
+// render at under two pixels once the viewBox is fitted to the pane.
 
 // The annotation ring is measured in **ems**, never in millimetres, and `font` is a fixed fraction
 // of the view's SMALLER extent. Both halves matter. A ring sized in absolute millimetres against a
