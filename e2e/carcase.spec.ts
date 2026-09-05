@@ -337,3 +337,45 @@ test('the drawings deck carries an assembly sheet for the cabinet', async ({ pag
   await page.getByLabel('→').click()
   await expect(page.getByText(/Assembly — Base 600/)).toBeVisible()
 })
+
+// The tree and the elevation are two views of one structure, and this is the only place that
+// proves they agree on the live app rather than on a fixture. It splits first because every preset
+// resolves to exactly ONE opening: a version of this that skipped the split would assert against a
+// one-opening cabinet and pass whether or not the parts were grouped at all.
+test('an opening selected in the tree is the opening the elevation shows', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({
+    timeout: OCCT_READY_TIMEOUT,
+  })
+
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+  // Adding a cabinet does not select it, and the elevation only exists inside the editor.
+  await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
+
+  const cells = page.locator('[data-testid^="section-cell-"]')
+  await expect(cells).toHaveCount(1)
+  // Centre-click, load-bearing for `pointer-events-none` as well — see the note in
+  // 'setting an opening's shelf count drops that many boards'.
+  await cells.first().click()
+  await page.getByRole('button', { name: 'Split down' }).click()
+  await expect(cells).toHaveCount(2)
+
+  // The tree now carries two opening rows. Click the second: the first would be selected by a
+  // "take the first opening" fallback as readily as by the click.
+  const rows = page.getByTestId(/^node-sec_/)
+  await expect(rows).toHaveCount(2)
+  await rows.nth(1).click()
+
+  // The elevation shows that same opening selected, matched by id rather than by position — a
+  // test that counted selected cells would pass on either one of them.
+  const rowId = await rows.nth(1).getAttribute('data-testid')
+  const sectionId = rowId!.slice('node-'.length)
+  await expect(page.getByTestId(`section-cell-${sectionId}`)).toHaveAttribute(
+    'data-selected',
+    'true',
+  )
+
+  // …and the cabinet editor is still open: selecting an opening must not close it.
+  await expect(page.getByRole('tab', { name: 'Section' })).toHaveAttribute('aria-selected', 'true')
+})
