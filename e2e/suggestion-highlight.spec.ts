@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
-import { PNG } from 'pngjs'
-import { isNonBlank } from './canvas'
+import { isNonBlank, type Match } from './canvas'
+import { pollHues } from './pollHues'
 
 // OCCT boots a ~65MB WASM kernel in a worker before the UI is usable; allow
 // generous time for it to compile and run the first build on a slow CI runner.
@@ -27,28 +27,11 @@ const OUTLINE_PIXELS = 300
 // page enough height that the row is on screen without scrolling.
 test.use({ viewport: { width: 1280, height: 1100 } })
 
-type Match = (r: number, g: number, b: number) => boolean
-
 // Amber 0xfbbf24 = rgb(251,191,36) — the neighbour-board tint.
 const isTint: Match = (r, g, b) => r > 200 && g > 130 && g < 225 && b < 110 && r - b > 120
 // Pink 0xf472b6 = rgb(244,114,182) — the cut outlines.
 const isOutline: Match = (r, g, b) => r > 190 && g > 60 && g < 175 && b > 130 && b - g > 30
-
-// Counts pixels of a given hue. Deliberately not changedFraction(): that masks colour to its high
-// bits to suppress AA noise, which also erases 1px anti-aliased wireframe, leaving the highlight
-// smaller than the frame-to-frame churn of the dev-mode FPS overlay. Keying on the highlight's own
-// colours ignores that overlay (cyan) entirely.
-function countPixels(pngBuffer: Buffer, match: Match): number {
-  const { data, width, height } = PNG.sync.read(pngBuffer)
-  let count = 0
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const o = (y * width + x) << 2
-      if (match(data[o], data[o + 1], data[o + 2])) count++
-    }
-  }
-  return count
-}
+const HUES = { tint: isTint, outline: isOutline }
 
 // Private copy of the helper in smoke.spec.ts, matching the per-file convention used elsewhere in
 // this repo. Worth hoisting into canvas.ts if a third spec needs it.
@@ -84,27 +67,6 @@ async function positionInput(page: Page, axis: 'X' | 'Y' | 'Z'): Promise<Locator
   return page.locator(`#${panelId} input[type=number]`).nth({ X: 0, Y: 1, Z: 2 }[axis])
 }
 
-// Polls the viewport until both hue counts satisfy `done`, then returns the last reading.
-// Rendering trails the DOM event by at least a frame, so a single sample races the render loop.
-async function pollHues(
-  canvas: Locator,
-  done: (tint: number, outline: number) => boolean,
-  message: string,
-): Promise<{ tint: number; outline: number }> {
-  let last = { tint: -1, outline: -1 }
-  await expect
-    .poll(
-      async () => {
-        const shot = await canvas.screenshot()
-        last = { tint: countPixels(shot, isTint), outline: countPixels(shot, isOutline) }
-        return done(last.tint, last.outline)
-      },
-      { timeout: 30_000, message },
-    )
-    .toBe(true)
-  return last
-}
-
 test('hovering a joint suggestion tints the neighbour board and outlines the joint cuts', async ({
   page,
 }) => {
@@ -137,7 +99,12 @@ test('hovering a joint suggestion tints the neighbour board and outlines the joi
   // Without this the baseline already contains the highlight and the hover appears to do nothing.
   const inertTarget = page.getByRole('button', { name: /Shape/i }).first()
   await inertTarget.hover()
-  await pollHues(canvas, (t, o) => t === 0 && o === 0, 'highlight should be off before hovering')
+  await pollHues(
+    canvas,
+    HUES,
+    (counts) => counts.tint === 0 && counts.outline === 0,
+    'highlight should be off before hovering',
+  )
 
   // Gate 1: both halves of the hover reach the screen. This is what the unit tests structurally
   // cannot cover — they pin suggestionOutlines as a pure function, but nothing else asserts a
@@ -146,7 +113,8 @@ test('hovering a joint suggestion tints the neighbour board and outlines the joi
   await suggestion.hover()
   const { tint, outline } = await pollHues(
     canvas,
-    (t, o) => t >= TINT_PIXELS && o >= OUTLINE_PIXELS,
+    HUES,
+    (counts) => counts.tint >= TINT_PIXELS && counts.outline >= OUTLINE_PIXELS,
     'hovering should paint both the neighbour tint and the cut outlines',
   )
   expect(tint, `neighbour tint: measured ${tint} amber px`).toBeGreaterThanOrEqual(TINT_PIXELS)
@@ -160,6 +128,11 @@ test('hovering a joint suggestion tints the neighbour board and outlines the joi
   // the canvas would raycast a face and light the hoveredFace LineLoop, repainting for an
   // unrelated reason.
   await inertTarget.hover()
-  const cleared = await pollHues(canvas, (t, o) => t === 0 && o === 0, 'un-hover should clear both')
+  const cleared = await pollHues(
+    canvas,
+    HUES,
+    (counts) => counts.tint === 0 && counts.outline === 0,
+    'un-hover should clear both',
+  )
   expect(cleared).toEqual({ tint: 0, outline: 0 })
 })

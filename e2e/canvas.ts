@@ -45,3 +45,21 @@ export function changedFraction(a: Buffer, b: Buffer): number {
   }
   return sampled === 0 ? 0 : changed / sampled
 }
+
+export type Match = (r: number, g: number, b: number) => boolean
+
+// Counts pixels of a given hue. Deliberately not changedFraction(): that masks colour to its high
+// bits to suppress AA noise, which also erases 1px anti-aliased wireframe, leaving the highlight
+// smaller than the frame-to-frame churn of the dev-mode FPS overlay. Keying on the highlight's own
+// colours ignores that overlay (cyan) entirely.
+export function countPixels(pngBuffer: Buffer, match: Match): number {
+  const { data, width, height } = PNG.sync.read(pngBuffer)
+  let count = 0
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const o = (y * width + x) << 2
+      if (match(data[o], data[o + 1], data[o + 2])) count++
+    }
+  }
+  return count
+}
