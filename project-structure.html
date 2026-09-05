@@ -369,9 +369,9 @@
             <td><code>geom/hiddenLine.ts</code>, <code>geom/assembly.ts</code>, <code>ui/CabinetProjection.tsx</code>, <code>geom/drawing.ts</code></td>
           </tr>
           <tr>
-            <td><strong>The scene tree mirrors the section tree</strong><br><span style="color:var(--muted);font-size:12px">Openings and divisions appear as nodes under their cabinet, so the tree and the elevation are two views of one structure</span></td>
-            <td><span class="badge badge-yellow">Next</span></td>
-            <td>—</td>
+            <td><strong>The scene tree mirrors the section tree</strong><br><span style="color:var(--muted);font-size:12px">A cabinet expands into numbered opening rows carrying the fronts and shelves whose roles name them, with the shell and any divider beside them — a divider names the section that was split, so it belongs to the carcase. One selection across three surfaces: the opening picked in the tree is the cell the elevation shows, and its parts light up in 3D</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/sectionNodes.ts</code>, <code>scene/carcaseOpenings.ts</code>, <code>ui/SceneTree.tsx</code>, <code>ui/SectionElevation.tsx</code></td>
           </tr>
           <tr>
             <td><strong>FSAPI fallback for non-Chromium browsers</strong></td>
@@ -523,6 +523,8 @@
 │   ├── __fixtures__/
 │   │   ├── resolve.ts
 │   │   └── sweep.ts
+│   ├── carcaseOpenings.test.ts
+│   ├── carcaseOpenings.ts
 │   ├── carcasePresets.test.ts
 │   ├── carcasePresets.ts
 │   ├── carcaseRoles.test.ts
@@ -569,6 +571,8 @@
 │   ├── resolveThickness.ts
 │   ├── sectionInterior.test.ts
 │   ├── sectionInterior.ts
+│   ├── sectionNodes.test.ts
+│   ├── sectionNodes.ts
 │   ├── sectionTree.test.ts
 │   ├── sectionTree.ts
 │   ├── snapMath.test.ts
@@ -716,6 +720,8 @@
           <tr><td><code>carcaseRoles.ts</code></td><td>Pure <code>CarcaseParams</code> → ordered <code>RoleSpec[]</code> (role key, dims, local position/rotation) — the whole geometry of a carcase: sides, back, top/bottom, toe-kick or ladder base, the divisions the section tree resolves, the fixed shelves an opening holds behind its front, the shelf-pin rows each opening asks for, the loose shelves seated on those pins, and the fronts that cover it all.</td></tr>
           <tr><td><code>sectionTree.ts</code></td><td>The cabinet's interior division as a recursive tree: <code>Section</code>, <code>InteriorSpec</code>, <code>resolveSections</code> (tree → rectangles + division boxes), <code>boundsOf</code> (what encloses a section), <code>validateSection</code>. Pure.</td></tr>
           <tr><td><code>sectionInterior.ts</code></td><td><code>sectionInteriors</code> — every leaf that asks for shelving, with its rect and bounds. <code>sectionOpenings</code> lists every leaf whether shelved or not, <code>setInterior</code> and <code>setFrontOn</code> write one section's spec, and <code>defaultInterior</code> / <code>seedInteriors</code> / <code>firstInterior</code> serve the presets, the migrations and the legacy shim.</td></tr>
+          <tr><td><code>sectionNodes.ts</code></td><td><code>sectionNodes(openings, parts)</code> — which opening owns which part, read off the role keys the generator already writes. <code>front-</code>, <code>adj-shelf-</code> and <code>fixed-shelf-</code> name a leaf; <code>division-</code> names the section that was <em>split</em>, which is never a leaf, so a divider belongs to the carcase rather than to either opening beside it. The only place a role key is taken apart to recover the section id inside it.</td></tr>
+          <tr><td><code>carcaseOpenings.ts</code></td><td><code>carcaseOpenings(component, parts, materials)</code> — the whole chain from a cabinet to that mapping: thicknesses, validation, section rectangles, ownership; <code>null</code> for a cabinet it cannot resolve. Stated once because the scene tree and the 3D highlight both ask it, and two copies would be free to disagree about an opening's membership.</td></tr>
           <tr><td><code>frontMachining.ts</code></td><td>Every hinge and slide figure as a named constant — Blum-style 32 mm-system values, <em>stated rather than derived</em> — plus <code>cupRow</code>, <code>plateScrewRows</code> and <code>slideScrewRow</code>. It owns the machining a front <em>implies</em>, which is not the same as machining on fronts: only the cup lands on the door.</td></tr>
           <tr><td><code>frontCells.ts</code></td><td>The section tree as rectangles on the cabinet's front face, reveals already taken — the one statement of the reveal rule. An overlay cell reaches to the material midline and gives back half a reveal; an inset cell is the section's own rectangle and gives back a full reveal against carcase material, half against another front.</td></tr>
           <tr><td><code>migrateSections.ts</code></td><td><code>legacyToSection(dividers, fixedShelves, width, thickness)</code> — the one place pre-v13 divider/shelf parameters become a tree. Needs width and thickness: a v12 divider is centred on a fraction of the gross width, a section percentage is a share of the clear span.</td></tr>
@@ -764,7 +770,7 @@
         <tbody>
           <tr><td><code>FileMenu.tsx</code></td><td>Top menu bar: File menu, project name, undo/redo buttons, BOM modal trigger, 3D/2D export buttons.</td></tr>
           <tr><td><code>sidebar.tsx</code></td><td>Composition shell: the <code>SceneTree</code>, the selected-node editor (<code>EditPanel</code> for a part, <code>CarcasePanel</code> for a carcase), and the Cut / Snap / joint mode buttons.</td></tr>
-          <tr><td><code>SceneTree.tsx</code></td><td>Sidebar hierarchy over <code>components</code> + <code>parts</code>: expand/collapse, selection, per-node visibility, driven/detached badges.</td></tr>
+          <tr><td><code>SceneTree.tsx</code></td><td>Sidebar hierarchy over <code>components</code> + <code>parts</code>: expand/collapse, selection, per-node visibility, driven/detached badges. A carcase expands into numbered <em>Opening</em> rows through <code>carcaseOpenings</code>, each carrying the parts whose roles name it, with the shell and any divider below them; a cabinet that cannot be resolved falls back to the flat tree.</td></tr>
           <tr><td><code>CarcasePanel.tsx</code></td><td>Carcase parameter form in collapsible sections (size, structure, shelving, front, joinery) that drives <code>regenerateComponents</code>. Shelving and Front both edit the <em>opening</em> the elevation has selected — its interior, its front — while mount and reveal stay cabinet-wide; with nothing selected they say to pick one rather than falling back to the first. Dividers and Fixed shelves are a v12 shim that rebuilds the whole tree, carrying the cabinet's interior specs across.</td></tr>
           <tr><td><code>CabinetProjection.tsx</code></td><td>One orthographic view of a cabinet, fitted to the pane by a millimetre <code>viewBox</code>. Reads the same <code>AssemblyView</code> the printed sheet does; each part is clickable and selecting one does not close the tab.</td></tr>
           <tr><td><code>sheetFilename.ts</code></td><td>Names a drawing file. Shared by the drawings deck and the cabinet editor's export buttons so the same sheet downloads under the same name from either.</td></tr>
@@ -1293,7 +1299,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->83<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-03 the full Vitest run is 1661 passing (10 skipped) across 84 files (the 84th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 93 test files total including 9 Playwright specs in <code>e2e/</code>, which run 23 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->85<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-05 the full Vitest run is 1694 passing (10 skipped) across 86 files (the 86th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 95 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1446,7 +1452,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-29-cabinet-restructure-stage-e-fronts.md
     │   ├── 2026-08-29-cabinet-restructure-stage-f-front-machining.md
     │   ├── 2026-08-29-cabinet-restructure-stage-g1-section-editor.md
-    │   └── 2026-08-30-cabinet-restructure-stage-g2-projections.md
+    │   ├── 2026-08-30-cabinet-restructure-stage-g2-projections.md
+    │   └── 2026-09-03-cabinet-restructure-stage-g3-scene-tree.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1487,7 +1494,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-08-18-cabinet-assembly-design.md
         ├── 2026-08-23-sheet-yield-design.md
         ├── 2026-08-27-cabinet-assembly-restructure-design.md
-        └── 2026-08-30-cabinet-projections-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-08-30-cabinet-projections-design.md
+        └── 2026-09-03-scene-tree-sections-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->

@@ -1288,7 +1288,7 @@ rather than by position, so it cannot pass by counting.
 - Modify: `docs/superpowers/notes/2026-08-27-cabinet-assembly-restructure-notes.md`
 - Modify: `docs/superpowers/specs/2026-09-03-scene-tree-sections-design.md` (status line)
 
-- [ ] **Step 1: `CLAUDE.md` — the tree**
+- [x] **Step 1: `CLAUDE.md` — the tree**
 
 Under `src/scene/`, beside the other section modules:
 
@@ -1302,7 +1302,7 @@ Under `src/scene/`, beside the other section modules:
 │   │                    ask it
 ```
 
-- [ ] **Step 2: `CLAUDE.md` — two invariants**
+- [x] **Step 2: `CLAUDE.md` — two invariants**
 
 ```markdown
 - **An opening owns a part when the part's role says so, and a divider owns nothing.** `front-`,
@@ -1318,7 +1318,19 @@ Under `src/scene/`, beside the other section modules:
   never from a walk of their own.
 ```
 
-- [ ] **Step 3: The architecture page**
+**Corrected at close — the first invariant as written above is too strong.** "`sectionNodes.ts` is
+the only place a role key is read as structure" is false: `grain.ts`, `resolveThickness.ts` and
+`carcaseRoles.ts` all read a role's *family* (`role.startsWith('front-')`, `'division-'`,
+`'adj-shelf-'`, `'fixed-shelf-'`) — nine call sites across the three. What is true is the narrower
+claim the module's own header makes, and it is what went into CLAUDE.md: `sectionNodes.ts` is the
+only place a key is taken apart to recover the section **id** inside it.
+
+Two further edits went with them, both stale statements this stage created. CLAUDE.md's *"Shelving
+is edited per opening, and the elevation is the only thing that picks one"* stopped being true in
+Task 4 — the scene tree picks one too — so the headline now says one selection, two surfaces. And
+`project-structure.html`'s `SceneTree.tsx` row still described a flat hierarchy.
+
+- [x] **Step 3: The architecture page**
 
 ```bash
 node scripts/update-structure-html.mjs
@@ -1330,7 +1342,12 @@ at the `AUTOGEN:test-file-count` paragraph with the real figures from Step 5; an
 row *The scene tree mirrors the section tree* from **Next** to **Done**, putting the next roadmap
 item in its place.
 
-- [ ] **Step 4: Notes**
+**No roadmap item was promoted into the vacated *Next* slot.** The row moved to **Done** in place;
+the two rows below it are *Planned* (FSAPI fallback) and *Phase 1* (Rust/Tauri shell), and nothing in
+the specs or notes says which comes next. Naming one would have been a claim with no evidence behind
+it, so the status table now carries no *Next* badge.
+
+- [x] **Step 4: Notes**
 
 Append a `### 2026-09-03 — Stage G3 closed` entry recording: the measured unit and e2e counts; that
 all three presets have one opening so every multi-opening test builds a split tree; that the divider
@@ -1339,7 +1356,7 @@ done about it.
 
 Set the spec's `**Status:**` line to `**Complete.**` with the same counts.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 Run: `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npx playwright test`
@@ -1350,14 +1367,14 @@ Record the real numbers in the notes and the architecture page — not the ones 
 
 ## Acceptance
 
-- [ ] Every preset shows exactly one opening row, carrying its fronts and shelves
-- [ ] A Tall 600's opening holds **both** leaves of its door pair — two fronts, one opening
-- [ ] A cabinet split into three bays shows three opening rows, numbered 1–3 left to right
-- [ ] A divider appears among the carcase parts, not inside an opening
-- [ ] Clicking an opening in the tree selects the cell the elevation shows selected, and the reverse
-- [ ] Selecting an opening highlights its parts in 3D and leaves the cabinet editor open
-- [ ] The sidebar shows that opening's shelving and front controls
-- [ ] A cabinet mid-keystroke invalid still renders its parts, flat
-- [ ] `sectionPick` no longer exists in `App.tsx`
-- [ ] `FILE_FORMAT_VERSION` is still 17
-- [ ] Every mutation in every task was run, and no survivor was left unresolved
+- [x] Every preset shows exactly one opening row, carrying its fronts and shelves
+- [x] A Tall 600's opening holds **both** leaves of its door pair — two fronts, one opening
+- [x] A cabinet split into three bays shows three opening rows, numbered 1–3 left to right
+- [x] A divider appears among the carcase parts, not inside an opening
+- [x] Clicking an opening in the tree selects the cell the elevation shows selected, and the reverse
+- [x] Selecting an opening highlights its parts in 3D and leaves the cabinet editor open
+- [x] The sidebar shows that opening's shelving and front controls
+- [x] A cabinet mid-keystroke invalid still renders its parts, flat
+- [x] `sectionPick` no longer exists in `App.tsx`
+- [x] `FILE_FORMAT_VERSION` is still 17
+- [x] Every mutation in every task was run, and no survivor was left unresolved

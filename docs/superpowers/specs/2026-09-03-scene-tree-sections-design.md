@@ -1,6 +1,6 @@
 # Cabinet restructure Stage G3 — the scene tree mirrors the section tree
 
-**Status:** Approved 2026-09-03. Not yet implemented.
+**Status:** **Complete.** Shipped 2026-09-05 in nine tasks. Unit 1661 → **1694** (10 skipped) across 86 files; e2e 23 → **25**. `FILE_FORMAT_VERSION` unchanged at 17. One test this document asks for was not written — the sweep asserting every driven role in all three presets is classified; see the stage-close entry in the notes.
 
 **Goal:** A cabinet's openings appear in the scene tree as selectable rows, with the parts each
 opening owns nested under it — so the tree, the elevation and the 3D model are three views of one
@@ -13,7 +13,7 @@ selection instead of two.
 **Tech Stack:** TypeScript strict, Vitest, React 19. No new dependency, no file-format change.
 
 **Spec:** this file
-**Plan:** _not yet written_
+**Plan:** `docs/superpowers/plans/2026-09-03-cabinet-restructure-stage-g3-scene-tree.md`
 **Notes:** `docs/superpowers/notes/2026-08-27-cabinet-assembly-restructure-notes.md`
 
 ---

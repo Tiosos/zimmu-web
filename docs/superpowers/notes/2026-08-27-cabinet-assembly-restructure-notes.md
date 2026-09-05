@@ -1554,3 +1554,88 @@ stage that turned out false was in a sentence somebody was confident about.
 generics and casts these helpers introduce are unchecked in CI. They are clean today, verified by
 running `tsc --strict` over the five files by hand. A `tsconfig.e2e.json` project reference looks
 close to free and is the obvious fix; recorded rather than done, since it is nobody's task yet.
+
+### 2026-09-03 — Stage G3 closed
+
+**Counts.** Unit 1661 → **1694** (10 skipped) across 86 files, 85 of them under `src/`; e2e 23 →
+**25** across 9 Playwright specs. Measured at close rather than predicted: a full `pnpm test` and a
+full `npx playwright test`, both green. `FILE_FORMAT_VERSION` is still **17** — the stage's own
+acceptance line, and it holds because nothing in `regenerateComponents` or `carcaseRoles` was
+touched.
+
+**Every preset is one opening, and that shaped every fixture in the stage.** Measured again at
+close, through `carcaseOpenings` on regenerated parts: Base 600 and Wall 600 each resolve to one
+opening carrying `adj-shelf-…-0` and `front-…-0`; Tall 600 to one opening carrying four
+`fixed-shelf-` boards and *both* leaves of its pair, `front-…-0` and `front-…-1`. In all three the
+shell — sides, bottom, top, back, toe kick — goes to the carcase. So any test about *which* opening
+owns a part has to build a split tree, and that bit three times in three different ways: Task 4's
+grouping, Task 6's `sections.flatMap` mutation surviving a preset fixture outright, and Task 6 again
+where two bays were still not enough because the fixture selected the *first* one. The shape they
+share is the stage's own rule: a fixture has to make the wrong answers distinguishable from *each
+other*, not merely from nothing.
+
+**The divider rule is a consequence of `sectionOpenings`, not a decision taken about dividers.** It
+returns only leaves — it recurses past a split — while `division-{parentId}-{index}` names the
+section that *was* split, which is an internal node by construction. So a divider has no opening to
+nest under and belongs to the carcase, which is correct woodworking as well as correct code.
+Verified at close on a Base 600 split into three bays: three openings at x0 = 18, 212 and 406 — the
+left-to-right order the tree and the elevation both number — and two `division-` boards among the
+carcase parts.
+
+**Mutations that survived, and what each one earned.** Every task's table was run. Several survived;
+none was left unresolved:
+
+- *Task 3 — dropping the `cabinetId === selectedCarcase?.id` guard.* Survived the whole 1671-test
+  suite. Killed by `App.test.tsx` › *ignores a section selection whose cabinet the scene no longer
+  holds*, which selects the same section id under `cmp_elsewhere` and requires both the toolbar to
+  go and `selectedIds` to be empty. (An earlier entry above names that test *ignores a section
+  selection made in another cabinet* — that is its intent, not its title.)
+- *Task 4 — dropping the `validateCarcaseParams` guard.* Predicted to survive, and did. Killed by
+  `SceneTree.test.tsx` › *renders an unbuildable cabinet's parts flat rather than throwing*. It was
+  already load-bearing for two pre-existing `sidebar.test.tsx` cases, which nothing had recorded.
+- *Task 6 — dropping the `selectedIds?.includes(id)` arm in `viewport.tsx`.* Survives the entire
+  Vitest suite and always will: there is no `viewport.test.tsx`, every unit consumer mocks the
+  viewport, and happy-dom has no WebGL. Closed one task later at the e2e layer, by *an opening
+  selected in the tree lights its own parts in 3D*.
+- *Task 6 — `sections[0]` in place of `find` by section id.* Survived all 26 App tests while the
+  fixture selected bay one. Killed by selecting bay **two**.
+- *Task 6's cleanup — mutating the division-thickness key to `divisionX-`.* Survived all 1689 tests
+  immediately after five copies of that lambda were consolidated into one. Killed by a new
+  asymmetric case in `panelThickness.test.ts` — one division overridden to 25 mm beside a sibling
+  left at 18 — still the only test in the repo that catches it. Consolidating copies moved the risk;
+  covering the survivor is what removed it.
+- *Task 7 — the plan's own document-order assertion.* Reversing the openings reverses the `<g>`
+  elements with them, so the labels still read 1 then 2 down the DOM. The shipped test reads each
+  number off the cell rectangle it lands inside, over a three-leaf fixture that separates geometric
+  order from tree order.
+- *Task 7 — removing `pointer-events-none` from the opening number.* Survived all 1691 unit tests
+  and cannot be closed there: happy-dom loads no stylesheet, and `user-event` walks the clicked
+  element's ancestors rather than hit-testing, while the `<text>` is a sibling of the `<rect>`.
+  Already killed by three centre-clicks in `e2e/carcase.spec.ts`; all three sites now say the click
+  is load-bearing, because that coverage was incidental and one refactor from vanishing.
+- *Task 8 — a colour floor with no ceiling.* A viewport lighting every part passed all three gates at
+  6932 px against the honest 1759–1880. `SELECTION_CEILING` was added, measured independently of the
+  floor and asserted on the settled reading rather than polled.
+
+**One test this spec asks for was never written.** The G3 spec lists, as one of the two invariants
+`sectionNodes` carries, *"Every driven part is classified"* — a sweep asserting every role all three
+presets emit matches a known pattern, so that a family added later (`drawer-box-…`) fails loudly
+rather than landing silently in `carcase`. `sectionNodes.test.ts` has six tests and none is that
+sweep; nothing else in the repo asserts it either. Recorded rather than written, because Task 9 is
+documentation and adding a test would move the counts this entry states. It is about ten lines over
+`CARCASE_PRESETS` and it should be the next thing anyone touching this module writes.
+
+**Three documentation defects fixed or recorded at close, all created by this stage.**
+
+- CLAUDE.md's *"Shelving is edited per opening, and the elevation is the only thing that picks
+  one"* stopped being true in Task 4: the scene tree picks one too. The rule underneath survives —
+  both surfaces write the same `Selection`, so there are two surfaces onto one pick rather than two
+  picks — and the headline now says that instead.
+- The plan's proposed invariant *"`sectionNodes.ts` is the only place a role key is read as
+  structure"* is too strong: `grain.ts`, `resolveThickness.ts` and `carcaseRoles.ts` all read a
+  role's *family*. What is true is narrower, and is what the module's own header says —
+  `sectionNodes.ts` is the only place a key is taken apart to recover the section id inside it. The
+  invariant went into CLAUDE.md in that form.
+- `sectionNodes.ts`'s header still says *"Five other modules read a role's family"* while naming
+  three. Measured: three modules, nine call sites. Left as it stands only because this task writes
+  no production code; it is a one-word fix and it should be taken.
