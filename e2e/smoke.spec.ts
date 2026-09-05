@@ -1,5 +1,6 @@
-import { test, expect, type Page, type Locator } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { isNonBlank, changedFraction } from './canvas'
+import { viewportCanvas } from './liveCanvas'
 
 // OCCT boots a ~65MB WASM kernel in a worker before the UI is usable; allow
 // generous time for it to compile and run the first build on a slow CI runner.
@@ -9,29 +10,6 @@ const OCCT_READY_TIMEOUT = 120_000
 // dowel renders over the board-only frame. Calibrated between the measured
 // real-dowel delta (~0.68%) and steady-state high-bit noise (~0.005%).
 const DOWEL_RENDER_DELTA = 0.002
-
-// Dev mode mounts a small stats.js FPS canvas as a sibling of the WebGL
-// viewport canvas (src/render/viewport.tsx). Pick the largest canvas (by area,
-// measured from the live layout) to reliably target the viewport. A single
-// page.evaluate avoids per-canvas round-trips and reads post-layout sizes.
-async function viewportCanvas(page: Page): Promise<Locator> {
-  await expect(page.locator('canvas').first()).toBeVisible()
-  const index = await page.evaluate(() => {
-    const canvases = Array.from(document.querySelectorAll('canvas'))
-    let best = 0
-    let bestArea = -1
-    canvases.forEach((c, i) => {
-      const rect = c.getBoundingClientRect()
-      const area = rect.width * rect.height
-      if (area > bestArea) {
-        bestArea = area
-        best = i
-      }
-    })
-    return best
-  })
-  return page.locator('canvas').nth(index)
-}
 
 test('app boots, OCCT initializes, and the default board renders', async ({ page }) => {
   await page.goto('/')

@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import { isNonBlank, type Match } from './canvas'
-import { pollHues } from './pollHues'
+import { pollHues, viewportCanvas } from './liveCanvas'
 
 // OCCT boots a ~65MB WASM kernel in a worker before the UI is usable; allow
 // generous time for it to compile and run the first build on a slow CI runner.
@@ -32,30 +32,6 @@ const isTint: Match = (r, g, b) => r > 200 && g > 130 && g < 225 && b < 110 && r
 // Pink 0xf472b6 = rgb(244,114,182) — the cut outlines.
 const isOutline: Match = (r, g, b) => r > 190 && g > 60 && g < 175 && b > 130 && b - g > 30
 const HUES = { tint: isTint, outline: isOutline }
-
-// Private copy of the helper in smoke.spec.ts, matching the per-file convention used elsewhere in
-// this repo. Worth hoisting into canvas.ts if a third spec needs it.
-//
-// Dev mode mounts a small stats.js FPS canvas as a sibling of the WebGL viewport canvas
-// (src/render/viewport.tsx). Pick the largest canvas (by area, measured from the live layout).
-async function viewportCanvas(page: Page): Promise<Locator> {
-  await expect(page.locator('canvas').first()).toBeVisible()
-  const index = await page.evaluate(() => {
-    const canvases = Array.from(document.querySelectorAll('canvas'))
-    let best = 0
-    let bestArea = -1
-    canvases.forEach((c, i) => {
-      const rect = c.getBoundingClientRect()
-      const area = rect.width * rect.height
-      if (area > bestArea) {
-        bestArea = area
-        best = i
-      }
-    })
-    return best
-  })
-  return page.locator('canvas').nth(index)
-}
 
 // The Position inputs carry no label association, so reach them through the Radix Collapsible: the
 // section trigger's aria-controls names its content panel, whose three number inputs are X, Y, Z in
