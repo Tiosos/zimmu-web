@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { type Match } from './canvas'
+import type { Match } from './canvas'
 import { pollHues, viewportCanvas } from './liveCanvas'
 
 const OCCT_READY_TIMEOUT = 120_000
@@ -403,9 +403,11 @@ const isSelectionBlue: Match = (r, g, b) =>
 const SELECTION_PIXELS = 400
 
 // And a ceiling, because a floor alone cannot tell "this opening's parts" from "every part in the
-// scene": a viewport lighting everything measures 6932. Sits ~2.3x above the honest reading and
-// ~2.3x below the all-lit one, so neither bound is snug.
-const SELECTION_CEILING = 3000
+// scene": a viewport lighting everything measures 6932. Placed at the geometric mean of 1880 and
+// 6932 — 1.9x above the honest reading and 1.9x below the all-lit one, so neither side is the tight
+// one. Not derived from the floor: that guards "nothing painted" and this guards "everything
+// painted", against different measurements.
+const SELECTION_CEILING = 3600
 
 // That `selectedIds` reaches the screen, which is the one claim in this stage no unit test can
 // make: there is no viewport.test.tsx, every unit consumer mocks the viewport and happy-dom has no
@@ -435,33 +437,49 @@ test('an opening selected in the tree lights its own parts in 3D', async ({ page
   // screenshot taken after an elevation click captures a `display: none` canvas.
   await page.getByRole('tab', { name: '3D' }).click()
 
-  // The canvas keeps the size it had before the editor pane opened beside it: `viewport.tsx` refits
-  // on the window's `resize` event and on nothing else. Measured here, that leaves a 1040px-wide
-  // canvas inside a 520px pane, so half the cabinet draws under the editor and what is counted
-  // depends on where the overflow falls. One pixel of window height fires that listener; Home then
-  // frames the cabinet in the pane's own aspect, which is what the counts above were read from.
+  // WORKAROUND — the viewport refit bug (see the 2026-08-27 restructure notes). Delete these two
+  // lines once the mount refits itself. The canvas keeps the size it had before the editor pane
+  // opened beside it: `viewport.tsx` refits on the window's `resize` event and on nothing else.
+  // Measured here, that leaves a 1040px-wide canvas inside a 520px pane, so half the cabinet draws
+  // under the editor and what is counted depends on where the overflow falls. One pixel of window
+  // height fires that listener; Home then frames the cabinet in the pane's own aspect, which is
+  // what the counts above were read from.
   const size = page.viewportSize()!
   await page.setViewportSize({ width: size.width, height: size.height + 1 })
   await page.keyboard.press('Home')
 
   const canvas = await viewportCanvas(page)
   const box = (await canvas.boundingBox())!
+
+  // The pixel counts are absolute, so they assume this canvas — 1280px window (the Desktop Chrome
+  // descriptor) less the sidebar and the editor pane. Asserted rather than left implicit: a
+  // Playwright upgrade that changes the descriptor, or a `test.use({ viewport })` added to this
+  // file, would otherwise invalidate every figure above and surface as an app regression that isn't
+  // one. This line names the premise, so that failure says what it is.
+  expect(Math.round(box.width), 'the counts below assume a 520px canvas').toBe(520)
   const rows = page.getByTestId(/^node-sec_/)
   await expect(rows).toHaveCount(2)
   const hues = { blue: isSelectionBlue }
 
-  // Gate 1: the cabinet is selected and no opening is, so nothing wears the colour. Measured: a
-  // viewport that lit every part whenever it held a `selectedIds` array fails here. The cabinet is
-  // clicked rather than nothing being selected because deselecting entirely closes the editor and
-  // changes the framing these counts were calibrated against — not because the two differ to the
-  // viewport, which they do not: `App` hands it `[]` either way.
+  // Gate 1: a cabinet is selected and no opening is, so nothing wears the colour. Measured: a
+  // viewport that lit every part whenever it held a `selectedIds` array fails here.
+  //
+  // The cabinet click only restores a named selection; to the viewport it is indistinguishable from
+  // nothing selected, because `App` hands `[]` in both cases. It is not load-bearing — the test
+  // passes without it, since `splitSection` leaves the old id naming an internal node, which
+  // resolves to no opening. Deselecting would not have closed the editor either: `App.tsx` keeps it
+  // open on a null selection deliberately, and `App.test.tsx` pins that.
   await cabinet.click()
   await pollHues(canvas, hues, (c) => c.blue === 0, 'no opening selected should paint no blue')
 
   // Gate 2: selecting an opening lights that opening's parts, and ONLY that opening's. The upper
   // bound is what makes the second half true — measured, one opening lights ~1759-1880 px while a
-  // viewport lighting the whole scene reaches 6932, so the ceiling sits at roughly 2.3x either way.
-  // Without it this gate passes against "light everything", which is Task 6's own mutation 1.
+  // viewport lighting the whole scene reaches 6932. Without it this gate passes against "light
+  // everything", which is Task 6's own mutation 1.
+  //
+  // The poll waits on the floor and the ceiling is asserted on the settled reading, rather than
+  // polling until the count enters a window: an all-lit regression then fails at once instead of
+  // after the 30 s timeout, and no transient in-window frame can satisfy it.
   //
   // The second row rather than the first is not load-bearing here, unlike in the structural test
   // above: probed, an `App` that always took `sections[0]` lights 1759 px and clears both bounds.
@@ -470,7 +488,7 @@ test('an opening selected in the tree lights its own parts in 3D', async ({ page
   const { blue } = await pollHues(
     canvas,
     hues,
-    (c) => c.blue >= SELECTION_PIXELS && c.blue <= SELECTION_CEILING,
+    (c) => c.blue >= SELECTION_PIXELS,
     'selecting an opening should paint its own parts, and no others, in the selection colour',
   )
   expect(blue, `selection colour: measured ${blue} px`).toBeGreaterThanOrEqual(SELECTION_PIXELS)

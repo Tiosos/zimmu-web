@@ -1517,3 +1517,40 @@ selection paints, `(87,119,144)` — and the `r > 40` floor drops the dev FPS ov
 One honest limit: the hovered-face `LineLoop` only draws in an interaction mode, so it could not be
 made to appear in this test. The separation from it rests on the stated colours' arithmetic and
 claims no measurement, which the comment says.
+
+**A floor is not a colour test.** Task 8's colour e2e first asserted only that selection blue
+exceeded a threshold — which cannot tell *this opening's parts* from *every part in the scene*.
+Probed: a viewport lighting everything whenever any opening is selected passed all three gates,
+measuring **6932 px** against the honest 1759–1880. The test's own title claimed more than it
+pinned. `SELECTION_CEILING` sits at the geometric mean of 1880 and 6932 — 1.9× either side, so
+neither bound is the tight one — and is deliberately **not** derived from the floor: the floor
+guards "nothing painted", the ceiling guards "everything painted", and they answer to different
+measurements.
+
+The ceiling is asserted on the settled reading rather than polled as a window. A poll that waits for
+a count to enter a range can in principle latch onto a transient frame, and — measured — an all-lit
+regression then fails after the 30 s timeout instead of at once.
+
+**Absolute pixel counts carry an unstated premise: the canvas they were counted on.** These figures
+assume a 520 px canvas, which is the Desktop Chrome descriptor less the sidebar and the editor pane.
+A Playwright upgrade that changes that descriptor, or a `test.use({ viewport })` added to the file,
+would invalidate every figure and surface as an app regression that is not one. The test now asserts
+its own premise in one line, so that failure says what it is. The alternative — normalising counts to
+a fraction of canvas area, as `changedFraction` does — would be size-independent and is the better
+answer if a second such test is ever written.
+
+**Two false claims in a commit written to remove false claims.** The fix for the floor problem also
+rewrote two comments, and the code-quality review found both of the new ones wrong: one asserted that
+deselecting closes the cabinet editor, which `App.tsx` deliberately does not do and `App.test.tsx`
+pins the opposite of; the other stated the ceiling's margin as "~2.3× either way" when it was 1.6× on
+the tight side. Both are the same defect class the commit set out to remove.
+
+The lesson is not "check your comments" — it is that **a correction is not a safer kind of change
+than the thing it corrects.** Prose written in a hurry to fix prose gets the least scrutiny and
+carries the most authority, because it reads as the considered second thought. Every claim in this
+stage that turned out false was in a sentence somebody was confident about.
+
+**`e2e/` is never typechecked.** `pnpm typecheck` covers `src` and `vite.config.ts` only, so the
+generics and casts these helpers introduce are unchecked in CI. They are clean today, verified by
+running `tsc --strict` over the five files by hand. A `tsconfig.e2e.json` project reference looks
+close to free and is the obvious fix; recorded rather than done, since it is nobody's task yet.

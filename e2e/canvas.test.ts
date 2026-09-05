@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { PNG } from 'pngjs'
-import { isNonBlank, changedFraction } from './canvas'
+import { isNonBlank, changedFraction, countPixels, type Match } from './canvas'
 
 function solidPng(w: number, h: number, rgb: [number, number, number]): Buffer {
   const png = new PNG({ width: w, height: h })
@@ -74,5 +74,24 @@ describe('changedFraction', () => {
     const a = solidPng(64, 64, [20, 20, 30])
     const b = solidPng(32, 32, [20, 20, 30])
     expect(changedFraction(a, b)).toBe(1)
+  })
+})
+
+// Shared by two specs since Stage G3, and the thing the selection-colour e2e's every figure is
+// counted with — it scans every pixel, unlike `isNonBlank`'s and `changedFraction`'s stride.
+describe('countPixels', () => {
+  const isBottom: Match = (_r, g, _b) => g === 160
+
+  it('counts every pixel of a solid frame that matches', () => {
+    expect(countPixels(solidPng(64, 32, [200, 160, 120]), isBottom)).toBe(64 * 32)
+  })
+
+  it('counts none when nothing matches', () => {
+    expect(countPixels(solidPng(64, 32, [20, 20, 30]), isBottom)).toBe(0)
+  })
+
+  // Half, not a sample of half: a stride would be free to approximate this one and cannot.
+  it('counts exactly the matching half of a two-tone frame', () => {
+    expect(countPixels(twoTonePng(64, 32, [20, 20, 30], [200, 160, 120]), isBottom)).toBe(64 * 16)
   })
 })
