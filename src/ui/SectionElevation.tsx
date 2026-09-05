@@ -81,26 +81,41 @@ export function SectionElevation({
         onClick={() => onSelect(null)}
       />
 
-      {sectionOpenings(params.section, tree).map((o) => {
+      {sectionOpenings(params.section, tree).map((o, i) => {
         const { x, y, height } = toSvg(o.rect.x0, o.rect.z0, o.rect.z1)
+        const width = o.rect.x1 - o.rect.x0
         const isSelected = o.sectionId === selected
         return (
-          <rect
-            key={o.sectionId}
-            data-testid={`section-cell-${o.sectionId}`}
-            data-selected={isSelected}
-            x={x}
-            y={y}
-            width={o.rect.x1 - o.rect.x0}
-            height={height}
-            className={
-              isSelected
-                ? 'fill-primary/25 stroke-primary cursor-pointer'
-                : 'fill-background stroke-border cursor-pointer hover:fill-accent'
-            }
-            strokeWidth={isSelected ? 3 : 1}
-            onClick={() => onSelect(o.sectionId)}
-          />
+          <g key={o.sectionId}>
+            <rect
+              data-testid={`section-cell-${o.sectionId}`}
+              data-selected={isSelected}
+              x={x}
+              y={y}
+              width={width}
+              height={height}
+              className={
+                isSelected
+                  ? 'fill-primary/25 stroke-primary cursor-pointer'
+                  : 'fill-background stroke-border cursor-pointer hover:fill-accent'
+              }
+              strokeWidth={isSelected ? 3 : 1}
+              onClick={() => onSelect(o.sectionId)}
+            />
+            {/* The scene tree names this opening by the same index, so the two agree by
+                construction. `pointer-events-none` keeps the number from swallowing the click that
+                selects the cell it sits on. */}
+            <text
+              x={x + width / 2}
+              y={y + height / 2}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="fill-muted-foreground pointer-events-none"
+              fontSize={Math.min(width, height) / 6}
+            >
+              {i + 1}
+            </text>
+          </g>
         )
       })}
 

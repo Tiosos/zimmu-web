@@ -126,4 +126,37 @@ describe('SectionElevation', () => {
     const cell = screen.getAllByTestId(/^section-cell-/)[0]
     expect(Number(cell.getAttribute('width'))).toBeCloseTo(557, 3)
   })
+
+  // The tree names an opening and the elevation has to draw the same number, so this pins the
+  // ORDER both read out of `sectionOpenings`, not a constant. The fixture is a full-width top over
+  // two bottom bays: sorted by x0 then z0 that reads bottom-left, top, bottom-right, while a walk
+  // of the tree visits both bottom bays first. A two-bay cabinet cannot tell the two apart —
+  // there they agree.
+  it('numbers each opening in the order sectionOpenings returns them', () => {
+    const root = legacyToSection([], 0, 600, 18)
+    const stacked = splitSection(root, root.id, 'horizontal', 'panel', 2)
+    if (stacked.content.kind !== 'split') throw new Error('fixture is not a split')
+    const p: CarcaseParams = {
+      ...base,
+      section: splitSection(stacked, stacked.content.children[0].id, 'vertical', 'panel', 2),
+    }
+    draw(p)
+
+    const labels = [...screen.getByRole('img').querySelectorAll('text')]
+    expect(labels).toHaveLength(3)
+    // Each number is read off the cell it lands in, never off document order: cells numbered
+    // backwards still read 1, 2, 3 down the DOM.
+    const labelIn = (cell: Element) => {
+      const [x, y, w, h] = ['x', 'y', 'width', 'height'].map((a) => Number(cell.getAttribute(a)))
+      return labels.find((t) => {
+        const lx = Number(t.getAttribute('x'))
+        const ly = Number(t.getAttribute('y'))
+        return lx >= x && lx <= x + w && ly >= y && ly <= y + h
+      })?.textContent
+    }
+    const numbers = sectionOpenings(p.section, resolvedOf(p)).map((o) =>
+      labelIn(screen.getByTestId(`section-cell-${o.sectionId}`)),
+    )
+    expect(numbers).toEqual(['1', '2', '3'])
+  })
 })
