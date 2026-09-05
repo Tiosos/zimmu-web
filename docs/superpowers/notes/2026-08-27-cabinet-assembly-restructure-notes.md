@@ -1429,3 +1429,27 @@ The pattern is the stage's own lesson arriving from a new direction. Consolidati
 one is worth nothing on its own — what makes it safe is that the one copy is now covered, and it was
 not before. A refactor that leaves the consolidated statement untested has moved the risk, not
 removed it.
+
+**The plan's own Task 7 test could not catch the mutation it named.** It drew a two-bay cabinet and
+compared the `<text>` contents in document order against `['1', '2']`. Reversing the openings before
+mapping reverses the `<g>` elements too, so the labels still read 1 then 2 down the DOM — measured,
+not reasoned: with the reversal applied, that exact assertion passed while the one now in the file
+failed. A number has to be read off the cell it lands in, so the test finds each label by its
+position inside the rendered cell rectangle rather than by its place in the DOM.
+
+**And two bays cannot tell geometric order from tree order.** `legacyToSection([0.5], …)` builds a
+vertical split whose children run left to right, which is exactly what sorting by `rect.x0` produces
+— tree order and `sectionOpenings` order agree, so a fixture built from it pins neither. Measured on
+a full-width top over two bottom bays: the walk visits bottom-left, bottom-right, top, while
+`sectionOpenings` returns bottom-left, top, bottom-right. Mutating the elevation to sort by `z0`
+then `x0` — the reading-order slip, and the tree's order for that shape — numbers the cells 1, 3, 2
+and fails. The third variant of the stage's own rule: the fixture has to separate the wrong answers
+from *each other*.
+
+**`pointer-events-none` on the number is unpinned, and stays unpinned.** Removing it passed all 1691
+tests. happy-dom loads no stylesheet, so a Tailwind class has no computed effect at all, and
+`user-event` checks `pointer-events` on the clicked element and its ancestors rather than
+hit-testing — the `<text>` is a sibling of the `<rect>`, never an ancestor. In a real browser the
+label is painted over the cell and carries no handler, and the `onClick` sits on the `<rect>` rather
+than on the wrapping `<g>`, so a click on the glyph would reach nothing. The class is load-bearing
+and no unit test can say so; an e2e clicking the centre of a cell is the only thing that could.

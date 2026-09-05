@@ -1022,18 +1022,45 @@ cannot be located — and a name nobody can find is worse than no name.
 
 Append to `src/ui/SectionElevation.test.tsx`:
 
+**Corrected while implementing — the snippet below is what was written.** Two bays cannot pin this:
+`legacyToSection([0.5], …)` builds its children left to right, which is already `sectionOpenings`'
+order, so tree order and geometric order agree there. And reading the labels in document order
+cannot catch a reversal, because reversing the openings reverses the `<g>` elements with them —
+measured: the original assertion passed under mutation 2. The fixture is a full-width top over two
+bottom bays, and each number is found by the cell it lands inside.
+
 ```tsx
-// The tree and the elevation must agree, and both take the number from the same `sectionOpenings`
-// array — so this pins the ORDER, not a constant. `sectionOpenings` sorts by rect.x0 then rect.z0,
-// which is why a two-bay cabinet reads 1 on the left and 2 on the right regardless of how the tree
-// was built.
+// The tree names an opening and the elevation has to draw the same number, so this pins the
+// ORDER both read out of `sectionOpenings`, not a constant. The fixture is a full-width top over
+// two bottom bays: sorted by x0 then z0 that reads bottom-left, top, bottom-right, while a walk
+// of the tree visits both bottom bays first. A two-bay cabinet cannot tell the two apart —
+// there they agree.
 it('numbers each opening in the order sectionOpenings returns them', () => {
-  const p = { ...base, section: legacyToSection([0.5], 0, 600, 18) }
+  const root = legacyToSection([], 0, 600, 18)
+  const stacked = splitSection(root, root.id, 'horizontal', 'panel', 2)
+  if (stacked.content.kind !== 'split') throw new Error('fixture is not a split')
+  const p: CarcaseParams = {
+    ...base,
+    section: splitSection(stacked, stacked.content.children[0].id, 'vertical', 'panel', 2),
+  }
   draw(p)
-  const cells = screen.getAllByTestId(/^section-cell-/)
-  expect(cells).toHaveLength(2)
-  const numbers = [...screen.getByRole('img').querySelectorAll('text')].map((t) => t.textContent)
-  expect(numbers).toEqual(['1', '2'])
+
+  const labels = [...screen.getByRole('img').querySelectorAll('text')]
+  expect(labels).toHaveLength(3)
+  // Each number is read off the cell it lands in, never off document order: cells numbered
+  // backwards still read 1, 2, 3 down the DOM.
+  const labelIn = (cell: Element) => {
+    const [x, y, w, h] = ['x', 'y', 'width', 'height'].map((a) => Number(cell.getAttribute(a)))
+    return labels.find((t) => {
+      const lx = Number(t.getAttribute('x'))
+      const ly = Number(t.getAttribute('y'))
+      return lx >= x && lx <= x + w && ly >= y && ly <= y + h
+    })?.textContent
+  }
+  const numbers = sectionOpenings(p.section, resolvedOf(p)).map((o) =>
+    labelIn(screen.getByTestId(`section-cell-${o.sectionId}`)),
+  )
+  expect(numbers).toEqual(['1', '2', '3'])
 })
 ```
 
@@ -1076,11 +1103,12 @@ intercepted pointer events.
 
 - [ ] **Step 5: Mutation check**
 
-| # | Mutation | Must fail |
-|---|---|---|
-| 1 | `{i + 1}` → `{i}` | *numbers each opening in the order…* |
-| 2 | Reverse the openings before mapping | same test |
-| 3 | Remove `pointer-events-none` | an existing "clicking a cell selects it" test — **if none fails, happy-dom is not modelling pointer interception**; say so rather than assuming it is covered |
+| # | Mutation | Must fail | Actual |
+|---|---|---|---|
+| 1 | `{i + 1}` → `{i}` | *numbers each opening in the order…* | killed — read `0, 1, 2` |
+| 2 | Reverse the openings before mapping | same test | killed — read `3, 2, 1` on the cells. The plan's original document-order assertion **survived** this |
+| 2b | Sort by `z0` then `x0` — the reading-order slip, and this fixture's tree order | same test | killed — read `1, 3, 2` |
+| 3 | Remove `pointer-events-none` | an existing "clicking a cell selects it" test — **if none fails, happy-dom is not modelling pointer interception**; say so rather than assuming it is covered | **survived all 1691 tests.** No stylesheet is loaded, so the Tailwind class has no computed effect, and `user-event` checks the clicked element's ancestors rather than hit-testing — the `<text>` is a sibling. Uncovered; only an e2e clicking a cell's centre could pin it |
 
 - [ ] **Step 6: Full suite and commit**
 
