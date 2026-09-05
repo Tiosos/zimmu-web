@@ -1390,3 +1390,29 @@ it honestly — and it is now Task 8 Step 0.
 
 The general form: "untestable" is a claim about the current suite, not about the system. Before
 accepting one, check whether a sibling feature already tests the same kind of thing.
+
+**Two bays are not enough; the selected one must not be the first.** Task 6's fixture was rebuilt as
+two bays precisely so a `flatMap` mutation could be caught — and its headline test then selected
+*bay one*, where `sections[0]` and `find(by id)` return the same thing. Measured: replacing the
+`find` with `sections[0]` passed all 26 App tests. CLAUDE.md already names that fallback as a bug
+this codebase shipped once, silently shelving the wrong bay. Selecting the second bay kills it.
+
+Worth stating as a rule, because this is the third variant of the same mistake in one stage: a
+fixture has to make the *wrong* answers distinguishable from each other, not just from nothing. Two
+bays separate "this opening" from "all openings"; picking the second also separates it from "the
+first opening". Each wrong answer needs its own way of being wrong.
+
+**Selection blue now suppresses joint amber across a whole opening.** The precedence is unchanged
+and correct — the selected board's colour has always beaten the suggestion tint — but its scale is
+not: it used to cover one board, and now covers every part of a bay. Reachable today: with an
+opening selected on the 3D tab, hovering a checklist row whose pair lies inside that opening gives
+no hover feedback at all. Left as is, since changing it is a design decision rather than a fix, but
+recorded so it is not rediscovered as a bug.
+
+**Still owed, deliberately deferred:** four copies of the division-thickness lambda remain inline at
+`SectionElevation.tsx`, `CarcasePanel.tsx` (twice) and `assembly.ts`, plus one in a fixture, now
+that `sectionThickness` is exported. The reason to close them is concrete rather than tidiness:
+`thicknessOf` falls back to the carcase material for any role it does not recognise, so if the
+`division-{parentId}-{index}` key format ever changes, those copies do not throw — they quietly
+return the carcase default instead of the division's own override. That is the same silent
+wrong-geometry class as a 25 mm side beside an 18 mm one. It wants its own mechanical commit.

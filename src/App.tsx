@@ -180,8 +180,7 @@ function App() {
   // that is open. A cabinet that cannot be resolved highlights nothing.
   const selectedIds = useMemo(() => {
     if (selectedCarcase === null || selectedSectionId === null) return []
-    const own = scene.parts.filter((p) => p.parentId === selectedCarcase.id)
-    const groups = carcaseOpenings(selectedCarcase, own, scene.materials)
+    const groups = carcaseOpenings(selectedCarcase, scene.parts, scene.materials)
     return (
       groups?.sections.find((s) => s.sectionId === selectedSectionId)?.parts.map((p) => p.id) ?? []
     )

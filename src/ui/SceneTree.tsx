@@ -220,8 +220,7 @@ export function SceneTree({
   // cabinet `carcaseOpenings` cannot resolve falls back to the flat tree that existed before this,
   // rather than taking the whole tree down with it.
   const renderCarcaseChildren = (component: CarcaseComponent, depth: number) => {
-    const own = parts.filter((p) => p.parentId === component.id)
-    const groups = carcaseOpenings(component, own, materials)
+    const groups = carcaseOpenings(component, parts, materials)
     if (groups === null) return renderChildren(component.id, depth)
     return (
       <>

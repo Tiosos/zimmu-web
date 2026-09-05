@@ -394,6 +394,9 @@ describe('the open cabinet', () => {
     mockCutActive = false
     mockScene = full
     mockSelection = null
+    // The spy holds the last render's props, and `[]` is also its resting value — so a test
+    // asserting emptiness would pass on a stale reading from the test before it.
+    viewportSpy.selectedIds = []
     mockUseScene.mockImplementation(() => ({
       ...makeDefaultSceneReturn(),
       scene: mockScene,
@@ -580,10 +583,14 @@ describe('the open cabinet', () => {
   it('highlights every part of the selected opening and nothing else', async () => {
     const select = await mount()
     mockScene = { ...full, parts: TWO_BAY_PARTS, components: [TWO_BAY_CABINET] }
-    await select({ kind: 'section', cabinetId: TWO_BAY_CABINET.id, sectionId: BAYS[0] })
+    // The SECOND bay, so that find-by-id and take-the-first disagree. `sectionOpenings` returns
+    // openings in geometric order, so selecting BAYS[0] would let a `sections[0]` fallback pass —
+    // and that fallback is a bug this codebase has already shipped once, silently shelving the
+    // wrong bay.
+    await select({ kind: 'section', cabinetId: TWO_BAY_CABINET.id, sectionId: BAYS[1] })
     // Both of that bay's shelves, and none of the other bay's. The divider between them belongs to
     // the cabinet rather than to either bay, as do the shell panels and the toe kick.
-    const owned = TWO_BAY_PARTS.filter((p) => p.role?.startsWith(`adj-shelf-${BAYS[0]}-`))
+    const owned = TWO_BAY_PARTS.filter((p) => p.role?.startsWith(`adj-shelf-${BAYS[1]}-`))
     expect(owned).toHaveLength(2)
     expect([...viewportSpy.selectedIds].sort()).toEqual(owned.map((p) => p.id).sort())
   })

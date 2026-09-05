@@ -953,17 +953,14 @@ and pass it at the `<Viewport>` call beside `highlightedIds={highlightedIds}`:
             selectedIds={selectedIds}
 ```
 
-**Imports `App.tsx` needs for that block**, several of which it does not have today: `sectionNodes`
-from `./scene/sectionNodes`, `sectionOpenings` from `./scene/sectionInterior`, `resolveSections`
-from `./scene/sectionTree`, and `openingRect` / `validateCarcaseParams` from `./scene/carcaseRoles`.
-`roleThicknessFor` and `overridesOf` are likely already imported for `cabinetParts` — check first,
-because `noUnusedLocals` makes a duplicate import a `tsc` error.
+**`carcaseOpenings` is the only new import** `App.tsx` needs, from `./scene/carcaseOpenings`. Both
+paragraphs that used to stand here predate Step 0 and were wrong once it existed: one listed five
+imports for a chain `App` no longer writes — following it produces five unused ones and a
+`noUnusedLocals` failure, while quoting `noUnusedLocals` at you — and the other described this as
+"the second place that resolves a cabinet's openings", which after Step 0 reads as sanctioning the
+copy Step 0 exists to prevent.
 
-**This is the second place that resolves a cabinet's openings**, the first being `SceneTree`. They
-must stay identical: both call `sectionOpenings` on a tree resolved with the same overrides, or the
-tree and the 3D highlight will disagree about which parts an opening owns. If a third caller appears,
-extract the resolve rather than copying it a third time — that duplication is what cost Stage G2
-three separate rules.
+There is exactly **one** place a cabinet's openings are resolved. A third caller imports it.
 
 - [ ] **Step 5: Run the tests**
 
@@ -974,11 +971,12 @@ Expected: PASS.
 
 | # | Mutation | Must fail |
 |---|---|---|
-| 1 | `selectedIds` returns every part of the cabinet | *highlights every part of a selected opening* — the side would be included |
+| 1 | `selectedIds` returns every part of the cabinet | *highlights every part of the selected opening and nothing else* |
 | 1b | `sections.flatMap((s) => s.parts)` — every opening's parts | the same test, **and only against a two-bay fixture**. This is the mutation mutation 1 does not cover, and the reason the fixture above cannot be a preset |
 | 2 | Drops the `selectedIds?.includes(id)` arm in `viewport.tsx` | nothing in Vitest — see below |
 | 3 | Drop the `validateCarcaseParams` guard (now in `carcaseOpenings.ts`) | an unbuildable cabinet yields `[]` rather than throwing — plus five pre-existing sidebar and SceneTree cases |
 | 4 | Read `selection.sectionId` instead of `selectedSectionId` | *ignores a section selection whose cabinet the scene no longer holds* |
+| 5 | `sections[0]` instead of `find` by id | *…and nothing else*, **but only if the test selects the SECOND bay**. `sectionOpenings` returns openings in geometric order, so selecting the first makes take-the-first and find-by-id agree. CLAUDE.md names that fallback as a bug this codebase has already shipped once |
 
 Mutation 2 is the honest limit of this task's **unit** testing, and it is structural rather than an
 oversight: there is no `viewport.test.tsx` at all, and every unit consumer mocks the viewport, so
@@ -1131,6 +1129,23 @@ would pass on any repaint, including one that recoloured the wrong parts. And **
 fall as well as rise** — a monotonic assertion passes against a viewport that highlights
 everything, which is exactly mutation 1 of Task 6.
 
+Three practicalities, each verified against the tree, that will otherwise cost an hour:
+
+1. **You cannot pick an opening on the tab where you can see the canvas — via the elevation.**
+   `App.tsx` hides the viewport unless `selectedCarcase === null || cabinetTab === '3d'`, and the
+   elevation lives on the Section tab, so screenshotting after an elevation click captures a
+   `display: none` canvas. Select the opening from the **scene tree** instead: it stays visible on
+   the 3D tab, and Task 7's numbered rows are there to be clicked.
+2. **The "count falls" half needs a gesture that deselects without leaving the tab.** Clicking empty
+   canvas does it — `onPartClick(null)` reaches `onSelect(null)`, which nulls `selectedSectionId`
+   and leaves the cabinet open. The elevation-background deselect the unit tests use is on the
+   wrong tab.
+3. **Name the confusable neighbour.** Selection blue is `0x4fc3f7` = rgb(79,195,247). The
+   hovered-face `LineLoop` is `0x60a5fa` = rgb(96,165,250), and the flash emissive ramps through
+   the same hue — so a loose "is it blueish" matcher counts hover as selection. Roughly
+   `g > 180 && b - g < 60` separates them. The amber spec's "narrow gap" comment is about a
+   *different* neighbour; read it for method, not for the threshold.
+
 - [ ] **Step 1: Write the test**
 
 Append to `e2e/carcase.spec.ts`, reusing `OCCT_READY_TIMEOUT` which that file already defines:
@@ -1212,6 +1227,10 @@ Under `src/scene/`, beside the other section modules:
 │   ├── sectionNodes.ts  sectionNodes(openings, parts) — which opening owns which part, read
 │   │                    off the role keys that already say so. The only place a role key is
 │   │                    parsed as structure
+│   ├── carcaseOpenings.ts  carcaseOpenings(component, parts, materials) — the whole chain from a
+│   │                    cabinet to which opening owns which part, or null if it cannot be
+│   │                    resolved. Stated once because the scene tree and the 3D highlight both
+│   │                    ask it
 ```
 
 - [ ] **Step 2: `CLAUDE.md` — two invariants**
@@ -1236,7 +1255,8 @@ Under `src/scene/`, beside the other section modules:
 node scripts/update-structure-html.mjs
 ```
 
-Then by hand: add `sectionNodes.ts` to the `src/scene/` table; update the measured counts sentence
+Then by hand: add **both** `sectionNodes.ts` and `carcaseOpenings.ts` to the `src/scene/` table
+— Task 6 Step 0 created the second one and this task's first draft named only the first; update the measured counts sentence
 at the `AUTOGEN:test-file-count` paragraph with the real figures from Step 5; and move the roadmap
 row *The scene tree mirrors the section tree* from **Next** to **Done**, putting the next roadmap
 item in its place.

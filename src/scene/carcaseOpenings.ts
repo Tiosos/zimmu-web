@@ -1,6 +1,6 @@
 import { openingRect, sectionThickness, validateCarcaseParams } from './carcaseRoles'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
-import { sectionNodes, type SectionNode } from './sectionNodes'
+import { sectionNodes } from './sectionNodes'
 import { sectionOpenings } from './sectionInterior'
 import { resolveSections } from './sectionTree'
 import type { CarcaseComponent, MaterialDef, Part } from './types'
@@ -14,9 +14,14 @@ import type { CarcaseComponent, MaterialDef, Part } from './types'
 // here. What to show instead is the caller's to decide.
 export function carcaseOpenings(
   component: CarcaseComponent,
-  own: Part[],
+  parts: Part[],
   materials: Record<string, MaterialDef>,
-): { sections: SectionNode[]; carcase: Part[] } | null {
+): ReturnType<typeof sectionNodes> | null {
+  // Filtered here rather than by each caller. Section ids and role keys are shared by every cabinet
+  // built from one preset — `params` is assigned by reference — so an unfiltered array files
+  // another cabinet's `front-<sec>-0` into this cabinet's opening, silently, which is the exact
+  // confusion this module exists to prevent.
+  const own = parts.filter((p) => p.parentId === component.id)
   const thicknessOf = roleThicknessFor(component.params, materials, overridesOf(own, component.id))
   if (validateCarcaseParams(component.params, thicknessOf).length > 0) return null
   const tree = resolveSections(
