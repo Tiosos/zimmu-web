@@ -402,6 +402,11 @@ const isSelectionBlue: Match = (r, g, b) =>
 // Well below the measured 1759/1880 rather than snug against them.
 const SELECTION_PIXELS = 400
 
+// And a ceiling, because a floor alone cannot tell "this opening's parts" from "every part in the
+// scene": a viewport lighting everything measures 6932. Sits ~2.3x above the honest reading and
+// ~2.3x below the all-lit one, so neither bound is snug.
+const SELECTION_CEILING = 3000
+
 // That `selectedIds` reaches the screen, which is the one claim in this stage no unit test can
 // make: there is no viewport.test.tsx, every unit consumer mocks the viewport and happy-dom has no
 // WebGL, so dropping the `selectedIds?.includes(id)` arm leaves the whole Vitest suite green.
@@ -445,22 +450,31 @@ test('an opening selected in the tree lights its own parts in 3D', async ({ page
   await expect(rows).toHaveCount(2)
   const hues = { blue: isSelectionBlue }
 
-  // Gate 1: the cabinet is selected and no opening is, so nothing wears the colour. The baseline is
-  // taken here rather than with nothing selected at all because `App` always hands the viewport a
-  // `selectedIds` array — measured: a viewport that lit every part whenever it had one fails here.
+  // Gate 1: the cabinet is selected and no opening is, so nothing wears the colour. Measured: a
+  // viewport that lit every part whenever it held a `selectedIds` array fails here. The cabinet is
+  // clicked rather than nothing being selected because deselecting entirely closes the editor and
+  // changes the framing these counts were calibrated against — not because the two differ to the
+  // viewport, which they do not: `App` hands it `[]` either way.
   await cabinet.click()
   await pollHues(canvas, hues, (c) => c.blue === 0, 'no opening selected should paint no blue')
 
-  // Gate 2: selecting the second opening lights that opening's parts. The second, so that a "take
-  // the first opening" fallback cannot pass.
+  // Gate 2: selecting an opening lights that opening's parts, and ONLY that opening's. The upper
+  // bound is what makes the second half true — measured, one opening lights ~1759-1880 px while a
+  // viewport lighting the whole scene reaches 6932, so the ceiling sits at roughly 2.3x either way.
+  // Without it this gate passes against "light everything", which is Task 6's own mutation 1.
+  //
+  // The second row rather than the first is not load-bearing here, unlike in the structural test
+  // above: probed, an `App` that always took `sections[0]` lights 1759 px and clears both bounds.
+  // Distinguishing the two openings from each other is that test's job; this one's is the colour.
   await rows.nth(1).click()
   const { blue } = await pollHues(
     canvas,
     hues,
-    (c) => c.blue >= SELECTION_PIXELS,
-    'selecting an opening should paint its own parts in the selection colour',
+    (c) => c.blue >= SELECTION_PIXELS && c.blue <= SELECTION_CEILING,
+    'selecting an opening should paint its own parts, and no others, in the selection colour',
   )
   expect(blue, `selection colour: measured ${blue} px`).toBeGreaterThanOrEqual(SELECTION_PIXELS)
+  expect(blue, `selection colour: measured ${blue} px`).toBeLessThanOrEqual(SELECTION_CEILING)
 
   // Gate 3: and it clears when the selection moves off. Clicking empty canvas is what deselects
   // without leaving the 3D tab — the elevation background the unit tests click for that is on the

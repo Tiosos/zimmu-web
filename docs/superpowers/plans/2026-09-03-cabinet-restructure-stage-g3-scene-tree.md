@@ -70,7 +70,7 @@ Do not re-derive these; do not assume anything not listed here.
 This module is handed **already-resolved** openings. It never resolves, never validates, never
 touches materials — so its tests build an openings array by hand and need none of that machinery.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/scene/sectionNodes.test.ts`:
 
@@ -175,12 +175,12 @@ describe('sectionNodes', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/scene/sectionNodes.test.ts`
 Expected: FAIL — `Failed to resolve import "./sectionNodes"`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `src/scene/sectionNodes.ts`:
 
@@ -233,12 +233,12 @@ Do **not** swap in a lazy quantifier expecting a behaviour change, and do not mu
 swap: the two are equivalent, so it survives because there is nothing to catch, not because a test
 is missing.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/scene/sectionNodes.test.ts`
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Mutation check**
+- [x] **Step 5: Mutation check**
 
 Back up with `cp` to the scratchpad and restore from that copy — **never `git checkout`**. Use
 `grep -F` (fixed string, NOT `-E`) after applying and after restoring, and prefer `diff -q` as the
@@ -254,7 +254,7 @@ authority, since a mutated string can be a prefix of the restored line.
 
 No survivor may be left unresolved: write the test that kills it, or delete the line it proves dead.
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 Expected: **1667 passed | 10 skipped** (1661 + 6).
@@ -288,7 +288,7 @@ its tests need neither materials nor a validator.
 This task adds the variant and makes the tree compile again. It changes **no behaviour**: every new
 branch is a no-op. Behaviour arrives in Tasks 3–7.
 
-- [ ] **Step 1: Add the variant**
+- [x] **Step 1: Add the variant**
 
 In `src/scene/types.ts`, replace line 237:
 
@@ -304,7 +304,7 @@ export type Selection =
 
 `SectionId` is already imported in this file — check before adding an import.
 
-- [ ] **Step 2: Let the compiler find the work**
+- [x] **Step 2: Let the compiler find the work**
 
 Run: `pnpm typecheck`
 
@@ -321,14 +321,14 @@ const selectedId = selection?.kind === 'part' ? selection.id : null
 A section selection yields `null`, which is correct: the keyboard shortcuts and `suggestJointsFor`
 act on parts, and a section is not one.
 
-- [ ] **Step 3: Run the full suite**
+- [x] **Step 3: Run the full suite**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 Expected: **1667 passed | 10 skipped** — unchanged from Task 1, because nothing behaves differently.
 
 If any test fails, a branch was given behaviour rather than made a no-op. Find it and neutralise it.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```
 feat(scene): Selection can name a section
@@ -352,7 +352,7 @@ find the carcase without a second lookup and a stale pick clears itself.
 
 `sectionPick` and its derivation go; `selectedSectionId` is computed from `selection` instead.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/App.test.tsx`, following the file's existing `mockUseScene` / `makeDefaultSceneReturn`
 harness:
@@ -386,13 +386,13 @@ it('keeps one selection: picking a section is the selection, not a second piece 
 Add `CARCASE_PRESETS` and `PRESET_MATERIALS` to the file's imports from `./scene/carcasePresets` if
 they are not already there.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/App.test.tsx`
 Expected: FAIL — `selectedCarcase` does not yet consider a section selection, so no editor mounts and
 there is no `tablist`.
 
-- [ ] **Step 3: Replace the state with a derivation**
+- [x] **Step 3: Replace the state with a derivation**
 
 Delete the `sectionPick` state and its `selectedSectionId` block at `src/App.tsx:136-143`, and
 replace with:
@@ -437,7 +437,7 @@ Add the third case to `selectedCarcase`'s memo so a section selection keeps its 
 Place it beside the existing `selection?.kind === 'component'` branch, before the open-cabinet
 fallback.
 
-- [ ] **Step 3b: Clear a section selection whose cabinet is deleted**
+- [x] **Step 3b: Clear a section selection whose cabinet is deleted**
 
 Found during Task 2's spec review, deferred to here because it is a behaviour change and Task 2's
 success criterion was an unchanged test count.
@@ -479,12 +479,12 @@ assert the selection is `null`. Then **check what the component case actually do
 the section case match it** — do not assume; run it. The two kinds differing there would be an
 unstated behavioural difference, which is the thing this step exists to remove.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/App.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation check**
+- [x] **Step 5: Mutation check**
 
 | # | Mutation | Must fail |
 |---|---|---|
@@ -492,7 +492,7 @@ Expected: PASS.
 | 2 | `onSelectSection(null)` emits `null` instead of the component | *keeps one selection…* — the editor closes |
 | 3 | Drop the `kind === 'section'` case from `selectedCarcase` | *keeps one selection…* |
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -529,7 +529,7 @@ editor the click was made in.
 > cabinets from different presets. Fixing the collision is its own change (see the notes
 > file) — do not fix it here.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/ui/SceneTree.test.tsx`, matching whatever render helper that file already uses. **A
 preset has only one opening**, so a multi-opening case must build a split tree:
@@ -567,12 +567,12 @@ it('selects the opening when its row is clicked', async () => {
 Import `legacyToSection` from `../scene/migrateSections` and `CARCASE_PRESETS` / `PRESET_MATERIALS`
 from `../scene/carcasePresets`.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/ui/SceneTree.test.tsx`
 Expected: FAIL — no `node-sec_*` rows exist, and `materials` is not a prop.
 
-- [ ] **Step 3: Give `SceneTree` what it needs to resolve**
+- [x] **Step 3: Give `SceneTree` what it needs to resolve**
 
 Add to `SceneTreeProps`:
 
@@ -586,7 +586,7 @@ and pass it at `src/ui/sidebar.tsx:222`, where `scene.materials` is already in s
               materials={scene.materials}
 ```
 
-- [ ] **Step 4: Widen the collapse set and render the rows**
+- [x] **Step 4: Widen the collapse set and render the rows**
 
 `collapsed` currently holds component ids only; a section row collapses the same way. Change
 `SceneTree.tsx:61` and `toggleCollapsed`'s parameter:
@@ -693,12 +693,12 @@ and add:
 
 No visibility, duplicate or remove control on the row — selection only.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `pnpm vitest run src/ui/SceneTree.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 6: Mutation check**
+- [x] **Step 6: Mutation check**
 
 | # | Mutation | Must fail |
 |---|---|---|
@@ -709,7 +709,7 @@ Expected: PASS.
 
 Mutation 4 will survive without a test, and that is the load-bearing guard. Write it.
 
-- [ ] **Step 7: Full suite and commit**
+- [x] **Step 7: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -739,7 +739,7 @@ merely invalid geometry, which does not throw.
 Without this, selecting an opening unmounts `CarcasePanel` and its shelving and front controls
 vanish at the moment you pick the opening they belong to.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/ui/sidebar.test.tsx`, using its existing `props()` builder:
 
@@ -759,12 +759,12 @@ it('shows the carcase panel for a section selection, so the opening keeps its co
 The `props()` builder must already supply a carcase component with id `cmp_1`; if it does not, add
 one rather than changing what other tests see.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/ui/sidebar.test.tsx`
 Expected: FAIL — `Unable to find a label with the text of: Dividers`.
 
-- [ ] **Step 3: Derive the carcase from either kind**
+- [x] **Step 3: Derive the carcase from either kind**
 
 Replace `src/ui/sidebar.tsx:117`:
 
@@ -786,19 +786,19 @@ requires `CarcaseComponent`. The error surfaces at the `<CarcasePanel component=
 call, not at the `find`. Narrowing a single-variable discriminant afterwards is also the minimal
 edit — it is what the line being replaced already did. (The array in scope is `scene.components`.)
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/ui/sidebar.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation check**
+- [x] **Step 5: Mutation check**
 
 | # | Mutation | Must fail |
 |---|---|---|
 | 1 | Drop the `kind === 'section'` arm | *shows the carcase panel for a section selection* |
 | 2 | `selection.cabinetId` → `selection.sectionId` | same test — a section id is not a component id |
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -830,7 +830,7 @@ than reusing either.
 and `suggestJointsFor` both need it. Converting it to a set would leave the app carrying a scalar
 *and* a set for one idea.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/App.test.tsx`. Mock the viewport to capture its props, following the pattern
 `App.test.tsx` already uses for `DrawingViewer`:
@@ -857,12 +857,12 @@ it('highlights every part of a selected opening', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/App.test.tsx`
 Expected: FAIL — `selectedIds` is `undefined`.
 
-- [ ] **Step 3: Add the prop**
+- [x] **Step 3: Add the prop**
 
 In `src/render/viewport.tsx`, add to the props interface beside `highlightedIds` (line 34):
 
@@ -888,7 +888,7 @@ Add `selectedIds` to that effect's dependency array at line 565.
 Leave line 562 (`emissive`) and the flash path at line 305 alone: both key off the single selected
 part, and a section has no single part to flash.
 
-- [ ] **Step 4: Compute it in `App`**
+- [x] **Step 4: Compute it in `App`**
 
 Beside `highlightedIds` (around `src/App.tsx:182`):
 
@@ -962,12 +962,12 @@ copy Step 0 exists to prevent.
 
 There is exactly **one** place a cabinet's openings are resolved. A third caller imports it.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `pnpm vitest run src/App.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 6: Mutation check**
+- [x] **Step 6: Mutation check**
 
 | # | Mutation | Must fail |
 |---|---|---|
@@ -989,7 +989,7 @@ is false. `e2e/suggestion-highlight.spec.ts` already pixel-counts the *sibling* 
 The same pattern applies to selection blue `0x4fc3f7` on a split cabinet in about forty lines. That
 belongs in **Task 8**, which is where this plan now carries it.
 
-- [ ] **Step 7: Full suite and commit**
+- [x] **Step 7: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -1018,7 +1018,7 @@ and a set for one idea.
 The tree says "Opening 2". Nothing in the app names an opening today, so without this the name
 cannot be located — and a name nobody can find is worse than no name.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/ui/SectionElevation.test.tsx`:
 
@@ -1064,12 +1064,12 @@ it('numbers each opening in the order sectionOpenings returns them', () => {
 })
 ```
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `pnpm vitest run src/ui/SectionElevation.test.tsx`
 Expected: FAIL — the SVG contains no `<text>` at all.
 
-- [ ] **Step 3: Draw the number**
+- [x] **Step 3: Draw the number**
 
 In the `sectionOpenings(...).map((o) => {` block, change the callback signature to `(o, i)` and add a
 label after the existing `<rect>`, inside the same fragment. The rect currently returns bare — wrap
@@ -1095,13 +1095,13 @@ it:
 
 `pointer-events-none` matters: the number must not swallow the click that selects the cell.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm vitest run src/ui/SectionElevation.test.tsx`
 Expected: PASS — including the file's existing click tests, which would break if the text
 intercepted pointer events.
 
-- [ ] **Step 5: Mutation check**
+- [x] **Step 5: Mutation check**
 
 | # | Mutation | Must fail | Actual |
 |---|---|---|---|
@@ -1110,7 +1110,7 @@ intercepted pointer events.
 | 2b | Sort by `z0` then `x0` — the reading-order slip, and this fixture's tree order | same test | killed — read `1, 3, 2` |
 | 3 | Remove `pointer-events-none` | an existing "clicking a cell selects it" test — **if none fails, happy-dom is not modelling pointer interception**; say so rather than assuming it is covered | **survived all 1691 tests.** No stylesheet is loaded, so the Tailwind class has no computed effect, and `user-event` checks the clicked element's ancestors rather than hit-testing — the `<text>` is a sibling. Survives Vitest, but **not** uncovered: `e2e/carcase.spec.ts` clicks a cell's centre three times and those tests fail with the class removed — measured. The gap is unit-only |
 
-- [ ] **Step 6: Full suite and commit**
+- [x] **Step 6: Full suite and commit**
 
 Run: `pnpm typecheck && pnpm lint && pnpm test`
 
@@ -1161,7 +1161,7 @@ in the same way, and a sibling e2e was already covering it outright. **Before ro
 work, run the tests that plausibly touch it** — the cost is one command and the alternative is
 writing a test that already exists.
 
-- [ ] **Step 0: the highlight colour, which nothing else in this plan covers**
+- [x] **Step 0: the highlight colour, which nothing else in this plan covers**
 
 Added after Task 6's review. Task 6 can assert only the `selectedIds` prop `App` hands the viewport:
 there is no `viewport.test.tsx`, every unit consumer mocks the viewport, and happy-dom has no WebGL,
@@ -1210,7 +1210,7 @@ Three practicalities, each verified against the tree, that will otherwise cost a
   calibrated pixel matcher was rejected: two copies of a threshold eventually disagree, and this
   codebase has an invariant about exactly that.
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 Append to `e2e/carcase.spec.ts`, reusing `OCCT_READY_TIMEOUT` which that file already defines:
 
@@ -1249,7 +1249,7 @@ test('an opening selected in the tree is the opening the elevation shows', async
 Check `SectionToolbar`'s real button label before running — the plan assumes "Split down". If it
 differs, use the real one; do not loosen the selector to a substring that could match two buttons.
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run:
 `PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npx playwright test e2e/carcase.spec.ts`
@@ -1260,13 +1260,13 @@ Expected: **11** passed in that file, **25** across the suite — two new tests 
 (This plan's first draft said 7 and 24, written when `carcase.spec.ts` held 6 tests. Count the file
 before trusting a number a plan gives you.)
 
-- [ ] **Step 3: Prove it guards something**
+- [x] **Step 3: Prove it guards something**
 
 Mutate `SceneTree`'s section row to emit `{kind:'component', id: component.id}` instead of the
 section selection, re-run, and confirm this test fails. Restore with `cp` from the backup and verify
 with `diff -q`. A green e2e that passes under that mutation is testing the screen, not the rule.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```
 test(e2e): an opening picked in the tree is the one the elevation shows
