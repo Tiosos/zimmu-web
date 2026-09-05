@@ -102,7 +102,7 @@ export function openingRect(p: CarcaseParams, thicknessOf: RoleThickness): Rect 
 
 // A division panel is as thick as the panel it is, not as thick as the cabinet: the tree asks by
 // parent section and index, which is exactly what the box table names the role after.
-function sectionThickness(thicknessOf: RoleThickness): DivisionThickness {
+export function sectionThickness(thicknessOf: RoleThickness): DivisionThickness {
   return (parentId, index) => thicknessOf(`division-${parentId}-${index}`)
 }
 

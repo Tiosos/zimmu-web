@@ -1,9 +1,6 @@
 import { useState } from 'react'
-import { openingRect, validateCarcaseParams } from '../scene/carcaseRoles'
-import { overridesOf, roleThicknessFor } from '../scene/resolveThickness'
-import { sectionNodes, type SectionNode } from '../scene/sectionNodes'
-import { sectionOpenings } from '../scene/sectionInterior'
-import { resolveSections } from '../scene/sectionTree'
+import { carcaseOpenings } from '../scene/carcaseOpenings'
+import type { SectionNode } from '../scene/sectionNodes'
 import type {
   CarcaseComponent,
   Component,
@@ -219,24 +216,12 @@ export function SceneTree({
     )
   }
 
-  // A carcase's parts are grouped by the opening that owns them; everything else renders flat.
-  // `openingRect` reads thicknesses through a resolver that is fatal by design, so a cabinet naming
-  // a material the scene cannot resolve would throw here — an unbuildable one falls back to the
-  // flat tree that existed before this rather than taking the whole tree down with it.
-  const carcaseGroups = (component: CarcaseComponent, own: Part[]) => {
-    const thicknessOf = roleThicknessFor(component.params, materials, overridesOf(own, component.id))
-    if (validateCarcaseParams(component.params, thicknessOf).length > 0) return null
-    const tree = resolveSections(
-      component.params.section,
-      openingRect(component.params, thicknessOf),
-      (parentId, index) => thicknessOf(`division-${parentId}-${index}`),
-    )
-    return sectionNodes(sectionOpenings(component.params.section, tree), own)
-  }
-
+  // A carcase's parts are grouped by the opening that owns them; everything else renders flat. A
+  // cabinet `carcaseOpenings` cannot resolve falls back to the flat tree that existed before this,
+  // rather than taking the whole tree down with it.
   const renderCarcaseChildren = (component: CarcaseComponent, depth: number) => {
     const own = parts.filter((p) => p.parentId === component.id)
-    const groups = carcaseGroups(component, own)
+    const groups = carcaseOpenings(component, own, materials)
     if (groups === null) return renderChildren(component.id, depth)
     return (
       <>
