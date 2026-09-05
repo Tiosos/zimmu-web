@@ -1138,6 +1138,24 @@ section tree happens to be written.
 skipped the split would assert against a one-opening cabinet and pass whether or not the grouping
 worked — which is the failure mode Stage G2 Task 15 found in its own End-view test.
 
+- [ ] **Step 0b: the opening number must not swallow the click, which nothing else covers either**
+
+Added after Task 7's review, and the second gap this plan has routed here. Task 7 draws the opening
+number over its cell with `pointer-events-none`, and removing that class **passes the whole Vitest
+suite** — measured, not assumed. Two independent reasons, both structural: happy-dom loads no
+stylesheet, so a Tailwind class has no computed effect at all; and `user-event` checks
+`pointer-events` on the clicked element and its *ancestors* rather than hit-testing, while the
+`<text>` is a **sibling** of the `<rect>`. `fireEvent.click` never consults styles either.
+
+It is load-bearing in a browser: the `onClick` sits on the `<rect>`, not on the wrapping `<g>`, so a
+click landing on the glyph reaches nothing and the cell does not select.
+
+Pin it here, in the same spec as Step 0 — the cabinet is already split and its cells already
+numbered. Click a cell at its **centre**, where the number is, and assert the opening becomes
+selected. A click near a corner would pass with or without the class and is the easy mistake:
+Playwright's default click targets the element's centre, so `cell.click()` is already the right
+gesture and an offset would *weaken* it.
+
 - [ ] **Step 0: the highlight colour, which nothing else in this plan covers**
 
 Added after Task 6's review. Task 6 can assert only the `selectedIds` prop `App` hands the viewport:
