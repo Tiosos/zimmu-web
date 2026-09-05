@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { sectionNodes } from './sectionNodes'
 import type { SectionOpening } from './sectionInterior'
 import type { BoardPart, Part } from './types'
+import { CARCASE_PRESETS } from './carcasePresets'
+import { legacyToSection } from './migrateSections'
+import { seedInteriors, defaultInterior } from './sectionInterior'
+import { partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 
 // Only `sectionId` is read. `section` is required by the type and deliberately absent — the cast
 // is what allows that, so a future read of `.section` fails here at runtime rather than at
@@ -90,6 +94,52 @@ describe('sectionNodes', () => {
     )
     expect(sections[0].parts).toEqual([])
     expect(carcase.map((p) => p.id)).toEqual(['board_1'])
+  })
+
+
+  // The spec's second invariant, and the one this module cannot enforce on its own: an unrecognised
+  // role falls to `carcase`, silently and by design. That is right for a divider and wrong for a
+  // family nobody has classified yet — a `drawer-box-{sectionId}-{n}` would belong to its opening
+  // and land in the carcase without a word. So the generator's whole output is swept and every role
+  // required to match a family somebody decided about.
+  //
+  // `ladder-*` is in the table without being in the sweep: no preset emits it (it needs
+  // `baseMode: 'ladder'`), but it exists in `carcaseRoles.ts`, and a table that omitted it would
+  // fail the day someone swept a ladder base rather than the day a family was added.
+  it('classifies every role the generator emits, so a new family cannot arrive unnoticed', () => {
+    const OWNED = [/^front-.+-\d+$/, /^adj-shelf-.+-\d+$/, /^fixed-shelf-.+-\d+$/]
+    const CARCASE = [
+      /^division-.+-\d+$/,
+      /^(left-side|right-side|top|bottom|back|toe-kick)$/,
+      /^ladder-(front|back|left|right)$/,
+      /^ladder-mid-\d+$/,
+    ]
+
+    // Every preset, plus a split tree — no preset has more than one opening, so without this the
+    // sweep never sees a `division-` at all.
+    const cabinets = [
+      ...CARCASE_PRESETS.map((p) => p.params),
+      {
+        ...CARCASE_PRESETS[0].params,
+        section: seedInteriors(legacyToSection([0.33, 0.66], 1, 600, 18), defaultInterior(2)),
+      },
+    ]
+
+    const roles = new Set<string>()
+    for (const params of cabinets) {
+      for (const part of partsOfCarcase(params)) if (part.role !== undefined) roles.add(part.role)
+    }
+    // Guards the sweep itself: an empty set would satisfy every assertion below.
+    expect(roles.size).toBeGreaterThan(8)
+
+    const unclassified = [...roles].filter(
+      (r) => !OWNED.some((p) => p.test(r)) && !CARCASE.some((p) => p.test(r)),
+    )
+    expect(unclassified).toEqual([])
+
+    // And the two halves are disjoint: a family cannot be claimed by an opening and by the carcase.
+    const both = [...roles].filter((r) => OWNED.some((p) => p.test(r)) && CARCASE.some((p) => p.test(r)))
+    expect(both).toEqual([])
   })
 
   it('returns every part as carcase when there are no openings', () => {

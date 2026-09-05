@@ -1,6 +1,6 @@
 # Cabinet restructure Stage G3 — the scene tree mirrors the section tree
 
-**Status:** **Complete.** Shipped 2026-09-05 in nine tasks. Unit 1661 → **1694** (10 skipped) across 86 files; e2e 23 → **25**. `FILE_FORMAT_VERSION` unchanged at 17. One test this document asks for was not written — the sweep asserting every driven role in all three presets is classified; see the stage-close entry in the notes.
+**Status:** **Complete.** Shipped 2026-09-05 in nine tasks. Unit 1661 → **1695** (10 skipped) across 86 files; e2e 23 → **25**. `FILE_FORMAT_VERSION` unchanged at 17. Both invariants this document names are tested, including the classification sweep, which was missing until close — see the stage-close entry in the notes for why eight tasks did not catch it.
 
 **Goal:** A cabinet's openings appear in the scene tree as selectable rows, with the parts each
 opening owns nested under it — so the tree, the elevation and the 3D model are three views of one

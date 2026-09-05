@@ -1557,7 +1557,7 @@ close to free and is the obvious fix; recorded rather than done, since it is nob
 
 ### 2026-09-03 — Stage G3 closed
 
-**Counts.** Unit 1661 → **1694** (10 skipped) across 86 files, 85 of them under `src/`; e2e 23 →
+**Counts.** Unit 1661 → **1695** (10 skipped) across 86 files, 85 of them under `src/`; e2e 23 →
 **25** across 9 Playwright specs. Measured at close rather than predicted: a full `pnpm test` and a
 full `npx playwright test`, both green. `FILE_FORMAT_VERSION` is still **17** — the stage's own
 acceptance line, and it holds because nothing in `regenerateComponents` or `carcaseRoles` was
@@ -1617,13 +1617,22 @@ none was left unresolved:
   6932 px against the honest 1759–1880. `SELECTION_CEILING` was added, measured independently of the
   floor and asserted on the settled reading rather than polled.
 
-**One test this spec asks for was never written.** The G3 spec lists, as one of the two invariants
-`sectionNodes` carries, *"Every driven part is classified"* — a sweep asserting every role all three
-presets emit matches a known pattern, so that a family added later (`drawer-box-…`) fails loudly
-rather than landing silently in `carcase`. `sectionNodes.test.ts` has six tests and none is that
-sweep; nothing else in the repo asserts it either. Recorded rather than written, because Task 9 is
-documentation and adding a test would move the counts this entry states. It is about ten lines over
-`CARCASE_PRESETS` and it should be the next thing anyone touching this module writes.
+**One test this spec asks for was missing until close, and is the last thing the stage added.** The
+G3 spec lists, as one of the two invariants `sectionNodes` carries, *"Every driven part is
+classified"* — a sweep asserting every role the presets emit matches a known pattern, so a family
+added later (`drawer-box-…`) fails loudly rather than landing silently in `carcase`. Eight tasks and
+two review gates per task did not notice it was absent, because every one of them asked whether the
+code did what the *task* said, and this claim lived in the spec.
+
+Written at close rather than deferred: a spec invariant with no test is the thing this whole stage
+was about. It sweeps all three presets plus a split tree — no preset emits a `division-` — and
+requires every role to match either an opening-owned family or a carcase one, with the two sets
+proved disjoint and a `roles.size > 8` guard so an empty sweep cannot satisfy it. Mutation-checked
+with the spec's own example: renaming an emitted `fixed-shelf-` to `drawer-box-` fails it.
+
+`ladder-*` is in the table without being in the sweep. No preset emits it — it needs
+`baseMode: 'ladder'` — but it exists in `carcaseRoles.ts`, and a table omitting it would fail the
+day someone swept a ladder base rather than the day a family was added, which is the wrong day.
 
 **Three documentation defects fixed or recorded at close, all created by this stage.**
 
