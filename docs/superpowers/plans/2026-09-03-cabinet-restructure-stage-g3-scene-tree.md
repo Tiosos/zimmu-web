@@ -837,8 +837,14 @@ Append to `src/App.test.tsx`. Mock the viewport to capture its props, following 
 
 ```tsx
 it('highlights every part of a selected opening', () => {
-  // Two doors on one opening, plus a side that belongs to no opening.
-  const parts = [ /* front-<sec>-0, front-<sec>-1, left-side — built from the file's part fixture */ ]
+  // MUST be a two-bay cabinet. **All three presets resolve to exactly ONE opening**, and against a
+  // single opening "this opening's parts" and "every opening's parts" are the same set — so a
+  // `sections.flatMap` mutation survives a preset fixture entirely. Build the tree the way
+  // `SceneTree.test.tsx` does: `seedInteriors(legacyToSection([0.5], 0, 600, 18), defaultInterior(2))`.
+  // Note the bays then own only `adj-shelf-` boards: `front` comes from the separate `doored()`
+  // wrapper in `carcasePresets.ts`, not from `legacyToSection`, so wrap it too if you want the
+  // fixture to exercise more than one arm of the ownership regex.
+  const parts = [ /* built from the file's part fixture over that two-bay tree */ ]
   mockUseScene.mockReturnValue({
     ...makeDefaultSceneReturn(),
     scene: { parts, materials: PRESET_MATERIALS, hardware: [], joints: [], components: [carcase] },
@@ -920,14 +926,22 @@ Beside `highlightedIds` (around `src/App.tsx:182`):
 // The opening's own parts. Resolved through the same `carcaseOpenings` the scene tree uses, so the
 // two cannot disagree about which parts an opening owns.
 const selectedIds = useMemo(() => {
-  if (selection?.kind !== 'section' || selectedCarcase === null) return []
+  if (selectedCarcase === null || selectedSectionId === null) return []
   const own = scene.parts.filter((p) => p.parentId === selectedCarcase.id)
   const groups = carcaseOpenings(selectedCarcase, own, scene.materials)
   return (
-    groups?.sections.find((s) => s.sectionId === selection.sectionId)?.parts.map((p) => p.id) ?? []
+    groups?.sections.find((s) => s.sectionId === selectedSectionId)?.parts.map((p) => p.id) ?? []
   )
-}, [selection, selectedCarcase, scene.parts, scene.materials])
+}, [selectedCarcase, selectedSectionId, scene.parts, scene.materials])
 ```
+
+**Read `selectedSectionId`, never `selection.sectionId`.** This plan's first draft read the raw
+selection, which lights up the wrong cabinet's opening — measured, not theorised. `selectedCarcase`
+falls back to the *previously open* cabinet when a section selection names a cabinet the scene no
+longer holds, and section ids are shared by every cabinet built from one preset (`params:
+preset.params` is assigned by reference), so the `find` then matches the same-numbered opening of
+the cabinet on screen. `selectedSectionId` already carries that guard, so reading it states the rule
+once. The defective version compiles and lints — `tsc` will not save you.
 
 An unbuildable cabinet returns `null` from `carcaseOpenings`, so the `?? []` covers the guard case
 that used to be its own early return — mutation 3 in the table below still applies, now against the
@@ -961,11 +975,21 @@ Expected: PASS.
 | # | Mutation | Must fail |
 |---|---|---|
 | 1 | `selectedIds` returns every part of the cabinet | *highlights every part of a selected opening* — the side would be included |
-| 2 | Line 556 drops the `selectedIds?.includes(id)` arm | nothing at the App level — **the viewport's colour is untestable in happy-dom, which has no WebGL.** Assert the prop, and say plainly that the colour itself is covered only by eye |
-| 3 | Drop the `validateCarcaseParams` guard | nothing — add the case: an unbuildable cabinet yields `[]` rather than throwing |
+| 1b | `sections.flatMap((s) => s.parts)` — every opening's parts | the same test, **and only against a two-bay fixture**. This is the mutation mutation 1 does not cover, and the reason the fixture above cannot be a preset |
+| 2 | Drops the `selectedIds?.includes(id)` arm in `viewport.tsx` | nothing in Vitest — see below |
+| 3 | Drop the `validateCarcaseParams` guard (now in `carcaseOpenings.ts`) | an unbuildable cabinet yields `[]` rather than throwing — plus five pre-existing sidebar and SceneTree cases |
+| 4 | Read `selection.sectionId` instead of `selectedSectionId` | *ignores a section selection whose cabinet the scene no longer holds* |
 
-Mutation 2 is the honest limit of this task's testing. Do not invent an assertion that appears to
-cover the render; say what is and is not covered.
+Mutation 2 is the honest limit of this task's **unit** testing, and it is structural rather than an
+oversight: there is no `viewport.test.tsx` at all, and every unit consumer mocks the viewport, so
+nothing in Vitest instantiates a material. Assert the prop; do not invent an assertion that appears
+to cover the render.
+
+But **do not write that the colour is "covered only by eye"** — this plan's first draft did, and it
+is false. `e2e/suggestion-highlight.spec.ts` already pixel-counts the *sibling* prop's amber
+(`0xfbbf24`) off a real Playwright screenshot of the live WebGL canvas, with calibrated thresholds.
+The same pattern applies to selection blue `0x4fc3f7` on a split cabinet in about forty lines. That
+belongs in **Task 8**, which is where this plan now carries it.
 
 - [ ] **Step 7: Full suite and commit**
 
@@ -1087,6 +1111,25 @@ section tree happens to be written.
 **No preset has two openings**, so this must split before it can click "Opening 2". An e2e that
 skipped the split would assert against a one-opening cabinet and pass whether or not the grouping
 worked — which is the failure mode Stage G2 Task 15 found in its own End-view test.
+
+- [ ] **Step 0: the highlight colour, which nothing else in this plan covers**
+
+Added after Task 6's review. Task 6 can assert only the `selectedIds` prop `App` hands the viewport:
+there is no `viewport.test.tsx`, every unit consumer mocks the viewport, and happy-dom has no WebGL,
+so dropping the `selectedIds?.includes(id)` arm passes the whole Vitest suite. That is a real gap,
+and it is closable here rather than accepted — `e2e/suggestion-highlight.spec.ts` already
+pixel-counts the sibling `highlightedIds` prop's amber `0xfbbf24` off a live WebGL canvas, with
+calibrated thresholds and an off/on/off poll.
+
+Follow that file's shape for selection blue `0x4fc3f7`: split the cabinet, screenshot with no
+selection, select an opening, screenshot again, and require the blue pixel count to rise and then
+fall when the selection moves off. Read its comments first — it records why a single-colour
+threshold had to sit in a narrow gap, and that reasoning transfers.
+
+Two things to hold to. **Count the colour, do not diff the frame:** a whole-frame `changedFraction`
+would pass on any repaint, including one that recoloured the wrong parts. And **prove the count can
+fall as well as rise** — a monotonic assertion passes against a viewport that highlights
+everything, which is exactly mutation 1 of Task 6.
 
 - [ ] **Step 1: Write the test**
 

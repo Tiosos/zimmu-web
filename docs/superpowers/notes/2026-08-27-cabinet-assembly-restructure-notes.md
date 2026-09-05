@@ -1360,3 +1360,33 @@ Related precision, worth keeping honest: "one selected row in the tree" holds on
 row is rendered. A collapsed cabinet, or one whose params the validator rejects, renders no opening
 rows at all, so a section selection then highlights nothing. Pre-existing from Task 4 and correct —
 there is no row to light — but the invariant is narrower than its one-line statement.
+
+**A one-opening fixture cannot test opening ownership.** Every one of the three presets resolves to
+exactly one opening, so against a preset fixture "this opening's parts" and "every opening's parts"
+are the same set. Task 6's plan sketched its test on Base 600; a `sections.flatMap` mutation would
+have survived it. Measured both ways: the mutation fails the two-bay fixture that shipped, and
+passes a plan-shaped Base 600 probe with the mutation still in place.
+
+Worth separating from the `width: 6` case earlier in these notes, because the two are different
+species of the same disease. There, the fixture picked a value that did not reach the code under
+test. Here, the fixture is perfectly valid — it just has one of the thing whose *plurality* is the
+whole point. Any test about "which of several X owns Y" needs at least two X, and a fixture built
+from defaults will rarely have them.
+
+Related, and cheap to lose track of: the two-bay tree is built by `legacyToSection`, and `front`
+comes from a separate `doored()` wrapper in `carcasePresets.ts` rather than from the migration. So
+those bays own only `adj-shelf-` boards and the App-level test exercises one arm of the ownership
+regex where the preset fixture exercised two. Accepted rather than fixed: `sectionNodes.test.ts`
+pins all three role families and the `division-` exclusion directly, which is where that rule
+belongs. Wrapping the fixture in `doored()` would recover the mix if it ever matters.
+
+**"Covered only by eye" was too quick.** Task 6's plan said the viewport highlight colour could not
+be tested and left it there. The unit half is true and structural — there is no `viewport.test.tsx`,
+every unit consumer mocks the viewport, and happy-dom has no WebGL, so dropping the colour arm
+passes all 1686 tests. But `e2e/suggestion-highlight.spec.ts` already pixel-counts the *sibling*
+prop's amber off a live WebGL canvas with calibrated thresholds. The pattern exists, in this repo,
+working. The gap was the plan's for not routing it to Task 8, not the implementer's for reporting
+it honestly — and it is now Task 8 Step 0.
+
+The general form: "untestable" is a claim about the current suite, not about the system. Before
+accepting one, check whether a sibling feature already tests the same kind of thing.
