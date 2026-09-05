@@ -1197,6 +1197,19 @@ Three practicalities, each verified against the tree, that will otherwise cost a
    `g > 180 && b - g < 60` separates them. The amber spec's "narrow gap" comment is about a
    *different* neighbour; read it for method, not for the threshold.
 
+**Decisions taken before Step 1, so they are not re-litigated mid-task:**
+
+- **Two tests, not one.** Step 0's colour test and Step 1's structural test stay separate, so a
+  pixel-threshold flake fails only the colour assertion and leaves the tree↔elevation rule green and
+  diagnostic. The extra cabinet setup is worth the failure attribution.
+- **The pixel helpers move to `e2e/canvas.ts`.** `countPixels`, the `Match` type and `pollHues` are
+  module-private in `suggestion-highlight.spec.ts` today. `e2e/canvas.ts` already exists as a shared
+  e2e helper module *with its own unit test*, so there is precedent and a home. Extract them there,
+  point the existing amber spec at the extraction, and confirm that spec still passes before writing
+  anything new — the extraction is a pure move and its evidence is an unchanged result. Duplicating a
+  calibrated pixel matcher was rejected: two copies of a threshold eventually disagree, and this
+  codebase has an invariant about exactly that.
+
 - [ ] **Step 1: Write the test**
 
 Append to `e2e/carcase.spec.ts`, reusing `OCCT_READY_TIMEOUT` which that file already defines:
@@ -1240,7 +1253,9 @@ Run:
 
 **Never run `playwright install`.** Chromium is pre-installed and the config reads that env var.
 
-Expected: 7 passed in that file, 24 across the suite.
+Expected: **11** passed in that file, **25** across the suite — two new tests on a base of 9 and 23.
+(This plan's first draft said 7 and 24, written when `carcase.spec.ts` held 6 tests. Count the file
+before trusting a number a plan gives you.)
 
 - [ ] **Step 3: Prove it guards something**
 
