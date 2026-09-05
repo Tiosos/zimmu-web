@@ -1108,7 +1108,7 @@ intercepted pointer events.
 | 1 | `{i + 1}` → `{i}` | *numbers each opening in the order…* | killed — read `0, 1, 2` |
 | 2 | Reverse the openings before mapping | same test | killed — read `3, 2, 1` on the cells. The plan's original document-order assertion **survived** this |
 | 2b | Sort by `z0` then `x0` — the reading-order slip, and this fixture's tree order | same test | killed — read `1, 3, 2` |
-| 3 | Remove `pointer-events-none` | an existing "clicking a cell selects it" test — **if none fails, happy-dom is not modelling pointer interception**; say so rather than assuming it is covered | **survived all 1691 tests.** No stylesheet is loaded, so the Tailwind class has no computed effect, and `user-event` checks the clicked element's ancestors rather than hit-testing — the `<text>` is a sibling. Uncovered; only an e2e clicking a cell's centre could pin it |
+| 3 | Remove `pointer-events-none` | an existing "clicking a cell selects it" test — **if none fails, happy-dom is not modelling pointer interception**; say so rather than assuming it is covered | **survived all 1691 tests.** No stylesheet is loaded, so the Tailwind class has no computed effect, and `user-event` checks the clicked element's ancestors rather than hit-testing — the `<text>` is a sibling. Survives Vitest, but **not** uncovered: `e2e/carcase.spec.ts` clicks a cell's centre twice and both tests fail with the class removed — measured. The gap is unit-only |
 
 - [ ] **Step 6: Full suite and commit**
 
@@ -1138,23 +1138,28 @@ section tree happens to be written.
 skipped the split would assert against a one-opening cabinet and pass whether or not the grouping
 worked — which is the failure mode Stage G2 Task 15 found in its own End-view test.
 
-- [ ] **Step 0b: the opening number must not swallow the click, which nothing else covers either**
+- [x] **Step 0b: the opening number's click — already covered, nothing to write**
 
-Added after Task 7's review, and the second gap this plan has routed here. Task 7 draws the opening
-number over its cell with `pointer-events-none`, and removing that class **passes the whole Vitest
-suite** — measured, not assumed. Two independent reasons, both structural: happy-dom loads no
-stylesheet, so a Tailwind class has no computed effect at all; and `user-event` checks
-`pointer-events` on the clicked element and its *ancestors* rather than hit-testing, while the
-`<text>` is a **sibling** of the `<rect>`. `fireEvent.click` never consults styles either.
+Recorded rather than removed, because the reasoning that produced it was wrong in an instructive way.
 
-It is load-bearing in a browser: the `onClick` sits on the `<rect>`, not on the wrapping `<g>`, so a
-click landing on the glyph reaches nothing and the cell does not select.
+Task 7 found that removing `pointer-events-none` from the opening number passes the whole Vitest
+suite, and I routed it here as new e2e work on the stated grounds that "only an e2e clicking a
+cell's centre could pin it". Both halves of that were checked: the first is right, the second is
+not. **`e2e/carcase.spec.ts` already clicks a cell's centre, twice.** Measured by running them with
+the class removed: both fail, on Playwright's actionability check flagging the intercepting
+`<text>`. So the gap never existed at the e2e layer — only at the unit layer, where it cannot be
+closed.
 
-Pin it here, in the same spec as Step 0 — the cabinet is already split and its cells already
-numbered. Click a cell at its **centre**, where the number is, and assert the opening becomes
-selected. A click near a corner would pass with or without the class and is the easy mistake:
-Playwright's default click targets the element's centre, so `cell.click()` is already the right
-gesture and an offset would *weaken* it.
+Nothing to add here. What the finding did earn is a comment at both e2e sites, since the coverage is
+**incidental**: nothing at those lines said the click was load-bearing for anything but picking the
+cell, so retargeting it to a corner would have dropped the coverage silently. That comment is
+committed with Task 7.
+
+The lesson is the mirror of the one two tasks ago. There, "covered only by eye" was too pessimistic
+and a sibling e2e already showed how to cover it. Here, "nothing else covers it" was too pessimistic
+in the same way, and a sibling e2e was already covering it outright. **Before routing a gap as new
+work, run the tests that plausibly touch it** — the cost is one command and the alternative is
+writing a test that already exists.
 
 - [ ] **Step 0: the highlight colour, which nothing else in this plan covers**
 

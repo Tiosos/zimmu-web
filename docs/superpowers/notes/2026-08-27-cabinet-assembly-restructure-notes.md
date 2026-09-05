@@ -1453,3 +1453,25 @@ hit-testing — the `<text>` is a sibling of the `<rect>`, never an ancestor. In
 label is painted over the cell and carries no handler, and the `onClick` sits on the `<rect>` rather
 than on the wrapping `<g>`, so a click on the glyph would reach nothing. The class is load-bearing
 and no unit test can say so; an e2e clicking the centre of a cell is the only thing that could.
+
+**"Nothing else covers it" is a claim to test, not to assert.** Task 7 found that removing
+`pointer-events-none` from the opening number passes all 1691 Vitest tests, and I routed that to
+Task 8 as new e2e work, on the stated grounds that only an e2e clicking a cell's centre could pin
+it. The first half was right. The second was wrong, and one command showed it:
+`e2e/carcase.spec.ts` already clicks a cell's centre twice, and with the class removed **both tests
+fail** — Playwright's actionability check flags the intercepting `<text>`. Baseline re-run first, so
+the failure is the mutation's and not the environment's.
+
+This is the exact mirror of the highlight-colour finding a task earlier, where "covered only by eye"
+was too pessimistic because a sibling e2e already showed the technique. Same error, opposite
+direction: there the technique existed and was unused; here the coverage existed and was unnoticed.
+Both came from reasoning about the suite instead of running it.
+
+So: **before routing a gap as new work, run the tests that plausibly touch it.** The cost is one
+command; the alternative is writing a test that already exists — and, worse, recording a false claim
+about what the suite covers, which is the same defect class as an inaccurate comment.
+
+The coverage here is **incidental**, which is its own hazard: nothing at those two e2e lines said the
+click was load-bearing for anything beyond picking the cell, so retargeting it to a corner or an
+offset would have dropped the coverage in silence. Both sites now say so. Incidental coverage that
+nobody has written down is one refactor away from not existing.

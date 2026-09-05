@@ -63,6 +63,13 @@ test('setting an opening\u2019s shelf count drops that many boards', async ({ pa
   // The elevation is the picker. Selecting the cabinet opened the Section tab beside the sidebar,
   // and clicking the preset's single cell is what hands the panel a section to edit — without it
   // the panel says to pick one instead of showing a field.
+  //
+  // This click is also the only thing in the repo pinning the opening number's `pointer-events-none`
+  // (`SectionElevation.tsx`). Playwright clicks an element's centre, which is exactly where the
+  // digit is painted, and its actionability check fails on the intercepting `<text>` — measured:
+  // removing that class fails this test and the next one, while the whole Vitest suite stays green,
+  // because happy-dom loads no stylesheet. Do not retarget this click to a corner or an offset; the
+  // coverage is incidental and would vanish silently.
   await page.locator('[data-testid^="section-cell-"]').first().click()
 
   // Exact: "Fixed shelves" is a substring match on the same word, and Playwright's label lookup is
@@ -95,6 +102,8 @@ test('changing an opening\u2019s front changes the board that covers it', async 
   // Collapsed by default, and its content is `hidden` rather than unmounted — a unit test finds
   // these fields without opening the section and a browser does not.
   await page.getByRole('button', { name: /Front/ }).click()
+  // Centre-click, load-bearing for `pointer-events-none` as well — see the note in the shelf-count
+  // test above.
   await page.locator('[data-testid^="section-cell-"]').first().click()
 
   // A pair splits the one cell into two boards with a reveal between them.
