@@ -3,10 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, act, cleanup, screen, fireEvent, within } from '@testing-library/react'
 import App from './App'
 import { PRESET_MATERIALS } from './scene/carcasePresets'
-import { cabinet, partsOfBase600 } from './geom/__fixtures__/cabinetSheet'
+import { cabinet, partsOfBase600, partsOfCarcase } from './geom/__fixtures__/cabinetSheet'
+import { legacyToSection } from './scene/migrateSections'
+import { defaultInterior, seedInteriors } from './scene/sectionInterior'
 import * as downloadModule from './ui/download'
 import type { DrawingSheet } from './geom/drawing'
-import type { Part, Selection } from './scene/types'
+import type { Part, PartId, Selection } from './scene/types'
 
 const mockUndo = vi.fn()
 const mockRedo = vi.fn()
@@ -80,14 +82,18 @@ function makeDefaultSceneReturn() {
   }
 }
 
-const viewportSpy = vi.hoisted(() => ({ fitRequest: 0 }))
+const viewportSpy = vi.hoisted(() => ({
+  fitRequest: 0,
+  selectedIds: [] as readonly PartId[],
+}))
 
 // Renders a marker rather than null: App shows and hides the viewport by toggling `display` on the
 // wrapper it sits in, so a test asking whether the viewport is showing has to reach that wrapper,
 // and the only handle on it is its child.
 vi.mock('./render/viewport', () => ({
-  Viewport: (props: { fitRequest: number }) => {
+  Viewport: (props: { fitRequest: number; selectedIds: readonly PartId[] }) => {
     viewportSpy.fitRequest = props.fitRequest
+    viewportSpy.selectedIds = props.selectedIds
     return <div data-testid="viewport" />
   },
 }))
@@ -369,6 +375,15 @@ describe('the open cabinet', () => {
     components: [cabinet],
   }
 
+  // One divider makes two bays; two adjustable shelves give each bay more than one part of its own.
+  const TWO_BAY_SECTION = seedInteriors(legacyToSection([0.5], 0, 600, 18), defaultInterior(2))
+  const TWO_BAY_CABINET = { ...cabinet, params: { ...cabinet.params, section: TWO_BAY_SECTION } }
+  const TWO_BAY_PARTS = partsOfCarcase(TWO_BAY_CABINET.params)
+  const BAYS =
+    TWO_BAY_SECTION.content.kind === 'split'
+      ? TWO_BAY_SECTION.content.children.map((c) => c.id)
+      : []
+
   let mockScene: typeof full = full
   let mockSelection: Selection | null = null
 
@@ -536,6 +551,9 @@ describe('the open cabinet', () => {
     await select({ kind: 'section', cabinetId: 'cmp_elsewhere', sectionId })
     expect(editorOpen()).toBe(true)
     expect(screen.queryByRole('button', { name: 'Split across' })).toBeNull()
+    // The 3D highlight reads that same guarded pick, so the rejected selection lights up nothing
+    // rather than the same-numbered opening of whichever cabinet is open.
+    expect(viewportSpy.selectedIds).toEqual([])
   })
 
   // Sidebar's own tests pin the derivation; this is the assembled app moving from the cabinet to
@@ -551,6 +569,37 @@ describe('the open cabinet', () => {
     // And it is *that opening's* panel: `Shelves` renders only once an opening resolves, so it is
     // correctly absent under the component selection above.
     expect(screen.getByLabelText('Shelves')).toBeTruthy()
+  })
+
+  // Two bays, two shelves each. Base 600 resolves to one opening, and against one opening "the
+  // selected opening's parts" and "every opening's parts" are the same set — so a highlight that
+  // ignored the pick entirely would pass.
+  //
+  // What is pinned here is the prop App hands the viewport. The colour the viewport paints with it
+  // is covered by no test in this suite: happy-dom has no WebGL, so nothing here renders a mesh.
+  it('highlights every part of the selected opening and nothing else', async () => {
+    const select = await mount()
+    mockScene = { ...full, parts: TWO_BAY_PARTS, components: [TWO_BAY_CABINET] }
+    await select({ kind: 'section', cabinetId: TWO_BAY_CABINET.id, sectionId: BAYS[0] })
+    // Both of that bay's shelves, and none of the other bay's. The divider between them belongs to
+    // the cabinet rather than to either bay, as do the shell panels and the toe kick.
+    const owned = TWO_BAY_PARTS.filter((p) => p.role?.startsWith(`adj-shelf-${BAYS[0]}-`))
+    expect(owned).toHaveLength(2)
+    expect([...viewportSpy.selectedIds].sort()).toEqual(owned.map((p) => p.id).sort())
+  })
+
+  // The chain that resolves an opening's parts throws on a material that states no thickness, so a
+  // cabinet the scene cannot build has to highlight nothing rather than take the app down. A width
+  // too small for its own panels would not do: that is a validation error the arithmetic below it
+  // propagates happily, so it would survive the guard being deleted.
+  it('highlights nothing for a cabinet the scene cannot build', async () => {
+    const select = await mount()
+    mockScene = {
+      ...full,
+      components: [{ ...cabinet, params: { ...cabinet.params, carcaseMaterial: 'Unobtanium' } }],
+    }
+    await select({ kind: 'section', cabinetId: cabinet.id, sectionId: cabinet.params.section.id })
+    expect(viewportSpy.selectedIds).toEqual([])
   })
 
   // `null` would leave the editor open too, so what this pins is the selection, not the editor.

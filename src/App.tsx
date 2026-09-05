@@ -5,6 +5,7 @@ import { useInteractionMode } from './scene/useInteractionMode'
 import { suggestJointsFor, suggestJointsForScene, synthHit, pairIdsOf } from './scene/suggestJoints'
 import { suggestionOutlines } from './scene/suggestionOutline'
 import { ancestorsOf, componentsById, descendantIds, isNodeVisible } from './scene/componentTree'
+import { carcaseOpenings } from './scene/carcaseOpenings'
 import type { JointSuggestion } from './scene/suggestJoints'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
@@ -170,6 +171,21 @@ function App() {
     const mine = new Set(descendantIds(selectedCarcase.id, scene.components, scene.parts).partIds)
     return scene.parts.filter((p) => mine.has(p.id))
   }, [selectedCarcase, scene.components, scene.parts])
+
+  // An opening's own parts, for the viewport to draw as selected. Resolved through the same
+  // `carcaseOpenings` the scene tree calls, on the same parts and the same materials, so the tree
+  // and the 3D model cannot disagree about which parts an opening owns. It reads `selectedSectionId`
+  // rather than the raw selection so that the pick is guarded once: a section selection naming a
+  // cabinet the scene no longer holds must not light up the same-numbered opening of the cabinet
+  // that is open. A cabinet that cannot be resolved highlights nothing.
+  const selectedIds = useMemo(() => {
+    if (selectedCarcase === null || selectedSectionId === null) return []
+    const own = scene.parts.filter((p) => p.parentId === selectedCarcase.id)
+    const groups = carcaseOpenings(selectedCarcase, own, scene.materials)
+    return (
+      groups?.sections.find((s) => s.sectionId === selectedSectionId)?.parts.map((p) => p.id) ?? []
+    )
+  }, [selectedCarcase, selectedSectionId, scene.parts, scene.materials])
 
   const suggestions = useMemo(
     () => suggestJointsFor(selectedId, scene.parts, scene.joints, componentMap),
@@ -550,6 +566,7 @@ function App() {
             snapPhase={mode.snapPhase}
             flashTarget={flashTarget}
             highlightedIds={highlightedIds}
+            selectedIds={selectedIds}
             suggestionOutlines={hoveredOutlines}
           />
         </div>
