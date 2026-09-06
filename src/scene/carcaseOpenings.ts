@@ -11,9 +11,9 @@ export interface ResolvedCarcase {
 }
 
 // The whole chain from a cabinet to its openings and to which of its parts each one owns:
-// thicknesses, validation, section rectangles, ownership. Stated once because three callers ask
-// it — the scene tree, the 3D highlight and the hardware pass — and copies would be free to
-// disagree about an opening's membership.
+// thicknesses, validation, section rectangles, ownership. Stated once because two callers ask
+// it — the scene tree and the 3D selection highlight — and copies would be free to disagree
+// about an opening's membership.
 //
 // `null` says the cabinet cannot be resolved: `openingRect` reads thicknesses through a resolver
 // that is fatal by design, so a cabinet naming a material the scene cannot resolve would throw

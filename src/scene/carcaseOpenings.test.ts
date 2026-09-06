@@ -80,9 +80,22 @@ describe('resolveCarcase', () => {
 
     const resolved = resolveCarcase(cabinet, scene.parts, scene.materials)
     expect(resolved).not.toBeNull()
-    // Every node names an opening that was returned beside it — one resolution, not two.
-    expect(resolved!.nodes.sections.map((n) => n.sectionId).sort()).toEqual(
-      resolved!.openings.map((o) => o.sectionId).sort(),
+    // Base 600 is one opening: it should own its adjustable shelf and its door front, and
+    // nothing else — while the shell (a side panel) is filed under the carcase, not the opening.
+    const opening = resolved!.nodes.sections[0]
+    expect(opening.parts.map((p) => p.role).sort()).toEqual([
+      `adj-shelf-${opening.sectionId}-0`,
+      `front-${opening.sectionId}-0`,
+    ])
+    expect(resolved!.nodes.carcase.some((p) => p.role === 'left-side')).toBe(true)
+    // Every part the cabinet owns is filed exactly once: the opening's parts plus the carcase's
+    // parts account for all of them, with no overlap.
+    const filed = [...opening.parts, ...resolved!.nodes.carcase]
+    expect(filed.map((p) => p.id).sort()).toEqual(
+      scene.parts
+        .filter((p) => p.parentId === cabinet.id)
+        .map((p) => p.id)
+        .sort(),
     )
     // The spec the pin rows were bored from is now reachable.
     expect(resolved!.openings[0].spec?.adjustable.rows).toBe(2)
