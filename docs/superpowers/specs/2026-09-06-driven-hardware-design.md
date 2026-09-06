@@ -57,6 +57,8 @@ All taken in the 2026-09-06 session, each put as a question with the trade-off s
 | 4 | How fine-grained is the catalogue key? | Keyed by what the geometry already knows |
 | 5 | Stored or derived? | Derived at read time; nothing enters the file or the pipeline |
 | 6 | Hinge and plate: one row or two? | One — `110° hinge c/w plate`, because that is how they are sold |
+| 7 | Which depth picks the runner nominal? | The cabinet's clear internal depth *(taken at review, after measuring falsified the first rule)* |
+| 8 | How many pins does one shelf sit on? | One per bored row — `2 × interior.adjustable.rows` *(taken at review)* |
 
 ## The counting rule
 
@@ -67,8 +69,8 @@ Stated once, because four families follow it and a fifth will:
 | family | quantity read from | key |
 |---|---|---|
 | hinge c/w plate | `count` of the `cups_{frontRole}` hole array on each door | `hinge-overlay` / `hinge-inset`, from `frontMount` |
-| drawer runner | distinct front roles carrying a `slide_{frontRole}` row — one pair each | `runner-{nominal}`, from the length of the upright the row is bored into |
-| shelf pin | 4 × the number of `adj-shelf-` parts | `shelf-pin-5mm` |
+| drawer runner | distinct front roles carrying a `slide_{frontRole}` row — one pair each | `runner-{nominal}`, from the cabinet's clear internal depth |
+| shelf pin | each `adj-shelf-` part × the pin rows bounding its section (`2 × interior.adjustable.rows`) | `shelf-pin-5mm` |
 | assembly screw | `count` of hole arrays whose id ends `_clearance` and whose `sourceJointId` names a screw joint | `screw-8x40` |
 
 Reading the emitted bores rather than re-deriving from parameters buys two behaviours for free:
@@ -77,6 +79,18 @@ Reading the emitted bores rather than re-deriving from parameters buys two behav
   `CUP_DEPTH + MIN_FACE_BEHIND_CUP` (15.5 mm), so there is no cup row to count. A parameter-driven
   count would order hinges for a door that was never bored for them.
 - **A joint converted from screw to dado drops its screws**, with no second rule to keep in step.
+
+**Why pins are not a flat four.** `carcaseHoleArrays` bores
+`[a.setback, panel.length - a.backSetback].slice(0, a.rows)` on **each** of the two uprights bounding
+a section, so a section with the default `rows: 2` is bored four rows and one with `rows: 1` is bored
+two. A shelf sits on one pin per row that bounds it. Four is therefore the answer for every shipped
+preset and the wrong answer for `rows: 1` — a flat four would order pins with no hole to sit in, and
+would hide that `rows: 1` is an under-supported shelf rather than a cheaper one.
+
+Note that `adjustable.count` is the number of **pin positions in the row** (10 by default), not the
+number of shelves; `adjustable.shelves` is the shelf count, and `shelfPins` caps it at what the row
+can seat. The quantity here counts emitted `adj-shelf-` boards, so it is the seated number by
+construction and the cap needs no second statement.
 
 **Why the clearance array and not the pilot array.** `deriveScrewJoint` emits both, each at
 `count = joint.screwCount`; they are the same screws seen from two ends. Counting both doubles every
@@ -114,11 +128,21 @@ needs a woodworker's eye and no test in this repo can falsify it.
 | `screw-8x40` | #8 × 40 mm carcase screw | pcs |
 
 **Runner length.** Standard nominals are 250, 300, 350, 400, 450, 500, 550, 600. `runnerKeyFor`
-takes the largest nominal that is `≤ uprightLength − RUNNER_DEPTH_ALLOWANCE`, where the upright is
-the panel the slide row was bored into — board x on an upright runs the cabinet's depth — and the
-allowance is a stated 30 mm for the back panel and clearance behind it. A 560 mm Base takes a **500 mm**
-runner; a 330 mm Wall takes **300 mm**. Below the smallest nominal the bay lists no runner rather
+takes the largest nominal `≤ clearDepth`, where **`clearDepth = depth − backThickness` for a captured
+back, and `depth` for an applied back or none**. A 560 mm Base takes a **500 mm** runner (548 clear);
+a 330 mm Wall takes **300 mm** (318 clear). Below the smallest nominal the bay lists no runner rather
 than one that will not fit.
+
+That figure is not new: `carcaseRoles.ts` already computes it as `backY0`
+(`p.backMode === 'captured' ? D - BT : D`), and a division panel's length **is** it — measured 548 mm
+on a split 560 mm Base. The plan must read it from one place rather than restate the expression; two
+copies of a clear-depth rule is how a runner comes to disagree with the panel it screws to.
+
+An earlier draft read the length off "the upright the row is bored into", and measuring falsified it:
+the two uprights bounding one drawer bay are **560 mm (the side panel) and 548 mm (the division)**, so
+the rule had two answers for one bay. Identical drawers taking different runners because one sits
+beside a division is the kind of output a shop stops trusting. The clear-depth rule also drops the
+30 mm allowance that draft invented — one fewer stated figure with no test behind it.
 
 **One screw, not a family of them.** `defaultJoint.ts` models exactly one carcase screw — #8 ⌀4.2,
 5 mm clearance, 3 mm pilot, 30 mm deep — as constants shared by every screw joint. An earlier draft
@@ -131,7 +155,7 @@ not changed at all. One key until a screw becomes a real catalogue item with its
 | file | responsibility |
 |---|---|
 | `src/scene/carcaseHardware.ts` | **new.** Pure `carcaseHardware(scene) → HardwareLine[]`, where a line is `{ componentId, cabinetLabel, key, qty }`. No React, no THREE, no IndexedDB. |
-| `src/scene/hardwareCatalogue.ts` | **new.** The stated table above, plus `runnerKeyFor(sideLength)` and the hinge key from `frontMount`. Data and key derivation only. |
+| `src/scene/hardwareCatalogue.ts` | **new.** The stated table above, plus `runnerKeyFor(clearDepth)` and the hinge key from `frontMount`. Data and key derivation only. |
 | `src/scene/useHardwareLibrary.ts` | **new.** Mirrors `useMaterialLibrary` against a new `hardware` store. |
 | `src/scene/idb.ts` | `DB_VERSION` 3 → 4; a fourth store, `hardware`, keyed by catalogue key, holding `{ supplier, partNumber, unitCost }`. The name comes from the catalogue, never from the library. |
 | `src/ui/buildCsv.ts` | `groupHardware(lines, library)` → priced rows; `buildHardwareCsv` learns the derived rows alongside the hand-typed items. |
@@ -169,8 +193,13 @@ truth for one number, and the cache goes stale the first time an old file opens 
 
 - An unpriced key shows a blank cost and is excluded from the total — how `groupDowels` treats a
   material with no `costPerM`. **An unpriced job must never read as a free one.**
-- Invalid cabinet parameters emit no roles, so no cuts, so no hardware lines. Nothing to
-  special-case: the emptiness propagates.
+- **A cabinet mid-keystroke invalid keeps its last good hardware counts.** `regenerateOne` returns
+  the previous parts unchanged when `carcaseRoles` yields none, so the scene still holds the last
+  good boards and their bores, and this pass — reading the scene, not the parameters — reports them.
+  That is the same thing the scene tree and the 3D view show, and it is the behaviour to want: a
+  quote that emptied itself while a width was being retyped would be worse than one a keystroke
+  stale. An earlier draft of this document claimed the opposite ("no roles, so no cuts, so no
+  hardware lines"), which is true of the generator and false of the scene it writes into.
 - Hand-typed items are untouched. The tab and the CSV carry a derived subtotal, a hand-typed
   subtotal, and a grand total — three figures, so a user can see which half of the quote is
   generated.
@@ -189,7 +218,7 @@ tests:
 |---|---|---|
 | hinges | `hingeCount(doorLength)` — the stated table | the pass, counting bored cups |
 | runners | drawer-front cells in the section tree | the pass, counting `slide_` rows |
-| shelf pins | `interior.adjustable.count` asked for | the pass, counting `adj-shelf-` boards × 4 |
+| shelf pins | `interior.adjustable.shelves` (capped by `shelfPins`) × `2 × rows` | the pass, counting emitted boards and bored rows |
 | screws | `Σ screwCount` over the cabinet's screw joints | the pass, counting `_clearance` bores |
 
 The tautology trap is specific and worth naming: a hinge test that counted cups on both sides would
@@ -206,7 +235,8 @@ merge.
 |---|---|
 | count plates as well as cups | hinge sweep (doubles) |
 | count pilot arrays as well as clearance | screw equality (doubles) |
-| 2 pins per shelf, not 4 | pin sweep |
+| a flat 4 pins per shelf, ignoring `rows` | the `rows: 1` case (must give 2, not 4) |
+| 2 pins per shelf, not `2 × rows` | pin sweep at the default `rows: 2` |
 | group scene-wide instead of per cabinet | two-cabinet grouping |
 | attribute by `joint.sourceComponentId`, not `part.parentId` | user-added-joint attribution |
 | `runnerKeyFor` picks the smallest nominal `≥` available | runner key table |
@@ -227,10 +257,12 @@ pushed Stage G3's coverage into Playwright. A `HardwareTab` render test with
 - **The hinge variant is the one quantity-adjacent figure read from a parameter.** If a future stage
   lets a single cabinet mix overlay and inset fronts, `frontMount` stops being the right source and
   the key has to come from the cell.
-- **Runner length is derived from the side panel, not from a drawer box**, because there is no
-  drawer box — the same absence that makes `carcaseMachining` derive slide heights from the front's
-  centreline. When drawer boxes land, both figures should be revisited together.
+- **Runner length is derived from the cabinet's clear depth, not from a drawer box**, because there
+  is no drawer box — the same absence that makes `carcaseMachining` derive slide heights from the
+  front's centreline. When drawer boxes land, both figures should be revisited together.
 - **A screw joint the user converts to dado silently changes the screw count**, which is correct and
   will still look like a bug to someone reading a quote that moved.
-- **`BomModal` gains a `joints` prop**, so the modal now depends on three of the four scene
-  collections. If it gains the fourth, it should take the `Scene` instead.
+- **`BomModal` gains a `joints` prop, which makes it the fifth of `Scene`'s five collections** —
+  it already takes `parts`, `components`, `materials` and `hardware`. A component that needs the
+  whole scene should take the `Scene`, and this change is the moment that becomes true. The plan
+  should either make that swap or record why not.

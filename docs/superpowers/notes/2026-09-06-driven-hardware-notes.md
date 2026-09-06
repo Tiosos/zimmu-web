@@ -46,9 +46,10 @@ key within a minute. `defaultJoint.ts` models exactly one screw, so a key derive
 would have invented a purchasing distinction the geometry does not make — and, worse, would have
 changed the ordered screw when a panel was overridden to 25 mm.
 
-Side panel lengths came out equal to the cabinet depth on all three presets (560, 330, 560), which
-is what makes `runnerKeyFor(sideLength)` readable. If a future base mode changes that relationship,
-the runner rule needs re-reading, not just re-testing.
+Side panel lengths came out equal to the cabinet depth on all three presets (560, 330, 560). That
+equality is what made the first runner rule *look* readable off a panel, and the cross-check below
+is where it broke: a division panel is 12 mm shorter than the side beside it. Recorded as it stood,
+because the misleading measurement is the interesting part.
 
 ## 2026-09-06 — why `groupDowels` is the precedent, not `regenerateComponents`
 
@@ -76,3 +77,37 @@ it lands is an override bag on `CarcaseParams`, not a detached row.
   spec made exactly that call about `carcaseRoles.ts` at 649 lines and was right.
 - **The `Ungrouped` group's label.** It appears only when a screw joint joins parts belonging to no
   component. Worth checking against a real scene before naming it in the UI.
+
+## 2026-09-06 — the cross-check, and the five errors it found
+
+The spec was reviewed line by line against the code before any plan was written. Five claims were
+wrong. All five were reasoned rather than measured, which is the pattern worth remembering — none of
+them came from misreading a file, all of them from not opening one.
+
+1. **The runner rule had two answers for one bay.** "Largest nominal ≤ upright length − 30" reads a
+   panel, and the two uprights bounding a drawer bay are not the same length: measured 560 mm for the
+   side panel and **548 mm** for the division beside it, the 12 mm being the captured back. Now the
+   clear internal depth, which `carcaseRoles.ts` already computes as `backY0` and which the division
+   length *is*. The 30 mm allowance disappeared with it — invented, and no test could ever have
+   falsified it.
+2. **Shelf pins were a flat four.** `carcaseHoleArrays` bores `.slice(0, a.rows)` rows per bounding
+   upright, so `rows: 1` bores two rows and a shelf has two pins, not four. Four is right for every
+   shipped preset, which is exactly why no fixture would have caught it.
+3. **`adjustable.count` is pin positions, not shelves.** The testing table named it as the shelf
+   count asked for; the shelf count is `adjustable.shelves`, and `shelfPins` caps it at what the row
+   can seat. An implementer following the draft would have swept the wrong field — and `count`
+   defaults to 10 against `shelves` of 1 or 2, so the test would have failed loudly and been
+   "fixed" by weakening it.
+4. **"Invalid parameters produce no hardware lines" was false.** True of the generator, false of the
+   scene: `regenerateOne` returns the previous parts when `carcaseRoles` yields none, so the last
+   good boards and bores stay in the scene and this pass reports them. The behaviour is the one to
+   want, and the spec now says so — but the draft asserted it for the wrong reason, which would have
+   produced a test asserting emptiness that could never pass.
+5. **`BomModal` counting was off by one.** The draft said adding `joints` made it depend on "three of
+   the four" scene collections. `Scene` has five, and the modal already takes four — so the `joints`
+   prop makes it all five, which is the argument for handing it the `Scene` rather than a fifth prop.
+
+What generalises: every error was in a figure derived by reasoning about the code rather than by
+running it, and the two measured tables in the spec had none. The scratch-file habit from the design
+session should extend to review — measuring the division panel took one test file and about a minute,
+and it is what turned an ambiguous rule into a stated one.
