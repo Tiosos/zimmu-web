@@ -3,6 +3,8 @@ import { CARCASE_PRESETS, PRESET_MATERIALS, type CarcasePreset } from './carcase
 import { regenerateComponents } from './regenerateComponents'
 import { hingeCount } from './frontMachining'
 import { carcaseHardware } from './carcaseHardware'
+import { splitSection } from './editSection'
+import { setFrontOn } from './sectionInterior'
 import type { CarcaseParams, MaterialDef, Scene } from './types'
 
 // The scene a new file starts from, with one cabinet in it. Materials are a parameter because a
@@ -74,5 +76,52 @@ describe('carcaseHardware — hinges', () => {
     })
     expect(scene.parts.some((p) => p.role?.startsWith('front-'))).toBe(true)
     expect(qtyOf(scene, 'hinge-overlay')).toBe(0)
+  })
+})
+
+// No preset has a drawer bay, so every runner test builds its own. Two bays, the LEFT one a drawer
+// front — a single-bay fixture cannot tell "the bay that asked" from "the first bay".
+const withDrawerBays = (drawers: number): CarcaseParams => {
+  const p = CARCASE_PRESETS[0].params
+  let section = splitSection(p.section, p.section.id, 'vertical', 'panel', 2)
+  const kids = section.content.kind === 'split' ? section.content.children : []
+  for (let i = 0; i < drawers; i++)
+    section = setFrontOn(section, kids[i].id, { kind: 'drawer-front' })
+  return { ...p, section }
+}
+
+describe('carcaseHardware — runners', () => {
+  it('lists one pair per drawer bay, not one per bored upright', () => {
+    const scene = sceneOf(withDrawerBays(1))
+    // Both uprights bounding the bay carry a slide row; the runner is one pair.
+    const rows = scene.parts.filter(
+      (p) => p.kind === 'board' && p.cuts.some((c) => c.id.startsWith('slide_')),
+    )
+    expect(rows.length).toBe(2)
+    expect(qtyOf(scene, 'runner-500')).toBe(1)
+  })
+
+  it('counts a pair for each drawer bay', () => {
+    expect(qtyOf(sceneOf(withDrawerBays(2)), 'runner-500')).toBe(2)
+  })
+
+  // The nominal follows the cabinet's clear depth, so a bay beside a division and a bay beside a
+  // side panel take the same runner — those two uprights are 548 mm and 560 mm long.
+  it('takes the nominal from the clear depth, so both bays agree', () => {
+    const lines = carcaseHardware(sceneOf(withDrawerBays(2))).filter((l) =>
+      l.key.startsWith('runner-'),
+    )
+    expect(lines.length).toBe(1)
+    expect(lines[0].key).toBe('runner-500')
+  })
+
+  it('shortens the runner with the cabinet', () => {
+    const shallow = { ...withDrawerBays(1), depth: 330 }
+    expect(qtyOf(sceneOf(shallow), 'runner-300')).toBe(1)
+  })
+
+  it('lists no runner in a cabinet too shallow for the smallest one', () => {
+    const tiny = { ...withDrawerBays(1), depth: 200 }
+    expect(carcaseHardware(sceneOf(tiny)).filter((l) => l.key.startsWith('runner-'))).toEqual([])
   })
 })
