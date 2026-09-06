@@ -3,6 +3,7 @@ import { CARCASE_PRESETS, PRESET_MATERIALS, type CarcasePreset } from './carcase
 import { regenerateComponents } from './regenerateComponents'
 import { hingeCount } from './frontMachining'
 import { carcaseHardware } from './carcaseHardware'
+import { resolveCarcase } from './carcaseOpenings'
 import { splitSection } from './editSection'
 import { defaultInterior, setFrontOn, setInterior } from './sectionInterior'
 import type { CarcaseParams, MaterialDef, Scene } from './types'
@@ -166,5 +167,48 @@ describe('carcaseHardware — shelf pins', () => {
   it('lists no pins for a cabinet whose shelves are all fixed', () => {
     const tall = CARCASE_PRESETS.find((p) => p.name.startsWith('Tall'))!
     expect(qtyOf(sceneOf(tall.params), 'shelf-pin-5mm')).toBe(0)
+  })
+
+  // Two bays with DIFFERENT shelving on each side: a single-opening fixture (every other test in
+  // this block) cannot distinguish "the opening that asked" from "the first opening" — `.find` and
+  // `sections[0]` agree whenever there is only one. Left bay asks for 1 shelf at 1 bored row (2
+  // pins); right bay asks for 3 at 2 bored rows. If the pass reads `sections[0]` for every opening,
+  // it seats the LEFT bay's shelf count against the RIGHT bay's rows (or vice versa) for one of the
+  // two bays, which this fixture is built so those wrong totals do not collide with the right one.
+  it('attributes each opening’s pins to its own opening, not the first one', () => {
+    const p = CARCASE_PRESETS[0].params
+    let section = splitSection(p.section, p.section.id, 'vertical', 'panel', 2)
+    const kids = section.content.kind === 'split' ? section.content.children : []
+    const left = defaultInterior(1)
+    section = setInterior(section, kids[0].id, {
+      ...left,
+      adjustable: { ...left.adjustable, rows: 1 },
+    })
+    const right = defaultInterior(3)
+    section = setInterior(section, kids[1].id, {
+      ...right,
+      adjustable: { ...right.adjustable, rows: 2 },
+    })
+    const scene = sceneOf({ ...p, section })
+
+    const cabinet = scene.components.find((c) => c.kind === 'carcase')
+    if (cabinet === undefined || cabinet.kind !== 'carcase') throw new Error('fixture is a carcase')
+    const resolved = resolveCarcase(cabinet, scene.parts, scene.materials)
+    if (resolved === null) throw new Error('fixture must resolve')
+
+    // Read what actually seated per opening — `shelfPins` caps what was asked for — attributed by
+    // `resolveCarcase`, the same ownership chain the implementation reads.
+    const seatedByOpening = resolved.nodes.sections.map(
+      (n) => n.parts.filter((part) => part.role?.startsWith('adj-shelf-')).length,
+    )
+    expect(seatedByOpening).toEqual([1, 3])
+
+    const expected = resolved.openings.reduce((sum, opening, i) => {
+      const rows = opening.spec?.adjustable.rows ?? 0
+      return sum + seatedByOpening[i] * 2 * rows
+    }, 0)
+    expect(expected).toBe(14) // 1*2*1 + 3*2*2
+
+    expect(qtyOf(scene, 'shelf-pin-5mm')).toBe(14)
   })
 })
