@@ -1,5 +1,6 @@
 import { clearDepth } from './carcaseRoles'
-import { hingeKeyFor, runnerKeyFor } from './hardwareCatalogue'
+import { resolveCarcase } from './carcaseOpenings'
+import { hingeKeyFor, runnerKeyFor, SHELF_PIN_KEY } from './hardwareCatalogue'
 import type { CarcaseComponent, ComponentId, Scene } from './types'
 
 // What a generated cabinet needs bought, counted off what its machining actually bored.
@@ -67,6 +68,24 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
         if (key !== null) add(owner, key, 1)
         continue
       }
+    }
+  }
+
+  // A pin row belongs to the section that asked for it, so the pins do too: `resolveCarcase` says
+  // which opening owns which shelf, and the opening's own spec says how many rows were bored
+  // around it. Two uprights bound a section, each bored `rows` rows, and a shelf takes one pin from
+  // each — four at the default, two when a section asks for a single row.
+  for (const cabinet of carcases.values()) {
+    const resolved = resolveCarcase(cabinet, scene.parts, scene.materials)
+    if (resolved === null) continue
+    for (const opening of resolved.openings) {
+      const rows = opening.spec?.adjustable.rows
+      if (rows === undefined) continue
+      // `sectionNodes` returns `{ sections, carcase }`, not a flat array — a divider belongs to
+      // the carcase, so the openings live under `.sections`.
+      const owned = resolved.nodes.sections.find((n) => n.sectionId === opening.sectionId)
+      const shelves = owned?.parts.filter((p) => p.role?.startsWith('adj-shelf-')).length ?? 0
+      if (shelves > 0) add(cabinet.id, SHELF_PIN_KEY, shelves * 2 * rows)
     }
   }
 

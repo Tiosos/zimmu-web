@@ -4,7 +4,7 @@ import { regenerateComponents } from './regenerateComponents'
 import { hingeCount } from './frontMachining'
 import { carcaseHardware } from './carcaseHardware'
 import { splitSection } from './editSection'
-import { setFrontOn } from './sectionInterior'
+import { defaultInterior, setFrontOn, setInterior } from './sectionInterior'
 import type { CarcaseParams, MaterialDef, Scene } from './types'
 
 // The scene a new file starts from, with one cabinet in it. Materials are a parameter because a
@@ -123,5 +123,48 @@ describe('carcaseHardware — runners', () => {
   it('lists no runner in a cabinet too shallow for the smallest one', () => {
     const tiny = { ...withDrawerBays(1), depth: 200 }
     expect(carcaseHardware(sceneOf(tiny)).filter((l) => l.key.startsWith('runner-'))).toEqual([])
+  })
+})
+
+const withShelves = (shelves: number, rows: 1 | 2): CarcaseParams => {
+  const p = CARCASE_PRESETS[0].params
+  const base = defaultInterior(shelves)
+  const section = setInterior(p.section, p.section.id, {
+    ...base,
+    adjustable: { ...base.adjustable, rows },
+  })
+  return { ...p, section }
+}
+
+describe('carcaseHardware — shelf pins', () => {
+  // Side A is what the section ASKED for, seated; side B is the pass counting emitted boards and
+  // bored rows.
+  it('gives every seated shelf one pin per bored row', () => {
+    const scene = sceneOf(withShelves(2, 2))
+    const seated = scene.parts.filter(
+      (p) => p.kind === 'board' && p.role?.startsWith('adj-shelf-'),
+    ).length
+    expect(seated).toBe(2)
+    expect(qtyOf(scene, 'shelf-pin-5mm')).toBe(seated * 4)
+  })
+
+  it('halves the pins when the section bores one row a side', () => {
+    expect(qtyOf(sceneOf(withShelves(2, 1)), 'shelf-pin-5mm')).toBe(4)
+    expect(qtyOf(sceneOf(withShelves(2, 2)), 'shelf-pin-5mm')).toBe(8)
+  })
+
+  it('counts the shelves the cabinet seated, not the shelves it was asked for', () => {
+    // `shelfPins` seats what the pin row can hold; asking for more does not make more boards.
+    const scene = sceneOf(withShelves(40, 2))
+    const seated = scene.parts.filter(
+      (p) => p.kind === 'board' && p.role?.startsWith('adj-shelf-'),
+    ).length
+    expect(seated).toBeLessThan(40)
+    expect(qtyOf(scene, 'shelf-pin-5mm')).toBe(seated * 4)
+  })
+
+  it('lists no pins for a cabinet whose shelves are all fixed', () => {
+    const tall = CARCASE_PRESETS.find((p) => p.name.startsWith('Tall'))!
+    expect(qtyOf(sceneOf(tall.params), 'shelf-pin-5mm')).toBe(0)
   })
 })
