@@ -3,6 +3,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type {
   BoardPart,
   BoxCut,
+  CarcaseParams,
   CutDef,
   CylinderPart,
   DadoJoint,
@@ -2275,6 +2276,33 @@ describe('component CRUD', () => {
     act(() => result.current.onSelect({ kind: 'part', id: partId }))
     act(() => result.current.onRemoveComponent(cmpId))
     expect(result.current.selection).toEqual({ kind: 'part', id: partId })
+  })
+
+  // `preset.params` is one object built at module evaluation, so assigning it directly gave every
+  // cabinet from a preset the same section ids — and role keys carry those ids, so two Base 600s
+  // named the same openings and emitted the same `front-{sectionId}-0` role. Every consumer then
+  // needed a cabinet id beside the section id to tell them apart, and the ones that forgot were
+  // silently wrong rather than broken. Asserted at this seam, not just on the pure helper, because
+  // this is the site that shared the object.
+  it('gives two cabinets from one preset no section id in common', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+
+    const ids = (c: (typeof result.current.scene.components)[number]): string[] => {
+      if (c.kind !== 'carcase') return []
+      const walk = (sec: CarcaseParams['section']): string[] => [
+        sec.id,
+        ...(sec.content.kind === 'split' ? sec.content.children.flatMap(walk) : []),
+      ]
+      return walk(c.params.section)
+    }
+    const [a, b] = result.current.scene.components.map(ids)
+    expect(a.length).toBeGreaterThan(0)
+    expect(a.filter((id) => b.includes(id))).toEqual([])
+
+    // And the preset itself is untouched, so a third cabinet is not built from a mutated tree.
+    expect(a.includes(CARCASE_PRESETS[0].params.section.id)).toBe(false)
   })
 
   // A section selection dangles the same way a component one does — it names a cabinet by id — so

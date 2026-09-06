@@ -437,15 +437,9 @@ test('an opening selected in the tree lights its own parts in 3D', async ({ page
   // screenshot taken after an elevation click captures a `display: none` canvas.
   await page.getByRole('tab', { name: '3D' }).click()
 
-  // WORKAROUND — the viewport refit bug (see the 2026-08-27 restructure notes). Delete these two
-  // lines once the mount refits itself. The canvas keeps the size it had before the editor pane
-  // opened beside it: `viewport.tsx` refits on the window's `resize` event and on nothing else.
-  // Measured here, that leaves a 1040px-wide canvas inside a 520px pane, so half the cabinet draws
-  // under the editor and what is counted depends on where the overflow falls. One pixel of window
-  // height fires that listener; Home then frames the cabinet in the pane's own aspect, which is
-  // what the counts above were read from.
-  const size = page.viewportSize()!
-  await page.setViewportSize({ width: size.width, height: size.height + 1 })
+  // `Home` frames the cabinet in the pane's own aspect, which is what the counts above were read
+  // from. The window nudge that used to sit here is gone: `viewport.tsx` now observes its mount, so
+  // the canvas refits itself when the editor pane opens beside it.
   await page.keyboard.press('Home')
 
   const canvas = await viewportCanvas(page)

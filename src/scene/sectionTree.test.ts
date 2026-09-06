@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  freshSectionIds,
   newSectionId,
   resolveSections,
   validateSection,
@@ -348,5 +349,63 @@ describe('boundsOf', () => {
     const resolved = resolveSections(root, OPENING, () => 18)
     expect(resolved.boundsOf('a').right).toEqual({ kind: 'shell' })
     expect(resolved.boundsOf('b').left).toEqual({ kind: 'shell' })
+  })
+})
+
+describe('freshSectionIds', () => {
+  // A preset's tree is built once at module evaluation, so two cabinets added from one preset would
+  // otherwise share every section id — and role keys carry those ids, so both cabinets would name
+  // the same openings and the same `front-{sectionId}-0` boards.
+  const tree: Section = {
+    id: 'sec_root',
+    size: { kind: 'equal' },
+    interior: { adjustable: { shelves: 2, count: 10, rows: 1, setback: 37, backSetback: 37 } },
+    front: { kind: 'door', leaves: 2, hinge: 'left' },
+    content: {
+      kind: 'split',
+      axis: 'vertical',
+      division: 'panel',
+      children: [leaf('sec_a'), leaf('sec_b')],
+    },
+  } as Section
+
+  const idsOf = (s: Section): string[] => [
+    s.id,
+    ...(s.content.kind === 'split' ? s.content.children.flatMap(idsOf) : []),
+  ]
+
+  it('replaces every id in the tree, root and children alike', () => {
+    const fresh = freshSectionIds(tree)
+    const before = idsOf(tree)
+    const after = idsOf(fresh)
+    expect(after).toHaveLength(before.length)
+    // No id survives, and none is reused within the new tree either.
+    expect(after.filter((id) => before.includes(id))).toEqual([])
+    expect(new Set(after).size).toBe(after.length)
+  })
+
+  it('carries size, interior, front and shape through untouched', () => {
+    const fresh = freshSectionIds(tree)
+    expect(fresh.size).toEqual(tree.size)
+    expect(fresh.interior).toEqual(tree.interior)
+    expect(fresh.front).toEqual(tree.front)
+    expect(fresh.content.kind).toBe('split')
+    if (fresh.content.kind !== 'split' || tree.content.kind !== 'split') throw new Error('shape')
+    expect(fresh.content.axis).toBe(tree.content.axis)
+    expect(fresh.content.division).toBe(tree.content.division)
+    expect(fresh.content.children).toHaveLength(2)
+  })
+
+  it('leaves the tree it was handed alone', () => {
+    const before = JSON.parse(JSON.stringify(tree))
+    freshSectionIds(tree)
+    expect(tree).toEqual(before)
+  })
+
+  // Two cabinets from one preset is the case this exists for, so it is the case asserted.
+  it('gives two cabinets built from one tree no id in common', () => {
+    const a = idsOf(freshSectionIds(tree))
+    const b = idsOf(freshSectionIds(tree))
+    expect(a.filter((id) => b.includes(id))).toEqual([])
   })
 })

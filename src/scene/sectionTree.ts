@@ -74,6 +74,21 @@ export function newSectionId(): SectionId {
   return `sec_${crypto.randomUUID()}`
 }
 
+// A preset's tree is built once, at module evaluation, so every cabinet added from the same preset
+// would otherwise share its section ids — and role keys carry those ids, so two Base 600s would
+// name the same openings and the same `front-{sectionId}-0` boards. Everything that resolves an
+// opening then needs a cabinet id beside the section id to tell them apart, and anything that
+// forgets is silently wrong rather than broken. Re-id on the way in instead.
+//
+// `size`, `interior` and `front` are carried through untouched: only identity is fresh.
+export function freshSectionIds(section: Section): Section {
+  const content: SectionContent =
+    section.content.kind === 'leaf'
+      ? section.content
+      : { ...section.content, children: section.content.children.map(freshSectionIds) }
+  return { ...section, id: newSectionId(), content }
+}
+
 export interface Rect {
   x0: number
   x1: number

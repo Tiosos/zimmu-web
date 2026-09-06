@@ -331,6 +331,13 @@ export function Viewport({
     }
     window.addEventListener('resize', handleResize)
 
+    // The window is not the only thing that resizes this canvas. Opening the cabinet editor puts a
+    // pane beside the viewport, which shrinks the mount without the window changing at all — so a
+    // window-only listener left the canvas at its old width and drew half the cabinet underneath
+    // the editor. Measured before this: 1040px of canvas inside a 520px mount.
+    const observer = new ResizeObserver(handleResize)
+    observer.observe(mount)
+
     const handleMouseDown = (e: MouseEvent) => {
       mouseDown.current = { x: e.clientX, y: e.clientY }
     }
@@ -399,6 +406,7 @@ export function Viewport({
       cancelAnimationFrame(frame)
       cancelAnimationFrame(rafIdRef.current)
       window.removeEventListener('resize', handleResize)
+      observer.disconnect()
       renderer.domElement.removeEventListener('mousedown', handleMouseDown)
       renderer.domElement.removeEventListener('click', handleClick)
       renderer.domElement.removeEventListener('mousemove', handleMouseMove)

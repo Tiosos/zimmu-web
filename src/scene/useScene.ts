@@ -27,6 +27,7 @@ import { reconcileJoints } from './reconcileJoints'
 import { isJointOwned } from './cutOwnership'
 import { regenerateComponents } from './regenerateComponents'
 import { PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
+import { freshSectionIds } from './sectionTree'
 import { componentsById, descendantIds, wouldCycle } from './componentTree'
 import { jointInvolves } from './jointInvolves'
 import { isValidDadoSeat } from '../geom/dado'
@@ -1215,7 +1216,12 @@ export function useScene(): UseSceneResult {
         rotation: { x: 0, y: 0, z: 0 },
         rotationOrder: 'XYZ',
         visible: true,
-        params: preset.params,
+        // Re-id, never share. `preset.params` is one object built at module evaluation, so assigning
+        // it directly gives every cabinet from that preset the same section ids — and role keys
+        // carry those ids, so two Base 600s name the same openings and the same
+        // `front-{sectionId}-0` boards. Every consumer then needs a cabinet id beside the section id
+        // to tell them apart, and the ones that forget are silently wrong rather than broken.
+        params: { ...preset.params, section: freshSectionIds(preset.params.section) },
       }
       // One undo entry covers the component and every part the pipeline generates from it.
       commitReconciled(

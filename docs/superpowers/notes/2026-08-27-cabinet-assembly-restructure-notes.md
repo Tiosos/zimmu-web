@@ -1648,3 +1648,36 @@ day someone swept a ladder base rather than the day a family was added, which is
 - `sectionNodes.ts`'s header still says *"Five other modules read a role's family"* while naming
   three. Measured: three modules, nine call sites. Left as it stands only because this task writes
   no production code; it is a one-word fix and it should be taken.
+
+### 2026-09-06 — the three defects G3 recorded but did not fix
+
+All three are now fixed, each with the test that would have caught it.
+
+**Preset section-id collisions.** `onAddCarcase` assigned `params: preset.params` — one object built
+at module evaluation — so every cabinet from a preset shared its section ids, and role keys carry
+those ids, so two Base 600s named the same openings and emitted the same `front-{sectionId}-0`.
+`freshSectionIds` in `sectionTree.ts` re-ids the tree on the way in, carrying `size`, `interior` and
+`front` through untouched. Pinned twice: on the pure helper, and at the `useScene` seam that actually
+shared the object — reverting to `params: preset.params` fails the seam test.
+
+This is what made G3's `cabinetId` guards load-bearing rather than belt-and-braces: a stale section
+id could name a **live** opening in another cabinet. Those guards stay. They are correct
+independently of this fix, and removing them now would trade one silent wrong answer for another.
+
+**The viewport did not refit when the editor opened.** `viewport.tsx` sized from `mount.clientWidth`
+at mount and refit only on the window's `resize` event, so opening the cabinet editor shrank the
+mount without the window changing — 1040 px of canvas inside a 520 px pane, half the cabinet drawing
+underneath the editor. Now a `ResizeObserver` on the mount, disconnected with the window listener.
+
+The proof is that Task 8's workaround became removable: the colour e2e nudged the window by one pixel
+purely to fire that listener, and it now passes without it, at the same pixel counts. A workaround
+whose removal is the fix's test is the best kind to have written down.
+
+**`e2e/` was never typechecked.** `pnpm typecheck` covered `src` and `vite.config.ts` only, so the
+generics and casts in `canvas.ts` and `liveCanvas.ts` were invisible to CI. `tsconfig.e2e.json` now
+covers `e2e` and `playwright.config.ts` under the same strictness, referenced from the solution file.
+Verified live rather than assumed: planting `export const __probe: number = 'not a number'` in
+`e2e/canvas.ts` fails `pnpm typecheck` with TS2322, where before it passed.
+
+**Counts.** Unit 1695 → **1700** (10 skipped) across 86 files; e2e **25**, unchanged — the new
+coverage is unit, and the e2e change was a deletion. `pnpm build` clean.
