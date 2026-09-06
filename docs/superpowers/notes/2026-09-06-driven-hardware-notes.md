@@ -143,7 +143,7 @@ in the plan was corrected before dispatch. The mistake came from reading `carcas
 `ReturnType<typeof sectionNodes>` signature and inferring the shape without opening the module.
 
 **The plan file contained three literal NUL bytes.** They sat where the tally key's separator was
-meant to be a ` ` escape, and they made `file` report the plan as binary data. Any implementer
+meant to be an escape sequence, and they made `file` report the plan as binary data. Any implementer
 copying those lines would have put a raw NUL into a TypeScript string literal. Caught before Tasks
 4–8 were dispatched — they are the only tasks that quote those lines — and replaced with the
 two-character escape the code should always have carried.
