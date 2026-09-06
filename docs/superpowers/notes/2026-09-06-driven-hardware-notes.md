@@ -111,3 +111,21 @@ What generalises: every error was in a figure derived by reasoning about the cod
 running it, and the two measured tables in the spec had none. The scratch-file habit from the design
 session should extend to review — measuring the division panel took one test file and about a minute,
 and it is what turned an ambiguous rule into a stated one.
+
+## 2026-09-06 — what writing the plan changed
+
+**The `joints` prop is gone, and with it the spec's last open risk.** The spec worried that adding
+`joints` to `BomModal` would make it hold four of `Scene`'s five collections and force the question
+of just passing the `Scene`. Both options were bad: a fifth prop, or a modal assembling a `Scene`
+from its own props. The plan takes a third — `App` holds the scene and already computes
+`nestReports` outside the modal and passes them in, so `carcaseHardware(scene)` goes the same way.
+The modal stays presentational and never sees a joint.
+
+**`groupHardware` gets its own file**, resolving the first of the two open questions above.
+`buildCsv.ts` is at 206 lines serialising three formats; grouping and pricing is a fourth job. If
+that looks wrong once both are written, the stage close should say so.
+
+**Two mutations in the plan are there because a preset cannot catch them.** The flat-four pin
+mutation passes every preset and every fixture with `rows: 2` — only the `rows: 1` case kills it.
+The runner dedupe passes any cabinet with no drawer bay, which is all three presets. Both are noted
+in their tasks so a subagent does not "simplify" the fixture that makes them fail.

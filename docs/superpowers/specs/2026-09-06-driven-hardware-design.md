@@ -160,8 +160,8 @@ not changed at all. One key until a screw becomes a real catalogue item with its
 | `src/scene/idb.ts` | `DB_VERSION` 3 → 4; a fourth store, `hardware`, keyed by catalogue key, holding `{ supplier, partNumber, unitCost }`. The name comes from the catalogue, never from the library. |
 | `src/ui/buildCsv.ts` | `groupHardware(lines, library)` → priced rows; `buildHardwareCsv` learns the derived rows alongside the hand-typed items. |
 | `src/ui/HardwareTab.tsx` | A read-only derived section above the hand-typed list, with an inline unit-cost field writing straight to the library. |
-| `src/ui/BomModal.tsx` | A `joints` prop — it does not receive them today — and a hardware section in the Library tab. |
-| `src/App.tsx` | Wire `useHardwareLibrary`; pass `joints` to the modal. |
+| `src/ui/BomModal.tsx` | Takes the hardware lines already computed, prices them, and gains a hardware section in the Library tab. |
+| `src/App.tsx` | Wire `useHardwareLibrary`; compute `carcaseHardware(scene)` and pass the lines down. |
 
 **Untouched, and this is the point:** `useScene.ts`, `regenerateComponents.ts`, `reconcileJoints.ts`,
 `useFile.ts`, `FILE_FORMAT_VERSION`. No migration, no pipeline stage, nothing new in the `.zimmu`
@@ -262,7 +262,10 @@ pushed Stage G3's coverage into Playwright. A `HardwareTab` render test with
   front's centreline. When drawer boxes land, both figures should be revisited together.
 - **A screw joint the user converts to dado silently changes the screw count**, which is correct and
   will still look like a bug to someone reading a quote that moved.
-- **`BomModal` gains a `joints` prop, which makes it the fifth of `Scene`'s five collections** —
-  it already takes `parts`, `components`, `materials` and `hardware`. A component that needs the
-  whole scene should take the `Scene`, and this change is the moment that becomes true. The plan
-  should either make that swap or record why not.
+- **`BomModal` was going to gain a `joints` prop, and does not.** It already takes four of
+  `Scene`'s five collections, so a fifth would have made "pass it the `Scene`" the honest move —
+  and assembling a `Scene` from five props inside the modal would have been worse than either.
+  Writing the plan found the third option: `App` holds the scene and already computes `nestReports`
+  outside the modal and passes them in, so `carcaseHardware(scene)` follows that path and the modal
+  stays presentational. Recorded because the risk was real and the resolution is not the one this
+  document first proposed.
