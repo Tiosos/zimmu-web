@@ -2430,8 +2430,10 @@ describe('clearDepth', () => {
   })
 
   // The property that matters: a division panel runs from the front to the back panel, so its
-  // board length IS the clear depth. Read off the generator rather than restated here, so the two
-  // cannot drift.
+  // board length is the cabinet's depth minus the captured back's thickness. That figure is
+  // computed here from the preset's own depth and material thickness, never from `clearDepth`
+  // itself — a mutated `clearDepth` must move the generator's division length away from this
+  // independently-derived expectation, not cancel out against it.
   it('equals the length of a division panel', () => {
     const p = CARCASE_PRESETS[0].params
     const withBays = {
@@ -2442,6 +2444,8 @@ describe('clearDepth', () => {
     const roles = rolesOf(withBays, thicknessOf, jointKindFor([], 'cmp_1'))
     const division = roles.find((r) => r.role.startsWith('division-'))
     expect(division).toBeDefined()
-    expect(division!.panel.length).toBe(clearDepth(withBays, thicknessOf('back')))
+    const expectedLength = withBays.depth - thicknessOf('back')
+    expect(division!.panel.length).toBe(expectedLength)
+    expect(clearDepth(withBays, thicknessOf('back'))).toBe(expectedLength)
   })
 })
