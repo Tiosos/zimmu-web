@@ -4,9 +4,11 @@ import { regenerateComponents } from './regenerateComponents'
 import { hingeCount } from './frontMachining'
 import { carcaseHardware } from './carcaseHardware'
 import { resolveCarcase } from './carcaseOpenings'
+import { reconcileJoints } from './reconcileJoints'
+import { defaultScrewJoint } from './defaultJoint'
 import { splitSection } from './editSection'
 import { defaultInterior, setFrontOn, setInterior } from './sectionInterior'
-import type { CarcaseParams, MaterialDef, Scene } from './types'
+import type { BoardPart, CarcaseParams, Joint, MaterialDef, Scene } from './types'
 
 // The scene a new file starts from, with one cabinet in it. Materials are a parameter because a
 // door thin enough to refuse a cup needs a material the presets do not name.
@@ -210,5 +212,79 @@ describe('carcaseHardware — shelf pins', () => {
     expect(expected).toBe(14) // 1*2*1 + 3*2*2
 
     expect(qtyOf(scene, 'shelf-pin-5mm')).toBe(14)
+  })
+})
+
+const piped = (params: CarcaseParams, label = 'Cabinet'): Scene =>
+  reconcileJoints(sceneOf(params, label))
+
+describe('carcaseHardware — screws', () => {
+  // Side A is `screwCount` summed over the cabinet's screw joints; side B is the pass counting
+  // clearance bores. Both are derived; neither is a number anyone typed.
+  it.each(CARCASE_PRESETS.map((p) => [p.name, p] as const))(
+    '%s lists one screw per clearance hole',
+    (_name, preset: CarcasePreset) => {
+      const scene = piped(preset.params, preset.name)
+      const expected = scene.joints
+        .filter((j) => j.kind === 'screw')
+        .reduce((sum, j) => sum + (j.kind === 'screw' ? j.screwCount : 0), 0)
+      expect(expected).toBeGreaterThan(0)
+      expect(qtyOf(scene, 'screw-8x40')).toBe(expected)
+    },
+  )
+
+  it('matches the figures measured for the presets', () => {
+    expect(qtyOf(piped(CARCASE_PRESETS[0].params), 'screw-8x40')).toBe(32)
+    expect(qtyOf(piped(CARCASE_PRESETS[1].params), 'screw-8x40')).toBe(28)
+    expect(qtyOf(piped(CARCASE_PRESETS[2].params), 'screw-8x40')).toBe(66)
+  })
+
+  // A screw joint the USER added inside a cabinet still needs screws; it carries no
+  // sourceComponentId, so attributing by that would drop it.
+  it('counts a user-added joint into the cabinet whose panels it joins', () => {
+    const scene = piped(CARCASE_PRESETS[0].params)
+    const left = scene.parts.find((p) => p.role === 'left-side') as BoardPart
+    const shelf = scene.parts.find((p) => p.role?.startsWith('adj-shelf-')) as BoardPart
+    const mine: Joint = {
+      ...defaultScrewJoint(left, shelf, '+X', '-X', 'joint_mine', 'Mine'),
+      driven: false,
+    }
+    const before = qtyOf(scene, 'screw-8x40')
+    const after = qtyOf(
+      reconcileJoints({ ...scene, joints: [...scene.joints, mine] }),
+      'screw-8x40',
+    )
+    expect(after).toBeGreaterThan(before)
+    const lines = carcaseHardware(
+      reconcileJoints({ ...scene, joints: [...scene.joints, mine] }),
+    ).filter((l) => l.key === 'screw-8x40')
+    expect(lines.map((l) => l.componentId)).toEqual(['cmp_1'])
+  })
+
+  // A joint between parts owned by no cabinet still needs its screws bought.
+  it('files screws for parentless parts under Ungrouped', () => {
+    const scene = piped(CARCASE_PRESETS[0].params)
+    const a: BoardPart = {
+      ...(scene.parts.find((p) => p.role === 'bottom') as BoardPart),
+      id: 'board_loose_a',
+      parentId: null,
+      driven: false,
+      role: undefined,
+      cuts: [],
+    }
+    const b: BoardPart = { ...a, id: 'board_loose_b' }
+    const loose: Joint = {
+      ...defaultScrewJoint(a, b, '+Z', '-X', 'joint_loose', 'Loose'),
+      driven: false,
+    }
+    const withLoose = reconcileJoints({
+      ...scene,
+      parts: [...scene.parts, a, b],
+      joints: [...scene.joints, loose],
+    })
+    const ungrouped = carcaseHardware(withLoose).filter((l) => l.componentId === null)
+    expect(ungrouped.length).toBe(1)
+    expect(ungrouped[0].cabinetLabel).toBe('Ungrouped')
+    expect(ungrouped[0].qty).toBeGreaterThan(0)
   })
 })

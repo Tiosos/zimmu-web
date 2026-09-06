@@ -1,6 +1,6 @@
 import { clearDepth } from './carcaseRoles'
 import { resolveCarcase } from './carcaseOpenings'
-import { hingeKeyFor, runnerKeyFor, SHELF_PIN_KEY } from './hardwareCatalogue'
+import { hingeKeyFor, runnerKeyFor, SCREW_KEY, SHELF_PIN_KEY } from './hardwareCatalogue'
 import type { CarcaseComponent, ComponentId, Scene } from './types'
 
 // What a generated cabinet needs bought, counted off what its machining actually bored.
@@ -55,18 +55,35 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
       if (cut.id.startsWith('cups_')) {
         // One hinge per cup, and the plate with it: they are sold as a set and their quantities
         // can never differ, so two rows would be two prices for one decision.
+        //
+        // Dropped rather than Ungrouped: the catalogue key depends on the cabinet's `frontMount`
+        // (overlay and inset are different products), and with no cabinet there is no way to know
+        // which one to order — unlike a screw, whose key is universal.
         if (cabinet === undefined) continue
         add(owner, hingeKeyFor(cabinet.params.frontMount), cut.count)
       }
 
       if (cut.id.startsWith('slide_')) {
         if (cabinet === undefined || owner === null) continue
+        // Reusing `cell()` for a dedupe key, not a tally key, is safe because neither a component
+        // id nor a cut id can contain the separator, so the composed string is unambiguous either
+        // way.
         const seen = cell(owner, cut.id)
         if (seenSlide.has(seen)) continue
         seenSlide.add(seen)
         const key = runnerKeyFor(clearDepth(cabinet.params, backThickness.get(owner) ?? 0))
         if (key !== null) add(owner, key, 1)
         continue
+      }
+
+      // Clearance only. `deriveScrewJoint` emits a clearance array on the panel screwed THROUGH and
+      // a pilot array into the panel receiving them, both at `screwCount`: the same screws seen
+      // from two ends. Counting both doubles every figure in the quote.
+      //
+      // `_clearance` is unique to `screw.ts`, and `sourceJointId` is what makes it a joint's bore
+      // rather than a component's.
+      if (cut.sourceJointId !== undefined && cut.id.endsWith('_clearance')) {
+        add(owner, SCREW_KEY, cut.count)
       }
     }
   }
