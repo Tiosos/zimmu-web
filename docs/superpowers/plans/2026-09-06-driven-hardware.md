@@ -532,7 +532,7 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
   for (const c of scene.components) if (c.kind === 'carcase') carcases.set(c.id, c)
 
   const tally = new Map<string, number>()
-  const cell = (id: ComponentId | null, key: string) => `${id ?? ''} ${key}`
+  const cell = (id: ComponentId | null, key: string) => `${id ?? ''}\u0000${key}`
   const add = (id: ComponentId | null, key: string, qty: number) =>
     tally.set(cell(id, key), (tally.get(cell(id, key)) ?? 0) + qty)
 
@@ -555,7 +555,7 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
 
   const lines: HardwareLine[] = []
   for (const [key, qty] of tally) {
-    const [id, catalogueKey] = key.split(' ')
+    const [id, catalogueKey] = key.split('\u0000')
     if (qty <= 0) continue
     const componentId = id === '' ? null : id
     lines.push({
@@ -696,7 +696,7 @@ And inside the cut loop, after the cups arm:
 ```ts
       if (cut.id.startsWith('slide_')) {
         if (cabinet === undefined || owner === null) continue
-        const seen = `${owner} ${cut.id}`
+        const seen = `${owner}\u0000${cut.id}`
         if (seenSlide.has(seen)) continue
         seenSlide.add(seen)
         const key = runnerKeyFor(clearDepth(cabinet.params, backThickness.get(owner) ?? 0))
@@ -821,7 +821,9 @@ After the part loop, before the lines are built:
     for (const opening of resolved.openings) {
       const rows = opening.spec?.adjustable.rows
       if (rows === undefined) continue
-      const owned = resolved.nodes.find((n) => n.sectionId === opening.sectionId)
+      // `sectionNodes` returns `{ sections, carcase }`, not a flat array — a divider belongs to
+      // the carcase, so the openings live under `.sections`.
+      const owned = resolved.nodes.sections.find((n) => n.sectionId === opening.sectionId)
       const shelves = owned?.parts.filter((p) => p.role?.startsWith('adj-shelf-')).length ?? 0
       if (shelves > 0) add(cabinet.id, SHELF_PIN_KEY, shelves * 2 * rows)
     }

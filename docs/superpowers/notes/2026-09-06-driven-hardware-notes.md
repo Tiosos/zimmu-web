@@ -129,3 +129,30 @@ that looks wrong once both are written, the stage close should say so.
 mutation passes every preset and every fixture with `rows: 2` — only the `rows: 1` case kills it.
 The runner dedupe passes any cabinet with no drawer bay, which is all three presets. Both are noted
 in their tasks so a subagent does not "simplify" the fixture that makes them fail.
+
+## 2026-09-06 — three defects the execution found in the plan itself
+
+Recorded as they were found, because all three are the same failure as the spec cross-check: a
+claim reasoned about rather than run.
+
+**`sectionNodes` does not return an array.** It returns `{ sections, carcase }` — a divider belongs
+to the carcase, so the openings live under `.sections`. The plan's Task 3 test and Task 6
+implementation both called `.find(...)` straight on it. The Task 3 implementer hit it, fixed the
+test's access path, and flagged Task 6 forward rather than leaving it to fail later; Task 6's code
+in the plan was corrected before dispatch. The mistake came from reading `carcaseOpenings`'s
+`ReturnType<typeof sectionNodes>` signature and inferring the shape without opening the module.
+
+**The plan file contained three literal NUL bytes.** They sat where the tally key's separator was
+meant to be a ` ` escape, and they made `file` report the plan as binary data. Any implementer
+copying those lines would have put a raw NUL into a TypeScript string literal. Caught before Tasks
+4–8 were dispatched — they are the only tasks that quote those lines — and replaced with the
+two-character escape the code should always have carried.
+
+**Task 2's second test was a tautology.** Its expected value called `clearDepth`, the same function
+production routes through, so a mutated formula cancelled out on both sides. The code-quality
+reviewer proved it by mutation: test one failed, test two passed. The expectation is now derived
+from the preset's depth and back-material thickness instead, and the mutation fails both. The
+plan's own comment — "read off the generator rather than restated here, so the two cannot drift" —
+had asserted the property the test did not actually have.
+
+The pattern across all three: everything measured was right, everything inferred was suspect.
