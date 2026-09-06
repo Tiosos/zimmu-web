@@ -1,7 +1,7 @@
 # Driven hardware — implementation notes
 
 **Spec:** `docs/superpowers/specs/2026-09-06-driven-hardware-design.md`
-**Plan:** _(to be written)_
+**Plan:** `docs/superpowers/plans/2026-09-06-driven-hardware.md`
 
 Living record of decisions that do not belong in the spec — why an approach was rejected, what was
 discovered during implementation, and anything that would surprise a future reader.

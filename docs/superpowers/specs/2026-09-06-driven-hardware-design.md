@@ -14,7 +14,7 @@ Nothing is stored in the file, nothing enters the regeneration pipeline.
 **Tech Stack:** TypeScript strict, Vitest, React 19. No new dependency. No file-format change.
 
 **Spec:** this file
-**Plan:** _(to be written)_
+**Plan:** `docs/superpowers/plans/2026-09-06-driven-hardware.md`
 **Notes:** `docs/superpowers/notes/2026-09-06-driven-hardware-notes.md`
 **Follows:** `docs/superpowers/specs/2026-08-27-cabinet-assembly-restructure-design.md`, whose
 excluded-scope list names this work: *"Machining positions are generated; no `HardwareItem` is
