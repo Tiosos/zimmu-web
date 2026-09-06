@@ -100,6 +100,14 @@ export function openingRect(p: CarcaseParams, thicknessOf: RoleThickness): Rect 
   }
 }
 
+// How deep the inside of the cabinet actually is: a captured back stands inside the carcase and
+// takes its own thickness out of the depth; an applied one hangs behind it and takes none. Stated
+// here because a drawer runner has to fit this and a division panel's length *is* it — two copies
+// of the rule is how a runner comes to disagree with the panel it screws to.
+export function clearDepth(p: CarcaseParams, backThickness: number): number {
+  return p.backMode === 'captured' ? p.depth - backThickness : p.depth
+}
+
 // A division panel is as thick as the panel it is, not as thick as the cabinet: the tree asks by
 // parent section and index, which is exactly what the box table names the role after.
 export function sectionThickness(thicknessOf: RoleThickness): DivisionThickness {
@@ -344,7 +352,7 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
   const carcaseZ0 = p.baseMode === 'ladder' ? p.toeKickHeight : 0
   const floor = floorZ(p)
   const innerTop = p.hasTop ? H - TT : H
-  const backY0 = p.backMode === 'captured' ? D - BT : D
+  const backY0 = clearDepth(p, BT)
   const shelfBackY = p.backMode === 'captured' ? backY0 : D
   const bayZ0 = floor + TB
 
@@ -1114,12 +1122,7 @@ export function carcaseMachining(
       // No drawer box exists yet, so the runner height comes off the front's own centreline. When
       // boxes land this figure is expected to move, which is why it is derived here in one place.
       cuts.push(
-        slideScrewRow(
-          panel,
-          face,
-          (cell.rect.z0 + cell.rect.z1) / 2 - panel.position.z,
-          frontRole,
-        ),
+        slideScrewRow(panel, face, (cell.rect.z0 + cell.rect.z1) / 2 - panel.position.z, frontRole),
       )
     }
   }
