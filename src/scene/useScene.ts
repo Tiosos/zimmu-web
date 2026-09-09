@@ -277,17 +277,34 @@ export function useScene(): UseSceneResult {
         })
     }
 
+    // `buildSeq` is the lifecycle registry, not `geometriesRef`: a part enters it before its worker
+    // request starts, so it also covers a part deleted before its first geometry ever exists.
     const removed: PartId[] = []
-    for (const [id] of geometriesRef.current) {
+    for (const id of buildSeq.current.keys()) {
       if (!partIds.has(id)) removed.push(id)
     }
     for (const id of removed) {
       geometriesRef.current.get(id)?.dispose()
       geometriesRef.current.delete(id)
       prevShapeKeys.current.delete(id)
+      // Deleting the sequence invalidates any in-flight completion: its captured seq can no longer
+      // equal the current entry, so stale geometry and stale errors cannot land after deletion.
       buildSeq.current.delete(id)
     }
-    if (removed.length > 0) setGeometries(new Map(geometriesRef.current))
+    if (removed.length > 0) {
+      const removedSet = new Set(removed)
+      setGeometries(new Map(geometriesRef.current))
+      setPendingIds((prev) => {
+        const next = new Set(prev)
+        for (const id of removedSet) next.delete(id)
+        return next
+      })
+      setErrors((prev) => {
+        const next = new Map(prev)
+        for (const id of removedSet) next.delete(id)
+        return next
+      })
+    }
   }, [scene])
 
   const push = useCallback((entry: HistoryEntry) => {
@@ -422,8 +439,19 @@ export function useScene(): UseSceneResult {
       geometriesRef.current.get(id)?.dispose()
       geometriesRef.current.delete(id)
       prevShapeKeys.current.delete(id)
+      // Also invalidate an in-flight build even when this part has never produced geometry yet.
       buildSeq.current.delete(id)
       setGeometries(new Map(geometriesRef.current))
+      setPendingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+      setErrors((prev) => {
+        const next = new Map(prev)
+        next.delete(id)
+        return next
+      })
       const after = applyPipeline({
         ...before,
         parts: before.parts.filter((p) => p.id !== id),
@@ -1325,6 +1353,7 @@ export function useScene(): UseSceneResult {
     setScene(applyPipeline(next))
     setSelection(null)
     setPendingIds(new Set())
+    setErrors(new Map())
     setGeometries(new Map())
   }, [])
 
