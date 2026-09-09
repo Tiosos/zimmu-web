@@ -12,17 +12,6 @@ export interface NestReport {
   result: NestResult
 }
 
-// Lazy singleton — not instantiated at module load so vi.stubGlobal('Worker') works in tests, and
-// so a session that never opens the Sheets tab never spawns a worker at all.
-let _nest: ReturnType<typeof wrap<NestWorkerApi>> | null = null
-function getNester() {
-  if (!_nest) {
-    const w = new Worker(new URL('../nest/nest.worker.ts', import.meta.url), { type: 'module' })
-    _nest = wrap<NestWorkerApi>(w)
-  }
-  return _nest
-}
-
 const DEBOUNCE_MS = 400
 
 interface Group {
@@ -77,7 +66,8 @@ export function useNest(
     signature: '',
     reports: [],
   })
-  // A nest takes seconds, so two runs overlapping is the normal case. Only the newest may land.
+  // Stale-result rejection remains even though obsolete workers are terminated: termination stops
+  // wasted CPU, while the generation guard protects promise continuations already queued to run.
   const runId = useRef(0)
 
   const groups = enabled ? groupByNestableMaterial(parts, materials) : []
@@ -92,8 +82,22 @@ export function useNest(
     if (pendingGroups.length === 0) return
 
     const id = ++runId.current
+    let cancelled = false
+    let worker: Worker | null = null
+
+    const stopWorker = () => {
+      worker?.terminate()
+      worker = null
+    }
+
     const timer = setTimeout(() => {
-      const nester = getNester()
+      // `nestJob` is synchronous CPU work inside the worker. A cancel message cannot interrupt it,
+      // because the worker cannot service that message until the current call returns. Give each
+      // active signature its own disposable worker instead: cleanup can terminate obsolete work
+      // immediately and the next signature starts on a fresh event loop.
+      worker = new Worker(new URL('../nest/nest.worker.ts', import.meta.url), { type: 'module' })
+      const nester = wrap<NestWorkerApi>(worker)
+
       void Promise.all(
         pendingGroups.map(async (g) => ({
           material: g.material,
@@ -109,14 +113,23 @@ export function useNest(
         })),
       )
         .then((reports) => {
-          if (id === runId.current) setStored({ signature, reports })
+          if (!cancelled && id === runId.current) setStored({ signature, reports })
         })
         .catch((err: unknown) => {
-          if (id === runId.current) console.error('Failed to nest sheets:', err)
+          // Terminating a superseded worker rejects its outstanding Comlink calls. That is expected
+          // cancellation, not a nesting failure worth surfacing in the console.
+          if (!cancelled && id === runId.current) console.error('Failed to nest sheets:', err)
         })
+        .finally(stopWorker)
     }, DEBOUNCE_MS)
 
-    return () => clearTimeout(timer)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+      // Invalidate this generation even if a promise has already settled and queued its `.then`.
+      if (runId.current === id) runId.current += 1
+      stopWorker()
+    }
     // `parts`, `materials` and `clearance` are all encoded in `signature`; depending on their
     // identity would re-nest on every render, since both objects are rebuilt each time.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -9,7 +9,12 @@ vi.mock('comlink', () => ({
   wrap: () => ({ nestJob: mockNestJob }),
   expose: vi.fn(),
 }))
-const WorkerCtor = vi.fn(function MockWorker() {})
+const terminateFns: Array<ReturnType<typeof vi.fn>> = []
+const WorkerCtor = vi.fn(function MockWorker() {
+  const terminate = vi.fn()
+  terminateFns.push(terminate)
+  return { terminate }
+})
 vi.stubGlobal('Worker', WorkerCtor)
 
 const { useNest } = await import('./useNest')
@@ -43,6 +48,7 @@ beforeEach(() => {
   mockNestJob.mockReset()
   mockNestJob.mockResolvedValue(EMPTY)
   WorkerCtor.mockClear()
+  terminateFns.length = 0
   vi.useFakeTimers()
 })
 
@@ -78,6 +84,7 @@ describe('useNest', () => {
     })
     await waitFor(() => expect(result.current.reports).toHaveLength(1))
     expect(result.current.reports[0].material).toBe('18mm Ply')
+    await waitFor(() => expect(terminateFns[0]).toHaveBeenCalledTimes(1))
   })
 
   it('skips a material with no sheet, and one with a zero dimension', async () => {
@@ -99,7 +106,7 @@ describe('useNest', () => {
     expect(mockNestJob).not.toHaveBeenCalled()
   })
 
-  it('groups boards by material, one job each', async () => {
+  it('groups boards by material, one job each on one worker for the run', async () => {
     renderHook(() =>
       useNest(
         [
@@ -117,6 +124,7 @@ describe('useNest', () => {
     const jobs = mockNestJob.mock.calls.map((c) => c[0] as { parts: Part[]; hasGrain: boolean })
     expect(jobs.map((j) => j.parts.length).sort()).toEqual([1, 2])
     expect(jobs.map((j) => j.hasGrain).sort()).toEqual([false, true])
+    expect(WorkerCtor).toHaveBeenCalledTimes(1)
   })
 
   it('treats an absent hasGrain as grained, matching the Library checkbox', async () => {
@@ -165,15 +173,66 @@ describe('useNest', () => {
     await settle()
 
     rerender({ parts: [board({ id: 'a' }), board({ id: 'b' })] })
+    expect(terminateFns[0]).toHaveBeenCalledTimes(1)
     await settle()
     await waitFor(() => expect(mockNestJob).toHaveBeenCalledTimes(2))
 
-    // The first job finishes LAST. Its result is stale and must be discarded.
+    // The first job finishes LAST. Its result is stale and must still be discarded even if its
+    // promise continuation was already queued before worker termination.
     await act(async () => {
       releaseSlow(slow)
     })
     await waitFor(() => expect(result.current.reports).toHaveLength(1))
     expect(result.current.reports[0].result.unplaced).toEqual(['fresh'])
+  })
+
+  it('terminates a running worker when the job is superseded', async () => {
+    mockNestJob.mockImplementation(() => new Promise<NestResult>(() => {}))
+    const { rerender } = renderHook(
+      ({ parts }: { parts: Part[] }) => useNest(parts, { '18mm Ply': PLY }, 14, true),
+      { initialProps: { parts: [board({ id: 'a' })] as Part[] } },
+    )
+
+    await settle()
+    expect(WorkerCtor).toHaveBeenCalledTimes(1)
+    expect(terminateFns[0]).not.toHaveBeenCalled()
+
+    rerender({ parts: [board({ id: 'a' }), board({ id: 'b' })] })
+    expect(terminateFns[0]).toHaveBeenCalledTimes(1)
+
+    await settle()
+    expect(WorkerCtor).toHaveBeenCalledTimes(2)
+  })
+
+  it('terminates a running worker when the Sheets tab closes', async () => {
+    mockNestJob.mockImplementation(() => new Promise<NestResult>(() => {}))
+    const { rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useNest([board({ id: 'a' })], { '18mm Ply': PLY }, 14, enabled),
+      { initialProps: { enabled: true } },
+    )
+
+    await settle()
+    expect(WorkerCtor).toHaveBeenCalledTimes(1)
+    rerender({ enabled: false })
+    expect(terminateFns[0]).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not create a worker for a job superseded during the debounce window', async () => {
+    const { rerender } = renderHook(
+      ({ parts }: { parts: Part[] }) => useNest(parts, { '18mm Ply': PLY }, 14, true),
+      { initialProps: { parts: [board({ id: 'a' })] as Part[] } },
+    )
+
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
+    rerender({ parts: [board({ id: 'a' }), board({ id: 'b' })] })
+    expect(WorkerCtor).not.toHaveBeenCalled()
+
+    await settle()
+    expect(WorkerCtor).toHaveBeenCalledTimes(1)
+    expect((mockNestJob.mock.calls[0][0] as { parts: Part[] }).parts).toHaveLength(2)
   })
 
   it('reports pending while a job is in flight', async () => {
