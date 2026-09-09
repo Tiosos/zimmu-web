@@ -1,0 +1,1 @@
+export { carcaseCuts } from '../carcaseRolesCore'

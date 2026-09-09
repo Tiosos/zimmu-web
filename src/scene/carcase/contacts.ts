@@ -1,0 +1,1 @@
+export { carcaseContactPairs } from '../carcaseRolesCore'
