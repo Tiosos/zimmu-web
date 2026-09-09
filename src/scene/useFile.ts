@@ -20,6 +20,7 @@ import {
 import { legacyToSection } from './migrateSections'
 import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
+import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 
 export const FILE_FORMAT_VERSION = 17
 
@@ -54,6 +55,27 @@ function serialize(envelope: ZimmuFile): string {
 
 const KNOWN_JOINT_KINDS = ['dado', 'halflap', 'mortise-tenon', 'finger', 'tongue-groove', 'screw']
 
+// Early migration fixtures — and real files from before the full envelope settled — can omit
+// project metadata that the scene migration itself never reads. Preserve that historical tolerance
+// without weakening validation: defaults are supplied only when a field is absent; an explicitly
+// malformed value still overrides the default and is rejected by validateLegacyFileInput.
+function withLegacyEnvelopeDefaults(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value
+  const root = value as Record<string, unknown>
+  return {
+    name: 'Untitled',
+    appVersion: '0.0.0',
+    units: 'mm',
+    createdAt: '',
+    updatedAt: '',
+    camera: {
+      position: { x: 250, y: -200, z: 150 },
+      target: { x: 0, y: 0, z: 0 },
+    },
+    ...root,
+  }
+}
+
 // v13→v14: a pre-v14 file states one thickness per carcase, v14 one thickness per material. Two
 // carcases may legally have shared a material name at different thicknesses, which v14 cannot
 // represent — so a name already spoken for at another thickness forks into a suffixed one instead
@@ -87,7 +109,10 @@ function materialAtThickness(
 }
 
 export function parseFile(text: string): ZimmuFile {
-  const raw = JSON.parse(text) as ZimmuFile
+  // JSON is untrusted until the legacy-compatible boundary has proved the container types and the
+  // geometry-bearing values the migration code reads. Only historically optional envelope fields
+  // are defaulted first; scene data remains untouched and untrusted until validation succeeds.
+  const raw = validateLegacyFileInput(withLegacyEnvelopeDefaults(JSON.parse(text) as unknown))
   if (raw.version > FILE_FORMAT_VERSION) {
     console.warn(
       `zimmu: file version ${raw.version} is newer than app version ${FILE_FORMAT_VERSION} — attempting to parse`,
@@ -327,7 +352,10 @@ export function parseFile(text: string): ZimmuFile {
       return base
     }),
   }
-  return { ...raw, scene: breakComponentCycles(promoteOrphans(scene)) }
+  // Migration/defaulting is followed by a second assertion for the current model. That means no
+  // caller receives a half-valid `ZimmuFile`: malformed input either degrades through an explicit
+  // recovery rule above or fails here with a path-aware validation error.
+  return validateCurrentFile({ ...raw, scene: breakComponentCycles(promoteOrphans(scene)) })
 }
 
 export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): UseFileResult {
