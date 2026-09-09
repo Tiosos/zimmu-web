@@ -20,6 +20,7 @@ import {
 import { legacyToSection } from './migrateSections'
 import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
+import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 
 export const FILE_FORMAT_VERSION = 17
 
@@ -87,7 +88,10 @@ function materialAtThickness(
 }
 
 export function parseFile(text: string): ZimmuFile {
-  const raw = JSON.parse(text) as ZimmuFile
+  // JSON is untrusted until the legacy-compatible boundary has proved the container types and the
+  // geometry-bearing values the migration code reads. Only then is it allowed to enter the typed
+  // migration path below.
+  const raw = validateLegacyFileInput(JSON.parse(text) as unknown)
   if (raw.version > FILE_FORMAT_VERSION) {
     console.warn(
       `zimmu: file version ${raw.version} is newer than app version ${FILE_FORMAT_VERSION} — attempting to parse`,
@@ -327,7 +331,10 @@ export function parseFile(text: string): ZimmuFile {
       return base
     }),
   }
-  return { ...raw, scene: breakComponentCycles(promoteOrphans(scene)) }
+  // Migration/defaulting is followed by a second assertion for the current model. That means no
+  // caller receives a half-valid `ZimmuFile`: malformed input either degrades through an explicit
+  // recovery rule above or fails here with a path-aware validation error.
+  return validateCurrentFile({ ...raw, scene: breakComponentCycles(promoteOrphans(scene)) })
 }
 
 export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): UseFileResult {
