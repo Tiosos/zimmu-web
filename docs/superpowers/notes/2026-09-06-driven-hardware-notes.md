@@ -159,7 +159,7 @@ The pattern across all three: everything measured was right, everything inferred
 
 ## 2026-09-06 — shipped
 
-Unit tests: **1700 → 1772** passing (10 skipped throughout, 90 files throughout — the count moved
+Unit tests: **1700 → 1773** passing (10 skipped throughout, 90 files throughout — the count moved
 inside existing files, not across new ones). Typecheck, lint, the full Vitest run, all 25 Playwright
 specs and the production build are all green on the branch this stage closes on. The spec predicted
 no new e2e coverage for this stage ("Nothing here depends on the canvas, on CSS, or on hit-testing")
@@ -382,3 +382,19 @@ which is why this was cheap to do late. Narrowing it later would not be.
 interim state the way a half-typed number does, and there is nothing to withhold a commit for. It
 does keep the focused/unfocused echo, because these rows share a catalogue key and a value typed on
 one must reach the others.
+
+## 2026-09-06 — the App wiring had no test, and the obvious fixture could not give it one
+
+`App` is the only caller of `carcaseHardware`, and it hands the result to `BomModal` as a prop.
+`tsc` proves the shape and nothing else: passing `[]` typechecks perfectly and renders an empty
+Hardware tab. The review flagged the gap; closing it took two attempts worth recording.
+
+The first version built its scene from `partsOfBase600`, the fixture every other `App` test uses.
+It rendered nothing, and the instinct was to suspect the wiring. Measuring instead: that fixture
+emits boards with **no cuts at all**, and hardware is counted off cuts, so an empty list was the
+correct answer. A test written against it would have passed once the assertion was weakened, and
+would have proved only that empty renders empty — the exact shape of a test that cannot fail.
+
+The scene is now built through `regenerateComponents`, the way `carcaseHardware.test.ts` builds
+its own. Mutation-proven: `App` passing `[]` instead of the real lines fails this test and no other
+in the file, which is what a genuine coverage gap looks like from the inside.
