@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HardwareTab } from './HardwareTab'
 import type { BoardPart, HardwareItem } from '../scene/types'
@@ -260,14 +260,132 @@ describe('HardwareTab — generated rows', () => {
         onSaveHardwareEntry={onSaveHardwareEntry}
       />,
     )
-    const input = screen.getByLabelText('Unit cost for 110° hinge c/w plate')
-    // `type` fires a change per keystroke, so the settled value is the last call, not the only one.
+    // The cabinet label is now part of the accessible name — the catalogue key alone collides
+    // whenever two cabinets share a part.
+    const input = screen.getByLabelText('Unit cost for 110° hinge c/w plate (Base A)')
+    // `type` fires a change per keystroke; the commit is debounced, so wait for the settled write.
     await userEvent.type(input, '3.4')
+    await waitFor(() => expect(onSaveHardwareEntry).toHaveBeenCalled())
     expect(onSaveHardwareEntry).toHaveBeenLastCalledWith('hinge-overlay', {
       supplier: '',
       partNumber: '',
       unitCost: 3.4,
     })
+  })
+
+  it('never commits a non-finite unit cost when the field passes through empty mid-edit', async () => {
+    const onSaveHardwareEntry = vi.fn()
+    render(
+      <HardwareTab
+        {...defaultProps}
+        hardware={[]}
+        parts={[]}
+        components={[]}
+        onUpdateHardware={vi.fn()}
+        derived={derived}
+        onSaveHardwareEntry={onSaveHardwareEntry}
+      />,
+    )
+    // By role, not label text — this test's failure is about the committed value, not the
+    // cabinet-qualified aria-label the sync fix also changes.
+    const input = screen.getByRole('spinbutton')
+    // A real edit: type a digit, then clear the field (e.g. select-all-delete before retyping).
+    // parseFloat('') is NaN, exactly the case the guard comment names.
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.change(input, { target: { value: '' } })
+    await waitFor(() => expect(onSaveHardwareEntry).toHaveBeenCalled())
+    for (const [, entry] of onSaveHardwareEntry.mock.calls) {
+      expect(Number.isFinite(entry.unitCost)).toBe(true)
+    }
+  })
+
+  it('keeps every row for a shared catalogue key in sync after one is edited', async () => {
+    const sharedRows: HardwareRow[] = [
+      {
+        key: 'screw-4x30',
+        cabinetLabel: 'Base A',
+        name: 'Screw 4x30',
+        qty: 8,
+        unit: 'pcs',
+        supplier: '',
+        partNumber: '',
+        unitCost: null,
+        totalCost: null,
+      },
+      {
+        key: 'screw-4x30',
+        cabinetLabel: 'Base B',
+        name: 'Screw 4x30',
+        qty: 6,
+        unit: 'pcs',
+        supplier: '',
+        partNumber: '',
+        unitCost: null,
+        totalCost: null,
+      },
+    ]
+    const onSaveHardwareEntry = vi.fn()
+    const { rerender } = render(
+      <HardwareTab
+        {...defaultProps}
+        hardware={[]}
+        parts={[]}
+        components={[]}
+        onUpdateHardware={vi.fn()}
+        derived={sharedRows}
+        onSaveHardwareEntry={onSaveHardwareEntry}
+      />,
+    )
+    // By role and row order, not label text — this test's failure is about the second row's
+    // displayed value, not the aria-label change.
+    const [inputA, inputB] = screen.getAllByRole('spinbutton') as HTMLInputElement[]
+    // Touch row B once first: an uncontrolled input only stops mirroring a `defaultValue` prop
+    // change once its own DOM value has actually been set once (the "dirty value flag"), which is
+    // exactly what happens the moment a real user has so much as glanced at a field before.
+    // Without this step, a never-touched row happens to keep tracking `defaultValue` across a
+    // rerender regardless of the bug, which would pass this assertion for the wrong reason on
+    // both the fixed and the unfixed input — verified directly against happy-dom's own behavior.
+    fireEvent.change(inputB, { target: { value: inputB.value } })
+    fireEvent.change(inputA, { target: { value: '5' } })
+    await waitFor(() => expect(onSaveHardwareEntry).toHaveBeenCalled())
+
+    // Both rows key off the same catalogue entry, so a real library write prices both — simulate
+    // that round trip landing back as new `derived` props, the way BomModal recomputes them.
+    const pricedRows = sharedRows.map((r) => ({ ...r, unitCost: 5, totalCost: 5 * r.qty }))
+    rerender(
+      <HardwareTab
+        {...defaultProps}
+        hardware={[]}
+        parts={[]}
+        components={[]}
+        onUpdateHardware={vi.fn()}
+        derived={pricedRows}
+        onSaveHardwareEntry={onSaveHardwareEntry}
+      />,
+    )
+    const [, inputBAfter] = screen.getAllByRole('spinbutton') as HTMLInputElement[]
+    expect(inputBAfter.value).toBe('5')
+  })
+
+  it('commits a settled value once, not once per keystroke', async () => {
+    const onSaveHardwareEntry = vi.fn()
+    render(
+      <HardwareTab
+        {...defaultProps}
+        hardware={[]}
+        parts={[]}
+        components={[]}
+        onUpdateHardware={vi.fn()}
+        derived={derived}
+        onSaveHardwareEntry={onSaveHardwareEntry}
+      />,
+    )
+    // By role, not label text — this test's failure is about the call count.
+    const input = screen.getByRole('spinbutton')
+    await userEvent.type(input, '3.4')
+    await waitFor(() => expect(onSaveHardwareEntry).toHaveBeenCalled())
+    // Every keystroke resets the debounce timer, so typing "3", "3.", "3.4" settles into one write.
+    expect(onSaveHardwareEntry).toHaveBeenCalledTimes(1)
   })
 
   it('still offers the hand-typed list beneath', () => {

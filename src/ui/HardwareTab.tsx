@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Component, HardwareItem, HardwareLibraryEntry, Part } from '../scene/types'
 import type { HardwareRow } from './groupHardware'
 import { HardwareEditPanel } from './HardwareEditPanel'
+import { useDebouncedCallback } from './useDebouncedCallback'
 import { Button } from '@/components/ui/button'
 
 interface HardwareTabProps {
@@ -11,6 +12,59 @@ interface HardwareTabProps {
   onUpdateHardware: (items: HardwareItem[]) => void
   derived: HardwareRow[]
   onSaveHardwareEntry: (key: string, entry: HardwareLibraryEntry) => void
+}
+
+// The catalogue key is shared across every row that needs the same part — screws and shelf pins on
+// every cabinet, a hinge split across two — so the input must read the library, not its own mount-
+// time snapshot, or a price typed on one row leaves every other row showing a stale number. It
+// follows DimInput's split: a local echo for what's being typed, synced from the committed value
+// only while unfocused, and a debounced commit so a settled edit writes once, not once per keystroke.
+function UnitCostInput({
+  value,
+  ariaLabel,
+  onCommit,
+}: {
+  value: number | null
+  ariaLabel: string
+  onCommit: (v: number) => void
+}) {
+  const [localValue, setLocalValue] = useState(value === null ? '' : String(value))
+  const isFocused = useRef(false)
+  const debounced = useDebouncedCallback(onCommit, 150)
+
+  useEffect(() => {
+    if (!isFocused.current) setLocalValue(value === null ? '' : String(value))
+  }, [value])
+
+  return (
+    <input
+      type="number"
+      step="0.01"
+      min={0}
+      aria-label={ariaLabel}
+      className="w-20 bg-transparent border border-border rounded px-1"
+      value={localValue}
+      onChange={(e) => {
+        setLocalValue(e.target.value)
+        const v = parseFloat(e.target.value)
+        // An interim value ("-", "1e", "") parses to NaN, and a real price is never negative —
+        // wait for a finite, non-negative value before committing, exactly as DimInput withholds
+        // a commit below its own `min`. Committing NaN would persist into the library and turn
+        // every total downstream into the literal text "$NaN".
+        if (isFinite(v) && v >= 0) debounced(v)
+      }}
+      onFocus={() => {
+        isFocused.current = true
+      }}
+      onBlur={() => {
+        isFocused.current = false
+        // A blank or invalid field is not a $0.00 price — that reads as "free", which the '—'
+        // fallback exists specifically to avoid. Leaving without a valid edit reverts the display
+        // to the last committed price rather than silently writing a zero.
+        setLocalValue(value === null ? '' : String(value))
+      }}
+    />
+  )
 }
 
 function makeBlankItem(): HardwareItem {
@@ -96,17 +150,16 @@ export function HardwareTab({
                     <td className="py-1.5 px-2 text-xs">{row.qty}</td>
                     <td className="py-1.5 px-2 text-xs">{row.unit}</td>
                     <td className="py-1.5 px-2 text-xs">
-                      <input
-                        type="number"
-                        step="0.01"
-                        aria-label={`Unit cost for ${row.name}`}
-                        className="w-20 bg-transparent border border-border rounded px-1"
-                        defaultValue={row.unitCost ?? ''}
-                        onChange={(e) =>
+                      <UnitCostInput
+                        value={row.unitCost}
+                        // The catalogue key alone collides whenever two cabinets share a part;
+                        // the cabinet label is what makes the label (and the row) unambiguous.
+                        ariaLabel={`Unit cost for ${row.name} (${row.cabinetLabel})`}
+                        onCommit={(v) =>
                           onSaveHardwareEntry(row.key, {
                             supplier: row.supplier,
                             partNumber: row.partNumber,
-                            unitCost: Number(e.target.value),
+                            unitCost: v,
                           })
                         }
                       />
