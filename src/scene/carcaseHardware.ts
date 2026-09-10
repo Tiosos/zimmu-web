@@ -5,10 +5,10 @@ import type { CarcaseComponent, ComponentId, Scene } from './types'
 
 // What a generated cabinet needs bought, counted off what its machining actually bored.
 //
-// The rule, stated once because four families follow it: **quantity comes from what the pipeline
-// emitted; the variant comes from the cabinet.** Re-deriving counts from `CarcaseParams` would
-// order hinges for a door too thin to bore and screws for a joint converted to a dado — the bores
-// already know better.
+// The rule, stated once because four families follow it: **quantity always comes from what the
+// pipeline emitted, and where a family has more than one variant, that variant comes from the
+// cabinet too.** Re-deriving counts from `CarcaseParams` would order hinges for a door too thin to
+// bore and screws for a joint converted to a dado — the bores already know better.
 //
 // Nothing here is stored. This is a read over the scene, exactly as the cutting list and the dowel
 // list are, which is why a hardware item needs no `driven` flag and no file-format version.
@@ -64,6 +64,7 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
       }
 
       if (cut.id.startsWith('slide_')) {
+        // Dropped rather than Ungrouped, same reason as a hinge: no cabinet means no clear depth.
         if (cabinet === undefined || owner === null) continue
         // Reusing `cell()` for a dedupe key, not a tally key, is safe because neither a component
         // id nor a cut id can contain the separator, so the composed string is unambiguous either

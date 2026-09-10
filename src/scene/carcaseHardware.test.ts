@@ -8,7 +8,7 @@ import { reconcileJoints } from './reconcileJoints'
 import { defaultScrewJoint } from './defaultJoint'
 import { splitSection } from './editSection'
 import { defaultInterior, setFrontOn, setInterior } from './sectionInterior'
-import type { BoardPart, CarcaseParams, Joint, MaterialDef, Scene } from './types'
+import type { BoardPart, CarcaseParams, ComponentId, Joint, MaterialDef, Scene } from './types'
 
 // The scene a new file starts from, with one cabinet in it. Materials are a parameter because a
 // door thin enough to refuse a cup needs a material the presets do not name.
@@ -40,6 +40,14 @@ const sceneOf = (
 const qtyOf = (scene: Scene, key: string): number =>
   carcaseHardware(scene)
     .filter((l) => l.key === key)
+    .reduce((sum, l) => sum + l.qty, 0)
+
+// qtyOf sums across every owner, so it cannot tell a right attribution from a swapped one — two
+// cabinets' totals can move in opposite directions and still add up the same. Attribution tests
+// need the count pinned to one componentId.
+const qtyForOwner = (scene: Scene, componentId: ComponentId | null, key: string): number =>
+  carcaseHardware(scene)
+    .filter((l) => l.componentId === componentId && l.key === key)
     .reduce((sum, l) => sum + l.qty, 0)
 
 describe('carcaseHardware — hinges', () => {
@@ -245,16 +253,14 @@ describe('carcaseHardware — screws', () => {
     const scene = piped(CARCASE_PRESETS[0].params)
     const left = scene.parts.find((p) => p.role === 'left-side') as BoardPart
     const shelf = scene.parts.find((p) => p.role?.startsWith('adj-shelf-')) as BoardPart
-    const mine: Joint = {
-      ...defaultScrewJoint(left, shelf, '+X', '-X', 'joint_mine', 'Mine'),
-      driven: false,
-    }
+    const screwJoint = defaultScrewJoint(left, shelf, '+X', '-X', 'joint_mine', 'Mine')
+    const mine: Joint = { ...screwJoint, driven: false }
     const before = qtyOf(scene, 'screw-8x40')
     const after = qtyOf(
       reconcileJoints({ ...scene, joints: [...scene.joints, mine] }),
       'screw-8x40',
     )
-    expect(after).toBeGreaterThan(before)
+    expect(after).toBe(before + screwJoint.screwCount)
     const lines = carcaseHardware(
       reconcileJoints({ ...scene, joints: [...scene.joints, mine] }),
     ).filter((l) => l.key === 'screw-8x40')
@@ -273,10 +279,8 @@ describe('carcaseHardware — screws', () => {
       cuts: [],
     }
     const b: BoardPart = { ...a, id: 'board_loose_b' }
-    const loose: Joint = {
-      ...defaultScrewJoint(a, b, '+Z', '-X', 'joint_loose', 'Loose'),
-      driven: false,
-    }
+    const screwJoint = defaultScrewJoint(a, b, '+Z', '-X', 'joint_loose', 'Loose')
+    const loose: Joint = { ...screwJoint, driven: false }
     const withLoose = reconcileJoints({
       ...scene,
       parts: [...scene.parts, a, b],
@@ -285,6 +289,36 @@ describe('carcaseHardware — screws', () => {
     const ungrouped = carcaseHardware(withLoose).filter((l) => l.componentId === null)
     expect(ungrouped.length).toBe(1)
     expect(ungrouped[0].cabinetLabel).toBe('Ungrouped')
-    expect(ungrouped[0].qty).toBeGreaterThan(0)
+    expect(ungrouped[0].qty).toBe(screwJoint.screwCount)
+  })
+
+  // `deriveScrewJoint` places the clearance bore on the THROUGH panel and the pilot bore on the
+  // RECEIVING panel — nothing requires the two to share an owner. Direction chosen: the through
+  // panel is cabinet-owned, the receiving panel is a loose board. Attribution follows the through
+  // panel, so the cabinet's count must gain exactly this joint's screws and Ungrouped must gain
+  // none; a pass that read the pilot bore instead would flip both.
+  it('attributes screws to the panel screwed through, not the panel receiving them', () => {
+    const scene = piped(CARCASE_PRESETS[0].params)
+    const through = scene.parts.find((p) => p.role === 'left-side') as BoardPart
+    const receiving: BoardPart = {
+      ...(scene.parts.find((p) => p.role?.startsWith('adj-shelf-')) as BoardPart),
+      id: 'board_loose_receiving',
+      parentId: null,
+      driven: false,
+      role: undefined,
+      cuts: [],
+    }
+    const screwJoint = defaultScrewJoint(through, receiving, '+X', '-X', 'joint_cross', 'Cross')
+    const cross: Joint = { ...screwJoint, driven: false }
+    const beforeCabinet = qtyForOwner(scene, 'cmp_1', 'screw-8x40')
+
+    const after = reconcileJoints({
+      ...scene,
+      parts: [...scene.parts, receiving],
+      joints: [...scene.joints, cross],
+    })
+
+    expect(qtyForOwner(after, 'cmp_1', 'screw-8x40')).toBe(beforeCabinet + screwJoint.screwCount)
+    expect(qtyForOwner(after, null, 'screw-8x40')).toBe(0)
   })
 })
