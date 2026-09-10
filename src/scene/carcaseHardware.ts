@@ -1,6 +1,12 @@
 import { clearDepth } from './carcaseRoles'
 import { resolveCarcase } from './carcaseOpenings'
-import { hingeKeyFor, runnerKeyFor, SCREW_KEY, SHELF_PIN_KEY } from './hardwareCatalogue'
+import {
+  CATALOGUE_ORDER,
+  hingeKeyFor,
+  runnerKeyFor,
+  SCREW_KEY,
+  SHELF_PIN_KEY,
+} from './hardwareCatalogue'
 import type { CarcaseComponent, ComponentId, Scene } from './types'
 
 // What a generated cabinet needs bought, counted off what its machining actually bored.
@@ -107,20 +113,18 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
     }
   }
 
+  // Row order is stated, not incidental: cabinets as the scene holds them, then keys as the
+  // catalogue lists them, with the ungrouped rows last. A CSV regenerated from an unchanged scene
+  // is then byte-identical, which is what makes it diffable.
   const lines: HardwareLine[] = []
-  for (const [key, qty] of tally) {
-    const [id, catalogueKey] = key.split(' ')
-    if (qty <= 0) continue
-    const componentId = id === '' ? null : id
-    lines.push({
-      componentId,
-      cabinetLabel:
-        componentId === null
-          ? UNGROUPED_LABEL
-          : (carcases.get(componentId)?.label ?? UNGROUPED_LABEL),
-      key: catalogueKey,
-      qty,
-    })
+  const emit = (id: ComponentId | null, label: string) => {
+    for (const key of CATALOGUE_ORDER) {
+      const qty = tally.get(cell(id, key))
+      if (qty !== undefined && qty > 0)
+        lines.push({ componentId: id, cabinetLabel: label, key, qty })
+    }
   }
+  for (const c of scene.components) if (c.kind === 'carcase') emit(c.id, c.label)
+  emit(null, UNGROUPED_LABEL)
   return lines
 }

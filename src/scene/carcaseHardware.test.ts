@@ -322,3 +322,61 @@ describe('carcaseHardware — screws', () => {
     expect(qtyForOwner(after, null, 'screw-8x40')).toBe(0)
   })
 })
+
+describe('carcaseHardware — rows', () => {
+  const twoCabinets = (): Scene => {
+    const one = sceneOf(CARCASE_PRESETS[0].params, 'Base A')
+    const other = sceneOf(CARCASE_PRESETS[1].params, 'Wall B')
+    return regenerateComponents({
+      parts: [],
+      materials: { ...PRESET_MATERIALS },
+      hardware: [],
+      joints: [],
+      components: [one.components[0], { ...other.components[0], id: 'cmp_2', label: 'Wall B' }],
+    })
+  }
+
+  it('groups per cabinet rather than merging the job', () => {
+    const lines = carcaseHardware(twoCabinets()).filter((l) => l.key === 'hinge-overlay')
+    expect(lines.map((l) => [l.cabinetLabel, l.qty])).toEqual([
+      ['Base A', 2],
+      ['Wall B', 2],
+    ])
+  })
+
+  it('orders cabinets as the scene holds them, then keys as the catalogue lists them', () => {
+    const lines = carcaseHardware(reconcileJoints(twoCabinets()))
+    expect(lines.map((l) => `${l.cabinetLabel}/${l.key}`)).toEqual([
+      'Base A/hinge-overlay',
+      'Base A/shelf-pin-5mm',
+      'Base A/screw-8x40',
+      'Wall B/hinge-overlay',
+      'Wall B/shelf-pin-5mm',
+      'Wall B/screw-8x40',
+    ])
+  })
+
+  it('emits one line per cabinet and key, however many parts contributed', () => {
+    const lines = carcaseHardware(reconcileJoints(sceneOf(CARCASE_PRESETS[0].params)))
+    expect(new Set(lines.map((l) => l.key)).size).toBe(lines.length)
+  })
+
+  // A cabinet mid-keystroke invalid keeps its last good parts, so it keeps its last good counts —
+  // the same thing the scene tree and the 3D view show.
+  it('keeps the last good counts for a cabinet whose parameters no longer build', () => {
+    const good = reconcileJoints(sceneOf(CARCASE_PRESETS[0].params))
+    const broken = regenerateComponents({
+      ...good,
+      components: good.components.map((c) =>
+        c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 0 } } : c,
+      ),
+    })
+    expect(qtyOf(broken, 'hinge-overlay')).toBe(qtyOf(good, 'hinge-overlay'))
+  })
+
+  it('returns nothing for a scene with no cabinets', () => {
+    expect(
+      carcaseHardware({ parts: [], materials: {}, hardware: [], joints: [], components: [] }),
+    ).toEqual([])
+  })
+})
