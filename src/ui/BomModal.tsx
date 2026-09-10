@@ -1,8 +1,16 @@
-import { useEffect, useState } from 'react'
-import type { Component, HardwareItem, MaterialDef, Part } from '../scene/types'
+import { useEffect, useMemo, useState } from 'react'
+import type {
+  Component,
+  HardwareItem,
+  HardwareLibraryEntry,
+  MaterialDef,
+  Part,
+} from '../scene/types'
+import type { HardwareLine } from '../scene/carcaseHardware'
 import { CuttingList } from './CuttingList'
 import { DowelList } from './DowelList'
 import { HardwareTab } from './HardwareTab'
+import { groupHardware } from './groupHardware'
 import { groupParts, buildCsv, buildHardwareCsv, groupDowels, buildDowelCsv } from './buildCsv'
 import { downloadBlob } from './download'
 import { SheetsTab } from './SheetsTab'
@@ -31,6 +39,10 @@ interface BomModalProps {
   nestPending: boolean
   // Set from the tab state so a 5-second nest only runs for a report someone is looking at.
   onSheetsTabChange: (open: boolean) => void
+  hardwareLines: HardwareLine[]
+  hardwareLibrary: Record<string, HardwareLibraryEntry>
+  onSaveHardwareEntry: (key: string, entry: HardwareLibraryEntry) => void
+  onDeleteHardwareEntry: (key: string) => void
 }
 
 function LibraryTab({
@@ -185,8 +197,17 @@ export function BomModal({
   nestReports,
   nestPending,
   onSheetsTabChange,
+  hardwareLines,
+  hardwareLibrary,
+  onSaveHardwareEntry,
+  onDeleteHardwareEntry: _onDeleteHardwareEntry,
 }: BomModalProps) {
   const [tab, setTab] = useState<Tab>('boards')
+
+  const derivedHardware = useMemo(
+    () => groupHardware(hardwareLines, hardwareLibrary),
+    [hardwareLines, hardwareLibrary],
+  )
 
   useEffect(() => {
     onSheetsTabChange(tab === 'sheets')
@@ -230,7 +251,7 @@ export function BomModal({
         ? buildCsv(parts, effectiveMaterials, components)
         : tab === 'dowels'
           ? buildDowelCsv(parts, effectiveMaterials)
-          : buildHardwareCsv(hardware)
+          : buildHardwareCsv(hardware, derivedHardware)
     void navigator.clipboard.writeText(csv)
   }
 
@@ -249,7 +270,11 @@ export function BomModal({
         'text/csv',
       )
     } else {
-      downloadBlob(buildHardwareCsv(hardware), `${projectName}-hardware.csv`, 'text/csv')
+      downloadBlob(
+        buildHardwareCsv(hardware, derivedHardware),
+        `${projectName}-hardware.csv`,
+        'text/csv',
+      )
     }
   }
 
@@ -297,10 +322,10 @@ export function BomModal({
                 : t === 'sheets'
                   ? 'Sheets'
                   : t === 'dowels'
-                  ? 'Dowels'
-                  : t === 'hardware'
-                    ? 'Hardware'
-                    : 'Library'}
+                    ? 'Dowels'
+                    : t === 'hardware'
+                      ? 'Hardware'
+                      : 'Library'}
             </button>
           ))}
         </div>
@@ -336,6 +361,8 @@ export function BomModal({
               parts={parts}
               components={components}
               onUpdateHardware={onUpdateHardware}
+              derived={derivedHardware}
+              onSaveHardwareEntry={onSaveHardwareEntry}
             />
           ) : (
             <LibraryTab
@@ -381,7 +408,12 @@ export function BomModal({
             </span>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={handleCopy} disabled={tab === 'library' || tab === 'sheets'}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCopy}
+              disabled={tab === 'library' || tab === 'sheets'}
+            >
               Copy CSV
             </Button>
             <Button

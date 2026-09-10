@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { BomModal } from './BomModal'
-import type { HardwareItem, MaterialDef, Part } from '../scene/types'
+import type { HardwareItem, HardwareLibraryEntry, MaterialDef, Part } from '../scene/types'
+import type { HardwareLine } from '../scene/carcaseHardware'
 
 afterEach(cleanup)
 
@@ -60,6 +61,10 @@ const baseProps = {
   nestReports: [],
   nestPending: false,
   onSheetsTabChange: vi.fn(),
+  hardwareLines: [] as HardwareLine[],
+  hardwareLibrary: {} as Record<string, HardwareLibraryEntry>,
+  onSaveHardwareEntry: vi.fn(),
+  onDeleteHardwareEntry: vi.fn(),
 }
 
 describe('BomModal', () => {
@@ -340,5 +345,28 @@ describe('BomModal — the Sheets tab drives the nest', () => {
     render(<BomModal {...baseProps} />)
     fireEvent.click(screen.getByRole('tab', { name: 'Sheets' }))
     expect(screen.getByRole('button', { name: /copy/i }).hasAttribute('disabled')).toBe(true)
+  })
+})
+
+describe('BomModal — pricing the generated hardware rows', () => {
+  afterEach(cleanup)
+
+  it('prices the generated rows against the hardware library', () => {
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[
+          { componentId: 'cmp_1', cabinetLabel: 'Base A', key: 'hinge-overlay', qty: 2 },
+        ]}
+        hardwareLibrary={{
+          'hinge-overlay': { supplier: 'Blum', partNumber: '71B3550', unitCost: 3.4 },
+        }}
+        onSaveHardwareEntry={vi.fn()}
+        onDeleteHardwareEntry={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByText('Hardware'))
+    expect(screen.getByText('110° hinge c/w plate')).toBeDefined()
+    expect(screen.getByText('$6.80')).toBeDefined()
   })
 })

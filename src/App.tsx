@@ -13,6 +13,8 @@ import { CabinetEditor, type CabinetTab } from './ui/CabinetEditor'
 import { FileMenu } from './ui/FileMenu'
 import { BomModal } from './ui/BomModal'
 import { useMaterialLibrary } from './scene/useMaterialLibrary'
+import { useHardwareLibrary } from './scene/useHardwareLibrary'
+import { carcaseHardware } from './scene/carcaseHardware'
 import { useNest } from './scene/useNest'
 import { buildBinaryStl } from './geom/stl'
 import { downloadBlob } from './ui/download'
@@ -242,6 +244,13 @@ function App() {
   )
 
   const { library, clearance, saveRate, deleteEntry, setClearance } = useMaterialLibrary()
+  const {
+    hardwareLibrary,
+    saveHardwareEntry,
+    deleteHardwareEntry: deleteHardwareLibraryEntry,
+  } = useHardwareLibrary()
+  // Derived, never stored — the same relationship the cutting list has to the parts.
+  const hardwareLines = useMemo(() => carcaseHardware(scene), [scene])
   // Driven by the Sheets tab: a nest is several seconds of work, so it runs only for a report
   // someone is actually looking at.
   const [sheetsTabOpen, setSheetsTabOpen] = useState(false)
@@ -644,6 +653,10 @@ function App() {
           nestReports={nestReports}
           nestPending={nestPending}
           onSheetsTabChange={setSheetsTabOpen}
+          hardwareLines={hardwareLines}
+          hardwareLibrary={hardwareLibrary}
+          onSaveHardwareEntry={saveHardwareEntry}
+          onDeleteHardwareEntry={deleteHardwareLibraryEntry}
         />
       )}
       <DrawingViewer
