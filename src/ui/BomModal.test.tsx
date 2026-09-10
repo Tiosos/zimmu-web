@@ -370,6 +370,39 @@ describe('BomModal — pricing the generated hardware rows', () => {
     expect(screen.getByText('110° hinge c/w plate')).toBeDefined()
     expect(screen.getByText('$6.80')).toBeDefined()
   })
+
+  it('adds the generated rows into the footer, not just the hand-entered items', () => {
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[
+          { componentId: 'cmp_1', cabinetLabel: 'Base A', key: 'hinge-overlay', qty: 2 },
+        ]}
+        hardwareLibrary={{
+          'hinge-overlay': { supplier: 'Blum', partNumber: '71B3550', unitCost: 3.4 },
+        }}
+      />,
+    )
+    // Hand-entered 4 x $2.50 = $10.00; generated 2 x $3.40 = $6.80. The footer owes both, and
+    // the boards' $18.00 carries the grand total to $34.80.
+    const footer = screen.getByTestId('bom-grand-total').textContent
+    expect(footer).toContain('$16.80')
+    expect(footer).toContain('$34.80')
+  })
+
+  it('leaves an unpriced generated row out of the footer rather than counting it as free', () => {
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[
+          { componentId: 'cmp_1', cabinetLabel: 'Base A', key: 'hinge-overlay', qty: 2 },
+        ]}
+      />,
+    )
+    const footer = screen.getByTestId('bom-grand-total').textContent
+    expect(footer).toContain('$10.00')
+    expect(footer).toContain('$28.00')
+  })
 })
 
 describe('BomModal — the Library tab lists hardware too', () => {

@@ -144,8 +144,9 @@ src/
 │   ├── useScene.ts      Scene state + geometry lifecycle + undo/redo + exportStep +
 │   │                    cut linking + materials/hardware CRUD
 │   ├── useFile.ts       File System Access API save/open/new + IDB auto-reopen
-│   ├── idb.ts           IndexedDB wrapper (v2) — two stores: handles (FileSystemFileHandle)
-│   │                    and library (persistent material cost rates)
+│   ├── idb.ts           IndexedDB wrapper (v4) — four stores: handles (FileSystemFileHandle),
+│   │                    library (material cost rates and sheet stock), settings (tool
+│   │                    clearance) and hardware (catalogue prices)
 │   ├── utils.ts         shapeKey() — geometry cache key from Part dimensions + cuts
 │   ├── snapMath.ts      Pure face/cut geometry math (faceAxes, computeSnapDelta) — no React
 │   ├── useSnap.ts       Face-to-face snap-align interaction state machine

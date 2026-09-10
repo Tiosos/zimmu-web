@@ -325,7 +325,9 @@ export function BomModal({
   const boardSubtotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
   const dowelRows = groupDowels(parts, effectiveMaterials)
   const dowelSubtotal = dowelRows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
-  const hardwareSubtotal = hardware.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
+  const hardwareSubtotal =
+    hardware.reduce((sum, item) => sum + item.qty * item.unitCost, 0) +
+    derivedHardware.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
   const grandTotal = boardSubtotal + dowelSubtotal + hardwareSubtotal
 
   const handleMaterialCostChange = (name: string, def: MaterialDef) => {

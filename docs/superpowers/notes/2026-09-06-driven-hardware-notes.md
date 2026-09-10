@@ -159,7 +159,7 @@ The pattern across all three: everything measured was right, everything inferred
 
 ## 2026-09-06 — shipped
 
-Unit tests: **1757 → 1765** passing (10 skipped throughout, 90 files throughout — the count moved
+Unit tests: **1757 → 1767** passing (10 skipped throughout, 90 files throughout — the count moved
 inside existing files, not across new ones). Typecheck, lint, the full Vitest run, all 25 Playwright
 specs and the production build are all green on the branch this stage closes on. The spec predicted
 no new e2e coverage for this stage ("Nothing here depends on the canvas, on CSS, or on hit-testing")
@@ -295,13 +295,22 @@ non-negative value before a debounced commit.
   and left unaddressed; the one explicit in-commit mutation record (`164088b`'s IndexedDB store
   deletion, 5 of 16 failing) also came back caught, not surviving.
 
-**Found while closing, left open rather than fixed under this stage's scope:** `BomModal`'s footer
-("Boards / Dowels / Hardware / Grand total") sums `hardwareSubtotal` from `scene.hardware` (the
-hand-typed items) only — it does not add the generated rows' priced total, even though the CSV one
-tab over carries all three figures (`Generated total`, `Hand-entered total`, `Hardware total`). A
-project priced entirely through the generated table shows `$0.00` hardware and a grand total that
-undercounts by however much the cabinets' own hinges, runners, pins and screws cost. Neither the
-spec nor the plan mentions the footer, so this isn't a regression against either — it's a gap the
-15-task plan simply didn't reach. Not fixed here: it touches `BomModal`'s existing, differently-
-scoped subtotal logic and deserves its own test, not a same-day addition to a docs-and-verification
-stage.
+**Found while closing, and fixed:** `BomModal`'s footer ("Boards / Dowels / Hardware / Grand
+total") summed `hardwareSubtotal` from `scene.hardware` — the hand-typed items — only, so a project
+priced entirely through the generated table read `$0.00` hardware and a grand total short by every
+hinge, runner, pin and screw the cabinets need. The CSV one tab over already carried all three
+figures, which is what made the footer's silence a contradiction rather than an omission.
+
+Neither the spec nor the plan mentions the footer, so it is not a regression against either. It is
+still this stage's to fix: before the generated rows existed the footer was correct, and adding them
+is what made it wrong. Left open, the feature ships with two screens disagreeing about the same
+number.
+
+The fix adds `derivedHardware`'s priced total to the same subtotal, reusing the `?? 0` that `boards`
+and `dowels` already use — so an unpriced row stays out of the total rather than counting as free,
+the rule `groupHardware` states and `groupDowels` set the precedent for. Two tests, both
+mutation-proven: dropping the new term fails the first, and making an unpriced row cost anything at
+all fails the second. A third mutation was discarded as an equivalent rewrite — `(unitCost ?? 0) *
+qty` is `totalCost ?? 0` by `groupHardware`'s own construction, so it changes no behaviour and its
+survival was not a coverage gap. Worth recording, because a surviving mutation reads as one until
+the two expressions are traced.
