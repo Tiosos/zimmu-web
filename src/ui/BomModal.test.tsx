@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { BomModal } from './BomModal'
 import type { HardwareItem, HardwareLibraryEntry, MaterialDef, Part } from '../scene/types'
 import type { HardwareLine } from '../scene/carcaseHardware'
@@ -368,5 +369,39 @@ describe('BomModal — pricing the generated hardware rows', () => {
     fireEvent.click(screen.getByText('Hardware'))
     expect(screen.getByText('110° hinge c/w plate')).toBeDefined()
     expect(screen.getByText('$6.80')).toBeDefined()
+  })
+})
+
+describe('BomModal — the Library tab lists hardware too', () => {
+  afterEach(cleanup)
+
+  it('lists a priced hardware item in the library, and can forget it', async () => {
+    const onDeleteHardwareEntry = vi.fn()
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[]}
+        hardwareLibrary={{
+          'hinge-overlay': { supplier: 'Blum', partNumber: '71B3550', unitCost: 3.4 },
+        }}
+        onSaveHardwareEntry={vi.fn()}
+        onDeleteHardwareEntry={onDeleteHardwareEntry}
+      />,
+    )
+    fireEvent.click(screen.getByText('Library'))
+    expect(screen.getByText('110° hinge c/w plate')).toBeDefined()
+    expect(screen.getByText('Blum')).toBeDefined()
+    await userEvent.click(screen.getByLabelText('Forget 110° hinge c/w plate'))
+    expect(onDeleteHardwareEntry).toHaveBeenCalledWith('hinge-overlay')
+  })
+
+  it('shows the empty-library message when nothing is priced', () => {
+    render(<BomModal {...baseProps} hardwareLibrary={{}} />)
+    fireEvent.click(screen.getByText('Library'))
+    expect(
+      screen.getByText(
+        'No hardware priced yet. Set a unit cost in the Hardware tab to build your library.',
+      ),
+    ).toBeDefined()
   })
 })

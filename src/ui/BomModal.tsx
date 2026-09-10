@@ -7,6 +7,7 @@ import type {
   Part,
 } from '../scene/types'
 import type { HardwareLine } from '../scene/carcaseHardware'
+import { HARDWARE_CATALOGUE } from '../scene/hardwareCatalogue'
 import { CuttingList } from './CuttingList'
 import { DowelList } from './DowelList'
 import { HardwareTab } from './HardwareTab'
@@ -51,12 +52,16 @@ function LibraryTab({
   onSaveRate,
   clearance,
   onSetClearance,
+  hardwareLibrary,
+  onDeleteHardwareEntry,
 }: {
   library: Record<string, MaterialDef>
   onDelete: (name: string) => void
   onSaveRate: (name: string, def: MaterialDef) => void
   clearance: number
   onSetClearance: (mm: number) => void
+  hardwareLibrary: Record<string, HardwareLibraryEntry>
+  onDeleteHardwareEntry: (key: string) => void
 }) {
   const entries = Object.entries(library).sort(([a], [b]) => a.localeCompare(b))
 
@@ -176,6 +181,48 @@ function LibraryTab({
           mm — the gap left around every nested part
         </span>
       </div>
+
+      <h3 className="text-xs font-medium text-muted-foreground mt-6 mb-2">Hardware</h3>
+      {Object.keys(hardwareLibrary).length === 0 ? (
+        <p className="text-xs text-muted-foreground py-4 text-center">
+          No hardware priced yet. Set a unit cost in the Hardware tab to build your library.
+        </p>
+      ) : (
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b border-border text-muted-foreground text-left">
+              <th className="pb-2 pr-2 font-medium text-xs">Item</th>
+              <th className="pb-2 px-2 font-medium text-xs">Supplier</th>
+              <th className="pb-2 px-2 font-medium text-xs">Part #</th>
+              <th className="pb-2 px-2 font-medium text-xs">Unit cost</th>
+              <th className="pb-2 px-2 font-medium text-xs" />
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(hardwareLibrary)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([key, entry]) => (
+                <tr key={key} className="border-b border-border/30">
+                  {/* The name is the catalogue's, never the library's: one statement of what an
+                      item is called, so a renamed catalogue entry renames every priced row. */}
+                  <td className="py-1.5 pr-2 text-xs">{HARDWARE_CATALOGUE[key]?.name ?? key}</td>
+                  <td className="py-1.5 px-2 text-xs">{entry.supplier || '—'}</td>
+                  <td className="py-1.5 px-2 text-xs">{entry.partNumber || '—'}</td>
+                  <td className="py-1.5 px-2 text-xs">${entry.unitCost.toFixed(2)}</td>
+                  <td className="py-1.5 px-2 text-xs">
+                    <button
+                      aria-label={`Forget ${HARDWARE_CATALOGUE[key]?.name ?? key}`}
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => onDeleteHardwareEntry(key)}
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      )}
     </>
   )
 }
@@ -200,7 +247,7 @@ export function BomModal({
   hardwareLines,
   hardwareLibrary,
   onSaveHardwareEntry,
-  onDeleteHardwareEntry: _onDeleteHardwareEntry,
+  onDeleteHardwareEntry,
 }: BomModalProps) {
   const [tab, setTab] = useState<Tab>('boards')
 
@@ -371,6 +418,8 @@ export function BomModal({
               onSaveRate={onSaveRate}
               clearance={clearance}
               onSetClearance={onSetClearance}
+              hardwareLibrary={hardwareLibrary}
+              onDeleteHardwareEntry={onDeleteHardwareEntry}
             />
           )}
         </div>
