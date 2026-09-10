@@ -1,10 +1,11 @@
-import type { MaterialDef } from './types'
+import type { MaterialDef, HardwareLibraryEntry } from './types'
 
 const DB_NAME = 'zimmu'
-const DB_VERSION = 3
+const DB_VERSION = 4
 const HANDLES_STORE = 'handles'
 const LIBRARY_STORE = 'library'
 const SETTINGS_STORE = 'settings'
+const HARDWARE_STORE = 'hardware'
 const KEY = 'last-file'
 const CLEARANCE_KEY = 'clearance'
 
@@ -21,6 +22,7 @@ export function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(HANDLES_STORE)) db.createObjectStore(HANDLES_STORE)
       if (!db.objectStoreNames.contains(LIBRARY_STORE)) db.createObjectStore(LIBRARY_STORE)
       if (!db.objectStoreNames.contains(SETTINGS_STORE)) db.createObjectStore(SETTINGS_STORE)
+      if (!db.objectStoreNames.contains(HARDWARE_STORE)) db.createObjectStore(HARDWARE_STORE)
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -149,6 +151,61 @@ export async function writeClearance(mm: number): Promise<void> {
       .transaction(SETTINGS_STORE, 'readwrite')
       .objectStore(SETTINGS_STORE)
       .put(mm, CLEARANCE_KEY)
+    req.onsuccess = () => {
+      db.close()
+      resolve()
+    }
+    req.onerror = () => {
+      db.close()
+      reject(req.error)
+    }
+  })
+}
+
+export async function readHardwareLibrary(): Promise<Record<string, HardwareLibraryEntry>> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const result: Record<string, HardwareLibraryEntry> = {}
+    const req = db.transaction(HARDWARE_STORE, 'readonly').objectStore(HARDWARE_STORE).openCursor()
+    req.onsuccess = () => {
+      const cursor = req.result
+      if (cursor) {
+        result[cursor.key as string] = cursor.value as HardwareLibraryEntry
+        cursor.continue()
+      } else {
+        db.close()
+        resolve(result)
+      }
+    }
+    req.onerror = () => {
+      db.close()
+      reject(req.error)
+    }
+  })
+}
+
+export async function writeHardwareEntry(key: string, entry: HardwareLibraryEntry): Promise<void> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const req = db
+      .transaction(HARDWARE_STORE, 'readwrite')
+      .objectStore(HARDWARE_STORE)
+      .put(entry, key)
+    req.onsuccess = () => {
+      db.close()
+      resolve()
+    }
+    req.onerror = () => {
+      db.close()
+      reject(req.error)
+    }
+  })
+}
+
+export async function deleteHardwareEntry(key: string): Promise<void> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(HARDWARE_STORE, 'readwrite').objectStore(HARDWARE_STORE).delete(key)
     req.onsuccess = () => {
       db.close()
       resolve()
