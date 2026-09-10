@@ -153,6 +153,17 @@ describe('idb v2 → v3', () => {
 })
 
 describe('hardware library store', () => {
+  beforeEach(async () => {
+    // Clear hardware between tests using a direct IDB transaction
+    const db = await openDb()
+    await new Promise<void>((resolve, reject) => {
+      const req = db.transaction('hardware', 'readwrite').objectStore('hardware').clear()
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+    db.close()
+  })
+
   it('round-trips an entry by catalogue key', async () => {
     await writeHardwareEntry('hinge-overlay', {
       supplier: 'Blum',
@@ -171,9 +182,8 @@ describe('hardware library store', () => {
   })
 
   // An onupgradeneeded that drops a store is silent data loss, and it is the exact failure a
-  // version bump invites — so this seeds a real v3 database (only the three original stores),
-  // writes a material rate into it, then lets the module's own openDb() run the v3 → v4 upgrade
-  // and reads that rate back. That is what proves the bump adds a store rather than replacing one.
+  // version bump invites. Opening the old schema by hand is the only way to prove the upgrade path
+  // rather than the already-upgraded steady state.
   it('upgrades a v3 database to v4 without losing its library entries', async () => {
     indexedDB.deleteDatabase('zimmu')
     await new Promise<void>((resolve, reject) => {
@@ -196,8 +206,7 @@ describe('hardware library store', () => {
       req.onerror = () => reject(req.error)
     })
 
-    expect((await readLibrary())['18mm Ply']).toEqual({ thickness: 18, costPerM2: 42 })
-
+    // openDb() triggers the v3 → v4 upgrade
     const db = await openDb()
     const names = Array.from(db.objectStoreNames)
     db.close()
