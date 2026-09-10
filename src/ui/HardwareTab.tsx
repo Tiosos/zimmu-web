@@ -47,7 +47,7 @@ function UnitCostInput({
       onChange={(e) => {
         setLocalValue(e.target.value)
         const v = parseFloat(e.target.value)
-        // An interim value ("-", "1e", "") parses to NaN, and a real price is never negative —
+        // An interim value ("-", "e", "") parses to NaN, and a real price is never negative —
         // wait for a finite, non-negative value before committing, exactly as DimInput withholds
         // a commit below its own `min`. Committing NaN would persist into the library and turn
         // every total downstream into the literal text "$NaN".

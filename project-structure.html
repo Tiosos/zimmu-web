@@ -374,6 +374,11 @@
             <td><code>scene/sectionNodes.ts</code>, <code>scene/carcaseOpenings.ts</code>, <code>ui/SceneTree.tsx</code>, <code>ui/SectionElevation.tsx</code></td>
           </tr>
           <tr>
+            <td><strong>Hardware the cabinets generate</strong><br><span style="color:var(--muted);font-size:12px">Hinge, runner, shelf-pin and screw quantities counted off the bores each cabinet already emitted, never re-derived from <code>CarcaseParams</code> — priced against a global hardware library, grouped per cabinet in the Hardware tab and the CSV</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/carcaseHardware.ts</code>, <code>scene/hardwareCatalogue.ts</code>, <code>ui/groupHardware.ts</code></td>
+          </tr>
+          <tr>
             <td><strong>FSAPI fallback for non-Chromium browsers</strong></td>
             <td><span class="badge badge-yellow">Planned</span></td>
             <td>—</td>
@@ -523,6 +528,8 @@
 │   ├── __fixtures__/
 │   │   ├── resolve.ts
 │   │   └── sweep.ts
+│   ├── carcaseHardware.test.ts
+│   ├── carcaseHardware.ts
 │   ├── carcaseOpenings.test.ts
 │   ├── carcaseOpenings.ts
 │   ├── carcasePresets.test.ts
@@ -550,6 +557,8 @@
 │   ├── grain.ts
 │   ├── groupSuggestions.test.ts
 │   ├── groupSuggestions.ts
+│   ├── hardwareCatalogue.test.ts
+│   ├── hardwareCatalogue.ts
 │   ├── idb.test.ts
 │   ├── idb.ts
 │   ├── jointChecklist.test.ts
@@ -596,6 +605,8 @@
 │   ├── useAddTongueGroove.ts
 │   ├── useFile.test.ts
 │   ├── useFile.ts
+│   ├── useHardwareLibrary.test.ts
+│   ├── useHardwareLibrary.ts
 │   ├── useInteractionMode.test.ts
 │   ├── useInteractionMode.ts
 │   ├── useMaterialLibrary.test.ts
@@ -642,6 +653,8 @@
 │   ├── EditPanel.tsx
 │   ├── FileMenu.test.tsx
 │   ├── FileMenu.tsx
+│   ├── groupHardware.test.ts
+│   ├── groupHardware.ts
 │   ├── HardwareEditPanel.test.tsx
 │   ├── HardwareEditPanel.tsx
 │   ├── HardwareTab.test.tsx
@@ -704,7 +717,7 @@
           <tr><td><code>types.ts</code></td><td>Canonical types: <code>ZimmuFile</code>, <code>Scene</code>, <code>Part</code>/<code>BoardPart</code>, <code>CutDef</code> (incl. <code>hole-array</code>), <code>MaterialDef</code>, <code>HardwareItem</code>, <code>Joint</code>, <code>Component</code>, <code>CarcaseParams</code>, <code>FaceHit</code>, <code>CameraState</code>.</td></tr>
           <tr><td><code>useScene.ts</code></td><td>Scene state + geometry lifecycle + undo/redo + <code>exportStep</code> + cut linking + materials/hardware CRUD + component/carcase CRUD + detach. Every mutation passes through <code>applyPipeline</code> (<code>regenerateComponents</code> → <code>reconcileJoints</code>). Lazy Comlink worker singleton.</td></tr>
           <tr><td><code>useFile.ts</code></td><td>File System Access API save/open/new. Auto-reopen last file via IDB. <code>isDirty</code> tracking via JSON snapshot comparison.</td></tr>
-          <tr><td><code>idb.ts</code></td><td>IndexedDB wrapper (schema v3) — three object stores: <code>handles</code> (FileSystemFileHandle), <code>library</code> (material cost rates and sheet stock) and <code>settings</code> (the global tool clearance).</td></tr>
+          <tr><td><code>idb.ts</code></td><td>IndexedDB wrapper (schema v4) — four object stores: <code>handles</code> (FileSystemFileHandle), <code>library</code> (material cost rates and sheet stock), <code>settings</code> (the global tool clearance) and <code>hardware</code> (hardware catalogue prices, keyed by catalogue key).</td></tr>
           <tr><td><code>utils.ts</code></td><td><code>shapeKey(part)</code> — geometry cache key. Encodes only shape-affecting fields (dimensions + cut positions/sizes).</td></tr>
           <tr><td><code>snapMath.ts</code></td><td>Pure face/cut geometry math — <code>faceAxes()</code>, <code>computeSnapDelta()</code>. No React. Three-typed but browser-free.</td></tr>
           <tr><td><code>fitCamera.ts</code></td><td>Pure camera framing for the <code>Home</code> key: <code>worldBounds</code> builds the world AABB of the visible parts, <code>fitDirection</code> preserves the current bearing, and <code>fitCameraToParts</code> solves the distance that satisfies both FOV half-angles.</td></tr>
@@ -722,6 +735,9 @@
           <tr><td><code>sectionInterior.ts</code></td><td><code>sectionInteriors</code> — every leaf that asks for shelving, with its rect and bounds. <code>sectionOpenings</code> lists every leaf whether shelved or not, <code>setInterior</code> and <code>setFrontOn</code> write one section's spec, and <code>defaultInterior</code> / <code>seedInteriors</code> / <code>firstInterior</code> serve the presets, the migrations and the legacy shim.</td></tr>
           <tr><td><code>sectionNodes.ts</code></td><td><code>sectionNodes(openings, parts)</code> — which opening owns which part, read off the role keys the generator already writes. <code>front-</code>, <code>adj-shelf-</code> and <code>fixed-shelf-</code> name a leaf; <code>division-</code> names the section that was <em>split</em>, which is never a leaf, so a divider belongs to the carcase rather than to either opening beside it. The only place a role key is taken apart to recover the section id inside it.</td></tr>
           <tr><td><code>carcaseOpenings.ts</code></td><td><code>carcaseOpenings(component, parts, materials)</code> — the whole chain from a cabinet to that mapping: thicknesses, validation, section rectangles, ownership; <code>null</code> for a cabinet it cannot resolve. Stated once because the scene tree and the 3D highlight both ask it, and two copies would be free to disagree about an opening's membership.</td></tr>
+          <tr><td><code>hardwareCatalogue.ts</code></td><td>Stated key → <code>{name, unit}</code> for every hardware item the cabinets can generate, plus <code>runnerKeyFor</code> and <code>hingeKeyFor</code>. Data only — the <code>frontMachining.ts</code> of the BOM.</td></tr>
+          <tr><td><code>carcaseHardware.ts</code></td><td><code>carcaseHardware(scene)</code> → <code>HardwareLine[]</code> — what the cabinets need bought, counted off the bores they already emitted rather than re-derived from <code>CarcaseParams</code>.</td></tr>
+          <tr><td><code>useHardwareLibrary.ts</code></td><td>Loads/persists hardware prices via the IDB <code>hardware</code> store, mirroring <code>useMaterialLibrary.ts</code>.</td></tr>
           <tr><td><code>frontMachining.ts</code></td><td>Every hinge and slide figure as a named constant — Blum-style 32 mm-system values, <em>stated rather than derived</em> — plus <code>cupRow</code>, <code>plateScrewRows</code> and <code>slideScrewRow</code>. It owns the machining a front <em>implies</em>, which is not the same as machining on fronts: only the cup lands on the door.</td></tr>
           <tr><td><code>frontCells.ts</code></td><td>The section tree as rectangles on the cabinet's front face, reveals already taken — the one statement of the reveal rule. An overlay cell reaches to the material midline and gives back half a reveal; an inset cell is the section's own rectangle and gives back a full reveal against carcase material, half against another front.</td></tr>
           <tr><td><code>migrateSections.ts</code></td><td><code>legacyToSection(dividers, fixedShelves, width, thickness)</code> — the one place pre-v13 divider/shelf parameters become a tree. Needs width and thickness: a v12 divider is centred on a fraction of the gross width, a section percentage is a share of the clear span.</td></tr>
@@ -785,10 +801,11 @@
           <tr><td><code>SuggestionsPanel.tsx</code></td><td>Sidebar "Suggested joints" list with one-click Add (calls <code>onApplySuggestion</code>); hovering a row highlights the neighbour board via <code>onHoverSuggestion</code> and outlines the two faces the joint would cut.</td></tr>
           <tr><td><code>BomModal.tsx</code></td><td>Three-tab modal (Boards / Hardware / Library). Footer shows board subtotal, hardware subtotal, grand total. CSV copy/download.</td></tr>
           <tr><td><code>CuttingList.tsx</code></td><td>Grouped cutting-list table with per-material cost popover. Quantity = instances of same dimensions. CSV export.</td></tr>
-          <tr><td><code>HardwareTab.tsx</code></td><td>Hardware BOM table with add/edit/delete. Clicking a row opens <code>HardwareEditPanel</code>.</td></tr>
+          <tr><td><code>HardwareTab.tsx</code></td><td>A read-only table of what the cabinets generated (grouped by <code>groupHardware</code>, with an inline unit-cost field writing straight to the hardware library) above the hand-typed hardware BOM table with add/edit/delete. Clicking a hand-typed row opens <code>HardwareEditPanel</code>.</td></tr>
           <tr><td><code>HardwareEditPanel.tsx</code></td><td>Hardware item form: name, qty, unit, supplier, part #, unit cost, notes, linked boards (checkbox list per board part).</td></tr>
           <tr><td><code>DrawingViewer.tsx</code></td><td>Modal for 2D shop drawings. SVG preview; SVG + DXF download.</td></tr>
-          <tr><td><code>buildCsv.ts</code></td><td><code>groupParts()</code> + <code>cutDimensions()</code> (grain decides which dimension is the length; size decides only when grain is <code>free</code>) + <code>isNestable()</code> + CSV serialization for cutting list and hardware BOM.</td></tr>
+          <tr><td><code>groupHardware.ts</code></td><td><code>groupHardware(lines, catalogue, library)</code> → <code>HardwareRow[]</code> — joins <code>carcaseHardware</code>'s counts against <code>HARDWARE_CATALOGUE</code> and the price library, blank (never <code>$0.00</code>) when unpriced. The grouper stays separate from <code>buildCsv.ts</code>'s serializer, mirroring the parts/dowels split already there.</td></tr>
+          <tr><td><code>buildCsv.ts</code></td><td><code>groupParts()</code> + <code>cutDimensions()</code> (grain decides which dimension is the length; size decides only when grain is <code>free</code>) + <code>isNestable()</code> + CSV serialization for cutting list, dowels and the hardware BOM (<code>buildHardwareCsv</code>, hand-typed rows plus <code>groupHardware</code>'s generated rows, three totals).</td></tr>
           <tr><td><code>buildSvg.ts</code></td><td><code>DrawingSheet</code> → SVG string (orthographic views + dimensions + cut labels).</td></tr>
           <tr><td><code>buildDxf.ts</code></td><td><code>DrawingSheet</code> → DXF string (CAD-friendly format).</td></tr>
           <tr><td><code>download.ts</code></td><td><code>downloadBlob()</code> — Blob + anchor click, browser-agnostic delivery.</td></tr>
@@ -1299,7 +1316,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->85<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-05 the full Vitest run is 1695 passing (10 skipped) across 86 files (the 86th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 95 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->89<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-10 the full Vitest run is 1765 passing (10 skipped) across 90 files (the 90th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 99 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1419,7 +1436,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-18-cabinet-assembly-notes.md
     │   ├── 2026-08-23-sheet-yield-notes.md
     │   ├── 2026-08-24-drawing-cut-origin-notes.md
-    │   └── 2026-08-27-cabinet-assembly-restructure-notes.md
+    │   ├── 2026-08-27-cabinet-assembly-restructure-notes.md
+    │   └── 2026-09-06-driven-hardware-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1453,7 +1471,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-29-cabinet-restructure-stage-f-front-machining.md
     │   ├── 2026-08-29-cabinet-restructure-stage-g1-section-editor.md
     │   ├── 2026-08-30-cabinet-restructure-stage-g2-projections.md
-    │   └── 2026-09-03-cabinet-restructure-stage-g3-scene-tree.md
+    │   ├── 2026-09-03-cabinet-restructure-stage-g3-scene-tree.md
+    │   └── 2026-09-06-driven-hardware.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1495,7 +1514,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-08-23-sheet-yield-design.md
         ├── 2026-08-27-cabinet-assembly-restructure-design.md
         ├── 2026-08-30-cabinet-projections-design.md
-        └── 2026-09-03-scene-tree-sections-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-09-03-scene-tree-sections-design.md
+        └── 2026-09-06-driven-hardware-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->

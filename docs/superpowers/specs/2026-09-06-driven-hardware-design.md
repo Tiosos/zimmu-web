@@ -1,6 +1,11 @@
 # Driven hardware — the BOM counts what the machining bored
 
-**Status:** Designed, not implemented.
+**Status:** Complete. Shipped across 15 implementation tasks plus this documentation stage. Unit
+tests 1757 → 1765 passing (10 skipped, 90 files); typecheck, lint, all 25 Playwright specs and the
+production build green. Full account of what execution found — a dozen plan defects, one Critical
+`NaN` persistence bug caught only by review, two environment facts, and the decisions taken along the
+way — is in `docs/superpowers/notes/2026-09-06-driven-hardware-notes.md`'s `2026-09-06 — shipped`
+entry.
 
 **Goal:** A cabinet that generates hinge cups, plate screw rows, slide screw rows, pin rows and
 screw bores should say how many hinges, runners, pins and screws it needs. Today it generates all of
