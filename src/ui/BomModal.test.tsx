@@ -392,7 +392,82 @@ describe('BomModal — the Library tab lists hardware too', () => {
     expect(screen.getByText('110° hinge c/w plate')).toBeDefined()
     expect(screen.getByText('Blum')).toBeDefined()
     await userEvent.click(screen.getByLabelText('Forget 110° hinge c/w plate'))
+    // The forget control is destructive and irreversible (no undo/redo — it writes straight to
+    // IndexedDB), so it asks for confirmation before calling through.
+    expect(onDeleteHardwareEntry).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     expect(onDeleteHardwareEntry).toHaveBeenCalledWith('hinge-overlay')
+    expect(onDeleteHardwareEntry).toHaveBeenCalledTimes(1)
+  })
+
+  it('backs out of forgetting a hardware entry without deleting it', async () => {
+    const onDeleteHardwareEntry = vi.fn()
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[]}
+        hardwareLibrary={{
+          'hinge-overlay': { supplier: 'Blum', partNumber: '71B3550', unitCost: 3.4 },
+        }}
+        onSaveHardwareEntry={vi.fn()}
+        onDeleteHardwareEntry={onDeleteHardwareEntry}
+      />,
+    )
+    fireEvent.click(screen.getByText('Library'))
+    await userEvent.click(screen.getByLabelText('Forget 110° hinge c/w plate'))
+    await userEvent.click(screen.getByRole('button', { name: 'No' }))
+    expect(onDeleteHardwareEntry).not.toHaveBeenCalled()
+    // Backing out returns to the plain Forget control rather than leaving Confirm/No stuck open.
+    expect(screen.getByLabelText('Forget 110° hinge c/w plate')).toBeDefined()
+  })
+
+  it('orders hardware rows by catalogue order, not by key, and puts a stale key last', () => {
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[]}
+        hardwareLibrary={{
+          // Catalogue order lists 'hinge-overlay' before 'hinge-inset', the reverse of what
+          // sorting by key would give.
+          'hinge-inset': { supplier: '', partNumber: '', unitCost: 4 },
+          'hinge-overlay': { supplier: '', partNumber: '', unitCost: 3.4 },
+          // Not in HARDWARE_CATALOGUE — a stale entry from a renamed/removed catalogue item.
+          'discontinued-hinge': { supplier: '', partNumber: '', unitCost: 1 },
+        }}
+        onSaveHardwareEntry={vi.fn()}
+        onDeleteHardwareEntry={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByText('Library'))
+    const names = screen
+      .getAllByRole('row')
+      .slice(1) // drop the header row
+      .map((row) => row.querySelector('td')?.textContent)
+    expect(names).toEqual([
+      '110° hinge c/w plate',
+      '110° inset hinge c/w plate',
+      'discontinued-hinge',
+    ])
+  })
+
+  it('shows the raw key for a library entry whose catalogue key no longer exists', async () => {
+    const onDeleteHardwareEntry = vi.fn()
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[]}
+        hardwareLibrary={{
+          'discontinued-hinge': { supplier: 'Blum', partNumber: 'X1', unitCost: 1 },
+        }}
+        onSaveHardwareEntry={vi.fn()}
+        onDeleteHardwareEntry={onDeleteHardwareEntry}
+      />,
+    )
+    fireEvent.click(screen.getByText('Library'))
+    expect(screen.getByText('discontinued-hinge')).toBeDefined()
+    await userEvent.click(screen.getByLabelText('Forget discontinued-hinge'))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(onDeleteHardwareEntry).toHaveBeenCalledWith('discontinued-hinge')
   })
 
   it('shows the empty-library message when nothing is priced', () => {

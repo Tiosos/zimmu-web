@@ -7,7 +7,7 @@ import type {
   Part,
 } from '../scene/types'
 import type { HardwareLine } from '../scene/carcaseHardware'
-import { HARDWARE_CATALOGUE } from '../scene/hardwareCatalogue'
+import { CATALOGUE_ORDER, HARDWARE_CATALOGUE } from '../scene/hardwareCatalogue'
 import { CuttingList } from './CuttingList'
 import { DowelList } from './DowelList'
 import { HardwareTab } from './HardwareTab'
@@ -64,6 +64,19 @@ function LibraryTab({
   onDeleteHardwareEntry: (key: string) => void
 }) {
   const entries = Object.entries(library).sort(([a], [b]) => a.localeCompare(b))
+
+  // Row order matches the Hardware tab and the CSV: catalogue order, with stale entries (a key a
+  // catalogue revision dropped) sorted last by key rather than first, which is what a raw -1 would do.
+  const catalogueRank = (key: string) => {
+    const i = CATALOGUE_ORDER.indexOf(key)
+    return i === -1 ? CATALOGUE_ORDER.length : i
+  }
+  const hardwareEntries = Object.entries(hardwareLibrary).sort(([a], [b]) => {
+    const byCatalogue = catalogueRank(a) - catalogueRank(b)
+    return byCatalogue !== 0 ? byCatalogue : a.localeCompare(b)
+  })
+
+  const [confirmingKey, setConfirmingKey] = useState<string | null>(null)
 
   // Typing one dimension into a material that has no sheet creates the pair with the other at 0.
   // `isNestable` treats a 0 as absent, so a half-filled sheet is never nested.
@@ -183,7 +196,7 @@ function LibraryTab({
       </div>
 
       <h3 className="text-xs font-medium text-muted-foreground mt-6 mb-2">Hardware</h3>
-      {Object.keys(hardwareLibrary).length === 0 ? (
+      {hardwareEntries.length === 0 ? (
         <p className="text-xs text-muted-foreground py-4 text-center">
           No hardware priced yet. Set a unit cost in the Hardware tab to build your library.
         </p>
@@ -199,27 +212,56 @@ function LibraryTab({
             </tr>
           </thead>
           <tbody>
-            {Object.entries(hardwareLibrary)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([key, entry]) => (
+            {hardwareEntries.map(([key, entry]) => {
+              const name = HARDWARE_CATALOGUE[key]?.name ?? key
+              return (
                 <tr key={key} className="border-b border-border/30">
                   {/* The name is the catalogue's, never the library's: one statement of what an
                       item is called, so a renamed catalogue entry renames every priced row. */}
-                  <td className="py-1.5 pr-2 text-xs">{HARDWARE_CATALOGUE[key]?.name ?? key}</td>
+                  <td className="py-1.5 pr-2 text-xs">{name}</td>
                   <td className="py-1.5 px-2 text-xs">{entry.supplier || '—'}</td>
                   <td className="py-1.5 px-2 text-xs">{entry.partNumber || '—'}</td>
                   <td className="py-1.5 px-2 text-xs">${entry.unitCost.toFixed(2)}</td>
-                  <td className="py-1.5 px-2 text-xs">
-                    <button
-                      aria-label={`Forget ${HARDWARE_CATALOGUE[key]?.name ?? key}`}
-                      className="text-muted-foreground hover:text-foreground"
-                      onClick={() => onDeleteHardwareEntry(key)}
-                    >
-                      ×
-                    </button>
+                  <td className="py-1.5 px-2 text-xs text-right">
+                    {confirmingKey === key ? (
+                      <span className="flex items-center justify-end gap-1.5">
+                        <span className="text-xs text-destructive">Forget?</span>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-5 px-1.5 text-xs"
+                          onClick={() => {
+                            setConfirmingKey(null)
+                            onDeleteHardwareEntry(key)
+                          }}
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 px-1.5 text-xs"
+                          onClick={() => setConfirmingKey(null)}
+                        >
+                          No
+                        </Button>
+                      </span>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={`Forget ${name}`}
+                        aria-label={`Forget ${name}`}
+                        className="h-5 w-5 text-destructive hover:text-destructive"
+                        onClick={() => setConfirmingKey(key)}
+                      >
+                        ✕
+                      </Button>
+                    )}
                   </td>
                 </tr>
-              ))}
+              )
+            })}
           </tbody>
         </table>
       )}
