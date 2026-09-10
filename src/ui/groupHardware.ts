@@ -27,7 +27,7 @@ export function groupHardware(
   return lines.map((line) => {
     const def = HARDWARE_CATALOGUE[line.key]
     const entry = library[line.key]
-    const unitCost = entry === undefined ? null : entry.unitCost
+    const unitCost = entry?.unitCost ?? null
     return {
       componentId: line.componentId,
       key: line.key,

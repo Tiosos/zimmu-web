@@ -159,7 +159,7 @@ The pattern across all three: everything measured was right, everything inferred
 
 ## 2026-09-06 — shipped
 
-Unit tests: **1700 → 1770** passing (10 skipped throughout, 90 files throughout — the count moved
+Unit tests: **1700 → 1772** passing (10 skipped throughout, 90 files throughout — the count moved
 inside existing files, not across new ones). Typecheck, lint, the full Vitest run, all 25 Playwright
 specs and the production build are all green on the branch this stage closes on. The spec predicted
 no new e2e coverage for this stage ("Nothing here depends on the canvas, on CSS, or on hit-testing")
@@ -362,7 +362,23 @@ returning 3 below 900 mm leaves all three preset cases green. The spec asserted 
 spec is corrected; the sweep is kept, because it does kill "count the wrong cut" mutations, and the
 table is pinned by two tests that hardcode their numbers.
 
-Left open deliberately: `HardwareLibraryEntry.supplier` and `partNumber` have no UI that can set
-them, so they round-trip as `''` and render as `—`. The spec asked for the shape, and a supplier
-column is the obvious next edit; noted here so a future reader knows it is unreachable today rather
-than broken.
+## 2026-09-06 — closing the supplier gap, and why the price became nullable
+
+`HardwareLibraryEntry.supplier` and `partNumber` shipped unreachable: every commit passed
+`row.supplier`/`row.partNumber` straight back, so both stayed `''` and the Library tab's two columns
+stayed `—`. Two text inputs beside the price close it.
+
+The interesting part is what that exposed. `unitCost` was `number`, so storing a supplier meant
+storing *some* price, and the only value available is 0 — which is exactly the "an unpriced job must
+not read as a free one" rule the `—` fallback exists to protect. Naming a supplier is not agreeing
+to a price. So `unitCost` is now `number | null`: an entry can carry identity before anyone has
+priced it, and an explicit 0 is still a price. `groupHardware` collapses to `entry?.unitCost ?? null`
+and the Library tab gained the same `—` the rows already had.
+
+Widening a field costs no migration — an entry already in IndexedDB carrying a number still reads —
+which is why this was cheap to do late. Narrowing it later would not be.
+
+`TextEntryInput` deliberately does not copy `UnitCostInput`'s validity guard: text has no invalid
+interim state the way a half-typed number does, and there is nothing to withhold a commit for. It
+does keep the focused/unfocused echo, because these rows share a catalogue key and a value typed on
+one must reach the others.

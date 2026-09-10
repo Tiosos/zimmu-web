@@ -67,6 +67,50 @@ function UnitCostInput({
   )
 }
 
+// Supplier and part number beside the price, on the same library entry. Text has no invalid
+// interim state the way a half-typed number does, so this commits whatever is in the field — but it
+// keeps the same focused/unfocused echo, because these rows share a catalogue key and a value typed
+// on one must reach the others.
+function TextEntryInput({
+  value,
+  ariaLabel,
+  placeholder,
+  onCommit,
+}: {
+  value: string
+  ariaLabel: string
+  placeholder: string
+  onCommit: (v: string) => void
+}) {
+  const [localValue, setLocalValue] = useState(value)
+  const isFocused = useRef(false)
+  const debounced = useDebouncedCallback(onCommit, 150)
+
+  useEffect(() => {
+    if (!isFocused.current) setLocalValue(value)
+  }, [value])
+
+  return (
+    <input
+      type="text"
+      aria-label={ariaLabel}
+      placeholder={placeholder}
+      className="w-24 bg-transparent border border-border rounded px-1"
+      value={localValue}
+      onChange={(e) => {
+        setLocalValue(e.target.value)
+        debounced(e.target.value)
+      }}
+      onFocus={() => {
+        isFocused.current = true
+      }}
+      onBlur={() => {
+        isFocused.current = false
+      }}
+    />
+  )
+}
+
 function makeBlankItem(): HardwareItem {
   return {
     id: crypto.randomUUID(),
@@ -138,6 +182,8 @@ export function HardwareTab({
                   <th className="pb-2 px-2 font-medium text-xs">Item</th>
                   <th className="pb-2 px-2 font-medium text-xs">Qty</th>
                   <th className="pb-2 px-2 font-medium text-xs">Unit</th>
+                  <th className="pb-2 px-2 font-medium text-xs">Supplier</th>
+                  <th className="pb-2 px-2 font-medium text-xs">Part #</th>
                   <th className="pb-2 px-2 font-medium text-xs">Unit cost</th>
                   <th className="pb-2 px-2 font-medium text-xs">Total</th>
                 </tr>
@@ -152,6 +198,34 @@ export function HardwareTab({
                     <td className="py-1.5 px-2 text-xs">{row.name}</td>
                     <td className="py-1.5 px-2 text-xs">{row.qty}</td>
                     <td className="py-1.5 px-2 text-xs">{row.unit}</td>
+                    <td className="py-1.5 px-2 text-xs">
+                      <TextEntryInput
+                        value={row.supplier}
+                        ariaLabel={`Supplier for ${row.name} (${row.cabinetLabel})`}
+                        placeholder="Supplier"
+                        onCommit={(v) =>
+                          onSaveHardwareEntry(row.key, {
+                            supplier: v,
+                            partNumber: row.partNumber,
+                            unitCost: row.unitCost,
+                          })
+                        }
+                      />
+                    </td>
+                    <td className="py-1.5 px-2 text-xs">
+                      <TextEntryInput
+                        value={row.partNumber}
+                        ariaLabel={`Part number for ${row.name} (${row.cabinetLabel})`}
+                        placeholder="Part #"
+                        onCommit={(v) =>
+                          onSaveHardwareEntry(row.key, {
+                            supplier: row.supplier,
+                            partNumber: v,
+                            unitCost: row.unitCost,
+                          })
+                        }
+                      />
+                    </td>
                     <td className="py-1.5 px-2 text-xs">
                       <UnitCostInput
                         value={row.unitCost}

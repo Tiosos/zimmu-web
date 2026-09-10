@@ -171,7 +171,9 @@ export interface MaterialDef {
 export interface HardwareLibraryEntry {
   supplier: string
   partNumber: string
-  unitCost: number
+  // Nullable because an entry can carry a supplier and part number before anyone has priced it,
+  // and an unpriced row must not read as a free one. An explicit 0 IS a price.
+  unitCost: number | null
 }
 
 export interface HardwareItem {

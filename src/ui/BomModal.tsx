@@ -221,7 +221,9 @@ function LibraryTab({
                   <td className="py-1.5 pr-2 text-xs">{name}</td>
                   <td className="py-1.5 px-2 text-xs">{entry.supplier || '—'}</td>
                   <td className="py-1.5 px-2 text-xs">{entry.partNumber || '—'}</td>
-                  <td className="py-1.5 px-2 text-xs">${entry.unitCost.toFixed(2)}</td>
+                  <td className="py-1.5 px-2 text-xs">
+                    {entry.unitCost === null ? '—' : `$${entry.unitCost.toFixed(2)}`}
+                  </td>
                   <td className="py-1.5 px-2 text-xs text-right">
                     {confirmingKey === key ? (
                       <span className="flex items-center justify-end gap-1.5">

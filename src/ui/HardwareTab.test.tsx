@@ -274,6 +274,58 @@ describe('HardwareTab — generated rows', () => {
     })
   })
 
+  // The library has carried supplier and part number since it was introduced, but nothing could
+  // write them: every commit passed `row.supplier`/`row.partNumber` straight back, so both were
+  // permanently '' and the Library tab's two columns permanently '—'.
+  it('writes a typed supplier into the library, keeping the price beside it', async () => {
+    const onSaveHardwareEntry = vi.fn()
+    render(
+      <HardwareTab
+        {...defaultProps}
+        hardware={[]}
+        parts={[]}
+        components={[]}
+        onUpdateHardware={vi.fn()}
+        derived={[{ ...derived[0], unitCost: 3.4, totalCost: 6.8 }]}
+        onSaveHardwareEntry={onSaveHardwareEntry}
+      />,
+    )
+    const input = screen.getByLabelText('Supplier for 110° hinge c/w plate (Base A)')
+    await userEvent.type(input, 'Blum')
+    await waitFor(() => expect(onSaveHardwareEntry).toHaveBeenCalled())
+    expect(onSaveHardwareEntry).toHaveBeenLastCalledWith('hinge-overlay', {
+      supplier: 'Blum',
+      partNumber: '',
+      unitCost: 3.4,
+    })
+  })
+
+  // An unpriced row must stay unpriced: naming a supplier is not agreeing to a price of zero.
+  it('keeps an unpriced row unpriced when only a part number is typed', async () => {
+    const onSaveHardwareEntry = vi.fn()
+    render(
+      <HardwareTab
+        {...defaultProps}
+        hardware={[]}
+        parts={[]}
+        components={[]}
+        onUpdateHardware={vi.fn()}
+        derived={derived}
+        onSaveHardwareEntry={onSaveHardwareEntry}
+      />,
+    )
+    await userEvent.type(
+      screen.getByLabelText('Part number for 110° hinge c/w plate (Base A)'),
+      '71B3550',
+    )
+    await waitFor(() => expect(onSaveHardwareEntry).toHaveBeenCalled())
+    expect(onSaveHardwareEntry).toHaveBeenLastCalledWith('hinge-overlay', {
+      supplier: '',
+      partNumber: '71B3550',
+      unitCost: null,
+    })
+  })
+
   it('never commits a non-finite unit cost when the field passes through empty mid-edit', async () => {
     const onSaveHardwareEntry = vi.fn()
     render(
