@@ -1,7 +1,7 @@
 # Driven hardware — the BOM counts what the machining bored
 
 **Status:** Complete. Shipped across 15 implementation tasks plus this documentation stage. Unit
-tests 1757 → 1767 passing (10 skipped, 90 files); typecheck, lint, all 25 Playwright specs and the
+tests 1700 → 1770 passing (10 skipped; 86 → 90 files, four of them new); typecheck, lint, all 25 Playwright specs and the
 production build green. Full account of what execution found — a dozen plan defects, one Critical
 `NaN` persistence bug caught only by review, two environment facts, and the decisions taken along the
 way — is in `docs/superpowers/notes/2026-09-06-driven-hardware-notes.md`'s `2026-09-06 — shipped`
@@ -163,7 +163,8 @@ not changed at all. One key until a screw becomes a real catalogue item with its
 | `src/scene/hardwareCatalogue.ts` | **new.** The stated table above, plus `runnerKeyFor(clearDepth)` and the hinge key from `frontMount`. Data and key derivation only. |
 | `src/scene/useHardwareLibrary.ts` | **new.** Mirrors `useMaterialLibrary` against a new `hardware` store. |
 | `src/scene/idb.ts` | `DB_VERSION` 3 → 4; a fourth store, `hardware`, keyed by catalogue key, holding `{ supplier, partNumber, unitCost }`. The name comes from the catalogue, never from the library. |
-| `src/ui/buildCsv.ts` | `groupHardware(lines, library)` → priced rows; `buildHardwareCsv` learns the derived rows alongside the hand-typed items. |
+| `src/ui/groupHardware.ts` | `groupHardware(lines, library)` → priced rows. Shipped as its own module rather than a fourth job inside `buildCsv.ts`; see the notes. |
+| `src/ui/buildCsv.ts` | `buildHardwareCsv` learns the derived rows alongside the hand-typed items. |
 | `src/ui/HardwareTab.tsx` | A read-only derived section above the hand-typed list, with an inline unit-cost field writing straight to the library. |
 | `src/ui/BomModal.tsx` | Takes the hardware lines already computed, prices them, and gains a hardware section in the Library tab. |
 | `src/App.tsx` | Wire `useHardwareLibrary`; compute `carcaseHardware(scene)` and pass the lines down. |
@@ -227,8 +228,16 @@ tests:
 | screws | `Σ screwCount` over the cabinet's screw joints | the pass, counting `_clearance` bores |
 
 The tautology trap is specific and worth naming: a hinge test that counted cups on both sides would
-pass however wrong `hingeCount` was. Sweeping door heights against the table is what makes it
-evidence, and it is what covers Tall 600's 4-not-5 case.
+pass however wrong `hingeCount` was.
+
+**As shipped, the three-preset sweep is exactly that tautology**, and the final review proved it by
+mutation: making `hingeCount` return 3 instead of 2 below 900 mm left all three preset cases green.
+The sweep still earns its place — it kills "count the wrong cut" mutations, and a `plate_` row
+counted as a hinge fails all three — but it is not what pins the table. That is done by the two
+tests hardcoding a number (`counts by the leaf` at 8, `keys by the mount` at 2), and the 2000 mm
+band is anchored the same way. Recorded rather than fixed: hardcoding a third band would pin the
+table further, but the figures are read off standard hardware and CLAUDE.md already says that table
+wants a woodworker's eye rather than a greener suite.
 
 **Cases no preset reaches**, so fixtures must build them: any drawer bay; an inset cabinet; a door
 under 15.5 mm, which must list **no** hinge; a second cabinet, to prove per-cabinet grouping does not

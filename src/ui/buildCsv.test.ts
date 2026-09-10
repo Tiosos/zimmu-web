@@ -215,6 +215,7 @@ describe('buildHardwareCsv', () => {
 
   const derived: HardwareRow[] = [
     {
+      componentId: 'cmp_1',
       key: 'hinge-overlay',
       cabinetLabel: 'Base A',
       name: '110° hinge c/w plate',

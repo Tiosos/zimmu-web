@@ -493,7 +493,14 @@ export function BomModal({
             </span>
             <span className="text-border">|</span>
             <span>
-              Hardware: <span className="text-foreground">${hardwareSubtotal.toFixed(2)}</span>
+              Hardware:{' '}
+              <span className="text-foreground">
+                {hardwareSubtotal === 0 &&
+                hardware.length === 0 &&
+                !derivedHardware.some((r) => r.totalCost !== null)
+                  ? '—'
+                  : `$${hardwareSubtotal.toFixed(2)}`}
+              </span>
             </span>
             <span className="text-border">|</span>
             <span className="font-medium text-foreground">

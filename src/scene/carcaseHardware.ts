@@ -96,20 +96,39 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
   }
 
   // A pin row belongs to the section that asked for it, so the pins do too: `resolveCarcase` says
-  // which opening owns which shelf, and the opening's own spec says how many rows were bored
-  // around it. Two uprights bound a section, each bored `rows` rows, and a shelf takes one pin from
-  // each — four at the default, two when a section asks for a single row.
+  // which opening owns which shelf, and the rows the cabinet actually BORED around that section
+  // say how many pins each shelf takes — one per row.
+  //
+  // Counted off the emitted arrays rather than off `adjustable.rows`, because the two come apart:
+  // `carcaseHoleArrays` refuses to bore a row whose setback is inside the pin's own radius, while
+  // `shelfPins` seats its shelves regardless. Multiplying by the asked-for `rows` quotes pins for
+  // a cabinet carrying no pin holes at all. Normally both uprights are bored `rows` rows each, so
+  // this is the same four-at-the-default it has always been.
+  //
+  // Matching `_{sectionId}_` inside a cut id is not a second role-key parser: the section id is
+  // already in hand and this asks whether a bore names it, rather than recovering an unknown id.
   for (const cabinet of carcases.values()) {
     const resolved = resolveCarcase(cabinet, scene.parts, scene.materials)
     if (resolved === null) continue
+    const cabinetParts = scene.parts.filter((p) => p.kind === 'board' && p.parentId === cabinet.id)
     for (const opening of resolved.openings) {
-      const rows = opening.spec?.adjustable.rows
-      if (rows === undefined) continue
       // `sectionNodes` returns `{ sections, carcase }`, not a flat array — a divider belongs to
       // the carcase, so the openings live under `.sections`.
       const owned = resolved.nodes.sections.find((n) => n.sectionId === opening.sectionId)
       const shelves = owned?.parts.filter((p) => p.role?.startsWith('adj-shelf-')).length ?? 0
-      if (shelves > 0) add(cabinet.id, SHELF_PIN_KEY, shelves * 2 * rows)
+      if (shelves === 0) continue
+      const boredRows = cabinetParts.reduce(
+        (n, part) =>
+          n +
+          part.cuts.filter(
+            (c) =>
+              c.kind === 'hole-array' &&
+              c.id.startsWith('holes_') &&
+              c.id.includes(`_${opening.sectionId}_`),
+          ).length,
+        0,
+      )
+      if (boredRows > 0) add(cabinet.id, SHELF_PIN_KEY, shelves * boredRows)
     }
   }
 

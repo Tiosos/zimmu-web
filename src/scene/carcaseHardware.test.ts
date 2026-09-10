@@ -7,7 +7,7 @@ import { resolveCarcase } from './carcaseOpenings'
 import { reconcileJoints } from './reconcileJoints'
 import { defaultScrewJoint } from './defaultJoint'
 import { splitSection } from './editSection'
-import { defaultInterior, setFrontOn, setInterior } from './sectionInterior'
+import { defaultInterior, firstInterior, setFrontOn, setInterior } from './sectionInterior'
 import type { BoardPart, CarcaseParams, ComponentId, Joint, MaterialDef, Scene } from './types'
 
 // The scene a new file starts from, with one cabinet in it. Materials are a parameter because a
@@ -172,6 +172,25 @@ describe('carcaseHardware — shelf pins', () => {
     ).length
     expect(seated).toBeLessThan(40)
     expect(qtyOf(scene, 'shelf-pin-5mm')).toBe(seated * 4)
+  })
+
+  // The one case where "what the cabinet asked for" and "what it bored" come apart. `pinRow`
+  // refuses to bore when the setback is inside the pin's own radius, but `shelfPins` seats shelves
+  // regardless — so a pass multiplying by the section's `rows` quotes pins for a cabinet carrying
+  // no pin holes at all.
+  it('lists no pins when the setback is too small to bore a row', () => {
+    const base = withShelves(2, 2)
+    const spec = firstInterior(base.section)!
+    const section = setInterior(base.section, base.section.id, {
+      ...spec,
+      adjustable: { ...spec.adjustable, setback: 2 },
+    })
+    const scene = sceneOf({ ...base, section })
+    const bored = scene.parts.filter(
+      (p) => p.kind === 'board' && p.cuts.some((c) => c.id.startsWith('holes_')),
+    ).length
+    expect(bored).toBe(0)
+    expect(qtyOf(scene, 'shelf-pin-5mm')).toBe(0)
   })
 
   it('lists no pins for a cabinet whose shelves are all fixed', () => {

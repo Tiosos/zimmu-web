@@ -1,8 +1,9 @@
 import { HARDWARE_CATALOGUE } from '../scene/hardwareCatalogue'
 import type { HardwareLine } from '../scene/carcaseHardware'
-import type { HardwareLibraryEntry } from '../scene/types'
+import type { ComponentId, HardwareLibraryEntry } from '../scene/types'
 
 export interface HardwareRow {
+  componentId: ComponentId | null
   key: string
   cabinetLabel: string
   name: string
@@ -28,6 +29,7 @@ export function groupHardware(
     const entry = library[line.key]
     const unitCost = entry === undefined ? null : entry.unitCost
     return {
+      componentId: line.componentId,
       key: line.key,
       cabinetLabel: line.cabinetLabel,
       name: def.name,

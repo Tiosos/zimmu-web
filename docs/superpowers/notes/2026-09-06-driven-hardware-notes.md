@@ -159,7 +159,7 @@ The pattern across all three: everything measured was right, everything inferred
 
 ## 2026-09-06 — shipped
 
-Unit tests: **1757 → 1767** passing (10 skipped throughout, 90 files throughout — the count moved
+Unit tests: **1700 → 1770** passing (10 skipped throughout, 90 files throughout — the count moved
 inside existing files, not across new ones). Typecheck, lint, the full Vitest run, all 25 Playwright
 specs and the production build are all green on the branch this stage closes on. The spec predicted
 no new e2e coverage for this stage ("Nothing here depends on the canvas, on CSS, or on hit-testing")
@@ -314,3 +314,55 @@ all fails the second. A third mutation was discarded as an equivalent rewrite �
 qty` is `totalCost ?? 0` by `groupHardware`'s own construction, so it changes no behaviour and its
 survival was not a coverage gap. Worth recording, because a surviving mutation reads as one until
 the two expressions are traced.
+
+## 2026-09-06 — what the final review found, and the baseline that was wrong
+
+A full-implementation review ran after the stage closed. No Critical findings, and every mutation it
+threw at the counting rule was killed — screw attribution, the `slide_` dedupe, the pilot/clearance
+guard and the pin-ownership `.find` all held. Four things did not, and all four are fixed above.
+
+**Two cabinets off one preset shared a React key.** `useScene` labels a carcase `preset.name`, so a
+job with two Base 600s has two components with one label, and `HardwareRow` had dropped the
+`componentId` that `HardwareLine` carries. The row key was `label/key`, which collided — React
+logged the duplicate, and the price field's aria-label was ambiguous to boot. This is the same
+shared-key defect `35efc4c` fixed one layer down, left open one layer up. `HardwareRow` now carries
+the component id and the row is keyed by it. The label still disambiguates for a *reader*, and the
+comment claiming it did so uniquely is corrected rather than deleted — it was the wrong claim, not a
+wrong instinct.
+
+**Shelf pins were the one quantity re-derived from `CarcaseParams`.** The pass multiplied by
+`interior.adjustable.rows`. `carcaseHoleArrays` refuses to bore a row whose setback is inside the
+pin radius; `shelfPins` seats its shelves regardless; pin setback is a live input in
+`CarcasePanel`. So a Base 600 at `setback: 2` quoted **8 pins against 0 bored rows** — measured,
+then fixed by counting the emitted `holes_*` arrays naming that section. Both surfaces of the
+headline invariant now agree, and CLAUDE.md's bullet is corrected: it had stated the rule without
+the exception the code actually contained.
+
+Matching `_{sectionId}_` inside a cut id is deliberately *not* a second role-key parser. The section
+id is already in hand and the test asks whether a bore names it; `sectionNodes` recovers an unknown
+id from a role key, which is the thing that must stay stated once.
+
+**The footer said `$0.00` for a job nobody had priced**, while every row above it said `—`. Boards
+and Dowels both carry the blank guard; Hardware did not, because before the derived rows a
+hand-typed item always carried a number and `$0.00` was honest. Nullable rows made it a claim that
+the hardware is free. Same species as the footer omission fixed in `8dc42b5`, and found the same
+way — by asking whether the four surfaces agree.
+
+**The recorded test baseline was wrong.** Every document said `1757 → 1765` with "90 files
+throughout". Measured on `main` in a scratch worktree: **86 files, 1700 passing**. The branch adds
+four test files and lands at **1770**. The `1757` was a mid-branch count presented as the baseline,
+which understated the stage's own coverage by a factor of six. Recorded because it is this run's
+lesson one more time, now with a documentation stage's own verification numbers as the casualty: the
+figure was carried forward rather than measured.
+
+**One tautology survived into the shipped suite**, and it is in a claim rather than in code. The
+three-preset hinge sweep computes its expectation with `hingeCount`, the same function production
+routes through, so a mutated table moves both sides together — proven by mutation: `hingeCount`
+returning 3 below 900 mm leaves all three preset cases green. The spec asserted the opposite. The
+spec is corrected; the sweep is kept, because it does kill "count the wrong cut" mutations, and the
+table is pinned by two tests that hardcode their numbers.
+
+Left open deliberately: `HardwareLibraryEntry.supplier` and `partNumber` have no UI that can set
+them, so they round-trip as `''` and render as `—`. The spec asked for the shape, and a supplier
+column is the obvious next edit; noted here so a future reader knows it is unreachable today rather
+than broken.

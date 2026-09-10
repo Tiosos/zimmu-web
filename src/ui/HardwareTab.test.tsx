@@ -203,6 +203,7 @@ describe('HardwareTab', () => {
 
 const derived: HardwareRow[] = [
   {
+    componentId: 'cmp_1',
     key: 'hinge-overlay',
     cabinetLabel: 'Base A',
     name: '110° hinge c/w plate',
@@ -302,6 +303,7 @@ describe('HardwareTab — generated rows', () => {
   it('keeps every row for a shared catalogue key in sync after one is edited', async () => {
     const sharedRows: HardwareRow[] = [
       {
+        componentId: 'cmp_1',
         key: 'screw-4x30',
         cabinetLabel: 'Base A',
         name: 'Screw 4x30',
@@ -313,6 +315,7 @@ describe('HardwareTab — generated rows', () => {
         totalCost: null,
       },
       {
+        componentId: 'cmp_2',
         key: 'screw-4x30',
         cabinetLabel: 'Base B',
         name: 'Screw 4x30',

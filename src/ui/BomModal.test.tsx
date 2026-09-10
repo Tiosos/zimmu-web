@@ -390,6 +390,24 @@ describe('BomModal — pricing the generated hardware rows', () => {
     expect(footer).toContain('$34.80')
   })
 
+  // Boards and Dowels both say "—" for a job nobody has priced; Hardware said "$0.00", which is a
+  // different claim — that the hardware is free. Before the generated rows a hand-typed item always
+  // carried a number, so $0.00 was honest; nullable rows are what made it a lie.
+  it('says — rather than $0.00 when nothing in the job is priced', () => {
+    render(
+      <BomModal
+        {...baseProps}
+        hardware={[]}
+        hardwareLines={[
+          { componentId: 'cmp_1', cabinetLabel: 'Base A', key: 'hinge-overlay', qty: 2 },
+        ]}
+      />,
+    )
+    const footer = screen.getByTestId('bom-grand-total').textContent
+    expect(footer).toContain('Hardware: —')
+    expect(footer).not.toContain('$0.00')
+  })
+
   it('leaves an unpriced generated row out of the footer rather than counting it as free', () => {
     render(
       <BomModal

@@ -144,7 +144,10 @@ export function HardwareTab({
               </thead>
               <tbody>
                 {derived.map((row) => (
-                  <tr key={`${row.cabinetLabel}/${row.key}`} className="border-b border-border/30">
+                  <tr
+                    key={`${row.componentId ?? ''}/${row.key}`}
+                    className="border-b border-border/30"
+                  >
                     <td className="py-1.5 pr-2 text-xs">{row.cabinetLabel}</td>
                     <td className="py-1.5 px-2 text-xs">{row.name}</td>
                     <td className="py-1.5 px-2 text-xs">{row.qty}</td>
@@ -152,8 +155,10 @@ export function HardwareTab({
                     <td className="py-1.5 px-2 text-xs">
                       <UnitCostInput
                         value={row.unitCost}
-                        // The catalogue key alone collides whenever two cabinets share a part;
-                        // the cabinet label is what makes the label (and the row) unambiguous.
+                        // The catalogue key alone collides whenever two cabinets share a part.
+                        // The label disambiguates it for a reader, but not always uniquely: two
+                        // cabinets off the same preset carry the same label, which is why the row
+                        // key above is the component id instead.
                         ariaLabel={`Unit cost for ${row.name} (${row.cabinetLabel})`}
                         onCommit={(v) =>
                           onSaveHardwareEntry(row.key, {

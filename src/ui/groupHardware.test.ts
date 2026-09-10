@@ -13,6 +13,7 @@ describe('groupHardware', () => {
       'hinge-overlay': { supplier: 'Blum', partNumber: '71B3550', unitCost: 3.4 },
     })
     expect(rows[0]).toEqual({
+      componentId: 'cmp_1',
       key: 'hinge-overlay',
       cabinetLabel: 'Base A',
       name: '110° hinge c/w plate',
@@ -23,6 +24,20 @@ describe('groupHardware', () => {
       unitCost: 3.4,
       totalCost: 6.8,
     })
+  })
+
+  // `useScene` labels a carcase by its preset name, so two Base 600s in one job carry the same
+  // label. The label cannot key a row; the component id is what stays distinct.
+  it('keeps two cabinets off the same preset apart', () => {
+    const rows = groupHardware(
+      [
+        { componentId: 'cmp_1', cabinetLabel: 'Base 600', key: 'hinge-overlay', qty: 2 },
+        { componentId: 'cmp_2', cabinetLabel: 'Base 600', key: 'hinge-overlay', qty: 2 },
+      ],
+      {},
+    )
+    expect(new Set(rows.map((r) => r.cabinetLabel)).size).toBe(1)
+    expect(new Set(rows.map((r) => `${r.componentId}/${r.key}`)).size).toBe(2)
   })
 
   // An unpriced job must never read as a free one: no entry means no cost, not a cost of zero.
