@@ -1,10 +1,33 @@
 import { describe, it, expect } from 'vitest'
-import { carcaseOpenings } from './carcaseOpenings'
-import { PRESET_MATERIALS } from './carcasePresets'
+import { carcaseOpenings, resolveCarcase } from './carcaseOpenings'
+import { CARCASE_PRESETS, PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
 import { legacyToSection } from './migrateSections'
+import { regenerateComponents } from './regenerateComponents'
 import { seedInteriors, defaultInterior } from './sectionInterior'
 import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
-import type { CarcaseComponent } from './types'
+import type { CarcaseComponent, Scene } from './types'
+
+// The scene a new file starts from: empty except for the material definitions seeded with it. Copied
+// from `carcasePresets.test.ts` rather than imported — it is a test fixture, not part of the module.
+const freshScene = (preset: CarcasePreset): Scene => ({
+  parts: [],
+  materials: { ...PRESET_MATERIALS },
+  hardware: [],
+  joints: [],
+  components: [
+    {
+      kind: 'carcase',
+      id: 'cmp_1',
+      label: preset.name,
+      parentId: null,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+      params: preset.params,
+    },
+  ],
+})
 
 // Two bays, because a one-opening fixture cannot tell "the opening that owns this" from "every
 // opening" — and all three presets resolve to exactly one.
@@ -46,5 +69,45 @@ describe('carcaseOpenings', () => {
       true,
     )
     expect(groups!.carcase.every((p) => p.parentId === cabinet.id)).toBe(true)
+  })
+})
+
+describe('resolveCarcase', () => {
+  it('returns the openings beside the nodes, from one resolution', () => {
+    const scene = regenerateComponents(freshScene(CARCASE_PRESETS[0]))
+    const cabinet = scene.components[0]
+    if (cabinet.kind !== 'carcase') throw new Error('fixture is a carcase')
+
+    const resolved = resolveCarcase(cabinet, scene.parts, scene.materials)
+    expect(resolved).not.toBeNull()
+    // Base 600 is one opening: it should own its adjustable shelf and its door front, and
+    // nothing else — while the shell (a side panel) is filed under the carcase, not the opening.
+    const opening = resolved!.nodes.sections[0]
+    expect(opening.parts.map((p) => p.role).sort()).toEqual([
+      `adj-shelf-${opening.sectionId}-0`,
+      `front-${opening.sectionId}-0`,
+    ])
+    expect(resolved!.nodes.carcase.some((p) => p.role === 'left-side')).toBe(true)
+    // Every part the cabinet owns is filed exactly once: the opening's parts plus the carcase's
+    // parts account for all of them, with no overlap.
+    const filed = [...opening.parts, ...resolved!.nodes.carcase]
+    expect(filed.map((p) => p.id).sort()).toEqual(
+      scene.parts
+        .filter((p) => p.parentId === cabinet.id)
+        .map((p) => p.id)
+        .sort(),
+    )
+    // The spec the pin rows were bored from is now reachable.
+    expect(resolved!.openings[0].spec?.adjustable.rows).toBe(2)
+  })
+
+  it('agrees with carcaseOpenings, which is now its wrapper', () => {
+    const scene = regenerateComponents(freshScene(CARCASE_PRESETS[0]))
+    const cabinet = scene.components[0]
+    if (cabinet.kind !== 'carcase') throw new Error('fixture is a carcase')
+
+    expect(carcaseOpenings(cabinet, scene.parts, scene.materials)).toEqual(
+      resolveCarcase(cabinet, scene.parts, scene.materials)!.nodes,
+    )
   })
 })

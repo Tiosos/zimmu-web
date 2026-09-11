@@ -5,18 +5,24 @@ import { sectionOpenings } from './sectionInterior'
 import { resolveSections } from './sectionTree'
 import type { CarcaseComponent, MaterialDef, Part } from './types'
 
-// The whole chain from a cabinet to which of its openings owns which of its parts: thicknesses,
-// validation, section rectangles, ownership. Stated once because the scene tree and the 3D
-// highlight both ask it, and two copies would be free to disagree about an opening's membership.
+export interface ResolvedCarcase {
+  openings: ReturnType<typeof sectionOpenings>
+  nodes: ReturnType<typeof sectionNodes>
+}
+
+// The whole chain from a cabinet to its openings and to which of its parts each one owns:
+// thicknesses, validation, section rectangles, ownership. Stated once because two callers ask
+// it — the scene tree and the 3D selection highlight — and copies would be free to disagree
+// about an opening's membership.
 //
 // `null` says the cabinet cannot be resolved: `openingRect` reads thicknesses through a resolver
 // that is fatal by design, so a cabinet naming a material the scene cannot resolve would throw
 // here. What to show instead is the caller's to decide.
-export function carcaseOpenings(
+export function resolveCarcase(
   component: CarcaseComponent,
   parts: Part[],
   materials: Record<string, MaterialDef>,
-): ReturnType<typeof sectionNodes> | null {
+): ResolvedCarcase | null {
   // Filtered here rather than by each caller. Section ids and role keys are shared by every cabinet
   // built from one preset — `params` is assigned by reference — so an unfiltered array files
   // another cabinet's `front-<sec>-0` into this cabinet's opening, silently, which is the exact
@@ -29,5 +35,15 @@ export function carcaseOpenings(
     openingRect(component.params, thicknessOf),
     sectionThickness(thicknessOf),
   )
-  return sectionNodes(sectionOpenings(component.params.section, tree), own)
+  const openings = sectionOpenings(component.params.section, tree)
+  return { openings, nodes: sectionNodes(openings, own) }
+}
+
+// Which opening owns which part. The shape two callers already take.
+export function carcaseOpenings(
+  component: CarcaseComponent,
+  parts: Part[],
+  materials: Record<string, MaterialDef>,
+): ReturnType<typeof sectionNodes> | null {
+  return resolveCarcase(component, parts, materials)?.nodes ?? null
 }

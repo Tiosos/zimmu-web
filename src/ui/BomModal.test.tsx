@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { BomModal } from './BomModal'
-import type { HardwareItem, MaterialDef, Part } from '../scene/types'
+import type { HardwareItem, HardwareLibraryEntry, MaterialDef, Part } from '../scene/types'
+import type { HardwareLine } from '../scene/carcaseHardware'
 
 afterEach(cleanup)
 
@@ -60,6 +62,10 @@ const baseProps = {
   nestReports: [],
   nestPending: false,
   onSheetsTabChange: vi.fn(),
+  hardwareLines: [] as HardwareLine[],
+  hardwareLibrary: {} as Record<string, HardwareLibraryEntry>,
+  onSaveHardwareEntry: vi.fn(),
+  onDeleteHardwareEntry: vi.fn(),
 }
 
 describe('BomModal', () => {
@@ -340,5 +346,188 @@ describe('BomModal — the Sheets tab drives the nest', () => {
     render(<BomModal {...baseProps} />)
     fireEvent.click(screen.getByRole('tab', { name: 'Sheets' }))
     expect(screen.getByRole('button', { name: /copy/i }).hasAttribute('disabled')).toBe(true)
+  })
+})
+
+describe('BomModal — pricing the generated hardware rows', () => {
+  afterEach(cleanup)
+
+  it('prices the generated rows against the hardware library', () => {
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[
+          { componentId: 'cmp_1', cabinetLabel: 'Base A', key: 'hinge-overlay', qty: 2 },
+        ]}
+        hardwareLibrary={{
+          'hinge-overlay': { supplier: 'Blum', partNumber: '71B3550', unitCost: 3.4 },
+        }}
+        onSaveHardwareEntry={vi.fn()}
+        onDeleteHardwareEntry={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByText('Hardware'))
+    expect(screen.getByText('110° hinge c/w plate')).toBeDefined()
+    expect(screen.getByText('$6.80')).toBeDefined()
+  })
+
+  it('adds the generated rows into the footer, not just the hand-entered items', () => {
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[
+          { componentId: 'cmp_1', cabinetLabel: 'Base A', key: 'hinge-overlay', qty: 2 },
+        ]}
+        hardwareLibrary={{
+          'hinge-overlay': { supplier: 'Blum', partNumber: '71B3550', unitCost: 3.4 },
+        }}
+      />,
+    )
+    // Hand-entered 4 x $2.50 = $10.00; generated 2 x $3.40 = $6.80. The footer owes both, and
+    // the boards' $18.00 carries the grand total to $34.80.
+    const footer = screen.getByTestId('bom-grand-total').textContent
+    expect(footer).toContain('$16.80')
+    expect(footer).toContain('$34.80')
+  })
+
+  // Boards and Dowels both say "—" for a job nobody has priced; Hardware said "$0.00", which is a
+  // different claim — that the hardware is free. Before the generated rows a hand-typed item always
+  // carried a number, so $0.00 was honest; nullable rows are what made it a lie.
+  it('says — rather than $0.00 when nothing in the job is priced', () => {
+    render(
+      <BomModal
+        {...baseProps}
+        hardware={[]}
+        hardwareLines={[
+          { componentId: 'cmp_1', cabinetLabel: 'Base A', key: 'hinge-overlay', qty: 2 },
+        ]}
+      />,
+    )
+    const footer = screen.getByTestId('bom-grand-total').textContent
+    expect(footer).toContain('Hardware: —')
+    expect(footer).not.toContain('$0.00')
+  })
+
+  it('leaves an unpriced generated row out of the footer rather than counting it as free', () => {
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[
+          { componentId: 'cmp_1', cabinetLabel: 'Base A', key: 'hinge-overlay', qty: 2 },
+        ]}
+      />,
+    )
+    const footer = screen.getByTestId('bom-grand-total').textContent
+    expect(footer).toContain('$10.00')
+    expect(footer).toContain('$28.00')
+  })
+})
+
+describe('BomModal — the Library tab lists hardware too', () => {
+  afterEach(cleanup)
+
+  it('lists a priced hardware item in the library, and can forget it', async () => {
+    const onDeleteHardwareEntry = vi.fn()
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[]}
+        hardwareLibrary={{
+          'hinge-overlay': { supplier: 'Blum', partNumber: '71B3550', unitCost: 3.4 },
+        }}
+        onSaveHardwareEntry={vi.fn()}
+        onDeleteHardwareEntry={onDeleteHardwareEntry}
+      />,
+    )
+    fireEvent.click(screen.getByText('Library'))
+    expect(screen.getByText('110° hinge c/w plate')).toBeDefined()
+    expect(screen.getByText('Blum')).toBeDefined()
+    await userEvent.click(screen.getByLabelText('Forget 110° hinge c/w plate'))
+    // The forget control is destructive and irreversible (no undo/redo — it writes straight to
+    // IndexedDB), so it asks for confirmation before calling through.
+    expect(onDeleteHardwareEntry).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(onDeleteHardwareEntry).toHaveBeenCalledWith('hinge-overlay')
+    expect(onDeleteHardwareEntry).toHaveBeenCalledTimes(1)
+  })
+
+  it('backs out of forgetting a hardware entry without deleting it', async () => {
+    const onDeleteHardwareEntry = vi.fn()
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[]}
+        hardwareLibrary={{
+          'hinge-overlay': { supplier: 'Blum', partNumber: '71B3550', unitCost: 3.4 },
+        }}
+        onSaveHardwareEntry={vi.fn()}
+        onDeleteHardwareEntry={onDeleteHardwareEntry}
+      />,
+    )
+    fireEvent.click(screen.getByText('Library'))
+    await userEvent.click(screen.getByLabelText('Forget 110° hinge c/w plate'))
+    await userEvent.click(screen.getByRole('button', { name: 'No' }))
+    expect(onDeleteHardwareEntry).not.toHaveBeenCalled()
+    // Backing out returns to the plain Forget control rather than leaving Confirm/No stuck open.
+    expect(screen.getByLabelText('Forget 110° hinge c/w plate')).toBeDefined()
+  })
+
+  it('orders hardware rows by catalogue order, not by key, and puts a stale key last', () => {
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[]}
+        hardwareLibrary={{
+          // Catalogue order lists 'hinge-overlay' before 'hinge-inset', the reverse of what
+          // sorting by key would give.
+          'hinge-inset': { supplier: '', partNumber: '', unitCost: 4 },
+          'hinge-overlay': { supplier: '', partNumber: '', unitCost: 3.4 },
+          // Not in HARDWARE_CATALOGUE — a stale entry from a renamed/removed catalogue item.
+          'discontinued-hinge': { supplier: '', partNumber: '', unitCost: 1 },
+        }}
+        onSaveHardwareEntry={vi.fn()}
+        onDeleteHardwareEntry={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByText('Library'))
+    const names = screen
+      .getAllByRole('row')
+      .slice(1) // drop the header row
+      .map((row) => row.querySelector('td')?.textContent)
+    expect(names).toEqual([
+      '110° hinge c/w plate',
+      '110° inset hinge c/w plate',
+      'discontinued-hinge',
+    ])
+  })
+
+  it('shows the raw key for a library entry whose catalogue key no longer exists', async () => {
+    const onDeleteHardwareEntry = vi.fn()
+    render(
+      <BomModal
+        {...baseProps}
+        hardwareLines={[]}
+        hardwareLibrary={{
+          'discontinued-hinge': { supplier: 'Blum', partNumber: 'X1', unitCost: 1 },
+        }}
+        onSaveHardwareEntry={vi.fn()}
+        onDeleteHardwareEntry={onDeleteHardwareEntry}
+      />,
+    )
+    fireEvent.click(screen.getByText('Library'))
+    expect(screen.getByText('discontinued-hinge')).toBeDefined()
+    await userEvent.click(screen.getByLabelText('Forget discontinued-hinge'))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    expect(onDeleteHardwareEntry).toHaveBeenCalledWith('discontinued-hinge')
+  })
+
+  it('shows the empty-library message when nothing is priced', () => {
+    render(<BomModal {...baseProps} hardwareLibrary={{}} />)
+    fireEvent.click(screen.getByText('Library'))
+    expect(
+      screen.getByText(
+        'No hardware priced yet. Set a unit cost in the Hardware tab to build your library.',
+      ),
+    ).toBeDefined()
   })
 })

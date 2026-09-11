@@ -10,6 +10,9 @@ import {
   readClearance,
   writeClearance,
   DEFAULT_CLEARANCE,
+  readHardwareLibrary,
+  writeHardwareEntry,
+  deleteHardwareEntry,
 } from './idb'
 import type { MaterialDef } from './types'
 
@@ -146,6 +149,70 @@ describe('idb v2 → v3', () => {
     expect(names).toContain('settings')
 
     expect((await readLibrary()).Survivor).toEqual({ costPerM2: 42 })
+  })
+})
+
+describe('hardware library store', () => {
+  beforeEach(async () => {
+    // Clear hardware between tests using a direct IDB transaction
+    const db = await openDb()
+    await new Promise<void>((resolve, reject) => {
+      const req = db.transaction('hardware', 'readwrite').objectStore('hardware').clear()
+      req.onsuccess = () => resolve()
+      req.onerror = () => reject(req.error)
+    })
+    db.close()
+  })
+
+  it('round-trips an entry by catalogue key', async () => {
+    await writeHardwareEntry('hinge-overlay', {
+      supplier: 'Blum',
+      partNumber: '71B3550',
+      unitCost: 3.4,
+    })
+    expect(await readHardwareLibrary()).toEqual({
+      'hinge-overlay': { supplier: 'Blum', partNumber: '71B3550', unitCost: 3.4 },
+    })
+  })
+
+  it('deletes an entry', async () => {
+    await writeHardwareEntry('screw-8x40', { supplier: '', partNumber: '', unitCost: 0.03 })
+    await deleteHardwareEntry('screw-8x40')
+    expect((await readHardwareLibrary())['screw-8x40']).toBeUndefined()
+  })
+
+  // An onupgradeneeded that drops a store is silent data loss, and it is the exact failure a
+  // version bump invites. Opening the old schema by hand is the only way to prove the upgrade path
+  // rather than the already-upgraded steady state.
+  it('upgrades a v3 database to v4 without losing its library entries', async () => {
+    indexedDB.deleteDatabase('zimmu')
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open('zimmu', 3)
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore('handles')
+        req.result.createObjectStore('library')
+        req.result.createObjectStore('settings')
+      }
+      req.onsuccess = () => {
+        const db = req.result
+        const tx = db.transaction('library', 'readwrite')
+        tx.objectStore('library').put({ thickness: 18, costPerM2: 42 }, '18mm Ply')
+        tx.oncomplete = () => {
+          db.close()
+          resolve()
+        }
+        tx.onerror = () => reject(tx.error)
+      }
+      req.onerror = () => reject(req.error)
+    })
+
+    // openDb() triggers the v3 → v4 upgrade
+    const db = await openDb()
+    const names = Array.from(db.objectStoreNames)
+    db.close()
+    expect(names).toContain('hardware')
+
+    expect((await readLibrary())['18mm Ply']).toEqual({ thickness: 18, costPerM2: 42 })
   })
 })
 

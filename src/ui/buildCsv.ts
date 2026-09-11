@@ -1,5 +1,6 @@
 import type { BoardPart, Component, HardwareItem, MaterialDef, Part } from '../scene/types'
 import { ancestorsOf, componentsById } from '../scene/componentTree'
+import type { HardwareRow } from './groupHardware'
 
 // A sheet created by typing one dimension into the library carries 0 for the other. Zero is
 // absent, not a zero-sized sheet: a material is nestable only once both dimensions are real.
@@ -20,7 +21,9 @@ export interface CutDims {
 export function cutDimensions({ length, width, thickness, grain }: BoardPart): CutDims {
   if (grain === 'length') return { length, width, thickness }
   if (grain === 'width') return { length: width, width: length, thickness }
-  return length >= width ? { length, width, thickness } : { length: width, width: length, thickness }
+  return length >= width
+    ? { length, width, thickness }
+    : { length: width, width: length, thickness }
 }
 
 // After `cutDimensions` the grain-running dimension *is* the reported length, so a board with any
@@ -191,16 +194,35 @@ export function buildDowelCsv(parts: Part[], materials: Record<string, MaterialD
   return [header, ...dataRows, subtotalRow].join('\n')
 }
 
-export function buildHardwareCsv(items: HardwareItem[]): string {
-  const header = 'Name,Qty,Unit,Supplier,Part #,Unit cost,Total,Notes'
-  if (items.length === 0) return header
+export function buildHardwareCsv(items: HardwareItem[], derived: HardwareRow[] = []): string {
+  const header = 'Cabinet,Name,Qty,Unit,Supplier,Part #,Unit cost,Total,Notes'
+  if (items.length === 0 && derived.length === 0) return header
 
-  const dataRows = items.map((item) => {
-    const total = item.qty * item.unitCost
-    return `${quoteField(item.name)},${item.qty},${quoteField(item.unit)},${quoteField(item.supplier)},${quoteField(item.partNumber)},${item.unitCost.toFixed(2)},${total.toFixed(2)},${quoteField(item.notes)}`
-  })
+  const money = (n: number | null): string => (n === null ? '' : n.toFixed(2))
 
-  const hardwareTotal = items.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
-  const totalRow = `,,,,,Hardware total,${hardwareTotal.toFixed(2)},`
-  return [header, ...dataRows, totalRow].join('\n')
+  // Generated rows first, in the order carcaseHardware stated; then what the user typed.
+  const derivedRows = derived.map(
+    (r) =>
+      `${quoteField(r.cabinetLabel)},${quoteField(r.name)},${r.qty},${quoteField(r.unit)},` +
+      `${quoteField(r.supplier)},${quoteField(r.partNumber)},${money(r.unitCost)},${money(r.totalCost)},`,
+  )
+  const manualRows = items.map(
+    (item) =>
+      `,${quoteField(item.name)},${item.qty},${quoteField(item.unit)},${quoteField(item.supplier)},` +
+      `${quoteField(item.partNumber)},${item.unitCost.toFixed(2)},${(item.qty * item.unitCost).toFixed(2)},` +
+      `${quoteField(item.notes)}`,
+  )
+
+  // Three figures rather than one: which half of the quote the app generated is worth seeing.
+  const generatedTotal = derived.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
+  const manualTotal = items.reduce((sum, i) => sum + i.qty * i.unitCost, 0)
+
+  return [
+    header,
+    ...derivedRows,
+    ...manualRows,
+    `,,,,,,Generated total,${generatedTotal.toFixed(2)},`,
+    `,,,,,,Hand-entered total,${manualTotal.toFixed(2)},`,
+    `,,,,,,Hardware total,${(generatedTotal + manualTotal).toFixed(2)},`,
+  ].join('\n')
 }

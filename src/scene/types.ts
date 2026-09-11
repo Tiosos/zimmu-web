@@ -164,6 +164,18 @@ export interface MaterialDef {
   thickness?: number
 }
 
+// What a shop knows about a catalogue item that the cabinet cannot: who sells it, under what
+// number, for how much. Global rather than per project — a hinge is priced once, not per file —
+// which is why it lives in the `hardware` IndexedDB store and never in `ZimmuFile`. The item's
+// name and unit come from `hardwareCatalogue.ts`, never from here.
+export interface HardwareLibraryEntry {
+  supplier: string
+  partNumber: string
+  // Nullable because an entry can carry a supplier and part number before anyone has priced it,
+  // and an unpriced row must not read as a free one. An explicit 0 IS a price.
+  unitCost: number | null
+}
+
 export interface HardwareItem {
   id: string // UUID — stable across edits
   name: string

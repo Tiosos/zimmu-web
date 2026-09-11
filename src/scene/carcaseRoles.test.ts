@@ -7,6 +7,7 @@ import {
   carcaseJoints as jointsOf,
   carcaseMachining as machiningOf,
   carcaseRoles as rolesOf,
+  clearDepth,
   orientedPanel,
   validateCarcaseParams as validateOf,
   parameterForRole,
@@ -18,6 +19,7 @@ import { dadoDepthFor } from '../geom/dado'
 import { CUP_EDGE_DISTANCE } from './frontMachining'
 import { legacyToSection } from './migrateSections'
 import { seedInteriors } from './sectionInterior'
+import { splitSection } from './editSection'
 import type { FrontSpec, Section } from './sectionTree'
 import { reconcileJoints } from './reconcileJoints'
 import type {
@@ -35,7 +37,7 @@ import { composeWorldMatrix, applyMatrixToPoint } from '../geom/transform'
 import { componentsById } from './componentTree'
 import { regenerateComponents } from './regenerateComponents'
 import { boardsTouch } from './suggestJoints'
-import { CARCASE_PRESETS } from './carcasePresets'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { SWEEP } from './__fixtures__/sweep'
 
 // World AABB of a panel spec, in carcase-local space. This is the assertion surface: it pins
@@ -1658,10 +1660,7 @@ describe('carcaseHoleArrays', () => {
 
   it('emits nothing when the adjustable count is zero', () => {
     expect(
-      carcaseHoleArrays(
-        { ...base, section: shelved(sec([], 0), { count: 0 }) },
-        'left-side',
-      ),
+      carcaseHoleArrays({ ...base, section: shelved(sec([], 0), { count: 0 }) }, 'left-side'),
     ).toEqual([])
   })
 
@@ -2008,11 +2007,7 @@ describe('fixed shelves inside a section', () => {
   it('emits one board per fixed shelf, dividing the opening into equal bays', () => {
     const fixed = fixedBoxes(withFixed(2)).sort((a, b) => a.box.z0 - b.box.z0)
     expect(fixed).toHaveLength(2)
-    const gaps = [
-      fixed[0].box.z0 - 118,
-      fixed[1].box.z0 - fixed[0].box.z1,
-      702 - fixed[1].box.z1,
-    ]
+    const gaps = [fixed[0].box.z0 - 118, fixed[1].box.z0 - fixed[0].box.z1, 702 - fixed[1].box.z1]
     for (const g of gaps) expect(g).toBeCloseTo(gaps[0], 6)
   })
 
@@ -2032,9 +2027,7 @@ describe('fixed shelves inside a section', () => {
   it('meets the back, and is declared as a contact rather than left unjoined', () => {
     const p = withFixed(1)
     const [shelf] = fixedBoxes(p)
-    expect(
-      carcaseContactPairs(p).some(([a, b]) => a === 'back' && b === shelf.role),
-    ).toBe(true)
+    expect(carcaseContactPairs(p).some(([a, b]) => a === 'back' && b === shelf.role)).toBe(true)
   })
 
   it('lies flat and runs grain across the cabinet', () => {
@@ -2263,7 +2256,10 @@ describe('front machining', () => {
   })
 
   it('bores slide screws into both uprights of a drawer section', () => {
-    const p: CarcaseParams = { ...base, section: { ...sec([], 0), front: { kind: 'drawer-front' } } }
+    const p: CarcaseParams = {
+      ...base,
+      section: { ...sec([], 0), front: { kind: 'drawer-front' } },
+    }
     expect(carcaseMachining(p, 'left-side')).toHaveLength(1)
     expect(carcaseMachining(p, 'right-side')).toHaveLength(1)
     expect(carcaseMachining(p, frontRole(p))).toEqual([])
@@ -2415,13 +2411,41 @@ describe('the section tree in the generator', () => {
     ['Tall 600', 0, 4, 0],
   ])('%s ships %i divisions, %i fixed shelves and %i loose', (name, splits, fixed, loose) => {
     const params = CARCASE_PRESETS.find((p) => p.name === name)!.params
-    const of = (prefix: string) =>
-      carcaseBoxes(params).filter((b) => b.role.startsWith(prefix))
+    const of = (prefix: string) => carcaseBoxes(params).filter((b) => b.role.startsWith(prefix))
     expect(of('division-'), 'divisions').toHaveLength(splits)
     expect(of('fixed-shelf-'), 'fixed shelves').toHaveLength(fixed)
     expect(of('adj-shelf-'), 'loose shelves').toHaveLength(loose)
     for (const b of [...of('division-'), ...of('fixed-shelf-')]) {
       expect(b.thicknessAxis).toBe('z')
     }
+  })
+})
+
+describe('clearDepth', () => {
+  it('takes the back out of the depth only when the back is captured', () => {
+    const base = { depth: 560 } as CarcaseParams
+    expect(clearDepth({ ...base, backMode: 'captured' } as CarcaseParams, 12)).toBe(548)
+    expect(clearDepth({ ...base, backMode: 'applied' } as CarcaseParams, 12)).toBe(560)
+    expect(clearDepth({ ...base, backMode: 'none' } as CarcaseParams, 0)).toBe(560)
+  })
+
+  // The property that matters: a division panel runs from the front to the back panel, so its
+  // board length is the cabinet's depth minus the captured back's thickness. That figure is
+  // computed here from the preset's own depth and material thickness, never from `clearDepth`
+  // itself — a mutated `clearDepth` must move the generator's division length away from this
+  // independently-derived expectation, not cancel out against it.
+  it('equals the length of a division panel', () => {
+    const p = CARCASE_PRESETS[0].params
+    const withBays = {
+      ...p,
+      section: splitSection(p.section, p.section.id, 'vertical', 'panel', 2),
+    }
+    const thicknessOf = roleThicknessFor(withBays, PRESET_MATERIALS, new Map())
+    const roles = rolesOf(withBays, thicknessOf, jointKindFor([], 'cmp_1'))
+    const division = roles.find((r) => r.role.startsWith('division-'))
+    expect(division).toBeDefined()
+    const expectedLength = withBays.depth - thicknessOf('back')
+    expect(division!.panel.length).toBe(expectedLength)
+    expect(clearDepth(withBays, thicknessOf('back'))).toBe(expectedLength)
   })
 })

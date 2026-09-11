@@ -12,6 +12,7 @@ import type { BoardPart, CarcaseComponent, Part, CylinderPart, Scene } from '../
 import type { MaterialDef, HardwareItem } from '../scene/types'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
+import type { HardwareRow } from './groupHardware'
 
 function makeDowel(over: Partial<CylinderPart> & { id: string }): Part {
   return {
@@ -188,7 +189,7 @@ describe('buildHardwareCsv', () => {
 
   it('includes correct header', () => {
     const csv = buildHardwareCsv(items)
-    expect(csv.split('\n')[0]).toBe('Name,Qty,Unit,Supplier,Part #,Unit cost,Total,Notes')
+    expect(csv.split('\n')[0]).toBe('Cabinet,Name,Qty,Unit,Supplier,Part #,Unit cost,Total,Notes')
   })
 
   it('includes item row with correct values', () => {
@@ -210,6 +211,65 @@ describe('buildHardwareCsv', () => {
     const csv = buildHardwareCsv([])
     const lines = csv.split('\n').filter(Boolean)
     expect(lines).toHaveLength(1) // header only, no total row
+  })
+
+  const derived: HardwareRow[] = [
+    {
+      componentId: 'cmp_1',
+      key: 'hinge-overlay',
+      cabinetLabel: 'Base A',
+      name: '110° hinge c/w plate',
+      qty: 2,
+      unit: 'pcs',
+      supplier: 'Blum',
+      partNumber: '71B3550',
+      unitCost: 3.4,
+      totalCost: 6.8,
+    },
+  ]
+
+  const manual = [
+    {
+      id: 'h1',
+      name: 'Handle',
+      qty: 4,
+      unit: 'pcs',
+      supplier: 'Ironmongery',
+      partNumber: 'H-12',
+      unitCost: 5,
+      notes: '',
+      linkedPartIds: [],
+      linkedComponentIds: [],
+    },
+  ]
+
+  it('names the cabinet on a derived row and leaves it blank on a typed one', () => {
+    const rows = buildHardwareCsv(manual, derived).split('\n')
+    expect(rows[0]).toBe('Cabinet,Name,Qty,Unit,Supplier,Part #,Unit cost,Total,Notes')
+    expect(rows[1]).toBe('Base A,110° hinge c/w plate,2,pcs,Blum,71B3550,3.40,6.80,')
+    expect(rows[2]).toBe(',Handle,4,pcs,Ironmongery,H-12,5.00,20.00,')
+  })
+
+  it('carries three totals, so a user can see which half is generated', () => {
+    const rows = buildHardwareCsv(manual, derived).split('\n')
+    expect(rows.slice(-3)).toEqual([
+      ',,,,,,Generated total,6.80,',
+      ',,,,,,Hand-entered total,20.00,',
+      ',,,,,,Hardware total,26.80,',
+    ])
+  })
+
+  it('leaves an unpriced derived row blank and out of the total', () => {
+    const unpriced = [{ ...derived[0], unitCost: null, totalCost: null }]
+    const rows = buildHardwareCsv([], unpriced).split('\n')
+    expect(rows[1]).toBe('Base A,110° hinge c/w plate,2,pcs,Blum,71B3550,,,')
+    expect(rows.at(-1)).toBe(',,,,,,Hardware total,0.00,')
+  })
+
+  it('still builds a header for an empty job', () => {
+    expect(buildHardwareCsv([], [])).toBe(
+      'Cabinet,Name,Qty,Unit,Supplier,Part #,Unit cost,Total,Notes',
+    )
   })
 })
 
