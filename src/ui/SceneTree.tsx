@@ -194,7 +194,9 @@ export function SceneTree({
           >
             {open ? '▾' : '▸'}
           </Button>
-          <span className="text-xs">{component.kind === 'carcase' ? '🗄' : '🗂'}</span>
+          <span className="text-xs">
+            {component.kind === 'carcase' ? '🗄' : component.kind === 'drawer' ? '🗃' : '🗂'}
+          </span>
           <span
             className={cn(
               LABEL_CLASS,
