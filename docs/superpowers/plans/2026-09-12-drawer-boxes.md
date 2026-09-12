@@ -2191,7 +2191,6 @@ fixed for the two BOM consumers — a drawer's joinery listed under the drawer m
 user wants, unlike a cutting-list row where cross-cabinet merging is the whole point. State the
 choice; do not let it default silently.
 
-
 - [ ] **Step 6: Commit**
 
 ```bash

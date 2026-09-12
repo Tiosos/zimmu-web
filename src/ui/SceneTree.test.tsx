@@ -390,10 +390,10 @@ describe('a cabinet expands into its openings', () => {
 describe('a drawer is distinguishable from the other component kinds', () => {
   afterEach(cleanup)
 
-  const iconOf = (id: string) => {
-    const row = screen.getByTestId(`node-${id}`)
-    return row.querySelector('span.text-xs')!.textContent
-  }
+  // Read off the icon's own test id, not off `span.text-xs`: LABEL_CLASS ends in that same class,
+  // so the class selector also matches the label and returns it once the icon span is gone —
+  // measured, and three distinct labels satisfied the assertion below with no icon on screen.
+  const iconOf = (id: string) => screen.getByTestId(`icon-${id}`).textContent
 
   it('gives a drawer an icon of its own', () => {
     renderTree({

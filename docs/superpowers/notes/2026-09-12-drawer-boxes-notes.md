@@ -559,3 +559,45 @@ so drawer rows would form their own group under the drawer's label. Recorded as 
 Task 8 rather than as a defect: unlike the cutting list, where cross-cabinet merging is the whole
 point of the nearest-carcase rule, a drawer's joinery listed under the drawer is plausibly what a
 user wants. The point is that it be chosen rather than defaulted into.
+
+## 2026-09-12 — Task 5 code-quality review
+
+**The icon test did not hold the icon.** `iconOf` read `row.querySelector('span.text-xs')`, and
+`LABEL_CLASS` ends in that same class — so the selector matched two spans per row and returned the
+label as soon as the icon span was gone. Measured: deleting the whole icon `<span>` from
+`renderComponent` left all 29 tests in the file green, because the three fixture labels ('Cab',
+'Group 1', 'Drawer 1') are three distinct strings and satisfied the distinctness assertion with no
+icon on screen at all. The row now carries `data-testid={`icon-${component.id}`}` and the test reads
+that, which is the hook every other row and subtree in this file is already asserted through. The
+same deletion now fails, and so does collapsing the drawer's glyph to the group's — two mutations,
+two kills.
+
+**The distinctness assertion was kept over a literal.** Which emoji a kind wears is cosmetic and a
+test pinning `'🗃'` would fail on a purely visual swap; what is falsifiable is that the three kinds
+are not mistakable for one another. Its one real weakness was never the missing literal — it was the
+selector above, and that is fixed. A swapped pair still survives, and is accepted: two near-identical
+glyphs exchanged is a cosmetic defect, not a wrong cabinet.
+
+**The nested ternary became a `Record<Component['kind'], string>`, deviating from the plan's Step 3
+snippet.** The plan prescribed `kind === 'carcase' ? '🗄' : kind === 'drawer' ? '🗃' : '🗂'`, which
+is correct at three kinds and was the right call for a task that only had to widen a union. It does
+not survive a fourth: measured by adding a `FourthComponent` to the union, the ternary compiles
+**clean** — the new kind silently wears the group's icon — while the table fails with
+`Property 'fourth' is missing ... Record<"group" | "carcase" | "drawer" | "fourth", string>` at
+`SceneTree.tsx:28`, and that was the only error the file produced either way. The shape is already
+the repo's for this job: `KIND_LABEL` and `CHIP_LABEL` in `SceneSuggestionsPanel.tsx`, `LABELS` in
+`CabinetEditor.tsx`, `CONVERTIBLE_KIND_LABEL` in `changeJointKind.ts` are all a module-level
+`Record` keyed by a union's discriminant. It also reads better: the three glyphs are near-identical
+at a glance, so a positional ternary asks the reader to pair them by counting.
+
+**Not changed, and why.** The two comments on `DrawerComponent` were left as the plan wrote them:
+"Which opening this drawer fills" translates `SectionId` into the user-facing word and the rest of
+both comments is genuine *why*, which is the rule. Field order and formatting already match
+`GroupComponent` and `CarcaseComponent` line for line. The `DrawerParams`/`RunnerFamily` re-export
+mirrors the existing `sectionTree` one exactly — imported for local use, re-exported for consumers —
+and gives `DrawerParams` two import paths just as `Section` already has two, which is the point of
+`types.ts` rather than a problem with it. Both are type-only, so no runtime cycle exists.
+
+**One pre-existing formatting violation was left alone.** `SceneTree.tsx:229` is 101 characters and
+Prettier wants it wrapped; it came in with `eaa95f5`, not with this task, so reverting Prettier's
+reflow of it kept the review diff to the lines under repair.

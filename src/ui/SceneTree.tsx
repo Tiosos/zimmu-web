@@ -22,6 +22,15 @@ const ROW_CLASS = 'flex items-center gap-1.5 px-2 py-1.5 cursor-pointer select-n
 const LABEL_CLASS = 'flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-xs'
 const ICON_BUTTON_CLASS = 'h-6 w-6 text-muted-foreground hover:text-foreground'
 
+// A table rather than a chain of ternaries: a fourth component kind is then a compile error here
+// instead of a row silently wearing the group's icon, and the three glyphs are near-identical
+// enough that naming which belongs to which is the only way to read them.
+const COMPONENT_ICON: Record<Component['kind'], string> = {
+  carcase: '🗄',
+  drawer: '🗃',
+  group: '🗂',
+}
+
 interface SceneTreeProps {
   components: Component[]
   parts: Part[]
@@ -194,8 +203,8 @@ export function SceneTree({
           >
             {open ? '▾' : '▸'}
           </Button>
-          <span className="text-xs">
-            {component.kind === 'carcase' ? '🗄' : component.kind === 'drawer' ? '🗃' : '🗂'}
+          <span data-testid={`icon-${component.id}`} className="text-xs">
+            {COMPONENT_ICON[component.kind]}
           </span>
           <span
             className={cn(
