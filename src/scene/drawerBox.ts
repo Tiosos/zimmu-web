@@ -79,9 +79,10 @@ export interface DrawerContext {
 // `carcaseMachining` reads it to place slide screws. Neither reads the other's output, which is
 // what keeps the generator a function in one direction.
 //
-// Returns null when the cabinet is too shallow for the smallest runner. That mirrors the rule that
-// a door too thin to bore lists no hinge: the generator declines rather than inventing a size, and
-// a box beside a missing runner would be a drawer nobody can build.
+// Returns null when the cabinet is too shallow for the smallest runner, and when the box would come
+// out wider than its own opening. That mirrors the rule that a door too thin to bore lists no hinge:
+// the generator declines rather than inventing a size, and a box beside a missing runner — or one
+// that will not go in the hole — would be a drawer nobody can build.
 export function drawerBoxMetrics(
   // The SECTION's own rectangle, from `tree.rects`, never the front cell. `frontCells` expands an
   // overlay front to the material midline, so a Base 600's cell is ~597 wide against a 564 opening
@@ -99,10 +100,13 @@ export function drawerBoxMetrics(
   const openingHeight = opening.z1 - opening.z0
   const height = Math.min(params.boxHeight ?? openingHeight - BOX_HEIGHT_UNDER_FRONT, openingHeight)
 
-  const [x0, x1] =
+  // Side-mount takes a fixed gap off each side, so its span only ever shrinks and cannot fail.
+  const span: [number, number] | null =
     params.family === 'side-mount'
       ? [opening.x0 + SIDE_MOUNT_CLEARANCE, opening.x1 - SIDE_MOUNT_CLEARANCE]
       : undermountSpan(opening, ctx.sideThickness)
+  if (span === null) return null
+  const [x0, x1] = span
 
   // The applied front occupies y ∈ [−FT, 0] overlay and y ∈ [0, FT] inset, so the box starts where
   // the front stops.
@@ -119,13 +123,19 @@ export function drawerBoxMetrics(
 // Undermount states the drawer's INSIDE width, so the outside width moves with the side material.
 // At 16 mm sides the outside clearance works out near 5 mm a side, not the 12.7 mm a side-mount
 // needs — which is why this cannot be expressed as a per-side constant.
-function undermountSpan(opening: Rect, sideThickness: number): [number, number] {
+function undermountSpan(opening: Rect, sideThickness: number): [number, number] | null {
   const deduction =
     sideThickness <= UNDERMOUNT_THIN_MAX_THICKNESS
       ? UNDERMOUNT_DEDUCTION_THIN
       : UNDERMOUNT_DEDUCTION_THICK
-  const inside = opening.x1 - opening.x0 - deduction
+  const span = opening.x1 - opening.x0
+  const inside = span - deduction
   const outside = inside + 2 * sideThickness
-  const slack = (opening.x1 - opening.x0 - outside) / 2
+  // The interior is fixed, so every extra millimetre of side material pushes the outside wider,
+  // and past half the deduction the box is wider than the hole it goes in. The generator declines
+  // rather than inventing a size — the same answer it gives when no runner fits. Zero slack still
+  // builds: a box exactly as wide as its opening is a box that fits.
+  if (outside > span) return null
+  const slack = (span - outside) / 2
   return [opening.x0 + slack, opening.x1 - slack]
 }

@@ -162,4 +162,22 @@ describe('drawerBoxMetrics — undermount', () => {
     expect(m.groove).toBeNull()
     expect(m.runnerZ).toBe(m.box.z0)
   })
+
+  // Undermount adds 2 x sideThickness back to a fixed interior, so thick stock outgrows the
+  // opening it is meant to sit in. The module already declines when no runner fits the depth; a
+  // box wider than its hole is the same kind of "cannot be built" and gets the same answer.
+  // Derived from the deduction rather than hardcoded, so the case follows the stated figure.
+  it('declines when the box would be wider than the opening', () => {
+    const tooThick = Math.ceil(UNDERMOUNT_DEDUCTION_THICK / 2)
+    const m = drawerBoxMetrics(rect, params, { ...baseCtx, sideThickness: tooThick })
+    expect(m).toBeNull()
+  })
+
+  // The boundary is still buildable: exactly zero slack is a box that fits.
+  it('still builds a box with exactly zero slack', () => {
+    const exact = UNDERMOUNT_DEDUCTION_THICK / 2
+    const m = drawerBoxMetrics(rect, params, { ...baseCtx, sideThickness: exact })
+    expect(m).not.toBeNull()
+    expect(m!.box.x1 - m!.box.x0).toBeCloseTo(rect.x1 - rect.x0, 9)
+  })
 })
