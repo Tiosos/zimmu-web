@@ -444,3 +444,43 @@ would make the front's treatment asymmetric with the back's for no gain.
 across `screw.ts` and here. A shared constant for one writer and one reader would be an abstraction
 for a single use, and would break the pattern the other two families follow.
 
+
+## 2026-09-12 — Task 4d: two deviations from the task text, both measured
+
+The task's table lists five impossibilities and its Step 3 lists five terms. The guard has **four**,
+and the height case is tested with a fixture the task did not suggest. Both were checked by
+mutation rather than by argument.
+
+**The fifth term — "positive outside width" — is unreachable, so it is not written.** The interior
+term is `box.x1 - box.x0 <= 2 * ctx.sideThickness`; a separate outside term would fire on
+`box.x1 - box.x0 <= 0`. Since side material is never negative, the second set is a subset of the
+first, and at `sideThickness === 0` the interior term *is* the outside term. Driven empirically: a
+side-mount box with outside width 34.6 and 18 mm sides (interior −1.4) declines; a side-mount box at
+`sideThickness: 0` declines at outside 0 and at outside −0.1 and builds at outside 0.6. The only
+input that reaches an outside term the interior term misses is a **negative** `sideThickness`
+(−5 in a 20 mm opening yields outside −5.4, interior +4.6, and the box comes out inside-out with
+`x1 < x0`). A negative thickness is not representable — `DimInput` refuses anything under its `min`,
+and every carcase dimension derived from one would be nonsense long before a drawer is reached — so
+the term would be a clause no input can reach. Both width rows of the task's table still decline:
+side-mount at an opening under 2 × 12.7, and undermount at a 30 mm opening with 12 mm sides
+(inside −12, outside 12, past `undermountSpan`).
+
+**The height term's only unique input is a height of exactly zero under an undermount runner.** The
+task suggested a 20 mm opening (deriving 20 − 25) and an explicit negative `boxHeight`. Both are
+masked: with `runnerZ > box.z1` and the groove term in place, a side-mount box that short is refused
+by the runner line first, and a *negative* height puts even an undermount's runner — which sits on
+the box floor at `z0` — above the box top. Measured: deleting only `box.z1 <= box.z0` and running
+the suite fails exactly `declines a box with no height, derived or asked for`, while both of the
+task's own fixtures still return null under the same mutation. So the committed test uses an
+opening exactly `BOX_HEIGHT_UNDER_FRONT` tall under `defaultDrawerParams('undermount')`, plus
+`boxHeight: 0`, which is the one input only that term answers.
+
+**All four clauses are live and singly covered.** Removing each in turn (backup by `cp`, grep after
+applying and after restoring, never `git checkout`): width kills 2 tests — the two width rows —
+height 1, runner 1, groove 1. No clause's removal kills nothing.
+
+**Not in the guard, and deliberately so: a runner *below* the box bottom.** A negative
+`runnerOffset` puts `runnerZ` under `box.z0` and nothing declines it. The task enumerated five
+impossibilities and that is not one of them; the parameter has no UI yet (Task 13), and adding an
+unlisted sixth term here would be scope this task did not ask for. It belongs with whatever gives
+`runnerOffset` an input control.
