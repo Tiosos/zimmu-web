@@ -5,6 +5,8 @@ import {
   BOX_HEIGHT_UNDER_FRONT,
   SIDE_MOUNT_CLEARANCE,
   SIDE_MOUNT_RUNNER_OFFSET,
+  UNDERMOUNT_DEDUCTION_THICK,
+  UNDERMOUNT_DEDUCTION_THIN,
   defaultDrawerParams,
   drawerBoxMetrics,
 } from './drawerBox'
@@ -103,5 +105,45 @@ describe('drawerBoxMetrics — side-mount', () => {
   it('declines entirely when no runner fits', () => {
     const m = drawerBoxMetrics(rect, params, { ...baseCtx, clearDepth: 200 })
     expect(m).toBeNull()
+  })
+})
+
+describe('drawerBoxMetrics — undermount', () => {
+  const params = defaultDrawerParams('undermount')
+  const ctx = (sideThickness: number) => ({ ...baseCtx, sideThickness })
+
+  // The rule is on the INSIDE width. A 564 opening with 15 mm sides gives 564 − 42 = 522 inside.
+  it('fixes the inside width, not the gap either side', () => {
+    const m = drawerBoxMetrics(rect, params, ctx(15))!
+    const inside = m.box.x1 - m.box.x0 - 2 * 15
+    expect(inside).toBe(564 - UNDERMOUNT_DEDUCTION_THIN)
+  })
+
+  // Thicker sides take the larger deduction. 564 − 49 = 515 inside.
+  it('takes the larger deduction above the thin-material limit', () => {
+    const m = drawerBoxMetrics(rect, params, ctx(18))!
+    const inside = m.box.x1 - m.box.x0 - 2 * 18
+    expect(inside).toBe(564 - UNDERMOUNT_DEDUCTION_THICK)
+  })
+
+  // The point of the whole section: undermount is NOT side-mount with a different constant. A
+  // per-side rule would give the same outside width at both thicknesses; this one must not.
+  it('moves the outside width with the side thickness, unlike a per-side rule', () => {
+    const thin = drawerBoxMetrics(rect, params, ctx(12))!
+    const thick = drawerBoxMetrics(rect, params, ctx(18))!
+    expect(thin.box.x1 - thin.box.x0).not.toBe(thick.box.x1 - thick.box.x0)
+  })
+
+  // At 16 mm sides the outside clearance is nowhere near a side-mount's 12.7 mm a side.
+  it('leaves a far smaller outside clearance than side-mount does', () => {
+    const m = drawerBoxMetrics(rect, params, ctx(16))!
+    const perSide = (564 - (m.box.x1 - m.box.x0)) / 2
+    expect(perSide).toBeLessThan(SIDE_MOUNT_CLEARANCE / 2)
+  })
+
+  it('has no groove and sits the runner at the box bottom', () => {
+    const m = drawerBoxMetrics(rect, params, ctx(15))!
+    expect(m.groove).toBeNull()
+    expect(m.runnerZ).toBe(m.box.z0)
   })
 })
