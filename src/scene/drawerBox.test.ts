@@ -4,6 +4,7 @@ import {
   BOTTOM_GROOVE_UP,
   BOX_HEIGHT_UNDER_FRONT,
   SIDE_MOUNT_CLEARANCE,
+  SIDE_MOUNT_RUNNER_OFFSET,
   defaultDrawerParams,
   drawerBoxMetrics,
 } from './drawerBox'
@@ -13,11 +14,35 @@ import type { Rect } from './sectionTree'
 // between 18 mm sides, 500 mm above the floor, 200 mm tall.
 const rect: Rect = { x0: 18, x1: 582, z0: 500, z1: 700 }
 
+// One cabinet behind every side-mount case: 560 clear, an 18 mm overlay front, 18 mm drawer sides.
+// Each test spreads over the single field it is about, so the variation is the only thing on screen.
+const baseCtx = { clearDepth: 560, frontThickness: 18, inset: false, sideThickness: 18 }
+
+describe('defaultDrawerParams', () => {
+  // Nothing else pins this. The offset test passes an explicit 40, so the default could seed 0 and
+  // every metrics test below still passed — the one figure in the file no test exercised in place.
+  // Derived from the constant, so changing the figure still needs no test edit.
+  it('seeds a drawer with the stated runner offset and no explicit height', () => {
+    expect(defaultDrawerParams('side-mount')).toEqual({
+      family: 'side-mount',
+      boxHeight: null,
+      runnerOffset: SIDE_MOUNT_RUNNER_OFFSET,
+      material: '',
+    })
+  })
+
+  // The family is the only thing the argument decides, and every other test asks for side-mount —
+  // so a version ignoring its argument passed all of them.
+  it('carries the family it was asked for', () => {
+    expect(defaultDrawerParams('undermount').family).toBe('undermount')
+  })
+})
+
 describe('drawerBoxMetrics — side-mount', () => {
   const params = defaultDrawerParams('side-mount')
 
   it('takes the side clearance off each side of the opening', () => {
-    const m = drawerBoxMetrics(rect, params, { clearDepth: 560, frontThickness: 18, inset: false })!
+    const m = drawerBoxMetrics(rect, params, baseCtx)!
     // Derived from the opening and the constant, not by calling the function under test.
     expect(m.box.x0).toBe(18 + SIDE_MOUNT_CLEARANCE)
     expect(m.box.x1).toBe(582 - SIDE_MOUNT_CLEARANCE)
@@ -26,67 +51,57 @@ describe('drawerBoxMetrics — side-mount', () => {
     expect(m.box.x1 - m.box.x0).toBeCloseTo(564 - 2 * SIDE_MOUNT_CLEARANCE, 9)
   })
 
+  // The other half of the family split. Undermount fixes the box's interior, so its outside width
+  // moves with the side material; side-mount fixes the gap, so its outside width must not. Every
+  // other test here runs one thickness, so a shared rule reading the interior would pass them all.
+  it('keeps its width when the drawer side material changes', () => {
+    const thin = drawerBoxMetrics(rect, params, { ...baseCtx, sideThickness: 12 })!
+    const thick = drawerBoxMetrics(rect, params, { ...baseCtx, sideThickness: 25 })!
+    expect(thin.box.x0).toBe(thick.box.x0)
+    expect(thin.box.x1).toBe(thick.box.x1)
+  })
+
   it('takes its depth from the runner nominal, not from the cabinet depth', () => {
-    const m = drawerBoxMetrics(rect, params, { clearDepth: 560, frontThickness: 18, inset: false })!
+    const m = drawerBoxMetrics(rect, params, baseCtx)!
     // 560 clear picks the 550 nominal; the box is 550 deep, not 560.
     expect(m.box.y1 - m.box.y0).toBe(550)
   })
 
   it('starts at the carcase face for an overlay front and behind it for an inset one', () => {
-    const overlay = drawerBoxMetrics(rect, params, {
-      clearDepth: 560,
-      frontThickness: 18,
-      inset: false,
-    })!
-    const inset = drawerBoxMetrics(rect, params, {
-      clearDepth: 560,
-      frontThickness: 18,
-      inset: true,
-    })!
+    const overlay = drawerBoxMetrics(rect, params, baseCtx)!
+    const inset = drawerBoxMetrics(rect, params, { ...baseCtx, inset: true })!
     expect(overlay.box.y0).toBe(0)
     expect(inset.box.y0).toBe(18)
   })
 
   it('derives its height from the front when the parameter is null', () => {
-    const m = drawerBoxMetrics(rect, params, { clearDepth: 560, frontThickness: 18, inset: false })!
+    const m = drawerBoxMetrics(rect, params, baseCtx)!
     expect(m.box.z1 - m.box.z0).toBe(200 - BOX_HEIGHT_UNDER_FRONT)
     expect(m.box.z0).toBe(500)
   })
 
   it('uses an explicit height over the derived one', () => {
-    const m = drawerBoxMetrics(
-      rect,
-      { ...params, boxHeight: 120 },
-      { clearDepth: 560, frontThickness: 18, inset: false },
-    )!
+    const m = drawerBoxMetrics(rect, { ...params, boxHeight: 120 }, baseCtx)!
     expect(m.box.z1 - m.box.z0).toBe(120)
   })
 
   it('clamps an over-tall explicit height to the opening', () => {
-    const m = drawerBoxMetrics(
-      rect,
-      { ...params, boxHeight: 5000 },
-      { clearDepth: 560, frontThickness: 18, inset: false },
-    )!
+    const m = drawerBoxMetrics(rect, { ...params, boxHeight: 5000 }, baseCtx)!
     expect(m.box.z1 - m.box.z0).toBe(200)
   })
 
   it('puts the runner the parameter’s distance above the box bottom, in carcase space', () => {
-    const m = drawerBoxMetrics(
-      rect,
-      { ...params, runnerOffset: 40 },
-      { clearDepth: 560, frontThickness: 18, inset: false },
-    )!
+    const m = drawerBoxMetrics(rect, { ...params, runnerOffset: 40 }, baseCtx)!
     expect(m.runnerZ).toBe(m.box.z0 + 40)
   })
 
   it('grooves the bottom, and the groove is where the constants say', () => {
-    const m = drawerBoxMetrics(rect, params, { clearDepth: 560, frontThickness: 18, inset: false })!
+    const m = drawerBoxMetrics(rect, params, baseCtx)!
     expect(m.groove).toEqual({ up: BOTTOM_GROOVE_UP, depth: BOTTOM_GROOVE_DEPTH })
   })
 
   it('declines entirely when no runner fits', () => {
-    const m = drawerBoxMetrics(rect, params, { clearDepth: 200, frontThickness: 18, inset: false })
+    const m = drawerBoxMetrics(rect, params, { ...baseCtx, clearDepth: 200 })
     expect(m).toBeNull()
   })
 })

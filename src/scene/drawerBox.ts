@@ -68,8 +68,11 @@ export interface DrawerContext {
   clearDepth: number
   frontThickness: number
   inset: boolean
-  // Side thickness only matters to undermount, whose rule is on the box's interior.
-  sideThickness?: number
+  // The DRAWER's own side material, not the carcase's. Only undermount reads it, and it is required
+  // anyway — the mirror of `runnerOffset`, which undermount ignores. Optional with a `?? 0` default
+  // sized an undermount box as if its sides were paper: too narrow by twice the stock, and by more
+  // the thicker the stock, which is the one error this family is prone to and slowest to notice.
+  sideThickness: number
 }
 
 // The one statement of a drawer box's geometry. The drawer generator reads it to build boards and
@@ -96,11 +99,10 @@ export function drawerBoxMetrics(
   const openingHeight = opening.z1 - opening.z0
   const height = Math.min(params.boxHeight ?? openingHeight - BOX_HEIGHT_UNDER_FRONT, openingHeight)
 
-  const sideThickness = ctx.sideThickness ?? 0
   const [x0, x1] =
     params.family === 'side-mount'
       ? [opening.x0 + SIDE_MOUNT_CLEARANCE, opening.x1 - SIDE_MOUNT_CLEARANCE]
-      : undermountSpan(opening, sideThickness)
+      : undermountSpan(opening, ctx.sideThickness)
 
   // The applied front occupies y ∈ [−FT, 0] overlay and y ∈ [0, FT] inset, so the box starts where
   // the front stops.
