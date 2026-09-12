@@ -7,7 +7,7 @@ vi.mock('./idb', () => ({
   clearHandle: vi.fn(),
 }))
 
-import { useFile, parseFile } from './useFile'
+import { useFile, parseFile, FILE_FORMAT_VERSION } from './useFile'
 import * as idb from './idb'
 import type { BoardPart, CarcaseParams, MaterialDef, ZimmuFile, Scene, Part } from './types'
 import type { Section } from './sectionTree'
@@ -2031,11 +2031,23 @@ describe('v17 → v18: drawer components', () => {
     expect(c.kind).toBe('group')
   })
 
-  // The version bump's one observable consequence: a v18 file is no longer from the future.
-  it('reads a v18 file without warning that it is newer than the app', () => {
+  // The version bump's one observable consequence: a v18 file is no longer from the future. The
+  // assertion is that a well-formed current-version file parses *silently*, not that one particular
+  // sentence went unsaid: matching the warning's wording makes the bump's only pin co-dependent on
+  // a log string, and rewording it while reverting the constant left the whole suite green.
+  it('reads a v18 file without warning at all', () => {
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     parseFile(envelope([drawer()]))
-    expect(spy).not.toHaveBeenCalledWith(expect.stringContaining('newer than app version'))
+    expect(spy).not.toHaveBeenCalled()
     spy.mockRestore()
+  })
+
+  // The stamp, not the gate, and deliberately a value pin: `buildEnvelope` writes this constant
+  // into every saved file, and that number is read by an app this one cannot run the suite of. Left
+  // at 17, a drawer-bearing file reads as current to a build with no drawer branch and the
+  // component passes through unrecognised with nothing said — a consequence no test here can
+  // observe, which is why the constant itself is asserted.
+  it('writes the drawer-bearing format version', () => {
+    expect(FILE_FORMAT_VERSION).toBe(18)
   })
 })
