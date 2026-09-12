@@ -451,7 +451,7 @@ The task's table lists five impossibilities and its Step 3 lists five terms. The
 and the height case is tested with a fixture the task did not suggest. Both were checked by
 mutation rather than by argument.
 
-**The fifth term — "positive outside width" — is unreachable, so it is not written.** The interior
+**The outside-width term — the task's fifth — is unreachable, so it is not written.** The interior
 term is `box.x1 - box.x0 <= 2 * ctx.sideThickness`; a separate outside term would fire on
 `box.x1 - box.x0 <= 0`. Since side material is never negative, the second set is a subset of the
 first, and at `sideThickness === 0` the interior term *is* the outside term. Driven empirically: a
@@ -475,12 +475,35 @@ task's own fixtures still return null under the same mutation. So the committed 
 opening exactly `BOX_HEIGHT_UNDER_FRONT` tall under `defaultDrawerParams('undermount')`, plus
 `boxHeight: 0`, which is the one input only that term answers.
 
-**All four clauses are live and singly covered.** Removing each in turn (backup by `cp`, grep after
-applying and after restoring, never `git checkout`): width kills 2 tests — the two width rows —
-height 1, runner 1, groove 1. No clause's removal kills nothing.
+**All four clauses as first committed are live and singly covered.** Removing each in turn (backup
+by `cp`, grep after applying and after restoring, never `git checkout`): width kills 2 tests — the
+two width rows — height 1, runner 1, groove 1. No clause's removal kills nothing.
 
-**Not in the guard, and deliberately so: a runner *below* the box bottom.** A negative
-`runnerOffset` puts `runnerZ` under `box.z0` and nothing declines it. The task enumerated five
-impossibilities and that is not one of them; the parameter has no UI yet (Task 13), and adding an
-unlisted sixth term here would be scope this task did not ask for. It belongs with whatever gives
-`runnerOffset` an input control.
+**Deferred at first, then reversed on review: a runner *below* the box bottom.** A negative
+`runnerOffset` puts `runnerZ` under `box.z0`. The first pass left it out because the task's table
+did not list it and the parameter has no UI yet (Task 13), so it looked like scope the task had not
+asked for.
+
+The reversal argument is that the deferral reasoning does not survive being applied to the clause
+beside it. `boxHeight` has no UI either, and `boxHeight: -1` is exactly as unreachable from the app
+as `runnerOffset: -1` — yet the height term validates it, and the task's own table lists it. So the
+line the guard was actually drawing was not "reachable input" but "this module's own parameters",
+and it had drawn that line around one of the two. `runnerZ > box.z1` and `runnerZ < box.z0` are the
+same statement of the same rule from opposite ends, and a rule stated from one end only is the
+shape this codebase keeps paying for elsewhere.
+
+Waiting for the UI would not have covered it either. `DimInput` clamps on blur to `min` (default 1),
+so a control would protect the *typed* path — but a `.zimmu` file is a second input path, and
+CLAUDE.md already records that `useFile.ts` types `base.params` loosely enough that `tsc` cannot see
+a bad one. The geometry module is where both paths meet.
+
+`<` and not `<=`, and the boundary is the load-bearing half: an undermount runner sits *exactly* on
+the box floor, so `<=` declines the entire undermount family. Measured — relaxing it fails 9 tests,
+the 8 undermount ones plus the boundary assertion; removing the term outright fails exactly the one
+test that names it.
+
+**The same review restored a type the guard's refactor had quietly dropped.** Hoisting the return
+value into `const box = {...}` cost the object literal its freshness, and with it TypeScript's
+excess-property check: a stray `z2` on the extents compiled clean where the inline literal had
+rejected it. `const box: BoxExtents` puts it back. Verified both ways before and after the
+annotation.

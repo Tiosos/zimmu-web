@@ -270,4 +270,16 @@ describe('drawerBoxMetrics — a box that cannot be built', () => {
     const boxHeight = BOTTOM_GROOVE_UP - 1
     expect(drawerBoxMetrics(rect, { ...params, boxHeight, runnerOffset: 0 }, baseCtx)).toBeNull()
   })
+
+  // The runner line leaving the box through the FLOOR, which is the same impossibility as leaving
+  // through the top and gets the same answer. The box here is otherwise ordinary — full derived
+  // height, so the groove and the height term both pass — so this clause alone answers.
+  //
+  // The boundary is the other half of what it pins: an offset of exactly zero puts the runner ON
+  // the box floor, which is where every undermount box carries it, so relaxing `<` to `<=` declines
+  // the whole undermount family rather than this one case.
+  it('declines a box whose runner would sit below its floor', () => {
+    expect(drawerBoxMetrics(rect, { ...params, runnerOffset: -1 }, baseCtx)).toBeNull()
+    expect(drawerBoxMetrics(rect, { ...params, runnerOffset: 0 }, baseCtx)).not.toBeNull()
+  })
 })

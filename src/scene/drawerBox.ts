@@ -92,11 +92,12 @@ export function boxDepth(clear: number, frontThickness: number, inset: boolean):
 // `carcaseMachining` reads it to place slide screws. Neither reads the other's output, which is
 // what keeps the generator a function in one direction.
 //
-// Returns null when no runner fits the depth the box can actually use — which an inset front cuts
-// into, so a cabinet deep enough overlay can be too shallow inset — and when the box would come
-// out wider than its own opening. That mirrors the rule that a door too thin to bore lists no hinge:
-// the generator declines rather than inventing a size, and a box beside a missing runner — or one
-// that will not go in the hole — would be a drawer nobody can build.
+// Returns null for any drawer that cannot be built: no runner fits the depth the box can actually
+// use — which an inset front cuts into, so a cabinet deep enough overlay can be too shallow inset —
+// the box comes out wider than its own opening, or it fails the guard below. That mirrors the rule
+// that a door too thin to bore lists no hinge: the generator declines rather than inventing a size,
+// and a box beside a missing runner — or one that will not go in the hole — would be a drawer
+// nobody can build.
 export function drawerBoxMetrics(
   // The SECTION's own rectangle, from `tree.rects`, never the front cell. `frontCells` expands an
   // overlay front to the material midline, so a Base 600's cell is ~597 wide against a 564 opening
@@ -127,27 +128,31 @@ export function drawerBoxMetrics(
   // the front stops.
   const y0 = ctx.inset ? ctx.frontThickness : 0
 
-  const box = { x0, x1, y0, y1: y0 + depth, z0: opening.z0, z1: opening.z0 + height }
+  const box: BoxExtents = { x0, x1, y0, y1: y0 + depth, z0: opening.z0, z1: opening.z0 + height }
   const runnerZ = opening.z0 + (params.family === 'side-mount' ? params.runnerOffset : 0)
   const groove =
     params.family === 'side-mount' ? { up: BOTTOM_GROOVE_UP, depth: BOTTOM_GROOVE_DEPTH } : null
 
-  // Every way the arithmetic above can produce a box nobody can build. Asked once, after the extents
-  // are known, rather than as five guards scattered through the computation: they are one question,
-  // and a reader checking "can this return nonsense?" should find one place to look.
+  // Asked once, after the extents are known, rather than as five guards scattered through the
+  // computation: they are one question — can this drawer be built — and a reader checking "can this
+  // return nonsense?" should find one place to look. It declines rather than clamping, because a
+  // clamped box is a box the user did not ask for and will not notice.
   //
-  // The generator declines rather than clamping. A clamped box is a box the user did not ask for and
-  // will not notice, which is worse than no box at all.
+  // It polices this module's own parameters, `boxHeight` and `runnerOffset` — nothing else
+  // constrains them, and `useFile` types `base.params` loosely enough that a file can carry a bad
+  // one past `tsc`. It does not police `ctx.sideThickness`, a material thickness the whole carcase
+  // generator already depends on being positive: that is why there is no outside-width term, since
+  // only a negative thickness could reach one the interior term misses.
   //
-  // The width term is the interior, not the outside: side material is never negative, so a box with
-  // room between its sides has positive outside width too, and a separate outside term would be a
-  // clause no input can reach. The runner and groove terms read the box's own emitted figures rather
-  // than `params.runnerOffset` and the family — `defaultDrawerParams` seeds the side-mount offset
+  // The two runner terms bracket the box from both ends and read its emitted figures, not
+  // `params.runnerOffset` and the family — `defaultDrawerParams` seeds the side-mount offset
   // whatever the family, so a term reading the parameter would decline a short undermount box whose
-  // runner actually sits on the floor of it.
+  // runner sits on the floor of it. `<` and not `<=` at the bottom for the same reason: an
+  // undermount runner sits exactly there.
   if (
     box.x1 - box.x0 <= 2 * ctx.sideThickness ||
     box.z1 <= box.z0 ||
+    runnerZ < box.z0 ||
     runnerZ > box.z1 ||
     (groove !== null && box.z0 + groove.up > box.z1)
   ) {
