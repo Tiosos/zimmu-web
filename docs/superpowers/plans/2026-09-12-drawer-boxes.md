@@ -1010,6 +1010,224 @@ Claude-Session: https://claude.ai/code/session_01P9f2w97VWLpfZvQzZH6TPc"
 
 ---
 
+## Task 4c: State the depth a box can actually use, once
+
+An inset box's back lands at `frontThickness + nominal`, so it overruns whenever
+`clearDepth − nominal < frontThickness`. Measured against a 564 mm opening:
+
+| clear depth | front | nominal | overlay box | inset box |
+|---|---|---|---|---|
+| 548 | 18 | 500 | 0–500 | 18–518 |
+| **560** | **18** | **550** | 0–550 | **18–568 — 8 mm past the back** |
+| 330 | 18 | 300 | 0–300 | 18–318 |
+
+**The fix cannot be local.** The spec ties the box's depth to `runnerKeyFor(clearDepth)` *"so the box
+and the quoted runner cannot disagree about length"*, and `carcaseHardware` quotes from the same
+call. Shorten the box alone and you build a 500 while the BOM orders a 550.
+
+So the depth available to a box is stated once and read by both, exactly as `clearDepth` itself
+already is. **This edits code that shipped in the previous stage**, which is deliberate and was
+approved.
+
+**Files:**
+- Modify: `src/scene/carcaseRoles.ts` (beside `clearDepth`)
+- Modify: `src/scene/drawerBox.ts`
+- Modify: `src/scene/carcaseHardware.ts`
+- Test: `src/scene/drawerBox.test.ts`, `src/scene/carcaseHardware.test.ts`
+
+- [ ] **Step 1: Read before writing**
+
+Read `clearDepth` in `src/scene/carcaseRoles.ts`, `drawerBoxMetrics` in `src/scene/drawerBox.ts`,
+and the runner branch of `src/scene/carcaseHardware.ts`. **The hardware module chooses a runner per
+drawer bay and must now know that bay's front thickness and whether the cabinet is inset.** Work out
+how it can learn that from what it already has before writing anything; it already reads
+`frontMount` for hinge keys, so the mount is in reach.
+
+- [ ] **Step 2: Write the failing tests**
+
+Two, one per side of the agreement. In `src/scene/drawerBox.test.ts`:
+
+```ts
+  // An inset front eats depth the box cannot use. Its back must stop at or before the back panel.
+  it('keeps an inset box inside the cabinet', () => {
+    const m = drawerBoxMetrics(rect, defaultDrawerParams('side-mount'), {
+      ...baseCtx,
+      clearDepth: 560,
+      frontThickness: 18,
+      inset: true,
+    })
+    expect(m).not.toBeNull()
+    expect(m!.box.y1).toBeLessThanOrEqual(560)
+  })
+```
+
+In `src/scene/carcaseHardware.test.ts`, a test that the runner quoted for an inset cabinet is the one
+the box is actually built to. Write it against whatever fixture helper that file uses for a drawer
+bay, and assert the quoted runner key matches the nominal `drawerBoxMetrics` returns for the same
+cabinet. **Both sides must be computed independently** — read the quoted key from `carcaseHardware`
+and the box depth from `drawerBoxMetrics`, never one from the other.
+
+- [ ] **Step 3: Run both and watch them fail**
+
+Run: `pnpm vitest run src/scene/drawerBox.test.ts src/scene/carcaseHardware.test.ts`
+Expected: the box test fails with `568` against `560`. The hardware test fails showing the quote and
+the box disagreeing.
+
+- [ ] **Step 4: State the rule once**
+
+Beside `clearDepth` in `carcaseRoles.ts`:
+
+```ts
+// The depth a drawer box can actually occupy, which is not the cabinet's clear depth: an inset
+// front sits inside the opening and eats its own thickness before the box starts. Stated here
+// because two things read it and must agree — the box the generator builds, and the runner the
+// hardware list quotes. A box built to one figure beside a runner ordered to another is the exact
+// disagreement `clearDepth` was factored out to prevent.
+export function boxDepth(clearDepth: number, frontThickness: number, inset: boolean): number {
+  return inset ? clearDepth - frontThickness : clearDepth
+}
+```
+
+Then have **both** `drawerBoxMetrics` and `carcaseHardware`'s runner choice call
+`runnerKeyFor(boxDepth(...))` rather than `runnerKeyFor(clearDepth)`.
+
+Check the real name and signature of the hardware module's runner branch before editing it; it was
+revised in Task 2.
+
+- [ ] **Step 5: Run everything**
+
+Run: `pnpm test`
+
+**Expect the preset runner figures to move.** A Base 600 is overlay, so its quote should not change;
+any inset fixture's may. For each changed expectation, say in the test comment *why* it moved. **Do
+not update a figure you have not explained.**
+
+- [ ] **Step 6: Mutation-test the agreement**
+
+```bash
+SP=/tmp/claude-0/-home-user-zimmu-web/5419b177-78dc-5fa6-b611-692cd703d4b1/scratchpad
+cp src/scene/carcaseHardware.ts "$SP"/ch4c.bak
+python3 - <<'PY2'
+import io
+p='src/scene/carcaseHardware.ts'
+s=io.open(p,encoding='utf-8').read()
+old="boxDepth("
+assert s.count(old)>=1
+io.open(p,'w',encoding='utf-8').write(s.replace(old,"((x)=>x)(", 1))
+PY2
+pnpm vitest run src/scene/carcaseHardware.test.ts
+cp "$SP"/ch4c.bak src/scene/carcaseHardware.ts
+diff "$SP"/ch4c.bak src/scene/carcaseHardware.ts && echo RESTORED
+```
+
+That makes the hardware quote ignore the front thickness while the box still honours it. Predict:
+the agreement test fails and nothing else. **If it kills nothing, the two sides are not actually
+being compared** and the test is decorative.
+
+- [ ] **Step 7: Commit**
+
+```bash
+pnpm typecheck && pnpm lint && pnpm test
+git add -A
+git commit -m "fix(scene): state the depth a drawer box can use, and quote the same runner
+
+An inset front sits inside the opening, so the box starts behind it and
+its back lands at frontThickness + nominal. At 560 clear with an 18mm
+front that is 8mm into the back panel.
+
+Fixing the box alone would build a 500 beside a BOM ordering a 550, which
+is what tying both to one call was meant to prevent. So the usable depth
+is stated once beside clearDepth and read by the generator and the
+hardware quote alike.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01P9f2w97VWLpfZvQzZH6TPc"
+```
+
+---
+
+## Task 4d: The box is a real box
+
+Five ways the module still returns a geometrically impossible box, enumerated and confirmed by a
+previous reviewer. One task, because fixing one member of a family while flagging the rest is
+incoherent.
+
+| case | how |
+|---|---|
+| Side-mount negative width | an opening narrower than 2 × 12.7 |
+| Undermount negative *interior* | a 30 mm opening with 12 mm sides: inside −12, outside 12, passes the width guard |
+| Negative or zero height | a 20 mm opening derives 20 − 25; an explicit negative `boxHeight` passes straight through |
+| Runner above the box top | `runnerOffset` 32 in a box 25 tall |
+| Groove above the box top | `BOTTOM_GROOVE_UP` 10 in a box under 10 tall |
+
+**Files:**
+- Modify: `src/scene/drawerBox.ts`
+- Test: `src/scene/drawerBox.test.ts`
+
+- [ ] **Step 1: Write five failing tests**
+
+One per row, each asserting `drawerBoxMetrics` returns **null**. Derive every input from the module's
+own constants rather than hardcoding a number, as the file already does. Give each test a name that
+says which impossibility it rejects.
+
+- [ ] **Step 2: Run them and watch all five fail**
+
+Run: `pnpm vitest run src/scene/drawerBox.test.ts`
+Expected: five failures, each returning a metrics object where null is wanted.
+
+- [ ] **Step 3: Implement one guard, stated once**
+
+Resist five scattered `if`s. The rule is a single question — *is this a box that can be built?* —
+asked after the extents are computed:
+
+```ts
+// Every way the arithmetic above can produce a box nobody can build. Asked once, after the extents
+// are known, rather than as five guards scattered through the computation: they are one question,
+// and a reader checking "can this return nonsense?" should find one place to look.
+//
+// The generator declines rather than clamping. A clamped box is a box the user did not ask for and
+// will not notice, which is worse than no box at all.
+```
+
+Write the condition to cover: positive outside width, positive interior width once both side
+thicknesses are taken, positive height, the runner inside the box's height, and the groove inside it
+too. **Keep the existing depth and width declines** — do not fold them in and change their meaning.
+
+- [ ] **Step 4: Run and watch all five pass, with nothing else broken**
+
+Run: `pnpm test`
+**Every pre-existing test must still pass.** If a legitimate box now declines, the guard is too
+aggressive — find which term and fix it, do not relax the test.
+
+- [ ] **Step 5: Mutation-test each clause**
+
+Five mutations, one per clause, each removing exactly one term from the condition. Back up with `cp`,
+apply, grep, run, restore with `cp`, grep and `diff`. **Never `git checkout`.** Predict before each:
+removing a clause should kill exactly the one test that covers it. A clause whose removal kills
+nothing is either unreachable or untested — report which.
+
+- [ ] **Step 6: Commit**
+
+```bash
+pnpm typecheck && pnpm lint && pnpm test
+git add src/scene/drawerBox.ts src/scene/drawerBox.test.ts
+git commit -m "fix(scene): decline a box that cannot be built
+
+Five ways the arithmetic produced nonsense: negative widths by two
+different routes, a negative height, and a runner or groove above the box
+top. One guard rather than five scattered ifs, because they are one
+question — can this box be built — and a reader should find one place to
+look.
+
+Declines rather than clamps: a clamped box is one the user did not ask
+for and will not notice.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01P9f2w97VWLpfZvQzZH6TPc"
+```
+
+---
+
 ## Task 5: The DrawerComponent type
 
 **Files:**
