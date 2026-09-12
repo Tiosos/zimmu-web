@@ -407,3 +407,40 @@ shallow for even a 250 mm runner — 260 clear behind an 18 mm front is 242. Sam
 gave a cabinet too shallow outright, so no new arm, but it is now possible for an overlay cabinet
 to build and the same cabinet inset to decline.
 
+## 2026-09-12 — Task 4c code review
+
+**`boxDepth` moved to `drawerBox.ts`.** The plan said "beside `clearDepth`", and it reads well there,
+but putting it in `carcaseRoles.ts` made `drawerBox.ts` import `carcaseRoles.ts` — and the plan's own
+architecture line has `carcaseMachining` reading `drawerBoxMetrics` in a later stage, which would
+have closed the loop into a cycle. The plan's stated reason for a single `drawerBoxMetrics` is
+"what stops the carcase and the drawer depending on each other's output", so the edge has to run one
+way, and the drawer side is the one that keeps it so. It also puts the rule beside `y0`, which is the
+same fact about an inset front read from the other end. `carcaseHardware` now imports it from
+`drawerBox`, which is the honest statement anyway: the quote follows the box.
+
+**The agreement test's second side names the drawer's bay.** It reached its front with
+`parts.find((p) => p.role?.startsWith('front-'))` — the cabinet's first front, which under a fixture
+whose fronts are all 18 mm is numerically the drawer's whether or not it is the same part. It now
+goes through `resolveCarcase`, the ownership resolver the scene tree already uses, so the second side
+names the bay rather than trusting an array order. That resolver is independent of the `slide_`
+stripping under test, so the two sides stay independently computed.
+
+**A hole the review found: the per-role keying was untested.** Re-keying `frontThickness` by
+`${p.parentId}` alone — one thickness per cabinet rather than one per bay — passed all 32 hardware
+tests, because every fixture's fronts share a thickness. `takes the thickness of the front its own
+slide row names` closes it: three bays, the drawer in the MIDDLE with a 30 mm override, so neither
+the first front the cabinet emits nor the last is the right answer. 518 clear less 30 is 488 and
+takes the 450; less a door's 18 it would be 500. That mutation now fails, and only there.
+
+**`?? 0` on the front lookup is kept.** Instrumented to throw on a miss and run against the whole
+suite: never taken. A `slide_` row and its `front-` box come out of the same `frontCells` walk with
+the same role, and `regenerateComponents` emits or keeps a part for every role, so the lookup cannot
+miss. It is a `Map.get` default, not error handling, and it mirrors `backThickness.get(owner) ?? 0`
+two lines above — declining instead would be an arm for a state the generator cannot produce, and
+would make the front's treatment asymmetric with the back's for no gain.
+
+**The `slide_` prefix stays a literal on each side.** The codebase already spells `cups_` in
+`frontMachining.ts` and `startsWith('cups_')` in `carcaseHardware.ts`, and `_clearance` the same way
+across `screw.ts` and here. A shared constant for one writer and one reader would be an abstraction
+for a single use, and would break the pattern the other two families follow.
+

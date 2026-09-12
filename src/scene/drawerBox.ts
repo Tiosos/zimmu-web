@@ -1,5 +1,4 @@
 import type { Rect } from './sectionTree'
-import { boxDepth } from './carcaseRoles'
 import { RUNNER_NOMINALS, runnerKeyFor } from './hardwareCatalogue'
 
 // Which family of runner a drawer is built for. The families are not one rule with two constants:
@@ -74,6 +73,19 @@ export interface DrawerContext {
   // sized an undermount box as if its sides were paper: too narrow by twice the stock, and by more
   // the thicker the stock, which is the one error this family is prone to and slowest to notice.
   sideThickness: number
+}
+
+// The depth a drawer box can actually occupy. Not the cabinet's clear depth: an inset front sits
+// inside the opening and eats its own thickness before the box starts — the same fact as `y0`
+// below, read from the other end, which is why both are written in this file rather than one here
+// and one beside `clearDepth`.
+//
+// Exported because `carcaseHardware` quotes the runner off it, so the box and the runner ordered
+// for it cannot disagree about length. It belongs on this side of that pair because the dependency
+// runs one way: the carcase generator reads this module for a box's geometry, and a rule about a
+// box kept in `carcaseRoles` would make this module read it back.
+export function boxDepth(clear: number, frontThickness: number, inset: boolean): number {
+  return inset ? clear - frontThickness : clear
 }
 
 // The one statement of a drawer box's geometry. The drawer generator reads it to build boards and

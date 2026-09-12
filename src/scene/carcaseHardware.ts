@@ -1,6 +1,7 @@
-import { boxDepth, clearDepth } from './carcaseRoles'
+import { clearDepth } from './carcaseRoles'
 import { resolveCarcase } from './carcaseOpenings'
 import { componentsById } from './componentTree'
+import { boxDepth } from './drawerBox'
 import { nearestCarcase } from './nearestCarcase'
 import {
   CATALOGUE_ORDER,
@@ -87,9 +88,8 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
         const seen = cell(owner, cut.id)
         if (seenSlide.has(seen)) continue
         seenSlide.add(seen)
-        // An inset front takes its own thickness out of the depth before the box starts, so the
-        // runner that fits is the one the box is built to. `boxDepth` states that once; quoting
-        // off the clear depth here would order a 550 for a cabinet holding a 500.
+        // `boxDepth` is the depth the box is built to, so quoting off the clear depth here would
+        // order a 550 for a cabinet holding a 500.
         //
         // Stripping the `slide_` prefix recovers the front's role, which `slideScrewRow` put there
         // whole — not a second role-key parser: no section id is taken out of it.
