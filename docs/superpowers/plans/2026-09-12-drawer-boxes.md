@@ -877,6 +877,139 @@ Claude-Session: https://claude.ai/code/session_01P9f2w97VWLpfZvQzZH6TPc"
 
 ---
 
+## Task 4b: Decline a box that will not fit its opening
+
+Found by Task 4's code-quality reviewer and confirmed by arithmetic. `drawerBoxMetrics` declines
+when no runner fits the **depth**, but never checks the **width**. Undermount's width rule adds
+`2 × sideThickness` back to a fixed interior, so a thick-sided box outgrows its own opening:
+
+| side | deduction | inside | outside | per side |
+|---|---|---|---|---|
+| 12 | 42 | 522 | 546 | +9.00 |
+| 16 | 42 | 522 | 554 | +5.00 |
+| 18 | 49 | 515 | 551 | +6.50 |
+| **25** | **49** | **515** | **565** | **−0.50** |
+
+A 564 mm opening yielding a 565 mm box. The side-mount block already exercises 25 mm stock, so this
+is a thickness the file treats as plausible. Declining on width is the same rule the module already
+applies to depth: **the generator declines rather than inventing a size.**
+
+**Files:**
+- Modify: `src/scene/drawerBox.ts`
+- Test: `src/scene/drawerBox.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+Append to the undermount describe block. Derive the thickness from the constants rather than
+hardcoding 25, so the test follows the figures:
+
+```ts
+  // Undermount adds 2 x sideThickness back to a fixed interior, so thick stock outgrows the
+  // opening it is meant to sit in. The module already declines when no runner fits the depth;
+  // a box wider than its hole is the same kind of "cannot be built" and gets the same answer.
+  it('declines when the box would be wider than the opening', () => {
+    const tooThick = Math.ceil(UNDERMOUNT_DEDUCTION_THICK / 2)
+    expect(drawerBoxMetrics(rect, defaultDrawerParams('undermount'), { ...baseCtx, sideThickness: tooThick })).toBeNull()
+  })
+
+  // The boundary is still buildable: exactly zero slack is a box that fits.
+  it('still builds a box with exactly zero slack', () => {
+    const exact = UNDERMOUNT_DEDUCTION_THICK / 2
+    const m = drawerBoxMetrics(rect, defaultDrawerParams('undermount'), { ...baseCtx, sideThickness: exact })
+    expect(m).not.toBeNull()
+    expect(m!.box.x1 - m!.box.x0).toBeCloseTo(rect.x1 - rect.x0, 9)
+  })
+```
+
+**Work the arithmetic before writing this.** Outside width is `inside + 2t` where
+`inside = span − deduction`, so outside exceeds the span exactly when `2t > deduction`. At the thick
+deduction of 49 that is `t > 24.5`. Confirm against the table above and adjust the two thicknesses
+if the constants have moved.
+
+- [ ] **Step 2: Run it and watch it fail**
+
+Run: `pnpm vitest run src/scene/drawerBox.test.ts -t "wider than the opening"`
+Expected: FAIL — a metrics object is returned rather than null.
+
+- [ ] **Step 3: Implement**
+
+In `undermountSpan`, return a signal the caller can decline on rather than a nonsensical span. The
+simplest form that keeps the rule in one place is to let it return `null` and have
+`drawerBoxMetrics` propagate:
+
+```ts
+function undermountSpan(opening: Rect, sideThickness: number): [number, number] | null {
+  const deduction =
+    sideThickness <= UNDERMOUNT_THIN_MAX_THICKNESS
+      ? UNDERMOUNT_DEDUCTION_THIN
+      : UNDERMOUNT_DEDUCTION_THICK
+  const span = opening.x1 - opening.x0
+  const inside = span - deduction
+  const outside = inside + 2 * sideThickness
+  // Thick stock outgrows the opening: the interior is fixed, so every extra millimetre of side
+  // pushes the outside wider. A box wider than its hole cannot be built, and the generator
+  // declines rather than inventing a size — the same answer it gives when no runner fits.
+  if (outside > span) return null
+  const slack = (span - outside) / 2
+  return [opening.x0 + slack, opening.x1 - slack]
+}
+```
+
+and at the call site, where the family branch currently is, handle the null before building the box.
+Write that branch so **side-mount is unaffected** — it has no such failure mode.
+
+- [ ] **Step 4: Run and watch both pass**
+
+Run: `pnpm vitest run src/scene/drawerBox.test.ts`
+Expected: all tests pass, including every side-mount and undermount test already present. **If any
+existing test breaks, the guard is too aggressive** — `>` not `>=`, since zero slack is buildable.
+
+- [ ] **Step 5: Mutation-test the guard**
+
+```bash
+SP=/tmp/claude-0/-home-user-zimmu-web/5419b177-78dc-5fa6-b611-692cd703d4b1/scratchpad
+cp src/scene/drawerBox.ts "$SP"/db4b.bak
+python3 - <<'PY2'
+import io
+p='src/scene/drawerBox.ts'
+s=io.open(p,encoding='utf-8').read()
+old="  if (outside > span) return null"
+assert s.count(old)==1
+io.open(p,'w',encoding='utf-8').write(s.replace(old,"  if (outside > span + 1000) return null"))
+PY2
+grep -q "span + 1000" src/scene/drawerBox.ts && echo APPLIED
+pnpm vitest run src/scene/drawerBox.test.ts
+cp "$SP"/db4b.bak src/scene/drawerBox.ts
+grep -q "span + 1000" src/scene/drawerBox.ts && echo "RESTORE FAILED" || echo RESTORED
+diff "$SP"/db4b.bak src/scene/drawerBox.ts && echo IDENTICAL
+```
+
+Predict: only `declines when the box would be wider than the opening` fails. Then run the boundary
+mutation `>` → `>=` and predict that only `still builds a box with exactly zero slack` fails. Both
+must kill exactly one test; if either kills none, the guard is not pinned.
+
+- [ ] **Step 6: Commit**
+
+```bash
+pnpm typecheck && pnpm lint && pnpm test
+git add src/scene/drawerBox.ts src/scene/drawerBox.test.ts
+git commit -m "fix(scene): decline a drawer box wider than its own opening
+
+Undermount fixes the box's interior and adds the side material back, so
+thick stock outgrows the hole: 25 mm sides in a 564 mm opening give a 565
+mm box. The module already declines when no runner fits the depth; a box
+wider than its opening is the same 'cannot be built' and now gets the
+same answer.
+
+Zero slack still builds. Found by a reviewer probing a thickness the
+side-mount tests already treat as plausible.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01P9f2w97VWLpfZvQzZH6TPc"
+```
+
+---
+
 ## Task 5: The DrawerComponent type
 
 **Files:**
