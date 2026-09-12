@@ -1030,7 +1030,7 @@ already is. **This edits code that shipped in the previous stage**, which is del
 approved.
 
 **Files:**
-- Modify: `src/scene/carcaseRoles.ts` (beside `clearDepth`)
+- Modify: `src/scene/drawerBox.ts` — **`boxDepth` lives here, NOT in `carcaseRoles.ts`**
 - Modify: `src/scene/drawerBox.ts`
 - Modify: `src/scene/carcaseHardware.ts`
 - Test: `src/scene/drawerBox.test.ts`, `src/scene/carcaseHardware.test.ts`
@@ -1075,7 +1075,12 @@ the box disagreeing.
 
 - [ ] **Step 4: State the rule once**
 
-Beside `clearDepth` in `carcaseRoles.ts`:
+In `drawerBox.ts`. **Not** in `carcaseRoles.ts` beside `clearDepth`, which an earlier draft of this
+task said: `carcaseMachining` lives in `carcaseRoles.ts` and Task 11 makes it import
+`drawerBoxMetrics`, so putting `boxDepth` there would have `drawerBox` importing `carcaseRoles`
+importing `drawerBox` — the exact mutual dependency the shared-metrics function exists to prevent.
+It also keeps the inset rule next to the `y0 = inset ? frontThickness : 0` line that states the
+same fact:
 
 ```ts
 // The depth a drawer box can actually occupy, which is not the cabinet's clear depth: an inset
