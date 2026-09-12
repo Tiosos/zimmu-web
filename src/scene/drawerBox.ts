@@ -127,12 +127,34 @@ export function drawerBoxMetrics(
   // the front stops.
   const y0 = ctx.inset ? ctx.frontThickness : 0
 
-  return {
-    box: { x0, x1, y0, y1: y0 + depth, z0: opening.z0, z1: opening.z0 + height },
-    runnerZ: opening.z0 + (params.family === 'side-mount' ? params.runnerOffset : 0),
-    groove:
-      params.family === 'side-mount' ? { up: BOTTOM_GROOVE_UP, depth: BOTTOM_GROOVE_DEPTH } : null,
+  const box = { x0, x1, y0, y1: y0 + depth, z0: opening.z0, z1: opening.z0 + height }
+  const runnerZ = opening.z0 + (params.family === 'side-mount' ? params.runnerOffset : 0)
+  const groove =
+    params.family === 'side-mount' ? { up: BOTTOM_GROOVE_UP, depth: BOTTOM_GROOVE_DEPTH } : null
+
+  // Every way the arithmetic above can produce a box nobody can build. Asked once, after the extents
+  // are known, rather than as five guards scattered through the computation: they are one question,
+  // and a reader checking "can this return nonsense?" should find one place to look.
+  //
+  // The generator declines rather than clamping. A clamped box is a box the user did not ask for and
+  // will not notice, which is worse than no box at all.
+  //
+  // The width term is the interior, not the outside: side material is never negative, so a box with
+  // room between its sides has positive outside width too, and a separate outside term would be a
+  // clause no input can reach. The runner and groove terms read the box's own emitted figures rather
+  // than `params.runnerOffset` and the family — `defaultDrawerParams` seeds the side-mount offset
+  // whatever the family, so a term reading the parameter would decline a short undermount box whose
+  // runner actually sits on the floor of it.
+  if (
+    box.x1 - box.x0 <= 2 * ctx.sideThickness ||
+    box.z1 <= box.z0 ||
+    runnerZ > box.z1 ||
+    (groove !== null && box.z0 + groove.up > box.z1)
+  ) {
+    return null
   }
+
+  return { box, runnerZ, groove }
 }
 
 // Undermount states the drawer's INSIDE width, so the outside width moves with the side material.

@@ -226,3 +226,48 @@ describe('drawerBoxMetrics — the depth an inset front leaves', () => {
     expect(drawerBoxMetrics(rect, params, { ...baseCtx, clearDepth: 260, inset: true })).toBeNull()
   })
 })
+
+// Five ways the arithmetic above can produce a box nobody can build. Every fixture keeps a clear
+// depth a runner actually fits, so each case is evidence of the impossibility it names and not of
+// the depth decline standing in front of it.
+describe('drawerBoxMetrics — a box that cannot be built', () => {
+  const params = defaultDrawerParams('side-mount')
+
+  it('declines a side-mount box narrower than the clearance either side takes', () => {
+    const narrow: Rect = { ...rect, x1: rect.x0 + 2 * SIDE_MOUNT_CLEARANCE - 1 }
+    expect(drawerBoxMetrics(narrow, params, baseCtx)).toBeNull()
+  })
+
+  // The outside width still fits the opening — 31 into 41 — so `undermountSpan` is happy and the
+  // box comes out with a negative interior: two sides wider than the box that holds them.
+  it('declines an undermount box whose interior comes out negative', () => {
+    const narrow: Rect = { ...rect, x1: rect.x0 + UNDERMOUNT_DEDUCTION_THIN - 1 }
+    const ctx = { ...baseCtx, sideThickness: UNDERMOUNT_THIN_MAX_THICKNESS }
+    expect(drawerBoxMetrics(narrow, defaultDrawerParams('undermount'), ctx)).toBeNull()
+  })
+
+  // A box of exactly no height, and undermount, because every other short box is refused by
+  // something else first: a side-mount's groove and runner line both sit above a box this short,
+  // and a NEGATIVE height puts even an undermount's runner — which sits on the box floor — above
+  // the box top. Zero height under a floor-mounted runner is the one case only the height term
+  // answers, which is why the opening here is exactly the height the front takes.
+  it('declines a box with no height, derived or asked for', () => {
+    const flat = defaultDrawerParams('undermount')
+    const shallow: Rect = { ...rect, z1: rect.z0 + BOX_HEIGHT_UNDER_FRONT }
+    expect(drawerBoxMetrics(shallow, flat, baseCtx)).toBeNull()
+    expect(drawerBoxMetrics(rect, { ...flat, boxHeight: 0 }, baseCtx)).toBeNull()
+    expect(drawerBoxMetrics(rect, { ...flat, boxHeight: -1 }, baseCtx)).toBeNull()
+  })
+
+  // Taller than the groove, shorter than the runner line: the runner clause alone answers.
+  it('declines a box shorter than the runner line it would carry', () => {
+    const boxHeight = SIDE_MOUNT_RUNNER_OFFSET - 1
+    expect(drawerBoxMetrics(rect, { ...params, boxHeight }, baseCtx)).toBeNull()
+  })
+
+  // The runner is put at the box bottom so it cannot be what declines this one.
+  it('declines a box shorter than the groove it would carry', () => {
+    const boxHeight = BOTTOM_GROOVE_UP - 1
+    expect(drawerBoxMetrics(rect, { ...params, boxHeight, runnerOffset: 0 }, baseCtx)).toBeNull()
+  })
+})
