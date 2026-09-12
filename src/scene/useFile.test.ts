@@ -1951,3 +1951,91 @@ describe('v13 → v14 migration', () => {
     expect(twice).toEqual(once)
   })
 })
+
+// `useFile` types `base.params` loosely, so `tsc` cannot see a parser that drops a required field:
+// the failure appears only when the generator dereferences it at runtime. Hence a `parseFile` test.
+describe('v17 → v18: drawer components', () => {
+  const envelope = (components: unknown[]) =>
+    JSON.stringify({
+      version: 18,
+      name: 'Drawers',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: CAMERA,
+      scene: { parts: [], materials: {}, hardware: [], joints: [], components },
+    })
+
+  const drawer = (extra: Record<string, unknown> = {}) => ({
+    kind: 'drawer',
+    id: 'cmp_d1',
+    label: 'Drawer 1',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    sectionId: 'sec_abc',
+    driven: true,
+    params: { family: 'undermount', boxHeight: 120, runnerOffset: 32, material: 'Ply 15' },
+    ...extra,
+  })
+
+  const without = (key: 'params' | 'sectionId' | 'driven') => {
+    const c: Record<string, unknown> = drawer()
+    delete c[key]
+    return c
+  }
+
+  it('parses a drawer component with its params intact', () => {
+    const c = parseFile(envelope([drawer()])).scene.components[0]
+    expect(c.kind).toBe('drawer')
+    expect(c).toMatchObject({
+      sectionId: 'sec_abc',
+      driven: true,
+      params: { family: 'undermount', boxHeight: 120, runnerOffset: 32, material: 'Ply 15' },
+    })
+  })
+
+  // A drawer whose params did not survive the round trip is the exact failure tsc cannot see.
+  it('round-trips a drawer through parse and re-parse', () => {
+    const once = parseFile(
+      envelope([
+        drawer({
+          params: { family: 'side-mount', boxHeight: null, runnerOffset: 32, material: '' },
+        }),
+      ]),
+    )
+    const twice = parseFile(JSON.stringify(once))
+    expect(twice.scene.components[0]).toEqual(once.scene.components[0])
+    expect(twice.scene.components[0]).toMatchObject({
+      kind: 'drawer',
+      params: { family: 'side-mount', boxHeight: null },
+    })
+  })
+
+  it('defaults driven on a drawer that does not state it', () => {
+    const c = parseFile(envelope([without('driven')])).scene.components[0]
+    expect(c).toMatchObject({ kind: 'drawer', driven: true })
+  })
+
+  it('demotes a drawer carrying no params to a group', () => {
+    const c = parseFile(envelope([without('params')])).scene.components[0]
+    expect(c.kind).toBe('group')
+    expect(c).toMatchObject({ id: 'cmp_d1', label: 'Drawer 1', visible: true })
+  })
+
+  it('demotes a drawer naming no section to a group', () => {
+    const c = parseFile(envelope([without('sectionId')])).scene.components[0]
+    expect(c.kind).toBe('group')
+  })
+
+  // The version bump's one observable consequence: a v18 file is no longer from the future.
+  it('reads a v18 file without warning that it is newer than the app', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    parseFile(envelope([drawer()]))
+    expect(spy).not.toHaveBeenCalledWith(expect.stringContaining('newer than app version'))
+    spy.mockRestore()
+  })
+})

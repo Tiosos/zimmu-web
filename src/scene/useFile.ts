@@ -8,6 +8,7 @@ import type {
   ZimmuFile,
   Joint,
   CarcaseParams,
+  DrawerComponent,
 } from './types'
 import * as idb from './idb'
 import { breakComponentCycles, promoteOrphans } from './componentTree'
@@ -22,7 +23,7 @@ import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
 import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 
-export const FILE_FORMAT_VERSION = 17
+export const FILE_FORMAT_VERSION = 18
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -348,6 +349,30 @@ export function parseFile(text: string): ZimmuFile {
         delete params.backThickness
         delete params.adjustableShelves
         return { ...base, params }
+      }
+      // v17→v18: drawer components. `DrawerComponent` declares `params` and `sectionId` required,
+      // so a drawer missing either is a shape the type says cannot exist. Demote rather than
+      // fabricate: a group keeps the label, the placement and every child board, and loses only
+      // the ability to regenerate.
+      if (base.kind === 'drawer' && (base.params === undefined || base.sectionId === undefined)) {
+        console.warn(`zimmu: drawer "${base.id}" is incomplete — loaded as a group`)
+        return {
+          kind: 'group' as const,
+          id: base.id,
+          label: base.label,
+          parentId: base.parentId,
+          position: base.position,
+          rotation: base.rotation,
+          rotationOrder: base.rotationOrder,
+          visible: base.visible,
+        }
+      }
+      if (base.kind === 'drawer') {
+        return {
+          ...base,
+          kind: 'drawer' as const,
+          driven: base.driven ?? true,
+        } as DrawerComponent
       }
       return base
     }),
