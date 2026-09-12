@@ -205,3 +205,24 @@ with a real preset.
 Both found while writing the plan rather than while executing it. That is the argument for a plan
 carrying real figures instead of "use the preset's depth": a figure that must be written down is a
 figure someone has to check.
+
+## 2026-09-12 — a baseline that compared two different trees
+
+Caught while sanity-checking a test count during execution, and worth recording because it is the
+third variant of the same mistake in two stages.
+
+The driven-hardware spec records "unit tests 1700 → 1773". Both numbers were measured, which is why
+the error survived: `1700` came from `main` in a scratch worktree, and `1773` came from the branch
+tip. But `main` had moved. Two test files, `fileValidation.test.ts` and
+`useScene.geometryLifecycle.test.ts`, landed from PRs #40–43 *after* the hardware branch was cut, so
+the branch never carried them. The merge combined both sides and lost nothing — `main` has all of
+them now — but the before-and-after in that spec compares two trees that differ by more than the
+branch's own work. The stated delta is larger than what the branch actually added.
+
+The lesson is narrower than "measure rather than reason", because both figures *were* measured. It
+is: **a before-and-after is only valid if both sides are the same tree plus the change.** The right
+baseline is the branch's own merge-base, not whatever `main` happens to be when you get around to
+measuring it.
+
+For this stage, Task 14 must take its baseline from `git merge-base origin/main HEAD`, not from
+`origin/main`.

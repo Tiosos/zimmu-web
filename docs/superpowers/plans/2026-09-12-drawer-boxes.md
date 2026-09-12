@@ -2815,8 +2815,11 @@ entry containing, as **measured figures and not predictions**:
 
 - the slide-row baseline from Task 11 Step 1, and which rows moved
 - the projection counts from Task 12 Step 1
-- the real before-and-after test totals and file counts, taken by running the suite on `main` in a
-  scratch worktree and on the branch
+- the real before-and-after test totals and file counts, taken by running the suite on **this
+  branch's own merge-base** (`git merge-base origin/main HEAD`) in a scratch worktree and on the
+  branch tip. **Not on `origin/main`**: the hardware stage baselined against whatever `main` was at
+  measuring time, which by then carried two test files the branch had never had, so its recorded
+  delta compares two different trees. Both its numbers were measured and it was still wrong.
 - every mutation that was run, what you predicted, and what actually failed
 - anything in this plan that turned out to be wrong, stated plainly
 
