@@ -348,3 +348,32 @@ runner positioned above the box top, and a groove above it. They are one family 
 width against the opening and depth against the runner, and checks nothing else. Fixing one member
 while flagging the rest would be incoherent, so they belong in a single "the box is a real box"
 task.
+
+## 2026-09-12 — researching the side-mount figures: one corroborated, one not obtainable
+
+The user asked for a named model, cited. Partial success, and the failure is the more useful half.
+
+**Side clearance: corroborated at 12.7 mm.** Accuride's 3832 quick-reference sheet heads its
+dimensions with a side space of 1/2" + 1/32" per side. That is the figure already in `drawerBox.ts`,
+now backed by a named product rather than "a side-mount convention". The 3832 is also a reasonable
+model to name: it is a plain side-mount ball-bearing runner, 12.7 mm thick, compatible with both the
+32 mm system and traditional hole patterns — the family this module's grooved, screwed box suits.
+
+**Runner height above the box bottom: not obtainable.** Every primary PDF was blocked by the egress
+proxy, as in the earlier round, and repeated searches returned nothing on the vertical position of
+the drawer member's holes relative to the box's bottom edge. Distributor summaries cover side space
+and length and stop there.
+
+So the weakest figure in the module stays unsourced, and that is now a *measured* conclusion rather
+than an assumption: it was looked for and is not published in anything reachable from here. The
+comment in `drawerBox.ts` should say so in those terms — "searched for and not found" carries more
+information for the next reader than "unsourced".
+
+That it is a per-drawer parameter rather than a constant is the mitigation, and this is the second
+time the research has ended up vindicating that choice.
+
+**A note on method.** Both rounds of this research were blocked on primary sources and both produced
+a usable answer anyway, by corroborating one figure from a distributor sheet and being explicit that
+the other could not be had. The temptation in both rounds was to fill the gap with a plausible
+number. The reason not to is the hinge table: a figure nobody can check, stated with confidence,
+produces a self-consistent cabinet that does not work.
