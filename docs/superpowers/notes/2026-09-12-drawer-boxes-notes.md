@@ -226,3 +226,29 @@ measuring it.
 
 For this stage, Task 14 must take its baseline from `git merge-base origin/main HEAD`, not from
 `origin/main`.
+
+## 2026-09-12 — two more copies of the immediate-parent defect, both latent
+
+Task 2's implementer found these while fixing the two the plan named, and correctly left them alone
+as out of scope. Verified independently before recording.
+
+**`carcaseHardware.ts:119`** counts bored pin rows with
+`scene.parts.filter((p) => p.kind === 'board' && p.parentId === cabinet.id)` — the same direct-parent
+assumption in a different shape. It is **latent**, not live: pin rows are emitted only by
+`carcaseRoles.ts:1035` onto carcase uprights, and an upright always hangs straight off its cabinet.
+It becomes live the moment anything nests an upright, which manual reparenting already permits.
+
+**`jointChecklist.ts:126-127`** decides whether two parts share an owner with
+`ancestorsOf(a, byId)[0]?.id === ancestorsOf(b, byId)[0]?.id`. Also **latent**, and for a more
+interesting reason: two boards of the same drawer both resolve to the drawer, so the checklist gets
+the right answer by coincidence. A drawer board and a carcase board resolve to different owners,
+which is wrong in principle but harmless in practice because a box rides on runners and is joined to
+the carcase by nothing at all.
+
+Both are recorded rather than fixed because neither can produce a wrong figure today, and widening a
+task to fix a defect nobody can reach is how a focused change becomes an unreviewable one. If either
+becomes live, `nearestCarcase` is already there to call.
+
+The count that matters: this pattern has now been found in **four** places. The first two were in the
+spec, the third and fourth only because someone was reading nearby code with the mistake fresh in
+mind. A helper existing is not the same as the helper being used.
