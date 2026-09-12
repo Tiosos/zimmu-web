@@ -2018,9 +2018,12 @@ describe('v17 → v18: drawer components', () => {
     })
   })
 
-  it('defaults driven on a drawer that does not state it', () => {
+  // The one field the parser does not fabricate in the generator's favour. A driven drawer whose
+  // opening no longer wants one is dropped, boards and all, so recovering the flag as `true` would
+  // let a malformed file delete work. Every other `driven` default here reads the same way.
+  it('leaves a drawer that does not state driven detached', () => {
     const c = parseFile(envelope([without('driven')])).scene.components[0]
-    expect(c).toMatchObject({ kind: 'drawer', driven: true })
+    expect(c).toMatchObject({ kind: 'drawer', driven: false })
   })
 
   it('demotes a drawer carrying no params to a group', () => {

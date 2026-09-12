@@ -1473,7 +1473,11 @@ a group. Add the same defensive treatment for a drawer, immediately before the
         return {
           ...base,
           kind: 'drawer' as const,
-          driven: base.driven ?? true,
+          // Detached, like every other recovery default in this parser. Reconciliation keeps a
+          // drawer only while its opening still wants one, so a drawer that lost this field and
+          // names an opening that has since changed would be deleted with its boards. Staleness is
+          // recoverable and deletion is not.
+          driven: base.driven ?? false,
         } as DrawerComponent
       }
 ```
@@ -1494,9 +1498,9 @@ python3 - <<'PY'
 import io
 p='src/scene/useFile.ts'
 s=io.open(p,encoding='utf-8').read()
-old="          driven: base.driven ?? true,"
+old="          driven: base.driven ?? false,"
 assert s.count(old)==1
-io.open(p,'w',encoding='utf-8').write(s.replace(old,"          driven: base.driven ?? true,\n          params: undefined,"))
+io.open(p,'w',encoding='utf-8').write(s.replace(old,"          driven: base.driven ?? false,\n          params: undefined,"))
 PY
 grep -q "params: undefined," src/scene/useFile.ts && echo APPLIED
 pnpm vitest run src/scene/useFile.test.ts

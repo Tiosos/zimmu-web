@@ -371,7 +371,11 @@ export function parseFile(text: string): ZimmuFile {
         return {
           ...base,
           kind: 'drawer' as const,
-          driven: base.driven ?? true,
+          // Detached, like every other recovery default in this parser. Reconciliation keeps a
+          // drawer only while its opening still wants one, so a drawer that lost this field and
+          // names an opening that has since changed would be deleted with its boards. Staleness is
+          // recoverable and deletion is not.
+          driven: base.driven ?? false,
         } as DrawerComponent
       }
       return base
