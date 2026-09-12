@@ -20,6 +20,18 @@ Read the spec. Then read these three rules from `CLAUDE.md`, because this plan d
 - **Mutation testing.** Every guard you add must be broken deliberately, watched to fail, and
   restored **from a `cp` backup, never `git checkout`**. Grep after applying and again after
   restoring. Predict which tests should fail before running.
+
+  **The per-task mutation steps are not exhaustive.** Tasks 3, 5, 10, 12 and 13 carry no explicit
+  mutation step, and that is an omission in this plan rather than permission to skip one. If a task
+  adds a rule that could be broken, break it and watch a test fail, whether or not a step says so.
+  Task 3's implementer caught this and ran nine mutations on its own initiative; do the same.
+
+  **Some mutations are expected to survive, and that is information rather than failure.** Changing
+  a *stated figure* (a clearance, a pitch, a hinge count) kills nothing, because the tests derive
+  their expectations from the constant — they pin that the code applies the figure, not that the
+  figure is right. Those figures are unfalsifiable by any test in this repo, which is why they carry
+  sourcing comments instead. Report such a survivor and say why it survived; do not "fix" it by
+  hardcoding the number in the test, which would pin the preset rather than the rule.
 - **Overrides in, boxes out.** The generator is a function in one direction. Nothing in this plan
   may make a generator read another generator's emitted parts.
 - **`useFile.ts` types `base.params` loosely**, so `tsc` cannot catch a file-format regression.
