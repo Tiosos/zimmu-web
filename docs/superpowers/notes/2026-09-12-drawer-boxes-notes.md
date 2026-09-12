@@ -289,9 +289,26 @@ spec reviewer, who also noted that `SIDE_MOUNT_RUNNER_OFFSET` is the weakest-sou
 file *and* the only one no test exercises at its default, since the offset test passes an explicit
 40.
 
-**One distinction worth keeping, because "unfalsifiable" was too strong.** Whether 12.7 is the right
-figure is a woodworking claim no unit test here can settle — that part is genuinely unfalsifiable,
-the hinge-table class. But whether the constant has been *accidentally edited* is an ordinary
-regression question, and a test asserting a literal would catch it. The repo already does this for
-the hinge table, where `counts by the leaf` hardcodes 8 and `keys by the mount` hardcodes 2. So the
-gap is real if small: drift is catchable even where correctness is not.
+**A distinction was drawn here, and then half of it was withdrawn.** The spec reviewer argued that
+"unfalsifiable" ran two things together: whether 12.7 is the *right* figure (a woodworking claim no
+unit test can settle) versus whether it has been *accidentally edited* (an ordinary regression
+question a literal assertion would catch). It cited the hinge table as precedent for pinning a
+stated figure with a literal.
+
+**The precedent was miscited, and the code-quality reviewer caught it.** In
+`carcaseHardware.test.ts`, `counts by the leaf`'s `8` is `qtyOf(...)`, a *derived* hinge quantity,
+and the `hingeCount(...) === 5` beside it is a counterfactual proving the wrong rule would give 10.
+`keys by the mount`'s `2` is a door count. None pins a stated figure. Verified by reading the file.
+
+The dominant precedent runs the other way: `frontMachining.test.ts` imports `CUP_DIAMETER`,
+`CUP_EDGE_DISTANCE`, `SLIDE_SCREW_SETBACK` and derives every assertion from them, and a grep for
+literal assertions of those figures across `src/` returns one unrelated fixture price. **Scalar
+stated figures are never literal-pinned in this repo.**
+
+So: no drift guard. A second copy of a figure whose whole point is being stated once is the mistake
+this codebase's invariants are a litany against, and git already shows an accidental edit in a diff.
+
+**But the gap behind the argument was real**, and the reviewer closed it better. The problem was
+never the figure; it was that `defaultDrawerParams` was *entirely unpinned* — seeding
+`runnerOffset: 0` left all nine tests green. That is an ordinary falsifiable rule, so it is now
+pinned by deriving from the constant, killing the mutation without copying the number.
