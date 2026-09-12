@@ -87,6 +87,14 @@ describe('regenerateDrawers — component reconciliation', () => {
     expect(drawersOf(regenerateDrawers(sceneOf(withFront({ kind: 'panel' }))))).toHaveLength(0)
   })
 
+  // Every fixture in this file arrives with a front on every leaf, so nothing else reaches the
+  // `front?.` with nothing to read — and a bare opening is the ordinary one, not an edge case: a
+  // user splits a section long before deciding what covers it.
+  it('creates none for an opening that wears nothing at all', () => {
+    const bare = { ...BASE, section: { ...BASE.section, front: undefined } }
+    expect(drawersOf(regenerateDrawers(sceneOf(bare)))).toHaveLength(0)
+  })
+
   it('names the opening that asked, not the first one', () => {
     // Drawer on the RIGHT bay: `sectionOpenings` orders bottom-left first, so the first opening is
     // the door. A fixture with the drawer on the left would pass whether or not the id is read.
@@ -179,6 +187,23 @@ describe('regenerateDrawers — component reconciliation', () => {
     ).toEqual([leftId, rightId].sort())
     expect(drawersOf(out).find((d) => d.sectionId === rightId)?.params.boxHeight).toBe(111)
     expect(drawersOf(out).find((d) => d.sectionId === leftId)?.params.boxHeight).toBeNull()
+  })
+
+  // Array order is what the scene tree shows — `SceneTree` lists a cabinet's children by filtering
+  // `components` — so the drawers come back in the openings' own order, bottom-left first, the
+  // order `sectionOpenings` states. This is also the one claim that separates the element-wise
+  // "nothing changed" check from a set-wise one: after a swap the list holds the same two drawer
+  // objects, so equal length plus mutual membership calls the stale order unchanged and returns it.
+  it('relists the drawers in the openings’ order after a swap', () => {
+    const params = twoBays({ kind: 'drawer-front' }, { kind: 'drawer-front' })
+    const [leftId, rightId] = childrenOf(params.section).map((s) => s.id)
+    const once = regenerateDrawers(sceneOf(params))
+    expect(drawersOf(once).map((d) => d.sectionId)).toEqual([leftId, rightId])
+
+    const swapped = withParams(once, swapBays(params))
+    const out = regenerateDrawers(swapped)
+    expect(out).not.toBe(swapped)
+    expect(drawersOf(out).map((d) => d.sectionId)).toEqual([rightId, leftId])
   })
 
   // `regenerateOne` preserves the last good parts rather than emptying a cabinet mid-keystroke; a
