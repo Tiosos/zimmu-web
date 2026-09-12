@@ -277,7 +277,21 @@ different runners for the same cabinet.
 **Mutation results.** Nine mutations run against the nine tests. Killed: depth from `clearDepth`
 instead of the nominal, ignoring an inset front, dropping the height clamp, no clearance, clearance
 on one side only, runner always at the box bottom, no groove, box top-aligned, and never declining.
-Survived, as designed: `SIDE_MOUNT_CLEARANCE = 12.7 → 13`. The tests derive their expectations from
-the constant, so they pin that the function applies *the constant*, not that the figure is 12.7 —
-the same unfalsifiable class as the hinge-count table, and the reason the sourcing comments in
-`drawerBox.ts` matter more than the suite does.
+Survived, as designed: **every stated figure in the file, five of them**, not just the one this
+entry originally named. `SIDE_MOUNT_CLEARANCE` 12.7→13, `BOX_HEIGHT_UNDER_FRONT` 25→30,
+`BOTTOM_GROOVE_UP` 10→14, `BOTTOM_GROOVE_DEPTH` 6→9, and `SIDE_MOUNT_RUNNER_OFFSET` 32→50. The
+tests derive their expectations from the constants, so they pin that the function applies *the
+constant* in the right place and sign — which the nine behavioural mutations do confirm — not that
+any figure is correct.
+
+The original entry named only the first and so implied the other four were pinned. Corrected by the
+spec reviewer, who also noted that `SIDE_MOUNT_RUNNER_OFFSET` is the weakest-sourced figure in the
+file *and* the only one no test exercises at its default, since the offset test passes an explicit
+40.
+
+**One distinction worth keeping, because "unfalsifiable" was too strong.** Whether 12.7 is the right
+figure is a woodworking claim no unit test here can settle — that part is genuinely unfalsifiable,
+the hinge-table class. But whether the constant has been *accidentally edited* is an ordinary
+regression question, and a test asserting a literal would catch it. The repo already does this for
+the hinge table, where `counts by the leaf` hardcodes 8 and `keys by the mount` hardcodes 2. So the
+gap is real if small: drift is catchable even where correctness is not.
