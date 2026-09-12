@@ -24,18 +24,18 @@ So this is not a new feature bolted on. It is the removal of two stated approxim
 
 ## Scope
 
-**In scope:** a `DrawerComponent` with its own parameters; a `regenerateDrawers` generator emitting
-five boards per drawer; box metrics stated once and read by two callers; the slide screw height
-re-baselined onto the box; a v18 file format; the hardware BOM's owner resolution fixed to walk
-ancestors.
+**In scope:** a `DrawerComponent` with its own parameters, including a runner family; a
+`regenerateDrawers` generator emitting five boards per drawer; box metrics stated once and read by
+two callers; the slide screw height re-baselined onto the box; a v18 file format; **both** the
+cutting list's and the hardware BOM's cabinet attribution fixed to resolve the nearest carcase
+ancestor; the undermount back notch and locating hole.
 
 **Excluded, deliberately:**
 
 - **Box joinery beyond a screwed carcase default and the bottom groove.** No dovetails, no rabbeted
   corners. The sides are screwed, which is what the carcase already defaults to.
-- **Vendor runner systems.** Side-mount and undermount differ materially in the figures below. One
-  set of stated constants ships; a vendor model is a later design, the same call the hardware spec
-  made about hinges.
+- **Runner systems beyond the two families below.** Side-mount and undermount ship; a full vendor
+  catalogue with per-model geometry does not. A drawer names a *family*, not a product.
 - **Drawer fronts themselves.** They already generate as carcase roles and stay that way.
 - **Per-drawer front alignment.** Fronts are sized by `frontCells`; this design does not touch it.
 
@@ -71,6 +71,22 @@ stated. Where the user chose against the recommendation it is marked.
    from the groove rather than guessed.
 7. **The drawer generator is its own pipeline stage.** Not an extension of `regenerateComponents`,
    and not a step inside the per-carcase loop. See the cycle below.
+
+Taken after the L99 review, once measuring the code contradicted three claims in the first draft:
+
+8. **A drawer board is attributed to its cabinet, not its drawer**, in both the cutting list and the
+   hardware BOM. Identical boards from two drawers in one cabinet then merge, which is correct for
+   cutting.
+9. **`driven` goes on the drawer component only**, not on all component kinds. A detached carcase
+   has no defined meaning today.
+10. **Drawer boxes appear in the cabinet's shop drawings**, and the plan measures which views move
+    rather than assuming none do.
+11. **Both runner families ship.** *Chosen against the recommendation.* The recommendation was
+    side-mount alone, cited at 12.7 mm, because it matches the grooved bottom and screwed sides
+    already agreed and needs no new geometry. The user chose both, on the grounds that real shops
+    use both. This is the largest single addition to the design: two width rules that are not the
+    same rule with different constants, two bottom treatments, and a back notch plus locating hole
+    that only one family needs.
 
 ## The cycle, and how it is broken
 
@@ -125,39 +141,72 @@ already per-opening:
 | Role | Length | Width | Notes |
 |---|---|---|---|
 | `box-left`, `box-right` | box depth | box height | |
-| `box-front`, `box-back` | box width − 2 × side thickness | box height | Between the sides |
-| `box-bottom` | inside depth + 2 × groove depth | inside width + 2 × groove depth | Captured on four sides |
+| `box-front`, `box-back` | box outside width − 2 × side thickness | box height | Between the sides |
+| `box-bottom` | inside depth + 2 × groove depth | inside width + 2 × groove depth | Side-mount only |
 
 **The box front is not the drawer front.** The drawer front is a carcase role and stays one; the box
 carries its own front for the applied front to screw to. A four-sided open tray would be wrong, and
 would also leave the applied front joined to nothing.
 
-**Width** is the opening's clear width minus a runner allowance each side. **Depth** is the runner
-nominal from `runnerKeyFor(clearDepth)`, which already ships and already chooses the runner for the
-hardware list — so the box and the quoted runner cannot disagree about length. **Height** is the
-parameter, defaulting to the front cell's height minus a clearance, clamped to the opening.
+**Depth** is the runner nominal from `runnerKeyFor(clearDepth)`, which already ships and already
+chooses the runner for the hardware list, so the box and the quoted runner cannot disagree about
+length. Both families define the nominal as the drawer depth rather than the runner's own length.
 
-*Inside* width and depth are the box's outer dimensions less two side thicknesses; the bottom adds
-back twice the groove depth because it is captured on all four sides. Stating it that way means the
-bottom's size follows the groove figure automatically, rather than being a sixth number that can
-drift out of step with it.
+**Height** is the parameter, defaulting to the front cell's height minus a clearance, clamped to the
+opening.
+
+*Inside* width and depth are the box's outer dimensions less two side thicknesses. Where a bottom is
+grooved it adds back twice the groove depth, so the bottom's size follows the groove figure
+automatically rather than being a sixth number that can drift out of step with it.
+
+## The two runner families
+
+A drawer names a family, and the family decides three things: how width is derived, how the bottom
+is captured, and where the runner sits. **This is the widest part of the design**, and it exists
+because a real shop uses both.
+
+| | Side-mount | Undermount |
+|---|---|---|
+| Width rule | **Outside** width = clear width − 2 × side clearance | **Inside** width = opening width − a stated deduction |
+| Side clearance / deduction | 12.7 mm each side | 42 mm total for side material ≤ 16 mm; 49 mm above that |
+| Bottom | Captured in a groove | Rests on the runner; no groove |
+| Back | Plain | Notch for the locking device, plus a locating hole |
+| Runner height | Box bottom + the parameter | The box bottom itself; the runner carries it |
+
+The two width rules are **not** the same rule with different constants. Side-mount fixes the gap
+either side of the box; undermount fixes the box's *interior*, so its outside width moves with the
+side material's thickness. Modelling undermount as a per-side clearance is the mistake this section
+exists to prevent: at 16 mm sides the undermount outside clearance works out near 5 mm a side, not
+12.7 mm, and a box built to the wrong rule fouls the cabinet or rattles in it.
+
+**The back notch and locating hole are ordinary cuts.** The notch is a box cut and the hole is a
+single-hole array, both of which the generator already emits and `shapeKey` already encodes. No new
+cut kind is needed.
 
 ### Stated figures
 
-Every figure below is read off standard hardware or convention, **stated rather than derived**, and
-sits beside `SHELF_CLEARANCE` and `FIRST_PIN_INSET`. A wrong figure produces a perfectly
-self-consistent drawer that does not slide.
-
-| Figure | Value | Confidence |
+| Figure | Value | Source |
 |---|---|---|
-| Runner allowance per side | 13 mm | **Needs a woodworker's eye.** Side-mount and undermount systems differ materially. |
-| Runner height above box bottom | 32 mm (parameter default) | **Needs a woodworker's eye.** |
+| Side-mount clearance per side | 12.7 mm (1/2") | Side-mount ball-bearing convention |
+| Undermount inside-width deduction | 42 mm (≤ 16 mm sides), 49 mm above | Blum TANDEM |
+| Undermount back notch | 1/2" tall × 1-3/8" wide minimum | Blum TANDEM |
+| Undermount locating hole | 6 mm diameter × 10 mm deep | Blum TANDEM |
+| Undermount box height clearance | 7 mm top, 14 mm bottom | Blum TANDEM |
+| Side-mount runner height above box bottom | parameter, default 32 mm | **Unsourced.** Model-specific. |
 | Box height below front height | 25 mm | Convention |
 | Groove up from bottom edge | 10 mm | Convention |
 | Groove depth | 6 mm | Convention |
 
-The first two were put to the user and are shipping at the values above pending confirmation. They
-are the same risk class as the hinge-count table: falsifiable by no test in this repo.
+**A warning about these figures that the plan must carry forward.** The egress proxy in this
+environment blocked every primary PDF, Blum's own included. The TANDEM numbers above come from
+vendor and distributor summaries, **not from the printed Blum document**. They are plausible and
+mutually consistent, and they are not verified. Before anyone cuts material to them, they must be
+checked against Blum's published installation instructions for the specific runner. The
+side-mount runner height is worse than unverified: it is a convention I chose, and it is
+model-specific in a way the other figures are not.
+
+This is the same risk class as the hinge-count table, and for the same reason: a wrong figure here
+produces a perfectly self-consistent drawer that does not slide.
 
 ### The decline path
 
@@ -180,30 +229,62 @@ required field, and the failure appears only when the generator dereferences it 
 
 ## Ownership and detaching
 
-A drawer component carries `driven`, as parts do. **A detached drawer is the user's**: no
-regeneration, no deletion. Without it, the next pass would delete a box someone had hand-edited,
-which is the rule already stated for parts and would be surprising if it did not hold for the
-component that owns them.
+**No component has ever carried `driven`.** Parts have it; components do not. This design adds it to
+the drawer component only, which is a new concept at the component level and is presented as one
+rather than smuggled in as an established pattern.
+
+**A detached drawer is the user's**: no regeneration, no deletion, matching the rule parts already
+follow. Without it, the next pass would delete a box someone had hand-edited. Carcases and groups
+are deliberately left alone; a detached carcase has no defined meaning today and inventing one here
+would be scope this design has not earned.
 
 ## Consumers
 
-**Needs no change.** Export composes world matrices through ancestors already, and
-`resolveWorldMatrix` is the single source of world placement. The nest treats box boards as ordinary
-boards. Grain reads a role's family. The cutting list already walks ancestors via `ancestorsOf`, so
-a drawer board is attributed to its cabinet correctly today.
+Every claim below was checked against the code. Three that were asserted in the first draft turned
+out to be wrong or incomplete, and are corrected here.
 
-**Needs a fix, found during design.** `carcaseHardware` resolves a part's owner only when its
-*direct* parent is a carcase:
+**Genuinely needs nothing.** `resolveWorldMatrix` composes through ancestors already and is the
+single source of world placement. The nest treats box boards as ordinary boards. Grain reads a
+role's family. `reconcileJoints` never inspects component kind, so drawer joints work untouched.
+`regenerateOne` scopes itself to `parts.filter(p => p.parentId === component.id)`, so it will not
+delete drawer boards. **`shapeKey` already encodes box cuts and hole arrays**, so the bottom groove,
+the back notch and the locating hole need no change there — a check the project rules demand
+explicitly whenever a shape-affecting field is added.
+
+**Both BOM consumers misattribute a drawer board, not just one.** The first draft claimed the
+cutting list already handled this. It does not. `groupParts` calls `ancestorsOf(p, byId)[0]`, and
+`ancestorsOf` returns **nearest-first**, so index zero is the immediate parent. For a carcase part
+that is the cabinet; for a drawer board it is the drawer. So the Cabinet column would read the
+drawer's label, and because that label is part of the grouping key, identical box sides from two
+different cabinets would merge into one row under a generic drawer name.
+
+`carcaseHardware` has the same defect in a different shape, resolving an owner only when the direct
+parent is a carcase:
 
 ```ts
 const owner = part.parentId !== null && carcases.has(part.parentId) ? part.parentId : null
 ```
 
-A drawer board's parent is the drawer, so every screw holding a box together would tally as
-`Ungrouped` rather than against the cabinet. Not dropped — `Ungrouped` is emitted — but listed as
-belonging to no cabinet, which on a six-cabinet job is useless. The fix is to resolve the nearest
-**carcase ancestor** using `ancestorsOf`, the same helper the cutting list uses, which also makes
-the two agree by construction rather than by coincidence.
+Its drawer screws would tally as `Ungrouped` — emitted, but attributed to no cabinet.
+
+**Both are fixed the same way: resolve the nearest carcase ancestor.** Stating that rule once and
+having both call it is what makes the two agree by construction rather than by coincidence. It is
+the same shape as every other "stated once" rule in this codebase.
+
+**`carcaseMachining` cannot reach the drawer parameters.** Its signature is
+`(p, thicknessOf, kindOf, role)` — carcase params and a role, nothing else. Placing a slide screw
+from the box requires the drawer's parameters for that section, so the signature grows and the new
+argument is threaded from `regenerateComponents`, its only call site. The first draft asserted the
+read without naming the plumbing.
+
+**The shop drawings change, and the change must be measured.** `descendantIds` is recursive, so the
+3D view and the cabinet projections already collect parts of nested components. Drawer boxes will
+therefore appear in Front, Top and End without anyone adding them. That is wanted — Top and End are
+sections, and a section that omitted the thing it cuts through would be a worse drawing — and Front
+should hide them behind the applied front through ordinary hidden-line removal. **None of that may
+be assumed.** The plan measures which views actually change on which presets. The sheet-yield spec
+claimed a change re-baselined nothing when it re-baselined real rows, and this design has the same
+opportunity to be wrong in the same way.
 
 **Needs showing.** The scene tree must render a drawer under its cabinet, with its boards under it.
 
@@ -232,8 +313,17 @@ Specific mutations to run, chosen because a plausible fixture would survive them
 
 ## Risks
 
-- **The two hardware figures are unfalsifiable here.** Same class as the hinge table. A drawer that
-  looks right in the viewport and does not slide is the failure mode, and no green suite will say so.
+- **The runner figures are unverified, and one is unsourced.** The egress proxy blocked every
+  primary PDF, so the TANDEM numbers come from vendor and distributor summaries rather than Blum's
+  printed instructions, and the side-mount runner height is a convention I chose. Same class as the
+  hinge table: a drawer that looks right in the viewport and does not slide, with no green suite to
+  say so. Confirm them before cutting.
+- **Two width rules invite being collapsed into one.** Undermount fixes the box's interior and
+  side-mount fixes the gap either side, so they diverge as side thickness changes. A future reader
+  who "simplifies" them into a single per-side constant will produce boxes that are wrong only for
+  thick-sided drawers, which is the hardest kind of wrong to notice.
+- **Supporting both families roughly doubles the geometry** and adds a notch and a hole that one
+  family never uses. Every fixture must cover both, or the untested family rots.
 - **Re-baselining the slide height moves shipped positions.** The Front, Top and End projections and
   every fixture pinning a slide row must be **re-measured, not assumed unchanged**. The sheet-yield
   spec claimed a change re-baselined nothing when it re-baselined real rows; do not repeat it.

@@ -83,13 +83,11 @@ A drawer board's parent is the drawer component, not the carcase, so every screw
 together would tally under `Ungrouped`. Not dropped — `Ungrouped` is emitted — but attributed to no
 cabinet, which on a multi-cabinet job makes the figure useless.
 
-The cutting list does *not* have this problem: `groupParts` already walks ancestors via
-`ancestorsOf`. So the fix is to make the hardware pass use the same helper, which makes the two
-agree by construction instead of by coincidence.
-
-Both halves of that were checked by reading the code. The instinct was that both would be broken;
-measuring showed one already worked. That is the third time this session that a claim reasoned about
-was wrong and a claim measured was right.
+**Superseded by the L99 review below.** This entry originally went on to claim the cutting list did
+*not* have the problem, because `groupParts` imports `ancestorsOf`. That was wrong: it calls
+`ancestorsOf(...)[0]`, the immediate parent. Both consumers are affected. The entry is kept with its
+error visible rather than quietly corrected, because the mistake — trusting an import over a call —
+is the instructive part.
 
 ## 2026-09-12 — two decisions taken against a recommendation
 
@@ -109,10 +107,10 @@ much argument; noted only so nobody "simplifies" it back to derived-only later.
 
 ## Open questions for the plan
 
-- **The two hardware figures.** The runner allowance per side (13 mm) and the runner height above
-  the box bottom ship at stated values pending a woodworker's confirmation. Side-mount and
-  undermount systems differ materially and the spec does not model that difference. These are the
-  same risk class as the hinge-count table: no test in this repo can falsify either.
+- **The runner figures.** Superseded by the research entry below: the spec now models both
+  families, and the figures are cited but unverified because the egress proxy blocked every primary
+  PDF. The side-mount runner height remains an unsourced convention. Same risk class as the
+  hinge-count table: no test in this repo can falsify any of them.
 - **Which fixtures re-baseline.** Re-basing the slide height moves shipped machining positions.
   The plan must **measure** which fixtures and which projections change rather than asserting none
   do. The sheet-yield spec made exactly that mistake, claiming a change re-baselined nothing when
@@ -121,3 +119,63 @@ much argument; noted only so nobody "simplifies" it back to derived-only later.
   components. A selected drawer whose opening became a door leaves a selection naming nothing. The
   section-pick rules already learned this lesson once; the plan should say which of those rules
   applies rather than inventing a fourth.
+
+## 2026-09-12 — the L99 review, and three claims in my own spec that were wrong
+
+The spec was reviewed against the code rather than re-read. Three of its claims did not survive, and
+all three were the same species this project keeps producing: asserted from a grep or a signature,
+never from the call.
+
+**"The cutting list already attributes a drawer board to its cabinet."** False, and it was the
+reassuring claim. `groupParts` calls `ancestorsOf(p, byId)[0]`, and `ancestorsOf` returns
+**nearest-first**, so index zero is the *immediate* parent. For a carcase part that happens to be
+the cabinet, which is why nobody has noticed. For a drawer board it is the drawer. Worse, that label
+is part of the grouping key, so identical box sides from two cabinets merge into one row under a
+generic drawer name. The evidence for the original claim was a grep showing `ancestorsOf` was
+imported. Importing a helper is not using it correctly.
+
+**"`carcaseMachining` reads the box metrics."** Its signature is `(p, thicknessOf, kindOf, role)`.
+There is no drawer data in reach. The read requires a new argument threaded from
+`regenerateComponents`, its only call site. Asserted from the module's purpose rather than its
+signature.
+
+**"`driven` on the drawer component" written as though established.** No component has ever carried
+`driven` — only parts. It is a new concept and is now presented as one.
+
+A fourth thing was missed rather than wrong: `descendantIds` is recursive, so drawer boxes enter the
+3D view and the cabinet projections automatically. The spec said nothing about shipped drawings
+changing.
+
+What held up, and is worth recording because it is what the ordering argument rests on: `frontCells`
+is pure over the section tree and geometry, `regenerateOne` scopes itself to its own cabinet's
+parts, `reconcileJoints` never inspects component kind, and `shapeKey` already encodes box cuts and
+hole arrays so the groove, notch and locating hole need nothing there.
+
+## 2026-09-12 — researching the runner figures, and what it overturned
+
+The user asked for one named system, cited. The research overturned the design's own premise.
+
+**Blum TANDEM does not fit the box this design had already agreed.** It specifies the drawer's
+**inside** width (opening − 42 mm for side material ≤ 16 mm, − 49 mm above that), requires a notch in
+the drawer back for the locking devices and a 6 mm × 10 mm locating hole, and has the bottom rest on
+the runner rather than sit in a groove. The spec had a grooved bottom, a plain back, and an
+outside-width per-side clearance. Three mismatches.
+
+The arithmetic is the part worth keeping: at 16 mm sides, an undermount box's *outside* clearance
+works out near 5 mm a side, not the 12.7 mm a side-mount needs. Modelling undermount as a per-side
+constant is therefore not a small inaccuracy, it is the wrong shape of rule, and it is wrong by more
+as the sides get thicker.
+
+So the honest finding was that the approved construction described a **side-mount** box, and the 13
+mm I had invented was within half a millimetre of the documented side-mount standard of 12.7 mm.
+That was luck, not judgement.
+
+Put to the user as a choice between citing side-mount, switching to undermount, or supporting both.
+**The user chose both**, against a recommendation of side-mount alone. It is the largest addition to
+the design and the reasoning is sound: real shops use both.
+
+**A sourcing caveat that must not be lost.** The egress proxy blocked every primary PDF, Blum's own
+included. Every TANDEM figure in the spec comes from vendor and distributor summaries. They are
+plausible and mutually consistent; they are not verified against the printed instructions. The
+side-mount runner height is not even that — it is a convention I chose, and it is model-specific.
+Confirm before cutting.
