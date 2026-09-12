@@ -252,3 +252,32 @@ becomes live, `nearestCarcase` is already there to call.
 The count that matters: this pattern has now been found in **four** places. The first two were in the
 spec, the third and fourth only because someone was reading nearby code with the mistake fresh in
 mind. A helper existing is not the same as the helper being used.
+
+## 2026-09-12 — two edits the plan's Task 3 code needed, both small
+
+**A `toBe` that IEEE754 will not honour.** The plan's first side-mount test asserted
+`m.box.x1 - m.box.x0` is `564 - 2 * SIDE_MOUNT_CLEARANCE`. The two sides reassociate the same
+constant — `(582 − 12.7) − (18 + 12.7)` is `538.5999999999999`, the right-hand side is `538.6` — so
+it failed on a correct implementation. Changed to `toBeCloseTo(…, 9)`, which still separates 12.7
+from any neighbouring figure. The assertion is arithmetically implied by the two above it and could
+have been deleted instead; it is kept because the width is the thing the test is named for. Worth
+expecting again wherever a dimension is built by adding a non-dyadic constant at one end and
+subtracting it at the other.
+
+**The runner nominal, recovered without a non-null assertion.** The plan wrote
+`RUNNER_NOMINALS.find((n) => runnerKey === \`runner-${n}\`)!` after an early return on a null key.
+`hardwareCatalogue` offers no `runnerNominalFor`, and adding one would widen this task into an
+existing module for no test's sake, so the lookup stays here — but as
+`RUNNER_NOMINALS.find((n) => \`runner-${n}\` === runnerKey)` with `if (depth === undefined) return
+null`, which handles the null key by never matching and drops the `!`. The reverse lookup is
+deliberate rather than lazy: choosing the nominal here with a second `<=` scan would be a second
+statement of "the largest nominal that fits", and the box and the hardware quote could then pick
+different runners for the same cabinet.
+
+**Mutation results.** Nine mutations run against the nine tests. Killed: depth from `clearDepth`
+instead of the nominal, ignoring an inset front, dropping the height clamp, no clearance, clearance
+on one side only, runner always at the box bottom, no groove, box top-aligned, and never declining.
+Survived, as designed: `SIDE_MOUNT_CLEARANCE = 12.7 → 13`. The tests derive their expectations from
+the constant, so they pin that the function applies *the constant*, not that the figure is 12.7 —
+the same unfalsifiable class as the hinge-count table, and the reason the sourcing comments in
+`drawerBox.ts` matter more than the suite does.
