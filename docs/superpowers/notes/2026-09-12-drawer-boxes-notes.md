@@ -312,3 +312,39 @@ this codebase's invariants are a litany against, and git already shows an accide
 never the figure; it was that `defaultDrawerParams` was *entirely unpinned* — seeding
 `runnerOffset: 0` left all nine tests green. That is an ordinary falsifiable rule, so it is now
 pinned by deriving from the constant, killing the mutation without copying the number.
+
+## 2026-09-12 — an inset box runs into the back panel, and why the fix is not local
+
+Found by Task 4b's code-quality reviewer while enumerating degenerate cases, confirmed by
+arithmetic. The box's depth is the runner nominal and its front face sits at `y = frontThickness`
+for an inset front, so its back lands at `frontThickness + nominal`:
+
+| clear depth | front | nominal | overlay box | inset box |
+|---|---|---|---|---|
+| 548 | 18 | 500 | 0–500 | 18–518 |
+| **560** | **18** | **550** | 0–550 | **18–568 — 8 mm past the back** |
+| 330 | 18 | 300 | 0–300 | 18–318 |
+
+It bites whenever `clearDepth − nominal < frontThickness`. No shipped preset hits it, because 548
+and 330 both leave 48 and 30 mm of margin — but `drawerBox.test.ts`'s own fixture uses 560, so the
+module is already exercising a depth that would overrun.
+
+**The fix is not local, which is why it is its own task rather than a review edit.** The obvious
+change is to choose the runner against `clearDepth − frontThickness` for an inset cabinet. But the
+spec deliberately ties the box's depth to `runnerKeyFor(clearDepth)` *"so the box and the quoted
+runner cannot disagree about length"*, and `carcaseHardware` quotes from that same call. Change one
+side only and the box is built for a 500 while the BOM orders a 550.
+
+So the rule has to be stated once — the depth actually available to a box — and read by both the
+generator and the hardware quote, exactly as `clearDepth` itself already is. That is a change to
+code that shipped in the previous stage, not a tweak to this one.
+
+Recorded here with the arithmetic so the task that does it does not have to rediscover the tension.
+
+**Five further degenerate cases were enumerated and deliberately not fixed**: a side-mount box in an
+opening narrower than its own clearance (negative width), an undermount box whose *interior* goes
+negative while passing the new outside-width guard, a negative box height in a tiny opening, a
+runner positioned above the box top, and a groove above it. They are one family — the module checks
+width against the opening and depth against the runner, and checks nothing else. Fixing one member
+while flagging the rest would be incoherent, so they belong in a single "the box is a real box"
+task.
