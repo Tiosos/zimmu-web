@@ -1,5 +1,7 @@
 import { clearDepth } from './carcaseRoles'
 import { resolveCarcase } from './carcaseOpenings'
+import { componentsById } from './componentTree'
+import { nearestCarcase } from './nearestCarcase'
 import {
   CATALOGUE_ORDER,
   hingeKeyFor,
@@ -7,7 +9,7 @@ import {
   SCREW_KEY,
   SHELF_PIN_KEY,
 } from './hardwareCatalogue'
-import type { CarcaseComponent, ComponentId, Scene } from './types'
+import type { ComponentId, Scene } from './types'
 
 // What a generated cabinet needs bought, counted off what its machining actually bored.
 //
@@ -31,8 +33,8 @@ export interface HardwareLine {
 export const UNGROUPED_LABEL = 'Ungrouped'
 
 export function carcaseHardware(scene: Scene): HardwareLine[] {
-  const carcases = new Map<ComponentId, CarcaseComponent>()
-  for (const c of scene.components) if (c.kind === 'carcase') carcases.set(c.id, c)
+  const byId = componentsById(scene.components)
+  const carcases = scene.components.filter((c) => c.kind === 'carcase')
 
   const tally = new Map<string, number>()
   const cell = (id: ComponentId | null, key: string) => `${id ?? ''} ${key}`
@@ -52,8 +54,10 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
 
   for (const part of scene.parts) {
     if (part.kind !== 'board') continue
-    const owner = part.parentId !== null && carcases.has(part.parentId) ? part.parentId : null
-    const cabinet = owner === null ? undefined : carcases.get(owner)
+    // A null owner is Ungrouped here, and for a hinge or a runner below it is dropped outright, so
+    // a board owned through a group must not fall to it.
+    const cabinet = nearestCarcase(part, byId)
+    const owner = cabinet?.id ?? null
 
     for (const cut of part.cuts) {
       if (cut.kind !== 'hole-array') continue
@@ -65,13 +69,13 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
         // Dropped rather than Ungrouped: the catalogue key depends on the cabinet's `frontMount`
         // (overlay and inset are different products), and with no cabinet there is no way to know
         // which one to order — unlike a screw, whose key is universal.
-        if (cabinet === undefined) continue
+        if (cabinet === null) continue
         add(owner, hingeKeyFor(cabinet.params.frontMount), cut.count)
       }
 
       if (cut.id.startsWith('slide_')) {
         // Dropped rather than Ungrouped, same reason as a hinge: no cabinet means no clear depth.
-        if (cabinet === undefined || owner === null) continue
+        if (cabinet === null || owner === null) continue
         // Reusing `cell()` for a dedupe key, not a tally key, is safe because neither a component
         // id nor a cut id can contain the separator, so the composed string is unambiguous either
         // way.
@@ -107,7 +111,7 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
   //
   // Matching `_{sectionId}_` inside a cut id is not a second role-key parser: the section id is
   // already in hand and this asks whether a bore names it, rather than recovering an unknown id.
-  for (const cabinet of carcases.values()) {
+  for (const cabinet of carcases) {
     const resolved = resolveCarcase(cabinet, scene.parts, scene.materials)
     if (resolved === null) continue
     const cabinetParts = scene.parts.filter((p) => p.kind === 'board' && p.parentId === cabinet.id)

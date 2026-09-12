@@ -8,7 +8,14 @@ import {
   buildDowelCsv,
   isNestable,
 } from './buildCsv'
-import type { BoardPart, CarcaseComponent, Part, CylinderPart, Scene } from '../scene/types'
+import type {
+  BoardPart,
+  CarcaseComponent,
+  Component,
+  Part,
+  CylinderPart,
+  Scene,
+} from '../scene/types'
 import type { MaterialDef, HardwareItem } from '../scene/types'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
@@ -457,6 +464,16 @@ describe('grouping by component', () => {
   const oneSide = parts.find((p) => p.role === 'left-side')!
   const twoIdenticalSidesInOneCabinet = [oneSide, { ...oneSide, id: `${oneSide.id}-copy` }]
   const looseBoard = { ...parts[0], id: 'loose', parentId: null, driven: false, role: undefined }
+  const wrapper: Component = {
+    kind: 'group',
+    id: 'cmp_wrap',
+    label: 'Wrapper',
+    parentId: cabinet.id,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+  }
 
   it('labels each row with its owning cabinet', () => {
     expect(groupParts(parts, {}, components)[0].component).toBe('Base Cabinet 600')
@@ -488,6 +505,24 @@ describe('grouping by component', () => {
 
   it('puts the Cabinet column first in the CSV header', () => {
     expect(buildCsv(parts, {}, components).split('\n')[0]).toMatch(/^Cabinet,/)
+  })
+
+  // groupParts read the immediate parent, so a board one level down was labelled with the
+  // wrapper's name — and since the label is part of the grouping key, two cabinets' identical
+  // boards merged under one meaningless row.
+  it('labels a board under a nested component with its cabinet, not the wrapper', () => {
+    const nested = { ...oneSide, id: 'nested', parentId: wrapper.id }
+    const rows = groupParts([nested], {}, [cabinet, wrapper])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].component).toBe('Base Cabinet 600')
+  })
+
+  // A group is not a cabinet, so the Cabinet column names none — the old immediate-parent read
+  // printed the group's label under a heading it does not answer.
+  it('leaves the Cabinet column empty for a board under a top-level group', () => {
+    const topLevel: Component = { ...wrapper, parentId: null }
+    const orphan = { ...oneSide, id: 'orphan', parentId: topLevel.id }
+    expect(groupParts([orphan], {}, [topLevel])[0].component).toBe('')
   })
 })
 

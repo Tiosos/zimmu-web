@@ -1,5 +1,6 @@
 import type { BoardPart, Component, HardwareItem, MaterialDef, Part } from '../scene/types'
-import { ancestorsOf, componentsById } from '../scene/componentTree'
+import { componentsById } from '../scene/componentTree'
+import { nearestCarcase } from '../scene/nearestCarcase'
 import type { HardwareRow } from './groupHardware'
 
 // A sheet created by typing one dimension into the library carries 0 for the other. Zero is
@@ -63,7 +64,9 @@ export function groupParts(
   for (const p of parts) {
     if (p.kind !== 'board') continue
     const dims = cutDimensions(p)
-    const component = ancestorsOf(p, byId)[0]?.label ?? ''
+    // The label is part of the grouping key below, so naming the wrong ancestor does not just
+    // mislabel a row — it merges boards cut for different cabinets into one.
+    const component = nearestCarcase(p, byId)?.label ?? ''
     // Grain is in the key, not just the row: a part the nester may rotate and one it may not are
     // different cuts even at identical dimensions.
     const key = `${component}|${dims.length}×${dims.width}×${dims.thickness}|${cutGrain(p)}|${p.material}|${p.color}`

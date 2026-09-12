@@ -340,6 +340,38 @@ describe('carcaseHardware — screws', () => {
     expect(qtyForOwner(after, 'cmp_1', 'screw-8x40')).toBe(beforeCabinet + screwJoint.screwCount)
     expect(qtyForOwner(after, null, 'screw-8x40')).toBe(0)
   })
+
+  // The owner check read the direct parent, so a board one level down fell to Ungrouped and the
+  // cabinet's screw count dropped — which is what the forthcoming drawer box would have done.
+  it('attributes a nested board’s screws to its cabinet, not to Ungrouped', () => {
+    const scene = piped(CARCASE_PRESETS[0].params, 'Base A')
+    const screwed = scene.parts.find(
+      (p) => p.kind === 'board' && p.cuts.some((c) => c.id.endsWith('_clearance')),
+    )
+    expect(screwed).toBeDefined()
+    const before = qtyForOwner(scene, 'cmp_1', 'screw-8x40')
+
+    const moved: Scene = {
+      ...scene,
+      components: [
+        ...scene.components,
+        {
+          kind: 'group',
+          id: 'cmp_wrap',
+          label: 'Wrapper',
+          parentId: 'cmp_1',
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          visible: true,
+        },
+      ],
+      parts: scene.parts.map((p) => (p.id === screwed!.id ? { ...p, parentId: 'cmp_wrap' } : p)),
+    }
+
+    expect(qtyForOwner(moved, 'cmp_1', 'screw-8x40')).toBe(before)
+    expect(qtyForOwner(moved, null, 'screw-8x40')).toBe(0)
+  })
 })
 
 describe('carcaseHardware — rows', () => {
