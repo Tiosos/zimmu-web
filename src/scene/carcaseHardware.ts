@@ -1,4 +1,4 @@
-import { clearDepth } from './carcaseRoles'
+import { boxDepth, clearDepth } from './carcaseRoles'
 import { resolveCarcase } from './carcaseOpenings'
 import { componentsById } from './componentTree'
 import { nearestCarcase } from './nearestCarcase'
@@ -43,9 +43,14 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
 
   // The clear depth needs the back panel's own thickness, and the emitted panel already carries it.
   const backThickness = new Map<ComponentId, number>()
+  // And the usable depth needs the FRONT's, which is per bay rather than per cabinet: a part may
+  // override its material's thickness, so the emitted front is asked the same way the back is.
+  // Keyed by role because that is what a slide row names.
+  const frontThickness = new Map<string, number>()
   for (const p of scene.parts) {
-    if (p.kind === 'board' && p.role === 'back' && p.parentId !== null)
-      backThickness.set(p.parentId, p.thickness)
+    if (p.kind !== 'board' || p.parentId === null) continue
+    if (p.role === 'back') backThickness.set(p.parentId, p.thickness)
+    if (p.role?.startsWith('front-')) frontThickness.set(`${p.parentId} ${p.role}`, p.thickness)
   }
 
   // A slide row is bored into BOTH uprights of a bay and both carry the same cut id, because both
@@ -82,7 +87,19 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
         const seen = cell(owner, cut.id)
         if (seenSlide.has(seen)) continue
         seenSlide.add(seen)
-        const key = runnerKeyFor(clearDepth(cabinet.params, backThickness.get(owner) ?? 0))
+        // An inset front takes its own thickness out of the depth before the box starts, so the
+        // runner that fits is the one the box is built to. `boxDepth` states that once; quoting
+        // off the clear depth here would order a 550 for a cabinet holding a 500.
+        //
+        // Stripping the `slide_` prefix recovers the front's role, which `slideScrewRow` put there
+        // whole — not a second role-key parser: no section id is taken out of it.
+        const front = frontThickness.get(`${owner} ${cut.id.slice('slide_'.length)}`) ?? 0
+        const usable = boxDepth(
+          clearDepth(cabinet.params, backThickness.get(owner) ?? 0),
+          front,
+          cabinet.params.frontMount === 'inset',
+        )
+        const key = runnerKeyFor(usable)
         if (key !== null) add(owner, key, 1)
         continue
       }

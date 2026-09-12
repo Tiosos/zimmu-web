@@ -3,6 +3,8 @@ import { CARCASE_PRESETS, PRESET_MATERIALS, type CarcasePreset } from './carcase
 import { regenerateComponents } from './regenerateComponents'
 import { hingeCount } from './frontMachining'
 import { carcaseHardware } from './carcaseHardware'
+import { clearDepth } from './carcaseRoles'
+import { defaultDrawerParams, drawerBoxMetrics } from './drawerBox'
 import { resolveCarcase } from './carcaseOpenings'
 import { reconcileJoints } from './reconcileJoints'
 import { defaultScrewJoint } from './defaultJoint'
@@ -429,5 +431,50 @@ describe('carcaseHardware — rows', () => {
     expect(
       carcaseHardware({ parts: [], materials: {}, hardware: [], joints: [], components: [] }),
     ).toEqual([])
+  })
+})
+
+// The box and the quote read one statement of the usable depth, so they cannot name different
+// runners for the same cabinet. An inset cabinet is the case that separates them: its front sits
+// inside the opening and takes its own thickness out of the depth before the box starts.
+describe('carcaseHardware — the runner quoted is the runner the box is built to', () => {
+  // 572 deep behind a 12 mm captured back is 560 clear, which takes the 550 nominal outright and
+  // the 500 once an 18 mm inset front has had its share. A Base 600's 548 clear takes 500 either
+  // way, so it cannot tell the two rules apart.
+  const insetDrawer: CarcaseParams = {
+    ...withDrawerBays(1),
+    depth: 572,
+    frontMount: 'inset',
+  }
+
+  it('quotes the nominal the box comes out at, not the one the clear depth alone would pick', () => {
+    const scene = sceneOf(insetDrawer)
+    const quoted = carcaseHardware(scene).filter((l) => l.key.startsWith('runner-'))
+    expect(quoted.length).toBe(1)
+
+    // The other side, built from the cabinet's own emitted panels — never from the quote.
+    const back = scene.parts.find((p) => p.role === 'back') as BoardPart
+    const front = scene.parts.find((p) => p.role?.startsWith('front-')) as BoardPart
+    const box = drawerBoxMetrics(
+      { x0: 18, x1: 582, z0: 18, z1: 400 },
+      defaultDrawerParams('side-mount'),
+      {
+        clearDepth: clearDepth(insetDrawer, back.thickness),
+        frontThickness: front.thickness,
+        inset: true,
+        sideThickness: 18,
+      },
+    )!
+    expect(quoted[0].key).toBe(`runner-${box.box.y1 - box.box.y0}`)
+    // Stated as well as agreed: two sides that had both lost the front's thickness would agree at
+    // 450 just as happily.
+    expect(quoted[0].key).toBe('runner-500')
+  })
+
+  // The mount is the only thing that changed, so an overlay cabinet of the same size must still
+  // quote the full 550 — a deduction taken unconditionally would drop it to 500 here too.
+  it('leaves an overlay cabinet of the same size on the longer runner', () => {
+    const overlay: CarcaseParams = { ...insetDrawer, frontMount: 'overlay' }
+    expect(qtyOf(sceneOf(overlay), 'runner-550')).toBe(1)
   })
 })

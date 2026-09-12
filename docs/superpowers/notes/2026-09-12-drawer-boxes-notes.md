@@ -377,3 +377,33 @@ a usable answer anyway, by corroborating one figure from a distributor sheet and
 the other could not be had. The temptation in both rounds was to fill the gap with a plausible
 number. The reason not to is the hinge table: a figure nobody can check, stated with confidence,
 produces a self-consistent cabinet that does not work.
+
+## 2026-09-12 — the usable depth, stated once (Task 4c)
+
+Fixed as the note above predicted: `boxDepth(clear, frontThickness, inset)` sits beside `clearDepth`
+in `carcaseRoles.ts`, and both `drawerBoxMetrics` and `carcaseHardware`'s runner branch now call
+`runnerKeyFor(boxDepth(...))` instead of `runnerKeyFor(clearDepth(...))`.
+
+**How the hardware module reaches the front thickness.** It already had the pattern: the back
+panel's thickness is read off the *emitted* back part rather than off the material, so the front's
+is read the same way. The only new thing needed was *which* front, since thickness is per part and
+a cabinet can wear several. `slideScrewRow` ids its row `slide_${frontRole}`, so stripping the
+`slide_` prefix hands back the front's role whole. That is not a second role-key parser — no
+section id is taken out of it, which is the thing `sectionNodes.ts` exists to be the only place of.
+No signature changed anywhere; `carcaseHardware(scene)` still takes only the scene.
+
+**No preset figure moved.** A Base 600 is 548 clear, which takes the 500 nominal with or without an
+18 mm front eaten out of it, so the cull is invisible to every shipped preset — which is exactly
+why the agreement test builds its own 572 mm cabinet (560 clear: 550 overlay, 500 inset).
+
+**The agreement test kills the mutation on its own.** Replacing `boxDepth(` with `((x) => x)(` in
+`carcaseHardware.ts` fails `toBe(\`runner-${box.y1 - box.y0}\`)` before it ever reaches the stated
+`'runner-500'` — so the two sides really are computed independently rather than one from the other.
+The mirror mutation, making `boxDepth` subtract unconditionally, is killed by the overlay cases
+instead (three tests, in both files), which is what keeps the deduction inset-only.
+
+**A newly reachable null.** `drawerBoxMetrics` now declines a cabinet that an inset front leaves too
+shallow for even a 250 mm runner — 260 clear behind an 18 mm front is 242. Same answer it already
+gave a cabinet too shallow outright, so no new arm, but it is now possible for an overlay cabinet
+to build and the same cabinet inset to decline.
+

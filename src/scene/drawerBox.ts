@@ -1,4 +1,5 @@
 import type { Rect } from './sectionTree'
+import { boxDepth } from './carcaseRoles'
 import { RUNNER_NOMINALS, runnerKeyFor } from './hardwareCatalogue'
 
 // Which family of runner a drawer is built for. The families are not one rule with two constants:
@@ -79,7 +80,8 @@ export interface DrawerContext {
 // `carcaseMachining` reads it to place slide screws. Neither reads the other's output, which is
 // what keeps the generator a function in one direction.
 //
-// Returns null when the cabinet is too shallow for the smallest runner, and when the box would come
+// Returns null when no runner fits the depth the box can actually use — which an inset front cuts
+// into, so a cabinet deep enough overlay can be too shallow inset — and when the box would come
 // out wider than its own opening. That mirrors the rule that a door too thin to bore lists no hinge:
 // the generator declines rather than inventing a size, and a box beside a missing runner — or one
 // that will not go in the hole — would be a drawer nobody can build.
@@ -93,7 +95,7 @@ export function drawerBoxMetrics(
 ): DrawerBoxMetrics | null {
   // The nominal is recovered from the key rather than chosen here, so the box and the hardware
   // quote cannot pick different runners for the same cabinet.
-  const runnerKey = runnerKeyFor(ctx.clearDepth)
+  const runnerKey = runnerKeyFor(boxDepth(ctx.clearDepth, ctx.frontThickness, ctx.inset))
   const depth = RUNNER_NOMINALS.find((n) => `runner-${n}` === runnerKey)
   if (depth === undefined) return null
 

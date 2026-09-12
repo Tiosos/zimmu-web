@@ -196,3 +196,33 @@ describe('drawerBoxMetrics — undermount', () => {
     expect(UNDERMOUNT_DEDUCTION_THICK).toBeGreaterThan(UNDERMOUNT_DEDUCTION_THIN)
   })
 })
+
+// An inset front sits INSIDE the opening, so the box starts behind it. Its depth therefore cannot
+// be the cabinet's clear depth: at 560 clear with an 18 mm front, a box built to the 550 nominal
+// ends at 568 and is 8 mm into the back panel.
+describe('drawerBoxMetrics — the depth an inset front leaves', () => {
+  const params = defaultDrawerParams('side-mount')
+
+  it('keeps an inset box inside the cabinet', () => {
+    const m = drawerBoxMetrics(rect, params, { ...baseCtx, inset: true })
+    expect(m).not.toBeNull()
+    expect(m!.box.y1).toBeLessThanOrEqual(baseCtx.clearDepth)
+  })
+
+  // Not just clamped: the box picks the largest nominal that fits the 542 mm left behind the front,
+  // which is 500. A box clamped to 542 would be a runner length nobody sells.
+  it('picks the nominal that fits behind the front', () => {
+    const m = drawerBoxMetrics(rect, params, { ...baseCtx, inset: true })!
+    expect(m.box.y1 - m.box.y0).toBe(500)
+    // The overlay case takes 550 from the same 560 clear depth, so this is the front's doing and
+    // not a smaller nominal table.
+    const overlay = drawerBoxMetrics(rect, params, baseCtx)!
+    expect(overlay.box.y1 - overlay.box.y0).toBe(550)
+  })
+
+  // The whole depth is gone, so nothing is left for even the smallest runner: the same answer the
+  // module gives a cabinet too shallow to take one, rather than a box of negative depth.
+  it('declines when the front eats the last of the depth', () => {
+    expect(drawerBoxMetrics(rect, params, { ...baseCtx, clearDepth: 260, inset: true })).toBeNull()
+  })
+})

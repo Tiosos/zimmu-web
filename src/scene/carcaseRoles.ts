@@ -108,6 +108,15 @@ export function clearDepth(p: CarcaseParams, backThickness: number): number {
   return p.backMode === 'captured' ? p.depth - backThickness : p.depth
 }
 
+// The depth a drawer box can actually occupy, which is not the cabinet's clear depth: an inset
+// front sits inside the opening and eats its own thickness before the box starts. Stated here
+// because two things read it and must agree — the box the generator builds, and the runner the
+// hardware list quotes. A box built to one figure beside a runner ordered to another is the exact
+// disagreement `clearDepth` was factored out to prevent.
+export function boxDepth(clear: number, frontThickness: number, inset: boolean): number {
+  return inset ? clear - frontThickness : clear
+}
+
 // A division panel is as thick as the panel it is, not as thick as the cabinet: the tree asks by
 // parent section and index, which is exactly what the box table names the role after.
 export function sectionThickness(thicknessOf: RoleThickness): DivisionThickness {
