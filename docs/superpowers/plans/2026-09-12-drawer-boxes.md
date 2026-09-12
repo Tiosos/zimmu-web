@@ -3216,6 +3216,20 @@ Then by hand, add the three new modules to the prose tree, add a **Done** roadma
 `Drawer boxes`, and correct the technology table's IndexedDB entry, which still reads `(v2)` and has
 been wrong since the settings store landed.
 
+- [ ] **Step 4b: The two docs the sweep has been missing**
+
+`README.md:38`, `README.md:135`, `joinery_3d_software_plan.md:25`, `:323`, `:744` and `:791` all
+still read `FILE_FORMAT_VERSION = 12`. That staleness predates this stage — it has survived v13
+through v17 — but this step is where the version is restated, and a sweep that corrects `CLAUDE.md`
+and `project-structure.html` while the README goes on claiming 12 is a sweep that leaves the repo's
+front door wrong. Set all six to 18.
+
+`joinery_3d_software_plan.md:886` is **not** one of them: it records `FILE_FORMAT_VERSION = 1` as
+the Phase 0 value, which is history and correct as written. Leave it.
+
+Do **not** run Prettier over either file. The hooks format only `.ts/.tsx/.js/.jsx/.css`, and a
+Prettier pass over a `.md` here has already once rewritten 428 untouched lines.
+
 - [ ] **Step 5: Record the measurements**
 
 Append to `docs/superpowers/notes/2026-09-12-drawer-boxes-notes.md` a `## 2026-09-12 — shipped`

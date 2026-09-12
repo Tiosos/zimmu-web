@@ -1982,6 +1982,9 @@ describe('v17 → v18: drawer components', () => {
     ...extra,
   })
 
+  // Not `const { params, ...rest } = drawer()`: this repo's `no-unused-vars` sets only
+  // `argsIgnorePattern`, so neither a bare rest sibling nor a `_`-prefixed one is ignored and both
+  // are lint errors. Naming the absent field is also what these tests are about.
   const without = (key: 'params' | 'sectionId' | 'driven') => {
     const c: Record<string, unknown> = drawer()
     delete c[key]
@@ -2047,7 +2050,7 @@ describe('v17 → v18: drawer components', () => {
   // at 17, a drawer-bearing file reads as current to a build with no drawer branch and the
   // component passes through unrecognised with nothing said — a consequence no test here can
   // observe, which is why the constant itself is asserted.
-  it('writes the drawer-bearing format version', () => {
+  it('states the drawer-bearing format version', () => {
     expect(FILE_FORMAT_VERSION).toBe(18)
   })
 })
