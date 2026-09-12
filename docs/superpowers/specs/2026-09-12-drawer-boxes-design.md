@@ -2,6 +2,7 @@
 
 **Status:** Designed. Not yet implemented.
 **Notes:** `docs/superpowers/notes/2026-09-12-drawer-boxes-notes.md`
+**Plan:** `docs/superpowers/plans/2026-09-12-drawer-boxes.md`
 
 A drawer front is generated. The box behind it is not. This design adds the box as a driven child
 component with its own generator, and re-baselines the two figures that the absence of a box forced
@@ -102,12 +103,18 @@ It is broken the way this codebase breaks it everywhere else — `pinRow`, `clea
 — by stating the rule once and letting two callers read it:
 
 ```
-drawerBoxMetrics(frontRect, params, thicknessOf) → { box, runnerHeight, grooveLine }
+drawerBoxMetrics(openingRect, params, ctx) → { box, runnerZ, groove }
 ```
 
 The drawer generator reads it to build boards. `carcaseMachining` reads it to place slide screws.
 Neither reads the other's output, so there is no cycle. A second copy of the runner height is how
 the box and the screws that carry it come to disagree.
+
+**It takes the section's own rectangle, never the front cell.** `frontCells` expands an *overlay*
+front to the material midline, so on a Base 600 the cell is about 597 wide against a 564 opening. A
+box sized off the cell would be 33 mm too wide and would not go into the cabinet it belongs to. The
+prose in this spec always said "the opening's clear width"; an earlier draft's function signature
+said `frontRect` and contradicted it. Measured, then corrected.
 
 ## Pipeline
 

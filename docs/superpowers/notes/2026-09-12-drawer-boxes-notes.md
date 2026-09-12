@@ -1,7 +1,7 @@
 # Drawer boxes — implementation notes
 
 **Spec:** `docs/superpowers/specs/2026-09-12-drawer-boxes-design.md`
-**Plan:** not yet written
+**Plan:** `docs/superpowers/plans/2026-09-12-drawer-boxes.md`
 
 Living record of decisions that do not belong in the spec — why an approach was rejected, what was
 discovered during implementation, and anything that would surprise a future reader.
@@ -179,3 +179,29 @@ included. Every TANDEM figure in the spec comes from vendor and distributor summ
 plausible and mutually consistent; they are not verified against the printed instructions. The
 side-mount runner height is not even that — it is a convention I chose, and it is model-specific.
 Confirm before cutting.
+
+## 2026-09-12 — writing the plan found two more errors, both by measuring
+
+**The metrics function took the wrong rectangle.** Its signature said `frontRect`, and the prose
+two paragraphs above it said "the opening's clear width". Those are not the same thing:
+`frontCells` expands an *overlay* front to the material midline, so on a Base 600 the front cell is
+about 597 wide against a 564 opening. A box sized off the cell is 33 mm too wide and does not go
+into the cabinet. Corrected in the spec and the plan to take the section's own rect from
+`tree.rects`.
+
+The tell was there the whole time — the spec's own prose disagreed with the spec's own signature —
+and it survived the L99 review because that review checked claims against the *code* and never
+checked the spec against itself.
+
+**The preset figures in the plan's integration test were wrong.** The plan asserted a 550 mm box
+depth for Base 600, reasoning from its 560 mm depth. Measured: Base 600 has a 12 mm captured back,
+so `clearDepth` is **548**, which picks the **500** nominal. Two numbers wrong in one assertion,
+both from arithmetic done in my head against a parameter I had not opened.
+
+The unit tests in Task 3 pass `clearDepth` explicitly and are unaffected, which is exactly why a
+unit test alone would not have caught this: the integration fixture is the one that has to agree
+with a real preset.
+
+Both found while writing the plan rather than while executing it. That is the argument for a plan
+carrying real figures instead of "use the preset's depth": a figure that must be written down is a
+figure someone has to check.
