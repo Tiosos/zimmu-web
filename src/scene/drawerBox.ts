@@ -100,7 +100,8 @@ export function drawerBoxMetrics(
   const openingHeight = opening.z1 - opening.z0
   const height = Math.min(params.boxHeight ?? openingHeight - BOX_HEIGHT_UNDER_FRONT, openingHeight)
 
-  // Side-mount takes a fixed gap off each side, so its span only ever shrinks and cannot fail.
+  // Only undermount can outgrow its opening: side-mount takes a fixed gap off each side, so its
+  // span is always narrower than the one it came from. The null arm is undermount's alone.
   const span: [number, number] | null =
     params.family === 'side-mount'
       ? [opening.x0 + SIDE_MOUNT_CLEARANCE, opening.x1 - SIDE_MOUNT_CLEARANCE]
