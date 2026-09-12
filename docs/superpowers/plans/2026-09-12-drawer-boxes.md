@@ -2151,6 +2151,47 @@ Predict: mutation A fails `emits no boards at all when the cabinet is too shallo
 `sizes the bottom from the groove`. Mutation A may not compile under `noUnusedLocals`; if so, that
 is an acceptable outcome — record it and restore.
 
+- [ ] **Step 5b: The joinery checklist cannot call a drawer-internal touch a contact**
+
+Found during the Task 5 review, before any board existed to hit it. `declaredContact` in
+`src/scene/jointChecklist.ts:111` reads:
+
+```ts
+if (parent === undefined || parent.kind !== 'carcase') return false
+```
+
+so a pair whose shared parent is a **drawer** can never be classified `contact`, whatever it
+touches. Measured with two abutting `box-` boards under a drawer component and no joint between
+them: the pair lands in `unresolved` with state `no-offer`, and `contact` is empty. Under a carcase
+the same shape produces contact rows — the suite's own fixtures produce 5, 9 and 14.
+
+The screwed pairs are unaffected: the recorded-joint branch runs **before** `declaredContact`, so
+sides-to-front/back read `jointed`. The exposed pairs are the ones with no joint — the **bottom
+against the four walls it sits in the groove of** — which is four `no-offer` rows per drawer on the
+"no joint available" list, forever, in a cabinet that is correctly built.
+
+Decide and implement here, because this is the step that first creates the boards:
+
+1. State a `drawerContactPairs(params, thicknessOf)` beside `carcaseContactPairs` naming the pairs
+   a correct box leaves unjointed, and widen the `parent.kind !== 'carcase'` guard to dispatch on
+   the kind rather than reject it. Preferred: it is the same shape as the carcase rule, and it
+   keeps "a contact the generator does not name is an unjoined pair on the checklist forever" true
+   for both component kinds.
+2. Or emit a joint for the bottom-in-groove pairs, if Task 9's undermount bottom makes that the
+   honest description. Then no contact table is needed and the guard can stay as it is.
+
+Whichever is chosen, the test is a count off the emitted boards: `contact` and `unresolved` lengths
+for one side-mount drawer, asserted as numbers. Mutation-test by reverting the guard and watching
+that count move.
+
+**Also decide, in the same step:** `sharedComponent` groups a row under `ancestorsOf(a, byId)[0]`,
+the *immediate* parent, so drawer rows form their own checklist group labelled with the drawer's
+label rather than the cabinet's. That is **not** automatically the `nearestCarcase` defect Task 1
+fixed for the two BOM consumers — a drawer's joinery listed under the drawer may well be what a
+user wants, unlike a cutting-list row where cross-cabinet merging is the whole point. State the
+choice; do not let it default silently.
+
+
 - [ ] **Step 6: Commit**
 
 ```bash

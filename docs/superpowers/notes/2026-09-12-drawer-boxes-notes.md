@@ -507,3 +507,55 @@ value into `const box = {...}` cost the object literal its freshness, and with i
 excess-property check: a stray `z2` on the extents compiled clean where the inline literal had
 rejected it. `const box: BoxExtents` puts it back. Verified both ways before and after the
 annotation.
+
+## 2026-09-12 — Task 5 review
+
+**The scene tree's drawer icon shipped with no test, and the mutation proved it.** Reverting the
+branch to `component.kind === 'carcase' ? '🗄' : '🗂'` left the whole suite green — 94 files, 1832
+passed, 10 skipped, zero failures. The icon was the commit's only runtime change, so the commit's
+entire behavioural surface was unheld. Two tests were added: one asserting the three component
+kinds render three *distinct* glyphs — not one literal, because an assertion on `'🗃'` alone
+survives a carcase silently gaining the same icon — and one pinning the design's single showing
+requirement, "the scene tree must render a drawer under its cabinet, with its boards under it."
+
+The second is the more valuable of the two. `renderCarcaseChildren` renders child components from
+its **own** line, not the flat `renderChildren` one, and the test file already carries that argument
+verbatim for the nested-group case: "without a test the line is one a future maintainer deletes
+while the suite stays green." Deleting that line fails both the group test and the new drawer test;
+reverting the icon fails only the icon test. Two mutations, two distinct kills, no overlap.
+
+**No test was added for `driven` and `sectionId`, deliberately.** Nothing reads either field yet, so
+any test would have to assert that an object literal the test itself wrote still carries the
+properties it was written with — a test that cannot fail. The honest evidence for a pure type
+change is the compiler: an exhaustive `switch` over `'group' | 'carcase'` with a `never` default now
+fails with `Type 'DrawerComponent' is not assignable to type 'never'`, and a `DrawerComponent` is
+accepted where a `Component` is required. Both were run against the real `types.ts`.
+
+**A drawer already round-trips through save/parse, at v17, with no parser change.** Measured, not
+assumed: `JSON.stringify` → `parseFile` returns a drawer `toEqual` to the one that went in, with
+`sectionId`, `params` and `driven` intact. `useFile`'s component map is a `...c` spread with three
+defaults applied over it (`parentId`, `visible`, `rotationOrder`), both carcase branches are gated
+on `kind === 'carcase'`, and `validateCurrentFile` checks only `id`/`label`/`position`/`rotation`/
+`parentId` — it holds no component-kind whitelist to trip over. So Task 6's version bump is about
+*declaring* the format change, not about making a drawer survive one; it already does.
+
+**`declaredContact` cannot fire for a drawer, and the fix belongs to Task 8.** `jointChecklist.ts`
+returns false unless the two boards' shared parent is a carcase, so once Task 8 emits boxes every
+drawer-internal touch with no joint reads as an actionable "no joint available" row. Measured with
+two abutting boards under a drawer: state `no-offer`, `contact` empty. The screwed pairs are safe —
+the recorded-joint branch runs first — so the exposed set is the bottom against the four walls that
+groove it: four false rows per drawer, permanently, on a correctly built cabinet.
+
+Deferred rather than fixed, for two reasons that are about evidence rather than effort. Nothing
+creates a drawer, so the defect is unreachable and any fix would be verified only against a
+hand-built fixture. More importantly the *right* fix is not yet knowable: it is either a
+`drawerContactPairs` table or a joint emitted for the bottom-in-groove pairs, and which one is
+honest depends on what Tasks 8 and 9 decide the five boards actually are. Guessing now would put a
+role table in the codebase before the roles exist. Written into Task 8 as Step 5b so it cannot be
+lost, with both alternatives stated and a count-based test specified.
+
+The same review found that `sharedComponent` groups a checklist row under the *immediate* parent,
+so drawer rows would form their own group under the drawer's label. Recorded as a decision for
+Task 8 rather than as a defect: unlike the cutting list, where cross-cabinet merging is the whole
+point of the nearest-carcase rule, a drawer's joinery listed under the drawer is plausibly what a
+user wants. The point is that it be chosen rather than defaulted into.
