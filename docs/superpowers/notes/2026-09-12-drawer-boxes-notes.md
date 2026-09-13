@@ -664,3 +664,41 @@ regenerate a detached drawer's boards — the exact thing `driven: false` exists
 per-board `detachedBoards` rule would not save them, because a detached drawer's *boards* are
 ordinarily still driven. Task 7's own snippet was marked superseded in the one line that keys
 `existing`, rather than rewritten.
+
+### Review of Task 7b — measured against the part precedent
+
+**The precedent matches on the three cases that matter, and diverges on two nobody can reach.**
+Probed `regenerateComponents` and `regenerateDrawers` side by side on equivalent scenes:
+
+| case | part | drawer |
+| --- | --- | --- |
+| detached, key still wanted | identity, key kept | identity, key kept |
+| detached, key gone | kept, key released | kept, key released |
+| driven, key gone | dropped | dropped |
+| detached under a **non-carcase** parent | untouched, role kept | kept, `sectionId` released |
+| driven under a **non-carcase** parent | untouched | **dropped** |
+
+The last two rows are the scoping difference: `regenerateOne` only ever walks `mine`, so a part
+parented elsewhere is in `others` for every carcase and is never examined, while `regenerateDrawers`
+sweeps `scene.components` whole. Both rows are unreachable in the app today — `onReparentComponent`
+has no UI consumer and does not run the pipeline, and deleting a cabinet deletes its descendants
+outright rather than orphaning them — and the driven half predates Task 7b (the old `others` filter
+excluded driven drawers too). Left alone deliberately: scoping the release to drawers whose parent
+is a live carcase is machinery for a case that cannot occur, and the rule as written is the truthful
+one — a drawer no opening claims names no opening.
+
+**On duplicates the drawer pass is better than the precedent it copies.** Two detached parts sharing
+a role: `byRole` keeps the last, the `kept` loop skips both because the role is `wanted`, and the
+shadowed one is silently deleted. Two detached drawers sharing an opening: the shadowed one is
+released to `sectionId: null` and kept. That is what the `claimed` Set of *objects* buys over the
+Set of *keys* `regenerateOne` uses, and it is why the extra container earns its place rather than
+being replaced by a key-membership test. (The part-side loss is pre-existing and out of scope here.)
+
+**The `claim()` helper had one unpinned call and it is now pinned.** Replacing `claim(c)` with a bare
+`kept.push(c)` in the unresolvable-parameters branch left all 15 tests green while emitting *two
+components sharing one id* for a detached drawer in a mid-keystroke cabinet — the drawer listed once
+in `kept` and again, section id released, by the release loop that no longer saw it as spoken for.
+That is exactly the duplicate Task 7b exists to prevent, arriving through the other door. The
+existing "keeps a cabinet's drawers while its parameters do not resolve" uses a *driven* drawer, and
+a driven drawer is skipped by the release loop whether or not it was claimed, so it cannot see the
+mutation. The added detached fixture fails on the length and nowhere else.

@@ -249,4 +249,22 @@ describe('regenerateDrawers — component reconciliation', () => {
     const out = regenerateDrawers(withParams(once, { ...oneDrawer(), width: 6 }))
     expect(drawersOf(out)[0]).toBe(drawersOf(once)[0])
   })
+
+  // The detached half of the same rule, and the half the driven fixture above cannot see. A drawer
+  // carried through an unresolvable cabinet has to be *claimed*, not merely listed: listed only, the
+  // release pass below no longer sees it as spoken for and emits a second, section-id-released copy
+  // of it — two components sharing one id, the very duplicate this rule exists to prevent. The
+  // length is the claim; the identity is what separates “kept” from “rebuilt”.
+  it('claims a detached drawer while its cabinet’s parameters do not resolve', () => {
+    const once = regenerateDrawers(sceneOf(oneDrawer()))
+    const detached = {
+      ...once,
+      components: once.components.map((c) =>
+        c.kind === 'drawer' ? { ...c, driven: false } : c,
+      ),
+    }
+    const out = regenerateDrawers(withParams(detached, { ...oneDrawer(), width: 6 }))
+    expect(drawersOf(out)).toHaveLength(1)
+    expect(drawersOf(out)[0]).toBe(drawersOf(detached)[0])
+  })
 })
