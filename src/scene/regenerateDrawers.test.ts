@@ -5,6 +5,9 @@ import { splitSection } from './editSection'
 import { setFrontOn } from './sectionInterior'
 import type { Section } from './sectionTree'
 import { BOTTOM_GROOVE_DEPTH, BOTTOM_GROOVE_UP, SIDE_MOUNT_CLEARANCE } from './drawerBox'
+import { componentsById } from './componentTree'
+import { grainAxisOf } from './grain'
+import { applyMatrixToPoint, resolveWorldMatrix } from '../geom/transform'
 import type { BoardPart, CarcaseParams, ComponentId, DrawerComponent, Scene } from './types'
 
 const sceneOf = (params: CarcaseParams, components: DrawerComponent[] = []): Scene => ({
@@ -303,7 +306,13 @@ describe('regenerateDrawers — the boards', () => {
     // A 564 mm clear opening takes the side clearance off each side; the front then sits between
     // the two sides. Both expectations are built from the fixture's own numbers, not from the
     // function under test.
-    expect(front.length).toBeCloseTo(564 - 2 * SIDE_MOUNT_CLEARANCE - 2 * t, 6)
+    //
+    // The span between the sides is the front's WIDTH, not its length: `orientedPanel` runs a
+    // board's length along the first in-plane carcase axis of its thickness axis, which is carcase
+    // y (the depth) for a side and carcase z (the height) for a front. So a front is a tall board
+    // cut to the box's height, exactly as it is on the bench.
+    expect(front.width).toBeCloseTo(564 - 2 * SIDE_MOUNT_CLEARANCE - 2 * t, 6)
+    expect(front.length).toBeCloseTo(left.width, 6)
     // Base 600 is 560 deep with a 12 mm captured back, so 548 clear, which picks the 500 nominal.
     expect(left.length).toBe(500)
   })
@@ -344,11 +353,12 @@ describe('regenerateDrawers — the boards', () => {
     const front = boards.find((b) => b.role === 'box-front')!
     // Inside width plus twice the groove depth, derived here from the other boards rather than by
     // calling the function under test.
-    expect(bottom.width).toBeCloseTo(front.length + 2 * BOTTOM_GROOVE_DEPTH, 6)
-    expect(bottom.length).toBeCloseTo(
-      left.length - 2 * front.thickness + 2 * BOTTOM_GROOVE_DEPTH,
-      6,
-    )
+    //
+    // The bottom is a thickness-on-z panel, so its LENGTH runs carcase x — the box's width — and
+    // its width runs carcase y, the depth. The mirror of the front's swap above, and the reason
+    // these two figures read the other way round from the boards they are derived from.
+    expect(bottom.length).toBeCloseTo(front.width + 2 * BOTTOM_GROOVE_DEPTH, 6)
+    expect(bottom.width).toBeCloseTo(left.length - 2 * front.thickness + 2 * BOTTOM_GROOVE_DEPTH, 6)
   })
 
   it('emits no boards at all when the cabinet is too shallow for a runner', () => {
@@ -440,5 +450,170 @@ describe('regenerateDrawers — the boards', () => {
     const twice = regenerateDrawers(once)
     expect(twice.parts).toEqual(once.parts)
     expect(twice.parts.map((p) => p.id)).toEqual(once.parts.map((p) => p.id))
+  })
+})
+
+interface Aabb {
+  min: { x: number; y: number; z: number }
+  max: { x: number; y: number; z: number }
+}
+
+// Carcase-local extents read off the generated board itself — position and rotation together — the
+// same way `regenerateComponents.test.ts` reads a carcase panel's. Never off whichever board
+// dimension a role's orientation happens to put on x: that mapping is the thing under test.
+const extentsOf = (m: Float64Array, lo: number[], hi: number[]): Aabb => {
+  const min = { x: Infinity, y: Infinity, z: Infinity }
+  const max = { x: -Infinity, y: -Infinity, z: -Infinity }
+  for (const cx of [lo[0], hi[0]])
+    for (const cy of [lo[1], hi[1]])
+      for (const cz of [lo[2], hi[2]]) {
+        const [wx, wy, wz] = applyMatrixToPoint(m, cx, cy, cz)
+        min.x = Math.min(min.x, wx)
+        min.y = Math.min(min.y, wy)
+        min.z = Math.min(min.z, wz)
+        max.x = Math.max(max.x, wx)
+        max.y = Math.max(max.y, wy)
+        max.z = Math.max(max.z, wz)
+      }
+  return { min, max }
+}
+
+const roleOf = (s: Scene, role: string): BoardPart =>
+  s.parts.find((p): p is BoardPart => p.kind === 'board' && p.role === role)!
+
+const boxOf = (s: Scene, role: string): Aabb => {
+  const p = roleOf(s, role)
+  const m = resolveWorldMatrix(p, componentsById(s.components))
+  return extentsOf(m, [0, 0, 0], [p.length, p.width, p.thickness])
+}
+
+const grooveBoxOf = (s: Scene, role: string): Aabb => {
+  const p = roleOf(s, role)
+  const c = p.cuts.find((x) => x.id.startsWith('groove_'))!
+  if (c.kind !== 'box') throw new Error('the bottom groove is a box cut')
+  const m = resolveWorldMatrix(p, componentsById(s.components))
+  return extentsOf(
+    m,
+    [c.position.x, c.position.y, c.position.z],
+    [c.position.x + c.size.x, c.position.y + c.size.y, c.position.z + c.size.z],
+  )
+}
+
+describe('regenerateDrawers — where the boards go', () => {
+  const built = (): Scene => regenerateDrawers(sceneOf(oneDrawer()))
+
+  // The test that would have caught five coincident boards in a cabinet corner. Every figure here
+  // is a RELATION between two boards, so a pile satisfies none of them — and the two absolute ones
+  // pin the box to its own opening rather than to the origin.
+  it('places the five boards as one box', () => {
+    const s = built()
+    const left = boxOf(s, 'box-left')
+    const right = boxOf(s, 'box-right')
+    const front = boxOf(s, 'box-front')
+    const back = boxOf(s, 'box-back')
+    const bottom = boxOf(s, 'box-bottom')
+    const t = roleOf(s, 'box-left').thickness
+
+    // Base 600: an 18 mm side, then the side-mount clearance, then the box.
+    expect(left.min.x).toBeCloseTo(18 + SIDE_MOUNT_CLEARANCE, 6)
+    // 100 mm of toe kick and an 18 mm bottom below the opening the box sits in.
+    expect(left.min.z).toBeCloseTo(BASE.toeKickHeight + 18, 6)
+
+    // Two sides, one inside width apart, each one board thick.
+    expect(left.max.x - left.min.x).toBeCloseTo(t, 6)
+    expect(right.min.x - left.max.x).toBeCloseTo(front.max.x - front.min.x, 6)
+    // Front and back span exactly that gap, and stand one inside depth apart.
+    expect(front.min.x).toBeCloseTo(left.max.x, 6)
+    expect(front.max.x).toBeCloseTo(right.min.x, 6)
+    expect(back.min.y - front.max.y).toBeCloseTo(left.max.y - left.min.y - 2 * t, 6)
+    // The sides run the box's full depth and the front and back close its ends.
+    expect(front.min.y).toBeCloseTo(left.min.y, 6)
+    expect(back.max.y).toBeCloseTo(left.max.y, 6)
+    // All four walls stand on one floor and rise to one height.
+    for (const w of [right, front, back]) {
+      expect(w.min.z).toBeCloseTo(left.min.z, 6)
+      expect(w.max.z).toBeCloseTo(left.max.z, 6)
+    }
+    // The bottom lands in the grooves: one groove depth into all four walls, its underside the
+    // groove height above the box floor.
+    expect(bottom.min.z).toBeCloseTo(left.min.z + BOTTOM_GROOVE_UP, 6)
+    expect(bottom.min.x).toBeCloseTo(left.max.x - BOTTOM_GROOVE_DEPTH, 6)
+    expect(bottom.max.x).toBeCloseTo(right.min.x + BOTTOM_GROOVE_DEPTH, 6)
+    expect(bottom.min.y).toBeCloseTo(front.max.y - BOTTOM_GROOVE_DEPTH, 6)
+    expect(bottom.max.y).toBeCloseTo(back.min.y + BOTTOM_GROOVE_DEPTH, 6)
+  })
+
+  // Every groove has to be cut in the face that looks at the bottom it captures. The two pairs of
+  // walls sit on opposite ends of their own thickness axis, so the inner face is board +Z on one of
+  // each pair and board −Z on the other — a single face for all four puts two of the grooves on the
+  // outside of the box, where they are a decorative rebate and hold nothing.
+  it('cuts every groove in the wall that faces the box, not the face that shows', () => {
+    const s = built()
+    const walls: [string, 'x' | 'y'][] = [
+      ['box-left', 'x'],
+      ['box-right', 'x'],
+      ['box-front', 'y'],
+      ['box-back', 'y'],
+    ]
+    const centre = { x: 0, y: 0 }
+    const l = boxOf(s, 'box-left')
+    const r = boxOf(s, 'box-right')
+    const f = boxOf(s, 'box-front')
+    const b = boxOf(s, 'box-back')
+    centre.x = (l.min.x + r.max.x) / 2
+    centre.y = (f.min.y + b.max.y) / 2
+
+    for (const [role, axis] of walls) {
+      const wall = boxOf(s, role)
+      const groove = grooveBoxOf(s, role)
+      const inner = wall.max[axis] < centre[axis] ? wall.max[axis] : wall.min[axis]
+      // Flush with the inner face and only as deep as the groove figure. Cut in the outer face
+      // instead, the same slot is BOTTOM_GROOVE_DEPTH wide and this distance is the rest of the
+      // wall's thickness.
+      const toInner = Math.min(
+        Math.abs(groove.min[axis] - inner),
+        Math.abs(groove.max[axis] - inner),
+      )
+      expect(toInner, role).toBeCloseTo(0, 6)
+      expect(groove.max[axis] - groove.min[axis], role).toBeCloseTo(BOTTOM_GROOVE_DEPTH, 6)
+    }
+  })
+
+  // The same slot, at the same height, on all four walls — which is a different pair of board axes
+  // on the front and back than on the sides. The bottom lands in all four or in none.
+  it('puts all four grooves at one height, across the whole span of their wall', () => {
+    const s = built()
+    const bottom = boxOf(s, 'box-bottom')
+    for (const role of ['box-left', 'box-right', 'box-front', 'box-back']) {
+      const groove = grooveBoxOf(s, role)
+      expect(groove.min.z, role).toBeCloseTo(bottom.min.z, 6)
+      expect(groove.max.z, role).toBeCloseTo(bottom.max.z, 6)
+    }
+    // A side's groove runs the box's depth; a front's runs its width.
+    const side = grooveBoxOf(s, 'box-left')
+    const front = grooveBoxOf(s, 'box-front')
+    expect(side.max.y - side.min.y).toBeCloseTo(roleOf(s, 'box-left').length, 6)
+    expect(front.max.x - front.min.x).toBeCloseTo(roleOf(s, 'box-front').width, 6)
+  })
+
+  // Derived through `grainAxisOf` + `grainFieldFor`, never written on the boards. The convention is
+  // one statement — grain along each board's horizontal run — and it lands on a different board
+  // FIELD for the front and back than for the sides, which is exactly what a hardcoded `'length'`
+  // on all five gets wrong.
+  it('derives each board’s grain field rather than stating one for all five', () => {
+    const s = built()
+    const grainOf = (role: string): string => roleOf(s, role).grain
+    expect(grainOf('box-left')).toBe('length')
+    expect(grainOf('box-right')).toBe('length')
+    expect(grainOf('box-front')).toBe('width')
+    expect(grainOf('box-back')).toBe('width')
+    expect(grainOf('box-bottom')).toBe('length')
+  })
+
+  // Grain is stated in carcase axes, so the claim worth pinning is the DIRECTION, not the field:
+  // every board runs its grain horizontally, and the sides run it the other way from the front.
+  it('runs every board’s grain along its own horizontal run', () => {
+    for (const role of ['box-left', 'box-right']) expect(grainAxisOf(role)).toBe('y')
+    for (const role of ['box-front', 'box-back', 'box-bottom']) expect(grainAxisOf(role)).toBe('x')
   })
 })

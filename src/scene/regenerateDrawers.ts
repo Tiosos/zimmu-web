@@ -6,13 +6,16 @@ import type {
   ComponentId,
   CutDef,
   DrawerComponent,
+  Grain,
   MaterialDef,
   Part,
   Scene,
+  ThicknessAxis,
 } from './types'
 import type { Rect, SectionId } from './sectionTree'
 import { resolveCarcase } from './carcaseOpenings'
-import { clearDepth } from './carcaseRoles'
+import { clearDepth, orientedPanel, type LocalBox, type PanelSpec } from './carcaseRoles'
+import { grainAxisOf, grainFieldFor } from './grain'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
 import {
   defaultDrawerParams,
@@ -82,25 +85,70 @@ type BoxRole = 'box-left' | 'box-right' | 'box-front' | 'box-back' | 'box-bottom
 interface BoxBoard {
   role: BoxRole
   label: string
-  length: number
-  width: number
-  thickness: number
+  panel: PanelSpec
+  grain: Grain
   cuts: BoxCut[]
 }
 
-// The five boards a box is, derived from the one statement of its geometry. The bottom's size
-// follows the groove rather than being a sixth number that can drift out of step with it.
-function boxBoards(m: DrawerBoxMetrics, t: number): BoxBoard[] {
-  const depth = m.box.y1 - m.box.y0
-  const height = m.box.z1 - m.box.z0
-  const insideWidth = m.box.x1 - m.box.x0 - 2 * t
-  const insideDepth = depth - 2 * t
-  const grooveAdd = m.groove === null ? 0 : 2 * m.groove.depth
+// One wall of the box, as the carcase box it occupies. `minSide` says which end of its own thickness
+// axis it sits on, and that is what decides where its groove goes: `orientedPanel` puts a board's
+// local origin on the box's min corner, so a min-side wall meets the box's interior at board z = t
+// while the wall facing it meets it at board z = 0.
+interface BoxWall {
+  role: BoxRole
+  label: string
+  box: LocalBox
+  thicknessAxis: ThicknessAxis
+  minSide: boolean
+}
 
-  // Board x runs a panel's length and board y its width, so a groove `up` from the bottom edge is a
-  // slot at y = up: as wide as the board it captures, and only as deep into the face as the groove
-  // figure. Not a through-cut — that would saw the side in two along its length.
-  const groove = (length: number): BoxCut[] =>
+// The five boards a box is, derived from the one statement of its geometry and placed through the
+// same `orientedPanel` mapping every carcase panel goes through — the codebase's one carcase-box-to-
+// board map, which `GRAIN_IN_PLANE` is the stated contract of. The bottom's size follows the groove
+// rather than being a sixth number that can drift out of step with it.
+function boxBoards(m: DrawerBoxMetrics, t: number): BoxBoard[] {
+  const b = m.box
+  const gd = m.groove?.depth ?? 0
+  const up = m.groove?.up ?? 0
+  // The clear rectangle between the four walls: what the front, back and bottom span.
+  const inside = { x0: b.x0 + t, x1: b.x1 - t, y0: b.y0 + t, y1: b.y1 - t }
+
+  const walls: BoxWall[] = [
+    {
+      role: 'box-left',
+      label: 'Box side L',
+      box: { ...b, x1: b.x0 + t },
+      thicknessAxis: 'x',
+      minSide: true,
+    },
+    {
+      role: 'box-right',
+      label: 'Box side R',
+      box: { ...b, x0: b.x1 - t },
+      thicknessAxis: 'x',
+      minSide: false,
+    },
+    {
+      role: 'box-front',
+      label: 'Box front',
+      box: { ...b, x0: inside.x0, x1: inside.x1, y1: b.y0 + t },
+      thicknessAxis: 'y',
+      minSide: true,
+    },
+    {
+      role: 'box-back',
+      label: 'Box back',
+      box: { ...b, x0: inside.x0, x1: inside.x1, y0: b.y1 - t },
+      thicknessAxis: 'y',
+      minSide: false,
+    },
+  ]
+
+  // The slot runs the full span of the wall at a fixed height above the box floor, and that height
+  // is board y on a side but board x on the front or back — `orientedPanel` maps board x to carcase
+  // y on a thickness-on-x panel and to carcase z on a thickness-on-y one. Only as deep into the face
+  // as the groove figure: a through-cut would saw the wall in two along its length.
+  const grooveOf = (w: BoxWall, panel: PanelSpec): BoxCut[] =>
     m.groove === null
       ? []
       : [
@@ -108,53 +156,54 @@ function boxBoards(m: DrawerBoxMetrics, t: number): BoxBoard[] {
             kind: 'box',
             id: 'groove_bottom',
             label: 'Bottom groove',
-            face: '-Z',
-            position: { x: 0, y: m.groove.up, z: 0 },
-            size: { x: length, y: t, z: m.groove.depth },
+            face: w.minSide ? '+Z' : '-Z',
+            position: {
+              x: w.thicknessAxis === 'y' ? up : 0,
+              y: w.thicknessAxis === 'y' ? 0 : up,
+              z: w.minSide ? t - gd : 0,
+            },
+            size: {
+              x: w.thicknessAxis === 'y' ? t : panel.length,
+              y: w.thicknessAxis === 'y' ? panel.width : t,
+              z: gd,
+            },
           },
         ]
 
+  // The bottom reaches `gd` into all four walls, so both of its dimensions grow by twice the groove
+  // depth and it sits `up` above the box floor. Undermount grooves nothing: both figures are zero
+  // and the bottom lands on the floor of the box, between the walls.
+  const bottom: LocalBox = {
+    x0: inside.x0 - gd,
+    x1: inside.x1 + gd,
+    y0: inside.y0 - gd,
+    y1: inside.y1 + gd,
+    z0: b.z0 + up,
+    z1: b.z0 + up + t,
+  }
+
+  const boardOf = (
+    role: BoxRole,
+    label: string,
+    box: LocalBox,
+    thicknessAxis: ThicknessAxis,
+    cuts: (panel: PanelSpec) => BoxCut[],
+  ): BoxBoard => {
+    const panel = orientedPanel(box, thicknessAxis)
+    return {
+      role,
+      label,
+      panel,
+      // Derived through the same pair `carcaseRoles` derives a panel's grain through. A hardcoded
+      // field here would be a second copy of the grain table, and wrong for the front and back.
+      grain: grainFieldFor(thicknessAxis, grainAxisOf(role)),
+      cuts: cuts(panel),
+    }
+  }
+
   return [
-    {
-      role: 'box-left',
-      label: 'Box side L',
-      length: depth,
-      width: height,
-      thickness: t,
-      cuts: groove(depth),
-    },
-    {
-      role: 'box-right',
-      label: 'Box side R',
-      length: depth,
-      width: height,
-      thickness: t,
-      cuts: groove(depth),
-    },
-    {
-      role: 'box-front',
-      label: 'Box front',
-      length: insideWidth,
-      width: height,
-      thickness: t,
-      cuts: groove(insideWidth),
-    },
-    {
-      role: 'box-back',
-      label: 'Box back',
-      length: insideWidth,
-      width: height,
-      thickness: t,
-      cuts: groove(insideWidth),
-    },
-    {
-      role: 'box-bottom',
-      label: 'Box bottom',
-      length: insideDepth + grooveAdd,
-      width: insideWidth + grooveAdd,
-      thickness: t,
-      cuts: [],
-    },
+    ...walls.map((w) => boardOf(w.role, w.label, w.box, w.thicknessAxis, (p) => grooveOf(w, p))),
+    boardOf('box-bottom', 'Box bottom', bottom, 'z', () => []),
   ]
 }
 
@@ -193,15 +242,15 @@ function reconcileBoards(
       kind: 'board',
       id: existing?.id ?? `board_${crypto.randomUUID()}`,
       label: existing?.label ?? b.label,
-      length: b.length,
-      width: b.width,
-      thickness: b.thickness,
-      grain: 'length',
+      length: b.panel.length,
+      width: b.panel.width,
+      thickness: b.panel.thickness,
+      grain: b.grain,
       material,
       color: existing?.color ?? PART_COLORS[i % PART_COLORS.length],
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      rotationOrder: 'XYZ',
+      position: b.panel.position,
+      rotation: b.panel.rotation,
+      rotationOrder: b.panel.rotationOrder,
       // Only the drawer's own cuts are the drawer's to re-derive. A joint-owned cut belongs to
       // reconcileJoints and an untagged one to the user, exactly as on a carcase panel.
       cuts: [

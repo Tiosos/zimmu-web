@@ -808,3 +808,77 @@ axis is `y` — the box front and back, like a door — takes its **length from 
 the width. That contradicts Task 8's own asserted `front.length === insideWidth`. So placing the
 boards is a decision about which board axis runs a box front's width, with a grain answer attached,
 and it belongs in its own task with its own tests. Flagged rather than done.
+
+## 2026-09-13 — Task 8b: the boards get a position, and their grain gets derived
+
+The hole flagged at the end of the Task 8 entry above, closed. All five boards sat at `{0,0,0}`, so
+3D, STL and STEP drew five coincident boards in a cabinet corner and Task 12's drawing baseline
+would have measured a pile rather than a box.
+
+**Decision 1 — place through `orientedPanel`.** It is the codebase's one carcase-box-to-board
+mapping and `GRAIN_IN_PLANE` is documented as its contract, so a second mapping written for drawer
+boards could only disagree with it. `drawerBoxMetrics` already returns the box in carcase space;
+each board is now a carcase box fed to `orientedPanel` with its own thickness axis, which hands
+back the position, the rotation and all three dimensions in one go.
+
+**Decision 2 — grain runs along each board's horizontal run.** Sides front-to-back, front and back
+left-to-right, bottom across. Stated in carcase axes in `grainAxisOf` like every other role
+(`box-left`/`box-right` → `y`, the other three → `x`), and turned into a board field by
+`grainFieldFor`. Task 8 wrote `grain: 'length'` on all five, which CLAUDE.md forbids as a second
+hand-maintained copy of the grain table — and it is *wrong for the front and back*, which come out
+`'width'`. Measured, not reasoned: `GRAIN_IN_PLANE.y` is `{ length: 'z', width: 'x' }`, so grain
+along carcase x on a thickness-on-y panel is the board's width.
+
+**Two Task 8 assertions were contradicted and were changed to state the new figure:**
+
+- `front.length === 564 − 2·clearance − 2·t` became `front.width === …`, with
+  `front.length === left.width` added: a front is a thickness-on-`y` panel, so its length runs
+  carcase z — the box's height, 559 mm on a Base 600 — exactly as a door's does.
+- The bottom's two dimensions swapped: it is a thickness-on-`z` panel, so its length runs carcase x
+  (the box's width) and its width runs carcase y (the depth). `left.length === 500` was already
+  consistent with the shared mapping and stands.
+
+**The groove had to follow, and in two ways.** It is positioned in *board* coordinates, and both
+board axes change between the two pairs of walls:
+
+- Its height above the box floor is board **y** on a side but board **x** on a front or back —
+  `orientedPanel` maps board x to carcase y on a thickness-on-`x` panel and to carcase z on a
+  thickness-on-`y` one.
+- More seriously, the **face** was wrong for half the walls. Task 8 cut every groove at board
+  `z = 0`. `orientedPanel` puts a board's local origin on its box's **min** corner, so on the left
+  side and the front — the walls on the min end of their own thickness axis — board `z = 0` is the
+  *outside* of the box. Two of the four grooves were a decorative rebate on the outside face holding
+  nothing. With the boards at the origin this was invisible; placed, it is a box whose bottom lands
+  in two grooves. The rule is now stated once as `minSide`, and the cut's `face` follows it.
+
+`BoxCut.face` is metadata as far as OCCT is concerned — `buildShape` reads only `position` and
+`size` — but it is what the drawings and the snap read, so it is set to match.
+
+**`shapeKey()` needed no change**, confirmed by reading it rather than assuming: it encodes
+dimensions and cut positions/sizes only, and placement is applied by the Viewport. The groove's
+*position* did change for the left side and the front, which correctly invalidates their cached
+geometry.
+
+**Mutation table** — all ten killed, none survived:
+
+| mutation | killed by |
+| --- | --- |
+| `grain: 'length'` on all five (the Task 8 defect) | derives each board's grain field |
+| sides' grain axis `y` → `z` | grain field + grain axis |
+| `position` back to `{0,0,0}` (the pile) | places the five boards as one box, both groove tests |
+| `rotation` back to `{0,0,0}` | places the five boards as one box, both groove tests |
+| groove face always board `z = 0` | cuts every groove in the wall that faces the box |
+| groove height always on board y | puts all four grooves at one height |
+| bottom on the box floor rather than `up` above it | placement, groove height |
+| bottom not reaching into the grooves | placement, sizes the bottom from the groove |
+| front wall marked `minSide: false` | cuts every groove in the wall that faces the box |
+| front spanning the full box width | placement, sides/front sizing, bottom sizing |
+
+The two that matter most are the last two: a `minSide` flag that is only ever read for the groove
+would be untested by any dimension assertion, and the front's span is what the swapped `length` /
+`width` assertions could have been weakened into agreeing with.
+
+**Still open after this task.** The joinery-checklist count measured in the Task 8 entry above was
+taken against boards at the origin. The boards now touch, so `suggestJoints` has real contacts to
+find and the twenty spurious open rows per drawer should be re-measured — the baseline that entry
+records is no longer the right one to compare against.

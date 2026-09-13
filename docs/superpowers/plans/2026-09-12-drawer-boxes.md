@@ -2231,6 +2231,102 @@ Claude-Session: https://claude.ai/code/session_01P9f2w97VWLpfZvQzZH6TPc"
 
 ---
 
+## Task 8b: Place the boards, and derive their grain
+
+Added after Task 8 shipped: no task in the plan ever gave a drawer board a position, so all five sat
+at `{0,0,0}` — five coincident boards in a cabinet corner, and a pile for Task 12's drawing baseline
+to measure. Placement is not a line bolted onto Task 8, because the mapping that places a board also
+decides which of its dimensions is the length, and that contradicts two of Task 8's assertions.
+
+**Files:**
+- Modify: `src/scene/regenerateDrawers.ts`
+- Modify: `src/scene/grain.ts`
+- Modify: `src/scene/regenerateDrawers.test.ts`
+
+**The two decisions:**
+
+1. **Place the boards through `orientedPanel`.** It is the codebase's one carcase-box-to-board
+   mapping, and `GRAIN_IN_PLANE` in `grain.ts` is the stated contract of it. A second mapping for
+   drawer boards would be free to disagree with the one every carcase panel goes through.
+2. **Grain runs along each board's horizontal run** — the sides front-to-back, the front and back
+   left-to-right, the bottom across.
+
+**What `orientedPanel` gives, measured:**
+
+| role | thickness axis | length | width |
+| --- | --- | --- | --- |
+| `box-left` / `box-right` | `x` | box depth | box height |
+| `box-front` / `box-back` | `y` | box height | inside width |
+| `box-bottom` | `z` | inside width + 2·groove | inside depth + 2·groove |
+
+**The grain, derived not tabulated** — `grainFieldFor(thicknessAxis, grainAxisOf(role))`, exactly as
+`carcaseRoles.ts` derives a panel's:
+
+| role | grain axis (carcase) | board field |
+| --- | --- | --- |
+| `box-left` / `box-right` | `y` | `length` |
+| `box-front` / `box-back` | `x` | `width` |
+| `box-bottom` | `x` | `length` |
+
+Task 8's hardcoded `grain: 'length'` on all five is therefore wrong for the front and back. The five
+box roles go into `grainAxisOf`, which is deliberately fatal on a role it has no convention for.
+
+**Steps:**
+
+1. Add the five box roles to `grainAxisOf` in `src/scene/grain.ts` — `box-left`/`box-right` → `'y'`,
+   `box-front`/`box-back`/`box-bottom` → `'x'`.
+   → verify: `pnpm vitest run src/scene/grain.test.ts`; the sweep's role-coverage test walks
+   `carcaseBoxes` roles only, so it is unaffected, and the `'plinth'` throw test still passes.
+2. Rewrite `boxBoards` in `src/scene/regenerateDrawers.ts` to build each board's **carcase box** and
+   run it through `orientedPanel`. The four walls are one list carrying `role`, `label`, `box`,
+   `thicknessAxis` and `minSide`; the bottom is built beside them at
+   `z ∈ [box.z0 + groove.up, … + t]`, its x and y extents reaching one groove depth into all four
+   walls. `BoxBoard` carries a `PanelSpec` and a derived `Grain` instead of three loose numbers.
+   → verify: `pnpm typecheck`.
+3. Follow the groove into the new board axes. The slot's *height above the box floor* is board **y**
+   on a side (thickness on `x`) and board **x** on a front or back (thickness on `y`), and the face
+   it is cut into is board `+Z` on the min-side wall (left, front) and `-Z` on the one facing it
+   (right, back) — `orientedPanel` puts a board's origin on its box's min corner, so a min-side wall
+   meets the box interior at board `z = t`. A single face for all four puts two grooves on the
+   outside of the box.
+   → verify: the groove tests below.
+4. In `reconcileBoards`, read `b.panel.length` / `.width` / `.thickness` / `.position` / `.rotation`
+   / `.rotationOrder` and `b.grain`.
+   → verify: `pnpm vitest run src/scene/regenerateDrawers.test.ts`.
+
+**Task 8 assertions that change** (state the new figure, never weaken the test):
+
+- `front.length === insideWidth` → `front.width === insideWidth`, plus
+  `front.length === left.width` (the box height).
+- `bottom.length === insideDepth + 2·groove` and `bottom.width === insideWidth + 2·groove` → the two
+  swap. `left.length === 500` is already consistent and stays.
+
+**Tests to add:**
+
+- *places the five boards as one box* — every board's carcase AABB read back through
+  `resolveWorldMatrix` + `applyMatrixToPoint`, then asserted as **relations**: the sides one inside
+  width apart, the front and back one inside depth apart and spanning exactly the gap between the
+  sides, all four walls on one floor, the bottom one groove depth into each wall and `up` above the
+  floor. Two absolute figures (`left.min.x`, `left.min.z`) pin the box to its opening rather than to
+  the origin. This is the test that would have caught the pile.
+- *cuts every groove in the wall that faces the box* — the groove's AABB is flush with the wall's
+  inner face and only `BOTTOM_GROOVE_DEPTH` across.
+- *puts all four grooves at one height, across the whole span of their wall*.
+- *derives each board's grain field* and *runs every board's grain along its own horizontal run* —
+  the field per role, and the carcase axis behind it.
+
+**Not changed:** `shapeKey()` encodes dimensions and cuts, never placement — the Viewport applies
+position and rotation directly — so it needs no update. Confirmed by reading it, not assumed.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test`.
+
+```
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01P9f2w97VWLpfZvQzZH6TPc
+```
+
+---
+
 ## Task 9: The undermount box
 
 No groove, a notched back, and a locating hole. The family that needs geometry the other does not.
