@@ -1225,3 +1225,18 @@ pipeline.)
   `Map`, so `{}` would not typecheck.
 - The local two-arg `carcaseMachining` wrapper in `carcaseRoles.test.ts` now supplies a default
   side-mount `drawerFor` so the existing count assertions still see their slide rows.
+
+**2026-09-13 — Task 12 (measure what the shop drawings do):**
+- The plan's counting expression `v.parts.filter((p) => p.visible.length > 0)` is stale:
+  `AssemblyView.parts` is `AssemblyPart[]`, and an `AssemblyPart` carries no `visible` field. A part
+  draws a visible edge when its `solid: Segment[]` list is non-empty, so the count uses
+  `p.solid.length > 0` in both the baseline scratch test and the committed one. The point (a count
+  per view) is unchanged.
+- Baseline (Base 600 with a drawer-front on the whole opening), parts carrying a visible edge per
+  view [Front, Top, End]: carcase only `[6, 6, 7]`, with boxes `[6, 10, 11]`. Front is unchanged
+  (the applied front covers the box in elevation); Top and End each gain 4 (the box's five boards
+  minus one with no solid edge in that section). `leaves the elevation alone` passed — the box does
+  not draw through its own front.
+- `carcaseOnly`'s filter needs `p.parentId ?? ('' as ComponentId)`: `parentId` is `ComponentId | null`
+  and `drawerIds` is `Set<ComponentId>`, so the bare `?? ''` the plan shows would not typecheck under
+  the branded id.

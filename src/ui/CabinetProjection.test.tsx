@@ -6,7 +6,12 @@ import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { carcaseCuts, carcaseHoleArrays } from '../scene/carcaseRoles'
 import { roleThicknessFor } from '../scene/resolveThickness'
 import { jointKindFor } from '../scene/resolveJointKind'
-import type { Component, ComponentId, Part } from '../scene/types'
+import { buildAssemblyViews } from '../geom/assembly'
+import { componentsById } from '../scene/componentTree'
+import { setFrontOn } from '../scene/sectionInterior'
+import { regenerateDrawers } from '../scene/regenerateDrawers'
+import { regenerateComponents } from '../scene/regenerateComponents'
+import type { CarcaseComponent, Component, ComponentId, Part } from '../scene/types'
 import { cabinet, partsOfBase600, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 
 const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
@@ -247,9 +252,26 @@ describe('CabinetProjection', () => {
     const size = Number(t.getAttribute('font-size'))
     const w = (t.textContent ?? '').length * 0.6 * size
     const anchor = t.getAttribute('text-anchor')
-    if (anchor === 'end') return { lo: x - w, hi: x, top: Number(t.getAttribute('y')) - size, bottom: Number(t.getAttribute('y')) }
-    if (anchor === 'middle') return { lo: x - w / 2, hi: x + w / 2, top: Number(t.getAttribute('y')) - size, bottom: Number(t.getAttribute('y')) }
-    return { lo: x, hi: x + w, top: Number(t.getAttribute('y')) - size, bottom: Number(t.getAttribute('y')) }
+    if (anchor === 'end')
+      return {
+        lo: x - w,
+        hi: x,
+        top: Number(t.getAttribute('y')) - size,
+        bottom: Number(t.getAttribute('y')),
+      }
+    if (anchor === 'middle')
+      return {
+        lo: x - w / 2,
+        hi: x + w / 2,
+        top: Number(t.getAttribute('y')) - size,
+        bottom: Number(t.getAttribute('y')),
+      }
+    return {
+      lo: x,
+      hi: x + w,
+      top: Number(t.getAttribute('y')) - size,
+      bottom: Number(t.getAttribute('y')),
+    }
   }
 
   it.each(
@@ -389,5 +411,94 @@ describe('CabinetProjection', () => {
       return size
     }
     expect(sizeOf(0.5)).toBeLessThan(sizeOf(1))
+  })
+})
+
+// descendantIds is recursive, so a drawer's boards reach the projections without anyone adding
+// them. Wanted in Top and End, which are sections through the cabinet, and hidden in Front where
+// the applied front covers the box.
+//
+// Both counts are computed here from the same scene, so this stays true if a preset changes. An
+// assertion against a number copied out of a baseline run would pin the preset, not the rule.
+//
+// `AssemblyPart` carries no `visible` field: a part draws a visible edge when its `solid` segment
+// list is non-empty, so "carrying a visible edge" is `p.solid.length > 0`.
+describe('CabinetProjection — the drawer box in the views', () => {
+  const build = () => {
+    const base = CARCASE_PRESETS[0].params
+    const params = {
+      ...base,
+      section: setFrontOn(base.section, base.section.id, { kind: 'drawer-front' as const }),
+    }
+    const cabinet: CarcaseComponent = {
+      kind: 'carcase',
+      id: 'cmp_1' as ComponentId,
+      label: 'Base A',
+      parentId: null,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+      params,
+    }
+    const full = regenerateComponents(
+      regenerateDrawers({
+        parts: [],
+        materials: { ...PRESET_MATERIALS },
+        hardware: [],
+        joints: [],
+        components: [cabinet],
+      }),
+    )
+    const byId = componentsById(full.components)
+    const drawerIds = new Set(full.components.filter((c) => c.kind === 'drawer').map((c) => c.id))
+    const carcaseOnly = full.parts.filter((p) => !drawerIds.has(p.parentId ?? ('' as ComponentId)))
+    const drawn = (parts: typeof full.parts) =>
+      buildAssemblyViews(parts, byId, cabinet, full.materials).map(
+        (v) => v.parts.filter((p) => p.solid.length > 0).length,
+      )
+    return { without: drawn(carcaseOnly), with: drawn(full.parts) }
+  }
+
+  it('adds the box to the section views', () => {
+    const { without, with: withBoxes } = build()
+    // Views are [Front, Top, End]. Top and End cut through the cabinet, so they gain the box.
+    expect(withBoxes[1]).toBeGreaterThan(without[1])
+    expect(withBoxes[2]).toBeGreaterThan(without[2])
+  })
+
+  it('leaves the elevation alone, because the front covers the box', () => {
+    const { without, with: withBoxes } = build()
+    expect(withBoxes[0]).toBe(without[0])
+  })
+
+  // The fixture must actually contain a box, or both tests above pass for the wrong reason.
+  it('is testing a cabinet that really has one', () => {
+    const base = CARCASE_PRESETS[0].params
+    const params = {
+      ...base,
+      section: setFrontOn(base.section, base.section.id, { kind: 'drawer-front' as const }),
+    }
+    const full = regenerateDrawers({
+      parts: [],
+      materials: { ...PRESET_MATERIALS },
+      hardware: [],
+      joints: [],
+      components: [
+        {
+          kind: 'carcase',
+          id: 'cmp_1' as ComponentId,
+          label: 'Base A',
+          parentId: null,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          visible: true,
+          params,
+        },
+      ],
+    })
+    expect(full.components.some((c) => c.kind === 'drawer')).toBe(true)
+    expect(full.parts.filter((p) => p.role?.startsWith('box-'))).toHaveLength(5)
   })
 })
