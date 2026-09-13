@@ -11,6 +11,7 @@ import type {
   TongueGrooveJoint,
   HalfLapJoint,
   MortiseTenonJoint,
+  ComponentId,
   FaceHit,
   Part,
   PartId,
@@ -37,11 +38,12 @@ vi.stubGlobal(
   vi.fn(function MockWorker() {}),
 )
 
-import { useScene, buildSpecForPart } from './useScene'
+import { useScene, buildSpecForPart, applyPipeline } from './useScene'
 import { resolveWorldMatrix } from '../geom/transform'
 import { componentsById } from './componentTree'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { carcaseRoles } from './carcaseRoles'
+import { setFrontOn } from './sectionInterior'
 import { roleThicknessFor } from './resolveThickness'
 import { jointKindFor } from './resolveJointKind'
 import { jointInvolves } from './jointInvolves'
@@ -2713,5 +2715,78 @@ describe('detach', () => {
     const side = result.current.scene.parts.find((p) => p.role === 'left-side')!
     act(() => result.current.onDetachPart(side.id))
     expect(result.current.parameterFor(side.id, 'length')).toBeNull()
+  })
+})
+
+describe('the regeneration pipeline', () => {
+  const sceneWith = (params: CarcaseParams): Scene => ({
+    parts: [],
+    materials: { ...PRESET_MATERIALS },
+    hardware: [],
+    joints: [],
+    components: [
+      {
+        kind: 'carcase',
+        id: 'cmp_1' as ComponentId,
+        label: 'Base A',
+        parentId: null,
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        rotationOrder: 'XYZ',
+        visible: true,
+        params,
+      },
+    ],
+  })
+
+  const drawerFronted = (): Scene => {
+    const base = CARCASE_PRESETS[0].params
+    return sceneWith({
+      ...base,
+      section: setFrontOn(base.section, base.section.id, { kind: 'drawer-front' }),
+    })
+  }
+
+  const slidesIn = (s: Scene): number =>
+    s.parts.filter((p) => p.kind === 'board' && p.cuts.some((c) => c.id.startsWith('slide_')))
+      .length
+
+  // One pass settles a new drawer front: its slide screws are bored by the pass that created it,
+  // not by the next one. Today `carcaseMachining` reads the front cell rather than the box, so this
+  // passes whichever way round the drawer and carcase stages run — it discriminates the order only
+  // once the slide height is taken off the box (Task 11 of the drawer-boxes plan). It is here now
+  // because it is the assertion that will catch the order then, and because a pipeline that bored
+  // no slide screws at all is a regression either way.
+  it('settles a new drawer front in a single pass', () => {
+    const once = applyPipeline(drawerFronted())
+    const twice = applyPipeline(once)
+    expect(slidesIn(once)).toBeGreaterThan(0)
+    expect(slidesIn(twice)).toBe(slidesIn(once))
+  })
+
+  it('gives a drawer-front opening a drawer and its five boards', () => {
+    const scene = applyPipeline(drawerFronted())
+    const drawers = scene.components.filter((c) => c.kind === 'drawer')
+    expect(drawers).toHaveLength(1)
+    const boards = scene.parts.filter((p) => p.parentId === drawers[0].id)
+    expect(boards.map((p) => p.role).sort()).toEqual([
+      'box-back',
+      'box-bottom',
+      'box-front',
+      'box-left',
+      'box-right',
+    ])
+  })
+
+  it('leaves a cabinet with no drawer front alone', () => {
+    const scene = applyPipeline(sceneWith(CARCASE_PRESETS[0].params))
+    expect(scene.components.filter((c) => c.kind === 'drawer')).toHaveLength(0)
+    const carcaseId = scene.components[0].id
+    expect(scene.parts.every((p) => p.parentId === carcaseId)).toBe(true)
+  })
+
+  it('is idempotent with all three stages', () => {
+    const once = applyPipeline(drawerFronted())
+    expect(applyPipeline(once)).toEqual(once)
   })
 })

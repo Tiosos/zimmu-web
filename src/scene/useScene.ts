@@ -26,6 +26,7 @@ import { faceAxes, localNormalToFaceString } from './snapMath'
 import { reconcileJoints } from './reconcileJoints'
 import { isJointOwned } from './cutOwnership'
 import { regenerateComponents } from './regenerateComponents'
+import { regenerateDrawers } from './regenerateDrawers'
 import { PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
 import { freshSectionIds } from './sectionTree'
 import { componentsById, descendantIds, wouldCycle } from './componentTree'
@@ -54,11 +55,15 @@ interface HistoryEntry {
 
 const MAX_HISTORY = 50
 
-// The one place a scene mutation becomes geometry. The order is fixed: carcases emit their parts
-// and component-owned cuts first, then reconcileJoints derives joint cuts and seats from
-// scene.joints. Reversed, joints would be derived against parts that do not exist yet.
-function applyPipeline(scene: Scene): Scene {
-  return reconcileJoints(regenerateComponents(scene))
+// The one place a scene mutation becomes geometry. Three stages, and the order is fixed because
+// the dependencies run one way. Drawers lead: a drawer reads nothing a carcase emits — its inputs
+// are the section tree, its own parameters and the materials — while the carcase's slide machining
+// is a figure about the box that fills the opening, so a pass run the other way round would machine
+// the cabinet against a box it had not built yet. Carcases then emit their parts and
+// component-owned cuts, and reconcileJoints derives joint cuts and seats from scene.joints last:
+// reversed, joints would be derived against parts that do not exist yet.
+export function applyPipeline(scene: Scene): Scene {
+  return reconcileJoints(regenerateComponents(regenerateDrawers(scene)))
 }
 
 // Lazy singleton — not instantiated at module load so vi.stubGlobal('Worker') works in tests
