@@ -882,3 +882,91 @@ would be untested by any dimension assertion, and the front's span is what the s
 taken against boards at the origin. The boards now touch, so `suggestJoints` has real contacts to
 find and the twenty spurious open rows per drawer should be re-measured — the baseline that entry
 records is no longer the right one to compare against.
+
+## 2026-09-13 — Task 9: the undermount box
+
+**The plan was wrong about grooving, and the user corrected it.** Task 9 as written had the
+undermount family groove *nothing*, on the reasoning that "the bottom rests on the runner". That is
+not how a TANDEM box is made: it is grooved in the sides and the front, the bottom is captured on
+three sides, and the runner carries it from underneath. Only the back is different — it is notched
+for the locking devices. So `groove(...)` applies to `box-left`, `box-right` and `box-front` in both
+families, and `box-back` is the one wall whose treatment the family decides.
+
+The consequence the plan could not have had: **the bottom grows by a groove depth on three edges,
+not four.** Its length (carcase x, across the box) is `insideWidth + 2 × BOTTOM_GROOVE_DEPTH` as
+before, because both sides are always grooved; its width (carcase y, the box's depth) is
+`insideDepth + 1 × BOTTOM_GROOVE_DEPTH` for undermount against `+ 2 ×` for side-mount. On a Base 600
+with 15 mm sides that is 534 × 476 undermount against 534 × 482 side-mount. Pinned both as a derived
+figure and as the difference between the two families, because an arithmetic slip can satisfy one
+absolute assertion and not a difference.
+
+**`DrawerBoxMetrics.groove` is no longer nullable.** It was `{up, depth} | null`, null meaning
+undermount. Once both families groove, the family does not reach the field at all — *which walls*
+carry the groove is the board generator's business. Two knock-on effects, both recorded because they
+are not obvious from the diff:
+
+- `drawerBox.test.ts`'s *has no groove* case became *grooves the bottom like a side-mount*.
+- The guard's height clause, `box.z1 <= box.z0`, is now fully covered by the groove clause
+  `box.z0 + groove.up > box.z1`, since `BOTTOM_GROOVE_UP` is positive. **Deleting it kills no
+  test** — verified, not assumed. It is kept anyway: it states a different claim, and the cover it
+  gets only holds while the groove figure stays positive. The comment above the guard and the one
+  above *declines a box with no height* both say so rather than letting a future reader believe the
+  height clause is still load-bearing.
+
+**No new figure was invented for the undermount groove.** A TANDEM bottom carried from underneath
+arguably wants `up = 0` — the bottom's underside flush with the sides' bottom edge — and that would
+also have kept the height clause independent. It was not done: the user's ruling said the same
+`groove(...)`, and a second `up` figure would be an unsourced invention beside four that at least
+have a summary behind them. Worth revisiting with a woodworker's eye.
+
+**The research attempt.** One search reached a distributor's summary of Blum's 563H installation
+drawing: rear notch 1/2" × 1-3/8" minimum (12.7 × 35 mm) and a hook bore of ⌀6 × 10 mm — all four of
+the plan's figures corroborated. A direct fetch of `wwhardware.com`'s copy of the printed
+instructions was blocked by the egress proxy, exactly as the spec's sourcing warning predicted. The
+same drawing dimensions the hook bore as **7 and 11**, and which of the two is the height above the
+notch rather than the inset from its edge is not legible in any summary reached; 7 is taken as the
+height, and `UNDERMOUNT_HOLE_ABOVE_NOTCH` carries that caveat in place of the plan's unsourced 10.
+
+**Two axis errors Task 8b forced, both confirmed by measurement rather than by reading.**
+
+- The plan's `expect(bottom.width).toBeCloseTo(front.length, 6)` compares a depth against a height.
+  After 8b a `box-front` is a thickness-on-y panel, so its `length` is the box HEIGHT (board x →
+  carcase z) and its `width` is the inside width. Replaced with the two figures above.
+- The plan's `backNotches` put the notch WIDTH on board x and the notch HEIGHT on board y. They are
+  the other way round: on `box-back` (thickness on y) board x runs carcase z — the height — and
+  board y runs carcase x, the span across the box. Shipped as
+  `size: { x: NOTCH_HEIGHT, y: NOTCH_WIDTH }`. The assertion that catches it reads the notch's
+  carcase AABB, so it separates 12.7 from 35 whichever way the board axes are named.
+
+**The locating hole's face is derived from `minSide`, not hardcoded.** The plan wrote `'-Y'`.
+`box-back` sits at the box's **max y**, so `orientedPanel` gives it board z = 0 on the face looking
+into the box — board `-Z`, the same face its groove would have been cut into. `innerFaceOf(minSide)`
+is now the one statement of that, shared by the groove and the bore. A *box* cut's `face` is only a
+label (`makeShape` cuts from `position` + `size` and ignores it), so that shared helper is only
+load-bearing for the hole array — which is why mutating `innerFaceOf` to one face for all four walls
+kills the bore test and **not** the side-mount groove-face test. That surprised the prediction and is
+recorded because it is a real property of the codebase: the groove-face tests pin geometry, and no
+test in the repo pins a box cut's `face` label.
+
+**Through-cut convention.** The plan's `position.z = -1`, `size.z = 100` was replaced with the
+codebase's `position.z = -t/2`, `size.z = 2t`.
+
+**Mutation table** — nine mutations, eight killed, one deliberate survivor:
+
+| mutation | killed by |
+| --- | --- |
+| back always grooved, never notched | 7 undermount tests; side-mount block green |
+| notch axes swapped (the plan's version) | notch height/width, notch at each end, the bore |
+| `position.z = 0`, `size.z = t` (no overshoot) | cuts each notch through the back's thickness |
+| bottom grooved on all four edges again | both bottom-sizing tests |
+| the back's machined face hardcoded `'+Z'` | the bore's start face |
+| bore started on the far face (`start.z` flipped) | the bore's start face |
+| face name flipped, `start.z` left correct | the bore's TIP: it drills out of the board |
+| bore placed inside the notch, not above it | the bore's height |
+| family not threaded into `boxBoards` | all 9 undermount geometry tests |
+| **`box.z1 <= box.z0` deleted from the guard** | **nothing — see above** |
+
+**Out of scope, deliberately.** The joinery checklist is untouched, deferred past Task 14 by the
+user. The undermount box does change which boards touch — the bottom now stops flush against the
+back instead of reaching into it, so that pair goes from an overlap to a face contact — so whatever
+baseline Task 14 measures has to be taken per family, not once.

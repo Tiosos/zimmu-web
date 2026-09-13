@@ -2331,6 +2331,45 @@ Claude-Session: https://claude.ai/code/session_01P9f2w97VWLpfZvQzZH6TPc
 
 No groove, a notched back, and a locating hole. The family that needs geometry the other does not.
 
+> **Amended 2026-09-13, during implementation. The steps below are kept verbatim; these three
+> decisions override them where they disagree.** Notes:
+> `docs/superpowers/notes/2026-09-12-drawer-boxes-notes.md`, entry of the same date.
+>
+> **1. The undermount box IS grooved — sides and front — and only the back is notched.** "No groove,
+> the bottom rests on the runner" is wrong: a TANDEM box is grooved in the sides and the front, the
+> bottom is captured on three sides, and the runner carries it from underneath. So `grooveOf(...)`
+> applies to `box-left`, `box-right` and `box-front` in BOTH families, and `box-back` alone takes
+> notches and locating holes instead. Consequences:
+> - `DrawerBoxMetrics.groove` stops being nullable — the family no longer reaches it. Step 4's
+>   `boxBoards` signature change still happens, but the family decides *which walls* are grooved,
+>   not *whether*.
+> - Step 1's test *grooves nothing* becomes *grooves the sides and front, and notches the back*:
+>   three grooved roles, one notched.
+> - Step 1's test *sizes the bottom to the box interior with nothing added* is wrong twice over. The
+>   bottom takes a groove depth on **three** edges, not four and not none: `length` (carcase x) is
+>   `insideWidth + 2 × BOTTOM_GROOVE_DEPTH`, `width` (carcase y) is `insideDepth + 1 ×`. Its
+>   assertion `bottom.width ≈ front.length` compares a depth against a height and does not survive
+>   Task 8b at all — see decision 4 below.
+> - The guard clause `box.z1 <= box.z0` in `drawerBoxMetrics` becomes fully covered by the groove
+>   clause and is a mutation no test kills. It is kept, and both it and the test that used to
+>   isolate it say so.
+>
+> **2. The notch figures got one research attempt.** A search reached a distributor's summary of
+> Blum's 563H installation drawing and corroborated all four: 12.7 × 35 mm notch, ⌀6 × 10 mm hook
+> bore. The printed instructions themselves were blocked by the egress proxy. The plan's unexplained
+> `+ 10` for the hole's height above the notch became `UNDERMOUNT_HOLE_ABOVE_NOTCH = 7`, carrying
+> the caveat that the drawing's 7 and 11 are not distinguishable from the summaries reached.
+>
+> **3. The joinery checklist is out of scope**, deferred past Task 14. `jointChecklist.ts` untouched.
+>
+> **4. Three axis and convention fixes Task 8b forces on step 4's `backNotches`,** all measured:
+> - `box-back` has thickness on y, so board x is the box HEIGHT and board y the span across it. The
+>   plan's `size` has the two swapped: it must be `{ x: NOTCH_HEIGHT, y: NOTCH_WIDTH }`.
+> - The locating hole's face is derived from the wall's `minSide` — `box-back` sits at the box's max
+>   y, so its inner face is board `-Z` — never hardcoded `'-Y'`. `innerFaceOf` states it once for the
+>   groove and the bore together.
+> - The through-cut overshoot is the codebase's `position.z = -t/2`, `size.z = 2t`, not `-1` / `100`.
+
 **Files:**
 - Modify: `src/scene/regenerateDrawers.ts`
 - Modify: `src/scene/drawerBox.ts`

@@ -157,9 +157,14 @@ describe('drawerBoxMetrics — undermount', () => {
     expect(perSide).toBeLessThan(SIDE_MOUNT_CLEARANCE)
   })
 
-  it('has no groove and sits the runner at the box bottom', () => {
+  // An undermount box is grooved for its bottom exactly as a side-mount is — the bottom is captured
+  // in the sides and front and carried by the runner from underneath — so the family reaches the
+  // groove figures not at all. Which WALLS carry the groove is the board generator's business: an
+  // undermount back is notched for the locking devices instead, and `regenerateDrawers.test.ts`
+  // pins that at three grooved walls against a side-mount's four.
+  it('grooves the bottom like a side-mount, and sits the runner at the box bottom', () => {
     const m = drawerBoxMetrics(rect, params, { ...baseCtx, sideThickness: 15 })!
-    expect(m.groove).toBeNull()
+    expect(m.groove).toEqual({ up: BOTTOM_GROOVE_UP, depth: BOTTOM_GROOVE_DEPTH })
     expect(m.runnerZ).toBe(m.box.z0)
   })
 
@@ -246,11 +251,15 @@ describe('drawerBoxMetrics — a box that cannot be built', () => {
     expect(drawerBoxMetrics(narrow, defaultDrawerParams('undermount'), ctx)).toBeNull()
   })
 
-  // A box of exactly no height, and undermount, because every other short box is refused by
-  // something else first: a side-mount's groove and runner line both sit above a box this short,
-  // and a NEGATIVE height puts even an undermount's runner — which sits on the box floor — above
-  // the box top. Zero height under a floor-mounted runner is the one case only the height term
-  // answers, which is why the opening here is exactly the height the front takes.
+  // A box of exactly no height. Undermount, so the runner sits on the box floor rather than above
+  // it and the runner clause is not what answers — the opening here is exactly the height the front
+  // takes, so the box comes out flat rather than negative.
+  //
+  // The height clause no longer answers this ALONE: once undermount was grooved too, the groove
+  // clause covers every box shorter than `BOTTOM_GROOVE_UP` and therefore every box of no height.
+  // Deleting the height clause outright is a mutation this test does not kill. It is kept because
+  // it states a different claim, and the cover it gets only holds while the groove figure is
+  // positive — see the comment on the guard in `drawerBox.ts`.
   it('declines a box with no height, derived or asked for', () => {
     const flat = defaultDrawerParams('undermount')
     const shallow: Rect = { ...rect, z1: rect.z0 + BOX_HEIGHT_UNDER_FRONT }

@@ -4,11 +4,26 @@ import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { splitSection } from './editSection'
 import { setFrontOn } from './sectionInterior'
 import type { Section } from './sectionTree'
-import { BOTTOM_GROOVE_DEPTH, BOTTOM_GROOVE_UP, SIDE_MOUNT_CLEARANCE } from './drawerBox'
+import {
+  BOTTOM_GROOVE_DEPTH,
+  BOTTOM_GROOVE_UP,
+  SIDE_MOUNT_CLEARANCE,
+  UNDERMOUNT_HOLE_ABOVE_NOTCH,
+  UNDERMOUNT_NOTCH_HEIGHT,
+  UNDERMOUNT_NOTCH_WIDTH,
+} from './drawerBox'
 import { componentsById } from './componentTree'
 import { grainAxisOf } from './grain'
 import { applyMatrixToPoint, resolveWorldMatrix } from '../geom/transform'
-import type { BoardPart, CarcaseParams, ComponentId, DrawerComponent, Scene } from './types'
+import type {
+  BoardPart,
+  CarcaseParams,
+  ComponentId,
+  CutDef,
+  DrawerComponent,
+  Scene,
+  Vec3,
+} from './types'
 
 const sceneOf = (params: CarcaseParams, components: DrawerComponent[] = []): Scene => ({
   parts: [],
@@ -317,7 +332,9 @@ describe('regenerateDrawers — the boards', () => {
     expect(left.length).toBe(500)
   })
 
-  it('grooves all four sides for the bottom, and only for side-mount', () => {
+  // Four, because a side-mount back is grooved like the other three. An undermount back is notched
+  // instead and is grooved by nothing, which the undermount block below pins at three.
+  it('grooves all four walls of a side-mount box for the bottom', () => {
     const out = regenerateDrawers(sceneOf(oneDrawer()))
     const drawer = drawersOf(out)[0]
     const grooved = boardsOf(out, drawer.id).filter((b) =>
@@ -615,5 +632,186 @@ describe('regenerateDrawers — where the boards go', () => {
   it('runs every board’s grain along its own horizontal run', () => {
     for (const role of ['box-left', 'box-right']) expect(grainAxisOf(role)).toBe('y')
     for (const role of ['box-front', 'box-back', 'box-bottom']) expect(grainAxisOf(role)).toBe('x')
+  })
+})
+
+// The far end of a bore, in carcase space. `makeHoleArrayCut` drills INTO the board, away from the
+// face the cut names, so the direction is the opposite of that face's own normal — restated here in
+// the test rather than read out of the generator, which is the whole point of following a named
+// face into carcase space instead of asserting its letters.
+const DRILL_FROM: Record<string, number> = { '+Z': -1, '-Z': 1 }
+
+describe('regenerateDrawers — the undermount box', () => {
+  const undermount = (s: Scene): Scene => ({
+    ...s,
+    components: s.components.map((c) =>
+      c.kind === 'drawer' ? { ...c, params: { ...c.params, family: 'undermount' as const } } : c,
+    ),
+  })
+
+  // Built by flipping the family on a drawer that already exists, so the two families are compared
+  // through the same cabinet, the same opening and the same reconciliation path.
+  const built = (): Scene => regenerateDrawers(undermount(regenerateDrawers(sceneOf(oneDrawer()))))
+
+  const backCut = (s: Scene, id: string): CutDef => {
+    const found = roleOf(s, 'box-back').cuts.find((c) => c.id === id)
+    if (found === undefined) throw new Error(`no cut ${id} on the back`)
+    return found
+  }
+
+  const notchBoxOf = (s: Scene, i: number): Aabb => {
+    const c = backCut(s, `notch_${i}`)
+    if (c.kind !== 'box') throw new Error('a runner notch is a box cut')
+    const m = resolveWorldMatrix(roleOf(s, 'box-back'), componentsById(s.components))
+    return extentsOf(
+      m,
+      [c.position.x, c.position.y, c.position.z],
+      [c.position.x + c.size.x, c.position.y + c.size.y, c.position.z + c.size.z],
+    )
+  }
+
+  const boreOf = (s: Scene, i: number): { start: Vec3; tip: Vec3 } => {
+    const c = backCut(s, `locate_${i}`)
+    if (c.kind !== 'hole-array') throw new Error('a locating hole is a hole array')
+    const m = resolveWorldMatrix(roleOf(s, 'box-back'), componentsById(s.components))
+    const at = (x: number, y: number, z: number): Vec3 => {
+      const [wx, wy, wz] = applyMatrixToPoint(m, x, y, z)
+      return { x: wx, y: wy, z: wz }
+    }
+    return {
+      start: at(c.start.x, c.start.y, c.start.z),
+      tip: at(c.start.x, c.start.y, c.start.z + DRILL_FROM[c.face] * c.depth),
+    }
+  }
+
+  // The correction to the plan, which had this family grooving nothing at all. A TANDEM box IS
+  // grooved: the bottom is captured in the sides and the front and carried by the runner from
+  // underneath. Only the back is different, because the locking devices need it notched.
+  it('grooves the sides and front, and notches the back', () => {
+    const s = built()
+    const boards = boardsOf(s, drawersOf(s)[0].id)
+    const grooved = boards
+      .filter((b) => b.cuts.some((c) => c.id.startsWith('groove_')))
+      .map((b) => b.role)
+      .sort()
+    expect(grooved).toEqual(['box-front', 'box-left', 'box-right'])
+    const notched = boards
+      .filter((b) => b.cuts.some((c) => c.id.startsWith('notch_')))
+      .map((b) => b.role)
+    expect(notched).toEqual(['box-back'])
+  })
+
+  it('notches the back for the locking device, and only the back', () => {
+    const s = built()
+    const back = roleOf(s, 'box-back')
+    // Two locking devices, one at each end of the back.
+    expect(back.cuts.filter((c) => c.id.startsWith('notch_'))).toHaveLength(2)
+    expect(back.cuts.some((c) => c.id.startsWith('groove_'))).toBe(false)
+  })
+
+  it('bores a locating hole above each notch', () => {
+    const s = built()
+    expect(roleOf(s, 'box-back').cuts.filter((c) => c.kind === 'hole-array')).toHaveLength(2)
+  })
+
+  it('still emits five boards', () => {
+    const s = built()
+    expect(boardsOf(s, drawersOf(s)[0].id)).toHaveLength(5)
+  })
+
+  // The axes the plan had swapped. The back is a thickness-on-y panel, so `orientedPanel` runs its
+  // HEIGHT along board x and its span across the box along board y — a notch written the way it
+  // reads on the bench comes out 35 mm tall and 12.7 mm wide, which these two figures separate.
+  it('cuts each notch as tall as the stated height and as wide as the stated width', () => {
+    const s = built()
+    const back = boxOf(s, 'box-back')
+    for (const i of [0, 1]) {
+      const n = notchBoxOf(s, i)
+      // Carcase z is the height of the cabinet, so this is the notch's height.
+      expect(n.max.z - n.min.z, `notch ${i}`).toBeCloseTo(UNDERMOUNT_NOTCH_HEIGHT, 6)
+      // Carcase x runs across the box, so this is its width.
+      expect(n.max.x - n.min.x, `notch ${i}`).toBeCloseTo(UNDERMOUNT_NOTCH_WIDTH, 6)
+      // Open at the bottom edge of the back: a locking device reaches it from underneath.
+      expect(n.min.z, `notch ${i}`).toBeCloseTo(back.min.z, 6)
+    }
+  })
+
+  it('puts one notch at each end of the back', () => {
+    const s = built()
+    const back = boxOf(s, 'box-back')
+    expect(notchBoxOf(s, 0).min.x).toBeCloseTo(back.min.x, 6)
+    expect(notchBoxOf(s, 1).max.x).toBeCloseTo(back.max.x, 6)
+  })
+
+  // A notch is a cut-out, not a rebate: it clears the back's whole thickness. Built oversize on
+  // both faces, the convention every cut here follows so OCCT never resolves a coplanar face.
+  it('cuts each notch through the back’s thickness', () => {
+    const s = built()
+    const back = boxOf(s, 'box-back')
+    for (const i of [0, 1]) {
+      const n = notchBoxOf(s, i)
+      expect(n.min.y, `notch ${i}`).toBeLessThan(back.min.y)
+      expect(n.max.y, `notch ${i}`).toBeGreaterThan(back.max.y)
+    }
+  })
+
+  // The bore is in the face that looks into the box — the back sits at the box's MAX y, so that is
+  // its min-y face, and `minSide` is what says so. Followed into carcase space rather than asserted
+  // as a pair of letters: a face name that agrees only with its own table would drill out of the
+  // board, and the tip is what catches it.
+  it('bores the locating hole into the face that looks into the box, above its notch', () => {
+    const s = built()
+    const back = boxOf(s, 'box-back')
+    const front = boxOf(s, 'box-front')
+    for (const i of [0, 1]) {
+      const n = notchBoxOf(s, i)
+      const bore = boreOf(s, i)
+      expect(bore.start.y, `bore ${i}`).toBeCloseTo(back.min.y, 6)
+      // Nearer the front of the box than the back's other face is: the inner face, geometrically.
+      expect(Math.abs(bore.start.y - front.max.y), `bore ${i}`).toBeLessThan(
+        Math.abs(back.max.y - front.max.y),
+      )
+      // And the bore runs from there INTO the material rather than out of it.
+      expect(bore.tip.y, `bore ${i}`).toBeGreaterThan(back.min.y)
+      expect(bore.tip.y, `bore ${i}`).toBeLessThanOrEqual(back.max.y)
+      // Above the notch it serves, not inside it, and centred on its width.
+      expect(bore.start.z, `bore ${i}`).toBeGreaterThan(n.max.z)
+      expect(bore.start.z, `bore ${i}`).toBeCloseTo(
+        back.min.z + UNDERMOUNT_NOTCH_HEIGHT + UNDERMOUNT_HOLE_ABOVE_NOTCH,
+        6,
+      )
+      expect(bore.start.x, `bore ${i}`).toBeCloseTo((n.min.x + n.max.x) / 2, 6)
+    }
+  })
+
+  // The plan asserted the bottom's width against the front's LENGTH, which after Task 8b is the box
+  // height and not a depth at all. The claim worth pinning is the one the notched back changes: the
+  // bottom sits in three grooves and stops flush against the fourth wall, so it grows by a groove
+  // depth on three edges and not four.
+  it('adds a groove depth on three edges of the bottom, not four', () => {
+    const s = built()
+    const bottom = roleOf(s, 'box-bottom')
+    const left = roleOf(s, 'box-left')
+    const front = roleOf(s, 'box-front')
+    // The bottom is a thickness-on-z panel: its LENGTH runs carcase x, across the box, and its
+    // WIDTH runs carcase y, the box's depth. The front's width is the inside width, and the side's
+    // length is the box's full depth.
+    expect(bottom.length).toBeCloseTo(front.width + 2 * BOTTOM_GROOVE_DEPTH, 6)
+    expect(bottom.width).toBeCloseTo(left.length - 2 * front.thickness + BOTTOM_GROOVE_DEPTH, 6)
+  })
+
+  // The same claim as a difference, which no arithmetic slip can satisfy by accident: the two
+  // families cut the same bottom across the box and differ by exactly one groove depth along it.
+  it('makes the bottom one groove depth shallower than a side-mount’s', () => {
+    const sm = roleOf(regenerateDrawers(sceneOf(oneDrawer())), 'box-bottom')
+    const um = roleOf(built(), 'box-bottom')
+    expect(um.width).toBeCloseTo(sm.width - BOTTOM_GROOVE_DEPTH, 6)
+  })
+
+  it('is idempotent: a second pass emits the very same boards', () => {
+    const once = built()
+    const twice = regenerateDrawers(once)
+    expect(twice.parts).toEqual(once.parts)
+    expect(twice.parts.map((p) => p.id)).toEqual(once.parts.map((p) => p.id))
   })
 })

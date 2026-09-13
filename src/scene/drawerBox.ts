@@ -32,6 +32,20 @@ export const BOX_HEIGHT_UNDER_FRONT = 25
 export const BOTTOM_GROOVE_UP = 10
 export const BOTTOM_GROOVE_DEPTH = 6
 
+// The undermount back preparation: a locking-device cut-out at each end of the drawer back, with a
+// bore for the runner's hook above it. The notch and the bore are corroborated by a distributor's
+// summary of Blum's 563H installation drawing — a 1/2" × 1-3/8" minimum cut-out and a ⌀6 × 10 mm
+// hook bore — rather than read off the drawing itself, which the egress proxy blocked. Confirm
+// before cutting.
+export const UNDERMOUNT_NOTCH_HEIGHT = 12.7
+export const UNDERMOUNT_NOTCH_WIDTH = 35
+export const UNDERMOUNT_HOLE_DIAMETER = 6
+export const UNDERMOUNT_HOLE_DEPTH = 10
+// The weakest figure of the five: the same drawing dimensions the hook bore as 7 and 11, and which
+// of the two is the height above the notch rather than the inset from its edge is not legible in
+// any summary reached. 7 is taken as the height.
+export const UNDERMOUNT_HOLE_ABOVE_NOTCH = 7
+
 export interface DrawerParams {
   family: RunnerFamily
   // null derives it from the front cell. An explicit value lets a shallow box sit behind a tall
@@ -60,8 +74,11 @@ export interface DrawerBoxMetrics {
   box: BoxExtents
   // Carcase z of the runner's screw line.
   runnerZ: number
-  // null for undermount, where the bottom rests on the runner instead of sitting in a groove.
-  groove: { up: number; depth: number } | null
+  // Every box is grooved for its bottom, whatever carries the box: an undermount bottom is captured
+  // in the sides and front and carried by the runner from underneath. WHICH walls carry the groove
+  // is the board generator's business — undermount notches its back instead — so the family never
+  // reaches this field and the figures are stated in one place for both.
+  groove: { up: number; depth: number }
 }
 
 export interface DrawerContext {
@@ -130,8 +147,7 @@ export function drawerBoxMetrics(
 
   const box: BoxExtents = { x0, x1, y0, y1: y0 + depth, z0: opening.z0, z1: opening.z0 + height }
   const runnerZ = opening.z0 + (params.family === 'side-mount' ? params.runnerOffset : 0)
-  const groove =
-    params.family === 'side-mount' ? { up: BOTTOM_GROOVE_UP, depth: BOTTOM_GROOVE_DEPTH } : null
+  const groove = { up: BOTTOM_GROOVE_UP, depth: BOTTOM_GROOVE_DEPTH }
 
   // Asked once, after the extents are known, rather than as five guards scattered through the
   // computation: they are one question — can this drawer be built — and a reader checking "can this
@@ -149,12 +165,15 @@ export function drawerBoxMetrics(
   // whatever the family, so a term reading the parameter would decline a short undermount box whose
   // runner sits on the floor of it. `<` and not `<=` at the bottom for the same reason: an
   // undermount runner sits exactly there.
+  // The height term is kept although the groove term now answers everything it does: they are
+  // different claims, and the groove term only covers it while `BOTTOM_GROOVE_UP` is positive. A
+  // box of no height is nonsense whatever the groove figure says.
   if (
     box.x1 - box.x0 <= 2 * ctx.sideThickness ||
     box.z1 <= box.z0 ||
     runnerZ < box.z0 ||
     runnerZ > box.z1 ||
-    (groove !== null && box.z0 + groove.up > box.z1)
+    box.z0 + groove.up > box.z1
   ) {
     return null
   }

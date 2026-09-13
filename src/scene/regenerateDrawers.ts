@@ -6,6 +6,7 @@ import type {
   ComponentId,
   CutDef,
   DrawerComponent,
+  Face,
   Grain,
   MaterialDef,
   Part,
@@ -20,8 +21,14 @@ import { overridesOf, roleThicknessFor } from './resolveThickness'
 import {
   defaultDrawerParams,
   drawerBoxMetrics,
+  UNDERMOUNT_HOLE_ABOVE_NOTCH,
+  UNDERMOUNT_HOLE_DEPTH,
+  UNDERMOUNT_HOLE_DIAMETER,
+  UNDERMOUNT_NOTCH_HEIGHT,
+  UNDERMOUNT_NOTCH_WIDTH,
   type DrawerBoxMetrics,
   type DrawerContext,
+  type RunnerFamily,
 } from './drawerBox'
 import { PART_COLORS } from './palette'
 
@@ -87,7 +94,8 @@ interface BoxBoard {
   label: string
   panel: PanelSpec
   grain: Grain
-  cuts: BoxCut[]
+  // Not `BoxCut[]`: an undermount back carries a hole array beside its notches.
+  cuts: CutDef[]
 }
 
 // One wall of the box, as the carcase box it occupies. `minSide` says which end of its own thickness
@@ -102,14 +110,24 @@ interface BoxWall {
   minSide: boolean
 }
 
+// Which board face of a wall looks at the box interior. `orientedPanel` puts a board's origin on
+// its box's min corner, so a wall sitting on the min end of its own thickness axis meets the
+// interior at board +Z and the wall facing it meets it at board −Z. The groove is cut into it and
+// the undermount hook bore is drilled into it, which is why it is written once rather than twice.
+const innerFaceOf = (minSide: boolean): Face => (minSide ? '+Z' : '-Z')
+
 // The five boards a box is, derived from the one statement of its geometry and placed through the
 // same `orientedPanel` mapping every carcase panel goes through — the codebase's one carcase-box-to-
 // board map, which `GRAIN_IN_PLANE` is the stated contract of. The bottom's size follows the groove
 // rather than being a sixth number that can drift out of step with it.
-function boxBoards(m: DrawerBoxMetrics, t: number): BoxBoard[] {
+function boxBoards(m: DrawerBoxMetrics, t: number, family: RunnerFamily): BoxBoard[] {
   const b = m.box
-  const gd = m.groove?.depth ?? 0
-  const up = m.groove?.up ?? 0
+  const gd = m.groove.depth
+  const up = m.groove.up
+  // The one difference the family makes to the box itself. An undermount back is notched for the
+  // runner's locking devices, so it is the one wall that carries no groove — and the bottom
+  // therefore reaches into three walls and stops flush against the fourth.
+  const notchedBack = family === 'undermount'
   // The clear rectangle between the four walls: what the front, back and bottom span.
   const inside = { x0: b.x0 + t, x1: b.x1 - t, y0: b.y0 + t, y1: b.y1 - t }
 
@@ -148,36 +166,37 @@ function boxBoards(m: DrawerBoxMetrics, t: number): BoxBoard[] {
   // is board y on a side but board x on the front or back — `orientedPanel` maps board x to carcase
   // y on a thickness-on-x panel and to carcase z on a thickness-on-y one. Only as deep into the face
   // as the groove figure: a through-cut would saw the wall in two along its length.
-  const grooveOf = (w: BoxWall, panel: PanelSpec): BoxCut[] =>
-    m.groove === null
-      ? []
-      : [
-          {
-            kind: 'box',
-            id: 'groove_bottom',
-            label: 'Bottom groove',
-            face: w.minSide ? '+Z' : '-Z',
-            position: {
-              x: w.thicknessAxis === 'y' ? up : 0,
-              y: w.thicknessAxis === 'y' ? 0 : up,
-              z: w.minSide ? t - gd : 0,
-            },
-            size: {
-              x: w.thicknessAxis === 'y' ? t : panel.length,
-              y: w.thicknessAxis === 'y' ? panel.width : t,
-              z: gd,
-            },
-          },
-        ]
+  const grooveOf = (w: BoxWall, panel: PanelSpec): BoxCut[] => [
+    {
+      kind: 'box',
+      id: 'groove_bottom',
+      label: 'Bottom groove',
+      face: innerFaceOf(w.minSide),
+      position: {
+        x: w.thicknessAxis === 'y' ? up : 0,
+        y: w.thicknessAxis === 'y' ? 0 : up,
+        z: w.minSide ? t - gd : 0,
+      },
+      size: {
+        x: w.thicknessAxis === 'y' ? t : panel.length,
+        y: w.thicknessAxis === 'y' ? panel.width : t,
+        z: gd,
+      },
+    },
+  ]
 
-  // The bottom reaches `gd` into all four walls, so both of its dimensions grow by twice the groove
-  // depth and it sits `up` above the box floor. Undermount grooves nothing: both figures are zero
-  // and the bottom lands on the floor of the box, between the walls.
+  const cutsOf = (w: BoxWall, panel: PanelSpec): CutDef[] =>
+    notchedBack && w.role === 'box-back' ? backNotches(w, panel, t) : grooveOf(w, panel)
+
+  // The bottom reaches `gd` into every wall that is grooved for it and stops flush against one that
+  // is not, so each of its two dimensions grows by the groove depth once per grooved edge: twice
+  // across the box's width, whose two walls are always grooved, and twice or once along its depth
+  // depending on whether the back is grooved or notched.
   const bottom: LocalBox = {
     x0: inside.x0 - gd,
     x1: inside.x1 + gd,
     y0: inside.y0 - gd,
-    y1: inside.y1 + gd,
+    y1: notchedBack ? inside.y1 : inside.y1 + gd,
     z0: b.z0 + up,
     z1: b.z0 + up + t,
   }
@@ -187,7 +206,7 @@ function boxBoards(m: DrawerBoxMetrics, t: number): BoxBoard[] {
     label: string,
     box: LocalBox,
     thicknessAxis: ThicknessAxis,
-    cuts: (panel: PanelSpec) => BoxCut[],
+    cuts: (panel: PanelSpec) => CutDef[],
   ): BoxBoard => {
     const panel = orientedPanel(box, thicknessAxis)
     return {
@@ -202,9 +221,54 @@ function boxBoards(m: DrawerBoxMetrics, t: number): BoxBoard[] {
   }
 
   return [
-    ...walls.map((w) => boardOf(w.role, w.label, w.box, w.thicknessAxis, (p) => grooveOf(w, p))),
+    ...walls.map((w) => boardOf(w.role, w.label, w.box, w.thicknessAxis, (p) => cutsOf(w, p))),
     boardOf('box-bottom', 'Box bottom', bottom, 'z', () => []),
   ]
+}
+
+// A locking-device cut-out at each end of an undermount drawer back, with the runner's hook bore
+// above it. Both are cuts the generator already emits and `shapeKey` already encodes, so the
+// undermount box needs no new cut kind and no file-format change.
+//
+// The back is a thickness-on-y panel, so `orientedPanel` runs its HEIGHT along board x and its span
+// across the box along board y — the notch is therefore as tall as board x and as wide as board y,
+// the other way round from how the two figures read on the bench. The hook bore goes in the face
+// that looks at the box interior, the same face the other three walls take their groove in: the
+// runner reaches the back from inside the box, not through its outside.
+function backNotches(w: BoxWall, panel: PanelSpec, t: number): CutDef[] {
+  const face = innerFaceOf(w.minSide)
+  return [0, 1].flatMap((i): CutDef[] => {
+    const y = i === 0 ? 0 : panel.width - UNDERMOUNT_NOTCH_WIDTH
+    return [
+      {
+        kind: 'box',
+        id: `notch_${i}`,
+        label: 'Runner notch',
+        face,
+        // Oversize through the thickness, the convention every cut in this codebase follows: a cut
+        // face coplanar with the board's own leaves OCCT resolving a zero-thickness face.
+        position: { x: 0, y, z: -t / 2 },
+        size: { x: UNDERMOUNT_NOTCH_HEIGHT, y: UNDERMOUNT_NOTCH_WIDTH, z: 2 * t },
+      },
+      {
+        kind: 'hole-array',
+        id: `locate_${i}`,
+        label: 'Runner locating hole',
+        face,
+        axis: 'U',
+        start: {
+          x: UNDERMOUNT_NOTCH_HEIGHT + UNDERMOUNT_HOLE_ABOVE_NOTCH,
+          y: y + UNDERMOUNT_NOTCH_WIDTH / 2,
+          z: face === '+Z' ? panel.thickness : 0,
+        },
+        // One hole has no pitch.
+        pitch: 0,
+        count: 1,
+        diameter: UNDERMOUNT_HOLE_DIAMETER,
+        depth: UNDERMOUNT_HOLE_DEPTH,
+      },
+    ]
+  })
 }
 
 // Reconciled by role key, the shape `regenerateOne` already uses for a carcase's panels: a detached
@@ -364,7 +428,7 @@ export function regenerateDrawers(scene: Scene): Scene {
     parts = reconcileBoards(
       parts,
       drawer,
-      metrics === null ? [] : boxBoards(metrics, t),
+      metrics === null ? [] : boxBoards(metrics, t, drawer.params.family),
       drawer.params.material,
     )
   }
