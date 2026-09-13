@@ -702,3 +702,109 @@ That is exactly the duplicate Task 7b exists to prevent, arriving through the ot
 existing "keeps a cabinet's drawers while its parameters do not resolve" uses a *driven* drawer, and
 a driven drawer is skipped by the release loop whether or not it was claimed, so it cannot see the
 mutation. The added detached fixture fails on the length and nowhere else.
+
+## 2026-09-13 — Task 8, the five boards
+
+### The plan's `metricsFor` was three things wrong, and none of them survived contact
+
+- It called `frontCells` with `outer: { …, z0: 0 }`. The plan flags this itself and says to check
+  against `carcaseMachining`, which uses `z0: floorZ(p)` — but `floorZ` is **not exported** from
+  `carcaseRoles.ts`, so the corrected call could not have been written either. It is moot: a drawer
+  front is never a two-leaf door, so its leaf is always 0 and its role key is
+  `front-{sectionId}-0` with nothing to look up. `frontCells` is not needed here at all.
+- The opening rectangle it wanted out of `tree.rects` is already on `SectionOpening.rect`, which
+  `resolveCarcase` returns. So `resolveSections` / `openingRect` / `sectionThickness` are not
+  re-derived either; `drawerSitesOf` reads the one chain `drawerOpeningsOf` already read.
+- Its `groove` cut omitted `BoxCut.face` (required) and was a **through-cut**: `size.y` was the
+  groove depth and `size.z` was `2 * t`, the toe-kick notch's overshoot pattern. A groove is a slot
+  — `size.y` is the bottom's thickness, `size.z` is the groove depth and must be *less* than the
+  side. Written as the plan had it, every side is sawn in two along its length. Pinned by "cuts the
+  groove as a slot, not through the side", mutation E.
+
+### The fixture numbers were right, and one of them is a floating-point trap
+
+Base 600 measured: opening 564 clear, `clearDepth` 548 → the **500** nominal (the plan's own
+correction from 550 holds). Emitted, at the 15 mm fallback side thickness:
+
+| role | length | width |
+| --- | --- | --- |
+| `box-left`/`box-right` | 500 | 559 |
+| `box-front`/`box-back` | 508.5999999999999 | 559 |
+| `box-bottom` | 482 | 520.5999999999999 |
+
+`564 − 2 × 12.7 − 2 × 15` is 508.6 in decimal and `508.5999999999999` in binary, so `toBe` on the
+front's length or on the bottom's width fails. `toBeCloseTo(…, 6)` throughout, as the plan wrote it.
+
+### Idempotence is by value, not by identity, and the old assertion had to move
+
+`regenerateDrawers(once)` used to return `once` itself, because nothing was generated. Once boards
+exist it cannot: `reconcileBoards` builds a fresh array of fresh objects every pass, and so does
+`regenerateOne` — probed directly, `regenerateComponents(once) !== once` and
+`regenerateComponents(once).parts !== once.parts` for a plain Base 600. Value idempotence is the
+house standard for generated parts. The existing test now asserts identity of the **components**
+list (which still holds, and is what that test was about) and the board tests assert deep equality
+of `parts` including ids — a fresh id per pass would invalidate the geometry cache and the
+selection, which is the claim worth pinning.
+
+### Step 5b: neither option, and the measurement says why
+
+The step predicted that `declaredContact`'s `parent.kind !== 'carcase'` guard would put **four
+`no-offer` rows per drawer** on the "no joint available" list — the bottom against the four walls
+that groove it. Measured on a Base 600 with one drawer-front opening, through the full
+`regenerateDrawers → regenerateComponents → reconcileJoints` chain:
+
+| | door | drawer |
+| --- | --- | --- |
+| parts | 8 | 13 |
+| `contact` | 5 | 5 |
+| `unresolved` (`no-offer`) | 0 | **0** |
+| grouped rows | `Base A: 10` | `Base A: 10`, `Drawer: 10` |
+| ungrouped `rows` | 0 | **10** |
+
+`unresolved` is zero, not four. What the drawer actually adds is **twenty actionable `open` rows** —
+all ten pairs of its own five boards, plus ten pairs of a box board against a carcase panel. The
+reason is the next section: every board is emitted at `position: {0,0,0}`, so the five are
+coincident with each other and sitting in the carcase's bottom-front-left corner. `boardsTouch` and
+`obbOverlap` both say yes to all of it and the suggestion engine offers a joint for every pair.
+
+So the step's premise cannot be tested yet, and neither of its two options can be implemented
+honestly:
+
+- **Option 1, a `drawerContactPairs` table**, has to name which role pairs a correct box leaves
+  unjointed. Which pairs *touch* is a fact about where the boards are, and they are nowhere. A table
+  written now would declare contacts for pairs that do not touch and miss ones that will.
+- **Option 2, a joint for the bottom-in-groove pairs**, is worse off: `defaultDadoJoint` and its
+  siblings read the two parts' geometry to place the cut, so a joint between two coincident boards
+  is not a joint.
+
+The guard is a real latent limitation and the note stands, but it is **not** currently producing a
+false row. Deferred to whichever task places the boards, with the table above as the baseline to
+re-measure against. No test was added: a count test now would pin the defect rather than the rule.
+
+**On `sharedComponent` — the drawer keeps its own group, deliberately.** Rows whose two boards share
+a drawer parent group under the drawer's label, and that is wanted: a joinery checklist is a build
+task list, and "Drawer" is the right heading for the joints inside one. This is the *opposite* call
+from Task 1's `nearestCarcase` fix, and the difference is that a cutting-list row exists to merge
+identical boards across cabinets while a checklist row exists to be worked through where it is.
+One wart to note rather than fix here: every drawer is labelled `Drawer`, so two in one cabinet
+produce two groups with the same heading. `ChecklistGroup` carries `componentId`, so the UI can tell
+them apart; the label cannot.
+
+### The hole this task found: no task in the plan ever places a board
+
+Task 8 emits `position: { x: 0, y: 0, z: 0 }` for all five boards, and nothing in Tasks 9–14 changes
+it — grepped for `orientedPanel`, for `m.box` used as a position, and for the word *placement*.
+`drawerBoxMetrics` already returns `box` in carcase space, so the information exists; what is
+missing is the step that turns it into five placed panels. Consequences, all of them live today:
+
+- The 3D viewport, STL and STEP export five coincident boards in a cabinet corner.
+- **Task 12 measures the shop drawings against exactly this.** Its baseline probe counts parts
+  carrying a visible edge in each assembly view; run now it measures a pile, not a box.
+- The joinery checklist reads twenty spurious open rows per drawer, as measured above.
+
+Placement is not a line of code bolted onto Task 8: `orientedPanel(box, thicknessAxis)` is the
+codebase's one mapping from a carcase-space box to a board, and under it a panel whose thickness
+axis is `y` — the box front and back, like a door — takes its **length from the height**, not from
+the width. That contradicts Task 8's own asserted `front.length === insideWidth`. So placing the
+boards is a decision about which board axis runs a box front's width, with a grain answer attached,
+and it belongs in its own task with its own tests. Flagged rather than done.

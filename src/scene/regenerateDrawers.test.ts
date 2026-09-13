@@ -4,7 +4,8 @@ import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { splitSection } from './editSection'
 import { setFrontOn } from './sectionInterior'
 import type { Section } from './sectionTree'
-import type { CarcaseParams, ComponentId, DrawerComponent, Scene } from './types'
+import { BOTTOM_GROOVE_DEPTH, BOTTOM_GROOVE_UP, SIDE_MOUNT_CLEARANCE } from './drawerBox'
+import type { BoardPart, CarcaseParams, ComponentId, DrawerComponent, Scene } from './types'
 
 const sceneOf = (params: CarcaseParams, components: DrawerComponent[] = []): Scene => ({
   parts: [],
@@ -116,14 +117,19 @@ describe('regenerateDrawers — component reconciliation', () => {
     ).toEqual([...ids].sort())
   })
 
-  it('is idempotent: a second pass returns the very same scene', () => {
+  // Identity where nothing is generated, and identity of the COMPONENT list where something is: a
+  // drawer comes back as the very object it was. Its boards do not, because every board is rebuilt
+  // each pass — measured of `regenerateComponents`, which returns a fresh parts array for a carcase
+  // whose panels have not moved. Value idempotence is the house standard for generated parts; the
+  // board tests below assert it directly, ids included.
+  it('is idempotent: a second pass returns the very same components', () => {
     const empty = regenerateDrawers(sceneOf(withFront(DOOR)))
     expect(regenerateDrawers(empty)).toBe(empty)
 
     const once = regenerateDrawers(
       sceneOf(twoBays({ kind: 'drawer-front' }, { kind: 'drawer-front' })),
     )
-    expect(regenerateDrawers(once)).toBe(once)
+    expect(regenerateDrawers(once).components).toBe(once.components)
   })
 
   it('preserves an existing driven drawer rather than replacing it', () => {
@@ -259,12 +265,180 @@ describe('regenerateDrawers — component reconciliation', () => {
     const once = regenerateDrawers(sceneOf(oneDrawer()))
     const detached = {
       ...once,
-      components: once.components.map((c) =>
-        c.kind === 'drawer' ? { ...c, driven: false } : c,
-      ),
+      components: once.components.map((c) => (c.kind === 'drawer' ? { ...c, driven: false } : c)),
     }
     const out = regenerateDrawers(withParams(detached, { ...oneDrawer(), width: 6 }))
     expect(drawersOf(out)).toHaveLength(1)
     expect(drawersOf(out)[0]).toBe(drawersOf(detached)[0])
+  })
+})
+
+const boardsOf = (s: Scene, drawerId: string): BoardPart[] =>
+  s.parts.filter((p): p is BoardPart => p.kind === 'board' && p.parentId === drawerId)
+
+describe('regenerateDrawers — the boards', () => {
+  it('emits five boards, one per role', () => {
+    const out = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(out)[0]
+    const roles = boardsOf(out, drawer.id)
+      .map((b) => b.role)
+      .sort()
+    expect(roles).toEqual(['box-back', 'box-bottom', 'box-front', 'box-left', 'box-right'])
+  })
+
+  it('parents every board to the drawer, not to the cabinet', () => {
+    const out = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(out)[0]
+    expect(boardsOf(out, drawer.id)).toHaveLength(5)
+    expect(out.parts.filter((p) => p.parentId === 'cmp_1')).toHaveLength(0)
+  })
+
+  it('runs the sides the full depth and fits the front and back between them', () => {
+    const out = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(out)[0]
+    const boards = boardsOf(out, drawer.id)
+    const left = boards.find((b) => b.role === 'box-left')!
+    const front = boards.find((b) => b.role === 'box-front')!
+    const t = left.thickness
+    // A 564 mm clear opening takes the side clearance off each side; the front then sits between
+    // the two sides. Both expectations are built from the fixture's own numbers, not from the
+    // function under test.
+    expect(front.length).toBeCloseTo(564 - 2 * SIDE_MOUNT_CLEARANCE - 2 * t, 6)
+    // Base 600 is 560 deep with a 12 mm captured back, so 548 clear, which picks the 500 nominal.
+    expect(left.length).toBe(500)
+  })
+
+  it('grooves all four sides for the bottom, and only for side-mount', () => {
+    const out = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(out)[0]
+    const grooved = boardsOf(out, drawer.id).filter((b) =>
+      b.cuts.some((c) => c.id.startsWith('groove_')),
+    )
+    expect(grooved).toHaveLength(4)
+    expect(grooved.every((b) => b.role !== 'box-bottom')).toBe(true)
+  })
+
+  // The groove is a slot as wide as the board it captures and as deep into the face as the groove
+  // figure — not a through-cut, which would saw the side in two along its length.
+  it('cuts the groove as a slot, not through the side', () => {
+    const out = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(out)[0]
+    const boards = boardsOf(out, drawer.id)
+    const left = boards.find((b) => b.role === 'box-left')!
+    const bottom = boards.find((b) => b.role === 'box-bottom')!
+    const groove = left.cuts.find((c) => c.id.startsWith('groove_'))!
+    if (groove.kind !== 'box') throw new Error('the bottom groove is a box cut')
+    expect(groove.size.z).toBe(BOTTOM_GROOVE_DEPTH)
+    expect(groove.size.z).toBeLessThan(left.thickness)
+    expect(groove.size.y).toBe(bottom.thickness)
+    expect(groove.size.x).toBe(left.length)
+    expect(groove.position.y).toBe(BOTTOM_GROOVE_UP)
+  })
+
+  it('sizes the bottom from the groove rather than from a sixth number', () => {
+    const out = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(out)[0]
+    const boards = boardsOf(out, drawer.id)
+    const bottom = boards.find((b) => b.role === 'box-bottom')!
+    const left = boards.find((b) => b.role === 'box-left')!
+    const front = boards.find((b) => b.role === 'box-front')!
+    // Inside width plus twice the groove depth, derived here from the other boards rather than by
+    // calling the function under test.
+    expect(bottom.width).toBeCloseTo(front.length + 2 * BOTTOM_GROOVE_DEPTH, 6)
+    expect(bottom.length).toBeCloseTo(
+      left.length - 2 * front.thickness + 2 * BOTTOM_GROOVE_DEPTH,
+      6,
+    )
+  })
+
+  it('emits no boards at all when the cabinet is too shallow for a runner', () => {
+    const shallow = { ...oneDrawer(), depth: 200 }
+    const out = regenerateDrawers(sceneOf(shallow))
+    const drawer = drawersOf(out)[0]
+    expect(drawer).toBeDefined()
+    expect(boardsOf(out, drawer.id)).toHaveLength(0)
+  })
+
+  // The other way a box is refused: `drawerBoxMetrics` declines a degenerate opening as readily as
+  // a missing runner, and a decline is a decline whichever guard made it.
+  it('emits no boards at all when the box parameters are degenerate', () => {
+    const once = regenerateDrawers(sceneOf(oneDrawer()))
+    const flat = {
+      ...once,
+      components: once.components.map((c) =>
+        c.kind === 'drawer' ? { ...c, params: { ...c.params, boxHeight: 0 } } : c,
+      ),
+    }
+    const out = regenerateDrawers(flat)
+    expect(boardsOf(out, drawersOf(out)[0].id)).toHaveLength(0)
+  })
+
+  // A driven board is the generator's and is replaced outright: the second pass has to overwrite a
+  // hand-edited length, or a stale figure survives every regeneration that follows it.
+  it('replaces a driven board rather than keeping its edited size', () => {
+    const once = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(once)[0]
+    const edited = {
+      ...once,
+      parts: once.parts.map((p) => (p.role === 'box-left' ? { ...p, length: 999 } : p)),
+    }
+    const again = regenerateDrawers(edited)
+    const left = boardsOf(again, drawer.id).find((b) => b.role === 'box-left')!
+    expect(left.length).toBe(500)
+    // Reconciled, not recreated: the id is what the selection and the geometry cache are keyed on.
+    expect(left.id).toBe(boardsOf(once, drawer.id).find((b) => b.role === 'box-left')!.id)
+  })
+
+  it('leaves a detached board alone', () => {
+    const once = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(once)[0]
+    const detached = {
+      ...once,
+      parts: once.parts.map((p) =>
+        p.parentId === drawer.id && p.role === 'box-left'
+          ? { ...p, driven: false, length: 999 }
+          : p,
+      ),
+    }
+    const again = regenerateDrawers(detached)
+    const left = boardsOf(again, drawer.id).find((b) => b.role === 'box-left')!
+    expect(left.length).toBe(999)
+  })
+
+  // A detached DRAWER's boards are ordinarily driven, so the per-board rule above cannot save them:
+  // the drawer someone detached to stop this pass touching it is skipped whole, before a single
+  // board is read.
+  it('regenerates nothing under a detached drawer', () => {
+    const once = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(once)[0]
+    const mine = {
+      ...once,
+      components: once.components.map((c) => (c.kind === 'drawer' ? { ...c, driven: false } : c)),
+      parts: once.parts.map((p) => (p.role === 'box-left' ? { ...p, length: 999 } : p)),
+    }
+    const again = regenerateDrawers(mine)
+    expect(boardsOf(again, drawer.id).find((b) => b.role === 'box-left')!.length).toBe(999)
+    expect(boardsOf(again, drawer.id)).toHaveLength(5)
+  })
+
+  // The board-level half of "keeps a cabinet's drawers while its parameters do not resolve". The
+  // drawer is carried over with nowhere to put a box, and its boards are carried with it: emptying
+  // a box for a width of `6` typed on the way to `600` is the same defect one level down, and the
+  // component-level test above cannot see it.
+  it('keeps a drawer\u2019s boards while its cabinet\u2019s parameters do not resolve', () => {
+    const once = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(once)[0]
+    const out = regenerateDrawers(withParams(once, { ...oneDrawer(), width: 6 }))
+    expect(boardsOf(out, drawer.id)).toEqual(boardsOf(once, drawer.id))
+  })
+
+  // Value, not identity: every board is rebuilt each pass, exactly as `regenerateComponents`
+  // rebuilds every carcase panel. What has to hold is that nothing moves — ids included, since a
+  // fresh id on every pass would invalidate the geometry cache and the selection with it.
+  it('is idempotent: a second pass emits the very same boards', () => {
+    const once = regenerateDrawers(sceneOf(oneDrawer()))
+    const twice = regenerateDrawers(once)
+    expect(twice.parts).toEqual(once.parts)
+    expect(twice.parts.map((p) => p.id)).toEqual(once.parts.map((p) => p.id))
   })
 })
