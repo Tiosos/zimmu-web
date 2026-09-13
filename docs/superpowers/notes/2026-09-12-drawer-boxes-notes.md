@@ -1163,3 +1163,65 @@ any drawer component. Consequence: both stage-order mutations (drawers after car
 taken off the box — re-run those two mutations as part of Task 11.
 
 (Independently confirmed during Task 9c: swapping the pipeline order leaves all 1895 tests green.)
+
+## 2026-09-13 — Task 11: the slide row follows the box, not the centreline
+
+**Baseline (Step 1), the presets' slide rows under the old centreline rule** (measured through
+`regenerateComponents` alone, each preset's root opening set to a drawer front):
+
+| preset | old y | new y | count | Δ |
+| --- | --- | --- | --- | --- |
+| Base 600 | 410 | 150 | 16 | −260 |
+| Wall 600 | 360 | 50 | 9 | −310 |
+| Tall 600 | 1100 | 150 | 16 | −950 |
+
+Both uprights (`left-side`, `right-side`) carry identical rows, so each figure is one row seen twice.
+The old rule put the row at the opening's vertical midline; the new rule puts it at
+`runnerZ − panel.position.z` where `runnerZ = opening.z0 + runnerOffset` (side-mount default 32 mm),
+i.e. 32 mm above the opening floor. So the taller the opening, the further the row drops — Tall 600
+moves nearly a metre. `count` is unchanged everywhere because it follows the panel's depth
+(`floor((length − 37) / 32)`), which the height rule never touched. The "after" numbers were measured
+through the full pipeline (`regenerateComponents(regenerateDrawers(scene))`), because a slide row now
+requires a drawer box to exist.
+
+**`sideThickness` — the plan's placeholder is gone.** Step 4 hardcoded
+`sideThickness: params.boxHeight === null ? 15 : 15` and said it must not ship. `carcaseMachining`
+has no `materials` access, so it cannot resolve the box's side thickness itself. Decision:
+`boxSideThickness(drawer, materials)` is now **exported** from `regenerateDrawers.ts` (the one
+statement of a box's side thickness: `materials[drawer.params.material]?.thickness ?? 15`), and
+`drawerFor` was changed to return `{ params, sideThickness }` rather than a bare `DrawerParams`.
+`regenerateComponents.regenerateOne` resolves the thickness through that shared helper at the call
+site — no second copy of the `materials[...]?.thickness ?? 15` rule. `sideThickness` does not enter
+`runnerZ`, but it governs `drawerBoxMetrics`'s decline path (the undermount width guard and the
+`box.x1 − box.x0 <= 2 * sideThickness` guard), so a wrong value would change which drawers get a
+slide row at all.
+
+**Which tests moved, and the plan's Step 8 was wrong about which file.** The plan staged
+`useScene.test.ts`, predicting a moving slide-row assertion there. It has none — its single-pass
+test (`settles a new drawer front in a single pass`) counts slide rows, does not assert positions,
+and stayed green (the pipeline already runs drawers first, so the box exists when the carcase pass
+reads it). The tests that actually broke were the **seven runner/thickness tests in
+`carcaseHardware.test.ts`**. They did not *move* — their slide rows *disappeared*, because
+`sceneOf` built the scene through `regenerateComponents` alone and never created a drawer, so
+`drawerFor` returned null and no slide row was bored. That is the correct new behaviour (a slide row
+now genuinely depends on the box), not a regression, so the fix was to build the scene the way the
+app does: `sceneOf` now runs `regenerateDrawers` before `regenerateComponents`. No numeric
+expectation was edited anywhere; no existing test pinned a slide-row *position*.
+
+**Mutation (Step 7).** Restoring the old centreline rule
+(`(cell.rect.z0 + cell.rect.z1) / 2 − panel.position.z`) makes
+`moves the slide row when the runner offset moves` fail (0 vs the expected 40), because the
+centreline ignores `runnerOffset` entirely. So the re-baseline is real and the new test discriminates
+the box-based rule from the centreline. (The two stage-order mutations flagged in the Task 10 note
+live in the pipeline in `useScene.ts`, outside Task 11's file scope; the single-pass test is now
+genuinely box-dependent, so they are testable, but re-running them was left to whoever touches that
+pipeline.)
+
+**Deviations from the plan (recorded, not silently taken):**
+- `drawerFor` returns `{ params, sideThickness }`, not bare `DrawerParams` (directed by the task to
+  kill the placeholder).
+- The new test helper `machiningFor` calls the real five-arg export (`machiningOf`) with the file's
+  own `tOf` resolver, not `roleThicknessFor(params, PRESET_MATERIALS, {})` — that third argument is a
+  `Map`, so `{}` would not typecheck.
+- The local two-arg `carcaseMachining` wrapper in `carcaseRoles.test.ts` now supplies a default
+  side-mount `drawerFor` so the existing count assertions still see their slide rows.

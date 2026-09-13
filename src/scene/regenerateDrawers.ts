@@ -44,7 +44,14 @@ const keyOf = (cabinetId: ComponentId | null, sectionId: SectionId): string =>
 // about an unresolved material, not a figure about a box.
 const DEFAULT_BOX_SIDE_THICKNESS = 15
 
-function boxSideThickness(drawer: DrawerComponent, materials: Record<string, MaterialDef>): number {
+// The one statement of a drawer box's side thickness: the drawer's own material, or the
+// conventional 15 mm when it names none. Exported because `regenerateComponents` needs the same
+// figure to place the slide screws — a second `materials[...]?.thickness ?? 15` would be free to
+// disagree with the box the drawer built.
+export function boxSideThickness(
+  drawer: DrawerComponent,
+  materials: Record<string, MaterialDef>,
+): number {
   return materials[drawer.params.material]?.thickness ?? DEFAULT_BOX_SIDE_THICKNESS
 }
 

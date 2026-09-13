@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { CARCASE_PRESETS, PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
 import { regenerateComponents } from './regenerateComponents'
+import { regenerateDrawers } from './regenerateDrawers'
 import { hingeCount } from './frontMachining'
 import { carcaseHardware } from './carcaseHardware'
 import { clearDepth } from './carcaseRoles'
@@ -28,25 +29,31 @@ const sceneOf = (
   label = 'Cabinet',
   materials: Record<string, MaterialDef> = PRESET_MATERIALS,
 ): Scene =>
-  regenerateComponents({
-    parts: [],
-    materials: { ...materials },
-    hardware: [],
-    joints: [],
-    components: [
-      {
-        kind: 'carcase',
-        id: 'cmp_1',
-        label,
-        parentId: null,
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 },
-        rotationOrder: 'XYZ',
-        visible: true,
-        params,
-      },
-    ],
-  })
+  // Drawers first, then carcase — the pipeline order `applyPipeline` runs. The slide row now reads
+  // the drawer box, so a scene built without the drawer pass bores no slide screws and quotes no
+  // runner: this helper has to build a cabinet the way the app does or the runner tests below see
+  // an empty scene.
+  regenerateComponents(
+    regenerateDrawers({
+      parts: [],
+      materials: { ...materials },
+      hardware: [],
+      joints: [],
+      components: [
+        {
+          kind: 'carcase',
+          id: 'cmp_1',
+          label,
+          parentId: null,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          visible: true,
+          params,
+        },
+      ],
+    }),
+  )
 
 const qtyOf = (scene: Scene, key: string): number =>
   carcaseHardware(scene)

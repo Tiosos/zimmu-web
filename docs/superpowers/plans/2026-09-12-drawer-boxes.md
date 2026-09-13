@@ -2755,6 +2755,17 @@ do not assert that nothing does.
 - Modify: `src/scene/regenerateComponents.ts:70`
 - Test: `src/scene/carcaseRoles.test.ts`
 
+> **Implementation note (2026-09-13, done).** Deviations from the steps below, recorded additively:
+> - `drawerFor` returns `{ params, sideThickness }`, not a bare `DrawerParams`. The Step 4
+>   `sideThickness: 15` placeholder is gone: `boxSideThickness` is now **exported** from
+>   `regenerateDrawers.ts` and `regenerateComponents.regenerateOne` resolves the box's side thickness
+>   through it, so there is no second copy of `materials[...]?.thickness ?? 15`.
+> - The moving assertions were **not** in `useScene.test.ts` (Step 8's staged file) — that file's
+>   single-pass test counts rows, not positions, and stayed green. They were the seven runner tests
+>   in `carcaseHardware.test.ts`, whose `sceneOf` built the scene without the drawer pass; it now
+>   runs `regenerateDrawers` first, exactly as `applyPipeline` does. No numeric expectation was
+>   edited — no existing test pinned a slide-row position. Baseline/after numbers are in the notes.
+
 - [ ] **Step 1: Measure the current behaviour before changing it**
 
 Write a scratch test, run it, record the numbers, then delete it. Do not skip this: the plan's
