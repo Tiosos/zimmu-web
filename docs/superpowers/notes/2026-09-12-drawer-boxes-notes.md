@@ -601,3 +601,66 @@ and gives `DrawerParams` two import paths just as `Section` already has two, whi
 **One pre-existing formatting violation was left alone.** `SceneTree.tsx:229` is 101 characters and
 Prettier wants it wrapped; it came in with `eaa95f5`, not with this task, so reverting Prettier's
 reflow of it kept the review diff to the lines under repair.
+
+## 2026-09-13 — Task 7b: a detached drawer follows the part rule
+
+**The contradiction.** The spec's "A detached drawer is the user's" paragraph says the drawer rule
+matches "the rule parts already follow". It did not. Probed against `regenerateComponents.ts`, what
+parts actually do is two things:
+
+- `regenerateOne` does `if (existing !== undefined && !existing.driven) return existing` — a
+  detached part **satisfies** its role and is returned by identity. No driven part is built beside
+  it.
+- A detached part whose role is no longer implied is kept with the role **released**:
+  `kept.push(p.role === undefined ? p : { ...p, role: undefined })`, so a later pass cannot reclaim
+  it.
+
+`regenerateDrawers` did neither. It keyed `existing` over driven drawers only, so a detached drawer
+never satisfied its opening and the opening was given a fresh driven drawer alongside it — and its
+own test asserted exactly that (`toHaveLength(2)`, "does not let a detached drawer claim its
+opening"). After Task 8 that is two five-board boxes in one bay: double-counted in the cutting list,
+both drawn in 3D. It is reachable today rather than hypothetically, because `9e5d88b` makes a
+malformed drawer record parse as `driven: false`.
+
+**Both halves were brought across.** `existing` is now keyed over every drawer, driven or detached,
+and a found drawer is pushed by identity whatever its flag; only an opening with no existing drawer
+gets a fresh `driven: true` one. A detached leftover is kept with `sectionId` released to `null`,
+mirroring `{ ...p, role: undefined }`. A driven leftover is still dropped.
+
+**`DrawerComponent.sectionId` is therefore `SectionId | null`.** The whole nullable-field typecheck
+was a single error — `regenerateDrawers.ts(41,73)`, `keyOf`'s second argument — because nothing else
+in the tree reads that field. `keyOf` keeps its non-null parameter and the call site guards
+(`c.sectionId !== null`), so a released drawer is kept out of the map rather than keyed on a
+stringified `null`.
+
+**No format bump.** `FILE_FORMAT_VERSION` stays 18. v18 *is* the drawer component, and widening a
+field inside a kind the same version introduced breaks nothing that was ever written: every v18 file
+in existence states a string `sectionId` and still parses. A bump's only job is to tell an older
+build that a file is from the future, and there is no older build that knows `drawer` and not
+`sectionId: null`.
+
+**The demotion guard's `=== undefined` became load-bearing.** `useFile.ts` demotes an incomplete
+drawer to a group; written as `== null` it would now demote every released drawer on load — a whole
+component kind lost to a two-character difference. Left as `===`, commented, and pinned by a parse
+test. That test is the one that fails when the guard is loosened; nothing else in 72 `useFile` tests
+notices.
+
+**The mutation that killed nothing.** Dropping the `c.sectionId !== null` guard (cast back to
+`SectionId` so it compiles) leaves all 15 tests green, and correctly so: section ids are `sec_<uuid>`
+and the literal string `null` can never be one, so no opening could ever match the key. The guard's
+real enforcement is `tsc` — without the cast the uncast form is the very type error the nullable
+field produced. It is kept as the explicit statement that a released drawer names no opening; only a
+fixture with a section literally called `null` could turn it into a behavioural claim, and that
+fixture would be testing the mutation rather than the cabinet.
+
+**The spec paragraph was left alone.** "no regeneration, no deletion, matching the rule parts already
+follow" is now true as written, including the release — the sentence was accurate about the
+*intended* rule all along, and this task made the code catch up to it rather than the other way
+round.
+
+**Task 8 in the plan needed an additive guard.** Its board-emitting loop is `for (const drawer of
+kept)`, and `kept` now carries detached drawers. Without `if (!drawer.driven) continue` it would
+regenerate a detached drawer's boards — the exact thing `driven: false` exists to prevent — and the
+per-board `detachedBoards` rule would not save them, because a detached drawer's *boards* are
+ordinarily still driven. Task 7's own snippet was marked superseded in the one line that keys
+`existing`, rather than rewritten.

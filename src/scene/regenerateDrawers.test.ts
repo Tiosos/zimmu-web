@@ -138,8 +138,10 @@ describe('regenerateDrawers — component reconciliation', () => {
     expect(drawersOf(regenerateDrawers(withParams(withDrawer, withFront(DOOR))))).toHaveLength(0)
   })
 
-  // A detached drawer is the user's. The component-level mirror of the detached-part rule.
-  it('keeps a detached drawer even when its opening is gone', () => {
+  // A detached drawer is the user's. The component-level mirror of the detached-part rule — kept
+  // when its opening goes, and with the section id released, exactly as `regenerateOne` keeps a
+  // detached part as `{ ...p, role: undefined }`.
+  it('keeps a detached drawer whose opening is gone, with its section id released', () => {
     const withDrawer = regenerateDrawers(sceneOf(oneDrawer()))
     const detached = {
       ...withDrawer,
@@ -150,18 +152,51 @@ describe('regenerateDrawers — component reconciliation', () => {
     const out = regenerateDrawers(withParams(detached, withFront(DOOR)))
     expect(drawersOf(out)).toHaveLength(1)
     expect(drawersOf(out)[0].driven).toBe(false)
+    expect(drawersOf(out)[0].sectionId).toBeNull()
   })
 
-  // The other half of the same rule, and the half that says `driven` is read on the way IN as well
-  // as on the way out: regeneration must not reach into a detached drawer to satisfy an opening, or
-  // the user's copy would be silently re-adopted and edited.
-  it('does not let a detached drawer claim its opening', () => {
+  // The two halves of the leftover rule read against one another, in one scene: the driven drawer
+  // whose opening is gone is deleted, the detached one beside it is kept. A fixture holding only
+  // one of them cannot tell "keeps detached leftovers" from "keeps all leftovers".
+  it('drops a driven leftover and releases a detached one beside it', () => {
+    const params = twoBays({ kind: 'drawer-front' }, { kind: 'drawer-front' })
+    const [leftId] = childrenOf(params.section).map((s) => s.id)
+    const once = regenerateDrawers(sceneOf(params))
+    const mixed = {
+      ...once,
+      components: once.components.map((c) =>
+        c.kind === 'drawer' && c.sectionId === leftId ? { ...c, driven: false } : c,
+      ),
+    }
+    const out = regenerateDrawers(withParams(mixed, twoBays(DOOR, DOOR)))
+    expect(drawersOf(out)).toHaveLength(1)
+    expect(drawersOf(out)[0]).toMatchObject({ driven: false, sectionId: null })
+  })
+
+  // The other half of the reconciliation rule, and the one this file used to assert backwards: a
+  // detached drawer *satisfies* its opening and comes back by identity, so no driven drawer is
+  // built beside it. Two five-board boxes in one bay is what the old rule produced — double-counted
+  // in the cutting list and both drawn in 3D. Identity, not a count: returning an edited copy would
+  // pass a length assertion and still be regeneration of the user's drawer.
+  it('lets a detached drawer satisfy its opening, untouched', () => {
     const once = regenerateDrawers(sceneOf(oneDrawer()))
     const mine = { ...drawersOf(once)[0], driven: false }
     const out = regenerateDrawers(sceneOf(oneDrawer(), [mine]))
+    expect(drawersOf(out)).toHaveLength(1)
+    expect(drawersOf(out)[0]).toBe(mine)
+  })
+
+  // What releasing the section id buys. The shim rebuilds a tree's ids on every keystroke, but a
+  // preset's do not move, so a drawer that kept a stale id would re-adopt the very opening it was
+  // released from — silently, and carrying whatever parameters it had when the user detached it.
+  it('does not let a released drawer reclaim an opening that reappears', () => {
+    const once = regenerateDrawers(sceneOf(oneDrawer()))
+    const released = { ...drawersOf(once)[0], driven: false, sectionId: null }
+    const out = regenerateDrawers(sceneOf(oneDrawer(), [released]))
     expect(drawersOf(out)).toHaveLength(2)
+    expect(drawersOf(out).find((d) => !d.driven)).toBe(released)
     expect(drawersOf(out).filter((d) => d.driven)).toHaveLength(1)
-    expect(drawersOf(out).find((d) => !d.driven)).toBe(mine)
+    expect(drawersOf(out).find((d) => d.driven)?.sectionId).toBe(BASE.section.id)
   })
 
   it('follows the section id when a section changes position', () => {

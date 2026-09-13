@@ -1679,6 +1679,12 @@ Expected: FAIL — `Failed to resolve import "./regenerateDrawers"`.
 
 - [ ] **Step 3: Write the implementation**
 
+**Superseded in one place by Task 7b:** the snippet below keys `existing` over driven drawers only,
+which gives a detached drawer's opening a second, driven drawer beside it. The shipped rule keys
+over *all* drawers — a detached one satisfies its opening and comes back by identity — and releases
+`sectionId` to `null` on a detached drawer whose opening is gone. Read `src/scene/regenerateDrawers.ts`
+rather than this snippet for that line.
+
 Create `src/scene/regenerateDrawers.ts`:
 
 ```ts
@@ -2018,9 +2024,18 @@ function boxBoards(m: DrawerBoxMetrics, t: number): BoxBoard[] {
 Then, inside `regenerateDrawers`, after `kept` is built, produce the parts. Reuse the existing
 `byRole` reconcile shape from `regenerateOne` so a detached board survives:
 
+**`kept` holds detached drawers as well as driven ones** (Task 7b: a detached drawer satisfies its
+opening and is returned by identity, exactly as `regenerateOne` returns a detached part). So this
+loop must skip a drawer that is not `driven` before it touches anything — otherwise it regenerates
+the boards of the very drawer `driven: false` was added to leave alone, and the per-board
+`detachedBoards` rule below would not save them: a detached drawer's boards are ordinarily driven.
+Skipping leaves that drawer's parts untouched in `parts`, which is what preservation means here.
+
 ```ts
   let parts = scene.parts
   for (const drawer of kept) {
+    // A detached drawer is the user's — its boards are not re-derived, whatever their own flags say.
+    if (!drawer.driven) continue
     const cabinet = carcases.find((c) => c.id === drawer.parentId)
     if (cabinet === undefined) continue
     const metrics = metricsFor(cabinet, drawer, scene)

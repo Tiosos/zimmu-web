@@ -350,10 +350,13 @@ export function parseFile(text: string): ZimmuFile {
         delete params.adjustableShelves
         return { ...base, params }
       }
-      // v17→v18: drawer components. `DrawerComponent` declares `params` and `sectionId` required,
+      // v17→v18: drawer components. `DrawerComponent` declares `params` and `sectionId` present,
       // so a drawer missing either is a shape the type says cannot exist. Demote rather than
       // fabricate: a group keeps the label, the placement and every child board, and loses only
       // the ability to regenerate.
+      //
+      // `=== undefined` and not `== null`: a released drawer — detached, its opening gone —
+      // serialises `sectionId: null`, which is a drawer the model states and must parse as one.
       if (base.kind === 'drawer' && (base.params === undefined || base.sectionId === undefined)) {
         console.warn(`zimmu: drawer "${base.id}" is incomplete — loaded as a group`)
         return {

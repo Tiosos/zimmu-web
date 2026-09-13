@@ -2037,6 +2037,16 @@ describe('v17 → v18: drawer components', () => {
     expect(c.kind).toBe('group')
   })
 
+  // A released drawer — detached, and its opening gone — states `sectionId: null`, which the model
+  // allows and the demotion guard must let through. Absent and null are a millimetre apart in the
+  // parser and a whole component kind apart in the scene: written as `== null` the guard would
+  // demote every released drawer in every saved file to a group on load.
+  it('parses a drawer whose section id is released as a drawer', () => {
+    const c = parseFile(envelope([drawer({ sectionId: null, driven: false })])).scene.components[0]
+    expect(c.kind).toBe('drawer')
+    expect(c).toMatchObject({ id: 'cmp_d1', sectionId: null, driven: false })
+  })
+
   // The version bump's one observable consequence: a v18 file is no longer from the future. The
   // assertion is that a well-formed current-version file parses *silently*, not that one particular
   // sentence went unsaid: matching the warning's wording makes the bump's only pin co-dependent on

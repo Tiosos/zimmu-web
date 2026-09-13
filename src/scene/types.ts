@@ -257,8 +257,9 @@ export interface DrawerComponent {
   visible: boolean
   // Which opening this drawer fills. Reconciliation is by (parentId, sectionId) and never by
   // index: the v12 divider shim rebuilds section ids on every keystroke, so an index would rebind
-  // a drawer to a different bay.
-  sectionId: SectionId
+  // a drawer to a different bay. `null` on a detached drawer whose opening is gone: the section id
+  // is released so a later pass cannot reclaim it, exactly as a detached part's role key is.
+  sectionId: SectionId | null
   params: DrawerParams
   // No other component carries this. A detached drawer is the user's — no regeneration, no
   // deletion — exactly as a detached part is. Carcases and groups are deliberately left out: a
