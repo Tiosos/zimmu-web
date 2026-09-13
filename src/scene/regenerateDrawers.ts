@@ -125,11 +125,29 @@ function boxBoards(m: DrawerBoxMetrics, t: number, family: RunnerFamily): BoxBoa
   const gd = m.groove.depth
   const up = m.groove.up
   // The one difference the family makes to the box itself. An undermount back is notched for the
-  // runner's locking devices, so it is the one wall that carries no groove — and the bottom
-  // therefore reaches into three walls and stops flush against the fourth.
+  // runner's locking devices, so it is the one wall that carries no groove — and it sits on a
+  // bottom that runs the box's full depth rather than closing the end the bottom stops at.
   const notchedBack = family === 'undermount'
   // The clear rectangle between the four walls: what the front, back and bottom span.
   const inside = { x0: b.x0 + t, x1: b.x1 - t, y0: b.y0 + t, y1: b.y1 - t }
+
+  // The bottom reaches `gd` into every wall that is grooved for it, so each of its dimensions grows
+  // by the groove depth once per grooved edge: twice across the box's width, whose two walls are
+  // always grooved, and once along its depth at the front. What happens at the OTHER end of the
+  // depth is the family's one remaining difference — a grooved back takes the bottom `gd` into
+  // itself, while an undermount bottom runs the box's full depth and the back sits on top of it.
+  // That is how a TANDEM box is assembled and it gives the back a face to be screwed down to.
+  //
+  // Stated before the walls because the back reads its top: two statements of where the bottom's
+  // upper face is would eventually leave the back floating above it or buried in it.
+  const bottom: LocalBox = {
+    x0: inside.x0 - gd,
+    x1: inside.x1 + gd,
+    y0: inside.y0 - gd,
+    y1: notchedBack ? b.y1 : inside.y1 + gd,
+    z0: b.z0 + up,
+    z1: b.z0 + up + t,
+  }
 
   const walls: BoxWall[] = [
     {
@@ -156,7 +174,16 @@ function boxBoards(m: DrawerBoxMetrics, t: number, family: RunnerFamily): BoxBoa
     {
       role: 'box-back',
       label: 'Box back',
-      box: { ...b, x0: inside.x0, x1: inside.x1, y0: b.y1 - t },
+      // Only the undermount back is raised: it stands ON the bottom rather than beside it, so it
+      // is shorter than the box by the groove height and the bottom's thickness together. A
+      // side-mount back is grooved like the other three walls and runs the box's full height.
+      box: {
+        ...b,
+        x0: inside.x0,
+        x1: inside.x1,
+        y0: b.y1 - t,
+        z0: notchedBack ? bottom.z1 : b.z0,
+      },
       thicknessAxis: 'y',
       minSide: false,
     },
@@ -187,19 +214,6 @@ function boxBoards(m: DrawerBoxMetrics, t: number, family: RunnerFamily): BoxBoa
 
   const cutsOf = (w: BoxWall, panel: PanelSpec): CutDef[] =>
     notchedBack && w.role === 'box-back' ? backNotches(w, panel, t) : grooveOf(w, panel)
-
-  // The bottom reaches `gd` into every wall that is grooved for it and stops flush against one that
-  // is not, so each of its two dimensions grows by the groove depth once per grooved edge: twice
-  // across the box's width, whose two walls are always grooved, and twice or once along its depth
-  // depending on whether the back is grooved or notched.
-  const bottom: LocalBox = {
-    x0: inside.x0 - gd,
-    x1: inside.x1 + gd,
-    y0: inside.y0 - gd,
-    y1: notchedBack ? inside.y1 : inside.y1 + gd,
-    z0: b.z0 + up,
-    z1: b.z0 + up + t,
-  }
 
   const boardOf = (
     role: BoxRole,
@@ -235,6 +249,14 @@ function boxBoards(m: DrawerBoxMetrics, t: number, family: RunnerFamily): BoxBoa
 // the other way round from how the two figures read on the bench. The hook bore goes in the face
 // that looks at the box interior, the same face the other three walls take their groove in: the
 // runner reaches the back from inside the box, not through its outside.
+//
+// Both are placed from the back's own bottom edge, which the bottom now holds a groove height and a
+// board thickness above the box floor — so in CARCASE space this whole pattern rose with the back.
+// That is the height a device has to reach the back at now that the bottom runs beneath it, and it
+// is what the notch clears. Whether a TANDEM device instead comes up THROUGH the bottom — which
+// would put the cut-out in the bottom's rear corners and leave the back carrying only its bore — is
+// a hardware question none of the sources reached here settle, and the same class of question as
+// the notch figures themselves. Flagged in the notes rather than guessed at.
 function backNotches(w: BoxWall, panel: PanelSpec, t: number): CutDef[] {
   const face = innerFaceOf(w.minSide)
   return [0, 1].flatMap((i): CutDef[] => {

@@ -786,9 +786,9 @@ describe('regenerateDrawers — the undermount box', () => {
 
   // The plan asserted the bottom's width against the front's LENGTH, which after Task 8b is the box
   // height and not a depth at all. The claim worth pinning is the one the notched back changes: the
-  // bottom sits in three grooves and stops flush against the fourth wall, so it grows by a groove
-  // depth on three edges and not four.
-  it('adds a groove depth on three edges of the bottom, not four', () => {
+  // bottom sits in three grooves and passes under the fourth wall, so it grows by a groove depth on
+  // three edges and by a whole wall thickness on the fourth.
+  it('adds a groove depth on three edges of the bottom, and a back on the fourth', () => {
     const s = built()
     const bottom = roleOf(s, 'box-bottom')
     const left = roleOf(s, 'box-left')
@@ -797,15 +797,85 @@ describe('regenerateDrawers — the undermount box', () => {
     // WIDTH runs carcase y, the box's depth. The front's width is the inside width, and the side's
     // length is the box's full depth.
     expect(bottom.length).toBeCloseTo(front.width + 2 * BOTTOM_GROOVE_DEPTH, 6)
-    expect(bottom.width).toBeCloseTo(left.length - 2 * front.thickness + BOTTOM_GROOVE_DEPTH, 6)
+    // Off the box's full depth only the FRONT's thickness is lost, and a groove depth of that comes
+    // back. The wall thickness and the groove depth are different figures, so this separates a
+    // bottom running under the back from one stopping in a groove the back does not have.
+    expect(bottom.width).toBeCloseTo(left.length - front.thickness + BOTTOM_GROOVE_DEPTH, 6)
   })
 
   // The same claim as a difference, which no arithmetic slip can satisfy by accident: the two
-  // families cut the same bottom across the box and differ by exactly one groove depth along it.
-  it('makes the bottom one groove depth shallower than a side-mount’s', () => {
+  // families cut the same bottom across the box and differ along it by what the fourth edge does —
+  // one groove depth given up, one board thickness gained.
+  it('reaches a wall thickness past where a side-mount’s bottom stops', () => {
     const sm = roleOf(regenerateDrawers(sceneOf(oneDrawer())), 'box-bottom')
     const um = roleOf(built(), 'box-bottom')
-    expect(um.width).toBeCloseTo(sm.width - BOTTOM_GROOVE_DEPTH, 6)
+    expect(um.width).toBeCloseTo(sm.width - BOTTOM_GROOVE_DEPTH + um.thickness, 6)
+  })
+
+  // How a TANDEM box is assembled, and the reason the bottom runs the full depth: the back stands
+  // ON it and is screwed down to it. The absolute figure is the groove height AND the bottom's
+  // thickness, not the bottom's thickness alone — the bottom still sits in its groove rather than
+  // on the box floor, and the two families share that groove figure.
+  it('stands the back on the bottom rather than beside it', () => {
+    const s = built()
+    const floor = boxOf(s, 'box-left').min.z
+    const bottom = boxOf(s, 'box-bottom')
+    const back = boxOf(s, 'box-back')
+    expect(back.min.z).toBeCloseTo(bottom.max.z, 6)
+    expect(back.min.z).toBeCloseTo(floor + BOTTOM_GROOVE_UP + roleOf(s, 'box-bottom').thickness, 6)
+    // Raised, not moved: it still closes the box to the top.
+    expect(back.max.z).toBeCloseTo(boxOf(s, 'box-left').max.z, 6)
+    // And shorter by exactly what it was raised by. A back is a thickness-on-y panel, so its LENGTH
+    // is the height — the field Task 8b put the box's height on.
+    expect(roleOf(s, 'box-back').length).toBeCloseTo(boxOf(s, 'box-left').max.z - back.min.z, 6)
+  })
+
+  it('runs the bottom under the back, the whole depth of the box', () => {
+    const s = built()
+    const bottom = boxOf(s, 'box-bottom')
+    const back = boxOf(s, 'box-back')
+    // Under it and out to its far face: the box's full depth, which is what the sides measure.
+    expect(bottom.max.y).toBeGreaterThan(back.min.y)
+    expect(bottom.max.y).toBeCloseTo(back.max.y, 6)
+    expect(bottom.max.y).toBeCloseTo(boxOf(s, 'box-left').max.y, 6)
+  })
+
+  // The two families now differ in the back as well as in the bottom, and the difference is the
+  // thing to pin: a change that collapsed them would satisfy any single-family assertion. Both
+  // halves are read here, because the back's height and the bottom's depth move independently in
+  // the generator and a mutation can undo either one alone.
+  it('leaves a side-mount box grooved, floor to floor, exactly as it was', () => {
+    const sm = regenerateDrawers(sceneOf(oneDrawer()))
+    const um = built()
+    const t = roleOf(sm, 'box-bottom').thickness
+    // Side-mount: the back is grooved like the other three walls, so it stands on the box floor.
+    expect(boxOf(sm, 'box-back').min.z).toBeCloseTo(boxOf(sm, 'box-left').min.z, 6)
+    expect(boxOf(um, 'box-back').min.z).toBeCloseTo(
+      boxOf(um, 'box-left').min.z + BOTTOM_GROOVE_UP + t,
+      6,
+    )
+    // Side-mount: the bottom stops a groove depth inside the back. Undermount: it passes under it.
+    expect(boxOf(sm, 'box-bottom').max.y).toBeCloseTo(
+      boxOf(sm, 'box-back').min.y + BOTTOM_GROOVE_DEPTH,
+      6,
+    )
+    expect(boxOf(um, 'box-bottom').max.y).toBeCloseTo(boxOf(um, 'box-back').max.y, 6)
+  })
+
+  // The notch rides with the board it is cut in, so raising the back raised it in CARCASE space
+  // too — by the groove height and the bottom's thickness, from the box floor to the bottom's upper
+  // face. That is the height a locking device has to reach the back at once the bottom runs beneath
+  // it, and it is pinned absolutely rather than against the back's own edge: a notch measured only
+  // against its own board cannot tell where the hardware is.
+  it('cuts each notch at the height the raised back presents to the runner', () => {
+    const s = built()
+    const floor = boxOf(s, 'box-left').min.z
+    const sill = floor + BOTTOM_GROOVE_UP + roleOf(s, 'box-bottom').thickness
+    for (const i of [0, 1]) {
+      const n = notchBoxOf(s, i)
+      expect(n.min.z, `notch ${i}`).toBeCloseTo(sill, 6)
+      expect(n.max.z, `notch ${i}`).toBeCloseTo(sill + UNDERMOUNT_NOTCH_HEIGHT, 6)
+    }
   })
 
   it('is idempotent: a second pass emits the very same boards', () => {

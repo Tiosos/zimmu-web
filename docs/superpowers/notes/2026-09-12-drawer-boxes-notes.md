@@ -970,3 +970,89 @@ codebase's `position.z = -t/2`, `size.z = 2t`.
 user. The undermount box does change which boards touch — the bottom now stops flush against the
 back instead of reaching into it, so that pair goes from an overlap to a face contact — so whatever
 baseline Task 14 measures has to be taken per family, not once.
+
+## 2026-09-13 — Task 9b: the undermount back sits on its bottom
+
+Task 9 left the back running the box's full height with the bottom stopping flush against its inner
+face, and recorded that nothing forced the choice. The user has now decided it, and decided a second
+question with it.
+
+**Decision 1 — the bottom runs the full depth and the back stands on it.** That is how a TANDEM box
+goes together, and it gives the back a face to be screwed down to. Two extents move, `undermount`
+only, measured on a Base 600 at the 15 mm fallback side thickness (box 118 → 677 in carcase z, 0 →
+500 in y):
+
+| board | field | side-mount | undermount before | undermount after |
+| --- | --- | --- | --- | --- |
+| `box-bottom` | width (carcase y, the depth) | 482 | 476 | **491** |
+| `box-back` | length (carcase z, the height) | 559 | 559 | **534** |
+| `box-back` | bottom edge, carcase z | 118 | 118 | **143** |
+
+**Decision 2 — both families keep the one 10 mm groove height**, rather than sitting an undermount
+bottom on the box floor. Task 9 already did that; it is now a decision rather than an omission, and
+no second figure was added. The comment on `DrawerBoxMetrics.groove` already stated the figure as
+shared by both families and needed no correction.
+
+**The prose and the box disagree by 10 mm, and the box wins.** The decision as written says the back
+is "shorter by the bottom's thickness" and that its bottom edge sits "one bottom-thickness above the
+box floor". Both are true only of a bottom lying on the box floor, which decision 2 rules out. The
+bottom's *upper* face is `BOTTOM_GROOVE_UP + t` above the floor — **25 mm**, not 15 — so the back is
+shorter by 25 and starts at 143 rather than 133. Worth recording because the two decisions were
+taken together and read as consistent: sitting the back on a grooved bottom costs the groove height
+as well as the board.
+
+**The bottom's three groove allowances are unchanged and still right.** Both sides and the front are
+still grooved, so the bottom still grows by `gd` on those three edges. Only the fourth changed, and
+it now gains a whole wall thickness instead of nothing: `bottom.width` is
+`boxDepth − frontThickness + gd`. The test states it that way rather than as `insideDepth + gd + t`
+— 15 and 6 are different figures, so the assertion separates running under the back from stopping in
+a groove the back does not have.
+
+**The bottom is stated before the walls now.** The back reads the bottom's top face, so the two had
+to be ordered; writing `b.z0 + up + t` a second time in the back's box would eventually leave the
+back floating above the bottom or buried in it.
+
+**`shapeKey()` needed no change**, confirmed by reading it. It encodes a board's dimensions and its
+cuts' positions and sizes; both boards' dimensions moved, which correctly invalidates their cached
+geometry, and the notches' *board* coordinates did not move at all.
+
+**What is left open: the notch height in carcase space rose 25 mm with the back.** The notches are
+placed from the back's own bottom edge, so the pair now spans carcase z 143 → 155.7 where it spanned
+118 → 130.7, and the hook bore above them sits at 162.7 rather than 137.7. The board-relative
+geometry is unchanged and every Task 9 assertion still holds, because all of them read the notch
+against the back.
+
+Whether that is the right height is a hardware question this task is not in a position to answer,
+and it is the same class of question as the notch figures themselves — every one of which comes from
+a distributor summary rather than Blum's printed drawing. The tension is real and worth stating
+plainly for whoever does answer it:
+
+- The locking device is fixed to the **runner**, which sits in the void under the bottom at the box
+  floor. A device reaching the back from below can no longer do so through the back's own notch: the
+  back does not reach down there any more.
+- A full-depth bottom is exactly the assembly in which the standard TANDEM prep puts the cut-outs in
+  the **bottom's rear corners** — 1/2″ × 1-3/8″, the same two figures `UNDERMOUNT_NOTCH_HEIGHT` and
+  `UNDERMOUNT_NOTCH_WIDTH` carry — and leaves the back wearing only its ⌀6 bore.
+- Adopting that would reinterpret a cited figure (a *height* in the back becoming a *depth* from the
+  bottom's rear edge) and move a cut family between boards. It was not guessed at: the user decided
+  two extents, and the codebase's rule about the hinge table applies here word for word — a wrong
+  figure produces a self-consistent cabinet that does not work.
+
+So the notch's new height is **pinned by a test rather than endorsed**: the test reads it in carcase
+space against the box floor, so the day the bottom's rear corners get the cut-out instead, that
+assertion is the one that has to be rewritten rather than a silent change nobody notices.
+
+**Mutation table** — six mutations, all killed, none survived.
+
+| mutation | predicted | actual |
+| --- | --- | --- |
+| bottom always stops in a groove (families collapse) | 4 | 4: both bottom-sizing tests, *runs the bottom under the back*, *leaves a side-mount box grooved* |
+| back never raised | 3 | 3: *stands the back on the bottom*, *cuts each notch at the height…*, *leaves a side-mount box grooved* |
+| back always raised (families collapse) | side-mount tests | 3: *places the five boards as one box*, *puts all four grooves at one height*, *leaves a side-mount box grooved* |
+| back sits on the bottom's underside, not its top | 3 | 3: as *back never raised* — which is what pins `up + t` rather than `up` |
+| bottom flush against the back's inner face (Task 9's own behaviour) | 4 | 4: as the first row |
+| bottom always full depth (families collapse the other way) | 2–3 | 4, one more than predicted: Task 8's *sizes the bottom from the groove rather than from a sixth number* also fails |
+
+The two collapse mutations are the ones the task asked for: the families now differ in the back as
+well as the bottom, and *leaves a side-mount box grooved, floor to floor, exactly as it was* asserts
+both halves of that difference in one test, so neither can be undone alone.

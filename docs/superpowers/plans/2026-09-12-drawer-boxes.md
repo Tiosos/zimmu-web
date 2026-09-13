@@ -2370,6 +2370,29 @@ No groove, a notched back, and a locating hole. The family that needs geometry t
 >   groove and the bore together.
 > - The through-cut overshoot is the codebase's `position.z = -t/2`, `size.z = 2t`, not `-1` / `100`.
 
+> **Amended again 2026-09-13 — Task 9b, the undermount back sits on its bottom.** The user decided
+> the open choice Task 9 left: **the bottom runs the box's full depth and the back stands on top of
+> it**, the way a TANDEM box is assembled and what gives the back a face to be screwed down to. Two
+> extents move, and only for `undermount`:
+> - the bottom's rear edge goes from the back's inner face to the box's full depth, gaining the
+>   back's thickness — on a Base 600 with 15 mm sides its width is **476 → 491**;
+> - the back's bottom edge rises from the box floor to the bottom's upper face, so its length (the
+>   box height, on a thickness-on-y panel) is **559 → 534**.
+>
+> The back is therefore shorter by `BOTTOM_GROOVE_UP + t` = **25 mm**, not by the bottom's thickness
+> alone: the bottom still sits in its groove rather than on the box floor. The second decision taken
+> with it is that **both families keep the one 10 mm groove height** — no second figure — which
+> Task 9 already did.
+>
+> Side-mount is unchanged and that is now a real difference between the families, asserted as a
+> difference rather than per family. The three groove allowances on the bottom (both sides and the
+> front) are untouched and still right; only the fourth edge changed, and it gains a wall thickness
+> rather than a groove depth. `shapeKey()` needs no change — the dimensions it encodes moved, the
+> function did not.
+>
+> **Left open:** the notches are placed from the back's own bottom edge, so in carcase space they
+> rose 25 mm with it. See the notes entry for why that is flagged rather than resolved.
+
 **Files:**
 - Modify: `src/scene/regenerateDrawers.ts`
 - Modify: `src/scene/drawerBox.ts`
