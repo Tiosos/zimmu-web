@@ -21,11 +21,11 @@ import { overridesOf, roleThicknessFor } from './resolveThickness'
 import {
   defaultDrawerParams,
   drawerBoxMetrics,
-  UNDERMOUNT_HOLE_ABOVE_NOTCH,
+  UNDERMOUNT_CUTOUT_DEPTH,
+  UNDERMOUNT_CUTOUT_WIDTH,
+  UNDERMOUNT_HOLE_ABOVE_BOTTOM,
   UNDERMOUNT_HOLE_DEPTH,
   UNDERMOUNT_HOLE_DIAMETER,
-  UNDERMOUNT_NOTCH_HEIGHT,
-  UNDERMOUNT_NOTCH_WIDTH,
   type DrawerBoxMetrics,
   type DrawerContext,
   type RunnerFamily,
@@ -94,7 +94,7 @@ interface BoxBoard {
   label: string
   panel: PanelSpec
   grain: Grain
-  // Not `BoxCut[]`: an undermount back carries a hole array beside its notches.
+  // Not `BoxCut[]`: an undermount back carries a hole array rather than a box cut.
   cuts: CutDef[]
 }
 
@@ -114,6 +114,8 @@ interface BoxWall {
 // its box's min corner, so a wall sitting on the min end of its own thickness axis meets the
 // interior at board +Z and the wall facing it meets it at board −Z. The groove is cut into it and
 // the undermount hook bore is drilled into it, which is why it is written once rather than twice.
+// The bottom answers it too: it is a thickness-on-z board sitting on the min end of its own axis,
+// so the face it turns to the box is board +Z like any other min-side wall's.
 const innerFaceOf = (minSide: boolean): Face => (minSide ? '+Z' : '-Z')
 
 // The five boards a box is, derived from the one statement of its geometry and placed through the
@@ -124,10 +126,11 @@ function boxBoards(m: DrawerBoxMetrics, t: number, family: RunnerFamily): BoxBoa
   const b = m.box
   const gd = m.groove.depth
   const up = m.groove.up
-  // The one difference the family makes to the box itself. An undermount back is notched for the
-  // runner's locking devices, so it is the one wall that carries no groove — and it sits on a
-  // bottom that runs the box's full depth rather than closing the end the bottom stops at.
-  const notchedBack = family === 'undermount'
+  // The one difference the family makes to the box itself. An undermount back stands on a bottom
+  // that runs the box's full depth rather than closing the end the bottom stops at, so it is the
+  // one wall that carries no groove — and the runner's locking devices come up through that
+  // bottom's rear corners rather than past the back.
+  const undermount = family === 'undermount'
   // The clear rectangle between the four walls: what the front, back and bottom span.
   const inside = { x0: b.x0 + t, x1: b.x1 - t, y0: b.y0 + t, y1: b.y1 - t }
 
@@ -144,7 +147,7 @@ function boxBoards(m: DrawerBoxMetrics, t: number, family: RunnerFamily): BoxBoa
     x0: inside.x0 - gd,
     x1: inside.x1 + gd,
     y0: inside.y0 - gd,
-    y1: notchedBack ? b.y1 : inside.y1 + gd,
+    y1: undermount ? b.y1 : inside.y1 + gd,
     z0: b.z0 + up,
     z1: b.z0 + up + t,
   }
@@ -182,7 +185,7 @@ function boxBoards(m: DrawerBoxMetrics, t: number, family: RunnerFamily): BoxBoa
         x0: inside.x0,
         x1: inside.x1,
         y0: b.y1 - t,
-        z0: notchedBack ? bottom.z1 : b.z0,
+        z0: undermount ? bottom.z1 : b.z0,
       },
       thicknessAxis: 'y',
       minSide: false,
@@ -212,8 +215,14 @@ function boxBoards(m: DrawerBoxMetrics, t: number, family: RunnerFamily): BoxBoa
     },
   ]
 
+  // Where each locking device sits across the box, in CARCASE x. Stated once because two different
+  // boards are prepared for the same device: the bottom reaches a groove depth further out on each
+  // side than the back spans, so a bore placed from the back's own end would miss the cut-out it
+  // serves by exactly that.
+  const deviceX = [bottom.x0 + UNDERMOUNT_CUTOUT_WIDTH / 2, bottom.x1 - UNDERMOUNT_CUTOUT_WIDTH / 2]
+
   const cutsOf = (w: BoxWall, panel: PanelSpec): CutDef[] =>
-    notchedBack && w.role === 'box-back' ? backNotches(w, panel, t) : grooveOf(w, panel)
+    undermount && w.role === 'box-back' ? backBores(w, panel, deviceX) : grooveOf(w, panel)
 
   const boardOf = (
     role: BoxRole,
@@ -236,61 +245,79 @@ function boxBoards(m: DrawerBoxMetrics, t: number, family: RunnerFamily): BoxBoa
 
   return [
     ...walls.map((w) => boardOf(w.role, w.label, w.box, w.thicknessAxis, (p) => cutsOf(w, p))),
-    boardOf('box-bottom', 'Box bottom', bottom, 'z', () => []),
+    boardOf('box-bottom', 'Box bottom', bottom, 'z', (panel) =>
+      undermount ? bottomCutouts(panel, deviceX) : [],
+    ),
   ]
 }
 
-// A locking-device cut-out at each end of an undermount drawer back, with the runner's hook bore
-// above it. Both are cuts the generator already emits and `shapeKey` already encodes, so the
-// undermount box needs no new cut kind and no file-format change.
+// The two locking-device cut-outs, in the undermount bottom's rear corners. The device is fixed to
+// the runner at the box floor, so what it has to pass through is the bottom — which on this family
+// runs the box's full depth and so lies between the device and the back's own bore.
+//
+// The bottom is a thickness-on-z panel, so `orientedPanel` runs its width ACROSS the box along
+// board x and its depth along board y, with the board's origin on the box's min corner. Carcase y
+// runs from the box's front to its back, so the rear edge is board y = `panel.width` and the
+// cut-out reaches `UNDERMOUNT_CUTOUT_DEPTH` back from it — the depth figure and the width figure
+// land on different board axes from the way they read on the bench, which is the mistake this
+// comment exists to prevent.
+//
+// `panel.position.x` is the bottom's own box min-x, and a thickness-on-z board is unrotated, so
+// subtracting it is the whole of the carcase-to-board conversion for the device's position.
+function bottomCutouts(panel: PanelSpec, deviceX: number[]): CutDef[] {
+  return deviceX.map(
+    (cx, i): CutDef => ({
+      kind: 'box',
+      id: `cutout_${i}`,
+      label: 'Locking device cut-out',
+      face: innerFaceOf(true),
+      // Oversize through the thickness, the convention every cut in this codebase follows: a cut
+      // face coplanar with the board's own leaves OCCT resolving a zero-thickness face.
+      position: {
+        x: cx - panel.position.x - UNDERMOUNT_CUTOUT_WIDTH / 2,
+        y: panel.width - UNDERMOUNT_CUTOUT_DEPTH,
+        z: -panel.thickness / 2,
+      },
+      size: {
+        x: UNDERMOUNT_CUTOUT_WIDTH,
+        y: UNDERMOUNT_CUTOUT_DEPTH,
+        z: 2 * panel.thickness,
+      },
+    }),
+  )
+}
+
+// The runner's hook bore, one per locking device, and all an undermount back carries now that the
+// cut-outs have moved to the bottom. It goes in the face that looks at the box interior, the same
+// face the other three walls take their groove in: the runner reaches the back from inside the box,
+// not through its outside.
 //
 // The back is a thickness-on-y panel, so `orientedPanel` runs its HEIGHT along board x and its span
-// across the box along board y — the notch is therefore as tall as board x and as wide as board y,
-// the other way round from how the two figures read on the bench. The hook bore goes in the face
-// that looks at the box interior, the same face the other three walls take their groove in: the
-// runner reaches the back from inside the box, not through its outside.
-//
-// Both are placed from the back's own bottom edge, which the bottom now holds a groove height and a
-// board thickness above the box floor — so in CARCASE space this whole pattern rose with the back.
-// That is the height a device has to reach the back at now that the bottom runs beneath it, and it
-// is what the notch clears. Whether a TANDEM device instead comes up THROUGH the bottom — which
-// would put the cut-out in the bottom's rear corners and leave the back carrying only its bore — is
-// a hardware question none of the sources reached here settle, and the same class of question as
-// the notch figures themselves. Flagged in the notes rather than guessed at.
-function backNotches(w: BoxWall, panel: PanelSpec, t: number): CutDef[] {
+// across the box along board y. The height is measured from the back's own bottom edge, which the
+// bottom now holds a groove height and a board thickness above the box floor — and that is exactly
+// the plane a device coming up through the bottom is presented at, which is why the figure survived
+// the cut-out moving board.
+function backBores(w: BoxWall, panel: PanelSpec, deviceX: number[]): CutDef[] {
   const face = innerFaceOf(w.minSide)
-  return [0, 1].flatMap((i): CutDef[] => {
-    const y = i === 0 ? 0 : panel.width - UNDERMOUNT_NOTCH_WIDTH
-    return [
-      {
-        kind: 'box',
-        id: `notch_${i}`,
-        label: 'Runner notch',
-        face,
-        // Oversize through the thickness, the convention every cut in this codebase follows: a cut
-        // face coplanar with the board's own leaves OCCT resolving a zero-thickness face.
-        position: { x: 0, y, z: -t / 2 },
-        size: { x: UNDERMOUNT_NOTCH_HEIGHT, y: UNDERMOUNT_NOTCH_WIDTH, z: 2 * t },
+  return deviceX.map(
+    (cx, i): CutDef => ({
+      kind: 'hole-array',
+      id: `locate_${i}`,
+      label: 'Runner locating hole',
+      face,
+      axis: 'U',
+      start: {
+        x: UNDERMOUNT_HOLE_ABOVE_BOTTOM,
+        y: cx - panel.position.x,
+        z: face === '+Z' ? panel.thickness : 0,
       },
-      {
-        kind: 'hole-array',
-        id: `locate_${i}`,
-        label: 'Runner locating hole',
-        face,
-        axis: 'U',
-        start: {
-          x: UNDERMOUNT_NOTCH_HEIGHT + UNDERMOUNT_HOLE_ABOVE_NOTCH,
-          y: y + UNDERMOUNT_NOTCH_WIDTH / 2,
-          z: face === '+Z' ? panel.thickness : 0,
-        },
-        // One hole has no pitch.
-        pitch: 0,
-        count: 1,
-        diameter: UNDERMOUNT_HOLE_DIAMETER,
-        depth: UNDERMOUNT_HOLE_DEPTH,
-      },
-    ]
-  })
+      // One hole has no pitch.
+      pitch: 0,
+      count: 1,
+      diameter: UNDERMOUNT_HOLE_DIAMETER,
+      depth: UNDERMOUNT_HOLE_DEPTH,
+    }),
+  )
 }
 
 // Reconciled by role key, the shape `regenerateOne` already uses for a carcase's panels: a detached

@@ -1056,3 +1056,110 @@ assertion is the one that has to be rewritten rather than a silent change nobody
 The two collapse mutations are the ones the task asked for: the families now differ in the back as
 well as the bottom, and *leaves a side-mount box grooved, floor to floor, exactly as it was* asserts
 both halves of that difference in one test, so neither can be undone alone.
+
+---
+
+## 2026-09-13 — Task 9c: the locking cut-outs belong to the bottom
+
+Task 9b's open question, answered by the user: **the two locking-device cut-outs move to the
+`box-bottom` board's rear corners, and `box-back` keeps only its ⌀6 locating bore.** Side-mount is
+untouched — it has neither.
+
+**Why the back could not keep them.** The locking device is fixed to the *runner*, which sits in the
+void under the box at the box floor. While the back ran down to that floor, a notch in the back was
+where the device reached it. Task 9b raised the back onto a full-depth bottom, so the device now has
+the bottom between it and the box: it is the bottom that has to be cut through, and the back that
+only has to be bored.
+
+**The cited figure is reinterpreted, not re-sourced.** The distributor summary of Blum's 563H
+drawing gives a 1/2″ × 1-3/8″ minimum cut-out. That rectangle has not changed; which board wears it
+decides what its two extents *mean*, and the drawing does not say. Renamed accordingly, with every
+call site in `regenerateDrawers.ts` and `regenerateDrawers.test.ts` updated:
+
+| was | is | what it means now |
+| --- | --- | --- |
+| `UNDERMOUNT_NOTCH_HEIGHT` = 12.7 | `UNDERMOUNT_CUTOUT_DEPTH` | a depth measured IN from the bottom's rear edge (was a height up the back) |
+| `UNDERMOUNT_NOTCH_WIDTH` = 35 | `UNDERMOUNT_CUTOUT_WIDTH` | unchanged: a width across the box |
+| `UNDERMOUNT_HOLE_ABOVE_NOTCH` = 7 | `UNDERMOUNT_HOLE_ABOVE_BOTTOM` | see below |
+
+The cut ids follow the rename: `notch_{i}` → `cutout_{i}`, on a different board. `locate_{i}` keeps
+its id and its board. No file-format consequence — every drawer cut carries `sourceComponentId` and
+is re-derived on each pass, so a saved file's stale `notch_` cuts are dropped by the first
+regeneration rather than migrated.
+
+**What the bore is measured from.** The back's own bottom edge — which, since Task 9b, *is* the
+bottom board's upper face, and that is exactly the plane a device coming up through the cut-out is
+presented at. So the 7 mm survives the move with its meaning intact ("the hook sits 7 mm above where
+the device's body stops"), but it has changed reference: it used to be measured from the top of a
+notch in the same board. Board-locally nothing moved — `start.x` is still 7 on a thickness-on-y
+panel — but the **absolute height dropped 12.7 mm**, from carcase z 162.7 to 150 on a Base 600 with
+15 mm box stock, because the notch height is no longer added under it. That drop is a consequence of
+the reinterpretation and is not independently sourced; it is the same class of claim as the hinge
+table, and wants a woodworker's eye rather than a green suite.
+
+**One device, two boards — so one statement of where it sits.** The bottom reaches
+`BOTTOM_GROOVE_DEPTH` further out on each side than the back spans (it is captured in the side
+grooves; the back is not). A cut-out placed from the bottom's own corner and a bore placed from the
+back's own end are therefore 6 mm apart — a complete miss on a ⌀6 hole. `deviceX`, in carcase x, is
+computed once in `boxBoards` and both boards convert from it through their own `panel.position.x`.
+`lines each bore up across the box with the cut-out its device comes through` is the test that pins
+it, and the mutation that measures the bore from the back's own end is the one it kills.
+
+**Figures, in carcase millimetres, Base 600 / undermount / 15 mm box stock** (box floor z = 118,
+bottom board z 128–143):
+
+| | before (9b) | after (9c) |
+| --- | --- | --- |
+| cut-out board | `box-back` | `box-bottom` |
+| cut-out 0, across the box (x) | 39 → 74 | 33 → 68 |
+| cut-out 1, across the box (x) | 526 → 561 | 532 → 567 |
+| the 12.7 mm extent | z 143 → 155.7, a height | y 487.3 → 500, a depth in from the rear |
+| the through-thickness axis | y, through the back | z, through the bottom |
+| bore 0 | (56.5, 485, 162.7) | (50.5, 485, 150) |
+| bore 1 | (543.5, 485, 162.7) | (549.5, 485, 150) |
+
+**`box-bottom`'s dimensions did not change**, and a test now says so explicitly: a corner cut-out
+removes material, it does not resize the board. `shapeKey()` needed no change either — both cut
+kinds were already encoded.
+
+**Board axes, again.** `box-bottom` is a thickness-on-z panel, so `orientedPanel` runs its *width
+across the box* along board x and its *depth* along board y. The 35 mm is therefore board x and the
+12.7 mm board y — the opposite pairing from the back, where the 12.7 mm was board x. Getting that
+backwards is the exact mistake Task 9 made one board along, which is why the rear-corner test is
+written in carcase space and reads the back's own position to say which edge the rear is.
+
+**Mutation table** — eleven mutations, ten killed, one survived.
+
+| mutation | predicted | actual |
+| --- | --- | --- |
+| cut-out at the bottom's FRONT edge (`y: 0`) | 1: *at each REAR corner* | 1, as predicted |
+| cut-out's two extents swapped (35 deep, 12.7 across) | 2 | 2: *the stated width…*, *at each REAR corner* |
+| both cut-outs in the same corner (`x: 0`) | 2 | 2: *at each REAR corner*, *lines each bore up* |
+| cut-out not through the bottom (no oversize) | 2 | 2: *through the bottom's thickness*, *presents each cut-out at the height* |
+| bottom emits no cut-outs at all | many | 7, the whole cut-out family |
+| back grooved again instead of bored | many | 6, the whole bore family plus the three-way *grooves… cuts… bores* |
+| bore at the back's bottom edge (`x: 0`) | 1 | 1: *measures the bore from the bottom…* |
+| bore placed from the back's own end | 1 | 1: *lines each bore up across the box* |
+| side-mount cut too | 1 | 1: *gives a side-mount box neither cut-outs nor bores* |
+| bore in the back's outer face | 1 | 1: *bores the locating hole into the face that looks into the box* |
+| **cut-out's `face` flipped to `-Z`** | **0** | **0 — survived** |
+
+The survivor is reported rather than papered over. `BoxCut.face` is not read by the geometry at all:
+`makeCut` builds its tool from `position` and `size` alone, and the two places that *do* read a face
+— `drawing.ts`, which filters a view's cuts by a face **pair**, and `cutFootprint.ts` — treat `+Z`
+and `-Z` as one pair and produce the same rectangle for a through cut. So there is nothing in
+carcase space, and nothing in a sheet, that separates the two values today. `innerFaceOf(true)` is
+kept because it is what the grooves do and what the comment can honestly justify (the bottom is a
+thickness-on-z board on the min end of its own axis, so board `+Z` is the face it turns to the box),
+not because a test defends it. Task 12 measures the shop drawings; if a through cut's face ever
+becomes observable there, this is the assertion to add.
+
+## 2026-09-13 — Task 10: the stage-order mutations kill nothing yet
+
+The plan predicted the single-pass slide test would be red until Task 11. It was green from the
+start: `carcaseMachining` reads `cell.spec.kind` off the section tree, so slide rows exist without
+any drawer component. Consequence: both stage-order mutations (drawers after carcases, drawers after
+`reconcileJoints`) kill nothing today. The order rule becomes testable only when the slide height is
+taken off the box — re-run those two mutations as part of Task 11.
+
+(Independently confirmed during Task 9c: swapping the pipeline order leaves all 1895 tests green.)

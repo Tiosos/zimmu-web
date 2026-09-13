@@ -32,19 +32,27 @@ export const BOX_HEIGHT_UNDER_FRONT = 25
 export const BOTTOM_GROOVE_UP = 10
 export const BOTTOM_GROOVE_DEPTH = 6
 
-// The undermount back preparation: a locking-device cut-out at each end of the drawer back, with a
-// bore for the runner's hook above it. The notch and the bore are corroborated by a distributor's
-// summary of Blum's 563H installation drawing — a 1/2" × 1-3/8" minimum cut-out and a ⌀6 × 10 mm
-// hook bore — rather than read off the drawing itself, which the egress proxy blocked. Confirm
-// before cutting.
-export const UNDERMOUNT_NOTCH_HEIGHT = 12.7
-export const UNDERMOUNT_NOTCH_WIDTH = 35
+// The undermount locking-device preparation: a cut-out at each rear corner of the drawer BOTTOM for
+// the device to come up through, and a bore in the back for the hook it engages. Both are
+// corroborated by a distributor's summary of Blum's 563H installation drawing — a 1/2" × 1-3/8"
+// minimum cut-out and a ⌀6 × 10 mm hook bore — rather than read off the drawing itself, which the
+// egress proxy blocked. Confirm before cutting.
+//
+// WHICH board wears the cut-out is a claim the drawing does not make and these figures do not
+// carry, and it decides what they mean. The device is fixed to the runner at the box floor, so it
+// is the bottom that is cut and the 1/2" is how far the cut-out reaches IN from the bottom's rear
+// edge — a depth, not a height up the back, which is what it was read as while the back ran down
+// to the floor. The 1-3/8" runs across the box either way.
+export const UNDERMOUNT_CUTOUT_DEPTH = 12.7
+export const UNDERMOUNT_CUTOUT_WIDTH = 35
 export const UNDERMOUNT_HOLE_DIAMETER = 6
 export const UNDERMOUNT_HOLE_DEPTH = 10
 // The weakest figure of the five: the same drawing dimensions the hook bore as 7 and 11, and which
-// of the two is the height above the notch rather than the inset from its edge is not legible in
-// any summary reached. 7 is taken as the height.
-export const UNDERMOUNT_HOLE_ABOVE_NOTCH = 7
+// of the two is the height rather than an inset from an edge is not legible in any summary reached.
+// 7 is taken as the height, measured from the back's own bottom edge — which stands on the bottom,
+// so it is the same plane the cut-out presents the device at. With the cut-out no longer in the
+// back there is nothing else left for it to be measured from.
+export const UNDERMOUNT_HOLE_ABOVE_BOTTOM = 7
 
 export interface DrawerParams {
   family: RunnerFamily
@@ -76,8 +84,8 @@ export interface DrawerBoxMetrics {
   runnerZ: number
   // Every box is grooved for its bottom, whatever carries the box: an undermount bottom is captured
   // in the sides and front and carried by the runner from underneath. WHICH walls carry the groove
-  // is the board generator's business — undermount notches its back instead — so the family never
-  // reaches this field and the figures are stated in one place for both.
+  // is the board generator's business — an undermount back stands on its bottom instead — so the
+  // family never reaches this field and the figures are stated in one place for both.
   groove: { up: number; depth: number }
 }
 

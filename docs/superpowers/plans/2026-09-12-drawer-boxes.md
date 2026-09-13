@@ -2393,6 +2393,42 @@ No groove, a notched back, and a locating hole. The family that needs geometry t
 > **Left open:** the notches are placed from the back's own bottom edge, so in carcase space they
 > rose 25 mm with it. See the notes entry for why that is flagged rather than resolved.
 
+> **Amended again 2026-09-13 — Task 9c, the locking cut-outs belong to the bottom.** The user
+> decided what Task 9b left open: **the two cut-outs move to the BOTTOM board's rear corners, and
+> the back keeps only its ⌀6 locating bore.** The locking device is fixed to the runner at the box
+> floor, so once the back stands on a full-depth bottom it is the bottom, not the back, that lies
+> between the device and the box. Nothing about side-mount changes — it has neither a cut-out nor a
+> bore.
+>
+> **The cited figure is reinterpreted, not re-sourced.** The 1/2″ × 1-3/8″ rectangle is the same
+> rectangle; which board wears it decides what its two extents mean. `UNDERMOUNT_NOTCH_HEIGHT` →
+> **`UNDERMOUNT_CUTOUT_DEPTH`** (12.7), now a depth measured IN from the bottom's rear edge rather
+> than a height up the back; `UNDERMOUNT_NOTCH_WIDTH` → **`UNDERMOUNT_CUTOUT_WIDTH`** (35), still a
+> width across the box. `UNDERMOUNT_HOLE_ABOVE_NOTCH` → **`UNDERMOUNT_HOLE_ABOVE_BOTTOM`** (7),
+> measured from the back's own bottom edge — which stands on the bottom's upper face, the plane the
+> device is presented at now the cut-out is in the bottom. The cut ids follow: `notch_{i}` →
+> `cutout_{i}`, and `locate_{i}` is unchanged.
+>
+> On a Base 600 with 15 mm box stock (box floor at carcase z = 118, bottom at z 128–143), in carcase
+> millimetres:
+>
+> | | before (9b) | after (9c) |
+> | --- | --- | --- |
+> | cut-out board | `box-back` | `box-bottom` |
+> | cut-out 0, across (x) | 39 → 74 | 33 → 68 |
+> | cut-out 1, across (x) | 526 → 561 | 532 → 567 |
+> | cut-out, 12.7 mm extent | z 143 → 155.7 (a height) | y 487.3 → 500 (a depth in from the rear) |
+> | cut-out, through-thickness | y, through the back | z, through the bottom |
+> | bore | (56.5, 485, 162.7) | (50.5, 485, 150) |
+>
+> **The bore moved across the box as well as down it.** The bottom reaches a groove depth further
+> out on each side than the back spans, so the two boards are prepared from ONE statement of where
+> the device sits — `deviceX`, in carcase x — rather than each measuring from its own board's end.
+> Measured from the back's own end the bore would land 6 mm off a ⌀6 hole: a complete miss.
+>
+> `box-bottom`'s dimensions do **not** change. A corner cut-out removes material; it does not resize
+> the board. `shapeKey()` needs no change either — both kinds of cut were already encoded.
+
 **Files:**
 - Modify: `src/scene/regenerateDrawers.ts`
 - Modify: `src/scene/drawerBox.ts`

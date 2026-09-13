@@ -8,9 +8,9 @@ import {
   BOTTOM_GROOVE_DEPTH,
   BOTTOM_GROOVE_UP,
   SIDE_MOUNT_CLEARANCE,
-  UNDERMOUNT_HOLE_ABOVE_NOTCH,
-  UNDERMOUNT_NOTCH_HEIGHT,
-  UNDERMOUNT_NOTCH_WIDTH,
+  UNDERMOUNT_CUTOUT_DEPTH,
+  UNDERMOUNT_CUTOUT_WIDTH,
+  UNDERMOUNT_HOLE_ABOVE_BOTTOM,
 } from './drawerBox'
 import { componentsById } from './componentTree'
 import { grainAxisOf } from './grain'
@@ -653,16 +653,19 @@ describe('regenerateDrawers — the undermount box', () => {
   // through the same cabinet, the same opening and the same reconciliation path.
   const built = (): Scene => regenerateDrawers(undermount(regenerateDrawers(sceneOf(oneDrawer()))))
 
-  const backCut = (s: Scene, id: string): CutDef => {
-    const found = roleOf(s, 'box-back').cuts.find((c) => c.id === id)
-    if (found === undefined) throw new Error(`no cut ${id} on the back`)
+  const cutOn = (s: Scene, role: string, id: string): CutDef => {
+    const found = roleOf(s, role).cuts.find((c) => c.id === id)
+    if (found === undefined) throw new Error(`no cut ${id} on the ${role}`)
     return found
   }
 
-  const notchBoxOf = (s: Scene, i: number): Aabb => {
-    const c = backCut(s, `notch_${i}`)
-    if (c.kind !== 'box') throw new Error('a runner notch is a box cut')
-    const m = resolveWorldMatrix(roleOf(s, 'box-back'), componentsById(s.components))
+  // The cut-out in CARCASE space, which is the only space the claim can be made in: a cut-out
+  // measured against its own board's edges stays green while the board it is in changes, which is
+  // exactly how the notches ended up 25 mm above the hardware that was meant to engage them.
+  const cutoutBoxOf = (s: Scene, i: number): Aabb => {
+    const c = cutOn(s, 'box-bottom', `cutout_${i}`)
+    if (c.kind !== 'box') throw new Error('a locking-device cut-out is a box cut')
+    const m = resolveWorldMatrix(roleOf(s, 'box-bottom'), componentsById(s.components))
     return extentsOf(
       m,
       [c.position.x, c.position.y, c.position.z],
@@ -671,7 +674,7 @@ describe('regenerateDrawers — the undermount box', () => {
   }
 
   const boreOf = (s: Scene, i: number): { start: Vec3; tip: Vec3 } => {
-    const c = backCut(s, `locate_${i}`)
+    const c = cutOn(s, 'box-back', `locate_${i}`)
     if (c.kind !== 'hole-array') throw new Error('a locating hole is a hole array')
     const m = resolveWorldMatrix(roleOf(s, 'box-back'), componentsById(s.components))
     const at = (x: number, y: number, z: number): Vec3 => {
@@ -686,32 +689,35 @@ describe('regenerateDrawers — the undermount box', () => {
 
   // The correction to the plan, which had this family grooving nothing at all. A TANDEM box IS
   // grooved: the bottom is captured in the sides and the front and carried by the runner from
-  // underneath. Only the back is different, because the locking devices need it notched.
-  it('grooves the sides and front, and notches the back', () => {
+  // underneath. Only the back is different, because it stands on the bottom instead — and the
+  // locking devices come up through that bottom, so it is the bottom that is cut and the back that
+  // is only bored. All three families of preparation read in one assertion, because which board
+  // wears which is the whole of this task.
+  it('grooves the sides and front, cuts the bottom, and bores the back', () => {
     const s = built()
     const boards = boardsOf(s, drawersOf(s)[0].id)
-    const grooved = boards
-      .filter((b) => b.cuts.some((c) => c.id.startsWith('groove_')))
-      .map((b) => b.role)
-      .sort()
-    expect(grooved).toEqual(['box-front', 'box-left', 'box-right'])
-    const notched = boards
-      .filter((b) => b.cuts.some((c) => c.id.startsWith('notch_')))
-      .map((b) => b.role)
-    expect(notched).toEqual(['box-back'])
+    const has = (pred: (c: CutDef) => boolean): string[] =>
+      boards
+        .filter((b) => b.cuts.some(pred))
+        .map((b) => b.role!)
+        .sort()
+    expect(has((c) => c.id.startsWith('groove_'))).toEqual(['box-front', 'box-left', 'box-right'])
+    expect(has((c) => c.id.startsWith('cutout_'))).toEqual(['box-bottom'])
+    expect(has((c) => c.kind === 'hole-array')).toEqual(['box-back'])
   })
 
-  it('notches the back for the locking device, and only the back', () => {
+  it('cuts the bottom for two locking devices and leaves the back with no box cut at all', () => {
     const s = built()
-    const back = roleOf(s, 'box-back')
-    // Two locking devices, one at each end of the back.
-    expect(back.cuts.filter((c) => c.id.startsWith('notch_'))).toHaveLength(2)
-    expect(back.cuts.some((c) => c.id.startsWith('groove_'))).toBe(false)
+    expect(roleOf(s, 'box-bottom').cuts.filter((c) => c.id.startsWith('cutout_'))).toHaveLength(2)
+    // Not merely "no notch": the back carries no box cut of any kind now, groove included.
+    expect(roleOf(s, 'box-back').cuts.filter((c) => c.kind === 'box')).toHaveLength(0)
   })
 
-  it('bores a locating hole above each notch', () => {
+  it('bores one locating hole in the back for each device', () => {
     const s = built()
     expect(roleOf(s, 'box-back').cuts.filter((c) => c.kind === 'hole-array')).toHaveLength(2)
+    // And nothing is bored into the bottom: the device passes through it, it does not hook into it.
+    expect(roleOf(s, 'box-bottom').cuts.filter((c) => c.kind === 'hole-array')).toHaveLength(0)
   })
 
   it('still emits five boards', () => {
@@ -719,52 +725,75 @@ describe('regenerateDrawers — the undermount box', () => {
     expect(boardsOf(s, drawersOf(s)[0].id)).toHaveLength(5)
   })
 
-  // The axes the plan had swapped. The back is a thickness-on-y panel, so `orientedPanel` runs its
-  // HEIGHT along board x and its span across the box along board y — a notch written the way it
-  // reads on the bench comes out 35 mm tall and 12.7 mm wide, which these two figures separate.
-  it('cuts each notch as tall as the stated height and as wide as the stated width', () => {
+  // The axes, in carcase space. The bottom is a thickness-on-z panel, so `orientedPanel` runs its
+  // width across the box along board x and its DEPTH along board y — a cut-out written the way the
+  // two figures read on the bench comes out 12.7 across and 35 deep, which these two separate. It
+  // is the same swap Task 9 made on the back, one board along.
+  it('cuts each cut-out the stated width across the box and the stated depth in from the rear', () => {
     const s = built()
-    const back = boxOf(s, 'box-back')
     for (const i of [0, 1]) {
-      const n = notchBoxOf(s, i)
-      // Carcase z is the height of the cabinet, so this is the notch's height.
-      expect(n.max.z - n.min.z, `notch ${i}`).toBeCloseTo(UNDERMOUNT_NOTCH_HEIGHT, 6)
-      // Carcase x runs across the box, so this is its width.
-      expect(n.max.x - n.min.x, `notch ${i}`).toBeCloseTo(UNDERMOUNT_NOTCH_WIDTH, 6)
-      // Open at the bottom edge of the back: a locking device reaches it from underneath.
-      expect(n.min.z, `notch ${i}`).toBeCloseTo(back.min.z, 6)
+      const c = cutoutBoxOf(s, i)
+      // Carcase x runs across the box.
+      expect(c.max.x - c.min.x, `cut-out ${i}`).toBeCloseTo(UNDERMOUNT_CUTOUT_WIDTH, 6)
+      // Carcase y runs from the box's front to its back, so this is how far it reaches in.
+      expect(c.max.y - c.min.y, `cut-out ${i}`).toBeCloseTo(UNDERMOUNT_CUTOUT_DEPTH, 6)
     }
   })
 
-  it('puts one notch at each end of the back', () => {
+  // Which edge is the REAR is the claim, and it is made against the back's own position rather than
+  // against a board axis: the bottom is unrotated, so a cut-out written at board y = 0 would sit at
+  // the box's front and every board-relative assertion about it would still pass.
+  it('puts one cut-out at each REAR corner of the bottom', () => {
     const s = built()
+    const bottom = boxOf(s, 'box-bottom')
     const back = boxOf(s, 'box-back')
-    expect(notchBoxOf(s, 0).min.x).toBeCloseTo(back.min.x, 6)
-    expect(notchBoxOf(s, 1).max.x).toBeCloseTo(back.max.x, 6)
+    const front = boxOf(s, 'box-front')
+    // The rear of the box is where the back is, which is its max y.
+    expect(back.min.y).toBeGreaterThan(front.max.y)
+    for (const i of [0, 1]) {
+      const c = cutoutBoxOf(s, i)
+      expect(c.max.y, `cut-out ${i}`).toBeCloseTo(bottom.max.y, 6)
+      expect(c.min.y, `cut-out ${i}`).toBeCloseTo(bottom.max.y - UNDERMOUNT_CUTOUT_DEPTH, 6)
+    }
+    // One at each END of that edge, not two in a heap.
+    expect(cutoutBoxOf(s, 0).min.x).toBeCloseTo(bottom.min.x, 6)
+    expect(cutoutBoxOf(s, 1).max.x).toBeCloseTo(bottom.max.x, 6)
   })
 
-  // A notch is a cut-out, not a rebate: it clears the back's whole thickness. Built oversize on
-  // both faces, the convention every cut here follows so OCCT never resolves a coplanar face.
-  it('cuts each notch through the back’s thickness', () => {
+  // A cut-out, not a recess: it clears the bottom's whole thickness so the device can come up
+  // through it. Built oversize on both faces, the convention every cut here follows so OCCT never
+  // resolves a coplanar face.
+  it('cuts each cut-out through the bottom’s thickness', () => {
     const s = built()
-    const back = boxOf(s, 'box-back')
+    const bottom = boxOf(s, 'box-bottom')
     for (const i of [0, 1]) {
-      const n = notchBoxOf(s, i)
-      expect(n.min.y, `notch ${i}`).toBeLessThan(back.min.y)
-      expect(n.max.y, `notch ${i}`).toBeGreaterThan(back.max.y)
+      const c = cutoutBoxOf(s, i)
+      expect(c.min.z, `cut-out ${i}`).toBeLessThan(bottom.min.z)
+      expect(c.max.z, `cut-out ${i}`).toBeGreaterThan(bottom.max.z)
     }
+  })
+
+  // A corner cut-out removes material; it does not resize the board. The bottom is the same board
+  // it was before the cut-outs landed on it, which is what separates "cut the bottom" from
+  // "shorten the bottom".
+  it('does not resize the bottom to make room for the cut-outs', () => {
+    const s = built()
+    const bottom = roleOf(s, 'box-bottom')
+    const front = roleOf(s, 'box-front')
+    const left = roleOf(s, 'box-left')
+    expect(bottom.length).toBeCloseTo(front.width + 2 * BOTTOM_GROOVE_DEPTH, 6)
+    expect(bottom.width).toBeCloseTo(left.length - front.thickness + BOTTOM_GROOVE_DEPTH, 6)
   })
 
   // The bore is in the face that looks into the box — the back sits at the box's MAX y, so that is
   // its min-y face, and `minSide` is what says so. Followed into carcase space rather than asserted
   // as a pair of letters: a face name that agrees only with its own table would drill out of the
   // board, and the tip is what catches it.
-  it('bores the locating hole into the face that looks into the box, above its notch', () => {
+  it('bores the locating hole into the face that looks into the box', () => {
     const s = built()
     const back = boxOf(s, 'box-back')
     const front = boxOf(s, 'box-front')
     for (const i of [0, 1]) {
-      const n = notchBoxOf(s, i)
       const bore = boreOf(s, i)
       expect(bore.start.y, `bore ${i}`).toBeCloseTo(back.min.y, 6)
       // Nearer the front of the box than the back's other face is: the inner face, geometrically.
@@ -774,13 +803,49 @@ describe('regenerateDrawers — the undermount box', () => {
       // And the bore runs from there INTO the material rather than out of it.
       expect(bore.tip.y, `bore ${i}`).toBeGreaterThan(back.min.y)
       expect(bore.tip.y, `bore ${i}`).toBeLessThanOrEqual(back.max.y)
-      // Above the notch it serves, not inside it, and centred on its width.
-      expect(bore.start.z, `bore ${i}`).toBeGreaterThan(n.max.z)
-      expect(bore.start.z, `bore ${i}`).toBeCloseTo(
-        back.min.z + UNDERMOUNT_NOTCH_HEIGHT + UNDERMOUNT_HOLE_ABOVE_NOTCH,
-        6,
-      )
-      expect(bore.start.x, `bore ${i}`).toBeCloseTo((n.min.x + n.max.x) / 2, 6)
+    }
+  })
+
+  // What the bore is measured from now that there is no notch under it: the back's own bottom edge,
+  // which stands on the bottom's upper face — the plane a device coming up through the cut-out is
+  // presented at. Pinned against the BOTTOM, absolutely, so that a bore left measured from the box
+  // floor (where the back stood before Task 9b) is 28 mm out and fails here.
+  it('measures the bore from the bottom the back stands on, not from the box floor', () => {
+    const s = built()
+    const bottom = boxOf(s, 'box-bottom')
+    const floor = boxOf(s, 'box-left').min.z
+    for (const i of [0, 1]) {
+      const bore = boreOf(s, i)
+      expect(bore.start.z, `bore ${i}`).toBeCloseTo(bottom.max.z + UNDERMOUNT_HOLE_ABOVE_BOTTOM, 6)
+      expect(bore.start.z, `bore ${i}`).toBeGreaterThan(floor + UNDERMOUNT_HOLE_ABOVE_BOTTOM)
+    }
+  })
+
+  // One device, two boards: the hook can only find the bore if the bore is over the cut-out the
+  // device came up through. The bottom runs a groove depth wider on each side than the back spans,
+  // so a bore measured from the back's own end lands 6 mm off a ⌀6 hole — a complete miss.
+  it('lines each bore up across the box with the cut-out its device comes through', () => {
+    const s = built()
+    for (const i of [0, 1]) {
+      const c = cutoutBoxOf(s, i)
+      expect(boreOf(s, i).start.x, `bore ${i}`).toBeCloseTo((c.min.x + c.max.x) / 2, 6)
+    }
+  })
+
+  // Side-mount is untouched by all of it: no locking device, so nothing to clear and nothing to
+  // hook. Asserted over every board rather than over the back alone — the cut-outs moved boards
+  // once already, and a family test naming one board cannot see the next move.
+  it('gives a side-mount box neither cut-outs nor bores', () => {
+    const s = regenerateDrawers(sceneOf(oneDrawer()))
+    for (const b of boardsOf(s, drawersOf(s)[0].id)) {
+      expect(
+        b.cuts.filter((c) => c.id.startsWith('cutout_')),
+        b.role,
+      ).toHaveLength(0)
+      expect(
+        b.cuts.filter((c) => c.kind === 'hole-array'),
+        b.role,
+      ).toHaveLength(0)
     }
   })
 
@@ -862,19 +927,19 @@ describe('regenerateDrawers — the undermount box', () => {
     expect(boxOf(um, 'box-bottom').max.y).toBeCloseTo(boxOf(um, 'box-back').max.y, 6)
   })
 
-  // The notch rides with the board it is cut in, so raising the back raised it in CARCASE space
-  // too — by the groove height and the bottom's thickness, from the box floor to the bottom's upper
-  // face. That is the height a locking device has to reach the back at once the bottom runs beneath
-  // it, and it is pinned absolutely rather than against the back's own edge: a notch measured only
-  // against its own board cannot tell where the hardware is.
-  it('cuts each notch at the height the raised back presents to the runner', () => {
+  // The cut-out rides with the board it is cut in, so moving it to the bottom put it back down at
+  // the box floor's own groove: the bottom's underside is the groove height above the floor, and
+  // that is where a device fixed to the runner reaches it. Pinned absolutely, not against the
+  // bottom's own edges, because that is the claim the back could not make once it was raised.
+  it('presents each cut-out at the height the runner’s device reaches', () => {
     const s = built()
     const floor = boxOf(s, 'box-left').min.z
-    const sill = floor + BOTTOM_GROOVE_UP + roleOf(s, 'box-bottom').thickness
+    const t = roleOf(s, 'box-bottom').thickness
     for (const i of [0, 1]) {
-      const n = notchBoxOf(s, i)
-      expect(n.min.z, `notch ${i}`).toBeCloseTo(sill, 6)
-      expect(n.max.z, `notch ${i}`).toBeCloseTo(sill + UNDERMOUNT_NOTCH_HEIGHT, 6)
+      const c = cutoutBoxOf(s, i)
+      // Oversize by half a thickness on each face, so the material it clears is the bottom itself.
+      expect(c.min.z + t / 2, `cut-out ${i}`).toBeCloseTo(floor + BOTTOM_GROOVE_UP, 6)
+      expect(c.max.z - t / 2, `cut-out ${i}`).toBeCloseTo(floor + BOTTOM_GROOVE_UP + t, 6)
     }
   })
 
