@@ -10,6 +10,7 @@ import {
   UNDERMOUNT_THIN_MAX_THICKNESS,
   defaultDrawerParams,
   drawerBoxMetrics,
+  drawerBoxContactPairs,
 } from './drawerBox'
 import type { Rect } from './sectionTree'
 
@@ -290,5 +291,38 @@ describe('drawerBoxMetrics — a box that cannot be built', () => {
   it('declines a box whose runner would sit below its floor', () => {
     expect(drawerBoxMetrics(rect, { ...params, runnerOffset: -1 }, baseCtx)).toBeNull()
     expect(drawerBoxMetrics(rect, { ...params, runnerOffset: 0 }, baseCtx)).not.toBeNull()
+  })
+})
+
+describe('drawerBoxContactPairs', () => {
+  const pairs = drawerBoxContactPairs()
+  const has = (a: string, b: string) =>
+    pairs.some(([x, y]) => (x === a && y === b) || (x === b && y === a))
+
+  // Every ordered choice of two of the five box roles, minus the two pairs of opposite walls that
+  // never touch. Stated as the count so a role added to the box without a contact rule fails here.
+  it('names the eight touching pairs of the five box roles', () => {
+    expect(pairs).toHaveLength(8)
+  })
+
+  it('declares the four corners', () => {
+    expect(has('box-front', 'box-left')).toBe(true)
+    expect(has('box-front', 'box-right')).toBe(true)
+    expect(has('box-back', 'box-left')).toBe(true)
+    expect(has('box-back', 'box-right')).toBe(true)
+  })
+
+  it('declares the bottom against all four walls', () => {
+    expect(has('box-bottom', 'box-left')).toBe(true)
+    expect(has('box-bottom', 'box-right')).toBe(true)
+    expect(has('box-bottom', 'box-front')).toBe(true)
+    expect(has('box-bottom', 'box-back')).toBe(true)
+  })
+
+  // The two pairs of opposite walls do not meet, so declaring them would mute a row that should
+  // never exist rather than one that would otherwise mislead.
+  it('does not name the two non-touching pairs', () => {
+    expect(has('box-front', 'box-back')).toBe(false)
+    expect(has('box-left', 'box-right')).toBe(false)
   })
 })
