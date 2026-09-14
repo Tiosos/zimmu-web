@@ -1240,3 +1240,37 @@ pipeline.)
 - `carcaseOnly`'s filter needs `p.parentId ?? ('' as ComponentId)`: `parentId` is `ComponentId | null`
   and `drawerIds` is `Set<ComponentId>`, so the bare `?? ''` the plan shows would not typecheck under
   the branded id.
+
+**2026-09-14 — Task 13 (the drawer's parameters in the UI):**
+- The plan lists only `CarcasePanel.tsx` as the file to modify and its snippet calls
+  `onUpdateComponent(selectedDrawer.id, ...)`, but neither `onUpdateComponent` nor `selectedDrawer`
+  was in `CarcasePanel`'s props. `onUpdate` is bound to *this carcase* — a drawer is a different
+  component, so its edits cannot go through it. Two props had to be threaded in: `components`
+  (the scene's components, so the panel can find the drawer) and `onUpdateComponent(id, updater)`.
+  Both already existed on `Sidebar` (which owns `scene` and `onUpdateComponent`), so the wiring was
+  one edit at the `sidebar.tsx` mount and none in `App.tsx`. `CarcasePanel` is mounted only in
+  `sidebar.tsx`; the `App.tsx` mount at ~581 is `CabinetEditor`, a different component.
+- `selectedDrawer` is derived by `(parentId === this carcase, sectionId === selectedSectionId)` off
+  the `components` prop — the same key reconciliation uses, and reusing `selectedSectionId` rather
+  than adding a second opening picker. The controls render only when the opening's front is a
+  drawer front AND that drawer exists.
+- The plan's family-`onChange` snippet reads `e.target.value` *inside* the deferred updater closure.
+  That is a latent bug: `e.target` is the live controlled `<select>`, and React resets its DOM value
+  back to the current param before the updater is later invoked, so the closure reads the stale
+  value. Fixed by capturing `const family = e.target.value` eagerly in the handler. The test
+  (`reports a runner family change`, which applies the captured updater) is what exposed it — a bare
+  `toHaveBeenCalled()` would have missed it.
+- Stale details in the plan snippet: `DimInput`'s `suffix` prop is **required** (no default), so the
+  snippet's `<DimInput label=… value=… min=… onCommit=… />` would not typecheck — `suffix="mm"` and
+  `labelWidth="w-20"` were added to match the panel's other rows. The plan's second test passed
+  `{ onUpdateComponent }` as `renderPanel`'s second positional arg, which is `onUpdate` in the real
+  signature; `renderPanel` was extended with `onUpdateComponent` and a `drawers` param (defaulting to
+  a `drawersFor` helper that builds the drawers `regenerateDrawers` would), rather than adding a
+  second render path.
+- Native `<select>` (not the shadcn `Select`) for the runner family, because the test drives it with
+  `fireEvent.change` and the shadcn trigger is a button with no native change event.
+- Mutation table (target → predicted → actual): drop `family` from the handler → `reports a runner
+  family change` fails → 1 failed ✓; flip `family === 'side-mount'` to `!==` → the two runner-offset
+  tests fail → 2 failed ✓; `boxHeight: v === 0 ? null : v` → `v` → `writes a null box height…` fails
+  → 1 failed ✓; `selectedDrawer !== null` → `true` → `offers nothing while the drawer … does not
+  exist yet` fails → 1 failed ✓. Nothing survived.

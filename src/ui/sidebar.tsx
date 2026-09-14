@@ -248,7 +248,9 @@ export function Sidebar({
             component={selectedCarcase}
             materials={scene.materials}
             parts={scene.parts}
+            components={scene.components}
             onUpdate={(updater) => onUpdateComponent(selectedCarcase.id, updater)}
+            onUpdateComponent={onUpdateComponent}
             selectedSectionId={selectedSectionId}
           />
         )}
