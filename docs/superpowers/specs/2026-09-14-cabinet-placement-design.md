@@ -2,7 +2,7 @@
 
 **Status:** Designed, not implemented. Brainstormed 2026-09-14 on `claude/next-step-suggestion-4itos3`.
 **Notes:** `docs/superpowers/notes/2026-09-14-cabinet-placement-notes.md`
-**Plan:** _(staged; written per stage — see [Staging](#staging))_
+**Plan:** `docs/superpowers/plans/2026-09-14-cabinet-placement-stage-1-primitive.md` (Stage 1); later stages get their own files — see [Staging](#staging)
 
 A cabinet is generated, machined, priced and drawn. It cannot be put anywhere. This design gives a
 carcase a place to stand, and a way to stand against its neighbour.

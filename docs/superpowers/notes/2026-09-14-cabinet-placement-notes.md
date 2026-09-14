@@ -1,7 +1,7 @@
 # Cabinet placement — implementation notes
 
 **Spec:** `docs/superpowers/specs/2026-09-14-cabinet-placement-design.md`
-**Plan:** _(staged; written per stage)_
+**Plan:** `docs/superpowers/plans/2026-09-14-cabinet-placement-stage-1-primitive.md` (Stage 1; later stages get their own files)
 
 Living notes. The audience is whoever implements a stage and wonders why a rule is shaped the way it
 is.
