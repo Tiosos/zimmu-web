@@ -1,6 +1,15 @@
 # Drawer boxes — the front finally has something behind it
 
-**Status:** Designed. Not yet implemented.
+**Status:** Complete. Shipped 2026-09-14 on `claude/next-step-suggestion-vzhx4j`. A `DrawerComponent`
+with side-mount and undermount families emits five boards per drawer-front opening; `drawerBoxMetrics`
+states the box's geometry once and is read by both `regenerateDrawers` (boards) and `carcaseMachining`
+(slide screws), so the two never cycle. The pipeline is three stages (`regenerateDrawers` →
+`regenerateComponents` → `reconcileJoints`); both BOM consumers now attribute a board to its
+`nearestCarcase`; file format is v18. The re-baselined slide row drops to 32 mm above the opening
+floor (Base 600 410 → 150, Wall 600 360 → 50, Tall 600 1100 → 150, count unchanged), and the box adds
+edges to the Top and End projections (Base 600 [Front, Top, End] 6/6/7 → 6/10/11). Suite:
+1790 → 1912 tests across the branch's merge-base to its tip (+3 files, +122 tests); typecheck, lint,
+Vitest, 25 Playwright tests and the production build all green.
 **Notes:** `docs/superpowers/notes/2026-09-12-drawer-boxes-notes.md`
 **Plan:** `docs/superpowers/plans/2026-09-12-drawer-boxes.md`
 

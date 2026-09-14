@@ -22,7 +22,7 @@ prototype. The Rust/Tauri production build (Phase 1) has not started.
 - File save/open/new via FSAPI (Chrome/Edge); graceful degradation on other browsers
 - Parametric joint engine: dado (plain/rabbeted/stopped), half-lap, mortise & tenon, box/finger, tongue & groove — each generated from a first-class `Joint` and kept in sync as dimensions change; auto-suggested from part adjacency and tracked in a joint checklist
 - Nestable component tree (`Scene.components`) with a parametric carcase generator: drop a Base/Wall/Tall preset and its side/back/shelf/toe-kick parts and joints regenerate from carcase parameters; a detached (`driven: false`) part is never touched by regeneration; 32 mm shelf-pin hole arrays
-- `.zimmu` flat-JSON project format — `FILE_FORMAT_VERSION = 12` (v11 added the component tree; v12 added `backSetback`; includes `materials`, `hardware`, `joints`, `components`)
+- `.zimmu` flat-JSON project format — `FILE_FORMAT_VERSION = 18` (v11 added the component tree; v12 added `backSetback`; includes `materials`, `hardware`, `joints`, `components`)
 - Auto-reopen last file via IndexedDB; dirty tracking
 - Three-tab BOM modal: Boards cutting list (with per-material cost, grouped per cabinet), Hardware BOM (with linked-part checkboxes), Library (persistent material rates in IDB)
 - Part duplication, removal (keyboard `Delete`/`Backspace`), visibility toggle
@@ -320,7 +320,7 @@ User action (UI)
 
 The project is a tree of typed objects, all addressable by stable UUIDs. Below are the core types.
 
-> **v0.1 prototype data model (updated August 2026):** `ZimmuFile` (`FILE_FORMAT_VERSION = 12`) has `version`, `name`, `appVersion`, `units: 'mm'`, `createdAt`, `updatedAt`, `camera: CameraState`, and `scene: Scene`. `Scene` has `parts: Part[]`, `materials: Record<string, MaterialDef>` (keyed by name, carries `costPerM2`), `hardware: HardwareItem[]`, `joints: Joint[]` (first-class parametric joints), and `components: Component[]` (the flat-stored nestable assembly tree — `group` and `carcase` nodes linked by `parentId`). A `BoardPart` has `kind: 'board'`, UUID `id`, `label`, `length`/`width`/`thickness` (mm), `material` (string, "" = unspecified), `color` (hex), `position`/`rotation` (Vec3 floats, degrees), `rotationOrder: 'XYZ'`, `visible: boolean`, `cuts: CutDef[]`, `parentId: ComponentId | null`, `driven: boolean`, and an optional `role` (the regeneration identity key on driven parts). A `CutDef` optionally carries `pairedCutId: "{partId}:{cutId}"` linking it to the mating cut on another part, and a `hole-array` cut kind carries the shelf-pin bore pattern. A `HardwareItem` carries `id`, `name`, `qty`, `unit`, `supplier`, `partNumber`, `unitCost`, `notes`, `linkedPartIds: string[]`, and `linkedComponentIds: string[]` (the cabinets/groups this item belongs to). A `carcase` `Component` carries `CarcaseParams` (width/height/depth, thickness, back and base modes, fixed and 32 mm-pitch adjustable shelves, joint method, dividers); `regenerateComponents(scene)` turns those parameters into driven parts and joints, reconciling against existing parts by stable role key so a detached part survives.
+> **v0.1 prototype data model (updated August 2026):** `ZimmuFile` (`FILE_FORMAT_VERSION = 18`) has `version`, `name`, `appVersion`, `units: 'mm'`, `createdAt`, `updatedAt`, `camera: CameraState`, and `scene: Scene`. `Scene` has `parts: Part[]`, `materials: Record<string, MaterialDef>` (keyed by name, carries `costPerM2`), `hardware: HardwareItem[]`, `joints: Joint[]` (first-class parametric joints), and `components: Component[]` (the flat-stored nestable assembly tree — `group` and `carcase` nodes linked by `parentId`). A `BoardPart` has `kind: 'board'`, UUID `id`, `label`, `length`/`width`/`thickness` (mm), `material` (string, "" = unspecified), `color` (hex), `position`/`rotation` (Vec3 floats, degrees), `rotationOrder: 'XYZ'`, `visible: boolean`, `cuts: CutDef[]`, `parentId: ComponentId | null`, `driven: boolean`, and an optional `role` (the regeneration identity key on driven parts). A `CutDef` optionally carries `pairedCutId: "{partId}:{cutId}"` linking it to the mating cut on another part, and a `hole-array` cut kind carries the shelf-pin bore pattern. A `HardwareItem` carries `id`, `name`, `qty`, `unit`, `supplier`, `partNumber`, `unitCost`, `notes`, `linkedPartIds: string[]`, and `linkedComponentIds: string[]` (the cabinets/groups this item belongs to). A `carcase` `Component` carries `CarcaseParams` (width/height/depth, thickness, back and base modes, fixed and 32 mm-pitch adjustable shelves, joint method, dividers); `regenerateComponents(scene)` turns those parameters into driven parts and joints, reconciling against existing parts by stable role key so a detached part survives.
 
 ### Project
 
@@ -741,7 +741,7 @@ project.zmu/
 
 While the production `.zmu` format is being designed, the browser prototype uses a simpler flat-JSON format with the `.zimmu` extension.
 
-**Structure:** A single UTF-8 JSON file with this top-level shape (current: `FILE_FORMAT_VERSION = 12`):
+**Structure:** A single UTF-8 JSON file with this top-level shape (current: `FILE_FORMAT_VERSION = 18`):
 
 ```json
 {
@@ -788,7 +788,7 @@ While the production `.zmu` format is being designed, the browser prototype uses
 
 **Key decisions:**
 - All numeric fields are stored as floats rounded to 6 decimal places.
-- `FILE_FORMAT_VERSION = 12` is checked on load; unknown versions are rejected.
+- `FILE_FORMAT_VERSION = 18` is checked on load; unknown versions are rejected.
 - Migration logic lives in `useFile.ts`. Notable bumps: v1 → v2 added `materials`, `hardware`, `appVersion`, `units`, `createdAt`, `updatedAt`, `camera`, `rotationOrder`; later versions added the parametric `joints` array; v11 added the `components` tree (with `parentId`/`driven` on every part and joint); v12 added the carcase `backSetback` shelf parameter.
 - `visible` defaults to `true` on load for backward compatibility with pre-visibility saves (`p.visible ?? true`).
 - No binary geometry is stored — geometry is recomputed from parameters on open.

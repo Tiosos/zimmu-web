@@ -1274,3 +1274,217 @@ pipeline.)
   tests fail → 2 failed ✓; `boxHeight: v === 0 ? null : v` → `v` → `writes a null box height…` fails
   → 1 failed ✓; `selectedDrawer !== null` → `true` → `offers nothing while the drawer … does not
   exist yet` fails → 1 failed ✓. Nothing survived.
+
+## 2026-09-14 — shipped
+
+Task 14 closes the stage. The figures below are **measured**, not predicted, and the last section
+records what the plan got wrong — the most valuable part of this entry.
+
+### The slide-row re-baseline (Task 11 Step 1)
+
+Measured through `regenerateComponents(regenerateDrawers(scene))`, each preset's root opening set to a
+drawer front. The old rule put the row at the opening's vertical midline; the new rule puts it at
+`runnerZ − panel.position.z` with `runnerZ = opening.z0 + runnerOffset` (side-mount default 32 mm) —
+i.e. 32 mm above the opening floor, so the taller the opening the further the row drops.
+
+| preset | old y | new y | count | Δ |
+| --- | --- | --- | --- | --- |
+| Base 600 | 410 | 150 | 16 | −260 |
+| Wall 600 | 360 | 50 | 9 | −310 |
+| Tall 600 | 1100 | 150 | 16 | −950 |
+
+Both uprights (`left-side`, `right-side`) carry identical rows, so each figure is one row seen twice.
+`count` is unchanged everywhere because it follows the panel's depth (`floor((length − 37) / 32)`),
+which the height rule never touched. No numeric slide-row *position* was pinned by any existing test,
+so nothing had to be re-baselined by hand; the seven runner/thickness tests in
+`carcaseHardware.test.ts` broke only because `sceneOf` was not creating a drawer, and the fix was to
+build the scene the way the app does (`regenerateDrawers` before `regenerateComponents`).
+
+### The shop-drawing counts (Task 12 Step 1)
+
+Base 600 with a drawer-front on the whole opening. Parts carrying a visible edge per view
+[Front, Top, End] (a part draws an edge when its `solid: Segment[]` is non-empty — `AssemblyPart`
+carries no `visible` field, which is the plan's stale counting expression, see below):
+
+| | Front | Top | End |
+| --- | --- | --- | --- |
+| carcase only | 6 | 6 | 7 |
+| with boxes | 6 | 10 | 11 |
+
+Front is unchanged (the applied front covers the box in elevation); Top and End each gain 4 (the
+box's five boards minus one with no solid edge in that section). The box does not draw through its
+own front.
+
+### The test totals, taken from this branch's own merge-base
+
+The mistake this measurement exists to avoid: the driven-hardware spec compared `main`-at-measuring-time
+against the branch tip, and `main` had moved, so its recorded 1700 → 1773 spanned two different trees.
+For this stage the baseline is the branch's own merge-base.
+
+- **merge-base:** `git merge-base origin/main HEAD` = `0b588c2` (which happens to equal `origin/main`
+  right now — `origin/main` has not moved since this branch was cut, so unlike the hardware stage the
+  two-tree hazard did not materialise; it was still measured against the merge-base rather than
+  assumed).
+- **scratch worktree:** `…/scratchpad/mb-worktree` (a detached `git worktree` at `0b588c2`, OUTSIDE
+  the repo tree), where `pnpm install && pnpm test` ran for the "before".
+- **before (`0b588c2`):** 92 test files, **1790 passed**, 10 skipped.
+- **after (branch tip `fd841c4`):** 95 test files, **1912 passed**, 10 skipped.
+- **delta:** +3 test files (`drawerBox.test.ts`, `nearestCarcase.test.ts`, `regenerateDrawers.test.ts`),
+  **+122 tests**. Both sides are the same tree plus this branch's work, so the delta is the branch's
+  own and nothing else's.
+
+### Full verification (Task 7), real numbers from this run
+
+- `pnpm typecheck` → exit 0.
+- `pnpm lint` → exit 0.
+- `pnpm test` → 95 files, 1912 passed, 10 skipped, exit 0.
+- Playwright (`PW_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npx
+  playwright test`) → 9 spec files, **25 passed**, exit 0.
+- `pnpm build` → exit 0, built in 3.83 s (`index` JS 1,565 kB / gzip 490 kB, CSS 32.5 kB, plus the
+  65.9 MB opencascade `.wasm`). The >500 kB chunk-size warning is pre-existing (the WASM kernel), not
+  introduced here.
+
+The structure page's hand-written test-suite prose was stale (1773 / 90 files / measured 2026-09-10);
+it now reads 1912 / 95 files / 104 total, measured 2026-09-14. The 9 Playwright specs / 25 tests were
+already correct and were left. `e2e/canvas.test.ts` is a Vitest spec (matches `*.test.ts`), which is
+the 95th Vitest file; the nine `e2e/*.spec.ts` are Playwright's.
+
+### Every mutation run across the stage — prediction vs actual
+
+The full per-task tables are in the entries above; consolidated here so the stage's mutation record
+reads in one place.
+
+- **Task 3 (`drawerBox`), nine mutations against nine tests.** Killed all nine behavioural ones:
+  depth from `clearDepth` not the nominal, ignoring an inset front, dropping the height clamp, no
+  clearance, clearance on one side only, runner always at the box bottom, no groove, box top-aligned,
+  never declining. **Survived by design — every stated figure, five of them** (`SIDE_MOUNT_CLEARANCE`
+  12.7→13, `BOX_HEIGHT_UNDER_FRONT` 25→30, `BOTTOM_GROOVE_UP` 10→14, `BOTTOM_GROOVE_DEPTH` 6→9,
+  `SIDE_MOUNT_RUNNER_OFFSET` 32→50): the tests derive from the constants, so they pin placement and
+  sign, not the figure's correctness. Scalar stated figures are never literal-pinned in this repo.
+- **Task 4c (usable depth).** Replacing `boxDepth(` with `((x) => x)(` in `carcaseHardware.ts` fails
+  the agreement test before it reaches the stated `'runner-500'`, proving the box and the quote are
+  computed independently. The mirror (subtract unconditionally) is killed by the overlay cases.
+- **Task 4d (the box is a real box), four guard clauses.** Removing each in turn: width kills 2 tests
+  (the two width rows), height 1, runner 1, groove 1. The `runnerZ < box.z0` boundary is `<` not
+  `<=`: relaxing to `<=` declines the whole undermount family (9 fail); removing it fails only the one
+  test that names it.
+- **Task 5 (scene tree icon).** Reverting the drawer glyph left all tests green — the commit's only
+  runtime change was unheld. Two tests added; the data-testid fix means deleting the icon span and
+  collapsing the glyph are now two distinct kills. `renderCarcaseChildren` line deletion fails the
+  group and drawer nesting tests.
+- **Task 7b (detached drawer).** `claim()` helper's unpinned call now pinned (a bare `kept.push`
+  emitted two components sharing one id). The `c.sectionId !== null` guard **killed nothing** — a
+  section id can never be the literal string `null`, so `tsc` is its real enforcement; kept as the
+  explicit statement, recorded as a deliberate non-behavioural guard.
+- **Task 8 / 8b (five boards, placement, grain), ten placement mutations — all killed.** The two that
+  matter most: a `minSide` flag read only for the groove, and the front's span (which the swapped
+  `length`/`width` assertions could have been weakened into agreeing with). `declaredContact`'s
+  predicted "four `no-offer` rows per drawer" measured as **0**, not 4 — boards at `{0,0,0}` are
+  coincident, so the real count was 20 spurious `open` rows until placement; deferred, no test added
+  (a count test would pin the defect, not the rule).
+- **Task 9 (undermount box), nine mutations, eight killed, one deliberate survivor.** Survivor:
+  deleting `box.z1 <= box.z0` from the guard kills nothing once both families groove (the groove
+  clause covers it while `BOTTOM_GROOVE_UP` stays positive). Kept anyway, commented.
+- **Task 9b (back on its bottom), six mutations — all killed.** One killed one more test than
+  predicted (`bottom always full depth` also failed Task 8's bottom-sizing test).
+- **Task 9c (cut-outs to the bottom), eleven mutations, ten killed, one survivor.** Survivor:
+  flipping a through cut's `face` to `-Z` kills nothing — `BoxCut.face` is not read by `makeCut`
+  (geometry is `position`+`size`), and `drawing.ts` treats `+Z`/`-Z` as one pair. No test in the repo
+  pins a box cut's face label; recorded as a real property of the codebase.
+- **Task 10 (pipeline order).** Both stage-order mutations (drawers after carcases, drawers after
+  `reconcileJoints`) **kill nothing today** and swapping the order leaves all ~1895 tests green,
+  because `carcaseMachining` reads `cell.spec.kind` off the section tree — slide rows exist without a
+  drawer component. The order becomes testable only once the slide height comes off the box (Task 11);
+  re-running those two was left to whoever next touches the pipeline in `useScene.ts`.
+- **Task 11 (slide follows the box).** Restoring the centreline rule fails *moves the slide row when
+  the runner offset moves* (0 vs the expected 40), because the centreline ignores `runnerOffset`.
+- **Task 13 (UI).** Drop `family` from the handler → 1 fail; flip `family === 'side-mount'` to `!==`
+  → 2 fail; `boxHeight: v === 0 ? null : v` → `v` → 1 fail; `selectedDrawer !== null` → `true` → 1
+  fail. Nothing survived.
+
+### What the plan got wrong — stated plainly
+
+The most useful record in the stage. The plan and the spec contained predictions about code they
+could not see; these are the ones that did not survive contact.
+
+1. **"The cutting list already attributes a drawer board to its cabinet."** False, and it was the
+   reassuring claim. `groupParts` calls `ancestorsOf(p, byId)[0]` — the *immediate* parent, the
+   drawer, not the cabinet. Both BOM consumers were affected; `nearestCarcase` is the fix. The
+   evidence for the wrong claim was a grep showing `ancestorsOf` was *imported*. Importing a helper is
+   not using it correctly.
+2. **"`carcaseMachining` reads the box metrics"** — asserted from the module's purpose. Its signature
+   `(p, thicknessOf, kindOf, role)` had no drawer data in reach; a new argument had to be threaded
+   from its only call site.
+3. **"`driven` on the drawer component"** written as established. No component had ever carried
+   `driven` — only parts. It is a new concept.
+4. **The plan said nothing about shipped drawings changing.** `descendantIds` is recursive, so drawer
+   boxes enter the 3D view, STL, STEP and the cabinet projections automatically. Task 12's whole
+   premise (drawings change) was missing from the plan.
+5. **The metrics function took the wrong rectangle.** Its signature said `frontRect` while the prose
+   two paragraphs up said "the opening's clear width"; `frontCells` expands an overlay front to the
+   material midline, so a box sized off the cell is ~33 mm too wide on a Base 600. The section's own
+   `SectionOpening.rect` is the right input, and `frontCells` was not needed at all (a drawer front is
+   never a two-leaf door, so its leaf is always 0). `floorZ` — which the "corrected" call would have
+   needed — is not even exported.
+6. **The preset figures in the plan's integration test were wrong.** Base 600 has a 12 mm captured
+   back, so `clearDepth` is **548** (not 550), which picks the **500** nominal (not 550). Two numbers
+   wrong in one assertion, both from head arithmetic against a parameter never opened.
+7. **The plan's Task 8 `groove` cut was a through-cut missing `BoxCut.face`.** As written it saws
+   every side in two along its length; a groove is a slot (`size.y` = bottom thickness, `size.z` <
+   the side). And no task in the plan ever *placed* a board — all five sat at `{0,0,0}` (a pile in the
+   corner) until Task 8b gave them a position through `orientedPanel`.
+8. **Task 8's `grain: 'length'` on all five boards** is a hand-maintained copy of the grain table
+   (forbidden) and is *wrong for the front and back*, which come out `'width'`. Grain is stated in
+   carcase axes and derived, never tabulated.
+9. **Task 9 had the undermount family groove *nothing*.** A TANDEM box is grooved in the sides and
+   front like a side-mount; only the back differs. The user corrected it. Consequence the plan could
+   not have had: the bottom grows by a groove depth on **three** edges, not four (undermount) or four
+   (side-mount). `DrawerBoxMetrics.groove` stopped being nullable.
+10. **Task 9's axis pairings were wrong** (forced out by 8b's placement): `bottom.width` vs
+    `front.length` compares a depth against a height; the back's notch width/height were on the wrong
+    board axes; the locating hole's face was hardcoded `-Y`/`+Z` when it derives from `minSide` to
+    `-Z`. Every "assert the letters of a face" prediction had to become "follow the face into carcase
+    space".
+11. **Task 9b's prose disagreed with its own box by 10 mm** — the back is shorter by 25 mm (a grooved
+    bottom's top face is `BOTTOM_GROOVE_UP + t` above the floor), not by the bottom's thickness alone.
+12. **Task 10's prediction that the single-pass slide test would be red until Task 11 was wrong** — it
+    was green from the start, so both stage-order mutations kill nothing until the slide height is
+    taken off the box.
+13. **Task 11's Step 4 shipped a placeholder that "must not ship"** (`sideThickness` hardcoded 15).
+    `carcaseMachining` has no `materials` access; resolved by exporting `boxSideThickness` and having
+    `drawerFor` return `{ params, sideThickness }`. The plan's Step 8 also named the wrong file:
+    `useScene.test.ts` has no moving slide assertion; the tests that moved were in
+    `carcaseHardware.test.ts`.
+14. **Task 12's counting expression `v.parts.filter((p) => p.visible.length > 0)` is stale** —
+    `AssemblyPart` has no `visible` field; the count is `p.solid.length > 0`. `carcaseOnly`'s filter
+    needs `p.parentId ?? ('' as ComponentId)` under the branded id.
+15. **Task 13 listed only `CarcasePanel.tsx`** and called `onUpdateComponent`/`selectedDrawer`, neither
+    of which was in the panel's props — two props had to be threaded from `sidebar.tsx`. Its
+    family-`onChange` snippet had a latent stale-closure bug (`e.target.value` read inside a deferred
+    updater, after React resets the controlled `<select>`); `DimInput`'s `suffix` is required, so the
+    snippet would not typecheck; and its test passed `onUpdateComponent` in the positional slot that
+    is `onUpdate`.
+16. **Task 4c corrected the plan's own architecture:** putting `boxDepth` "beside `clearDepth`" in
+    `carcaseRoles.ts` would have made `drawerBox.ts` import it and closed the very cycle the shared
+    metrics function exists to prevent. It lives in `drawerBox.ts`; the quote follows the box.
+17. **Task 14's own plan (this one) over-listed a guard clause.** It predicted a fifth outside-width
+    guard term and five terms in Step 3; the guard has **four** — the outside-width term is a subset
+    of the interior term for any non-negative side thickness, so it is unreachable and not written
+    (Task 4d).
+18. **Smaller ones, recorded above and worth carrying forward:** `toBe` on a dimension built by adding
+    a non-dyadic constant at one end and subtracting it at the other fails on IEEE754 (`538.6` vs
+    `538.5999999999999`) — use `toBeCloseTo`; a `RUNNER_NOMINALS.find(...)!` non-null assertion was
+    reworked to drop the `!`.
+
+### Sourcing caveats that must not be lost
+
+- **The undermount figures are unverified.** The egress proxy blocked every primary PDF, Blum's
+  included; every TANDEM figure comes from vendor and distributor summaries — plausible and mutually
+  consistent, not checked against the printed instructions.
+- **Side-mount side clearance 12.7 mm is corroborated** by Accuride's 3832 quick-reference sheet
+  (1/2″ + 1/32″ per side); **the side-mount runner offset (32 mm) is unsourced** — searched for and
+  not found in anything reachable, which is why it is a per-drawer parameter rather than a constant.
+- **The undermount hole-above figure (7 mm) and the back-height reinterpretation (Task 9b/9c)** are
+  the same class of claim as the hinge table: a wrong figure yields a self-consistent cabinet that
+  does not work, so they are pinned by tests that read carcase space (the tests to rewrite when a
+  woodworker corrects the figure), not endorsed.
