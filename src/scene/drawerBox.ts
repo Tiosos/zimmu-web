@@ -208,3 +208,23 @@ function undermountSpan(opening: Rect, sideThickness: number): [number, number] 
   const slack = (span - outside) / 2
   return [opening.x0 + slack, opening.x1 - slack]
 }
+
+// The box's own internal contacts, all eight of them. A drawer box is a sub-assembly the drawer
+// maker builds and sets into the cabinet whole — the four corners where a front or back meets a
+// side, and the bottom sitting in its four grooves. None of them is carcase joinery the cabinet's
+// checklist should ask the user to resolve, so the mirror of `carcaseContactPairs` declares them
+// all, exactly as an applied back or a toe kick is declared there. The two non-touching pairs
+// (front-to-back and side-to-side, opposite walls) never reach the lookup, so they are absent
+// rather than listed. The five role strings are the ones `regenerateDrawers` emits.
+export function drawerBoxContactPairs(): [string, string][] {
+  return [
+    ['box-front', 'box-left'],
+    ['box-front', 'box-right'],
+    ['box-back', 'box-left'],
+    ['box-back', 'box-right'],
+    ['box-bottom', 'box-left'],
+    ['box-bottom', 'box-right'],
+    ['box-bottom', 'box-front'],
+    ['box-bottom', 'box-back'],
+  ]
+}

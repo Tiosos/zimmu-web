@@ -5,6 +5,7 @@ import { obbOverlap } from './obbOverlap'
 import { groupByPair } from './groupSuggestions'
 import { ancestorsOf, isNodeVisible } from './componentTree'
 import { carcaseContactPairs } from './carcaseRoles'
+import { drawerBoxContactPairs } from './drawerBox'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
 
 // Two runaway guards, sized to their lists rather than sharing one number. Actionable rows (jointed
@@ -108,13 +109,23 @@ export function buildJointChecklist(
     if (a.parentId === null || a.parentId !== b.parentId) return false
     if (a.role === undefined || b.role === undefined) return false
     const parent = byId.get(a.parentId)
-    if (parent === undefined || parent.kind !== 'carcase') return false
+    // A drawer's five boards are a sub-assembly with its own declared contacts, exactly as a
+    // carcase has: the box is set into the cabinet whole, so its corners and grooved bottom are
+    // never carcase joinery. Any other parent kind declares nothing.
+    if (parent === undefined || (parent.kind !== 'carcase' && parent.kind !== 'drawer'))
+      return false
     let keys = contactKeys.get(parent.id)
     if (keys === undefined) {
       // Resolved the same way the generator resolved it, overrides included: they decide how many
       // rails a ladder base has, and that decides which role pairs exist to declare a contact.
-      const thicknessOf = roleThicknessFor(parent.params, materials, overridesOf(parts, parent.id))
-      keys = new Set(carcaseContactPairs(parent.params, thicknessOf).map(([x, y]) => pairKey(x, y)))
+      const pairs =
+        parent.kind === 'carcase'
+          ? carcaseContactPairs(
+              parent.params,
+              roleThicknessFor(parent.params, materials, overridesOf(parts, parent.id)),
+            )
+          : drawerBoxContactPairs()
+      keys = new Set(pairs.map(([x, y]) => pairKey(x, y)))
       contactKeys.set(parent.id, keys)
     }
     return keys.has(pairKey(a.role, b.role))

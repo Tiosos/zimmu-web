@@ -17,6 +17,8 @@ import { componentsById } from './componentTree'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { legacyToSection } from './migrateSections'
 import { regenerateComponents } from './regenerateComponents'
+import { regenerateDrawers } from './regenerateDrawers'
+import { setFrontOn } from './sectionInterior'
 
 const NO_COMPONENTS = componentsById([])
 
@@ -385,9 +387,7 @@ describe('contact rows', () => {
     expect(wall.contact).toHaveLength(4)
 
     const divided = checklistOf(
-      cabinetScene([
-        carcase('cmp_1', 'Base 600', { section: legacyToSection([0.5], 1, 600, 18) }),
-      ]),
+      cabinetScene([carcase('cmp_1', 'Base 600', { section: legacyToSection([0.5], 1, 600, 18) })]),
     )
     expect(divided.jointedCount).toBe(16)
     expect(divided.actionableTotal).toBe(16)
@@ -498,5 +498,47 @@ describe('checklist grouping by component', () => {
     const c = build([teeH, teeD])
     expect(c.groups).toEqual([])
     expect(c.rows).toHaveLength(1)
+  })
+})
+
+// A drawer's five boards form a sub-assembly: its four corners and grooved bottom are the box
+// maker's business, not carcase joinery. Before the drawer parent was recognised, all eight
+// internal contacts read as actionable 'open' rows the user could never resolve against the
+// cabinet. The scene is generated, not hand-written — the eight is the measured ground truth of
+// the real box generator.
+describe('a drawer box declares its own internal contacts', () => {
+  const drawerCabinetScene = (): Scene => {
+    const base = CARCASE_PRESETS[0].params
+    const params = {
+      ...base,
+      section: setFrontOn(base.section, base.section.id, { kind: 'drawer-front' as const }),
+    }
+    return regenerateComponents(
+      regenerateDrawers({
+        parts: [],
+        materials: { ...PRESET_MATERIALS },
+        hardware: [],
+        joints: [],
+        components: [carcase('cmp_1', 'Base 600', params)],
+      }),
+    )
+  }
+
+  const boxPairRows = (c: ReturnType<typeof checklistOf>, scene: Scene) => {
+    const roleOf = new Map(scene.parts.map((p) => [p.id, p.role ?? '']))
+    const isBox = (id: PartId) => roleOf.get(id)?.startsWith('box-') ?? false
+    const all = [...c.rows, ...c.groups.flatMap((g) => g.rows), ...c.unresolved, ...c.contact]
+    return all.filter((r) => isBox(r.aId) && isBox(r.bId))
+  }
+
+  test('marks all eight box-internal pairs as contact, none actionable', () => {
+    const scene = drawerCabinetScene()
+    const boxBoards = scene.parts.filter((p) => p.role?.startsWith('box-'))
+    expect(boxBoards).toHaveLength(5)
+
+    const c = checklistOf(scene)
+    const boxRows = boxPairRows(c, scene)
+    expect(boxRows).toHaveLength(8)
+    expect(boxRows.every((r) => r.state === 'contact')).toBe(true)
   })
 })
