@@ -1,7 +1,9 @@
 import type { Section, SectionId } from './sectionTree'
 import type { PartOverrides } from './resolveThickness'
+import type { DrawerParams } from './drawerBox'
 
 export type { Section, SectionId, SectionSize, SectionContent, DivisionKind } from './sectionTree'
+export type { DrawerParams, RunnerFamily } from './drawerBox'
 
 export type PartId = string
 export type CutId = string
@@ -244,7 +246,28 @@ export interface CarcaseComponent {
   params: CarcaseParams
 }
 
-export type Component = GroupComponent | CarcaseComponent
+export interface DrawerComponent {
+  kind: 'drawer'
+  id: ComponentId // "cmp_<uuid>"
+  label: string
+  parentId: ComponentId | null
+  position: Vec3
+  rotation: Vec3
+  rotationOrder: 'XYZ'
+  visible: boolean
+  // Which opening this drawer fills. Reconciliation is by (parentId, sectionId) and never by
+  // index: the v12 divider shim rebuilds section ids on every keystroke, so an index would rebind
+  // a drawer to a different bay. `null` on a detached drawer whose opening is gone: the section id
+  // is released so a later pass cannot reclaim it, exactly as a detached part's role key is.
+  sectionId: SectionId | null
+  params: DrawerParams
+  // No other component carries this. A detached drawer is the user's — no regeneration, no
+  // deletion — exactly as a detached part is. Carcases and groups are deliberately left out: a
+  // detached carcase has no defined meaning today and inventing one here would be unearned scope.
+  driven: boolean
+}
+
+export type Component = GroupComponent | CarcaseComponent | DrawerComponent
 
 export type Selection =
   | { kind: 'part'; id: PartId }

@@ -6,7 +6,15 @@ import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { legacyToSection } from '../scene/migrateSections'
 import { defaultInterior, seedInteriors } from '../scene/sectionInterior'
 import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
-import type { BoardPart, Component, GroupComponent, PartId, Selection } from '../scene/types'
+import type {
+  BoardPart,
+  Component,
+  DrawerComponent,
+  GroupComponent,
+  PartId,
+  Selection,
+} from '../scene/types'
+import { defaultDrawerParams } from '../scene/drawerBox'
 
 function makeBoard(overrides: Partial<BoardPart> = {}): BoardPart {
   return {
@@ -40,6 +48,23 @@ function makeGroup(overrides: Partial<GroupComponent> = {}): GroupComponent {
     rotation: { x: 0, y: 0, z: 0 },
     rotationOrder: 'XYZ',
     visible: true,
+    ...overrides,
+  }
+}
+
+function makeDrawer(overrides: Partial<DrawerComponent> = {}): DrawerComponent {
+  return {
+    kind: 'drawer',
+    id: 'cmp_drawer',
+    label: 'Drawer 1',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    sectionId: 'sec_drawer',
+    params: defaultDrawerParams('side-mount'),
+    driven: true,
     ...overrides,
   }
 }
@@ -330,6 +355,23 @@ describe('a cabinet expands into its openings', () => {
     expect(screen.getByTestId('node-cmp_2')).toBeTruthy()
   })
 
+  // The design's one showing requirement for this commit: "the scene tree must render a drawer
+  // under its cabinet, with its boards under it." Nothing creates a drawer yet, so the same
+  // argument the nested-group test above makes applies with more force here — the carcase branch
+  // renders child components from its own line, not the flat one, and a regression there is
+  // invisible until something finally emits a box.
+  it('renders a drawer under its cabinet, with its boards under it', () => {
+    renderTree({
+      components: [TWO_BAY_CABINET, makeDrawer({ parentId: 'cmp_1' })],
+      parts: [
+        ...TWO_BAY_PARTS,
+        makeBoard({ id: 'box_left', label: 'Box left', parentId: 'cmp_drawer' }),
+      ],
+    })
+    const drawer = within(screen.getByTestId('subtree-cmp_1')).getByTestId('subtree-cmp_drawer')
+    expect(within(drawer).getByTestId('node-box_left')).toBeTruthy()
+  })
+
   it('renders an unbuildable cabinet’s parts flat rather than throwing', () => {
     // A material the scene no longer defines cannot say how thick it is, and `roleThicknessFor` is
     // fatal by design — so the opening rectangle this grouping needs cannot be resolved at all.
@@ -338,5 +380,31 @@ describe('a cabinet expands into its openings', () => {
     expect(screen.queryAllByTestId(/^node-sec_/)).toEqual([])
     expect(screen.getByTestId(`node-${shelfOf(BAYS[0]).id}`)).toBeTruthy()
     expect(screen.getByTestId(`node-${divider.id}`)).toBeTruthy()
+  })
+})
+
+// A drawer's boards hang off the drawer, not the cabinet, so the row is the only thing on screen
+// that says which component a board belongs to. Asserted as three glyphs that differ rather than
+// as one literal: what matters is that a drawer is not mistakable for a group, and an assertion on
+// '🗃' alone would survive a carcase silently gaining the same icon.
+describe('a drawer is distinguishable from the other component kinds', () => {
+  afterEach(cleanup)
+
+  // Read off the icon's own test id, not off `span.text-xs`: LABEL_CLASS ends in that same class,
+  // so the class selector also matches the label and returns it once the icon span is gone —
+  // measured, and three distinct labels satisfied the assertion below with no icon on screen.
+  const iconOf = (id: string) => screen.getByTestId(`icon-${id}`).textContent
+
+  it('gives a drawer an icon of its own', () => {
+    renderTree({
+      components: [
+        { ...cabinet, id: 'cmp_cab', label: 'Cab' },
+        makeGroup({ id: 'cmp_grp' }),
+        makeDrawer({ id: 'cmp_drw' }),
+      ],
+      parts: [],
+    })
+    const [cab, grp, drw] = [iconOf('cmp_cab'), iconOf('cmp_grp'), iconOf('cmp_drw')]
+    expect(new Set([cab, grp, drw]).size).toBe(3)
   })
 })

@@ -7,7 +7,7 @@ vi.mock('./idb', () => ({
   clearHandle: vi.fn(),
 }))
 
-import { useFile, parseFile } from './useFile'
+import { useFile, parseFile, FILE_FORMAT_VERSION } from './useFile'
 import * as idb from './idb'
 import type { BoardPart, CarcaseParams, MaterialDef, ZimmuFile, Scene, Part } from './types'
 import type { Section } from './sectionTree'
@@ -1949,5 +1949,121 @@ describe('v13 → v14 migration', () => {
     })
     const twice = parseFile(JSON.stringify({ ...JSON.parse(v14), scene: once })).scene
     expect(twice).toEqual(once)
+  })
+})
+
+// `useFile` types `base.params` loosely, so `tsc` cannot see a parser that drops a required field:
+// the failure appears only when the generator dereferences it at runtime. Hence a `parseFile` test.
+describe('v17 → v18: drawer components', () => {
+  const envelope = (components: unknown[]) =>
+    JSON.stringify({
+      version: 18,
+      name: 'Drawers',
+      appVersion: '0.0.0',
+      units: 'mm',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      camera: CAMERA,
+      scene: { parts: [], materials: {}, hardware: [], joints: [], components },
+    })
+
+  const drawer = (extra: Record<string, unknown> = {}) => ({
+    kind: 'drawer',
+    id: 'cmp_d1',
+    label: 'Drawer 1',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    sectionId: 'sec_abc',
+    driven: true,
+    params: { family: 'undermount', boxHeight: 120, runnerOffset: 32, material: 'Ply 15' },
+    ...extra,
+  })
+
+  // Not `const { params, ...rest } = drawer()`: this repo's `no-unused-vars` sets only
+  // `argsIgnorePattern`, so neither a bare rest sibling nor a `_`-prefixed one is ignored and both
+  // are lint errors. Naming the absent field is also what these tests are about.
+  const without = (key: 'params' | 'sectionId' | 'driven') => {
+    const c: Record<string, unknown> = drawer()
+    delete c[key]
+    return c
+  }
+
+  it('parses a drawer component with its params intact', () => {
+    const c = parseFile(envelope([drawer()])).scene.components[0]
+    expect(c.kind).toBe('drawer')
+    expect(c).toMatchObject({
+      sectionId: 'sec_abc',
+      driven: true,
+      params: { family: 'undermount', boxHeight: 120, runnerOffset: 32, material: 'Ply 15' },
+    })
+  })
+
+  // A drawer whose params did not survive the round trip is the exact failure tsc cannot see.
+  it('round-trips a drawer through parse and re-parse', () => {
+    const once = parseFile(
+      envelope([
+        drawer({
+          params: { family: 'side-mount', boxHeight: null, runnerOffset: 32, material: '' },
+        }),
+      ]),
+    )
+    const twice = parseFile(JSON.stringify(once))
+    expect(twice.scene.components[0]).toEqual(once.scene.components[0])
+    expect(twice.scene.components[0]).toMatchObject({
+      kind: 'drawer',
+      params: { family: 'side-mount', boxHeight: null },
+    })
+  })
+
+  // The one field the parser does not fabricate in the generator's favour. A driven drawer whose
+  // opening no longer wants one is dropped, boards and all, so recovering the flag as `true` would
+  // let a malformed file delete work. Every other `driven` default here reads the same way.
+  it('leaves a drawer that does not state driven detached', () => {
+    const c = parseFile(envelope([without('driven')])).scene.components[0]
+    expect(c).toMatchObject({ kind: 'drawer', driven: false })
+  })
+
+  it('demotes a drawer carrying no params to a group', () => {
+    const c = parseFile(envelope([without('params')])).scene.components[0]
+    expect(c.kind).toBe('group')
+    expect(c).toMatchObject({ id: 'cmp_d1', label: 'Drawer 1', visible: true })
+  })
+
+  it('demotes a drawer naming no section to a group', () => {
+    const c = parseFile(envelope([without('sectionId')])).scene.components[0]
+    expect(c.kind).toBe('group')
+  })
+
+  // A released drawer — detached, and its opening gone — states `sectionId: null`, which the model
+  // allows and the demotion guard must let through. Absent and null are a millimetre apart in the
+  // parser and a whole component kind apart in the scene: written as `== null` the guard would
+  // demote every released drawer in every saved file to a group on load.
+  it('parses a drawer whose section id is released as a drawer', () => {
+    const c = parseFile(envelope([drawer({ sectionId: null, driven: false })])).scene.components[0]
+    expect(c.kind).toBe('drawer')
+    expect(c).toMatchObject({ id: 'cmp_d1', sectionId: null, driven: false })
+  })
+
+  // The version bump's one observable consequence: a v18 file is no longer from the future. The
+  // assertion is that a well-formed current-version file parses *silently*, not that one particular
+  // sentence went unsaid: matching the warning's wording makes the bump's only pin co-dependent on
+  // a log string, and rewording it while reverting the constant left the whole suite green.
+  it('reads a v18 file without warning at all', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    parseFile(envelope([drawer()]))
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
+  })
+
+  // The stamp, not the gate, and deliberately a value pin: `buildEnvelope` writes this constant
+  // into every saved file, and that number is read by an app this one cannot run the suite of. Left
+  // at 17, a drawer-bearing file reads as current to a build with no drawer branch and the
+  // component passes through unrecognised with nothing said — a consequence no test here can
+  // observe, which is why the constant itself is asserted.
+  it('states the drawer-bearing format version', () => {
+    expect(FILE_FORMAT_VERSION).toBe(18)
   })
 })

@@ -35,7 +35,7 @@ Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 ### File I/O
 - Save / Save As / Open / New via File System Access API (Chrome/Edge)
 - Graceful degradation message + disabled menus on Firefox/Safari
-- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 12`)
+- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 18`)
 - Auto-reopen last file on startup (IndexedDB handle persistence)
 - Dirty tracking (`isDirty`, tab title `•` indicator)
 
@@ -132,7 +132,7 @@ pnpm typecheck && pnpm lint && pnpm test
 ## File format
 
 Projects are saved as `.zimmu` files — flat JSON, UTF-8, floats rounded to
-6 decimal places. `FILE_FORMAT_VERSION = 12`.
+6 decimal places. `FILE_FORMAT_VERSION = 18`.
 
 ```json
 {

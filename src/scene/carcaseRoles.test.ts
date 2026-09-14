@@ -18,7 +18,8 @@ import type { JointDescriptor, PanelSpec, RoleSpec } from './carcaseRoles'
 import { dadoDepthFor } from '../geom/dado'
 import { CUP_EDGE_DISTANCE } from './frontMachining'
 import { legacyToSection } from './migrateSections'
-import { seedInteriors } from './sectionInterior'
+import { seedInteriors, setFrontOn } from './sectionInterior'
+import { defaultDrawerParams } from './drawerBox'
 import { splitSection } from './editSection'
 import type { FrontSpec, Section } from './sectionTree'
 import { reconcileJoints } from './reconcileJoints'
@@ -173,8 +174,13 @@ const carcaseJoints = (p: CarcaseParams, componentId: string) =>
 const carcaseCuts = (p: CarcaseParams, role: string) => cutsOf(p, tOf(p), role)
 const carcaseHoleArrays = (p: CarcaseParams, role: string) =>
   holeArraysOf(p, tOf(p), jointKindFor([], ''), role)
+// Every drawer-front opening gets the side-mount box a new drawer is seeded with, so these tests
+// see the slide rows the pipeline would bore. The 15 mm sides are the box's own default fallback.
 const carcaseMachining = (p: CarcaseParams, role: string) =>
-  machiningOf(p, tOf(p), jointKindFor([], ''), role)
+  machiningOf(p, tOf(p), jointKindFor([], ''), role, () => ({
+    params: defaultDrawerParams('side-mount'),
+    sideThickness: 15,
+  }))
 
 // The shelving `base` and its variants carry. A pin row now belongs to the section that needs it,
 // so a cabinet states its shelving by seeding it onto the openings rather than holding one bundle.
@@ -2447,5 +2453,46 @@ describe('clearDepth', () => {
     const expectedLength = withBays.depth - thicknessOf('back')
     expect(division!.panel.length).toBe(expectedLength)
     expect(clearDepth(withBays, thicknessOf('back'))).toBe(expectedLength)
+  })
+})
+
+describe('carcaseMachining — the slide row follows the box', () => {
+  const drawerParams = defaultDrawerParams('side-mount')
+
+  // The real five-arg carcaseMachining, with a drawerFor that puts a side-mount box of the given
+  // runner offset in every opening. The slide height is `opening.z0 + runnerOffset`, so a change in
+  // the offset must move the row by exactly that much — which is the whole point of the stage.
+  const machiningFor = (role: string, params: CarcaseParams, offset: number) =>
+    machiningOf(params, tOf(params), jointKindFor([], ''), role, () => ({
+      params: { ...drawerParams, runnerOffset: offset },
+      sideThickness: 15,
+    }))
+
+  const drawerCabinet = (): CarcaseParams => {
+    const p = CARCASE_PRESETS[0].params
+    return { ...p, section: setFrontOn(p.section, p.section.id, { kind: 'drawer-front' }) }
+  }
+
+  // The row moves with the box, not with the front's centreline: the centreline ignores the offset.
+  it('moves the slide row when the runner offset moves', () => {
+    const params = drawerCabinet()
+    const low = machiningFor('left-side', params, 20).find((c) => c.id.startsWith('slide_'))!
+    const high = machiningFor('left-side', params, 60).find((c) => c.id.startsWith('slide_'))!
+    expect(high.start.y - low.start.y).toBeCloseTo(40, 6)
+  })
+
+  it('bores nothing for a cabinet too shallow for a runner', () => {
+    const shallow = { ...drawerCabinet(), depth: 200 }
+    expect(machiningFor('left-side', shallow, 32).filter((c) => c.id.startsWith('slide_'))).toEqual(
+      [],
+    )
+  })
+
+  it('still bores both uprights of the bay', () => {
+    const params = drawerCabinet()
+    const left = machiningFor('left-side', params, 32).filter((c) => c.id.startsWith('slide_'))
+    const right = machiningFor('right-side', params, 32).filter((c) => c.id.startsWith('slide_'))
+    expect(left).toHaveLength(1)
+    expect(right).toHaveLength(1)
   })
 })

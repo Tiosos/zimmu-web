@@ -19,6 +19,9 @@ import { componentsById } from './componentTree'
 import { defaultDadoJoint, defaultFingerJoint, defaultScrewJoint } from './defaultJoint'
 import { materialForRole, overridesOf, roleThicknessFor } from './resolveThickness'
 import { carcaseJointId, jointKindFor } from './resolveJointKind'
+import { boxSideThickness } from './regenerateDrawers'
+import type { DrawerParams } from './drawerBox'
+import type { SectionId } from './sectionTree'
 import { PART_COLORS } from './palette'
 
 function regenerateOne(
@@ -44,6 +47,26 @@ function regenerateOne(
   // is seated in. Read from the joints the emit below preserves, before the layout runs.
   const kindOf = jointKindFor(joints, component.id)
 
+  // The drawer of each opening that wears one, keyed by the section it fills. The slide machining
+  // reads the drawer's *parameters* and its side material's thickness, never the boards the drawer
+  // pass emitted — reading those would make the carcase depend on the drawer's output and the pass
+  // would stop being a function. `regenerateDrawers` runs first, so `byId` already carries every
+  // drawer this cabinet needs. Side thickness is resolved here, through the box's one statement of
+  // it, because `carcaseMachining` has no access to `materials`.
+  const drawersBySection = new Map<SectionId, { params: DrawerParams; sideThickness: number }>()
+  for (const c of byId.values()) {
+    if (c.kind === 'drawer' && c.parentId === component.id && c.sectionId !== null) {
+      drawersBySection.set(c.sectionId, {
+        params: c.params,
+        sideThickness: boxSideThickness(c, materials),
+      })
+    }
+  }
+  const drawerFor = (
+    sectionId: SectionId,
+  ): { params: DrawerParams; sideThickness: number } | null =>
+    drawersBySection.get(sectionId) ?? null
+
   const roles = carcaseRoles(component.params, thicknessOf, kindOf)
   // Invalid parameters produce no roles. Preserve the last good parts rather than emptying the
   // cabinet mid-keystroke — the same contract deriveJoint has when it returns null.
@@ -67,7 +90,7 @@ function regenerateOne(
     const componentCuts = [
       ...carcaseCuts(component.params, thicknessOf, r.role),
       ...carcaseHoleArrays(component.params, thicknessOf, kindOf, r.role),
-      ...carcaseMachining(component.params, thicknessOf, kindOf, r.role),
+      ...carcaseMachining(component.params, thicknessOf, kindOf, r.role, drawerFor),
     ].map((c) => ({ ...c, sourceComponentId: component.id }))
     const existingCuts = existing?.kind === 'board' ? existing.cuts : []
 

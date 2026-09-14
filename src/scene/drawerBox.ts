@@ -1,0 +1,210 @@
+import type { Rect } from './sectionTree'
+import { RUNNER_NOMINALS, runnerKeyFor } from './hardwareCatalogue'
+
+// Which family of runner a drawer is built for. The families are not one rule with two constants:
+// side-mount fixes the gap either side of the box, undermount fixes the box's own interior, so
+// their outside widths diverge as the side material gets thicker. Collapsing them is the mistake
+// this type exists to make impossible.
+export type RunnerFamily = 'side-mount' | 'undermount'
+
+// Every figure below is stated, not derived, and they do not all carry the same confidence. See the
+// "Stated figures" table in docs/superpowers/specs/2026-09-12-drawer-boxes-design.md. A wrong figure
+// here produces a perfectly self-consistent drawer that does not slide, and no test in this repo can
+// falsify one — the same risk class as the hinge-count table in `frontMachining.ts`.
+
+// A documented side-mount ball-bearing convention: 1/2" each side.
+export const SIDE_MOUNT_CLEARANCE = 12.7
+
+// Undermount fixes the drawer's INSIDE width: opening minus this, thickness-dependent.
+// UNVERIFIED. From vendor and distributor summaries of Blum TANDEM, not from Blum's printed
+// installation instructions — the egress proxy blocked every primary PDF. Check before cutting.
+export const UNDERMOUNT_DEDUCTION_THIN = 42
+export const UNDERMOUNT_DEDUCTION_THICK = 49
+export const UNDERMOUNT_THIN_MAX_THICKNESS = 16
+
+// The weakest figure in this file: unsourced, a convention chosen by the author, and model-specific
+// across the side-mount family in a way the others are not. That is why it is a parameter with this
+// as its default rather than a constant every drawer is stuck with.
+export const SIDE_MOUNT_RUNNER_OFFSET = 32
+
+// Conventions.
+export const BOX_HEIGHT_UNDER_FRONT = 25
+export const BOTTOM_GROOVE_UP = 10
+export const BOTTOM_GROOVE_DEPTH = 6
+
+// The undermount locking-device preparation: a cut-out at each rear corner of the drawer BOTTOM for
+// the device to come up through, and a bore in the back for the hook it engages. Both are
+// corroborated by a distributor's summary of Blum's 563H installation drawing — a 1/2" × 1-3/8"
+// minimum cut-out and a ⌀6 × 10 mm hook bore — rather than read off the drawing itself, which the
+// egress proxy blocked. Confirm before cutting.
+//
+// WHICH board wears the cut-out is a claim the drawing does not make and these figures do not
+// carry, and it decides what they mean. The device is fixed to the runner at the box floor, so it
+// is the bottom that is cut and the 1/2" is how far the cut-out reaches IN from the bottom's rear
+// edge — a depth, not a height up the back, which is what it was read as while the back ran down
+// to the floor. The 1-3/8" runs across the box either way.
+export const UNDERMOUNT_CUTOUT_DEPTH = 12.7
+export const UNDERMOUNT_CUTOUT_WIDTH = 35
+export const UNDERMOUNT_HOLE_DIAMETER = 6
+export const UNDERMOUNT_HOLE_DEPTH = 10
+// The weakest figure of the five: the same drawing dimensions the hook bore as 7 and 11, and which
+// of the two is the height rather than an inset from an edge is not legible in any summary reached.
+// 7 is taken as the height, measured from the back's own bottom edge — which stands on the bottom,
+// so it is the same plane the cut-out presents the device at. With the cut-out no longer in the
+// back there is nothing else left for it to be measured from.
+export const UNDERMOUNT_HOLE_ABOVE_BOTTOM = 7
+
+export interface DrawerParams {
+  family: RunnerFamily
+  // null derives it from the front cell. An explicit value lets a shallow box sit behind a tall
+  // front, which is ordinary where plumbing or a rail is in the way.
+  boxHeight: number | null
+  // Side-mount only: how far above the box bottom the runner's screw line sits.
+  runnerOffset: number
+  material: string
+}
+
+export function defaultDrawerParams(family: RunnerFamily): DrawerParams {
+  return { family, boxHeight: null, runnerOffset: SIDE_MOUNT_RUNNER_OFFSET, material: '' }
+}
+
+export interface BoxExtents {
+  x0: number
+  x1: number
+  y0: number
+  y1: number
+  z0: number
+  z1: number
+}
+
+export interface DrawerBoxMetrics {
+  // Carcase space, so the machining can read it without converting.
+  box: BoxExtents
+  // Carcase z of the runner's screw line.
+  runnerZ: number
+  // Every box is grooved for its bottom, whatever carries the box: an undermount bottom is captured
+  // in the sides and front and carried by the runner from underneath. WHICH walls carry the groove
+  // is the board generator's business — an undermount back stands on its bottom instead — so the
+  // family never reaches this field and the figures are stated in one place for both.
+  groove: { up: number; depth: number }
+}
+
+export interface DrawerContext {
+  clearDepth: number
+  frontThickness: number
+  inset: boolean
+  // The DRAWER's own side material, not the carcase's. Only undermount reads it, and it is required
+  // anyway — the mirror of `runnerOffset`, which undermount ignores. Optional with a `?? 0` default
+  // sized an undermount box as if its sides were paper: too narrow by twice the stock, and by more
+  // the thicker the stock, which is the one error this family is prone to and slowest to notice.
+  sideThickness: number
+}
+
+// The depth a drawer box can actually occupy. Not the cabinet's clear depth: an inset front sits
+// inside the opening and eats its own thickness before the box starts — the same fact as `y0`
+// below, read from the other end, which is why both are written in this file rather than one here
+// and one beside `clearDepth`.
+//
+// Exported because `carcaseHardware` quotes the runner off it, so the box and the runner ordered
+// for it cannot disagree about length. It belongs on this side of that pair because the dependency
+// runs one way: the carcase generator reads this module for a box's geometry, and a rule about a
+// box kept in `carcaseRoles` would make this module read it back.
+export function boxDepth(clear: number, frontThickness: number, inset: boolean): number {
+  return inset ? clear - frontThickness : clear
+}
+
+// The one statement of a drawer box's geometry. The drawer generator reads it to build boards and
+// `carcaseMachining` reads it to place slide screws. Neither reads the other's output, which is
+// what keeps the generator a function in one direction.
+//
+// Returns null for any drawer that cannot be built: no runner fits the depth the box can actually
+// use — which an inset front cuts into, so a cabinet deep enough overlay can be too shallow inset —
+// the box comes out wider than its own opening, or it fails the guard below. That mirrors the rule
+// that a door too thin to bore lists no hinge: the generator declines rather than inventing a size,
+// and a box beside a missing runner — or one that will not go in the hole — would be a drawer
+// nobody can build.
+export function drawerBoxMetrics(
+  // The SECTION's own rectangle, from `tree.rects`, never the front cell. `frontCells` expands an
+  // overlay front to the material midline, so a Base 600's cell is ~597 wide against a 564 opening
+  // — a box sized off the cell would be 33 mm too wide and would not go in the cabinet.
+  opening: Rect,
+  params: DrawerParams,
+  ctx: DrawerContext,
+): DrawerBoxMetrics | null {
+  // The nominal is recovered from the key rather than chosen here, so the box and the hardware
+  // quote cannot pick different runners for the same cabinet.
+  const runnerKey = runnerKeyFor(boxDepth(ctx.clearDepth, ctx.frontThickness, ctx.inset))
+  const depth = RUNNER_NOMINALS.find((n) => `runner-${n}` === runnerKey)
+  if (depth === undefined) return null
+
+  const openingHeight = opening.z1 - opening.z0
+  const height = Math.min(params.boxHeight ?? openingHeight - BOX_HEIGHT_UNDER_FRONT, openingHeight)
+
+  // Only undermount can outgrow its opening: side-mount takes a fixed gap off each side, so its
+  // span is always narrower than the one it came from. The null arm is undermount's alone.
+  const span: [number, number] | null =
+    params.family === 'side-mount'
+      ? [opening.x0 + SIDE_MOUNT_CLEARANCE, opening.x1 - SIDE_MOUNT_CLEARANCE]
+      : undermountSpan(opening, ctx.sideThickness)
+  if (span === null) return null
+  const [x0, x1] = span
+
+  // The applied front occupies y ∈ [−FT, 0] overlay and y ∈ [0, FT] inset, so the box starts where
+  // the front stops.
+  const y0 = ctx.inset ? ctx.frontThickness : 0
+
+  const box: BoxExtents = { x0, x1, y0, y1: y0 + depth, z0: opening.z0, z1: opening.z0 + height }
+  const runnerZ = opening.z0 + (params.family === 'side-mount' ? params.runnerOffset : 0)
+  const groove = { up: BOTTOM_GROOVE_UP, depth: BOTTOM_GROOVE_DEPTH }
+
+  // Asked once, after the extents are known, rather than as five guards scattered through the
+  // computation: they are one question — can this drawer be built — and a reader checking "can this
+  // return nonsense?" should find one place to look. It declines rather than clamping, because a
+  // clamped box is a box the user did not ask for and will not notice.
+  //
+  // It polices this module's own parameters, `boxHeight` and `runnerOffset` — nothing else
+  // constrains them, and `useFile` types `base.params` loosely enough that a file can carry a bad
+  // one past `tsc`. It does not police `ctx.sideThickness`, a material thickness the whole carcase
+  // generator already depends on being positive: that is why there is no outside-width term, since
+  // only a negative thickness could reach one the interior term misses.
+  //
+  // The two runner terms bracket the box from both ends and read its emitted figures, not
+  // `params.runnerOffset` and the family — `defaultDrawerParams` seeds the side-mount offset
+  // whatever the family, so a term reading the parameter would decline a short undermount box whose
+  // runner sits on the floor of it. `<` and not `<=` at the bottom for the same reason: an
+  // undermount runner sits exactly there.
+  // The height term is kept although the groove term now answers everything it does: they are
+  // different claims, and the groove term only covers it while `BOTTOM_GROOVE_UP` is positive. A
+  // box of no height is nonsense whatever the groove figure says.
+  if (
+    box.x1 - box.x0 <= 2 * ctx.sideThickness ||
+    box.z1 <= box.z0 ||
+    runnerZ < box.z0 ||
+    runnerZ > box.z1 ||
+    box.z0 + groove.up > box.z1
+  ) {
+    return null
+  }
+
+  return { box, runnerZ, groove }
+}
+
+// Undermount states the drawer's INSIDE width, so the outside width moves with the side material.
+// At 16 mm sides the outside clearance works out near 5 mm a side, not the 12.7 mm a side-mount
+// needs — which is why this cannot be expressed as a per-side constant.
+function undermountSpan(opening: Rect, sideThickness: number): [number, number] | null {
+  const deduction =
+    sideThickness <= UNDERMOUNT_THIN_MAX_THICKNESS
+      ? UNDERMOUNT_DEDUCTION_THIN
+      : UNDERMOUNT_DEDUCTION_THICK
+  const span = opening.x1 - opening.x0
+  const inside = span - deduction
+  const outside = inside + 2 * sideThickness
+  // The interior is fixed, so every extra millimetre of side material pushes the outside wider,
+  // and past half the deduction the box is wider than the hole it goes in. The generator declines
+  // rather than inventing a size — the same answer it gives when no runner fits. Zero slack still
+  // builds: a box exactly as wide as its opening is a box that fits.
+  if (outside > span) return null
+  const slack = (span - outside) / 2
+  return [opening.x0 + slack, opening.x1 - slack]
+}

@@ -4,8 +4,10 @@ import type {
   CarcaseComponent,
   Component,
   ComponentId,
+  DrawerComponent,
   MaterialDef,
   Part,
+  RunnerFamily,
   SectionId,
 } from '../scene/types'
 import { openingRect, sectionThickness, validateCarcaseParams } from '../scene/carcaseRoles'
@@ -137,7 +139,9 @@ export function CarcasePanel({
   component,
   materials,
   parts,
+  components,
   onUpdate,
+  onUpdateComponent,
   selectedSectionId,
 }: {
   component: CarcaseComponent
@@ -145,7 +149,12 @@ export function CarcasePanel({
   // The scene's boards, filtered to this cabinet's by `overridesOf`: the fields describe the
   // cabinet the user's overrides actually build, not the one its materials alone imply.
   parts: Part[]
+  // The scene's components, so the panel can find the drawer regenerateDrawers built for a
+  // drawer-front opening. A drawer is a different component from this carcase, so its edits go
+  // through onUpdateComponent by id, not through onUpdate (which is bound to this carcase).
+  components: Component[]
   onUpdate: (updater: (c: Component) => Component) => void
+  onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
   selectedSectionId: SectionId | null
 }) {
   const [sizeOpen, setSizeOpen] = useState(true)
@@ -242,6 +251,15 @@ export function CarcasePanel({
           ? { kind: 'door', leaves: 1, hinge: 'left' }
           : { kind: v as 'drawer-front' | 'false-front' | 'panel' },
     )
+
+  // The drawer regenerateDrawers built for this opening, found the same way reconciliation binds it:
+  // by (parentId, sectionId), never by index. A drawer-front opening always has one, so its absence
+  // means the drawer is mid-regeneration and the params are not editable yet.
+  const selectedDrawer =
+    components.find(
+      (c): c is DrawerComponent =>
+        c.kind === 'drawer' && c.parentId === component.id && c.sectionId === opening?.sectionId,
+    ) ?? null
 
   return (
     // Matches EditPanel's container, and bounds its own height: with 17 fields an unbounded panel
@@ -550,6 +568,71 @@ export function CarcasePanel({
                     </SelectContent>
                   </Select>
                 </div>
+              )}
+              {/* A drawer's parameters live on its own component, not on the opening, so they write
+                  through onUpdateComponent. A native select rather than the shadcn one: the family
+                  is a two-way toggle the DXF/geometry follows, and a bare <select> keeps it
+                  keyboard- and test-reachable by its label. */}
+              {front?.kind === 'drawer-front' && selectedDrawer !== null && (
+                <>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Label htmlFor="drawer-family" className="w-20 shrink-0 text-right">
+                      Runner family
+                    </Label>
+                    <select
+                      id="drawer-family"
+                      aria-label="Runner family"
+                      value={selectedDrawer.params.family}
+                      onChange={(e) => {
+                        // Read eagerly: `e.target` is the live select, and a controlled re-render
+                        // resets its value before a deferred updater closure would read it.
+                        const family = e.target.value as RunnerFamily
+                        onUpdateComponent(selectedDrawer.id, (c) =>
+                          c.kind === 'drawer' ? { ...c, params: { ...c.params, family } } : c,
+                        )
+                      }}
+                      className="h-7 flex-1 min-w-0 rounded-md border border-input bg-input px-2 text-[11px] text-foreground"
+                    >
+                      <option value="side-mount">Side mount</option>
+                      <option value="undermount">Undermount</option>
+                    </select>
+                  </div>
+                  {/* 0 means "derive the height from the front cell", which the model stores as
+                      null. Any other value is the explicit override a shallow box behind a tall
+                      front needs. */}
+                  <DimInput
+                    labelWidth="w-20"
+                    label="Box height"
+                    value={selectedDrawer.params.boxHeight ?? 0}
+                    suffix="mm"
+                    min={0}
+                    onCommit={(v) =>
+                      onUpdateComponent(selectedDrawer.id, (c) =>
+                        c.kind === 'drawer'
+                          ? { ...c, params: { ...c.params, boxHeight: v === 0 ? null : v } }
+                          : c,
+                      )
+                    }
+                  />
+                  {/* The offset is where a side-mount runner's screw line sits above the box floor;
+                      undermount has no such line, so the field would mean nothing there. */}
+                  {selectedDrawer.params.family === 'side-mount' && (
+                    <DimInput
+                      labelWidth="w-20"
+                      label="Runner height above box bottom"
+                      value={selectedDrawer.params.runnerOffset}
+                      suffix="mm"
+                      min={0}
+                      onCommit={(v) =>
+                        onUpdateComponent(selectedDrawer.id, (c) =>
+                          c.kind === 'drawer'
+                            ? { ...c, params: { ...c.params, runnerOffset: v } }
+                            : c,
+                        )
+                      }
+                    />
+                  )}
+                </>
               )}
             </>
           )}

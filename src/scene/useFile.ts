@@ -8,6 +8,7 @@ import type {
   ZimmuFile,
   Joint,
   CarcaseParams,
+  DrawerComponent,
 } from './types'
 import * as idb from './idb'
 import { breakComponentCycles, promoteOrphans } from './componentTree'
@@ -22,7 +23,7 @@ import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
 import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 
-export const FILE_FORMAT_VERSION = 17
+export const FILE_FORMAT_VERSION = 18
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -348,6 +349,37 @@ export function parseFile(text: string): ZimmuFile {
         delete params.backThickness
         delete params.adjustableShelves
         return { ...base, params }
+      }
+      // v17→v18: drawer components. `DrawerComponent` declares `params` and `sectionId` present,
+      // so a drawer missing either is a shape the type says cannot exist. Demote rather than
+      // fabricate: a group keeps the label, the placement and every child board, and loses only
+      // the ability to regenerate.
+      //
+      // `=== undefined` and not `== null`: a released drawer — detached, its opening gone —
+      // serialises `sectionId: null`, which is a drawer the model states and must parse as one.
+      if (base.kind === 'drawer' && (base.params === undefined || base.sectionId === undefined)) {
+        console.warn(`zimmu: drawer "${base.id}" is incomplete — loaded as a group`)
+        return {
+          kind: 'group' as const,
+          id: base.id,
+          label: base.label,
+          parentId: base.parentId,
+          position: base.position,
+          rotation: base.rotation,
+          rotationOrder: base.rotationOrder,
+          visible: base.visible,
+        }
+      }
+      if (base.kind === 'drawer') {
+        return {
+          ...base,
+          kind: 'drawer' as const,
+          // Detached, like every other recovery default in this parser. Reconciliation keeps a
+          // drawer only while its opening still wants one, so a drawer that lost this field and
+          // names an opening that has since changed would be deleted with its boards. Staleness is
+          // recoverable and deletion is not.
+          driven: base.driven ?? false,
+        } as DrawerComponent
       }
       return base
     }),

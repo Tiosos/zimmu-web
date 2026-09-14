@@ -1,18 +1,27 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CarcasePanel } from './CarcasePanel'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { resolvedOf } from '../scene/__fixtures__/resolve'
 import { legacyToSection } from '../scene/migrateSections'
+import { defaultDrawerParams } from '../scene/drawerBox'
 import {
   defaultInterior,
   firstInterior,
   sectionInteriors,
   sectionOpenings,
 } from '../scene/sectionInterior'
-import type { CarcaseComponent, CarcaseParams, Component, Part, SectionId } from '../scene/types'
+import type {
+  CarcaseComponent,
+  CarcaseParams,
+  Component,
+  ComponentId,
+  DrawerComponent,
+  Part,
+  SectionId,
+} from '../scene/types'
 
 function carcase(params: Partial<CarcaseParams> = {}): CarcaseComponent {
   return {
@@ -28,6 +37,27 @@ function carcase(params: Partial<CarcaseParams> = {}): CarcaseComponent {
   }
 }
 
+// The drawers `regenerateDrawers` would build for this carcase: one per opening wearing a drawer
+// front, keyed to that opening by `sectionId`. The panel reads them from `scene.components` the way
+// the app hands it `scene.components`, so a test never invents a second way to find the drawer.
+function drawersFor(component: CarcaseComponent): DrawerComponent[] {
+  return sectionOpenings(component.params.section, resolvedOf(component.params))
+    .filter((o) => o.section.front?.kind === 'drawer-front')
+    .map((o) => ({
+      kind: 'drawer',
+      id: `drw_${o.sectionId}`,
+      label: 'Drawer',
+      parentId: component.id,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+      sectionId: o.sectionId,
+      params: defaultDrawerParams('side-mount'),
+      driven: true,
+    }))
+}
+
 // `selectedSectionId` defaults to the cabinet's first opening, because almost every test here is
 // about editing one and the elevation is what supplies it in the app. The tests that are about
 // having *no* selection pass null explicitly.
@@ -37,6 +67,8 @@ function renderPanel(
   materials = PRESET_MATERIALS,
   selectedSectionId: SectionId | null | undefined = undefined,
   parts: Part[] = [],
+  onUpdateComponent = vi.fn(),
+  drawers: DrawerComponent[] = drawersFor(component),
 ) {
   const pick =
     selectedSectionId === undefined
@@ -49,7 +81,9 @@ function renderPanel(
         component={component}
         materials={materials}
         parts={parts}
+        components={drawers}
         onUpdate={onUpdate}
+        onUpdateComponent={onUpdateComponent}
         selectedSectionId={pick}
       />
     </TooltipProvider>,
@@ -170,7 +204,9 @@ describe('CarcasePanel', () => {
           component={carcase({ section: sec([0.5]) })}
           materials={PRESET_MATERIALS}
           parts={[]}
+          components={[]}
           onUpdate={vi.fn()}
+          onUpdateComponent={vi.fn()}
           selectedSectionId={null}
         />
       </TooltipProvider>,
@@ -181,7 +217,9 @@ describe('CarcasePanel', () => {
           component={carcase({ section: sec([0.25, 0.75]) })}
           materials={PRESET_MATERIALS}
           parts={[]}
+          components={[]}
           onUpdate={vi.fn()}
+          onUpdateComponent={vi.fn()}
           selectedSectionId={null}
         />
       </TooltipProvider>,
@@ -407,5 +445,105 @@ describe('CarcasePanel fronts', () => {
     await userEvent.click(screen.getByLabelText('Mount'))
     await userEvent.click(screen.getByRole('option', { name: 'Inset' }))
     expect(appliedParams(onUpdate, c).frontMount).toBe('inset')
+  })
+})
+
+describe('CarcasePanel — drawer parameters', () => {
+  afterEach(cleanup)
+
+  const withDrawer = () => carcase({ section: { ...sec([], 0), front: { kind: 'drawer-front' } } })
+
+  // The panel reports a drawer edit as `onUpdateComponent(id, updater)`, the same shape useScene
+  // uses everywhere. Apply the last updater to the drawer the panel was reading and read the field
+  // back — a bare `toHaveBeenCalled()` would survive a handler that wrote the wrong field.
+  function appliedDrawer(
+    onUpdateComponent: ReturnType<typeof vi.fn>,
+    base: DrawerComponent,
+  ): DrawerComponent {
+    const [id, updater] = onUpdateComponent.mock.calls.at(-1)! as [
+      ComponentId,
+      (c: Component) => Component,
+    ]
+    expect(id).toBe(base.id)
+    const next = updater(base)
+    if (next.kind !== 'drawer') throw new Error('updater must return a drawer')
+    return next
+  }
+
+  it('offers the runner family for an opening wearing a drawer front', () => {
+    renderPanel(withDrawer())
+    expect(screen.getByLabelText('Runner family')).toBeTruthy()
+  })
+
+  it('reports a runner family change', () => {
+    const c = withDrawer()
+    const onUpdateComponent = vi.fn()
+    renderPanel(c, vi.fn(), PRESET_MATERIALS, undefined, [], onUpdateComponent)
+    fireEvent.change(screen.getByLabelText('Runner family'), { target: { value: 'undermount' } })
+    expect(appliedDrawer(onUpdateComponent, drawersFor(c)[0]).params.family).toBe('undermount')
+  })
+
+  it('offers nothing for an opening wearing a door', () => {
+    renderPanel(
+      carcase({
+        section: { ...sec([], 0), front: { kind: 'door', leaves: 1, hinge: 'left' } },
+      }),
+    )
+    expect(screen.queryByLabelText('Runner family')).toBeNull()
+  })
+
+  // A drawer-front opening always has a drawer once regeneration runs; before it does there is
+  // nothing to bind the controls to, so they stay hidden rather than editing a phantom.
+  it('offers nothing while the drawer for a drawer-front opening does not exist yet', () => {
+    renderPanel(withDrawer(), vi.fn(), PRESET_MATERIALS, undefined, [], vi.fn(), [])
+    expect(screen.queryByLabelText('Runner family')).toBeNull()
+  })
+
+  // 0 is the "derive the height from the front cell" case, stored as null; any other value is the
+  // explicit override a shallow box behind a tall front needs.
+  it('writes a null box height at 0 and a number otherwise', async () => {
+    const c = withDrawer()
+    const onUpdateComponent = vi.fn()
+    renderPanel(c, vi.fn(), PRESET_MATERIALS, undefined, [], onUpdateComponent)
+    const field = screen.getByLabelText('Box height')
+
+    let before = onUpdateComponent.mock.calls.length
+    await userEvent.clear(field)
+    await userEvent.type(field, '120')
+    await waitFor(() => expect(onUpdateComponent.mock.calls.length).toBeGreaterThan(before))
+    expect(appliedDrawer(onUpdateComponent, drawersFor(c)[0]).params.boxHeight).toBe(120)
+
+    before = onUpdateComponent.mock.calls.length
+    await userEvent.clear(field)
+    await userEvent.type(field, '0')
+    await waitFor(() => expect(onUpdateComponent.mock.calls.length).toBeGreaterThan(before))
+    expect(appliedDrawer(onUpdateComponent, drawersFor(c)[0]).params.boxHeight).toBeNull()
+  })
+
+  // The runner offset means something only on a side-mount box — it is where the runner's screw line
+  // sits above the box bottom, which undermount does not have.
+  it('offers the runner offset for a side-mount drawer and hides it for undermount', () => {
+    const c = withDrawer()
+    renderPanel(c)
+    expect(screen.getByLabelText('Runner height above box bottom')).toBeTruthy()
+    cleanup()
+
+    const under = drawersFor(c).map(
+      (d): DrawerComponent => ({ ...d, params: { ...d.params, family: 'undermount' } }),
+    )
+    renderPanel(c, vi.fn(), PRESET_MATERIALS, undefined, [], vi.fn(), under)
+    expect(screen.queryByLabelText('Runner height above box bottom')).toBeNull()
+  })
+
+  it('reports a runner offset change for a side-mount drawer', async () => {
+    const c = withDrawer()
+    const onUpdateComponent = vi.fn()
+    renderPanel(c, vi.fn(), PRESET_MATERIALS, undefined, [], onUpdateComponent)
+    const before = onUpdateComponent.mock.calls.length
+    const field = screen.getByLabelText('Runner height above box bottom')
+    await userEvent.clear(field)
+    await userEvent.type(field, '48')
+    await waitFor(() => expect(onUpdateComponent.mock.calls.length).toBeGreaterThan(before))
+    expect(appliedDrawer(onUpdateComponent, drawersFor(c)[0]).params.runnerOffset).toBe(48)
   })
 })

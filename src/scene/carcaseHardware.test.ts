@@ -1,14 +1,26 @@
 import { describe, it, expect } from 'vitest'
 import { CARCASE_PRESETS, PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
 import { regenerateComponents } from './regenerateComponents'
+import { regenerateDrawers } from './regenerateDrawers'
 import { hingeCount } from './frontMachining'
 import { carcaseHardware } from './carcaseHardware'
+import { clearDepth } from './carcaseRoles'
+import { defaultDrawerParams, drawerBoxMetrics } from './drawerBox'
 import { resolveCarcase } from './carcaseOpenings'
 import { reconcileJoints } from './reconcileJoints'
 import { defaultScrewJoint } from './defaultJoint'
 import { splitSection } from './editSection'
 import { defaultInterior, firstInterior, setFrontOn, setInterior } from './sectionInterior'
-import type { BoardPart, CarcaseParams, ComponentId, Joint, MaterialDef, Scene } from './types'
+import type {
+  BoardPart,
+  CarcaseComponent,
+  CarcaseParams,
+  ComponentId,
+  Joint,
+  MaterialDef,
+  Scene,
+  SectionId,
+} from './types'
 
 // The scene a new file starts from, with one cabinet in it. Materials are a parameter because a
 // door thin enough to refuse a cup needs a material the presets do not name.
@@ -17,25 +29,31 @@ const sceneOf = (
   label = 'Cabinet',
   materials: Record<string, MaterialDef> = PRESET_MATERIALS,
 ): Scene =>
-  regenerateComponents({
-    parts: [],
-    materials: { ...materials },
-    hardware: [],
-    joints: [],
-    components: [
-      {
-        kind: 'carcase',
-        id: 'cmp_1',
-        label,
-        parentId: null,
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 },
-        rotationOrder: 'XYZ',
-        visible: true,
-        params,
-      },
-    ],
-  })
+  // Drawers first, then carcase — the pipeline order `applyPipeline` runs. The slide row now reads
+  // the drawer box, so a scene built without the drawer pass bores no slide screws and quotes no
+  // runner: this helper has to build a cabinet the way the app does or the runner tests below see
+  // an empty scene.
+  regenerateComponents(
+    regenerateDrawers({
+      parts: [],
+      materials: { ...materials },
+      hardware: [],
+      joints: [],
+      components: [
+        {
+          kind: 'carcase',
+          id: 'cmp_1',
+          label,
+          parentId: null,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          visible: true,
+          params,
+        },
+      ],
+    }),
+  )
 
 const qtyOf = (scene: Scene, key: string): number =>
   carcaseHardware(scene)
@@ -99,6 +117,21 @@ const withDrawerBays = (drawers: number): CarcaseParams => {
   for (let i = 0; i < drawers; i++)
     section = setFrontOn(section, kids[i].id, { kind: 'drawer-front' })
   return { ...p, section }
+}
+
+// The bays a fixture's root splits into, in tree order.
+const baysOf = (p: CarcaseParams): SectionId[] =>
+  p.section.content.kind === 'split' ? p.section.content.children.map((c) => c.id) : []
+
+// The front ONE named bay wears, reached through the ownership resolver the scene tree already
+// uses. Not `parts.find(role startsWith 'front-')`: under a fixture whose fronts are all one
+// thickness the cabinet's first front and the drawer's own are numerically the same part, which is
+// exactly what would hide a quote that read the wrong bay's front.
+const frontOfBay = (scene: Scene, bay: SectionId): BoardPart => {
+  const carcase = scene.components[0] as CarcaseComponent
+  const resolved = resolveCarcase(carcase, scene.parts, scene.materials)!
+  const owned = resolved.nodes.sections.find((n) => n.sectionId === bay)!
+  return owned.parts.find((p) => p.role?.startsWith('front-')) as BoardPart
 }
 
 describe('carcaseHardware — runners', () => {
@@ -340,6 +373,38 @@ describe('carcaseHardware — screws', () => {
     expect(qtyForOwner(after, 'cmp_1', 'screw-8x40')).toBe(beforeCabinet + screwJoint.screwCount)
     expect(qtyForOwner(after, null, 'screw-8x40')).toBe(0)
   })
+
+  // The owner check read the direct parent, so a board one level down fell to Ungrouped and the
+  // cabinet's screw count dropped — which is what the forthcoming drawer box would have done.
+  it('attributes a nested board’s screws to its cabinet, not to Ungrouped', () => {
+    const scene = piped(CARCASE_PRESETS[0].params, 'Base A')
+    const screwed = scene.parts.find(
+      (p) => p.kind === 'board' && p.cuts.some((c) => c.id.endsWith('_clearance')),
+    )
+    expect(screwed).toBeDefined()
+    const before = qtyForOwner(scene, 'cmp_1', 'screw-8x40')
+
+    const moved: Scene = {
+      ...scene,
+      components: [
+        ...scene.components,
+        {
+          kind: 'group',
+          id: 'cmp_wrap',
+          label: 'Wrapper',
+          parentId: 'cmp_1',
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          visible: true,
+        },
+      ],
+      parts: scene.parts.map((p) => (p.id === screwed!.id ? { ...p, parentId: 'cmp_wrap' } : p)),
+    }
+
+    expect(qtyForOwner(moved, 'cmp_1', 'screw-8x40')).toBe(before)
+    expect(qtyForOwner(moved, null, 'screw-8x40')).toBe(0)
+  })
 })
 
 describe('carcaseHardware — rows', () => {
@@ -397,5 +462,97 @@ describe('carcaseHardware — rows', () => {
     expect(
       carcaseHardware({ parts: [], materials: {}, hardware: [], joints: [], components: [] }),
     ).toEqual([])
+  })
+})
+
+// The box and the quote read one statement of the usable depth, so they cannot name different
+// runners for the same cabinet. An inset cabinet is the case that separates them: its front sits
+// inside the opening and takes its own thickness out of the depth before the box starts.
+describe('carcaseHardware — the runner quoted is the runner the box is built to', () => {
+  // 572 deep behind a 12 mm captured back is 560 clear, which takes the 550 nominal outright and
+  // the 500 once an 18 mm inset front has had its share. A Base 600's 548 clear takes 500 either
+  // way, so it cannot tell the two rules apart.
+  const insetDrawer: CarcaseParams = {
+    ...withDrawerBays(1),
+    depth: 572,
+    frontMount: 'inset',
+  }
+
+  it('quotes the nominal the box comes out at, not the one the clear depth alone would pick', () => {
+    const scene = sceneOf(insetDrawer)
+    const quoted = carcaseHardware(scene).filter((l) => l.key.startsWith('runner-'))
+    expect(quoted.length).toBe(1)
+
+    // The other side, built from the cabinet's own emitted panels — never from the quote. The
+    // front is the DRAWER bay's own, asked for by name rather than taken off the front of the
+    // parts array.
+    const back = scene.parts.find((p) => p.role === 'back') as BoardPart
+    const front = frontOfBay(scene, baysOf(insetDrawer)[0])
+    const box = drawerBoxMetrics(
+      { x0: 18, x1: 582, z0: 18, z1: 400 },
+      defaultDrawerParams('side-mount'),
+      {
+        clearDepth: clearDepth(insetDrawer, back.thickness),
+        frontThickness: front.thickness,
+        inset: true,
+        sideThickness: 18,
+      },
+    )!
+    expect(quoted[0].key).toBe(`runner-${box.box.y1 - box.box.y0}`)
+    // Stated as well as agreed: two sides that had both lost the front's thickness would agree at
+    // 450 just as happily.
+    expect(quoted[0].key).toBe('runner-500')
+  })
+
+  // The mount is the only thing that changed, so an overlay cabinet of the same size must still
+  // quote the full 550 — a deduction taken unconditionally would drop it to 500 here too.
+  it('leaves an overlay cabinet of the same size on the longer runner', () => {
+    const overlay: CarcaseParams = { ...insetDrawer, frontMount: 'overlay' }
+    expect(qtyOf(sceneOf(overlay), 'runner-550')).toBe(1)
+  })
+
+  // Thickness is per part, so a cabinet can wear fronts of several. The lookup must therefore be
+  // keyed by the role the slide row names and not merely by the cabinet — but only a fixture whose
+  // fronts actually differ can tell those apart, and the two above cannot.
+  //
+  // Three bays with the drawer in the MIDDLE, so neither the first front the cabinet emits nor the
+  // last is the right answer. 530 deep behind a 12 mm captured back is 518 clear: less the drawer's
+  // own 30 mm front that is 488, which takes the 450; less a door's 18 it would be 500.
+  it('takes the thickness of the front its own slide row names', () => {
+    const THICK_FRONT = 30
+    const base = CARCASE_PRESETS[0].params
+    const split = splitSection(base.section, base.section.id, 'vertical', 'panel', 3)
+    const bays = baysOf({ ...base, section: split })
+    const params: CarcaseParams = {
+      ...base,
+      section: setFrontOn(split, bays[1], { kind: 'drawer-front' }),
+      depth: 530,
+      frontMount: 'inset',
+    }
+
+    // Seeded as a per-part override and regenerated, because a cabinet states one front material
+    // and this needs one bay to differ from its neighbours.
+    const seeded = sceneOf(params)
+    const drawerFront = frontOfBay(seeded, bays[1])
+    const scene = regenerateComponents({
+      ...seeded,
+      parts: seeded.parts.map((p) =>
+        p.id === drawerFront.id ? { ...p, overrides: { thickness: THICK_FRONT } } : p,
+      ),
+    })
+
+    // The fixture is only evidence while it really is asymmetric and the drawer's front really is
+    // the middle one.
+    const fronts = scene.parts.filter(
+      (p): p is BoardPart => p.kind === 'board' && (p.role?.startsWith('front-') ?? false),
+    )
+    expect(fronts.length).toBe(3)
+    expect(fronts[1].id).toBe(drawerFront.id)
+    expect(fronts[1].thickness).toBe(THICK_FRONT)
+    expect(fronts[0].thickness).toBe(fronts[2].thickness)
+    expect(fronts[0].thickness).not.toBe(THICK_FRONT)
+
+    expect(qtyOf(scene, 'runner-450')).toBe(1)
+    expect(qtyOf(scene, 'runner-500')).toBe(0)
   })
 })

@@ -42,6 +42,12 @@ export function grainAxisOf(role: string, splitAxis?: 'vertical' | 'horizontal')
   if (role === 'toe-kick' || role === 'ladder-front' || role === 'ladder-back') return 'x'
   if (role === 'ladder-left' || role === 'ladder-right' || role.startsWith('ladder-mid-'))
     return 'y'
+  // A drawer box runs each board's grain along that board's horizontal run: the sides front-to-back,
+  // the front and back across the cabinet, the bottom across. Stated in carcase axes like every
+  // other role — the board *field* comes out different for the front and back than for the sides,
+  // which is the frames differing, not the convention.
+  if (role === 'box-left' || role === 'box-right') return 'y'
+  if (role === 'box-front' || role === 'box-back' || role === 'box-bottom') return 'x'
   // Deliberately fatal. A silent default would give a new role an arbitrary grain and no test would
   // notice — a nest would just come out slightly worse for a reason nobody could find.
   throw new Error(`zimmu: no grain convention for role "${role}"`)

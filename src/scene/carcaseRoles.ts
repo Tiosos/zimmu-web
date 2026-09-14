@@ -18,6 +18,7 @@ import {
 import { sectionInteriors, type AdjustableSpec } from './sectionInterior'
 import { frontCells, type FrontCell } from './frontCells'
 import { cupRow, plateScrewRows, slideScrewRow } from './frontMachining'
+import { drawerBoxMetrics, type DrawerParams } from './drawerBox'
 
 export type { ThicknessAxis }
 
@@ -1059,6 +1060,11 @@ export function carcaseMachining(
   thicknessOf: RoleThickness,
   kindOf: RoleJointKind,
   role: string,
+  // The drawer of each opening that wears one: its *parameters* and its side material's thickness,
+  // never its emitted boards — which is what keeps this pass a function in one direction. Returns
+  // null for an opening with no drawer, in which case no slide row is bored. Side thickness is
+  // resolved by the caller because this function has no access to `scene.materials`.
+  drawerFor: (sectionId: SectionId) => { params: DrawerParams; sideThickness: number } | null,
 ): HoleArrayCut[] {
   // Empty for a carcase whose parameters do not build, which is what makes every line below safe.
   const panel = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === role)?.panel
@@ -1119,11 +1125,26 @@ export function carcaseMachining(
     }
 
     if (cell.spec.kind === 'drawer-front') {
-      // No drawer box exists yet, so the runner height comes off the front's own centreline. When
-      // boxes land this figure is expected to move, which is why it is derived here in one place.
-      cuts.push(
-        slideScrewRow(panel, face, (cell.rect.z0 + cell.rect.z1) / 2 - panel.position.z, frontRole),
-      )
+      // The runner mounts to the box side and the screws in the upright follow it, so the height is
+      // read through `drawerBoxMetrics` — the one statement of the box's geometry — rather than off
+      // the front's centreline as it was before a box existed to measure from. The box and the
+      // screws that carry it cannot drift apart because both read this figure. The section's own
+      // rectangle, never the cell: `frontCells` expands an overlay front past the opening.
+      const drawer = drawerFor(cell.sectionId)
+      if (drawer === null) continue
+      const sectionRect = tree.rects.get(cell.sectionId)
+      if (sectionRect === undefined) continue
+      const metrics = drawerBoxMetrics(sectionRect, drawer.params, {
+        clearDepth: clearDepth(p, thicknessOf('back')),
+        frontThickness: thicknessOf(frontRole),
+        inset: p.frontMount === 'inset',
+        sideThickness: drawer.sideThickness,
+      })
+      // Declined, exactly as the box boards are — no runner fits, or the box will not go in its own
+      // opening. A slide row beside a box the drawer generator refused to build is screws for a
+      // runner nobody ordered.
+      if (metrics === null) continue
+      cuts.push(slideScrewRow(panel, face, metrics.runnerZ - panel.position.z, frontRole))
     }
   }
   return cuts
