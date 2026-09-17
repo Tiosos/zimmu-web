@@ -35,9 +35,9 @@ confident:
    and a toe-kick cabinet's shell starts at `z = floorZ`, so anchoring on the shell floats a Base 600
    100 mm off the floor. The last one is what forced occupied bounds.
 2. **"Placement must lead the pipeline because it reads only parameters."** The premise is true and
-   the conclusion does not follow. Nothing in the pipeline reads a component's position at all, so
-   placement is order-independent. It leads by convention. The drawer notes record a plan that
-   asserted an ordering argument it had not checked; this is the same shape, caught before it shipped.
+   the inference invalid — but the *conclusion* turned out right, and the first correction to this
+   entry was itself wrong. See "The ordering claim was wrong twice" below: `reconcileJoints` does
+   depend on component position, through `resolveWorldMatrix`, so placement genuinely must lead.
 3. **"The cycle guard in `componentTree.ts` sits beside this."** `wouldCycle` guards `parentId`. The
    anchor graph is a *different* graph over the same components. It is a model to copy, not code to
    reuse.
@@ -102,3 +102,89 @@ figures: a wrong number yields a perfectly self-consistent cabinet that does not
 this repository can falsify it. The blind-width check (`blind ≥ return depth`) is a *geometric*
 guard, not an ergonomic one — it says the door will not be overhung, not that anyone can reach into
 the corner.
+
+---
+
+## 2026-09-17 — Stage 1 implementation
+
+### The over-detachment bug: my rule, faithfully implemented
+
+The plan said: *"Detach every member of a chain that revisits an id."* The implementer built exactly
+that. **The rule is wrong**, and it shipped as a Critical defect caught only by review.
+
+Anchors form a **functional graph** — out-degree ≤ 1, since a cabinet has at most one anchor. So a
+walk that halts on "revisits any node I have seen" halts for every *transitive ancestor* of a cycle,
+not just for cycle members. Reproduced live:
+
+```
+a ↔ b     a genuine 2-cycle
+d → a     legitimate: a live carcase, not d itself, same parent
+
+result:   d.anchor === undefined
+```
+
+`d`'s anchor was silently destroyed, and **unrecoverably** — once `anchor: undefined` is written out
+the original value is gone from the scene; there is no "retry once the cycle is fixed" path. The fix
+distinguishes *the walk came back to me* (detach) from *the walk wandered into someone else's cycle*
+(leave alone — that cycle's members are detached on their own turn, and `positionOf` then freezes
+their position for anyone anchored to them).
+
+Latent only by timing: nothing called `resolvePlacement` until the next task wired it into
+`applyPipeline`. One task later this would have been live, and the symptom — anchors vanishing from
+cabinets nowhere near the cycle — is about as hard to diagnose as this codebase gets.
+
+### The ordering claim was wrong twice, in opposite directions
+
+Recorded in full because the shape of the error is more useful than the answer.
+
+1. The plan said placement **must** lead, because it reads only parameters. True premise, invalid
+   inference.
+2. A review challenged it. A grep for `.position` across the three downstream stages came back empty,
+   so it was "corrected" to **order-independent — convention, not constraint**, and that sentence was
+   written into the source comment above `applyPipeline`.
+3. A mutation test then ran placement **last**, and idempotence broke.
+
+`reconcileJoints` does depend on component position — **transitively**. `deriveJoint` calls
+`resolveWorldMatrix(housed, byId)` (`geom/dado.ts:109`), which composes through ancestor component
+matrices. A joint derived before its cabinet has moved is derived against the wrong world placement,
+so the next pass re-derives cuts the first got wrong.
+
+**A grep for a field name does not establish that nothing depends on it.** The dependency ran through
+a matrix; no search for `.position` could have shown it. The original conclusion was right, for a
+reason neither version of the argument stated.
+
+Worth noting how it was diagnosed: the failure surfaced as `toEqual` on two 16-part scenes, which
+says nothing. Narrowing to *which part, which field* pointed at joint cuts, and from there to
+`deriveJoint` in one step.
+
+### Five surviving mutations, all one shape
+
+Every mutation that survived its suite in this stage was **a rule written once but exercised on only
+one of its branches**:
+
+| Where | Mutation that survived | Branch never exercised |
+|---|---|---|
+| `hasAnyFront` | one-level child check instead of recursion | nesting deeper than one level |
+| `rotateVector` | swap x and y before delegating | any rotation not about z |
+| `anchoredPosition` | transpose `IN_PLANE['y']` | front/back anchor with a non-zero offset |
+| `anchoredPosition` | drop `gap` from the negative branch only | `left`/`front` anchor with a non-zero gap |
+| `PlacementPanel` | drop the `parentId` clause from the target filter | a candidate under a different parent |
+
+Two consequences for how the next stage should be run:
+
+- **A prescribed mutation only probes what the author already suspected.** Every one of these was
+  found by an implementer or reviewer choosing its own attack; none came from the list in the plan.
+- **Wherever a flag selects a branch, both sides need a case.** That single heuristic would have
+  predicted four of the five before any code was written.
+
+### Six comments asserted things that were false
+
+All originated in the spec or plan, none would have been caught by a green suite, and one caused the
+bug above. `y0: -front` (yields `-0`, which `Object.is` rejects); `Bounds3` "must not be swapped" with
+`LocalBox` (structurally identical, TypeScript enforces nothing); "every existing call site is
+unaffected" by the `Placed` widening (two broke immediately); `{0,0}` means front-flush (true for
+left/right only — front/back gives left-flush); "React re-renders on it" (`scene` is one flat
+`useState` replaced wholesale, and there is no `React.memo` in the UI at all); and the cycle rule.
+
+The generalisable habit: **asserting mechanism from intent.** The spec's geometry section already
+carried that lesson; it applies to prose about the code just as much as to the code.

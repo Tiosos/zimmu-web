@@ -943,8 +943,15 @@ export function resolvePlacement(scene: Scene): Scene {
   }
 
   // A cycle among anchors is a second graph over the same components — componentTree's guards watch
-  // parentId, not this. Detach every member of a chain that revisits an id, rather than guessing
-  // which link the user meant.
+  // parentId, not this. Detach a cabinet whose chain returns to ITSELF; a chain that merely runs
+  // into someone else's cycle is a bystander and keeps its anchor, because that cycle's own members
+  // are detached on their own turn and positionOf then freezes their position for anyone anchored
+  // to them.
+  //
+  // NOTE: an earlier draft of this plan said "detach every member of a chain that revisits an id",
+  // and that shipped as a Critical bug — anchors form a functional graph, so "revisits any seen
+  // node" sweeps in every transitive ancestor of a cycle and silently, irrecoverably drops their
+  // anchors.
   const detached = new Set<ComponentId>()
   for (const c of carcases.values()) {
     if (c.anchor === undefined) continue
@@ -955,10 +962,11 @@ export function resolvePlacement(scene: Scene): Scene {
     const seen = new Set<ComponentId>([c.id])
     let cur = targetOf(c)
     while (cur !== undefined) {
-      if (seen.has(cur.id)) {
+      if (cur.id === c.id) {
         detached.add(c.id)
         break
       }
+      if (seen.has(cur.id)) break // someone else's cycle — c itself is not on it
       seen.add(cur.id)
       cur = targetOf(cur)
     }

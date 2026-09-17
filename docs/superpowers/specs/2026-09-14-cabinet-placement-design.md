@@ -186,13 +186,23 @@ That is a UI choice, not a second model rule.
 reconcileJoints(regenerateComponents(regenerateDrawers(resolvePlacement(scene))))
 ```
 
-Four stages. **Placement leads by convention, not by constraint** — and the distinction is stated
-rather than dressed up, because a manufactured ordering argument is exactly the failure the drawer
-notes record. Verified: **no pipeline stage reads a component's position.** `regenerateComponents`
-writes part positions local to the component, and world placement is composed later by
-`resolveWorldMatrix`. Placement is genuinely order-independent with respect to the other three. It
-leads because it reads only parameters and materials, which reads well beside the drawers-lead
-argument.
+Four stages, and **placement has to lead.** This document twice got that wrong in opposite
+directions, so the correction is recorded rather than quietly replaced.
+
+The first draft said placement *must* lead because it reads only parameters — true premise, invalid
+inference. A review challenged it, a grep for `.position` across the three downstream stages came
+back empty, and the claim was "corrected" to *order-independent — convention, not constraint*. That
+correction is also false.
+
+`regenerateDrawers` and `regenerateComponents` genuinely do not read a component's position. But
+`reconcileJoints` does, **transitively**: `deriveJoint` resolves each part's world matrix through its
+ancestors (`resolveWorldMatrix(housed, byId)` in `geom/dado.ts`), so a joint derived before its
+cabinet has moved is derived against the wrong world placement. Running placement last leaves the
+pipeline **non-idempotent** — the second call re-derives joint cuts the first got wrong — which is
+how this was finally caught, by a mutation test rather than by reading.
+
+The lesson worth carrying: a grep for a field name does not establish that nothing depends on it.
+The dependency here runs through a matrix, and no amount of searching for `.position` would show it.
 
 Pure and idempotent, like its three neighbours. Resolution is a topological walk: a target is
 resolved before anything anchored to it.
