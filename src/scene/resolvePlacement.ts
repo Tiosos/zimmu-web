@@ -1,15 +1,6 @@
-import type { CarcaseComponent, ComponentId, MaterialDef, Scene, Vec3 } from './types'
-import { carcaseBounds, type Bounds3 } from './carcaseBounds'
-import { anchoredPosition, rotatedBounds, translatedBounds } from './anchor'
-import { roleThicknessFor, type PartOverrides } from './resolveThickness'
-
-// Slots only. Overrides live on emitted parts and this pass runs before they exist; see
-// carcaseBounds for why reading them would make the pipeline a fixed-point iteration.
-const NO_OVERRIDES = new Map<string, PartOverrides>()
-
-function boundsOf(c: CarcaseComponent, materials: Record<string, MaterialDef>): Bounds3 {
-  return carcaseBounds(c.params, roleThicknessFor(c.params, materials, NO_OVERRIDES))
-}
+import type { CarcaseComponent, ComponentId, Scene, Vec3 } from './types'
+import { anchoredPosition, translatedBounds } from './anchor'
+import { localRotatedBoundsOf } from './carcaseWorldBounds'
 
 // Derives the position of every anchored carcase from its target's. Pure and idempotent, like the
 // three regeneration passes it runs beside.
@@ -74,11 +65,14 @@ export function resolvePlacement(scene: Scene): Scene {
       return c.position
     }
     // Cycles are already detached, so this recursion terminates.
+    // Translated by the position the recursion is COMPUTING, never by `target.position` — which
+    // is stale until that write happens, and would resolve a whole chain against old positions.
+    // That is why this is not `worldBoundsOf(target, ...)`.
     const targetWorld = translatedBounds(
-      rotatedBounds(boundsOf(target, scene.materials), target.rotation),
+      localRotatedBoundsOf(target, scene.materials),
       positionOf(target),
     )
-    const own = rotatedBounds(boundsOf(c, scene.materials), c.rotation)
+    const own = localRotatedBoundsOf(c, scene.materials)
     const next = anchoredPosition(anchor, targetWorld, own)
     resolved.set(c.id, next)
     return next
