@@ -384,6 +384,16 @@
             <td><code>scene/drawerBox.ts</code>, <code>scene/regenerateDrawers.ts</code>, <code>scene/nearestCarcase.ts</code>, <code>ui/CarcasePanel.tsx</code></td>
           </tr>
           <tr>
+            <td><strong>Cabinet placement</strong><br><span style="color:var(--muted);font-size:12px">A cabinet may be anchored to a face of another and its position is then derived, not typed — resolved in dependency order by a fourth pipeline stage, against what a cabinet <em>occupies</em> rather than its structural shell. A dangling or cyclic anchor detaches and freezes the cabinet where it last resolved</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/anchor.ts</code>, <code>scene/carcaseBounds.ts</code>, <code>scene/carcaseWorldBounds.ts</code>, <code>scene/resolvePlacement.ts</code>, <code>ui/PlacementPanel.tsx</code></td>
+          </tr>
+          <tr>
+            <td><strong>Runs and the plan view</strong><br><span style="color:var(--muted);font-size:12px">Runs derived from left/right anchor links — undirected, geometrically ordered, so a corner reads as two runs rather than one L — and the whole job drawn from above, where dragging a cabinet near a neighbour's face is the gesture that stores the anchor</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/runs.ts</code>, <code>scene/dragAnchor.ts</code>, <code>ui/PlanView.tsx</code></td>
+          </tr>
+          <tr>
             <td><strong>FSAPI fallback for non-Chromium browsers</strong></td>
             <td><span class="badge badge-yellow">Planned</span></td>
             <td>—</td>
@@ -545,6 +555,8 @@
 │   ├── carcasePresets.ts
 │   ├── carcaseRoles.test.ts
 │   ├── carcaseRoles.ts
+│   ├── carcaseWorldBounds.test.ts
+│   ├── carcaseWorldBounds.ts
 │   ├── changeJointKind.test.ts
 │   ├── changeJointKind.ts
 │   ├── componentTree.test.ts
@@ -554,6 +566,8 @@
 │   ├── cutOwnership.test.ts
 │   ├── cutOwnership.ts
 │   ├── defaultJoint.ts
+│   ├── dragAnchor.test.ts
+│   ├── dragAnchor.ts
 │   ├── drawerBox.test.ts
 │   ├── drawerBox.ts
 │   ├── editSection.test.ts
@@ -597,6 +611,8 @@
 │   ├── resolvePlacement.ts
 │   ├── resolveThickness.test.ts
 │   ├── resolveThickness.ts
+│   ├── runs.test.ts
+│   ├── runs.ts
 │   ├── sectionInterior.test.ts
 │   ├── sectionInterior.ts
 │   ├── sectionNodes.test.ts
@@ -684,6 +700,8 @@
 │   ├── NumberField.tsx
 │   ├── PlacementPanel.test.tsx
 │   ├── PlacementPanel.tsx
+│   ├── PlanView.test.tsx
+│   ├── PlanView.tsx
 │   ├── SceneSuggestionsPanel.test.tsx
 │   ├── SceneSuggestionsPanel.tsx
 │   ├── SceneTree.test.tsx
@@ -1342,7 +1360,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->98<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->102<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1502,7 +1520,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-03-cabinet-restructure-stage-g3-scene-tree.md
     │   ├── 2026-09-06-driven-hardware.md
     │   ├── 2026-09-12-drawer-boxes.md
-    │   └── 2026-09-14-cabinet-placement-stage-1-primitive.md
+    │   ├── 2026-09-14-cabinet-placement-stage-1-primitive.md
+    │   └── 2026-09-17-cabinet-placement-stage-2-adjacency.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
