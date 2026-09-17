@@ -45,19 +45,7 @@ import { SWEEP } from './__fixtures__/sweep'
 // position and rotation together and is indifferent to which equivalent Euler triple the
 // implementation chooses.
 function aabb(p: ReturnType<typeof orientedPanel>) {
-  const m = composeWorldMatrix({
-    ...p,
-    kind: 'board',
-    grain: 'free' as const,
-    id: 'x',
-    label: 'x',
-    material: '',
-    color: '#fff',
-    cuts: [],
-    visible: true,
-    parentId: null,
-    driven: true,
-  })
+  const m = composeWorldMatrix({ position: p.position, rotation: p.rotation })
   const min = { x: Infinity, y: Infinity, z: Infinity }
   const max = { x: -Infinity, y: -Infinity, z: -Infinity }
   for (const cx of [0, p.length])
@@ -815,19 +803,7 @@ describe('carcaseCuts', () => {
   // stated in board-local coordinates, so this is the only assertion that pins it to the physical
   // toe recess rather than to a claim about which local axis is which.
   function cutAabb(panel: ReturnType<typeof orientedPanel>, cut: BoxCut) {
-    const m = composeWorldMatrix({
-      ...panel,
-      kind: 'board',
-      grain: 'free' as const,
-      id: 'x',
-      label: 'x',
-      material: '',
-      color: '#fff',
-      cuts: [],
-      visible: true,
-      parentId: null,
-      driven: true,
-    })
+    const m = composeWorldMatrix({ position: panel.position, rotation: panel.rotation })
     const min = { x: Infinity, y: Infinity, z: Infinity }
     const max = { x: -Infinity, y: -Infinity, z: -Infinity }
     for (const cx of [cut.position.x, cut.position.x + cut.size.x])

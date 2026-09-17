@@ -9,6 +9,7 @@ import {
   ancestorWorldMatrix,
   localDirToWorld,
   decomposeMatrix,
+  rotateVector,
 } from './transform'
 import { componentsById } from '../scene/componentTree'
 import type { BoardPart, Component, Part } from '../scene/types'
@@ -334,5 +335,31 @@ describe('decomposeMatrix', () => {
     const baked = decomposeMatrix(composeWorldMatrix(p))
     const after = composeWorldMatrix({ ...p, position: baked.position, rotation: baked.rotation })
     for (let i = 0; i < 16; i++) expect(after[i]).toBeCloseTo(composeWorldMatrix(p)[i], 9)
+  })
+})
+
+describe('rotateVector', () => {
+  it('leaves a vector alone at zero rotation', () => {
+    expect(rotateVector({ x: 0, y: 0, z: 0 }, 1, 2, 3)).toEqual([1, 2, 3])
+  })
+
+  // +90° about z sends local +x to world +y. This is the pairing the corner case depends on.
+  it('sends +x to +y at 90 degrees about z', () => {
+    const [x, y, z] = rotateVector({ x: 0, y: 0, z: 90 }, 1, 0, 0)
+    expect(x).toBeCloseTo(0)
+    expect(y).toBeCloseTo(1)
+    expect(z).toBeCloseTo(0)
+  })
+
+  // ...and local +y to world −x, which is what puts a return run's backs against the side wall.
+  it('sends +y to -x at 90 degrees about z', () => {
+    const [x, y, z] = rotateVector({ x: 0, y: 0, z: 90 }, 0, 1, 0)
+    expect(x).toBeCloseTo(-1)
+    expect(y).toBeCloseTo(0)
+    expect(z).toBeCloseTo(0)
+  })
+
+  it('ignores translation entirely — it is a direction, not a point', () => {
+    expect(rotateVector({ x: 0, y: 0, z: 180 }, 0, 0, 5)[2]).toBeCloseTo(5)
   })
 })

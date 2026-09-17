@@ -3,9 +3,17 @@ import { ancestorsOf } from '../scene/componentTree'
 
 const DEG2RAD = Math.PI / 180
 
+// The two fields the matrix is built from. `Part` and `Component` both satisfy it structurally, so
+// every existing call site is unaffected; naming it lets a bare rotation be composed without
+// fabricating a whole part.
+export interface Placed {
+  position: Vec3
+  rotation: Vec3
+}
+
 // Column-major (THREE Matrix4.elements layout). Equivalent to
 // new THREE.Matrix4().compose(position, quaternion(Euler XYZ deg), (1,1,1)).
-export function composeWorldMatrix(part: Part | Component): Float64Array {
+export function composeWorldMatrix(part: Placed): Float64Array {
   const x = part.rotation.x * DEG2RAD
   const y = part.rotation.y * DEG2RAD
   const z = part.rotation.z * DEG2RAD
@@ -59,6 +67,22 @@ export function applyMatrixToPoint(
     m[1] * x + m[5] * y + m[9] * z + m[13],
     m[2] * x + m[6] * y + m[10] * z + m[14],
   ]
+}
+
+// Rotate a direction or an offset by an Euler XYZ rotation, with no translation. Delegates to
+// composeWorldMatrix so the rotation convention stays stated in exactly one place.
+export function rotateVector(
+  rotation: Vec3,
+  x: number,
+  y: number,
+  z: number,
+): [number, number, number] {
+  return applyMatrixToPoint(
+    composeWorldMatrix({ position: { x: 0, y: 0, z: 0 }, rotation }),
+    x,
+    y,
+    z,
+  )
 }
 
 // Apply the inverse of a rigid (rotation + translation, unit-scale) column-major matrix to a
