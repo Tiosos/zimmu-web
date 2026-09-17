@@ -72,10 +72,16 @@ describe('runsOf', () => {
     expect(runIds(s)).toEqual([['cmp_a']])
   })
 
+  // Raw components, NOT through sceneOf: resolvePlacement detaches a cross-frame anchor before
+  // runsOf ever sees it, so routing this through the pipeline tests that pass's guard and leaves
+  // this one's unexercised. Measured — the clause survived its mutation until this stopped
+  // resolving first.
   it('ignores an anchor across a parent boundary', () => {
     const outside: CarcaseComponent = { ...cab('b', to('a', 'right')), parentId: 'cmp_group' }
-    const s = sceneOf([cab('a'), outside])
-    expect(runIds(s)).toEqual([['cmp_a'], ['cmp_b']])
+    expect(runsOf([cab('a'), outside], PRESET_MATERIALS).map((r) => r.members)).toEqual([
+      ['cmp_a'],
+      ['cmp_b'],
+    ])
   })
 
   it('terminates on a cycle rather than looping forever', () => {

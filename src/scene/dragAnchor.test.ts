@@ -38,6 +38,16 @@ describe('anchorForDrop', () => {
     expect(r.anchor.face).toBe('left')
   })
 
+  // An absolute figure, not one expressed in SNAP_MM: every other test here moves with the
+  // constant, so shrinking it to 5 mm left them all green. The claim being pinned is that the snap
+  // is wide enough to catch a drop placed by hand, which 30 mm stands in for.
+  it('anchors a drop 30 mm short of the face', () => {
+    const r = anchorForDrop(dragged, { x: W - 30, y: 0, z: 0 }, [target], PRESET_MATERIALS)
+    expect(r.kind).toBe('anchor')
+    if (r.kind !== 'anchor') return
+    expect(r.anchor.face).toBe('right')
+  })
+
   it('stays free when dropped beyond the snap distance', () => {
     const drop = { x: W + SNAP_MM + 1, y: 0, z: 0 }
     const r = anchorForDrop(dragged, drop, [target], PRESET_MATERIALS)
@@ -80,8 +90,11 @@ describe('anchorForDrop', () => {
     expect(r.anchor.offset.u).toBeCloseTo(SNAP_MM + 40, 6)
   })
 
+  // Dropped ON its own right face, so without the self clause it would anchor to itself. A drop
+  // near the ORIGIN is out of range of every one of its own faces, so it went free either way and
+  // the clause survived its mutation — measured.
   it('never anchors a cabinet to itself', () => {
-    const r = anchorForDrop(dragged, { x: 2, y: 0, z: 0 }, [dragged], PRESET_MATERIALS)
+    const r = anchorForDrop(dragged, { x: W, y: 0, z: 0 }, [dragged], PRESET_MATERIALS)
     expect(r.kind).toBe('free')
   })
 
