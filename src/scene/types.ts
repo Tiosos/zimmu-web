@@ -244,8 +244,10 @@ export interface Anchor {
   // Clearance along that face's normal. 0 butts the two cabinets together.
   gap: number
   // Offset within the face's plane, measured from the target's minimum corner on each of the two
-  // axes the normal is not, taken in x < y < z order. {0, 0} is flush — and because the local frame
-  // runs front→back and floor→top, flush means front-flush and floor-flush.
+  // axes the normal is not, taken in x < y < z order. {0, 0} is flush, but which edges that means
+  // depends on the face: for left/right the in-plane axes are (y, z), so flush is front-flush and
+  // floor-flush; for front/back — whose own normal already runs the front-back axis — the in-plane
+  // axes are (x, z), so flush is left-flush and floor-flush.
   offset: { u: number; v: number }
 }
 

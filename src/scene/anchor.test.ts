@@ -63,6 +63,18 @@ describe('anchoredPosition', () => {
     expect(p.x).toBe(-800)
   })
 
+  // The gap term appears in both branches of anchoredPosition's ternary, but every other gap test
+  // here anchors on 'right' — the positive branch. Without this case, deleting `- anchor.gap` from
+  // the negative branch alone passes the whole suite.
+  it('a gap pushes it further out along the normal on the negative side too', () => {
+    const p = anchoredPosition(
+      anchor({ face: 'left', gap: 12 }),
+      base(),
+      rotatedBounds(base(800), NO_ROT),
+    )
+    expect(p.x).toBe(-812)
+  })
+
   it('offsets slide it within the face, from the target minimum corner', () => {
     const p = anchoredPosition(
       anchor({ offset: { u: 25, v: 1400 } }),
@@ -98,9 +110,10 @@ describe('anchoredPosition', () => {
     expect(p.y).toBe(560)
   })
 
-  // The front/back in-plane axes are (x, z) — width, then height — the reverse order of left/right's
-  // (y, z). A table that transposed them would still satisfy every other test here, since none of
-  // them anchors on front/back with a nonzero offset.
+  // The front/back in-plane axes are (x, z) — width, then height — a different pair from
+  // left/right's (y, z), not a reversal of it (a reversal would be (z, y)). A table that swapped
+  // them would still satisfy every other test here, since none of them anchors on front/back with a
+  // nonzero offset.
   it('offsets a front/back anchor along width and height, not depth', () => {
     const p = anchoredPosition(
       anchor({ face: 'back', offset: { u: 50, v: 300 } }),
