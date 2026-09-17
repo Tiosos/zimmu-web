@@ -533,6 +533,10 @@
 │   ├── __fixtures__/
 │   │   ├── resolve.ts
 │   │   └── sweep.ts
+│   ├── anchor.test.ts
+│   ├── anchor.ts
+│   ├── carcaseBounds.test.ts
+│   ├── carcaseBounds.ts
 │   ├── carcaseHardware.test.ts
 │   ├── carcaseHardware.ts
 │   ├── carcaseOpenings.test.ts
@@ -589,6 +593,8 @@
 │   ├── regenerateDrawers.test.ts
 │   ├── regenerateDrawers.ts
 │   ├── resolveJointKind.ts
+│   ├── resolvePlacement.test.ts
+│   ├── resolvePlacement.ts
 │   ├── resolveThickness.test.ts
 │   ├── resolveThickness.ts
 │   ├── sectionInterior.test.ts
@@ -676,6 +682,8 @@
 │   ├── JointsPanel.test.tsx
 │   ├── JointsPanel.tsx
 │   ├── NumberField.tsx
+│   ├── PlacementPanel.test.tsx
+│   ├── PlacementPanel.tsx
 │   ├── SceneSuggestionsPanel.test.tsx
 │   ├── SceneSuggestionsPanel.tsx
 │   ├── SceneTree.test.tsx
@@ -1334,7 +1342,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->94<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->98<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1456,7 +1464,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-24-drawing-cut-origin-notes.md
     │   ├── 2026-08-27-cabinet-assembly-restructure-notes.md
     │   ├── 2026-09-06-driven-hardware-notes.md
-    │   └── 2026-09-12-drawer-boxes-notes.md
+    │   ├── 2026-09-12-drawer-boxes-notes.md
+    │   └── 2026-09-14-cabinet-placement-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1492,7 +1501,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-30-cabinet-restructure-stage-g2-projections.md
     │   ├── 2026-09-03-cabinet-restructure-stage-g3-scene-tree.md
     │   ├── 2026-09-06-driven-hardware.md
-    │   └── 2026-09-12-drawer-boxes.md
+    │   ├── 2026-09-12-drawer-boxes.md
+    │   └── 2026-09-14-cabinet-placement-stage-1-primitive.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1536,7 +1546,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-08-30-cabinet-projections-design.md
         ├── 2026-09-03-scene-tree-sections-design.md
         ├── 2026-09-06-driven-hardware-design.md
-        └── 2026-09-12-drawer-boxes-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-09-12-drawer-boxes-design.md
+        └── 2026-09-14-cabinet-placement-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->

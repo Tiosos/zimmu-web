@@ -254,6 +254,19 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
     if (component.parentId !== null && !componentIds.has(component.parentId)) {
       throw new ZimmuFileValidationError(`${path}.parentId`, 'must name a live component or be null')
     }
+    // An anchor's target is the same kind of reference parentId is, over a different graph.
+    // resolvePlacement detaches a dangling one at runtime, but a file that names a component it does
+    // not carry is malformed rather than merely stale, so it is refused at the boundary.
+    const anchor = (component as { anchor?: unknown }).anchor
+    if (anchor !== undefined && anchor !== null) {
+      if (typeof anchor !== 'object') {
+        throw new ZimmuFileValidationError(`${path}.anchor`, 'must be an object')
+      }
+      const to = (anchor as { to?: unknown }).to
+      if (typeof to !== 'string' || !componentIds.has(to)) {
+        throw new ZimmuFileValidationError(`${path}.anchor.to`, 'must name a live component')
+      }
+    }
   }
 
   for (const [name, material] of Object.entries(file.scene.materials)) {

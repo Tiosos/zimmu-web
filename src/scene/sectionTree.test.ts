@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   freshSectionIds,
+  hasAnyFront,
   newSectionId,
   resolveSections,
   validateSection,
+  type FrontSpec,
   type Rect,
   type Section,
+  type SectionId,
   type SectionSize,
 } from './sectionTree'
 
@@ -407,5 +410,80 @@ describe('freshSectionIds', () => {
     const a = idsOf(freshSectionIds(tree))
     const b = idsOf(freshSectionIds(tree))
     expect(a.filter((id) => b.includes(id))).toEqual([])
+  })
+})
+
+describe('hasAnyFront', () => {
+  const leaf = (front?: FrontSpec): Section => ({
+    id: 'sec_a' as SectionId,
+    size: { kind: 'equal' },
+    content: { kind: 'leaf' },
+    ...(front === undefined ? {} : { front }),
+  })
+
+  it('is false for a bare leaf', () => {
+    expect(hasAnyFront(leaf())).toBe(false)
+  })
+
+  it('is true for a leaf carrying a door', () => {
+    expect(hasAnyFront(leaf({ kind: 'door', leaves: 1, hinge: 'left' }))).toBe(true)
+  })
+
+  // A split clears its own front onto its children, so the answer has to come from the leaves.
+  it('finds a front on a child of a split', () => {
+    const root: Section = {
+      id: 'sec_root' as SectionId,
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        division: 'panel',
+        children: [leaf(), leaf({ kind: 'drawer-front' })],
+      },
+    }
+    expect(hasAnyFront(root)).toBe(true)
+  })
+
+  it('is false when no leaf under a split carries one', () => {
+    const root: Section = {
+      id: 'sec_root' as SectionId,
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        division: 'panel',
+        children: [leaf(), leaf()],
+      },
+    }
+    expect(hasAnyFront(root)).toBe(false)
+  })
+
+  // Nested two levels deep on purpose: a one-level check on each child (rather than a genuine
+  // recursive call) would miss the front buried in the first child's own split and wrongly say
+  // false. Flattening this fixture back to one level loses that coverage.
+  it('finds a front two levels down a nested split', () => {
+    const root: Section = {
+      id: 'sec_root' as SectionId,
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        division: 'panel',
+        children: [
+          {
+            id: 'sec_inner' as SectionId,
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              division: 'panel',
+              children: [leaf({ kind: 'door', leaves: 1, hinge: 'left' }), leaf()],
+            },
+          },
+          leaf(),
+        ],
+      },
+    }
+    expect(hasAnyFront(root)).toBe(true)
   })
 })

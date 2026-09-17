@@ -23,6 +23,7 @@ import type {
 } from './types'
 import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
+import { resolvePlacement } from './resolvePlacement'
 import { reconcileJoints } from './reconcileJoints'
 import { isJointOwned } from './cutOwnership'
 import { regenerateComponents } from './regenerateComponents'
@@ -62,8 +63,15 @@ const MAX_HISTORY = 50
 // the cabinet against a box it had not built yet. Carcases then emit their parts and
 // component-owned cuts, and reconcileJoints derives joint cuts and seats from scene.joints last:
 // reversed, joints would be derived against parts that do not exist yet.
+// Placement leads, and it has to. regenerateDrawers and regenerateComponents genuinely do not read a
+// component's position — they write part positions *local* to the component — but reconcileJoints
+// does, transitively: deriveJoint resolves each part's world matrix through its ancestors
+// (`resolveWorldMatrix(housed, byId)` in geom/dado.ts), so a joint derived before its cabinet has
+// moved is derived against the wrong world placement. Running placement last leaves the pass
+// non-idempotent — the second call re-derives joint cuts the first got wrong — which is how this was
+// caught. A grep for `.position` does not show it; the dependency is through the matrix.
 export function applyPipeline(scene: Scene): Scene {
-  return reconcileJoints(regenerateComponents(regenerateDrawers(scene)))
+  return reconcileJoints(regenerateComponents(regenerateDrawers(resolvePlacement(scene))))
 }
 
 // Lazy singleton — not instantiated at module load so vi.stubGlobal('Worker') works in tests

@@ -24,6 +24,7 @@ import {
 import type { AdjustableSpec, FrontSpec } from '../scene/sectionTree'
 import { resolveSections } from '../scene/sectionTree'
 import { DimInput } from './DimInput'
+import { PlacementPanel } from './PlacementPanel'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -157,6 +158,7 @@ export function CarcasePanel({
   onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
   selectedSectionId: SectionId | null
 }) {
+  const [placementOpen, setPlacementOpen] = useState(false)
   const [sizeOpen, setSizeOpen] = useState(true)
   const [structureOpen, setStructureOpen] = useState(false)
   const [shelvingOpen, setShelvingOpen] = useState(false)
@@ -273,6 +275,17 @@ export function CarcasePanel({
           ))}
         </div>
       )}
+
+      <Collapsible open={placementOpen} onOpenChange={setPlacementOpen}>
+        <SectionHeader open={placementOpen} label="Placement" />
+        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+          <PlacementPanel
+            component={component}
+            components={components}
+            onUpdate={(patch) => onUpdate((c) => (c.kind === 'carcase' ? { ...c, ...patch } : c))}
+          />
+        </CollapsibleContent>
+      </Collapsible>
 
       <Collapsible open={sizeOpen} onOpenChange={setSizeOpen}>
         <SectionHeader open={sizeOpen} label="Size" />

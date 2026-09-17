@@ -23,7 +23,7 @@ import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
 import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 
-export const FILE_FORMAT_VERSION = 18
+export const FILE_FORMAT_VERSION = 19
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 

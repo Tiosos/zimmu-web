@@ -193,3 +193,50 @@ describe('zimmu file validation boundary', () => {
     expect(parsed.scene.parts).toHaveLength(1)
   })
 })
+
+describe('anchor validation', () => {
+  const carcase = (id: string, anchor?: unknown) => ({
+    kind: 'carcase',
+    id,
+    label: id,
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    ...(anchor === undefined ? {} : { anchor }),
+  })
+
+  const withComponents = (components: unknown[]) =>
+    file({
+      scene: { parts: [], materials: {}, hardware: [], joints: [], components },
+    }) as unknown as ZimmuFile
+
+  // An anchor's target is the same kind of reference parentId is, over a different graph. A
+  // dangling one is detached at resolve time, but a file naming a component it does not carry is
+  // malformed rather than merely stale.
+  it('rejects an anchor naming a component that is not in the file', () => {
+    expect(() =>
+      validateCurrentFile(
+        withComponents([
+          carcase('cmp_a', { to: 'cmp_ghost', face: 'right', gap: 0, offset: { u: 0, v: 0 } }),
+        ]),
+      ),
+    ).toThrow(/anchor\.to/)
+  })
+
+  it('accepts an anchor naming a live component', () => {
+    expect(() =>
+      validateCurrentFile(
+        withComponents([
+          carcase('cmp_a'),
+          carcase('cmp_b', { to: 'cmp_a', face: 'left', gap: 0, offset: { u: 0, v: 0 } }),
+        ]),
+      ),
+    ).not.toThrow()
+  })
+
+  it('accepts a component with no anchor at all', () => {
+    expect(() => validateCurrentFile(withComponents([carcase('cmp_a')]))).not.toThrow()
+  })
+})

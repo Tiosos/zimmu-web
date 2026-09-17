@@ -1,0 +1,224 @@
+# Cabinet placement — implementation notes
+
+**Spec:** `docs/superpowers/specs/2026-09-14-cabinet-placement-design.md`
+**Plan:** `docs/superpowers/plans/2026-09-14-cabinet-placement-stage-1-primitive.md` (Stage 1; later stages get their own files)
+
+Living notes. The audience is whoever implements a stage and wonders why a rule is shaped the way it
+is.
+
+---
+
+## 2026-09-14 — brainstorming session
+
+### The opposite-face rule was wrong, and it was caught by arithmetic, not by review
+
+The design went into the session with this rule: *anchor to the target's `front`, and the anchored
+cabinet presents its `back` — which, when turned 90°, is a side in world terms.* That was asserted
+from purpose and it is false. Working the corner numerically showed the return cabinet's back is a
+plane of constant world **x** while the target's front is a plane of constant world **y** — they are
+perpendicular, so the rule cannot place the cabinet at all.
+
+The replacement — *the meeting face is the one whose outward normal most directly opposes the target
+face's normal* — degenerates to the opposite face whenever the rotations match. **That is the whole
+danger:** every straight-run fixture passes the broken rule. This is the same defect class as the
+96-case symmetric sweep that `openingRect` survived, and the single-drawer fixture that index-based
+reconciliation survived. A rule that is right in the symmetric case and wrong in the asymmetric one
+needs an asymmetric fixture or it is not tested.
+
+### Three things asserted in the first pass that the code contradicted
+
+Recorded because the ratio is the point — three wrong claims in one short design, all of them
+confident:
+
+1. **"A carcase's box is `width × height × depth` straight off `CarcaseParams`."** False three ways.
+   An applied back reaches `y = D + BT` (`carcaseRoles.ts:399`); an overlay front reaches `y = −FT`;
+   and a toe-kick cabinet's shell starts at `z = floorZ`, so anchoring on the shell floats a Base 600
+   100 mm off the floor. The last one is what forced occupied bounds.
+2. **"Placement must lead the pipeline because it reads only parameters."** The premise is true and
+   the inference invalid — but the *conclusion* turned out right, and the first correction to this
+   entry was itself wrong. See "The ordering claim was wrong twice" below: `reconcileJoints` does
+   depend on component position, through `resolveWorldMatrix`, so placement genuinely must lead.
+3. **"The cycle guard in `componentTree.ts` sits beside this."** `wouldCycle` guards `parentId`. The
+   anchor graph is a *different* graph over the same components. It is a model to copy, not code to
+   reuse.
+
+### `gap` alone underspecifies position by two axes
+
+Not a subtlety — a hole. A face is two-dimensional, so a side-to-side anchor with only a `gap` has no
+defined floor alignment and no defined front alignment. Fixed with a 2-vector `offset` in the target
+face's plane.
+
+The pleasing part: the local origin corner is front-bottom-left, so `offset: {0,0}` gives front-flush
+and floor-flush without either being a special case. The *unpleasing* part is that this is the wrong
+default for mixed depths — a 330 wall unit beside a 560 base lands front-flush rather than against
+the wall. Resolved by keeping one model rule and letting the plan view's drag write a back-flush
+offset when depths differ. **The user was asked and answered only the first half of that question;
+the drag behaviour is my decision and is flagged as such.** If back-flush-on-drag turns out to be
+wrong, it is a UI change, not a model change — which is the reason for putting it there.
+
+### Blind corners cost one enum value
+
+Expected to be the expensive part of the corner stage and it is not. `Section.front` is already
+optional and `FrontSpec` already has `'false-front'` and `'panel'`, so a blind unit is an ordinary
+carcase whose section tree has a leaf with no door. Nothing new in the generator, the front pass or
+the hardware BOM.
+
+What the corner genuinely needed was `'front'` in the anchor's face enum, so the return run can butt
+into the blind portion. Worth remembering when the next "big" feature is estimated: the expensive
+part was the placement rule, not the cabinetmaking.
+
+### Why runs are derived rather than stored
+
+A `RunComponent` was proposed and rejected. It gives a run an identity you can select and hang a
+corner policy on, which is real value, but an L-shape is two runs that must still relate at the
+corner — so the anchor between them has to exist anyway, and then the run is a second description of
+a fact the anchors already carry. `nearestCarcase` exists because two BOM consumers each shipped
+their own copy of an ownership question; this is the same trap with a component kind attached.
+
+The cost is honest and was stated to the user: selecting "a run" means selecting something computed.
+Stage 2 will have to make a derived group feel like an object.
+
+### Deliberately not built
+
+- **A `'top'` anchor side.** Stacking a wall unit on a base is the one real case. Asked, and the user
+  confirmed it stays out. It is cheap now and expensive later, which is the argument *for* including
+  it; it was excluded anyway because nothing in the three chosen layouts needs it.
+- **Walls as objects.** Drawn as context, never modelled. Every anchor names a cabinet.
+- **Filler strips.** A different answer to the corner question than a blind unit.
+
+### The viewport gizmo was chosen against recommendation
+
+Recommended deferring surface C: largest piece of new interaction code, duplicates the plan view, and
+competes with `OrbitControls` for the same mouse drag. The user asked for all three surfaces. Staged
+last so it blocks nothing — if it turns into a fight with the camera controls, stages 1–3 have
+already shipped.
+
+### Sourcing caveat that must not be lost
+
+**The blind-corner dimensions are unverified.** A 900 blind unit against a 560-deep return leaves
+340 mm of accessible opening. That figure is mine, from reasoning about the geometry, not from a
+cabinetmaker or a catalogue. It is the same class of claim as the hinge table and the TANDEM runner
+figures: a wrong number yields a perfectly self-consistent cabinet that does not work, and no test in
+this repository can falsify it. The blind-width check (`blind ≥ return depth`) is a *geometric*
+guard, not an ergonomic one — it says the door will not be overhung, not that anyone can reach into
+the corner.
+
+---
+
+## 2026-09-17 — Stage 1 implementation
+
+### The over-detachment bug: my rule, faithfully implemented
+
+The plan said: *"Detach every member of a chain that revisits an id."* The implementer built exactly
+that. **The rule is wrong**, and it shipped as a Critical defect caught only by review.
+
+Anchors form a **functional graph** — out-degree ≤ 1, since a cabinet has at most one anchor. So a
+walk that halts on "revisits any node I have seen" halts for every *transitive ancestor* of a cycle,
+not just for cycle members. Reproduced live:
+
+```
+a ↔ b     a genuine 2-cycle
+d → a     legitimate: a live carcase, not d itself, same parent
+
+result:   d.anchor === undefined
+```
+
+`d`'s anchor was silently destroyed, and **unrecoverably** — once `anchor: undefined` is written out
+the original value is gone from the scene; there is no "retry once the cycle is fixed" path. The fix
+distinguishes *the walk came back to me* (detach) from *the walk wandered into someone else's cycle*
+(leave alone — that cycle's members are detached on their own turn, and `positionOf` then freezes
+their position for anyone anchored to them).
+
+Latent only by timing: nothing called `resolvePlacement` until the next task wired it into
+`applyPipeline`. One task later this would have been live, and the symptom — anchors vanishing from
+cabinets nowhere near the cycle — is about as hard to diagnose as this codebase gets.
+
+### The ordering claim was wrong twice, in opposite directions
+
+Recorded in full because the shape of the error is more useful than the answer.
+
+1. The plan said placement **must** lead, because it reads only parameters. True premise, invalid
+   inference.
+2. A review challenged it. A grep for `.position` across the three downstream stages came back empty,
+   so it was "corrected" to **order-independent — convention, not constraint**, and that sentence was
+   written into the source comment above `applyPipeline`.
+3. A mutation test then ran placement **last**, and idempotence broke.
+
+`reconcileJoints` does depend on component position — **transitively**. `deriveJoint` calls
+`resolveWorldMatrix(housed, byId)` (`geom/dado.ts:109`), which composes through ancestor component
+matrices. A joint derived before its cabinet has moved is derived against the wrong world placement,
+so the next pass re-derives cuts the first got wrong.
+
+**A grep for a field name does not establish that nothing depends on it.** The dependency ran through
+a matrix; no search for `.position` could have shown it. The original conclusion was right, for a
+reason neither version of the argument stated.
+
+Worth noting how it was diagnosed: the failure surfaced as `toEqual` on two 16-part scenes, which
+says nothing. Narrowing to *which part, which field* pointed at joint cuts, and from there to
+`deriveJoint` in one step.
+
+### Five surviving mutations, all one shape
+
+Every mutation that survived its suite in this stage was **a rule written once but exercised on only
+one of its branches**:
+
+| Where | Mutation that survived | Branch never exercised |
+|---|---|---|
+| `hasAnyFront` | one-level child check instead of recursion | nesting deeper than one level |
+| `rotateVector` | swap x and y before delegating | any rotation not about z |
+| `anchoredPosition` | transpose `IN_PLANE['y']` | front/back anchor with a non-zero offset |
+| `anchoredPosition` | drop `gap` from the negative branch only | `left`/`front` anchor with a non-zero gap |
+| `PlacementPanel` | drop the `parentId` clause from the target filter | a candidate under a different parent |
+
+Two consequences for how the next stage should be run:
+
+- **A prescribed mutation only probes what the author already suspected.** Every one of these was
+  found by an implementer or reviewer choosing its own attack; none came from the list in the plan.
+- **Wherever a flag selects a branch, both sides need a case.** That single heuristic would have
+  predicted four of the five before any code was written.
+
+### Six comments asserted things that were false
+
+All originated in the spec or plan, none would have been caught by a green suite, and one caused the
+bug above. `y0: -front` (yields `-0`, which `Object.is` rejects); `Bounds3` "must not be swapped" with
+`LocalBox` (structurally identical, TypeScript enforces nothing); "every existing call site is
+unaffected" by the `Placed` widening (two broke immediately); `{0,0}` means front-flush (true for
+left/right only — front/back gives left-flush); "React re-renders on it" (`scene` is one flat
+`useState` replaced wholesale, and there is no `React.memo` in the UI at all); and the cycle rule.
+
+The generalisable habit: **asserting mechanism from intent.** The spec's geometry section already
+carried that lesson; it applies to prose about the code just as much as to the code.
+
+### Final mutation pass (Task 10)
+
+Run against the finished code as a whole, not task by task. Every file backed up and restored by
+`cp`, grepped after each apply and each restore; `git status` clean afterwards and the suite back to
+1988 passing.
+
+| # | Mutation | Predicted | Observed | Killed? |
+|---|---|---|---|---|
+| 1 | Hardcode the opposite face (drop the `positive` ternary) | left-face, both corner cases, back-to-back, applied-back | **6 failed** | yes |
+| 2 | Shell bounds instead of occupied (`z0 = toeKickHeight`) | toe-kick bounds + toe-kick placement | **2 failed** | yes |
+| 3 | Resolve in array order (`target.position` for `positionOf(target)`) | the back-to-front chain | **3 failed** | yes |
+| 4 | Ignore `offset` on both in-plane axes | the two offset cases | **2 failed** | yes |
+| 5 | Dangling anchor falls back to the origin | free-placed, ghost-target, self-anchor | **4 failed** | yes |
+
+**Two mutations failed *more* tests than the plan predicted**, and that is the interesting result.
+The plan's predictions were written against its own 13 `resolvePlacement` tests; the shipped suite
+has 17, because review added a diamond, a chain of three and an applied-back case. Mutation 3 also
+caught the chain-of-three and the diamond; mutation 5 also caught the diamond.
+
+That is the right direction for a gap to point — predictions made before the reviews under-counted
+because coverage grew. The rule from earlier in this file still holds, though, and is worth keeping
+the other way round too: **when fewer fail than predicted, the gap is usually real; when more fail,
+check that the extra failures are coverage you meant to add rather than a mutation reaching further
+than intended.** Both here were the former, confirmed by reading which tests failed.
+
+### One more wrong claim, caught at the very end
+
+Writing the spec's closing status line I asserted the suite went "1890 → 1988". The 1988 was
+measured; **1890 was from memory and wrong.** Checking it meant standing up a git worktree at the
+merge base and running the suite there: the real figure is **1917** across 95 files.
+
+Seventh false claim in this branch, and the cheapest possible one to have checked — which is rather
+the point. The habit that produced the other six was still running right up to the last paragraph.
