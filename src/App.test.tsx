@@ -482,6 +482,28 @@ describe('the open cabinet', () => {
     expect(viewportShowing()).toBe(true)
   })
 
+  // The plan view is scene-wide, so it cannot live in CabinetEditor. It replaces the viewport
+  // VISUALLY only: viewport.tsx builds its renderer, camera and every mesh in a mount-once effect,
+  // so swapping it out of the tree would tear all of that down on each toggle.
+  it('shows the plan view without unmounting the viewport', async () => {
+    render(<App />)
+    await act(async () => {})
+    expect(viewportShowing()).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Plan' }))
+    })
+    expect(screen.getByRole('img', { name: 'Plan view' })).toBeTruthy()
+    expect(screen.getByTestId('viewport')).toBeTruthy()
+    expect(viewportShowing()).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '3D' }))
+    })
+    expect(viewportShowing()).toBe(true)
+    expect(screen.queryByRole('img', { name: 'Plan view' })).toBeNull()
+  })
+
   it('keeps an open cabinet open when a part inside it is selected', async () => {
     const select = await mount()
     await select({ kind: 'component', id: cabinet.id })

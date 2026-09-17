@@ -222,3 +222,115 @@ merge base and running the suite there: the real figure is **1917** across 95 fi
 
 Seventh false claim in this branch, and the cheapest possible one to have checked — which is rather
 the point. The habit that produced the other six was still running right up to the last paragraph.
+
+---
+
+## 2026-09-17 — stage 2: runs and the plan view
+
+**Plan:** `docs/superpowers/plans/2026-09-17-cabinet-placement-stage-2-adjacency.md`
+
+Stage 1 was still an open PR (#48) when this began. The user chose to merge it first and branch from
+the updated `main`, rather than stacking — so stage 2's diff is its own.
+
+### Two decisions taken with the user
+
+**A run is a maximal chain of LEFT/RIGHT links only.** A front or back anchor starts a new run. The
+alternatives were "any anchor chain" (an L-shape is one run that turns a corner) and "connected
+components". The deciding argument is stage 3's: a kitchen run is one straight line against one
+wall, so an L-shape is *two* runs — and the blind-width check exists precisely to compare a blind
+unit's width against the depth of the run returning into it. Defining a run as "everything joined
+together" leaves that check with one run and nothing to check it against.
+
+Connectivity is nonetheless **undirected**. `L → T` and `R → T` is one run of three, not two of two:
+direction records who moves when `T` moves, which is a different question from what is in the line.
+
+**The plan view is a main-pane toggle, not a modal.** The precedent for scene-wide surfaces is a
+modal (`BomModal`, `DrawingViewer`), but drag-to-anchor is primary editing and a dialog you must
+close to see the result in 3D is the wrong shape for it. The toggle extends the `display` rule the
+cabinet tabs already use, so the mount-once viewport is hidden rather than unmounted.
+
+### What the plan got wrong — the useful part
+
+1. **Rotations are stored in degrees, not radians.** The plan's `worldBoundsOf` test turned a
+   cabinet by `Math.PI / 2` and asserted the footprint extents swapped. They did not: the extent
+   came back 615.6 against an expected 578, which is a **1.57° turn** of a 600 × 578 box, not a
+   quarter one. `composeWorldMatrix` multiplies by `DEG2RAD` (`transform.ts:19`). Caught because the
+   assertion was written against a measured consequence rather than against the code's own
+   arithmetic — a test asserting "the extents swap" fails loudly here, where one asserting a matrix
+   would have agreed with whatever the matrix did.
+
+2. **The plan hedged on duplicating `FACE_NORMAL` and `IN_PLANE` into `dragAnchor.ts`**, with a note
+   saying to export them from `anchor.ts` "if a third reader appears". A second reader *was* the
+   thing being written. They are now exported and imported, because a drop that names a different
+   face than the resolver honours is exactly the class of drift this codebase states rules once to
+   avoid.
+
+3. **`spanRef.current = …` and `dragRef.current = drag` during render are lint errors**
+   (`react-hooks/refs`), and the plan wrote both. The fix was not a suppression: the frame moved
+   into a `useMemo` **above** the empty-job guard so the effect can read it as a value, and the
+   pointer handlers close over `drag` directly, resubscribing per move. That costs a few listener
+   swaps per gesture and nothing else.
+
+4. **The plan's drag tests dispatched pointer events without flushing React between them.** The
+   listeners are attached by an effect, so the `pointermove` landed before anything was listening
+   and `onDrop` was never called. Each phase is now `act()`-wrapped, in one `dragBy` helper rather
+   than four copies.
+
+5. **A pipeline's exit code is its last command's.** `pnpm lint 2>&1 | tail -2 && git commit` reports
+   `tail`'s status, so a failing lint was masked and a commit went through with two lint errors in
+   it. Amended. Worth carrying forward: gate on the command, not on a pipe through `tail`.
+
+### Mutation testing: three tests that could not fail
+
+Eleven mutations were predicted; four are recorded here because they are the ones that taught
+something. Every file was backed up with `cp` and restored from the copy, and grepped after both.
+
+| Mutation | Predicted | Actual |
+| --- | --- | --- |
+| `runs.ts`: `front`/`back` continue a run | 1 fail | 1 fail ✓ |
+| `runs.ts`: directed graph only | 1 fail | 4 fail ✓ |
+| `runs.ts`: drop the `parentId` clause | 1 fail | **0 — survived** |
+| `runs.ts`: unsorted members | 1 fail | 2 fail ✓ |
+| `dragAnchor.ts`: `SNAP_MM` 60 → 5 | 3 fail | **0 — survived** |
+| `dragAnchor.ts`: no `flush` on `offset.u` | 1 fail | 1 fail ✓ |
+| `dragAnchor.ts`: `flush` always 0 | 1 fail | 1 fail ✓ |
+| `dragAnchor.ts`: drop the self-anchor clause | 1 fail | **0 — survived** |
+| `PlanView.tsx`: `toSvg` reads the near edge | 1 fail | 1 fail ✓ |
+
+The three survivors were three different failures of the same kind — *a test that pins something
+other than what it names*:
+
+- **The `parentId` clause.** The test built its scene through `sceneOf`, which runs
+  `resolvePlacement` — and that pass detaches a cross-frame anchor before `runsOf` ever sees it. The
+  test was passing on the resolver's guard. It now calls `runsOf` on raw components. This is the
+  general hazard of a fixture helper that runs the pipeline: it tests the pipeline.
+- **The self-anchor clause.** The drop sat near the origin, which is out of snap range of every one
+  of the dragged cabinet's *own* faces, so it returned `free` with or without the clause. It now
+  drops on its own right face, where the clause is the only thing preventing a self-anchor.
+- **`SNAP_MM`.** Every boundary test expressed its figure as `SNAP_MM ± n`, so shrinking the
+  constant moved the tests with it. A constant cannot be pinned by tests written in terms of it. One
+  absolute figure (30 mm) now stands in for the real claim — the snap is wide enough to catch a drop
+  placed by hand — without being the tautology that asserting `SNAP_MM === 60` would be.
+
+All four were re-run after the tests were strengthened and all four now fail. The source files were
+restored from the `cp` backups and `git diff --stat` confirmed only the two test files had changed.
+
+### Measured
+
+- **Baseline** (`a4bebd4`, main with stage 1 merged, measured not quoted): 99 files, 1988 passed,
+  10 skipped.
+- **Branch tip:** 103 files, 2025 passed, 10 skipped.
+- **Delta:** +4 files (`carcaseWorldBounds`, `runs`, `dragAnchor`, `PlanView`), **+37 tests**.
+- `pnpm typecheck && pnpm lint && pnpm test` all exit 0.
+
+### Still open
+
+Stage 3 (corners: rotation in the plan view, front-face anchors, blind-width validation) and stage 4
+(the viewport move gizmo) remain designed and unbuilt. The **blind-corner dimensions in the spec are
+still unverified** — reasoned from geometry, not read off a catalogue, the same class of claim as
+the hinge table and the TANDEM figures. Stage 3 is where that matters.
+
+One thing stage 3 should not have to rediscover: `PlanView` has no rotation affordance at all, so a
+turned cabinet can be drawn (`worldBoundsOf` handles it, and `rotatedBounds` is exact for quarter
+turns) but not made. Rotation is the user's in both mounts and never derived from a target, so the
+affordance is a control, not a rule.

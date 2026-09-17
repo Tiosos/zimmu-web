@@ -26,6 +26,8 @@ const baseProps: FileMenuProps = {
   onExportStep: vi.fn(),
   onOpenDrawings: vi.fn(),
   canExport: true,
+  mainView: 'model',
+  onMainViewChange: vi.fn(),
 }
 
 function openMenu() {

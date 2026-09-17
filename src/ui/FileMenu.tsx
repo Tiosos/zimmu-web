@@ -17,6 +17,8 @@ export interface FileMenuProps {
   onExportStep: () => void
   onOpenDrawings: () => void
   canExport: boolean
+  mainView: 'model' | 'plan'
+  onMainViewChange: (v: 'model' | 'plan') => void
   partsCount: number
   supported: boolean
   canUndo: boolean
@@ -42,6 +44,8 @@ export function FileMenu({
   onExportStep,
   onOpenDrawings,
   canExport,
+  mainView,
+  onMainViewChange,
   partsCount,
   supported,
   canUndo,
@@ -143,6 +147,25 @@ export function FileMenu({
           </div>
         )}
       </div>
+
+      {/* Which surface the main pane shows. A toggle rather than a modal: dragging a cabinet onto
+          its neighbour is primary editing, and the viewport behind it is hidden, never unmounted. */}
+      <Button
+        variant={mainView === 'model' ? 'secondary' : 'ghost'}
+        size="sm"
+        onClick={() => onMainViewChange('model')}
+        className="text-xs h-7 px-2 rounded"
+      >
+        3D
+      </Button>
+      <Button
+        variant={mainView === 'plan' ? 'secondary' : 'ghost'}
+        size="sm"
+        onClick={() => onMainViewChange('plan')}
+        className="text-xs h-7 px-2 rounded"
+      >
+        Plan
+      </Button>
 
       {/* Center: dirty indicator + project name + filename */}
       <div className="flex-1 flex items-center justify-center gap-1.5 min-w-0">

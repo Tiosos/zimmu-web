@@ -2,10 +2,12 @@ import type { Anchor, Vec3 } from './types'
 import type { Bounds3 } from './carcaseBounds'
 import { rotateVector } from '../geom/transform'
 
-type Axis = 'x' | 'y' | 'z'
+export type Axis = 'x' | 'y' | 'z'
 
-// Which axis a face's outward normal runs along, and which way it points.
-const FACE_NORMAL: Record<Anchor['face'], { axis: Axis; positive: boolean }> = {
+// Which axis a face's outward normal runs along, and which way it points. Exported because
+// `dragAnchor` inverts this module's arithmetic and must read the SAME table — a second copy is how
+// a drop comes to name a different face than the one the resolver then honours.
+export const FACE_NORMAL: Record<Anchor['face'], { axis: Axis; positive: boolean }> = {
   left: { axis: 'x', positive: false },
   right: { axis: 'x', positive: true },
   front: { axis: 'y', positive: false },
@@ -13,14 +15,14 @@ const FACE_NORMAL: Record<Anchor['face'], { axis: Axis; positive: boolean }> = {
 }
 
 // The two axes of a face's plane, in x < y < z order — the order `Anchor.offset` is stated in.
-const IN_PLANE: Record<Axis, [Axis, Axis]> = {
+export const IN_PLANE: Record<Axis, [Axis, Axis]> = {
   x: ['y', 'z'],
   y: ['x', 'z'],
   z: ['x', 'y'],
 }
 
-const lo = (b: Bounds3, a: Axis): number => (a === 'x' ? b.x0 : a === 'y' ? b.y0 : b.z0)
-const hi = (b: Bounds3, a: Axis): number => (a === 'x' ? b.x1 : a === 'y' ? b.y1 : b.z1)
+export const lo = (b: Bounds3, a: Axis): number => (a === 'x' ? b.x0 : a === 'y' ? b.y0 : b.z0)
+export const hi = (b: Bounds3, a: Axis): number => (a === 'x' ? b.x1 : a === 'y' ? b.y1 : b.z1)
 
 // The axis-aligned envelope of a box after rotation about the origin, before any translation. Built
 // from the eight corners rather than from the rotation angles, the way hiddenLine.ts asks its

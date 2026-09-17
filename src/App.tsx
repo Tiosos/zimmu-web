@@ -11,6 +11,8 @@ import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { CabinetEditor, type CabinetTab } from './ui/CabinetEditor'
 import { FileMenu } from './ui/FileMenu'
+import { PlanView } from './ui/PlanView'
+import { anchorForDrop } from './scene/dragAnchor'
 import { BomModal } from './ui/BomModal'
 import { useMaterialLibrary } from './scene/useMaterialLibrary'
 import { useHardwareLibrary } from './scene/useHardwareLibrary'
@@ -137,6 +139,7 @@ function App() {
   }
 
   const [cabinetTab, setCabinetTab] = useState<CabinetTab>('section')
+  const [mainView, setMainView] = useState<'model' | 'plan'>('model')
 
   // One selection, not two. This used to be `sectionPick` — a second piece of state the elevation
   // wrote and the panel read — which meant two things could disagree about which opening was
@@ -544,6 +547,8 @@ function App() {
         onExportStep={handleExportStep}
         onOpenDrawings={handleOpenDrawings}
         canExport={canExport}
+        mainView={mainView}
+        onMainViewChange={setMainView}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Hidden, never unmounted. `viewport.tsx` builds its renderer, camera, controls and every
@@ -552,7 +557,14 @@ function App() {
             keeps rendering, which is what the app already does behind the BOM modal. */}
         <div
           style={{
-            display: selectedCarcase === null || cabinetTab === '3d' ? 'flex' : 'none',
+            // The plan view replaces the viewport VISUALLY only — see the mount-once effect in
+            // viewport.tsx, and the cabinet-tab rule this extends.
+            display:
+              mainView === 'plan'
+                ? 'none'
+                : selectedCarcase === null || cabinetTab === '3d'
+                  ? 'flex'
+                  : 'none',
             flex: 1,
             minWidth: 0,
           }}
@@ -578,7 +590,33 @@ function App() {
             suggestionOutlines={hoveredOutlines}
           />
         </div>
-        {selectedCarcase !== null && (
+        {mainView === 'plan' && (
+          <PlanView
+            scene={scene}
+            selectedId={selection?.kind === 'component' ? selection.id : null}
+            onSelect={(id) => onSelect({ kind: 'component', id })}
+            onDrop={(id, position) => {
+              const dragged = scene.components.find((c) => c.id === id)
+              if (dragged === undefined || dragged.kind !== 'carcase') return
+              const others = scene.components.filter(
+                (c): c is CarcaseComponent => c.kind === 'carcase' && c.id !== id,
+              )
+              const drop = anchorForDrop(dragged, position, others, scene.materials)
+              // Through onUpdateComponent like every other edit, so a drag lands in undo/redo and
+              // the four-stage pipeline re-resolves the dropped cabinet's neighbours in the same
+              // commit. The updater is handed the Component UNION, so it must narrow before
+              // touching `anchor` — only a carcase carries one.
+              onUpdateComponent(id, (c) =>
+                c.kind !== 'carcase'
+                  ? c
+                  : drop.kind === 'anchor'
+                    ? { ...c, anchor: drop.anchor }
+                    : { ...c, anchor: undefined, position: drop.position },
+              )
+            }}
+          />
+        )}
+        {selectedCarcase !== null && mainView === 'model' && (
           <CabinetEditor
             key={selectedCarcase.id}
             component={selectedCarcase}
