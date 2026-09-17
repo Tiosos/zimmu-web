@@ -2058,12 +2058,77 @@ describe('v17 → v18: drawer components', () => {
     spy.mockRestore()
   })
 
-  // The stamp, not the gate, and deliberately a value pin: `buildEnvelope` writes this constant
-  // into every saved file, and that number is read by an app this one cannot run the suite of. Left
-  // at 17, a drawer-bearing file reads as current to a build with no drawer branch and the
-  // component passes through unrecognised with nothing said — a consequence no test here can
-  // observe, which is why the constant itself is asserted.
-  it('states the drawer-bearing format version', () => {
-    expect(FILE_FORMAT_VERSION).toBe(18)
+})
+
+describe('v19 anchors', () => {
+  const PARAMS = {
+    width: 600,
+    height: 720,
+    depth: 560,
+    carcaseMaterial: 'Ply18',
+    backMaterial: 'Ply18',
+    frontMaterial: 'Ply18',
+    hasTop: true,
+    backMode: 'captured',
+    baseMode: 'none',
+    toeKickHeight: 100,
+    toeKickSetback: 50,
+    frontMount: 'overlay',
+    frontReveal: 3,
+    section: { id: 'sec_1', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+    jointMethod: 'butt-screw',
+  }
+
+  const carcase = (id: string, anchor?: unknown) => ({
+    kind: 'carcase',
+    id,
+    label: id,
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    params: PARAMS,
+    ...(anchor === undefined ? {} : { anchor }),
+  })
+
+  const fileWith = (version: number, components: unknown[]) =>
+    JSON.stringify({
+      version,
+      scene: { parts: [], materials: {}, hardware: [], joints: [], components },
+    })
+
+  const anchorOf = (text: string, id: string) => {
+    const c = parseFile(text).scene.components.find((x) => x.id === id)
+    return c?.kind === 'carcase' ? c.anchor : 'not-a-carcase'
+  }
+
+  // The stamp, not the gate, and deliberately a value pin: `buildEnvelope` writes this constant into
+  // every saved file, and that number is read by an app this one cannot run the suite of. Left at 18,
+  // an anchor-bearing file reads as current to a build with no placement pass, and every anchor
+  // passes through unrecognised with nothing said — a consequence no test here can observe, which is
+  // why the constant itself is asserted. This pin replaces the v18 one: the constant is global, so
+  // only the newest value can be asserted.
+  it('states the current file format version', () => {
+    expect(FILE_FORMAT_VERSION).toBe(19)
+  })
+
+  it('round-trips an anchor through parseFile', () => {
+    const text = fileWith(19, [
+      carcase('cmp_a'),
+      carcase('cmp_b', { to: 'cmp_a', face: 'right', gap: 3, offset: { u: 10, v: 20 } }),
+    ])
+    expect(anchorOf(text, 'cmp_b')).toEqual({
+      to: 'cmp_a',
+      face: 'right',
+      gap: 3,
+      offset: { u: 10, v: 20 },
+    })
+  })
+
+  // A v18 file has no anchors at all and must load with every cabinet free-placed, rather than
+  // failing or acquiring a default.
+  it('loads a v18 file with every cabinet free-placed', () => {
+    expect(anchorOf(fileWith(18, [carcase('cmp_a')]), 'cmp_a')).toBeUndefined()
   })
 })
