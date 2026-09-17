@@ -188,3 +188,37 @@ left/right only — front/back gives left-flush); "React re-renders on it" (`sce
 
 The generalisable habit: **asserting mechanism from intent.** The spec's geometry section already
 carried that lesson; it applies to prose about the code just as much as to the code.
+
+### Final mutation pass (Task 10)
+
+Run against the finished code as a whole, not task by task. Every file backed up and restored by
+`cp`, grepped after each apply and each restore; `git status` clean afterwards and the suite back to
+1988 passing.
+
+| # | Mutation | Predicted | Observed | Killed? |
+|---|---|---|---|---|
+| 1 | Hardcode the opposite face (drop the `positive` ternary) | left-face, both corner cases, back-to-back, applied-back | **6 failed** | yes |
+| 2 | Shell bounds instead of occupied (`z0 = toeKickHeight`) | toe-kick bounds + toe-kick placement | **2 failed** | yes |
+| 3 | Resolve in array order (`target.position` for `positionOf(target)`) | the back-to-front chain | **3 failed** | yes |
+| 4 | Ignore `offset` on both in-plane axes | the two offset cases | **2 failed** | yes |
+| 5 | Dangling anchor falls back to the origin | free-placed, ghost-target, self-anchor | **4 failed** | yes |
+
+**Two mutations failed *more* tests than the plan predicted**, and that is the interesting result.
+The plan's predictions were written against its own 13 `resolvePlacement` tests; the shipped suite
+has 17, because review added a diamond, a chain of three and an applied-back case. Mutation 3 also
+caught the chain-of-three and the diamond; mutation 5 also caught the diamond.
+
+That is the right direction for a gap to point — predictions made before the reviews under-counted
+because coverage grew. The rule from earlier in this file still holds, though, and is worth keeping
+the other way round too: **when fewer fail than predicted, the gap is usually real; when more fail,
+check that the extra failures are coverage you meant to add rather than a mutation reaching further
+than intended.** Both here were the former, confirmed by reading which tests failed.
+
+### One more wrong claim, caught at the very end
+
+Writing the spec's closing status line I asserted the suite went "1890 → 1988". The 1988 was
+measured; **1890 was from memory and wrong.** Checking it meant standing up a git worktree at the
+merge base and running the suite there: the real figure is **1917** across 95 files.
+
+Seventh false claim in this branch, and the cheapest possible one to have checked — which is rather
+the point. The habit that produced the other six was still running right up to the last paragraph.

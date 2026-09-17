@@ -1,6 +1,10 @@
 # Cabinet placement — anchors stored, runs derived
 
-**Status:** Designed, not implemented. Brainstormed 2026-09-14 on `claude/next-step-suggestion-4itos3`.
+**Status:** Stage 1 (the placement primitive) shipped 2026-09-17 on `claude/next-step-suggestion-4itos3`. A carcase carries an optional `Anchor`; `resolvePlacement`
+leads a now four-stage pipeline and derives every anchored cabinet's position; `carcaseBounds`
+states the occupied box; file format is v19; and `PlacementPanel` is the first surface that can
+move a cabinet at all. Suite 1917 → 1988 tests across 95 → 99 files, measured at the merge base and the branch tip. **Stages 2–4 (adjacency UI, corners, the viewport
+gizmo) are designed here but not built.** Brainstormed 2026-09-14.
 **Notes:** `docs/superpowers/notes/2026-09-14-cabinet-placement-notes.md`
 **Plan:** `docs/superpowers/plans/2026-09-14-cabinet-placement-stage-1-primitive.md` (Stage 1); later stages get their own files — see [Staging](#staging)
 
