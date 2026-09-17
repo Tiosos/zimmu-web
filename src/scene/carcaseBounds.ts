@@ -37,6 +37,9 @@ export function carcaseBounds(p: CarcaseParams, thicknessOf: RoleThickness): Bou
   return {
     x0: 0,
     x1: p.width,
+    // Not `-front`: negating a literal 0 produces -0, and Object.is (so `toBe`/`toEqual` in every
+    // test here) treats -0 as unequal to 0 — a doorless cabinet's front edge would fail every
+    // caller's plain `0` expectation.
     y0: 0 - front,
     y1: p.depth + back,
     z0: 0,
