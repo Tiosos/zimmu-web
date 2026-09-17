@@ -74,6 +74,15 @@ export function newSectionId(): SectionId {
   return `sec_${crypto.randomUUID()}`
 }
 
+// Whether any leaf under this section wears a front. Asked by `carcaseBounds`, because an overlay
+// front only reaches in front of y = 0 if the cabinet actually has one — a doorless carcase and a
+// doored one occupy different boxes.
+export function hasAnyFront(root: Section): boolean {
+  if (root.front !== undefined) return true
+  if (root.content.kind === 'split') return root.content.children.some(hasAnyFront)
+  return false
+}
+
 // A preset's tree is built once, at module evaluation, so every cabinet added from the same preset
 // would otherwise share its section ids — and role keys carry those ids, so two Base 600s would
 // name the same openings and the same `front-{sectionId}-0` boards. Everything that resolves an
