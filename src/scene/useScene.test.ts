@@ -3,6 +3,8 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type {
   BoardPart,
   BoxCut,
+  Anchor,
+  CarcaseComponent,
   CarcaseParams,
   CutDef,
   CylinderPart,
@@ -42,6 +44,7 @@ import { useScene, buildSpecForPart, applyPipeline } from './useScene'
 import { resolveWorldMatrix } from '../geom/transform'
 import { componentsById } from './componentTree'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
+import { freshSectionIds } from './sectionTree'
 import { carcaseRoles } from './carcaseRoles'
 import { setFrontOn } from './sectionInterior'
 import { roleThicknessFor } from './resolveThickness'
@@ -2785,8 +2788,50 @@ describe('the regeneration pipeline', () => {
     expect(scene.parts.every((p) => p.parentId === carcaseId)).toBe(true)
   })
 
-  it('is idempotent with all three stages', () => {
+  it('is idempotent with all four stages', () => {
     const once = applyPipeline(drawerFronted())
+    expect(applyPipeline(once)).toEqual(once)
+  })
+})
+
+describe('applyPipeline placement stage', () => {
+  // Two cabinets from the same preset, so the anchored one's expected x is simply the target's
+  // width. `freshSectionIds` because role keys carry section ids: sharing one section object would
+  // give both cabinets the same `front-{sectionId}-0` parts.
+  const twoCabinets = (): Scene => {
+    const base = CARCASE_PRESETS[0].params
+    const mk = (id: string, anchor?: Anchor): CarcaseComponent => ({
+      kind: 'carcase',
+      id: id as ComponentId,
+      label: id,
+      parentId: null,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+      params: { ...base, section: freshSectionIds(base.section) },
+      ...(anchor === undefined ? {} : { anchor }),
+    })
+    return {
+      parts: [],
+      materials: { ...PRESET_MATERIALS },
+      hardware: [],
+      joints: [],
+      components: [
+        mk('cmp_a'),
+        mk('cmp_b', { to: 'cmp_a' as ComponentId, face: 'right', gap: 0, offset: { u: 0, v: 0 } }),
+      ],
+    }
+  }
+
+  it('resolves an anchored cabinet as part of one pipeline pass', () => {
+    const out = applyPipeline(twoCabinets())
+    const placed = out.components.find((c) => c.id === 'cmp_b')
+    expect(placed?.position.x).toBe(CARCASE_PRESETS[0].params.width)
+  })
+
+  it('stays idempotent with placement in the chain', () => {
+    const once = applyPipeline(twoCabinets())
     expect(applyPipeline(once)).toEqual(once)
   })
 })
