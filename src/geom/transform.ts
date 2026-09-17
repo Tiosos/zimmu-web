@@ -3,9 +3,11 @@ import { ancestorsOf } from '../scene/componentTree'
 
 const DEG2RAD = Math.PI / 180
 
-// The two fields the matrix is built from. `Part` and `Component` both satisfy it structurally, so
-// every existing call site is unaffected; naming it lets a bare rotation be composed without
-// fabricating a whole part.
+// The two fields the matrix is built from. A call site passing an existing `Part` or `Component`
+// value is unaffected — structural assignability covers it. A call site passing a fresh object
+// literal with extra fields is not: TypeScript's excess-property check rejects those, which is
+// exactly what broke two test helpers that fabricated a whole fake `BoardPart` just to reach this
+// function. Naming the type lets a bare rotation be composed without fabricating a whole part.
 export interface Placed {
   position: Vec3
   rotation: Vec3
