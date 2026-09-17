@@ -362,4 +362,15 @@ describe('rotateVector', () => {
   it('ignores translation entirely — it is a direction, not a point', () => {
     expect(rotateVector({ x: 0, y: 0, z: 180 }, 0, 0, 5)[2]).toBeCloseTo(5)
   })
+
+  // Every case above rotates about z only, so a wrapper that swapped the x and y fields before
+  // delegating to composeWorldMatrix would still pass all of them. +90° about x sends local +y to
+  // world +z (read off composeWorldMatrix's own rotation block: r21 = sx·cz + cx·sy·sz = 1 at
+  // x=90°, y=z=0), which only holds if x and y are forwarded on the axes they came in on.
+  it('sends +y to +z at 90 degrees about x', () => {
+    const [x, y, z] = rotateVector({ x: 90, y: 0, z: 0 }, 0, 1, 0)
+    expect(x).toBeCloseTo(0)
+    expect(y).toBeCloseTo(0)
+    expect(z).toBeCloseTo(1)
+  })
 })
