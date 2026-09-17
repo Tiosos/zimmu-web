@@ -131,6 +131,22 @@ describe('resolvePlacement', () => {
     expect(at(out, 'b')?.anchor).toBeUndefined()
   })
 
+  // Three cabinets, not two: a and b form a genuine cycle, and d's anchor merely points into it from
+  // outside. d's own anchor names a live carcase, not itself, in the same parent — every clause of
+  // the rule holds for d — so only a and b, the actual cycle members, may be detached. d keeps its
+  // anchor and resolves against a's position exactly as it was before a got detached, because
+  // positionOf freezes a detached component's position rather than chasing its own dead anchor.
+  it('keeps a bystander anchor pointing into an unrelated cycle, resolved against the frozen target', () => {
+    const a = cabinet('a', { anchor: anchorTo('b') })
+    const b = cabinet('b', { anchor: anchorTo('a') })
+    const d = cabinet('d', { position: { x: 999, y: 0, z: 0 }, anchor: anchorTo('a') })
+    const out = resolvePlacement(scene([a, b, d]))
+    expect(at(out, 'a')?.anchor).toBeUndefined()
+    expect(at(out, 'b')?.anchor).toBeUndefined()
+    expect(at(out, 'd')?.anchor).toEqual(anchorTo('a'))
+    expect(at(out, 'd')?.position).toEqual({ x: 600, y: 0, z: 0 })
+  })
+
   it('detaches an anchor across a different parent', () => {
     const a = cabinet('a')
     const b = cabinet('b', { parentId: 'cmp_group' as ComponentId, anchor: anchorTo('a') })
@@ -175,5 +191,30 @@ describe('resolvePlacement', () => {
     const b = cabinet('b', { anchor: anchorTo('a') })
     const out = resolvePlacement(scene([a, b]))
     expect(at(out, 'b')?.position.z).toBe(0)
+  })
+
+  // The z-axis case (a toe kick) is covered above; this is the y-axis case, and the whole reason
+  // boundsOf reads carcaseBounds rather than the cabinet's params directly — an applied back reaches
+  // past the carcase's own depth, so a neighbour anchored on that face has to land past it too.
+  it('lands a back-face anchor past an applied back, not at the bare depth', () => {
+    const a = cabinet('a')
+    a.params.backMode = 'applied'
+    const b = cabinet('b', { anchor: anchorTo('a', { face: 'back' }) })
+    const out = resolvePlacement(scene([a, b]))
+    expect(at(out, 'b')?.position).toEqual({ x: 0, y: 566, z: 0 })
+  })
+
+  // A diamond: b and c both anchor to a, and a is itself anchored to root, so every level is a real
+  // dependency rather than a coincidence of array order. Pins that b and c agree on where a landed —
+  // the property "topological via memoised recursion" claims but nothing before this test exercised.
+  it('resolves a diamond — two cabinets anchored to the same target — consistently', () => {
+    const root = cabinet('root', { position: { x: 100, y: 0, z: 0 } }, 600)
+    const a = cabinet('a', { anchor: anchorTo('root') }, 300)
+    const b = cabinet('b', { anchor: anchorTo('a') }, 200)
+    const c = cabinet('c', { anchor: anchorTo('a', { face: 'back' }) }, 250)
+    const out = resolvePlacement(scene([root, a, b, c]))
+    expect(at(out, 'a')?.position).toEqual({ x: 700, y: 0, z: 0 })
+    expect(at(out, 'b')?.position).toEqual({ x: 1000, y: 0, z: 0 })
+    expect(at(out, 'c')?.position).toEqual({ x: 700, y: 560, z: 0 })
   })
 })

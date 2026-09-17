@@ -35,8 +35,14 @@ export function resolvePlacement(scene: Scene): Scene {
   }
 
   // A cycle among anchors is a second graph over the same components — componentTree's guards watch
-  // parentId, not this. Detach every member of a chain that revisits an id, rather than guessing
-  // which link the user meant.
+  // parentId, not this. Anchors form a functional graph (out-degree at most 1), so walking from `c`
+  // either comes back to `c` itself — `c` is ON the cycle, detach it — or it runs into a node the
+  // walk has already passed through that is NOT `c` — `c` is merely a bystander pointing INTO a
+  // cycle that belongs to other components, and its own anchor is fine: that cycle's members get
+  // detached when the outer loop visits them in turn, `positionOf` freezes their position once they
+  // are, and `c` resolves against that frozen position like any other anchor. Detaching a bystander
+  // here — which an earlier version of this loop did, by detaching `c` on ANY revisited id rather
+  // than only its own — would strip a live anchor for no reason connected to `c` at all.
   const detached = new Set<ComponentId>()
   for (const c of carcases.values()) {
     if (c.anchor === undefined) continue
@@ -47,10 +53,11 @@ export function resolvePlacement(scene: Scene): Scene {
     const seen = new Set<ComponentId>([c.id])
     let cur = targetOf(c)
     while (cur !== undefined) {
-      if (seen.has(cur.id)) {
+      if (cur.id === c.id) {
         detached.add(c.id)
         break
       }
+      if (seen.has(cur.id)) break // someone else's cycle — c itself is not on it
       seen.add(cur.id)
       cur = targetOf(cur)
     }
@@ -84,8 +91,9 @@ export function resolvePlacement(scene: Scene): Scene {
       const next = positionOf(c)
       const drop = detached.has(c.id)
       const moved = next.x !== c.position.x || next.y !== c.position.y || next.z !== c.position.z
-      // Referential identity when nothing changed: the "leaves everything else alone" tests read it,
-      // and React re-renders on it.
+      // Referential identity when nothing changed: it is what lets the round-trip tests use `toBe`
+      // honestly, and it matches the convention the other passes follow — no consumer memoises on
+      // it today.
       if (!drop && !moved) return c
       // `anchor: undefined` rather than a rest-destructure: the key is dropped by JSON.stringify on
       // save, every read site tests for undefined, and the shape stays legible at the call site.
