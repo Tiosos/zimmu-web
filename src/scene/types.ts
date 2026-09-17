@@ -234,6 +234,21 @@ export interface GroupComponent {
   visible: boolean
 }
 
+// Where a cabinet stands relative to another. The position it implies is DERIVED; a carcase with no
+// anchor is free-placed and its `position` is the user's. Presence or absence says which, so no
+// `driven` flag is needed — the same distinction `driven: false` draws for a part.
+export interface Anchor {
+  to: ComponentId
+  // A face of the TARGET, in the target's own frame.
+  face: 'left' | 'right' | 'front' | 'back'
+  // Clearance along that face's normal. 0 butts the two cabinets together.
+  gap: number
+  // Offset within the face's plane, measured from the target's minimum corner on each of the two
+  // axes the normal is not, taken in x < y < z order. {0, 0} is flush — and because the local frame
+  // runs front→back and floor→top, flush means front-flush and floor-flush.
+  offset: { u: number; v: number }
+}
+
 export interface CarcaseComponent {
   kind: 'carcase'
   id: ComponentId // "cmp_<uuid>"
@@ -244,6 +259,7 @@ export interface CarcaseComponent {
   rotationOrder: 'XYZ'
   visible: boolean
   params: CarcaseParams
+  anchor?: Anchor
 }
 
 export interface DrawerComponent {
