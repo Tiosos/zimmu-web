@@ -8,7 +8,12 @@ export const SNAP_MM = 60
 
 const FACES: Anchor['face'][] = ['left', 'right', 'front', 'back']
 
-export type Drop = { kind: 'anchor'; anchor: Anchor } | { kind: 'free'; position: Vec3 }
+export type Drop =
+  // `rotationZ` is the TARGET's rotation, offered as a UI default. It stays OUT of `Anchor`: an
+  // anchor derives position only, and a corner is a cabinet both turned and anchored — two facts,
+  // not one. Rotation is always the user's, so this is a suggestion the caller may ignore.
+  | { kind: 'anchor'; anchor: Anchor; rotationZ: number }
+  | { kind: 'free'; position: Vec3 }
 
 // Flush is the stated default and the common case, so a near-flush drag becomes exactly flush.
 // Past the snap the dragged figure survives untouched, which is what lets a deliberate reveal be
@@ -32,7 +37,7 @@ export function anchorForDrop(
 ): Drop {
   const own = localRotatedBoundsOf(dragged, materials)
 
-  let best: { anchor: Anchor; distance: number } | undefined
+  let best: { anchor: Anchor; distance: number; rotationZ: number } | undefined
   for (const t of candidates) {
     // Exactly resolvePlacement's honouring rule: offering a target it would silently undo is
     // offering a relationship that does not survive the next pipeline run.
@@ -48,6 +53,7 @@ export function anchorForDrop(
       if (best !== undefined && distance >= best.distance) continue
       best = {
         distance,
+        rotationZ: t.rotation.z,
         anchor: {
           to: t.id,
           face,
@@ -63,5 +69,5 @@ export function anchorForDrop(
 
   return best === undefined
     ? { kind: 'free', position: drop }
-    : { kind: 'anchor', anchor: best.anchor }
+    : { kind: 'anchor', anchor: best.anchor, rotationZ: best.rotationZ }
 }

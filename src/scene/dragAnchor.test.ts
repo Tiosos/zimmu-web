@@ -114,4 +114,33 @@ describe('anchorForDrop', () => {
     expect(r.anchor.to).toBe('cmp_t')
     expect(r.anchor.face).toBe('right')
   })
+
+  it('suggests the target rotation on a drop', () => {
+    const turned = cab('cmp_t', { rotation: { x: 0, y: 0, z: 90 } })
+    // A turned target's right face is NOT at x = W — the quarter turn swings the box about its own
+    // origin, so the face is read off its world bounds rather than assumed.
+    const rightFace = worldBoundsOf(turned, PRESET_MATERIALS).x1
+    const r = anchorForDrop(dragged, { x: rightFace + 3, y: 0, z: 0 }, [turned], PRESET_MATERIALS)
+    expect(r.kind).toBe('anchor')
+    if (r.kind !== 'anchor') return
+    expect(r.rotationZ).toBe(90)
+  })
+
+  it('suggests the target rotation even when it is zero', () => {
+    const r = anchorForDrop(dragged, { x: W + 3, y: 0, z: 0 }, [target], PRESET_MATERIALS)
+    expect(r.kind).toBe('anchor')
+    if (r.kind !== 'anchor') return
+    expect(r.rotationZ).toBe(0)
+  })
+
+  // Rotation is a UI default, never part of the anchor: an anchor derives position only, and a
+  // corner is a cabinet both turned AND anchored — two facts, not one.
+  it('keeps the suggested rotation out of the anchor', () => {
+    const turned = cab('cmp_t', { rotation: { x: 0, y: 0, z: 90 } })
+    const rightFace = worldBoundsOf(turned, PRESET_MATERIALS).x1
+    const r = anchorForDrop(dragged, { x: rightFace + 3, y: 0, z: 0 }, [turned], PRESET_MATERIALS)
+    expect(r.kind).toBe('anchor')
+    if (r.kind !== 'anchor') return
+    expect(Object.keys(r.anchor).sort()).toEqual(['face', 'gap', 'offset', 'to'])
+  })
 })
