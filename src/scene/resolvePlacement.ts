@@ -26,6 +26,10 @@ export function resolvePlacement(scene: Scene): Scene {
   const targetOf = (c: CarcaseComponent): CarcaseComponent | undefined => {
     if (c.anchor === undefined) return undefined
     const t = carcases.get(c.anchor.to)
+    // `t.id === c.id` is redundant today: a self-anchor is a one-length chain, and the cycle pass
+    // below already detaches it. It stays anyway — it states the spec's "other than itself" rule
+    // right where a reader is looking for it, and it keeps that rule true on its own rather than
+    // leaving it to depend on the cycle detector staying shaped the way it is now.
     if (t === undefined || t.id === c.id || t.parentId !== c.parentId) return undefined
     return t
   }
