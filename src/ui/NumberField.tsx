@@ -12,11 +12,13 @@ export function NumberField({
   label,
   value,
   onCommit,
+  disabled = false,
 }: {
   id: string
   label: string
   value: number
   onCommit: (v: number) => void
+  disabled?: boolean
 }) {
   const [local, setLocal] = useState(String(value))
   const isFocused = useRef(false)
@@ -35,6 +37,7 @@ export function NumberField({
         type="number"
         step="any"
         value={local}
+        disabled={disabled}
         onChange={(e) => setLocal(e.target.value)}
         onFocus={() => {
           isFocused.current = true
