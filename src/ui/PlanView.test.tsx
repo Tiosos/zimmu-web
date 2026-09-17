@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PlanView } from './PlanView'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
@@ -38,6 +38,46 @@ const twoInARun = () =>
 const draw = (scene: Scene, selected: string | null = null, onSelect = vi.fn(), onDrop = vi.fn()) => {
   render(<PlanView scene={scene} selectedId={selected} onSelect={onSelect} onDrop={onDrop} />)
   return { onSelect, onDrop }
+}
+
+
+// happy-dom gives every element a zero rect, so the component cannot know its own scale. Pin one
+// so the pixel-to-millimetre conversion is exercised at a known ratio.
+const pinScale = () => {
+  const svg = screen.getByRole('img', { name: 'Plan view' })
+  vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({
+    x: 0,
+    y: 0,
+    width: 1450,
+    height: 1000,
+    top: 0,
+    left: 0,
+    right: 1450,
+    bottom: 1000,
+    toJSON: () => ({}),
+  } as DOMRect)
+}
+
+// Each phase is act()-wrapped because the pointer listeners are attached by an effect: without a
+// flush between pointerdown and pointermove, the move lands before anything is listening.
+const dragBy = (testId: string, from: [number, number], to: [number, number]) => {
+  pinScale()
+  const el = screen.getByTestId(testId)
+  act(() => {
+    el.dispatchEvent(
+      new PointerEvent('pointerdown', { clientX: from[0], clientY: from[1], bubbles: true }),
+    )
+  })
+  act(() => {
+    window.dispatchEvent(
+      new PointerEvent('pointermove', { clientX: to[0], clientY: to[1], bubbles: true }),
+    )
+  })
+  act(() => {
+    window.dispatchEvent(
+      new PointerEvent('pointerup', { clientX: to[0], clientY: to[1], bubbles: true }),
+    )
+  })
 }
 
 describe('PlanView', () => {
@@ -100,5 +140,46 @@ describe('PlanView', () => {
   it('says so when the job has no cabinets', () => {
     draw(sceneOf([]))
     expect(screen.getByText(/no cabinets/i)).toBeTruthy()
+  })
+
+  it('applies the drop a drag lands on', () => {
+    const onDrop = vi.fn()
+    render(<PlanView scene={twoInARun()} selectedId={null} onSelect={vi.fn()} onDrop={onDrop} />)
+    dragBy('plan-cabinet-cmp_b', [700, 100], [900, 100])
+    expect(onDrop).toHaveBeenCalledTimes(1)
+    expect(onDrop.mock.calls[0][0]).toBe('cmp_b')
+  })
+
+  it('moves the dragged cabinet along x, not backwards into the job', () => {
+    const onDrop = vi.fn()
+    render(<PlanView scene={twoInARun()} selectedId={null} onSelect={vi.fn()} onDrop={onDrop} />)
+    const before = twoInARun().components.find((c) => c.id === 'cmp_b')
+    dragBy('plan-cabinet-cmp_b', [700, 100], [900, 100])
+
+    const dropped = onDrop.mock.calls[0][1]
+    expect(before?.kind).toBe('carcase')
+    if (before?.kind !== 'carcase') return
+    expect(dropped.x).toBeGreaterThan(before.position.x)
+    expect(dropped.y).toBeCloseTo(before.position.y, 6)
+    // A plan is seen from above; a drag cannot change a cabinet's height off the floor.
+    expect(dropped.z).toBeCloseTo(before.position.z, 6)
+  })
+
+  // Dragging UP the screen must move a cabinet FURTHER BACK in world y, which is the sign flip
+  // toSvg implies. Getting it backwards drags every cabinet the wrong way and looks fine until you
+  // watch one.
+  it('reads a drag up the screen as a move towards the back', () => {
+    const onDrop = vi.fn()
+    render(<PlanView scene={twoInARun()} selectedId={null} onSelect={vi.fn()} onDrop={onDrop} />)
+    // clientY DECREASING is up the screen.
+    dragBy('plan-cabinet-cmp_b', [700, 500], [700, 100])
+    expect(onDrop.mock.calls[0][1].y).toBeGreaterThan(0)
+  })
+
+  it('does not report a drop for a click that never moved', () => {
+    const onDrop = vi.fn()
+    render(<PlanView scene={twoInARun()} selectedId={null} onSelect={vi.fn()} onDrop={onDrop} />)
+    dragBy('plan-cabinet-cmp_b', [700, 100], [700, 100])
+    expect(onDrop).not.toHaveBeenCalled()
   })
 })

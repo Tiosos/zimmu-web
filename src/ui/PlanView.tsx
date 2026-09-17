@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CarcaseComponent, ComponentId, Scene, Vec3 } from '../scene/types'
 import { worldBoundsOf } from '../scene/carcaseWorldBounds'
 import { runsOf } from '../scene/runs'
@@ -17,10 +17,41 @@ const PADDING = 200
 
 const RUN_INSET = 20
 
+interface Drag {
+  id: ComponentId
+  // Where the pointer went down, in client pixels.
+  fromX: number
+  fromY: number
+  // The cabinet's position when the drag began. Captured here rather than looked up on drop, so
+  // the delta is measured against one fixed origin however the scene re-renders mid-drag.
+  start: Vec3
+  // How far it has moved since, in millimetres.
+  dx: number
+  dy: number
+}
+
+interface Frame {
+  xMin: number
+  yMax: number
+  width: number
+  height: number
+}
+
+// Pointer deltas arrive in client pixels and everything else here is millimetres. With
+// `preserveAspectRatio="xMidYMid meet"` the SVG picks the SMALLER of the two axis scales so the
+// whole viewBox fits, so millimetres-per-pixel is the LARGER of the two ratios. Using the x ratio
+// alone would drag at the wrong rate whenever the pane is the tall one.
+function mmPerPixel(svg: SVGSVGElement | null, frame: Frame): number {
+  const rect = svg?.getBoundingClientRect()
+  if (rect === undefined || rect.width === 0 || rect.height === 0) return 0
+  return Math.max(frame.width / rect.width, frame.height / rect.height)
+}
+
 export function PlanView({
   scene,
   selectedId,
   onSelect,
+  onDrop,
 }: {
   scene: Scene
   selectedId: ComponentId | null
@@ -40,7 +71,53 @@ export function PlanView({
     [scene.components, scene.materials],
   )
 
-  if (boxes.length === 0) {
+  // Computed above the empty-job guard, because hooks below it would not run — and the drag effect
+  // needs the frame to know what a pixel is worth.
+  const frame = useMemo((): Frame | null => {
+    if (boxes.length === 0) return null
+    const xMin = Math.min(...boxes.map(({ b }) => b.x0))
+    const xMax = Math.max(...boxes.map(({ b }) => b.x1))
+    const yMin = Math.min(...boxes.map(({ b }) => b.y0))
+    const yMax = Math.max(...boxes.map(({ b }) => b.y1))
+    return {
+      xMin,
+      yMax,
+      width: xMax - xMin + PADDING * 2,
+      height: yMax - yMin + PADDING * 2,
+    }
+  }, [boxes])
+
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [drag, setDrag] = useState<Drag | null>(null)
+
+  // The handlers close over `drag` directly, so each move resubscribes. That is deliberate: a ref
+  // written during render is what the lint rule forbids, and a few listener swaps per gesture cost
+  // nothing.
+  //
+  // Listeners go on `window`, not the rect: a fast drag outruns the pointer and leaves the element,
+  // and a drag that stopped tracking halfway is worse than one that never started.
+  useEffect(() => {
+    if (drag === null || frame === null) return
+    const move = (e: PointerEvent) => {
+      const mm = mmPerPixel(svgRef.current, frame)
+      setDrag({ ...drag, dx: (e.clientX - drag.fromX) * mm, dy: -(e.clientY - drag.fromY) * mm })
+    }
+    const up = () => {
+      setDrag(null)
+      // A click is a drag of zero length. Reporting one would rewrite the cabinet's anchor on every
+      // selection, which is the difference between picking a cabinet and moving it.
+      if (drag.dx === 0 && drag.dy === 0) return
+      onDrop(drag.id, { x: drag.start.x + drag.dx, y: drag.start.y + drag.dy, z: drag.start.z })
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+  }, [drag, frame, onDrop])
+
+  if (frame === null) {
     return (
       <div className="flex-1 min-w-0 flex items-center justify-center">
         <p className="text-[11px] text-muted-foreground">
@@ -50,26 +127,19 @@ export function PlanView({
     )
   }
 
-  const xMin = Math.min(...boxes.map(({ b }) => b.x0))
-  const xMax = Math.max(...boxes.map(({ b }) => b.x1))
-  const yMin = Math.min(...boxes.map(({ b }) => b.y0))
-  const yMax = Math.max(...boxes.map(({ b }) => b.y1))
-
   // The one place world space becomes screen space. World y is measured back from the fronts and
   // SVG y down from the top, so the far edge is subtracted rather than scaled.
   const toSvg = (x0: number, y0: number, y1: number) => ({
-    x: x0 - xMin + PADDING,
-    y: yMax - y1 + PADDING,
+    x: x0 - frame.xMin + PADDING,
+    y: frame.yMax - y1 + PADDING,
     height: y1 - y0,
   })
-
-  const width = xMax - xMin + PADDING * 2
-  const height = yMax - yMin + PADDING * 2
 
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-muted/30">
       <svg
-        viewBox={`0 0 ${width} ${height}`}
+        ref={svgRef}
+        viewBox={`0 0 ${frame.width} ${frame.height}`}
         role="img"
         aria-label="Plan view"
         className="w-full h-full max-h-full"
@@ -102,14 +172,20 @@ export function PlanView({
           const { x, y, height: h } = toSvg(b.x0, b.y0, b.y1)
           const w = b.x1 - b.x0
           const isSelected = c.id === selectedId
+          // The live drag offset, so the footprint follows the pointer before the scene has been
+          // told anything. World y grows towards the back and screen y down, so it flips — the same
+          // subtraction `toSvg` makes, written as a negation of `dy` rather than re-derived.
+          const live = drag !== null && drag.id === c.id
+          const ox = live ? drag.dx : 0
+          const oy = live ? -drag.dy : 0
           return (
             <g key={c.id}>
               <rect
                 data-testid={`plan-cabinet-${c.id}`}
                 data-selected={isSelected}
                 data-anchored={c.anchor !== undefined}
-                x={x}
-                y={y}
+                x={x + ox}
+                y={y + oy}
                 width={w}
                 height={h}
                 className={
@@ -119,12 +195,22 @@ export function PlanView({
                 }
                 strokeWidth={isSelected ? 8 : 3}
                 onClick={() => onSelect(c.id)}
+                onPointerDown={(e) =>
+                  setDrag({
+                    id: c.id,
+                    fromX: e.clientX,
+                    fromY: e.clientY,
+                    start: c.position,
+                    dx: 0,
+                    dy: 0,
+                  })
+                }
               />
               {/* pointer-events-none keeps the label from swallowing the click that selects the
                   footprint it sits on — the same trap SectionElevation's cell numbers hit. */}
               <text
-                x={x + w / 2}
-                y={y + h / 2}
+                x={x + ox + w / 2}
+                y={y + oy + h / 2}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 className="fill-muted-foreground pointer-events-none"
