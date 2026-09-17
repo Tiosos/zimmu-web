@@ -36,7 +36,16 @@ const twoInARun = () =>
   ])
 
 const draw = (scene: Scene, selected: string | null = null, onSelect = vi.fn(), onDrop = vi.fn()) => {
-  render(<PlanView scene={scene} selectedId={selected} onSelect={onSelect} onDrop={onDrop} />)
+  render(
+    <PlanView
+      scene={scene}
+      selectedId={selected}
+      onSelect={onSelect}
+      onDrop={onDrop}
+      onTurn={vi.fn()}
+      warnings={[]}
+    />,
+  )
   return { onSelect, onDrop }
 }
 
@@ -144,7 +153,16 @@ describe('PlanView', () => {
 
   it('applies the drop a drag lands on', () => {
     const onDrop = vi.fn()
-    render(<PlanView scene={twoInARun()} selectedId={null} onSelect={vi.fn()} onDrop={onDrop} />)
+    render(
+      <PlanView
+        scene={twoInARun()}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onDrop={onDrop}
+        onTurn={vi.fn()}
+        warnings={[]}
+      />,
+    )
     dragBy('plan-cabinet-cmp_b', [700, 100], [900, 100])
     expect(onDrop).toHaveBeenCalledTimes(1)
     expect(onDrop.mock.calls[0][0]).toBe('cmp_b')
@@ -152,7 +170,16 @@ describe('PlanView', () => {
 
   it('moves the dragged cabinet along x, not backwards into the job', () => {
     const onDrop = vi.fn()
-    render(<PlanView scene={twoInARun()} selectedId={null} onSelect={vi.fn()} onDrop={onDrop} />)
+    render(
+      <PlanView
+        scene={twoInARun()}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onDrop={onDrop}
+        onTurn={vi.fn()}
+        warnings={[]}
+      />,
+    )
     const before = twoInARun().components.find((c) => c.id === 'cmp_b')
     dragBy('plan-cabinet-cmp_b', [700, 100], [900, 100])
 
@@ -170,7 +197,16 @@ describe('PlanView', () => {
   // watch one.
   it('reads a drag up the screen as a move towards the back', () => {
     const onDrop = vi.fn()
-    render(<PlanView scene={twoInARun()} selectedId={null} onSelect={vi.fn()} onDrop={onDrop} />)
+    render(
+      <PlanView
+        scene={twoInARun()}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onDrop={onDrop}
+        onTurn={vi.fn()}
+        warnings={[]}
+      />,
+    )
     // clientY DECREASING is up the screen.
     dragBy('plan-cabinet-cmp_b', [700, 500], [700, 100])
     expect(onDrop.mock.calls[0][1].y).toBeGreaterThan(0)
@@ -178,8 +214,58 @@ describe('PlanView', () => {
 
   it('does not report a drop for a click that never moved', () => {
     const onDrop = vi.fn()
-    render(<PlanView scene={twoInARun()} selectedId={null} onSelect={vi.fn()} onDrop={onDrop} />)
+    render(
+      <PlanView
+        scene={twoInARun()}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onDrop={onDrop}
+        onTurn={vi.fn()}
+        warnings={[]}
+      />,
+    )
     dragBy('plan-cabinet-cmp_b', [700, 100], [700, 100])
     expect(onDrop).not.toHaveBeenCalled()
+  })
+
+  it('offers a turn control for the selected cabinet', () => {
+    draw(twoInARun(), 'cmp_b')
+    expect(screen.getByRole('button', { name: /rotate/i })).toBeTruthy()
+  })
+
+  it('offers no turn control when nothing is selected', () => {
+    draw(twoInARun())
+    expect(screen.queryByRole('button', { name: /rotate/i })).toBeNull()
+  })
+
+  it('asks to turn the selected cabinet', async () => {
+    const onTurn = vi.fn()
+    render(
+      <PlanView
+        scene={twoInARun()}
+        selectedId="cmp_b"
+        onSelect={vi.fn()}
+        onDrop={vi.fn()}
+        onTurn={onTurn}
+        warnings={[]}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: /rotate/i }))
+    expect(onTurn).toHaveBeenCalledWith('cmp_b')
+  })
+
+  it('marks the cabinet the corner check warns about and no other', () => {
+    render(
+      <PlanView
+        scene={twoInARun()}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onDrop={vi.fn()}
+        onTurn={vi.fn()}
+        warnings={[{ cabinetId: 'cmp_b', targetId: 'cmp_a', required: 560, available: 340 }]}
+      />,
+    )
+    expect(screen.getByTestId('plan-cabinet-cmp_b').getAttribute('data-warned')).toBe('true')
+    expect(screen.getByTestId('plan-cabinet-cmp_a').getAttribute('data-warned')).toBe('false')
   })
 })
