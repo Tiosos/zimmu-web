@@ -457,4 +457,33 @@ describe('hasAnyFront', () => {
     }
     expect(hasAnyFront(root)).toBe(false)
   })
+
+  // Nested two levels deep on purpose: a one-level check on each child (rather than a genuine
+  // recursive call) would miss the front buried in the first child's own split and wrongly say
+  // false. Flattening this fixture back to one level loses that coverage.
+  it('finds a front two levels down a nested split', () => {
+    const root: Section = {
+      id: 'sec_root' as SectionId,
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        division: 'panel',
+        children: [
+          {
+            id: 'sec_inner' as SectionId,
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              division: 'panel',
+              children: [leaf({ kind: 'door', leaves: 1, hinge: 'left' }), leaf()],
+            },
+          },
+          leaf(),
+        ],
+      },
+    }
+    expect(hasAnyFront(root)).toBe(true)
+  })
 })
