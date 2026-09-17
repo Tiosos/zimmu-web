@@ -4,6 +4,7 @@ import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { splitSection } from './editSection'
 import { setFrontOn } from './sectionInterior'
 import type { Anchor, CarcaseComponent, CarcaseParams, Component } from './types'
+import type { FrontSpec } from './sectionTree'
 
 const base = CARCASE_PRESETS[0].params
 
@@ -16,6 +17,16 @@ function blindParams(width: number): CarcaseParams {
   const [accessible, blind] = split.content.children
   let tree = setFrontOn(split, accessible.id, { kind: 'door', leaves: 1, hinge: 'left' })
   tree = setFrontOn(tree, blind.id, undefined)
+  return { ...base, width, section: tree }
+}
+
+// The same blind unit, but with the blind leaf wearing a given dead front instead of nothing.
+function blindParamsWithFront(width: number, front: FrontSpec): CarcaseParams {
+  const split = splitSection(base.section, base.section.id, 'vertical', 'panel', 2)
+  if (split.content.kind !== 'split') throw new Error('fixture did not split')
+  const [accessible, blind] = split.content.children
+  let tree = setFrontOn(split, accessible.id, { kind: 'door', leaves: 1, hinge: 'left' })
+  tree = setFrontOn(tree, blind.id, front)
   return { ...base, width, section: tree }
 }
 
@@ -47,6 +58,29 @@ describe('blindWidthOf', () => {
     // Half of a 1200 cabinet, less the sides and the partition it shares.
     expect(w!).toBeGreaterThan(500)
     expect(w!).toBeLessThan(600)
+  })
+
+  // 'panel' and 'false-front' are dead fronts OVER the corner, so a leaf wearing one is still
+  // blind. Each needs its own case: the fixtures all used a bare opening, so both branches of the
+  // blind test went unexercised and dropping either from the rule killed nothing — measured.
+  it('counts a leaf wearing a panel as blind', () => {
+    const bare = blindWidthOf(cab('cmp_b', blindParams(1200)), PRESET_MATERIALS)
+    const panelled = blindWidthOf(
+      cab('cmp_b', blindParamsWithFront(1200, { kind: 'panel' })),
+      PRESET_MATERIALS,
+    )
+    expect(panelled).toBe(bare)
+    expect(panelled!).toBeGreaterThan(0)
+  })
+
+  it('counts a leaf wearing a false front as blind', () => {
+    const bare = blindWidthOf(cab('cmp_b', blindParams(1200)), PRESET_MATERIALS)
+    const falseFront = blindWidthOf(
+      cab('cmp_b', blindParamsWithFront(1200, { kind: 'false-front' })),
+      PRESET_MATERIALS,
+    )
+    expect(falseFront).toBe(bare)
+    expect(falseFront!).toBeGreaterThan(0)
   })
 
   it('counts nothing when every leaf wears a door', () => {
