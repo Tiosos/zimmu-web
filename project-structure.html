@@ -394,6 +394,11 @@
             <td><code>scene/runs.ts</code>, <code>scene/dragAnchor.ts</code>, <code>ui/PlanView.tsx</code></td>
           </tr>
           <tr>
+            <td><strong>Corners</strong><br><span style="color:var(--muted);font-size:12px">An L-shape: turn a cabinet from the plan view — a rotation plus the compensating translation, so it turns about its footprint centre rather than its own corner — inherit the target's rotation on a corner drop, and flag a blind portion narrower than the run returning into it</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/turnCabinet.ts</code>, <code>scene/blindCorner.ts</code>, <code>scene/dragAnchor.ts</code>, <code>ui/PlanView.tsx</code></td>
+          </tr>
+          <tr>
             <td><strong>FSAPI fallback for non-Chromium browsers</strong></td>
             <td><span class="badge badge-yellow">Planned</span></td>
             <td>—</td>
@@ -545,6 +550,8 @@
 │   │   └── sweep.ts
 │   ├── anchor.test.ts
 │   ├── anchor.ts
+│   ├── blindCorner.test.ts
+│   ├── blindCorner.ts
 │   ├── carcaseBounds.test.ts
 │   ├── carcaseBounds.ts
 │   ├── carcaseHardware.test.ts
@@ -625,6 +632,8 @@
 │   ├── suggestionOutline.ts
 │   ├── suggestJoints.test.ts
 │   ├── suggestJoints.ts
+│   ├── turnCabinet.test.ts
+│   ├── turnCabinet.ts
 │   ├── types.ts
 │   ├── useAddCut.test.ts
 │   ├── useAddCut.ts
@@ -1360,7 +1369,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->102<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->104<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1521,7 +1530,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-06-driven-hardware.md
     │   ├── 2026-09-12-drawer-boxes.md
     │   ├── 2026-09-14-cabinet-placement-stage-1-primitive.md
-    │   └── 2026-09-17-cabinet-placement-stage-2-adjacency.md
+    │   ├── 2026-09-17-cabinet-placement-stage-2-adjacency.md
+    │   └── 2026-09-17-cabinet-placement-stage-3-corners.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
