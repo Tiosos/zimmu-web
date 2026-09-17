@@ -88,6 +88,10 @@ describe('carcaseBounds', () => {
     expect(boundsOf(params({ baseMode: 'ladder', toeKickHeight: 120 })).z0).toBe(0)
   })
 
+  it('legs do not lift the shell — there is no leg-height parameter to lift it by', () => {
+    expect(boundsOf(params({ baseMode: 'legs' })).z0).toBe(0)
+  })
+
   it('width and height are the params, untouched', () => {
     const b = boundsOf(params({ width: 900, height: 2100 }))
     expect([b.x0, b.x1, b.z1]).toEqual([0, 900, 2100])

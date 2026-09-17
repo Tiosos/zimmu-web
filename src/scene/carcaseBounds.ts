@@ -2,8 +2,10 @@ import type { CarcaseParams } from './types'
 import type { RoleThickness } from './resolveThickness'
 import { hasAnyFront } from './sectionTree'
 
-// Axis-aligned box in a carcase's own frame. Named `Bounds3` rather than reusing `LocalBox` because
-// this is a whole cabinet's envelope, not a panel's box, and the two must not be swapped by accident.
+// Axis-aligned box in a carcase's own frame. Named `Bounds3` rather than reusing `LocalBox` — the
+// two are structurally identical, so TypeScript would accept either in the other's place — because
+// this is a whole cabinet's envelope, not a panel's box, and a reader should never have to check
+// which one a given box is.
 export interface Bounds3 {
   x0: number
   x1: number
