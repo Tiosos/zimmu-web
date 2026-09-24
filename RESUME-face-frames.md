@@ -19,7 +19,7 @@ Delete this file when stage 1 is finished — it is a handover note, not documen
 | `3dea8a2` feat: the face frame's geometry, stated once | **committed, NOT pushed** |
 | `cf8c06c` chore: record the stopped state (Task 2 + this note) | **committed, NOT pushed** |
 
-**The working tree is clean and both local commits are unpushed.** Task 2's code was
+**The working tree is clean.** Task 2's code was
 committed *with* this note rather than left dirty, so nothing depends on an unsaved
 buffer. It is mid-task, not mid-failure: Task 2 is code-complete but **unverified**,
 so treat `cf8c06c` as a checkpoint, not as a finished task.
