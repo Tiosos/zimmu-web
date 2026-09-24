@@ -40,8 +40,8 @@ Task 2 is code-complete and `pnpm typecheck` exits **0**. It stopped at the
 **verify** step, before `pnpm lint` and the full `pnpm test` had been run and
 before the commit.
 
-**Resume at Task 3 of the plan** (the frame material slot in `resolveThickness.ts`).
-Tasks 0-2 are done and verified.
+**Resume at Task 4 of the plan** (grain on a frame member, `grain.ts`).
+Tasks 0-3 are done and verified; the suite stood at **108 files / 2087 passed** after Task 3.
 
 Baseline to compare against (measured at Task 0, on `75619f3`):
 **107 files, 2070 passed, 10 skipped**; typecheck 0, lint 0.
