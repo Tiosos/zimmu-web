@@ -6,6 +6,7 @@ import type { ExportSpec } from '../geom/occt'
 import type {
   BoardPart,
   CarcaseComponent,
+  FaceFrameParams,
   Component,
   ComponentId,
   GroupComponent,
@@ -150,6 +151,7 @@ export interface UseSceneResult {
   onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
   onAddComponent: (parentId: ComponentId | null) => void
   onAddCarcase: (preset: CarcasePreset) => void
+  onSetFrame: (id: ComponentId, frame: FaceFrameParams | undefined) => void
   onDetachPart: (id: PartId, updater?: (p: Part) => Part) => void
   parameterFor: (
     id: PartId,
@@ -1278,6 +1280,36 @@ export function useScene(): UseSceneResult {
     [commitReconciled],
   )
 
+  // Turning a frame on is the moment a cabinet first needs its frame material, and an old file
+  // does not carry it — the migration deliberately adds none. So it is added here, in the same undo
+  // step as the frame: one gesture, one entry. Only when the scene has no material of that name at
+  // all, so a user's own definition of it is never overwritten.
+  const onSetFrame = useCallback(
+    (id: ComponentId, frame: FaceFrameParams | undefined) => {
+      commitReconciled(
+        (before) => {
+          const cabinet = before.components.find((c) => c.id === id)
+          if (cabinet?.kind !== 'carcase') return before
+          const name = cabinet.params.frameMaterial
+          const seed = frame !== undefined && before.materials[name] === undefined
+          const preset = PRESET_MATERIALS[name]
+          return {
+            ...before,
+            materials:
+              seed && preset !== undefined
+                ? { ...before.materials, [name]: preset }
+                : before.materials,
+            components: before.components.map((c) =>
+              c.id === id && c.kind === 'carcase' ? { ...c, params: { ...c.params, frame } } : c,
+            ),
+          }
+        },
+        frame === undefined ? 'Remove face frame' : 'Add face frame',
+      )
+    },
+    [commitReconciled],
+  )
+
   const onRemoveComponent = useCallback(
     (id: ComponentId) => {
       const doomed = new Set<ComponentId>([
@@ -1428,6 +1460,7 @@ export function useScene(): UseSceneResult {
     onAddTongueGroove,
     onAddComponent,
     onAddCarcase,
+    onSetFrame,
     onDetachPart,
     parameterFor,
     onRemoveComponent,

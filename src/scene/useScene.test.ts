@@ -44,7 +44,7 @@ import { useScene, buildSpecForPart, applyPipeline } from './useScene'
 import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { resolveWorldMatrix } from '../geom/transform'
 import { componentsById } from './componentTree'
-import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
+import { CARCASE_PRESETS, DEFAULT_FRAME_MATERIAL, PRESET_MATERIALS } from './carcasePresets'
 import { freshSectionIds } from './sectionTree'
 import { carcaseRoles } from './carcaseRoles'
 import { setFrontOn } from './sectionInterior'
@@ -2448,6 +2448,74 @@ describe('carcase generation', () => {
     expect(driven.every((p) => p.parentId === component.id)).toBe(true)
   })
 
+  describe('onSetFrame', () => {
+    const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+    const frameBoards = (scene: Scene) => {
+      const frame = scene.components.find((c) => c.kind === 'faceFrame')
+      return frame === undefined ? [] : scene.parts.filter((p) => p.parentId === frame.id)
+    }
+
+    it('gives the cabinet a frame and its boards', () => {
+      const { result } = renderHook(() => useScene())
+      act(() => result.current.onAddCarcase(base))
+      const id = result.current.scene.components[0].id
+      act(() => result.current.onSetFrame(id, FRAME))
+      expect(frameBoards(result.current.scene)).toHaveLength(4)
+    })
+
+    // An old file names the slot but carries no such material — the migration deliberately adds
+    // none. Turning a frame on is when the cabinet first needs it, so that is when it is added:
+    // otherwise the first frame on an old cabinet reads "has no thickness" and builds nothing.
+    it('adds the frame material when the scene lacks it', () => {
+      const { result } = renderHook(() => useScene())
+      act(() => result.current.onAddCarcase(base))
+      const { [DEFAULT_FRAME_MATERIAL]: _gone, ...old } = result.current.scene.materials
+      void _gone
+      act(() => result.current.replaceScene({ ...result.current.scene, materials: old }))
+      const id = result.current.scene.components[0].id
+      act(() => result.current.onSetFrame(id, FRAME))
+      expect(result.current.scene.materials[DEFAULT_FRAME_MATERIAL]).toEqual(
+        PRESET_MATERIALS[DEFAULT_FRAME_MATERIAL],
+      )
+      expect(frameBoards(result.current.scene)).toHaveLength(4)
+    })
+
+    it("never overwrites the user's own definition of it", () => {
+      const { result } = renderHook(() => useScene())
+      act(() => result.current.onAddCarcase(base))
+      const own = { thickness: 20, costPerM2: 99 }
+      act(() => result.current.onUpdateMaterial(DEFAULT_FRAME_MATERIAL, own))
+      const id = result.current.scene.components[0].id
+      act(() => result.current.onSetFrame(id, FRAME))
+      expect(result.current.scene.materials[DEFAULT_FRAME_MATERIAL]).toEqual(own)
+    })
+
+    // One gesture, one undo: the frame and the material it brought go together.
+    it('undoes the frame and the material it added in one step', () => {
+      const { result } = renderHook(() => useScene())
+      act(() => result.current.onAddCarcase(base))
+      const { [DEFAULT_FRAME_MATERIAL]: _gone, ...old } = result.current.scene.materials
+      void _gone
+      act(() => result.current.replaceScene({ ...result.current.scene, materials: old }))
+      const id = result.current.scene.components[0].id
+      act(() => result.current.onSetFrame(id, FRAME))
+      act(() => result.current.undo())
+      expect(result.current.scene.materials).toEqual(old)
+      expect(result.current.scene.components.some((c) => c.kind === 'faceFrame')).toBe(false)
+    })
+
+    it('takes the frame away again, and leaves the materials alone', () => {
+      const { result } = renderHook(() => useScene())
+      act(() => result.current.onAddCarcase(base))
+      const id = result.current.scene.components[0].id
+      act(() => result.current.onSetFrame(id, FRAME))
+      const materials = result.current.scene.materials
+      act(() => result.current.onSetFrame(id, undefined))
+      expect(frameBoards(result.current.scene)).toEqual([])
+      expect(result.current.scene.materials).toBe(materials)
+    })
+  })
+
   it('resizes driven parts when a parameter changes', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(base))
@@ -2806,12 +2874,11 @@ describe('the regeneration pipeline', () => {
   it('gives a framed cabinet its frame and four boards', () => {
     const scene = applyPipeline(framed())
     expect(scene.components.filter((c) => c.kind === 'faceFrame')).toHaveLength(1)
-    expect(frameBoardsIn(scene).map((p) => p.role).sort()).toEqual([
-      'rail-bottom',
-      'rail-top',
-      'stile-left',
-      'stile-right',
-    ])
+    expect(
+      frameBoardsIn(scene)
+        .map((p) => p.role)
+        .sort(),
+    ).toEqual(['rail-bottom', 'rail-top', 'stile-left', 'stile-right'])
   })
 
   it('is idempotent on a framed cabinet', () => {
