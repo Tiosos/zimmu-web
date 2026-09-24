@@ -18,6 +18,7 @@ import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { legacyToSection } from './migrateSections'
 import { regenerateComponents } from './regenerateComponents'
 import { regenerateDrawers } from './regenerateDrawers'
+import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { setFrontOn } from './sectionInterior'
 
 const NO_COMPONENTS = componentsById([])
@@ -540,5 +541,91 @@ describe('a drawer box declares its own internal contacts', () => {
     const boxRows = boxPairRows(c, scene)
     expect(boxRows).toHaveLength(8)
     expect(boxRows.every((r) => r.state === 'contact')).toBe(true)
+  })
+})
+
+// The spec: "the frame declares its internal contacts so the joinery checklist does not report
+// them as open". And two more by precedent — a frame fixed onto the carcase's front edges is the
+// mirror of an applied back screwed onto its rear ones, and a door hung on the frame is the overlay
+// front's contact one surface further out.
+describe('a face frame declares its contacts', () => {
+  const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+  const framedScene = (...cabinets: CarcaseComponent[]): Scene =>
+    regenerateComponents(
+      regenerateFaceFrames({
+        parts: [],
+        materials: { ...PRESET_MATERIALS },
+        hardware: [],
+        joints: [],
+        components: cabinets,
+      }),
+    )
+  const framedCab = (over: Partial<CarcaseParams> = {}) =>
+    carcase('cmp_1', 'Base 600', { frame: FRAME, ...over })
+
+  const frameId = (scene: Scene, cabinetId: ComponentId) =>
+    scene.components.find((c) => c.kind === 'faceFrame' && c.parentId === cabinetId)!.id
+
+  // The whole claim: framing a cabinet adds no decision the user has to make.
+  test.each(['overlay', 'half-overlay', 'inset'] as const)(
+    'reads 10 / 10 exactly as the frameless cabinet does (%s)',
+    (frontMount) => {
+      const c = checklistOf(framedScene(framedCab({ frontMount })))
+      expect(c.jointedCount).toBe(10)
+      expect(c.actionableTotal).toBe(10)
+      expect(c.unresolved).toEqual([])
+      expect(c.rows).toEqual([])
+    },
+  )
+
+  test('marks the four stile–rail pairs as contact', () => {
+    const scene = framedScene(framedCab())
+    const f = frameId(scene, 'cmp_1')
+    const c = checklistOf(scene)
+    for (const stile of ['stile-left', 'stile-right'])
+      for (const rail of ['rail-top', 'rail-bottom'])
+        expect(rowWith(c.contact, idOfRole(scene, f, stile), idOfRole(scene, f, rail))?.state).toBe(
+          'contact',
+        )
+  })
+
+  test('marks the frame on the carcase edges as contact', () => {
+    const scene = framedScene(framedCab())
+    const f = frameId(scene, 'cmp_1')
+    const c = checklistOf(scene)
+    expect(
+      rowWith(c.contact, idOfRole(scene, f, 'stile-left'), idOfRole(scene, 'cmp_1', 'left-side')),
+    ).toBeDefined()
+    expect(
+      rowWith(c.contact, idOfRole(scene, f, 'rail-bottom'), idOfRole(scene, 'cmp_1', 'bottom')),
+    ).toBeDefined()
+  })
+
+  // Overlay: the door lands on the frame now, not on the carcase — four contacts moved one
+  // surface out. Inset: the door stands in the opening a reveal clear of everything.
+  test('marks an overlay door on the frame as contact, and an inset one as touching nothing', () => {
+    const overlay = framedScene(framedCab({ frontMount: 'overlay' }))
+    const inset = framedScene(framedCab({ frontMount: 'inset' }))
+    const frontRows = (scene: Scene) => {
+      const c = checklistOf(scene)
+      const door = scene.parts.find((p) => p.role?.startsWith('front-'))!.id
+      return [...c.contact, ...c.unresolved, ...c.rows, ...c.groups.flatMap((g) => g.rows)].filter(
+        (r) => r.aId === door || r.bId === door,
+      )
+    }
+    expect(frontRows(overlay)).toHaveLength(4)
+    expect(frontRows(overlay).every((r) => r.state === 'contact')).toBe(true)
+    expect(frontRows(inset)).toEqual([])
+  })
+
+  // Role names repeat in every cabinet, so a pair is honoured only inside one. Two cabinets stood
+  // in the same place put B's stile on A's side exactly where A's own stile is — the same role pair,
+  // touching — and it must stay a row the user sees rather than borrow A's declaration.
+  test('does not declare a stile of one cabinet against the side of another', () => {
+    const scene = framedScene(framedCab(), carcase('cmp_2', 'Other', { frame: FRAME }))
+    const c = checklistOf(scene)
+    const theirStile = idOfRole(scene, frameId(scene, 'cmp_2'), 'stile-left')
+    const mySide = idOfRole(scene, 'cmp_1', 'left-side')
+    expect(rowWith(c.contact, theirStile, mySide)).toBeUndefined()
   })
 })

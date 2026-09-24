@@ -9,6 +9,8 @@ const MATERIALS: Record<string, MaterialDef> = {
   Ply18: { costPerM2: 40, thickness: 18 },
   Ply6: { costPerM2: 20, thickness: 6 },
   Oak20: { costPerM2: 90, thickness: 20 },
+  // A frame deeper than the 20 mm door, so a frame counted as a door — or the reverse — shows.
+  Maple25: { costPerM2: 120, thickness: 25 },
 }
 
 const NO_OVERRIDES = new Map<string, PartOverrides>()
@@ -77,6 +79,38 @@ describe('carcaseBounds', () => {
   // nothing in front of y = 0 however it is mounted.
   it('an overlay cabinet with no fronts reaches nowhere in front', () => {
     expect(boundsOf(params({ section: bareLeaf(), frontMount: 'overlay' })).y0).toBe(0)
+  })
+
+  describe('on a face frame', () => {
+    const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+    const framed = (over: Partial<CarcaseParams>) =>
+      params({ frame: FRAME, frameMaterial: 'Maple25', ...over })
+
+    // The frame stands in front of the carcase and the door stands on the frame: both count.
+    it('an overlay door reaches the frame and its own thickness forward', () => {
+      expect(boundsOf(framed({ section: doorLeaf() })).y0).toBe(-45)
+    })
+
+    // Half-overlay protrudes exactly as overlay does. A rule that asked `=== 'overlay'` would
+    // count its door as nothing.
+    it('so does a half-overlay door', () => {
+      expect(boundsOf(framed({ section: doorLeaf(), frontMount: 'half-overlay' })).y0).toBe(-45)
+    })
+
+    it('an inset door sits in the frame, so only the frame counts', () => {
+      expect(boundsOf(framed({ section: doorLeaf(), frontMount: 'inset' })).y0).toBe(-25)
+    })
+
+    // A frame is material whether or not anything hangs on it.
+    it('a frame with no fronts still reaches forward', () => {
+      expect(boundsOf(framed({ section: bareLeaf() })).y0).toBe(-25)
+    })
+
+    // Stage 1 declines to frame a drawer: nothing is built, so nothing is counted.
+    it('a frame stage 1 declines counts for nothing', () => {
+      const drawer: Section = { ...bareLeaf(), front: { kind: 'drawer-front' } }
+      expect(boundsOf(framed({ section: drawer })).y0).toBe(-20)
+    })
   })
 
   // The case that rules out anchoring on the structural shell. The shell starts at floorZ = 100;

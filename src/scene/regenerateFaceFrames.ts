@@ -1,5 +1,5 @@
 import type { CarcaseComponent, Component, ComponentId, FaceFrameComponent, Part, Scene } from './types'
-import { floorZ, orientedPanel, validateCarcaseParams } from './carcaseRoles'
+import { frontGeometryOf, orientedPanel, validateCarcaseParams } from './carcaseRoles'
 import { faceFrameGeometry } from './faceFrame'
 import { grainAxisOf, grainFieldFor } from './grain'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
@@ -21,10 +21,9 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
   // Safe to read thicknesses below only after this: the validator asks the frame material through
   // the same resolver and reports a missing one as a message rather than a throw.
   if (validateCarcaseParams(p, thicknessOf).length > 0) return null
-  // The same rectangle every front on this cabinet is measured against — `floorZ`, so a toe kick
-  // is recessed behind the frame rather than covered by it.
-  const outer = { x0: 0, x1: p.width, z0: floorZ(p), z1: p.height }
-  const g = faceFrameGeometry(p.section, outer, p.frame)
+  // The same rectangle every front on this cabinet is measured against, so a toe kick is recessed
+  // behind the frame rather than covered by it.
+  const g = faceFrameGeometry(p.section, frontGeometryOf(p).outer, p.frame)
   if (g === null) return []
   return g.members.map((m) => {
     const t = thicknessOf(m.role)

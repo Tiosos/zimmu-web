@@ -40,12 +40,29 @@ Task 2 is code-complete and `pnpm typecheck` exits **0**. It stopped at the
 **verify** step, before `pnpm lint` and the full `pnpm test` had been run and
 before the commit.
 
-**Resume at Task 8 of the plan** (the door mounts to the frame — read the gaps below first).
-Tasks 0-7 are done and verified; the suite stood at **110 files / 2117 passed** after Task 7.
+**Resume at Task 9 of the plan** (file format v20, `useFile.ts`).
+Tasks 0-8 are done and verified; the suite stood at **110 files / 2143 passed** after Task 8.
 
-Task 7 replaced the plan's non-discriminating test (apply twice, compare — passes unwired)
-with one that fails until the stage is wired, plus an identity check that the frame stage
-hands a frameless scene back untouched.
+**Task 8 went well beyond the plan — every gap below is now closed:**
+- `frontGeometryOf(p)` in `carcaseRoles.ts` is the one statement of what fronts are measured
+  against; the validator, the box table, the machining and `regenerateFaceFrames` all read it.
+  It carries the frame's openings only where the frame resolved.
+- Full overlay needed no new x/z rule (the frame's outer edge is the cabinet's). Half-overlay is
+  the existing midline rule applied to the members. Inset measures to the frame opening. The
+  plan's first Task 8 test would have passed unchanged, so it was replaced.
+- Doors stand on the frame (`y` moves by the frame thickness); inset is flush with its face.
+- A framed door gets **no hinge machining** until stage 4 (face-frame hinges), so the BOM
+  lists no hinge — the "door too thin to bore" rule.
+- `carcaseBounds` counts the frame, and counts half-overlay doors (it used to ask
+  `=== 'overlay'`, which would have counted a half-overlay door as zero depth).
+- **The spec said the frame declares its internal contacts; the plan missed it.**
+  `faceFrameContactPairs` declares stile~rail, member~carcase edge (the applied-back
+  precedent) and door~frame, and the checklist honours them only within one cabinet. A framed
+  Base 600 reads 10 / 10 exactly as a frameless one. Measured before: +12 open, +4 unresolved.
+
+**Known, left for later, recorded here so it is not lost:** `insetDepthOf` sets shelves back by
+the full door thickness behind a framed inset door, though that door mostly sits inside the
+frame. Conservative (no collision), just deeper than needed.
 
 **Task 6 deviations:** `reconcileBoards` moved out of `regenerateDrawers.ts` into
 `src/scene/reconcileBoards.ts` (own commit, no behaviour change) so the frame shares the
