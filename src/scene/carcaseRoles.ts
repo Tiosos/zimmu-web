@@ -136,7 +136,9 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
       const message =
         role === 'back'
           ? `backMaterial "${p.backMaterial}" has no thickness`
-          : `carcaseMaterial "${p.carcaseMaterial}" has no thickness`
+          : role.startsWith('stile-') || role.startsWith('rail-')
+            ? `frameMaterial "${p.frameMaterial}" has no thickness`
+            : `carcaseMaterial "${p.carcaseMaterial}" has no thickness`
       if (!unresolved.has(message)) {
         unresolved.add(message)
         errors.push(message)
@@ -161,6 +163,9 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
     thicknessAt('ladder-left')
     thicknessAt('ladder-right')
   }
+  // Only a framed cabinet builds a frame, so only it answers for the frame material. One member
+  // stands for all four: they share one slot.
+  if (p.frame !== undefined) thicknessAt('stile-left')
   // Nothing below this can mean anything while a thickness is unknown.
   if (errors.length > 0) return errors
 
@@ -189,6 +194,27 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
   }
   if (p.backMode !== 'none' && back >= p.depth) {
     errors.push('the back material is thicker than the cabinet is deep')
+  }
+  // Refused rather than quietly hung as overlay: half-overlay laps a stile, and a frameless
+  // cabinet has none to lap.
+  if (p.frontMount === 'half-overlay' && p.frame === undefined) {
+    errors.push('half-overlay needs a face frame')
+  }
+  // Only the frame's own impossibilities refuse the cabinet. A frame stage 1 cannot build — on a
+  // split cabinet, or over a drawer — is NOT an error: an error refuses the whole cabinet, so
+  // ticking "frame" would make it vanish. `faceFrameGeometry` declines the frame instead.
+  if (p.frame !== undefined) {
+    const { stileWidth, railWidth } = p.frame
+    if (stileWidth <= 0 || railWidth <= 0) {
+      errors.push('frame members must be wider than zero')
+    } else if (
+      p.width - 2 * stileWidth <= 0 ||
+      p.height - floorZ(p) - 2 * railWidth <= 0
+    ) {
+      // `floorZ`, because the frame sits on the carcase and the toe kick is recessed behind it —
+      // the same floor the front's own rectangle starts from.
+      errors.push('the face frame leaves no opening')
+    }
   }
   errors.push(...validateSection(p.section))
   // The tree's own rules are about the tree; only the resolved rectangles know whether the cabinet

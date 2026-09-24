@@ -40,11 +40,24 @@ Task 2 is code-complete and `pnpm typecheck` exits **0**. It stopped at the
 **verify** step, before `pnpm lint` and the full `pnpm test` had been run and
 before the commit.
 
-**Resume at Task 5 of the plan** (validation in `carcaseRoles.ts`).
-Tasks 0-4 are done and verified; the suite stood at **108 files / 2090 passed** after Task 4.
+**Resume at Task 6 of the plan** (`regenerateFaceFrames`).
+Tasks 0-5 are done and verified; the suite stood at **108 files / 2099 passed** after Task 5.
 
 Task 4 skipped the plan's "still refuses a role it does not know" test — it already exists at
 `grain.test.ts:90` — and added a board-field check the plan missed instead.
+
+**Task 5 made a decision the plan left open — carry it into Task 11 and the notes.** A
+validation error refuses the *whole* cabinet (`carcaseBoxes` returns `[]`). So only the
+frame's own impossibilities are errors (no opening, zero-width member, half-overlay with no
+frame). A frame stage 1 cannot build — split cabinet, drawer front — is deliberately **not** an
+error, or ticking "frame" would make the cabinet vanish; the geometry declines quietly instead.
+**Task 11 must therefore show a warning** when `frame` is set but `faceFrameGeometry` returns
+null, or the user ticks the box and sees nothing. Task 5 also asks the frame material's
+thickness (framed cabinets only) and names `frameMaterial` in the message — both missing from
+the plan.
+
+**Add to Task 12's mutation table:** validation's `floorZ(p)` → `0` should kill *measures the
+rails from the carcase floor*.
 
 Baseline to compare against (measured at Task 0, on `75619f3`):
 **107 files, 2070 passed, 10 skipped**; typecheck 0, lint 0.

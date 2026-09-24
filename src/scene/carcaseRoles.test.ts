@@ -233,6 +233,74 @@ describe('validateCarcaseParams', () => {
     expect(validateCarcaseParams(base)).toEqual([])
   })
 
+  describe('a face frame', () => {
+    const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+
+    it('accepts a framed cabinet', () => {
+      expect(validateCarcaseParams({ ...base, frame: FRAME })).toEqual([])
+    })
+
+    it('refuses half-overlay on a frameless cabinet', () => {
+      expect(validateCarcaseParams({ ...base, frontMount: 'half-overlay' })).toContain(
+        'half-overlay needs a face frame',
+      )
+    })
+
+    it('allows half-overlay on a framed cabinet', () => {
+      expect(
+        validateCarcaseParams({ ...base, frame: FRAME, frontMount: 'half-overlay' }),
+      ).toEqual([])
+    })
+
+    it('refuses a frame whose stiles leave no opening', () => {
+      expect(validateCarcaseParams({ ...base, frame: { ...FRAME, stileWidth: 300 } })).toContain(
+        'the face frame leaves no opening',
+      )
+    })
+
+    // Measured from the carcase floor, not from the ground: base sits on a 100 mm toe kick, so
+    // rails of 300 leave 720 − 100 − 600 = 20 mm — an opening — while 311 leaves none. A check
+    // that forgot the kick would still see 720 − 622 = 98 mm and pass the cabinet.
+    it('measures the rails from the carcase floor', () => {
+      expect(
+        validateCarcaseParams({ ...base, frame: { ...FRAME, railWidth: 300 } }),
+      ).not.toContain('the face frame leaves no opening')
+      expect(validateCarcaseParams({ ...base, frame: { ...FRAME, railWidth: 311 } })).toContain(
+        'the face frame leaves no opening',
+      )
+    })
+
+    it('refuses a zero-width member', () => {
+      expect(validateCarcaseParams({ ...base, frame: { ...FRAME, railWidth: 0 } })).toContain(
+        'frame members must be wider than zero',
+      )
+    })
+
+    // The validator is total: an unusable frame material has to read back as a message beside the
+    // field, not as the throw regenerateFaceFrames would hit. And it must name the frame slot —
+    // blaming the carcase material would send the user to the wrong field.
+    it('names the frame material when it has no thickness', () => {
+      const errors = validateCarcaseParams({ ...base, frame: FRAME, frameMaterial: 'Balsa' })
+      expect(errors).toContain('frameMaterial "Balsa" has no thickness')
+      expect(errors.some((e) => e.startsWith('carcaseMaterial'))).toBe(false)
+    })
+
+    // A frameless cabinet builds no frame, so an unusable frame material is not its problem.
+    it('ignores the frame material on a frameless cabinet', () => {
+      expect(validateCarcaseParams({ ...base, frameMaterial: 'Balsa' })).toEqual([])
+    })
+
+    // Stage 1 builds a single opening only, but a split cabinet is NOT refused here: a validation
+    // error refuses the whole cabinet, so ticking "frame" would make it vanish. The geometry
+    // declines the frame instead and the cabinet stands.
+    it('does not refuse a framed cabinet that stage 1 cannot frame', () => {
+      const split = { ...base, frame: FRAME, section: sec([0.5], 1) }
+      expect(split.section.content.kind).toBe('split')
+      expect(validateCarcaseParams({ ...base, section: split.section })).toEqual([])
+      expect(validateCarcaseParams(split)).toEqual([])
+    })
+  })
+
   it('rejects a carcase narrower than two side panels', () => {
     expect(validateCarcaseParams({ ...base, width: 30 })).toContain(
       'width must exceed 2 × thickness',
