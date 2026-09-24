@@ -40,8 +40,12 @@ Task 2 is code-complete and `pnpm typecheck` exits **0**. It stopped at the
 **verify** step, before `pnpm lint` and the full `pnpm test` had been run and
 before the commit.
 
-**Resume at Task 7 of the plan** (the pipeline becomes five stages, `useScene.ts`).
-Tasks 0-6 are done and verified; the suite stood at **110 files / 2114 passed** after Task 6.
+**Resume at Task 8 of the plan** (the door mounts to the frame — read the gaps below first).
+Tasks 0-7 are done and verified; the suite stood at **110 files / 2117 passed** after Task 7.
+
+Task 7 replaced the plan's non-discriminating test (apply twice, compare — passes unwired)
+with one that fails until the stage is wired, plus an identity check that the frame stage
+hands a frameless scene back untouched.
 
 **Task 6 deviations:** `reconcileBoards` moved out of `regenerateDrawers.ts` into
 `src/scene/reconcileBoards.ts` (own commit, no behaviour change) so the frame shares the

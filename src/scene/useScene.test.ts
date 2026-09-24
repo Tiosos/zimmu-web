@@ -41,6 +41,7 @@ vi.stubGlobal(
 )
 
 import { useScene, buildSpecForPart, applyPipeline } from './useScene'
+import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { resolveWorldMatrix } from '../geom/transform'
 import { componentsById } from './componentTree'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
@@ -2788,9 +2789,41 @@ describe('the regeneration pipeline', () => {
     expect(scene.parts.every((p) => p.parentId === carcaseId)).toBe(true)
   })
 
-  it('is idempotent with all four stages', () => {
+  it('is idempotent with all five stages', () => {
     const once = applyPipeline(drawerFronted())
     expect(applyPipeline(once)).toEqual(once)
+  })
+
+  const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+  const framed = (): Scene => sceneWith({ ...CARCASE_PRESETS[0].params, frame: FRAME })
+  const frameBoardsIn = (s: Scene) => {
+    const frame = s.components.find((c) => c.kind === 'faceFrame')
+    return frame === undefined ? [] : s.parts.filter((p) => p.parentId === frame.id)
+  }
+
+  // Through the whole pipeline, not the stage alone: the later stages must leave the frame's
+  // boards standing rather than sweeping them as parts no carcase role accounts for.
+  it('gives a framed cabinet its frame and four boards', () => {
+    const scene = applyPipeline(framed())
+    expect(scene.components.filter((c) => c.kind === 'faceFrame')).toHaveLength(1)
+    expect(frameBoardsIn(scene).map((p) => p.role).sort()).toEqual([
+      'rail-bottom',
+      'rail-top',
+      'stile-left',
+      'stile-right',
+    ])
+  })
+
+  it('is idempotent on a framed cabinet', () => {
+    const once = applyPipeline(framed())
+    expect(applyPipeline(once)).toEqual(once)
+  })
+
+  // What makes the slice opt-in: on a frameless job the frame stage hands back the very scene it
+  // was given, so nothing downstream can see that it ran.
+  it('leaves a frameless job untouched by the frame stage', () => {
+    const once = applyPipeline(sceneWith(CARCASE_PRESETS[0].params))
+    expect(regenerateFaceFrames(once)).toBe(once)
   })
 })
 

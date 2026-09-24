@@ -28,6 +28,7 @@ import { reconcileJoints } from './reconcileJoints'
 import { isJointOwned } from './cutOwnership'
 import { regenerateComponents } from './regenerateComponents'
 import { regenerateDrawers } from './regenerateDrawers'
+import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
 import { freshSectionIds } from './sectionTree'
 import { componentsById, descendantIds, wouldCycle } from './componentTree'
@@ -56,11 +57,13 @@ interface HistoryEntry {
 
 const MAX_HISTORY = 50
 
-// The one place a scene mutation becomes geometry. Three stages, and the order is fixed because
-// the dependencies run one way. Drawers lead: a drawer reads nothing a carcase emits — its inputs
-// are the section tree, its own parameters and the materials — while the carcase's slide machining
-// is a figure about the box that fills the opening, so a pass run the other way round would machine
-// the cabinet against a box it had not built yet. Carcases then emit their parts and
+// The one place a scene mutation becomes geometry. Five stages, and the order is fixed because
+// the dependencies run one way. The face frame leads the generators: it reads nothing any of them
+// emit — its inputs are the section tree, the cabinet's front rectangle, the frame parameters and
+// the materials. Drawers follow for the same reason: a drawer reads nothing a carcase emits — its
+// inputs are the section tree, its own parameters and the materials — while the carcase's slide
+// machining is a figure about the box that fills the opening, so a pass run the other way round
+// would machine the cabinet against a box it had not built yet. Carcases then emit their parts and
 // component-owned cuts, and reconcileJoints derives joint cuts and seats from scene.joints last:
 // reversed, joints would be derived against parts that do not exist yet.
 // Placement leads, and it has to. regenerateDrawers and regenerateComponents genuinely do not read a
@@ -71,7 +74,9 @@ const MAX_HISTORY = 50
 // non-idempotent — the second call re-derives joint cuts the first got wrong — which is how this was
 // caught. A grep for `.position` does not show it; the dependency is through the matrix.
 export function applyPipeline(scene: Scene): Scene {
-  return reconcileJoints(regenerateComponents(regenerateDrawers(resolvePlacement(scene))))
+  return reconcileJoints(
+    regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(scene)))),
+  )
 }
 
 // Lazy singleton — not instantiated at module load so vi.stubGlobal('Worker') works in tests
