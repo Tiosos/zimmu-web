@@ -191,6 +191,23 @@ before any mutation was applied.
 | 24c | a frame pair honoured across cabinets | KILLED as predicted | 1 | AssertionError |
 | 25 | the preset frame material gains a sheet | KILLED as predicted | 1 | AssertionError |
 
+### Checked in the running app
+
+The e2e suite passes (25 of 25), but none of it builds a framed cabinet, so a framed Base 600 was
+driven by hand in Chromium against the real OCCT kernel: the frame component and its four members
+appear in the scene tree, no validation alert shows (framed, or after switching to half-overlay),
+and the Front elevation draws the stiles and rails as hidden lines behind the overlay door.
+
+- **The scene's joints header reads `10 / 12` — framed or not.** Measured both ways: the two extra
+  rows are the default "Board 1" touching a cabinet dropped at the origin. Framing changes the
+  count by exactly zero, which is the claim.
+- **The Front elevation still dimensions the carcase opening** (564 × 584 on a Base 600), where on
+  a framed cabinet the opening a door covers is the frame's (524 × 544 at 38 mm members). Drawing
+  dimensions were not in stage 1's scope; left for the stage that frames divided cabinets, where
+  the dimension chain has to learn about mid members anyway.
+- The default camera looks at the cabinet from behind, so the half-overlay lap was not confirmed
+  by eye — it is pinned numerically in `frontCells.test.ts` and `carcaseRoles.test.ts`.
+
 ### The CI red on `d0c6363`
 
 Task 2 was pushed unverified so a reclaimed container could not take it, and CI went red: one
