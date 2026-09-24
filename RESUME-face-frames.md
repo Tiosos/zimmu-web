@@ -40,8 +40,17 @@ Task 2 is code-complete and `pnpm typecheck` exits **0**. It stopped at the
 **verify** step, before `pnpm lint` and the full `pnpm test` had been run and
 before the commit.
 
-**Resume at Task 10 of the plan** (solid stock and the nest — mostly done already, see below).
-Tasks 0-9 are done and verified; the suite stood at **110 files / 2147 passed** after Task 9.
+**Resume at Task 11 of the plan** (the Frame section in `CarcasePanel.tsx`).
+Tasks 0-10 are done and verified; the suite stood at **110 files / 2148 passed** after Task 10.
+
+**Task 10:** the plan's test asserted `isNestable(PRESET_MATERIALS['18mm Ply'])` is true — but no
+preset material carries a `sheet` (sheets come from the user's library, merged at the BOM). The
+test pins only what is true: the preset frame material has no sheet.
+
+**New mutation-testing trap, found in Task 10 — add it to the notes and to CLAUDE.md's mutation
+rules in Task 13:** a test that is *already red for another reason* (here a `TypeError` from a
+missing import) makes a mutation look killed. Always confirm the unmutated run is green, then
+check the mutated run fails with an `AssertionError` for the reason predicted.
 
 **Task 9 — a decision Task 11 now owes.** The plan said to seed nothing; I first seeded the
 frame material at load so ticking "frame" on an old file would just work. That broke the v14
