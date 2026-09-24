@@ -439,6 +439,7 @@ describe('EditPanel — a part taking ownership of a field', () => {
     expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
       '18mm Ply',
       '12mm MDF',
+      'Hardwood 20mm',
       '25mm Ply',
     ])
   })

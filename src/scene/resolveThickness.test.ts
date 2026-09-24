@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { roleThicknessFor } from './resolveThickness'
+import { materialForRole, roleThicknessFor } from './resolveThickness'
 import type { MaterialDef } from './types'
 
 const MATERIALS: Record<string, MaterialDef> = {
   '18mm Ply': { thickness: 18 },
   '25mm Ply': { thickness: 25 },
   '12mm MDF': { thickness: 12 },
+  'Hardwood 20mm': { thickness: 20 },
   Dowel: { costPerM: 2 }, // no thickness — not a sheet good
 }
 
@@ -13,6 +14,7 @@ const slots = {
   carcaseMaterial: '18mm Ply',
   backMaterial: '12mm MDF',
   frontMaterial: '25mm Ply',
+  frameMaterial: 'Hardwood 20mm',
 }
 
 describe('roleThicknessFor', () => {
@@ -65,5 +67,35 @@ describe('roleThicknessFor', () => {
     expect(() =>
       roleThicknessFor({ ...slots, carcaseMaterial: 'Nope' }, MATERIALS, new Map())('bottom'),
     ).toThrow(/no thickness/)
+  })
+})
+
+describe('the frame slot', () => {
+  // 20 is no other slot's thickness, so a frame member resolving to any other slot fails here.
+  it('resolves a frame member to the frame slot', () => {
+    const t = roleThicknessFor(slots, MATERIALS, new Map())
+    expect(t('stile-left')).toBe(20)
+    expect(t('stile-right')).toBe(20)
+    expect(t('rail-top')).toBe(20)
+    expect(t('rail-bottom')).toBe(20)
+  })
+
+  // A family, not a name — the same rule `front-` follows — so stage 2's mid members resolve
+  // without touching the resolver again.
+  it('resolves a mid member by family', () => {
+    expect(materialForRole(slots, new Map(), 'stile-mid-1')).toBe('Hardwood 20mm')
+    expect(materialForRole(slots, new Map(), 'rail-mid-1')).toBe('Hardwood 20mm')
+  })
+
+  it('moves nothing else', () => {
+    expect(materialForRole(slots, new Map(), 'left-side')).toBe('18mm Ply')
+    expect(materialForRole(slots, new Map(), 'back')).toBe('12mm MDF')
+    expect(materialForRole(slots, new Map(), 'front-sec_a-0')).toBe('25mm Ply')
+  })
+
+  it('still lets a part override its frame material', () => {
+    const overrides = new Map([['stile-left', { material: '25mm Ply' }]])
+    expect(materialForRole(slots, overrides, 'stile-left')).toBe('25mm Ply')
+    expect(roleThicknessFor(slots, MATERIALS, overrides)('stile-left')).toBe(25)
   })
 })

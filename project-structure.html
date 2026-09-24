@@ -404,6 +404,11 @@
             <td><code>scene/moveGizmo.ts</code>, <code>render/viewport.tsx</code></td>
           </tr>
           <tr>
+            <td><strong>Face frames</strong><br><span style="color:var(--muted);font-size:12px">A cabinet can wear a face frame: stiles and rails as a driven child component in front of the carcase, the door hung on it — full overlay, half overlay (the one mount that needs a frame) or inset. The frame's geometry is stated once and read by the frame, the fronts and the cabinet's bounds, none reading another; the frame declares its own contacts, so a framed cabinet's joinery checklist reads exactly like a frameless one. Stage 1 frames a single opening and says so, rather than refusing the cabinet, where a split or a drawer asks for more</span></td>
+            <td><span class="badge badge-yellow">Stage 1 of 4</span></td>
+            <td><code>scene/faceFrame.ts</code>, <code>scene/regenerateFaceFrames.ts</code>, <code>scene/reconcileBoards.ts</code>, <code>scene/frontCells.ts</code>, <code>ui/CarcasePanel.tsx</code></td>
+          </tr>
+          <tr>
             <td><strong>FSAPI fallback for non-Chromium browsers</strong></td>
             <td><span class="badge badge-yellow">Planned</span></td>
             <td>—</td>
@@ -553,6 +558,7 @@
 │   ├── __fixtures__/
 │   │   ├── resolve.ts
 │   │   └── sweep.ts
+│   ├── adjacentFronts.test.ts
 │   ├── anchor.test.ts
 │   ├── anchor.ts
 │   ├── blindCorner.test.ts
@@ -584,6 +590,8 @@
 │   ├── drawerBox.ts
 │   ├── editSection.test.ts
 │   ├── editSection.ts
+│   ├── faceFrame.test.ts
+│   ├── faceFrame.ts
 │   ├── fileValidation.test.ts
 │   ├── fileValidation.ts
 │   ├── fitCamera.test.ts
@@ -614,12 +622,15 @@
 │   ├── obbOverlap.ts
 │   ├── palette.ts
 │   ├── panelThickness.test.ts
+│   ├── reconcileBoards.ts
 │   ├── reconcileJoints.test.ts
 │   ├── reconcileJoints.ts
 │   ├── regenerateComponents.test.ts
 │   ├── regenerateComponents.ts
 │   ├── regenerateDrawers.test.ts
 │   ├── regenerateDrawers.ts
+│   ├── regenerateFaceFrames.test.ts
+│   ├── regenerateFaceFrames.ts
 │   ├── resolveJointKind.ts
 │   ├── resolvePlacement.test.ts
 │   ├── resolvePlacement.ts
@@ -806,7 +817,10 @@
           <tr><td><code>useNest.ts</code></td><td>Drives the nest worker for the Sheets tab: groups boards by nestable material and re-runs only when the job signature changes. <code>enabled</code> is held by the tab, so a six-cabinet nest never runs for a figure nobody is looking at.</td></tr>
           <tr><td><code>regenerateComponents.ts</code></td><td>Pure <code>Scene → Scene</code>. Each carcase emits driven parts + driven joints, reconciled against existing parts by stable role key so ids survive and a <code>driven: false</code> part is never touched. Sibling of <code>reconcileJoints</code>; runs immediately before it.</td></tr>
           <tr><td><code>drawerBox.ts</code></td><td><code>RunnerFamily</code>, <code>DrawerParams</code> and <code>drawerBoxMetrics</code> — the one statement of a drawer box's geometry, a pure function of the front cell rect, the drawer's params and the materials. Read by both <code>regenerateDrawers</code> (boards) and <code>carcaseMachining</code> (slide screws) so neither reads the other's output. Every stated figure (side clearances, groove, undermount notch and bore) lives here, and the box declines when no runner fits.</td></tr>
-          <tr><td><code>regenerateDrawers.ts</code></td><td>Pure <code>Scene → Scene</code>; the only pass that adds or removes <strong>components</strong>. Reconciles one <code>DrawerComponent</code> per drawer-front opening (a detached drawer is the user's, kept), then emits its five boards with grain derived through <code>orientedPanel</code>'s axis map. Runs first in the pipeline.</td></tr>
+          <tr><td><code>regenerateDrawers.ts</code></td><td>Pure <code>Scene → Scene</code>; one of the two passes that add or remove <strong>components</strong>. Reconciles one <code>DrawerComponent</code> per drawer-front opening (a detached drawer is the user's, kept), then emits its five boards with grain derived through <code>orientedPanel</code>'s axis map. Runs first in the pipeline.</td></tr>
+          <tr><td><code>faceFrame.ts</code></td><td><code>faceFrameGeometry(root, outer, frame)</code> — the stiles, the rails and each leaf's opening inside the frame, or <code>null</code> where the frame declines. Takes the cabinet's front <em>rectangle</em> rather than its parameters, so it needs no base-mode branch and no import back into <code>carcaseRoles</code>. <code>frame === undefined</code> is frameless. Read by the frame pass, the fronts and the bounds, none reading another.</td></tr>
+          <tr><td><code>regenerateFaceFrames.ts</code></td><td>Pure <code>Scene → Scene</code>; the other pass that adds or removes <strong>components</strong>. One <code>FaceFrameComponent</code> per framed cabinet, reconciled by cabinet, emitting its stiles and rails in front of the carcase. The component exists whenever the cabinet asks for a frame; its boards only where the geometry resolves. First of the generators, because it reads nothing any of them emit.</td></tr>
+          <tr><td><code>reconcileBoards.ts</code></td><td>A component's boards against what it now wants, by role key — shared by the drawer and frame passes so the preservation rules (a detached board is the user's; a driven one whose role is gone is deleted; a released role cannot be reclaimed) are stated once.</td></tr>
           <tr><td><code>nearestCarcase.ts</code></td><td><code>nearestCarcase(node, byId)</code> — which cabinet a part belongs to, walking ancestors rather than trusting the immediate parent. The cutting list and the hardware BOM both ask it, so a board under a drawer or a group is attributed to its cabinet.</td></tr>
           <tr><td><code>carcasePresets.ts</code></td><td><code>CARCASE_PRESETS</code> — named parameter bundles (Base 600, Wall 600, Tall 600) and <code>PRESET_MATERIALS</code>. Data only. Base and Wall are one opening holding one adjustable shelf under a single door; Tall is one opening holding four fixed shelves under a pair of doors.</td></tr>
           <tr><td><code>reconcileJoints.ts</code></td><td>Pure, idempotent regeneration of joint-derived groove cuts + seated positions from <code>Scene.joints</code>. Run after <code>regenerateComponents</code>, after every joint-affecting mutation, and on file load.</td></tr>
@@ -1376,7 +1390,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->105<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->108<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1499,7 +1513,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-08-27-cabinet-assembly-restructure-notes.md
     │   ├── 2026-09-06-driven-hardware-notes.md
     │   ├── 2026-09-12-drawer-boxes-notes.md
-    │   └── 2026-09-14-cabinet-placement-notes.md
+    │   ├── 2026-09-14-cabinet-placement-notes.md
+    │   └── 2026-09-24-face-frames-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1539,7 +1554,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-14-cabinet-placement-stage-1-primitive.md
     │   ├── 2026-09-17-cabinet-placement-stage-2-adjacency.md
     │   ├── 2026-09-17-cabinet-placement-stage-3-corners.md
-    │   └── 2026-09-24-cabinet-placement-stage-4-gizmo.md
+    │   ├── 2026-09-24-cabinet-placement-stage-4-gizmo.md
+    │   └── 2026-09-24-face-frames-stage-1-the-frame-exists.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1584,7 +1600,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-09-03-scene-tree-sections-design.md
         ├── 2026-09-06-driven-hardware-design.md
         ├── 2026-09-12-drawer-boxes-design.md
-        └── 2026-09-14-cabinet-placement-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-09-14-cabinet-placement-design.md
+        └── 2026-09-24-face-frames-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
