@@ -1300,7 +1300,21 @@ export function useScene(): UseSceneResult {
                 ? { ...before.materials, [name]: preset }
                 : before.materials,
             components: before.components.map((c) =>
-              c.id === id && c.kind === 'carcase' ? { ...c, params: { ...c.params, frame } } : c,
+              c.id === id && c.kind === 'carcase'
+                ? {
+                    ...c,
+                    params: {
+                      ...c.params,
+                      frame,
+                      // Half-overlay laps a stile. Left on a frameless cabinet the validator
+                      // refuses the whole cabinet, so taking the frame off would make it vanish.
+                      frontMount:
+                        frame === undefined && c.params.frontMount === 'half-overlay'
+                          ? 'overlay'
+                          : c.params.frontMount,
+                    },
+                  }
+                : c,
             ),
           }
         },

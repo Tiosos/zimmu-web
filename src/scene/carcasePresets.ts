@@ -1,7 +1,7 @@
 import { legacyToSection } from './migrateSections'
 import { defaultInterior, seedInteriors } from './sectionInterior'
 import type { FrontSpec, Section } from './sectionTree'
-import type { CarcaseParams, MaterialDef } from './types'
+import type { CarcaseParams, FaceFrameParams, MaterialDef } from './types'
 
 export interface CarcasePreset {
   name: string
@@ -16,6 +16,17 @@ export const DEFAULT_BACK_MATERIAL = '12mm MDF'
 // Solid stock, and deliberately WITHOUT a `sheet`: `isNestable` keys off the material, so a frame
 // member is excluded from the nest by what it is made of rather than by a rule about its role.
 export const DEFAULT_FRAME_MATERIAL = 'Hardwood 20mm'
+
+// What ticking "Face frame" gives a cabinet: 1½" stiles and rails and a 2" mid stile, the figures a
+// face-frame shop reaches for first. STATED, not derived, and falsifiable by no test here — like the
+// hinge table, a wrong figure makes a self-consistent cabinet, so it wants a woodworker's eye. The
+// mid members are unused until divided cabinets can be framed.
+export const DEFAULT_FRAME: FaceFrameParams = {
+  stileWidth: 38,
+  railWidth: 38,
+  midStileWidth: 51,
+  midRailWidth: 38,
+}
 // The one place the preset panel thickness is written. `legacyToSection` needs it as a number —
 // a section percentage is a share of the clear span, so it depends on what the divisions spend.
 const CARCASE_THICKNESS = 18

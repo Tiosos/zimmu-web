@@ -2504,6 +2504,24 @@ describe('carcase generation', () => {
       expect(result.current.scene.components.some((c) => c.kind === 'faceFrame')).toBe(false)
     })
 
+    // Half-overlay laps a stile. Without one the validator refuses the whole cabinet, so taking the
+    // frame off would make the cabinet vanish — the mount goes back to overlay in the same step.
+    it('takes half-overlay with it when the frame comes off', () => {
+      const { result } = renderHook(() => useScene())
+      act(() => result.current.onAddCarcase(base))
+      const id = result.current.scene.components[0].id
+      act(() => result.current.onSetFrame(id, FRAME))
+      act(() =>
+        result.current.onUpdateComponent(id, (c) =>
+          c.kind === 'carcase' ? { ...c, params: { ...c.params, frontMount: 'half-overlay' } } : c,
+        ),
+      )
+      act(() => result.current.onSetFrame(id, undefined))
+      const cabinet = result.current.scene.components.find((c) => c.id === id)
+      expect(cabinet?.kind === 'carcase' && cabinet.params.frontMount).toBe('overlay')
+      expect(result.current.scene.parts.some((p) => p.role === 'left-side')).toBe(true)
+    })
+
     it('takes the frame away again, and leaves the materials alone', () => {
       const { result } = renderHook(() => useScene())
       act(() => result.current.onAddCarcase(base))

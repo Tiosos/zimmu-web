@@ -40,8 +40,16 @@ Task 2 is code-complete and `pnpm typecheck` exits **0**. It stopped at the
 **verify** step, before `pnpm lint` and the full `pnpm test` had been run and
 before the commit.
 
-**Resume at Task 11 of the plan** (the Frame section in `CarcasePanel.tsx`).
-Tasks 0-10 are done and verified; the suite stood at **110 files / 2148 passed** after Task 10.
+**Resume at Task 12 of the plan** (mutation testing), then 13 (docs) and 14 (verify + e2e + push).
+Tasks 0-11 are done and verified; the suite stood at **110 files / 2161 passed** after Task 11.
+
+**Task 11:** `useScene.onSetFrame(id, frame)` turns a frame on/off in ONE undo step, seeding the
+frame material only when the scene has none of that name (so old files work, and a user's own
+definition is never overwritten), and resetting half-overlay to overlay when the frame comes off
+(else the validator refuses the whole cabinet and it vanishes). Threaded App → Sidebar →
+CarcasePanel. The panel's Frame section: toggle (writes `DEFAULT_FRAME`, 38/38/51/38 — stated,
+unverified), stile/rail widths, frame material; a note when stage 1 declines the frame;
+half-overlay offered only when framed.
 
 **Task 10:** the plan's test asserted `isNestable(PRESET_MATERIALS['18mm Ply'])` is true — but no
 preset material carries a `sheet` (sheets come from the user's library, merged at the BOM). The
