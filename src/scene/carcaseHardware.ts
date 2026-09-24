@@ -76,7 +76,10 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
         // (overlay and inset are different products), and with no cabinet there is no way to know
         // which one to order — unlike a screw, whose key is universal.
         if (cabinet === null) continue
-        add(owner, hingeKeyFor(cabinet.params.frontMount), cut.count)
+        const hingeKey = hingeKeyFor(cabinet.params.frontMount)
+        // Same rule again: no catalogued hinge means no row, never a guessed one.
+        if (hingeKey === undefined) continue
+        add(owner, hingeKey, cut.count)
       }
 
       if (cut.id.startsWith('slide_')) {

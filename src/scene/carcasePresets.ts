@@ -13,6 +13,9 @@ export interface CarcasePreset {
 // with.
 export const DEFAULT_CARCASE_MATERIAL = '18mm Ply'
 export const DEFAULT_BACK_MATERIAL = '12mm MDF'
+// Solid stock, and deliberately WITHOUT a `sheet`: `isNestable` keys off the material, so a frame
+// member is excluded from the nest by what it is made of rather than by a rule about its role.
+export const DEFAULT_FRAME_MATERIAL = 'Hardwood 20mm'
 // The one place the preset panel thickness is written. `legacyToSection` needs it as a number —
 // a section percentage is a share of the clear span, so it depends on what the divisions spend.
 const CARCASE_THICKNESS = 18
@@ -23,6 +26,7 @@ const CARCASE_THICKNESS = 18
 export const PRESET_MATERIALS: Record<string, MaterialDef> = {
   [DEFAULT_CARCASE_MATERIAL]: { thickness: CARCASE_THICKNESS },
   [DEFAULT_BACK_MATERIAL]: { thickness: 12 },
+  [DEFAULT_FRAME_MATERIAL]: { thickness: 20 },
 }
 
 // Fronts are the same 18 mm ply as the carcase until someone says otherwise. A separate slot with
@@ -33,6 +37,9 @@ export const DEFAULT_FRONT_MATERIAL = DEFAULT_CARCASE_MATERIAL
 const COMMON = {
   carcaseMaterial: DEFAULT_CARCASE_MATERIAL,
   backMaterial: DEFAULT_BACK_MATERIAL,
+  // Every cabinet names one, framed or not — the slot exists even when nothing uses it, exactly
+  // as `frontMaterial` did before there were fronts. The presets stay frameless (`frame` absent).
+  frameMaterial: DEFAULT_FRAME_MATERIAL,
   backMode: 'captured',
   // What a shop reaches for first: butt joints pulled together with screws. A dado is a decision
   // the user makes, not the one they get by default — and unlike dowel or confirmat, screwing is a

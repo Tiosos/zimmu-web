@@ -28,6 +28,7 @@ const ICON_BUTTON_CLASS = 'h-6 w-6 text-muted-foreground hover:text-foreground'
 const COMPONENT_ICON: Record<Component['kind'], string> = {
   carcase: '🗄',
   drawer: '🗃',
+  faceFrame: '🖼',
   group: '🗂',
 }
 

@@ -205,6 +205,13 @@ export interface CarcaseParams {
   // per-part override on every door. Material is the nest's grouping key, so this also gives the
   // fronts their own sheet count and cost line in the yield report.
   frontMaterial: string
+  // Absent IS frameless — the rule anchors already use for detached. A separate `frameMode` would
+  // be a second way to say the same thing and a second way for the two to disagree.
+  frame?: FaceFrameParams
+  // A fourth material slot, not a field on FaceFrameParams: `materialForRole` is the one place the
+  // slots are told apart, and a material stored on the parameter bag would be a second mechanism.
+  // Every cabinet carries it, framed or not, exactly as every cabinet carries `frontMaterial`.
+  frameMaterial: string
   hasTop: boolean
   backMode: 'captured' | 'applied' | 'none'
   baseMode: 'toe-kick' | 'ladder' | 'legs' | 'none'
@@ -213,7 +220,11 @@ export interface CarcaseParams {
   // Inset sits the front in the opening, `y ∈ [0, FT]`; overlay puts it in front of the carcase,
   // `y ∈ [−FT, 0]`. The difference is not cosmetic: an overlay front lands on the carcase face and
   // is a contact pair, an inset one is a reveal clear of everything.
-  frontMount: 'overlay' | 'inset'
+  // 'half-overlay' is legal ONLY on a framed cabinet, and validation refuses it otherwise rather
+  // than quietly treating it as overlay. A door laps its OWN stile by half that stile's width: it
+  // never reads a neighbour, so `regenerateComponents` stays a pure function of one cabinet's
+  // parameters. Two butted cabinets then read as sharing a stile as a consequence, not a rule.
+  frontMount: 'overlay' | 'half-overlay' | 'inset'
   // The visible gap, everywhere. One number governs the gap between two fronts, between a front and
   // the carcase, and between the doors of two cabinets standing side by side.
   frontReveal: number
@@ -295,7 +306,25 @@ export interface DrawerComponent {
   driven: boolean
 }
 
-export type Component = GroupComponent | CarcaseComponent | DrawerComponent
+export interface FaceFrameComponent {
+  kind: 'faceFrame'
+  id: ComponentId // "cmp_<uuid>"
+  label: string
+  parentId: ComponentId | null
+  position: Vec3
+  rotation: Vec3
+  rotationOrder: 'XYZ'
+  visible: boolean
+  // Same rule as a drawer: a detached frame is the user's — no regeneration, no deletion. Carcases
+  // and groups deliberately lack it, because a detached carcase has no defined meaning.
+  driven: boolean
+}
+
+export type Component =
+  | GroupComponent
+  | CarcaseComponent
+  | DrawerComponent
+  | FaceFrameComponent
 
 export type Selection =
   | { kind: 'part'; id: PartId }

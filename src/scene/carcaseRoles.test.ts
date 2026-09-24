@@ -215,6 +215,7 @@ const base: CarcaseParams = {
   depth: 560,
   carcaseMaterial: '18mm Ply',
   backMaterial: '12mm MDF',
+  frameMaterial: '18mm Ply',
   hasTop: true,
   backMode: 'captured',
   baseMode: 'toe-kick',

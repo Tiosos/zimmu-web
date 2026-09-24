@@ -7,7 +7,7 @@ export interface FrontGeometry {
   // floor to its top. Passed in rather than derived, so this module needs no CarcaseParams and no
   // thickness resolver — it is about rectangles.
   outer: Rect
-  mount: 'overlay' | 'inset'
+  mount: 'overlay' | 'half-overlay' | 'inset'
   reveal: number
 }
 
@@ -86,8 +86,11 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
     const spec = section.front
     if (spec === undefined) return
 
+    // Tested for inset rather than overlay so half-overlay lands on the overlay side: it laps its
+    // stile, so it is an overlay that stops short. Task-local until the framed branch reads the
+    // frame's own opening.
     const cell: Rect =
-      g.mount === 'overlay'
+      g.mount !== 'inset'
         ? {
             x0: sides.left.expandTo + half,
             x1: sides.right.expandTo - half,

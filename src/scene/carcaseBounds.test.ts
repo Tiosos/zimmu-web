@@ -35,6 +35,7 @@ const params = (over: Partial<CarcaseParams> = {}): CarcaseParams => ({
   carcaseMaterial: 'Ply18',
   backMaterial: 'Ply6',
   frontMaterial: 'Oak20',
+  frameMaterial: 'Oak20',
   hasTop: true,
   backMode: 'captured',
   baseMode: 'none',

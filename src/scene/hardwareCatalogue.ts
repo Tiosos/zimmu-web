@@ -49,6 +49,10 @@ export function runnerKeyFor(clearDepth: number): string | null {
 // The one figure read from a parameter rather than from geometry. An overlay hinge and an inset
 // hinge are different products fitted to identically bored doors, so the bores cannot answer this
 // and asking them would be false precision.
-export function hingeKeyFor(mount: 'overlay' | 'inset'): string {
+// Undefined for half-overlay: that door hangs on a face-frame hinge, which is not catalogued yet.
+// Declining is the rule a door too thin to bore already follows — the cabinet lists no hinge
+// rather than an overlay one that does not fit a frame.
+export function hingeKeyFor(mount: 'overlay' | 'half-overlay' | 'inset'): string | undefined {
+  if (mount === 'half-overlay') return undefined
   return mount === 'overlay' ? HINGE_OVERLAY_KEY : HINGE_INSET_KEY
 }
