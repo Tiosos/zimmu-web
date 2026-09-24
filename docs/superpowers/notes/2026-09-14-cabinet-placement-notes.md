@@ -518,3 +518,40 @@ Two judgement figures remain unverified and both are one-line changes. `SNAP_MM 
 **two** surfaces rather than one, so the gizmo makes it more visible than the plan view did;
 `BLIND_CLEARANCE = 0` is still the spec's bare-contact rule awaiting a woodworker's ruling. Neither
 should be called settled on the strength of a green suite.
+
+### 2026-09-24 — driving the actual app, and the one thing it found
+
+The stage-4 notes above warn that `viewport.tsx` has no unit test and that a green suite is not
+evidence the gizmo renders. So it was driven for real, through the repo's own Playwright harness
+(`playwright.config.ts` already carries `PW_CHROMIUM_EXECUTABLE` for this container; the binary is
+at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, **not** the `/opt/pw-browsers/chromium`
+path the environment advertises).
+
+**What the app confirmed.** The gizmo attaches to the selected cabinet and renders as a
+double-ended X/Y/Z triad at the box centre. Dragging the X handle moved the cabinet (`0 → 225.438`)
+and dragging empty space did not (`225.438 → 225.438`) — so the orbit conflict really is solved,
+not merely solved in principle.
+
+**One thing was wrong in the reading, and is recorded because the mistake is instructive.** The
+first screenshot looked like the gizmo was buried inside the carcase with half its arrowheads
+occluded. It is not: `TransformControls` sets `depthTest: false` on its shared gizmo materials
+(`TransformControls.js:1153`, `:1161`), and translate mode draws arrows at **both** ±0.5 of each
+axis (`:1262-1272`). The "detached arrowheads" were the second arrow of each pair. Read the source
+before reporting a rendering defect from a screenshot.
+
+**The real finding: a free drag landed on `225.43806578321403` mm.** Neither surface rounded, and
+nothing in this app is specified to a fourteenth decimal place. The plan view had the identical
+defect since stage 2 and nobody had noticed, because no unit test asserts on a *free* drop's exact
+value — only on `kind: 'free'`.
+
+The user chose to fix it in the **shared** drop path rather than per-surface (`gizmo.translationSnap`
+was the one-line alternative), so `roundMm` lives in `dragAnchor.ts` and both surfaces inherit it.
+It is applied to the free position **and** to a past-the-snap offset: an offset is a dragged figure
+too, and rounding only the position would have fixed half the problem and left the other half to be
+rediscovered. Both halves are mutation-tested.
+
+**Also observed, not fixed:** selecting a cabinet opens the Section tab, which *hides the viewport* —
+so the act that attaches the gizmo is the act that hides it, and the gizmo is invisible until the 3D
+subtab is clicked. That is stage-2 behaviour (`App` shows the viewport only while `selectedCarcase`
+is null or the tab is 3D) and deliberate, but it makes the gizmo hard to discover. A design question
+for whoever picks up placement next, not a defect in this stage.

@@ -8,6 +8,14 @@ export const SNAP_MM = 60
 
 const FACES: Anchor['face'][] = ['left', 'right', 'front', 'back']
 
+// Every placement figure a drag produces is a whole millimetre.
+//
+// Both dragging surfaces work in continuous pixels, so without this a free drop lands on something
+// like 225.43806578321403 — measured in the running app, not invented. Every dimension in this app
+// is a whole millimetre and nobody can cut to a fourteenth decimal place. Stated here rather than
+// in either surface, so the plan view and the gizmo cannot round differently.
+const roundMm = (v: number): number => Math.round(v)
+
 export type Drop =
   // `rotationZ` is the TARGET's rotation, offered as a UI default. It stays OUT of `Anchor`: an
   // anchor derives position only, and a corner is a cabinet both turned and anchored — two facts,
@@ -18,7 +26,7 @@ export type Drop =
 // Flush is the stated default and the common case, so a near-flush drag becomes exactly flush.
 // Past the snap the dragged figure survives untouched, which is what lets a deliberate reveal be
 // dragged in rather than typed.
-const flush = (v: number): number => (Math.abs(v) <= SNAP_MM ? 0 : v)
+const flush = (v: number): number => (Math.abs(v) <= SNAP_MM ? 0 : roundMm(v))
 
 // What anchor, if any, would put `dragged` at `drop`.
 //
@@ -68,6 +76,9 @@ export function anchorForDrop(
   }
 
   return best === undefined
-    ? { kind: 'free', position: drop }
+    ? {
+        kind: 'free',
+        position: { x: roundMm(drop.x), y: roundMm(drop.y), z: roundMm(drop.z) },
+      }
     : { kind: 'anchor', anchor: best.anchor, rotationZ: best.rotationZ }
 }
