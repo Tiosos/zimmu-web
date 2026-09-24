@@ -84,7 +84,7 @@ export function orientedPanel(b: LocalBox, thicknessAxis: ThicknessAxis): PanelS
 
 // Where the bottom panel sits. Shared by the validator and the role table so a shelf budget is
 // never computed against a floor the generator does not use.
-function floorZ(p: CarcaseParams): number {
+export function floorZ(p: CarcaseParams): number {
   return p.baseMode === 'toe-kick' || p.baseMode === 'ladder' ? p.toeKickHeight : 0
 }
 

@@ -40,8 +40,30 @@ Task 2 is code-complete and `pnpm typecheck` exits **0**. It stopped at the
 **verify** step, before `pnpm lint` and the full `pnpm test` had been run and
 before the commit.
 
-**Resume at Task 6 of the plan** (`regenerateFaceFrames`).
-Tasks 0-5 are done and verified; the suite stood at **108 files / 2099 passed** after Task 5.
+**Resume at Task 7 of the plan** (the pipeline becomes five stages, `useScene.ts`).
+Tasks 0-6 are done and verified; the suite stood at **110 files / 2114 passed** after Task 6.
+
+**Task 6 deviations:** `reconcileBoards` moved out of `regenerateDrawers.ts` into
+`src/scene/reconcileBoards.ts` (own commit, no behaviour change) so the frame shares the
+preservation rules rather than copying them. `floorZ` is now exported from `carcaseRoles.ts`.
+The frame **component** exists whenever the cabinet asks for a frame; its **boards** exist only
+when the geometry resolves (the drawer precedent). A dropped driven frame removes its driven
+boards and re-homes any user-detached board on the cabinet.
+
+**Pre-existing bug found, NOT fixed (out of scope — raise with the user):** switching a drawer
+front to a door drops the drawer component but leaves all five `box-*` boards in the scene
+with a dangling `parentId` — a ghost drawer box in the viewport and the cutting list.
+Reproduced through the real pipeline (5 box boards → 5, all dangling). `regenerateDrawers`
+never calls `reconcileBoards` for a dropped drawer, and `promoteOrphans` only runs at file
+load. Its test (`regenerateDrawers.test.ts:159`) counts components, not boards.
+
+**Gaps the plan's Task 8 misses — do them there:**
+- The frame occupies `y ∈ [−FT, 0]`, which is exactly where an overlay door sits today. A
+  framed door must move **forward** by the frame thickness (overlay/half-overlay), and an inset
+  door must sit inside the frame's thickness. The plan only moves it in x/z.
+- `carcaseBounds` must grow by the frame thickness in front, or two anchored cabinets overlap it.
+- The "overlay front is a contact" rule reads `y1 === 0`; a framed door no longer has `y1 = 0`.
+  Decide what it contacts (the frame) and check the joinery checklist doesn't gain unjoined pairs.
 
 Task 4 skipped the plan's "still refuses a role it does not know" test — it already exists at
 `grain.test.ts:90` — and added a board-field check the plan missed instead.
