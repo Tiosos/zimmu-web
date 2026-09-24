@@ -143,4 +143,34 @@ describe('anchorForDrop', () => {
     if (r.kind !== 'anchor') return
     expect(Object.keys(r.anchor).sort()).toEqual(['face', 'gap', 'offset', 'to'])
   })
+
+  // A placement figure a person produced by dragging is a whole millimetre. Every dimension in
+  // this app is one, and a drag that lands on 225.43806578321403 is not a number anyone can cut
+  // to. Measured in the running app before this rule existed — that figure is the real one.
+  it('rounds a free drop to whole millimetres', () => {
+    const r = anchorForDrop(
+      dragged,
+      { x: 225.43806578321403, y: -12.7777, z: 0.5001 },
+      [target],
+      PRESET_MATERIALS,
+    )
+    expect(r.kind).toBe('free')
+    if (r.kind !== 'free') return
+    expect(r.position).toEqual({ x: 225, y: -13, z: 1 })
+  })
+
+  // The same rule, not a second one: an offset is a dragged figure too, so leaving it raw would fix
+  // half the problem and leave the other half to be rediscovered.
+  it('rounds an anchor offset to whole millimetres', () => {
+    const r = anchorForDrop(
+      dragged,
+      { x: W + 2, y: SNAP_MM + 40.6181, z: 0 },
+      [target],
+      PRESET_MATERIALS,
+    )
+    expect(r.kind).toBe('anchor')
+    if (r.kind !== 'anchor') return
+    expect(Number.isInteger(r.anchor.offset.u)).toBe(true)
+    expect(r.anchor.offset.u).toBe(101)
+  })
 })

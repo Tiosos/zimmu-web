@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js'
 import Stats from 'stats.js'
-import type { Component, ComponentId, Part, PartId, CameraState } from '../scene/types'
+import type { Component, ComponentId, Part, PartId, CameraState, Vec3 } from '../scene/types'
 import type { FaceHit } from '../scene/types'
 import type { Outline } from '../scene/suggestionOutline'
 import {
@@ -37,6 +38,11 @@ interface ViewportProps {
   // here" and would be carrying two meanings at once.
   selectedIds?: readonly PartId[]
   suggestionOutlines?: Outline[] | null
+  // The cabinet the move gizmo attaches to, already resolved by App — the viewport renders PARTS
+  // and has no notion of which component is a cabinet. `centre` is the gizmo's handle position,
+  // not the cabinet's origin; see moveGizmo.ts for why those differ.
+  gizmoTarget?: { id: ComponentId; centre: Vec3 } | null
+  onGizmoDrop?: (id: ComponentId, centre: Vec3) => void
 }
 
 // Suggestion cut outlines get their own hue. They are drawn over a neighbour board whose edges are
@@ -79,6 +85,8 @@ export function Viewport({
   highlightedIds,
   selectedIds,
   suggestionOutlines,
+  gizmoTarget = null,
+  onGizmoDrop,
 }: ViewportProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -99,6 +107,11 @@ export function Viewport({
   const suggestionHighlightRefs = useRef<THREE.LineLoop[]>([])
   const ghostMeshRef = useRef<THREE.Mesh | null>(null)
   const snapPhaseRef = useRef(snapPhase)
+  const gizmoRef = useRef<TransformControls | null>(null)
+  const proxyRef = useRef<THREE.Object3D | null>(null)
+  const draggingRef = useRef(false)
+  const gizmoTargetRef = useRef(gizmoTarget)
+  const onGizmoDropRef = useRef(onGizmoDrop)
   const rafIdRef = useRef<number>(0)
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const selectedIdRef = useRef<PartId | null>(selectedId)
@@ -238,6 +251,44 @@ export function Viewport({
     fillLight.position.set(-200, -100, -100)
     scene.add(fillLight)
 
+    // A proxy for the gizmo to attach to. TransformControls needs an Object3D and the viewport has
+    // no object for a COMPONENT — it renders parts. The proxy carries no geometry; only its
+    // position is ever read.
+    const proxy = new THREE.Object3D()
+    proxy.visible = false
+    scene.add(proxy)
+    proxyRef.current = proxy
+
+    // `mode` defaults to 'translate' and `space' to 'world', and X, Y and Z are all shown by
+    // default — so none of those is set here. All three axes is deliberate: z is not a free axis,
+    // because for a left/right/front/back face it is `anchorForDrop`'s in-plane `v`, so a height
+    // within SNAP_MM goes flush through the same rule that snaps the other two.
+    const gizmo = new TransformControls(camera, renderer.domElement)
+    gizmoRef.current = gizmo
+
+    // The conflict this stage exists to solve. Every other gesture in this app is click-based and
+    // never contends for the drag; the gizmo is the first that does. Orbit is suspended only while
+    // a handle is actually held, which is the narrowest suspension there is.
+    // The event types `value` as `unknown`, so it is narrowed rather than cast — `any` is out.
+    const onDragging = (e: { value: unknown }) => {
+      const dragging = e.value === true
+      controls.enabled = !dragging
+      draggingRef.current = dragging
+    }
+    gizmo.addEventListener('dragging-changed', onDragging)
+
+    // On release, not on every frame: a drop is one undo entry, and resolving an anchor per
+    // pointermove would write a history entry per pixel.
+    const onGizmoMouseUp = () => {
+      const target = gizmoTargetRef.current
+      const p = proxyRef.current
+      if (target == null || p === null) return
+      onGizmoDropRef.current?.(target.id, { x: p.position.x, y: p.position.y, z: p.position.z })
+    }
+    gizmo.addEventListener('mouseUp', onGizmoMouseUp)
+
+    scene.add(gizmo.getHelper())
+
     scene.add(new THREE.AxesHelper(50))
     const grid = new THREE.GridHelper(400, 20, 0x444444, 0x2a2a2d)
     grid.rotation.x = Math.PI / 2
@@ -343,6 +394,9 @@ export function Viewport({
     }
 
     const handleClick = (e: MouseEvent) => {
+      // A drag that ends within handleClick's 4-pixel threshold would otherwise deselect the very
+      // cabinet it just moved.
+      if (draggingRef.current) return
       if (!mouseDown.current) return
       if (Math.hypot(e.clientX - mouseDown.current.x, e.clientY - mouseDown.current.y) > 4) return
       const rect = renderer.domElement.getBoundingClientRect()
@@ -426,6 +480,12 @@ export function Viewport({
       ghostPlaceholderGeo.dispose()
       ghostMesh.material.dispose()
       scene.remove(ghostMesh)
+      gizmo.removeEventListener('dragging-changed', onDragging)
+      gizmo.removeEventListener('mouseUp', onGizmoMouseUp)
+      gizmo.detach()
+      scene.remove(gizmo.getHelper())
+      gizmo.dispose()
+      scene.remove(proxy)
       controls.dispose()
       renderer.dispose()
       if (stats && mount.contains(stats.dom)) mount.removeChild(stats.dom)
@@ -670,6 +730,27 @@ export function Viewport({
     ;(ghost.material as THREE.MeshStandardMaterial).color.set(src.color)
     ghost.visible = true
   }, [snapPhase, sourceFace, hoveredFace, parts, componentMap, geometries])
+
+  // Attaches the gizmo to the selected cabinet and detaches it when nothing is selected. Separate
+  // from the mount-once effect so that effect stays mount-once: the viewport builds its renderer,
+  // camera and every mesh there, and re-running it would tear all of that down.
+  useEffect(() => {
+    gizmoTargetRef.current = gizmoTarget
+    onGizmoDropRef.current = onGizmoDrop
+    const gizmo = gizmoRef.current
+    const proxy = proxyRef.current
+    if (gizmo === null || proxy === null) return
+    if (gizmoTarget == null) {
+      gizmo.detach()
+      return
+    }
+    // Never move the proxy mid-drag. The scene re-renders on every committed drop, and yanking the
+    // proxy back to the resolved centre while a handle is still held fights the pointer.
+    if (!draggingRef.current) {
+      proxy.position.set(gizmoTarget.centre.x, gizmoTarget.centre.y, gizmoTarget.centre.z)
+    }
+    gizmo.attach(proxy)
+  }, [gizmoTarget, onGizmoDrop])
 
   useEffect(() => {
     const mount = mountRef.current

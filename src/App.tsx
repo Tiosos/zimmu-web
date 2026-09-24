@@ -15,6 +15,7 @@ import { PlanView } from './ui/PlanView'
 import { anchorForDrop } from './scene/dragAnchor'
 import { turnedInPlace } from './scene/turnCabinet'
 import { cornerWarnings } from './scene/blindCorner'
+import { dropForCentre, gizmoCentreOf } from './scene/moveGizmo'
 import { BomModal } from './ui/BomModal'
 import { useMaterialLibrary } from './scene/useMaterialLibrary'
 import { useHardwareLibrary } from './scene/useHardwareLibrary'
@@ -142,6 +143,17 @@ function App() {
 
   const [cabinetTab, setCabinetTab] = useState<CabinetTab>('section')
   const [mainView, setMainView] = useState<'model' | 'plan'>('model')
+
+  // Only a cabinet gets a gizmo: an anchor lives on a carcase and nothing else has a placement to
+  // edit. `selectedCarcase` is already the open-cabinet rule, so reusing it keeps one answer to
+  // "which cabinet is being worked on" rather than introducing a second pick.
+  const gizmoTarget = useMemo(
+    () =>
+      selectedCarcase === null
+        ? null
+        : { id: selectedCarcase.id, centre: gizmoCentreOf(selectedCarcase, scene.materials) },
+    [selectedCarcase, scene.materials],
+  )
 
   // One selection, not two. This used to be `sectionPick` — a second piece of state the elevation
   // wrote and the panel read — which meant two things could disagree about which opening was
@@ -590,6 +602,29 @@ function App() {
             highlightedIds={highlightedIds}
             selectedIds={selectedIds}
             suggestionOutlines={hoveredOutlines}
+            gizmoTarget={gizmoTarget}
+            onGizmoDrop={(id, centre) => {
+              const dragged = scene.components.find((c) => c.id === id)
+              if (dragged === undefined || dragged.kind !== 'carcase') return
+              const others = scene.components.filter(
+                (c): c is CarcaseComponent => c.kind === 'carcase' && c.id !== id,
+              )
+              const drop = dropForCentre(dragged, centre, others, scene.materials)
+              // Through onUpdateComponent like every other edit, so a gizmo drag lands in undo/redo
+              // and the four-stage pipeline re-resolves anchored neighbours in the same commit —
+              // exactly as the plan view's drop does.
+              //
+              // The drop's suggested `rotationZ` is deliberately NOT applied: that is a plan-view
+              // default for a drag crossing into a corner, and a 3D drag that silently span the
+              // cabinet under the pointer would be a surprise. Rotation stays the user's.
+              onUpdateComponent(id, (c) =>
+                c.kind !== 'carcase'
+                  ? c
+                  : drop.kind === 'anchor'
+                    ? { ...c, anchor: drop.anchor }
+                    : { ...c, anchor: undefined, position: drop.position },
+              )
+            }}
           />
         </div>
         {mainView === 'plan' && (
