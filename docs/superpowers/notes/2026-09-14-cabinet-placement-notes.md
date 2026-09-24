@@ -420,3 +420,101 @@ drag.
 
 Two judgement figures are unverified and both are one-line changes: `SNAP_MM = 60`, which has never
 been felt in the running app, and `BLIND_CLEARANCE = 0` above.
+
+---
+
+## 2026-09-24 — stage 4: the move gizmo (the design completes)
+
+**Plan:** `docs/superpowers/plans/2026-09-24-cabinet-placement-stage-4-gizmo.md`
+
+### The risk the spec named was real, and had no precedent
+
+The spec warned surface C "competes with `OrbitControls` for the same mouse drag". Measured before
+planning, that is exactly right and nothing in the app had met it: `interactionActive` *looks* like
+it might gate orbit and does not — it sets the cursor (`viewport.tsx:677`) and routes face clicks
+(`:357`, `:382`). Every existing gesture (snap, cut, the five joint tools) is **click**-based,
+discriminated from a drag by a 4-pixel threshold in `handleClick`. Orbit was enabled
+unconditionally and never had to yield. The gizmo is the first drag gesture in the app.
+
+### Two decisions taken with the user
+
+**1 — build on `TransformControls`.** It ships inside `three@0.184.0` at
+`three/examples/jsm/controls/`, the same directory `OrbitControls` already comes from, so it is a
+zero-dependency addition. Its `dragging-changed` event suspends orbit only while a handle is
+actually held.
+
+**The API was verified against the installed source rather than recalled**, which is worth keeping
+as a habit: `defineProperty` at `TransformControls.js:105-131` dispatches
+`` `${propName}-changed` `` carrying `{ value }`, and `dragging` is one of those properties
+(`:225`). `getHelper()` exists (`:424`). `mode` already defaults to `'translate'` (`:167`) and
+`space` to `'world'` (`:206`), so the plan's `setMode`/`setSpace` calls were dropped as redundant
+before any code was written.
+
+**2 — X, Y *and* Z, against the recommendation.** The recommendation was X/Y only: placement is 2D,
+the design excludes a `'top'` anchor side, nothing stacks. The user chose all three, and it
+composes better than the recommendation anticipated — for a `left`/`right`/`front`/`back` face,
+`anchorForDrop`'s in-plane `v` axis **is z**, so a wall unit dragged beside another snaps flush in
+height through the existing rule. Z is not an unsnapped free axis after all. Pinned by *snaps a
+near-flush height to flush* and *keeps a deliberate height difference past the snap*.
+
+### One deliberate deviation from the spec
+
+The spec names `scene/useMoveGizmo.ts`. **It was not created.** `CLAUDE.md` forbids abstractions for
+single-use code, and there is no gizmo state to hook: the drag lives inside `TransformControls`, the
+resolution is one callback in `App`, and a hook wrapping a single callback would be a file existing
+to match a table row. The real content — the centre↔origin conversion — went into a pure module,
+`moveGizmo.ts`, exactly where stages 2 and 3 put theirs.
+
+### Where the evidence comes from, and where it does not
+
+`viewport.tsx` has **no unit test at all**, and `App.test.tsx` mocks the entire module
+(`vi.mock('./render/viewport')`). happy-dom has no WebGL. So this stage's correctness rests on
+Task 1's pure arithmetic plus the e2e suite, and the viewport change was deliberately kept to
+wiring with no arithmetic in it. A future reader should not mistake the green suite for evidence
+that the gizmo renders.
+
+### Mutation testing: no survivors, and every kill larger than predicted
+
+| Mutation | Predicted | Actual |
+| --- | --- | --- |
+| `gizmoCentreOf` returns the origin | 1 | **8** ✓ |
+| centre uses `b.x0` in place of the midpoint | 2 | **8** ✓ |
+| `positionForCentre` uses the world box | 1 | **2** ✓ |
+| `positionForCentre` drops the z term | 2 | **4** ✓ |
+| `dropForCentre` passes the centre straight through | 1 | **3** ✓ |
+
+First stage in this series with **no survivor**, where stages 2 and 3 each had one. The reason is
+structural rather than virtuous: `gizmoCentreOf` and `positionForCentre` are inverses, so every
+round-trip test exercises both, and breaking either kills a cluster instead of a single assertion.
+That is a property worth copying — a rule stated as a pair of inverses is far harder to
+under-test than a rule stated once.
+
+### What this stage got wrong
+
+- **A test asserted an assumption rather than the code.** *gives the gizmo the selected cabinet and
+  nothing else* cleared the selection and expected the gizmo to detach. It does not: `selectedCarcase`
+  deliberately keeps an open cabinet open, and a cabinet closes when the selection moves **outside**
+  it. The test now does what the neighbouring *closes the cabinet when the selection moves outside
+  it* already demonstrated. The code was right and the test was wrong.
+- **Two typecheck errors the plan predicted in outline:** `Vec3` was not imported into
+  `viewport.tsx`, and `dragging-changed` types its `value` as `unknown`. The latter was narrowed
+  (`e.value === true`) rather than cast, since `CLAUDE.md` forbids `any`.
+
+### Measured
+
+- **Baseline** (`f90c1f3`, main with stage 3 merged, measured not quoted): 105 files, 2051 passed,
+  10 skipped.
+- **Branch tip:** 106 files, 2064 passed, 10 skipped.
+- **Delta:** +1 file (`moveGizmo`), **+13 tests**.
+- `pnpm typecheck && pnpm lint && pnpm test` all exit 0.
+
+### The design is complete
+
+All four stages are shipped: free placement, straight runs, L-corners and the gizmo. Still excluded
+by the design itself: a `'top'` anchor side, walls as objects, filler strips, per-run operations
+beyond what a chain gives for free.
+
+Two judgement figures remain unverified and both are one-line changes. `SNAP_MM = 60` is now read by
+**two** surfaces rather than one, so the gizmo makes it more visible than the plan view did;
+`BLIND_CLEARANCE = 0` is still the spec's bare-contact rule awaiting a woodworker's ruling. Neither
+should be called settled on the strength of a green suite.
