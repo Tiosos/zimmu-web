@@ -164,6 +164,23 @@ describe('regenerateFaceFrames', () => {
     expect(out.parts.every((p) => p.parentId === null || ids.has(p.parentId))).toBe(true)
   })
 
+  // Detached means no regeneration, not only no deletion: a cabinet resized under a detached frame
+  // leaves the frame's boards exactly where the user left them.
+  it("leaves a detached frame's boards alone when the cabinet changes", () => {
+    const framed = regenerateFaceFrames(sceneOf([cab('cmp_a')]))
+    const detached = {
+      ...framed,
+      components: framed.components.map((c) =>
+        c.kind === 'faceFrame'
+          ? { ...c, driven: false }
+          : c.kind === 'carcase'
+            ? cab('cmp_a', { frame: FRAME, width: 900 })
+            : c,
+      ),
+    }
+    expect(boardsOf(regenerateFaceFrames(detached))).toEqual(boardsOf(framed))
+  })
+
   it('does not build a second frame beside a detached one', () => {
     const framed = regenerateFaceFrames(sceneOf([cab('cmp_a')]))
     const detached = {

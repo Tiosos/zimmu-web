@@ -101,6 +101,13 @@ describe('faceFrameGeometry', () => {
     expect(faceFrameGeometry(leaf(), { ...OUTER, z1: 150 }, FRAME)).toBeNull()
   })
 
+  // The boundary itself. Negative openings fail `<` and `<=` alike, so only an opening of exactly
+  // zero tells them apart — 88 wide leaves 44 + 44 of stile and nothing between them.
+  it('declines an opening of exactly zero', () => {
+    expect(faceFrameGeometry(leaf(), { ...OUTER, x1: 88 }, FRAME)).toBeNull()
+    expect(faceFrameGeometry(leaf(), { ...OUTER, z1: 164 }, FRAME)).toBeNull()
+  })
+
   it('declines a zero-width member', () => {
     expect(faceFrameGeometry(leaf(), OUTER, { ...FRAME, stileWidth: 0 })).toBeNull()
   })
