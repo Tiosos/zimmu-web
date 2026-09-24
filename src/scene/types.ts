@@ -223,6 +223,16 @@ export interface CarcaseParams {
   jointMethod: 'dado-rabbet' | 'finger' | 'dowel' | 'butt-screw' | 'confirmat'
 }
 
+export interface FaceFrameParams {
+  stileWidth: number
+  railWidth: number
+  // A centre stile is customarily wider than an edge one, because two half-overlay doors each
+  // cover half of it. Unused until stage 2 adds divisions, but present from v20 so a stage-1 file
+  // stays readable by a stage-2 build.
+  midStileWidth: number
+  midRailWidth: number
+}
+
 export interface GroupComponent {
   kind: 'group'
   id: ComponentId // "cmp_<uuid>"
