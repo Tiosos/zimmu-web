@@ -555,3 +555,36 @@ so the act that attaches the gizmo is the act that hides it, and the gizmo is in
 subtab is clicked. That is stage-2 behaviour (`App` shows the viewport only while `selectedCarcase`
 is null or the tab is 3D) and deliberate, but it makes the gizmo hard to discover. A design question
 for whoever picks up placement next, not a defect in this stage.
+
+### 2026-09-24 — the gizmo broke an e2e gate, and the one pixel that did it
+
+CI went red on #51: `carcase.spec.ts:417` *"an opening selected in the tree lights its own parts in
+3D"*, timing out in `pollHues` at **Gate 1** — *"no opening selected should paint no blue"*. It
+failed on both runs and on retry, so not a flake, and it is this PR's.
+
+**Diagnosed by measurement, after the first two theories were wrong.** The guess was that the
+gizmo's blue Z arrow was being counted. It is not: `isSelectionBlue` is
+`r > 40 && b > 120 && g*100 > b*75 && r*100 < b*55`, which wants a *cyan*, and the gizmo's blue is
+`0x0000ff` where `r > 40` fails. The second guess — occlusion, then hue from the translucent plane
+handles — was also wrong.
+
+Reproducing locally and probing the failure screenshot with the matcher found the real cause:
+**exactly one pixel**, at `(261,378)`, `rgb(63,165,136)` — the anti-aliased blend where the gizmo's
+green and blue axes meet at its origin. It satisfies all four terms. Gate 1 asserted `blue === 0`,
+so one pixel was enough.
+
+**The fix, and why it is not a weakened test.** Gates 1 and 3 now bound the count below
+`SELECTION_PIXELS` (400) instead of demanding exactly zero. The gate's claim — *nothing is
+highlighted* — is unchanged, and so is its power: one opening lit measures 1759-1880 and an all-lit
+viewport 6932, both far above 400. That was **verified rather than asserted**: the file's own named
+mutation (light every part whenever a cabinet is selected) was applied and Gate 1 still failed under
+the new bound. `=== 0` was only ever valid while the highlight was the single source of that hue;
+the viewport now legitimately carries an overlay, and the gate is re-expressed against that.
+
+Gate 3 needed the same treatment for a reason worth stating: deselecting a part does **not** close
+the cabinet (`App` keeps it open deliberately), so the gizmo is still attached and still painting
+its pixel.
+
+**Process note.** The full e2e suite was run locally before pushing — 25 passed — rather than
+pushing the one fixed test and letting CI find the rest. The gizmo overlays the viewport in every
+test where a cabinet is selected, and several other specs sample canvas hues.

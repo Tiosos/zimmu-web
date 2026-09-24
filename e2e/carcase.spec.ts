@@ -463,8 +463,19 @@ test('an opening selected in the tree lights its own parts in 3D', async ({ page
   // passes without it, since `splitSection` leaves the old id naming an internal node, which
   // resolves to no opening. Deselecting would not have closed the editor either: `App.tsx` keeps it
   // open on a null selection deliberately, and `App.test.tsx` pins that.
+  //
+  // The bound is `< SELECTION_PIXELS` rather than `=== 0` because the move gizmo now overlays the
+  // viewport whenever a cabinet is selected, and one anti-aliased pixel where its green and blue
+  // axes meet satisfies `isSelectionBlue`. Measured, not estimated: exactly **1** px, at (261,378),
+  // `rgb(63,165,136)`. The gate keeps all of its discriminating power — one opening lit measures
+  // 1759-1880 and an all-lit viewport 6932, so both still fail against a floor of 400.
   await cabinet.click()
-  await pollHues(canvas, hues, (c) => c.blue === 0, 'no opening selected should paint no blue')
+  await pollHues(
+    canvas,
+    hues,
+    (c) => c.blue < SELECTION_PIXELS,
+    'no opening selected should paint no selection blue',
+  )
 
   // Gate 2: selecting an opening lights that opening's parts, and ONLY that opening's. The upper
   // bound is what makes the second half true — measured, one opening lights ~1759-1880 px while a
@@ -492,7 +503,15 @@ test('an opening selected in the tree lights its own parts in 3D', async ({ page
   // without leaving the 3D tab — the elevation background the unit tests click for that is on the
   // Section tab. Measured to be load-bearing: a viewport that painted the selection but never reset
   // an edge to 0x1a1a1d passes gates 1 and 2 and fails here.
+  //
+  // Bounded rather than zeroed for the same reason as gate 1: deselecting a part does not close the
+  // cabinet (`App` keeps it open deliberately), so the gizmo — and its one pixel — is still there.
   await canvas.click({ position: { x: 20, y: box.height - 20 } })
-  const cleared = await pollHues(canvas, hues, (c) => c.blue === 0, 'deselecting should clear it')
-  expect(cleared).toEqual({ blue: 0 })
+  const cleared = await pollHues(
+    canvas,
+    hues,
+    (c) => c.blue < SELECTION_PIXELS,
+    'deselecting should clear it',
+  )
+  expect(cleared.blue, `after deselect: measured ${cleared.blue} px`).toBeLessThan(SELECTION_PIXELS)
 })
