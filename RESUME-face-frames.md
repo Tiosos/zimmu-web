@@ -17,9 +17,12 @@ Delete this file when stage 1 is finished — it is a handover note, not documen
 | `c3155be` docs: design face frames and half-overlay | pushed, green |
 | `75619f3` docs: implementation plan for face frames stage 1 | pushed, green |
 | `3dea8a2` feat: the face frame's geometry, stated once | **committed, NOT pushed** |
-| Task 2 (the model) | **uncommitted in the working tree** |
+| `cf8c06c` chore: record the stopped state (Task 2 + this note) | **committed, NOT pushed** |
 
-**The working tree is dirty. Nothing is lost, nothing is broken — it is mid-task, not mid-failure.**
+**The working tree is clean and both local commits are unpushed.** Task 2's code was
+committed *with* this note rather than left dirty, so nothing depends on an unsaved
+buffer. It is mid-task, not mid-failure: Task 2 is code-complete but **unverified**,
+so treat `cf8c06c` as a checkpoint, not as a finished task.
 
 ---
 
@@ -44,11 +47,15 @@ Task 1 added 13 tests, so **2083 passed / 108 files** is the expected figure if
 nothing else moved. A *lower* number than 2083 means something regressed — read
 it, do not wave it through.
 
-If both are clean, commit Task 2 and carry on at Task 3 in the plan.
+If both are clean, Task 2 is verified — amend or follow up with a proper
+`feat(scene): the face frame model` commit message if you want the history to read
+cleanly, then carry on at Task 3 in the plan.
+
+If either is red, the fix belongs on top of `cf8c06c`; do not reset it.
 
 ---
 
-## What is sitting uncommitted (10 files)
+## What Task 2 changed (10 files, inside `cf8c06c`)
 
 Task 2 is "the model", plus the fallout `tsc` named. All of it traces to the plan.
 
