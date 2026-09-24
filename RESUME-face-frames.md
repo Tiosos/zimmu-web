@@ -17,12 +17,20 @@ Delete this file when stage 1 is finished — it is a handover note, not documen
 | `c3155be` docs: design face frames and half-overlay | pushed, green |
 | `75619f3` docs: implementation plan for face frames stage 1 | pushed, green |
 | `3dea8a2` feat: the face frame's geometry, stated once | **committed, NOT pushed** |
-| `cf8c06c` chore: record the stopped state (Task 2 + this note) | **committed, NOT pushed** |
+| `cf8c06c` chore: record the stopped state (Task 2 + this note) | pushed |
+| `d0c6363` chore: note fixes | pushed — **CI went red here** |
+| (next) Task 2 verified + EditPanel fixture fix | the green one |
 
-**The working tree is clean.** Task 2's code was
-committed *with* this note rather than left dirty, so nothing depends on an unsaved
-buffer. It is mid-task, not mid-failure: Task 2 is code-complete but **unverified**,
-so treat `cf8c06c` as a checkpoint, not as a finished task.
+**Task 2 is now verified and green.** It was pushed unverified at `d0c6363` to survive
+container reclamation, and CI went red on it — one test, `EditPanel.test.tsx > offers
+only materials that state a thickness`, which enumerates the material dropdown
+exhaustively and so had to gain `Hardwood 20mm`. The test was right; the fixture was
+stale. Fixed, and the suite is green at **108 files / 2083 passed / 10 skipped** —
+exactly the figure predicted below.
+
+**Lesson worth keeping: pushing for durability and pushing for review are different
+acts.** Doing the first on a shared branch triggered CI on unverified code. Next time,
+verify before the durability push, or expect to own the red.
 
 ---
 
@@ -32,13 +40,8 @@ Task 2 is code-complete and `pnpm typecheck` exits **0**. It stopped at the
 **verify** step, before `pnpm lint` and the full `pnpm test` had been run and
 before the commit.
 
-**The next command to run is:**
-
-```bash
-cd /home/user/zimmu-web
-pnpm lint; echo "lint=$?"
-pnpm test 2>&1 | tail -8
-```
+**Resume at Task 3 of the plan** (the frame material slot in `resolveThickness.ts`).
+Tasks 0-2 are done and verified.
 
 Baseline to compare against (measured at Task 0, on `75619f3`):
 **107 files, 2070 passed, 10 skipped**; typecheck 0, lint 0.
