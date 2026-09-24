@@ -13,6 +13,8 @@ import { CabinetEditor, type CabinetTab } from './ui/CabinetEditor'
 import { FileMenu } from './ui/FileMenu'
 import { PlanView } from './ui/PlanView'
 import { anchorForDrop } from './scene/dragAnchor'
+import { turnedInPlace } from './scene/turnCabinet'
+import { cornerWarnings } from './scene/blindCorner'
 import { BomModal } from './ui/BomModal'
 import { useMaterialLibrary } from './scene/useMaterialLibrary'
 import { useHardwareLibrary } from './scene/useHardwareLibrary'
@@ -610,10 +612,19 @@ function App() {
                 c.kind !== 'carcase'
                   ? c
                   : drop.kind === 'anchor'
-                    ? { ...c, anchor: drop.anchor }
+                    ? // The inherited rotation is decision 9's UI default: dropping onto a blind
+                      // unit's front face turns the cabinet to face along the return wall, which is
+                      // what makes the corner gesture work.
+                      { ...c, anchor: drop.anchor, rotation: { ...c.rotation, z: drop.rotationZ } }
                     : { ...c, anchor: undefined, position: drop.position },
               )
             }}
+            onTurn={(id) =>
+              onUpdateComponent(id, (c) =>
+                c.kind !== 'carcase' ? c : turnedInPlace(c, scene.materials, 90),
+              )
+            }
+            warnings={cornerWarnings(scene.components, scene.materials)}
           />
         )}
         {selectedCarcase !== null && mainView === 'model' && (

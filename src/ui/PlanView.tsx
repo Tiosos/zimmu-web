@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CarcaseComponent, ComponentId, Scene, Vec3 } from '../scene/types'
 import { worldBoundsOf } from '../scene/carcaseWorldBounds'
 import { runsOf } from '../scene/runs'
+import type { CornerWarning } from '../scene/blindCorner'
+import { Button } from '@/components/ui/button'
 
 // The whole job seen from above. The second interactive SVG in the codebase, and it follows the
 // first (`SectionElevation`) deliberately: React elements rather than an SVG string, because every
@@ -52,11 +54,15 @@ export function PlanView({
   selectedId,
   onSelect,
   onDrop,
+  onTurn,
+  warnings,
 }: {
   scene: Scene
   selectedId: ComponentId | null
   onSelect: (id: ComponentId) => void
   onDrop: (id: ComponentId, position: Vec3) => void
+  onTurn: (id: ComponentId) => void
+  warnings: readonly CornerWarning[]
 }) {
   const boxes = useMemo(
     () =>
@@ -86,6 +92,10 @@ export function PlanView({
       height: yMax - yMin + PADDING * 2,
     }
   }, [boxes])
+
+  // The cabinets flagged, not the corners: a footprint is drawn per cabinet, and it is the one
+  // returning into the corner that is too deep for what it meets.
+  const warned = useMemo(() => new Set(warnings.map((w) => w.cabinetId)), [warnings])
 
   const svgRef = useRef<SVGSVGElement>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
@@ -137,6 +147,13 @@ export function PlanView({
 
   return (
     <div className="flex-1 min-w-0 flex flex-col bg-muted/30">
+      {selectedId !== null && (
+        <div className="p-1.5 flex-shrink-0">
+          <Button size="sm" variant="outline" onClick={() => onTurn(selectedId)}>
+            Rotate 90°
+          </Button>
+        </div>
+      )}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${frame.width} ${frame.height}`}
@@ -184,14 +201,19 @@ export function PlanView({
                 data-testid={`plan-cabinet-${c.id}`}
                 data-selected={isSelected}
                 data-anchored={c.anchor !== undefined}
+                data-warned={warned.has(c.id)}
                 x={x + ox}
                 y={y + oy}
                 width={w}
                 height={h}
+                // A warned cabinet reads as warned whether or not it is selected: the thing that
+                // will not build matters more than the thing the user is pointing at.
                 className={
-                  isSelected
-                    ? 'fill-primary/25 stroke-primary cursor-pointer'
-                    : 'fill-background stroke-border cursor-pointer hover:fill-accent'
+                  warned.has(c.id)
+                    ? 'fill-destructive/25 stroke-destructive cursor-pointer'
+                    : isSelected
+                      ? 'fill-primary/25 stroke-primary cursor-pointer'
+                      : 'fill-background stroke-border cursor-pointer hover:fill-accent'
                 }
                 strokeWidth={isSelected ? 8 : 3}
                 onClick={() => onSelect(c.id)}

@@ -334,3 +334,89 @@ One thing stage 3 should not have to rediscover: `PlanView` has no rotation affo
 turned cabinet can be drawn (`worldBoundsOf` handles it, and `rotatedBounds` is exact for quarter
 turns) but not made. Rotation is the user's in both mounts and never derived from a target, so the
 affordance is a control, not a rule.
+
+---
+
+## 2026-09-17 — stage 3: corners
+
+**Plan:** `docs/superpowers/plans/2026-09-17-cabinet-placement-stage-3-corners.md`
+
+### Two thirds of the staged scope was already shipped
+
+The spec's staging line reads *"rotation in the plan view, front-face anchors, blind-width
+validation"*. Reading the source rather than the summary — which is the whole lesson here — showed
+that **front-face anchors already worked**: `Anchor['face']` has carried `'front' | 'back'` since
+stage 1, `FACE_NORMAL` maps both, `PlacementPanel` offers all four faces and `anchorForDrop`
+considers all four. More importantly, the spec's self-declared "load-bearing claim" — that the
+meeting face is derived from the normal, and that *every straight-run fixture passes the broken
+rule* — is **already pinned by a corner fixture**: `anchor.test.ts:93`, `:102`, and a 90°
+front-anchored case in `resolvePlacement.test.ts:170`.
+
+So an L-shape was buildable before this stage, by typing `90` into `PlacementPanel`'s Rotation Z and
+picking a `front` anchor. Stage 3 made that ergonomic and caught the one way it goes wrong. Recorded
+because the staging line reads like three pieces of work and is one and a half; anyone planning from
+the summary alone would have rebuilt a corner fixture that already exists.
+
+**What was genuinely missing** was decision 9 — *"Does drag-anchoring inherit the target's rotation?
+**Yes**, as a UI default only"* — which had never been implemented. Without it the corner *gesture*
+does not work: dragging a cabinet onto a blind unit's front face leaves it at 0°, facing out of the
+wall. That is the piece that makes the plan view able to build a corner at all.
+
+### The blind-width figure, sharpened
+
+An earlier framing of this (in the stage 2 hand-off) called the blind-corner *dimensions* the
+blocker. That was imprecise, and the correction matters: the spec's rule contains **no vendor
+figure**. It is arithmetic — *the blind portion must be at least as wide as the return run's
+cabinets are deep*. What the Risks section calls unverified is the judgement that **bare contact is
+enough**, i.e. whether real practice wants a margin for door swing, a handle, or a minimum
+accessible opening.
+
+So `BLIND_CLEARANCE = 0` is the spec as written, taken as an explicit assumption rather than a
+settled figure, and isolated so a woodworker's answer changes one number and the tests that read it.
+**Still open.**
+
+### Mutation testing: one survivor, the same shape as stage 2's
+
+| Mutation | Predicted | Actual |
+| --- | --- | --- |
+| `turnCabinet`: drop the compensating translation | 1 fail | 2 fail ✓ |
+| `turnCabinet`: compensate on the min corner, not the centre | 1 fail | 1 fail ✓ |
+| `turnCabinet`: drop the `% 360` wrap | 1 fail | 1 fail ✓ |
+| `blindCorner`: `'panel'` counts as accessible | 1 fail | **0 — survived** |
+| `blindCorner`: warn on every face | 1 fail | 1 fail ✓ |
+| `blindCorner`: measure the target's depth, not the return's | 1 fail | 2 fail ✓ |
+| `blindCorner`: flip the comparison | 1 fail | 4 fail ✓ |
+| `dragAnchor`: always suggest `rotationZ: 0` | 1 fail | 1 fail ✓ |
+
+The survivor is **exactly stage 2's shape — a rule written once but exercised on only one of its
+branches.** Every blind-unit fixture used a *bare opening* for the blind leaf, so the
+`'panel'` and `'false-front'` arms of the blind test were never reached and deleting either killed
+nothing. A panelled leaf is the case a real blind unit actually wears. Both arms now have a case,
+and a second mutation (`'false-front'`) was added and killed too.
+
+**A process note worth keeping.** The first attempt at the "drop the compensating translation"
+mutation produced `Tests no tests` — the Python surgery had broken the file syntactically, so
+nothing compiled. That reads *nothing like* a survivor but is equally not a result; it was redone
+with an exact string replacement. Add it to the mutation rules: **a run that reports no tests is a
+broken mutation, not evidence.**
+
+The `FrontSpec` import in the new test pointed at `types.ts`, where it does not live (it is exported
+from `sectionTree.ts`). Caught only because this stage gated commits on the **real exit code** —
+`pnpm typecheck; tc=$?` — rather than piping through `tail`, which is the trap stage 2 recorded.
+
+### Measured
+
+- **Baseline** (`f644198`, main with stage 2 merged, measured not quoted): 103 files, 2025 passed,
+  10 skipped.
+- **Branch tip:** 105 files, 2051 passed, 10 skipped.
+- **Delta:** +2 files (`turnCabinet`, `blindCorner`), **+26 tests**.
+- `pnpm typecheck && pnpm lint && pnpm test` all exit 0.
+
+### Still open
+
+Stage 4 (the viewport move gizmo) remains — the only stage nothing else depends on, staged last
+deliberately because it duplicates the plan view and competes with `OrbitControls` for the same
+drag.
+
+Two judgement figures are unverified and both are one-line changes: `SNAP_MM = 60`, which has never
+been felt in the running app, and `BLIND_CLEARANCE = 0` above.
