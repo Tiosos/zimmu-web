@@ -40,8 +40,18 @@ Task 2 is code-complete and `pnpm typecheck` exits **0**. It stopped at the
 **verify** step, before `pnpm lint` and the full `pnpm test` had been run and
 before the commit.
 
-**Resume at Task 9 of the plan** (file format v20, `useFile.ts`).
-Tasks 0-8 are done and verified; the suite stood at **110 files / 2143 passed** after Task 8.
+**Resume at Task 10 of the plan** (solid stock and the nest — mostly done already, see below).
+Tasks 0-9 are done and verified; the suite stood at **110 files / 2147 passed** after Task 9.
+
+**Task 9 — a decision Task 11 now owes.** The plan said to seed nothing; I first seeded the
+frame material at load so ticking "frame" on an old file would just work. That broke the v14
+test's stated principle — *the migration must not touch a file's materials* — and it was right:
+every old file would gain an unused material. Reverted. **So Task 11's "turn a frame on" must
+add the frame material to `scene.materials` when it is missing**, or an old file's first frame
+reads "frameMaterial has no thickness". A v19 load adding nothing is now pinned by a test.
+
+**Task 10 is mostly done:** `DEFAULT_FRAME_MATERIAL` and its sheetless preset entry landed in
+Task 2. What remains is the `isNestable` test that pins it.
 
 **Task 8 went well beyond the plan — every gap below is now closed:**
 - `frontGeometryOf(p)` in `carcaseRoles.ts` is the one statement of what fronts are measured

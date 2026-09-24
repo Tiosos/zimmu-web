@@ -9,12 +9,14 @@ import type {
   Joint,
   CarcaseParams,
   DrawerComponent,
+  FaceFrameComponent,
 } from './types'
 import * as idb from './idb'
 import { breakComponentCycles, promoteOrphans } from './componentTree'
 import {
   DEFAULT_BACK_MATERIAL,
   DEFAULT_CARCASE_MATERIAL,
+  DEFAULT_FRAME_MATERIAL,
   DEFAULT_FRONT_MATERIAL,
   PRESET_MATERIALS,
 } from './carcasePresets'
@@ -23,7 +25,7 @@ import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
 import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 
-export const FILE_FORMAT_VERSION = 19
+export const FILE_FORMAT_VERSION = 20
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -272,8 +274,9 @@ export function parseFile(text: string): ZimmuFile {
             count: number
           }
           frontMaterial?: string
-          frontMount?: 'overlay' | 'inset'
+          frontMount?: 'overlay' | 'half-overlay' | 'inset'
           frontReveal?: number
+          frameMaterial?: string
         }
         const divided =
           legacy.section ??
@@ -338,6 +341,12 @@ export function parseFile(text: string): ZimmuFile {
           frontMaterial: legacy.frontMaterial ?? DEFAULT_FRONT_MATERIAL,
           frontMount: legacy.frontMount ?? 'overlay',
           frontReveal: legacy.frontReveal ?? 3,
+          // v19→v20: face frames arrive. Nothing defaults `frame` — absent already means frameless,
+          // so a pre-v20 cabinet needs no conversion for it. The slot is named but its material is
+          // NOT seeded: the migration must not touch a file's materials, and a material appearing
+          // in every old file for a frame nobody drew is exactly that. It is added when the user
+          // turns a frame on, which is when the cabinet first needs it.
+          frameMaterial: legacy.frameMaterial ?? DEFAULT_FRAME_MATERIAL,
         }
         // Dropped, not kept alongside the tree: two descriptions of the same divisions would
         // disagree the moment either is edited. The same argument retires the per-carcase
@@ -369,6 +378,17 @@ export function parseFile(text: string): ZimmuFile {
           rotationOrder: base.rotationOrder,
           visible: base.visible,
         }
+      }
+      // v19→v20: face frame components. Detached when the flag is missing, for the drawer's reason:
+      // reconciliation keeps a driven frame only while its cabinet still asks for one, so a frame
+      // that lost the flag could be deleted with its boards. Staleness is recoverable and deletion
+      // is not.
+      if (base.kind === 'faceFrame') {
+        return {
+          ...base,
+          kind: 'faceFrame' as const,
+          driven: base.driven ?? false,
+        } as FaceFrameComponent
       }
       if (base.kind === 'drawer') {
         return {
