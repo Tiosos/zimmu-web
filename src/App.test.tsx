@@ -86,15 +86,21 @@ function makeDefaultSceneReturn() {
 const viewportSpy = vi.hoisted(() => ({
   fitRequest: 0,
   selectedIds: [] as readonly PartId[],
+  gizmoTarget: null as { id: string; centre: { x: number; y: number; z: number } } | null,
 }))
 
 // Renders a marker rather than null: App shows and hides the viewport by toggling `display` on the
 // wrapper it sits in, so a test asking whether the viewport is showing has to reach that wrapper,
 // and the only handle on it is its child.
 vi.mock('./render/viewport', () => ({
-  Viewport: (props: { fitRequest: number; selectedIds: readonly PartId[] }) => {
+  Viewport: (props: {
+    fitRequest: number
+    selectedIds: readonly PartId[]
+    gizmoTarget: { id: string; centre: { x: number; y: number; z: number } } | null
+  }) => {
     viewportSpy.fitRequest = props.fitRequest
     viewportSpy.selectedIds = props.selectedIds
+    viewportSpy.gizmoTarget = props.gizmoTarget
     return <div data-testid="viewport" />
   },
 }))
@@ -502,6 +508,29 @@ describe('the open cabinet', () => {
     })
     expect(viewportShowing()).toBe(true)
     expect(screen.queryByRole('img', { name: 'Plan view' })).toBeNull()
+  })
+
+  // A gizmo edits a placement, and only a carcase has one. Reusing `selectedCarcase` keeps one
+  // answer to "which cabinet is being worked on" rather than adding a second.
+  it('gives the gizmo the selected cabinet and nothing else', async () => {
+    const select = await mount()
+    await select({ kind: 'component', id: cabinet.id })
+    expect(viewportSpy.gizmoTarget?.id).toBe(cabinet.id)
+    // A cabinet closes when the selection moves OUTSIDE it, not when the selection clears — an
+    // open cabinet deliberately stays open otherwise. Measured: clearing the selection left the
+    // gizmo attached, which is the documented rule rather than a defect.
+    await select({ kind: 'part', id: loose.id })
+    expect(viewportSpy.gizmoTarget).toBeNull()
+  })
+
+  it('puts the gizmo on the cabinet box rather than at its origin', async () => {
+    const select = await mount()
+    await select({ kind: 'component', id: cabinet.id })
+    const centre = viewportSpy.gizmoTarget?.centre
+    expect(centre).toBeDefined()
+    if (centre === undefined) return
+    // The cabinet sits at the origin, so a centre equal to it would mean the corner was used.
+    expect(centre.z).toBeGreaterThan(0)
   })
 
   it('keeps an open cabinet open when a part inside it is selected', async () => {
