@@ -21,14 +21,16 @@ import {
 } from './carcaseLayout'
 import { validateCarcaseParams } from './carcaseValidation'
 import { carcaseJoints } from './carcaseJoinery'
+import {
+  ADJUSTABLE_SHELF_SIDE_CLEARANCE,
+  shelfHasAccess,
+} from './interiorAccess'
 
 // How much narrower than its opening a loose shelf is cut, on each side. A chosen figure like
 // MAX_LADDER_SPAN — enough that a shelf lifts in and out without binding, small enough not to read
 // as a gap — not one derived from the material or from any tolerance the app knows about.
-const SHELF_CLEARANCE = 2
-
 // How far behind the carcase face a loose shelf's front edge sits. A different figure for a
-// different reason: `SHELF_CLEARANCE` clears panels the shelf has to lift past, this clears
+// different reason: `ADJUSTABLE_SHELF_SIDE_CLEARANCE` clears panels the shelf has to lift past, this clears
 // whatever the cabinet ends up wearing. A shelf level with the carcase face rubs any door with an
 // inset, and the door is not there to be measured against when the shelf is generated.
 const SHELF_FRONT_SETBACK = 5
@@ -301,6 +303,14 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
     const { first, count } = pinRow(usable, a)
     shelfPins(a.shelves, count).forEach((pin, i) => {
       const role = `adj-shelf-${sectionId}-${i}`
+      const shelfWidth =
+        usable.x1 - usable.x0 - 2 * ADJUSTABLE_SHELF_SIDE_CLEARANCE
+      const shelfThickness = thicknessOf(role)
+      // Installed envelope and insertion path are different constraints. Never make a shelf
+      // narrower merely because a frame-only stile is in front of it: either a real aperture can
+      // admit the manufactured board, or this removable shelf is not manufacturing-truthful.
+      if (!shelfHasAccess(sectionId, rect, fronts, shelfWidth, shelfThickness)) return
+
       // The board's underside on the pin's centreline: an L-pin carries the shelf on an arm at
       // about the height of the hole it sits in, and modelling the pin itself would put hardware
       // in the cutting list to hold up a board.
@@ -312,8 +322,8 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
         // walk, and a shelf that only says "Adj Shelf" is a worse cutting list than a numbered one.
         label: `Adj Shelf ${seated}`,
         box: {
-          x0: usable.x0 + SHELF_CLEARANCE,
-          x1: usable.x1 - SHELF_CLEARANCE,
+          x0: usable.x0 + ADJUSTABLE_SHELF_SIDE_CLEARANCE,
+          x1: usable.x1 - ADJUSTABLE_SHELF_SIDE_CLEARANCE,
           // Set back at the front for the door it does not know about, and clear of the back panel
           // at the other end. A shelf that jams against the back cannot be tilted out past the
           // pins, and a shelf touching a panel it is not fixed to would read as an unjoined
@@ -321,10 +331,10 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
           // An inset front stands in the first FT millimetres of the opening, so the shelf starts
           // behind it plus the same clearance it keeps from every other panel. An overlay front is
           // in front of y = 0 and costs nothing. The constant is the floor, never the answer.
-          y0: Math.max(SHELF_FRONT_SETBACK, insetDepthOf(sectionId) + SHELF_CLEARANCE),
-          y1: shelfBackY - SHELF_CLEARANCE,
+          y0: Math.max(SHELF_FRONT_SETBACK, insetDepthOf(sectionId) + ADJUSTABLE_SHELF_SIDE_CLEARANCE),
+          y1: shelfBackY - ADJUSTABLE_SHELF_SIDE_CLEARANCE,
           z0,
-          z1: z0 + thicknessOf(role),
+          z1: z0 + shelfThickness,
         },
         thicknessAxis: 'z',
       })
