@@ -617,7 +617,7 @@ describe('CarcasePanel — face frame', () => {
 
   it('does not falsely decline a divided frame now that the sidebar resolves its tree', () => {
     renderPanel(carcase({ frame: FRAME, section: sec([0.5], 0) }))
-    expect(screen.queryByText(/face frame is not built/i)).toBeNull()
+    expect(screen.queryByText(/face-frame members do not fit/i)).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -628,13 +628,13 @@ describe('CarcasePanel — face frame', () => {
         section: { ...sec([], 0), front: { kind: 'door', leaves: 2, hinge: 'left' } },
       }),
     )
-    expect(screen.getByText(/face frame is not built/i)).toBeTruthy()
+    expect(screen.getByText(/face-frame members do not fit/i)).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('says nothing when the frame builds', () => {
     renderPanel(doored({ frame: FRAME }))
-    expect(screen.queryByText(/face frame is not built/i)).toBeNull()
+    expect(screen.queryByText(/face-frame members do not fit/i)).toBeNull()
   })
 
   // Half-overlay laps a stile, so a frameless cabinet has nothing for it to mean.
