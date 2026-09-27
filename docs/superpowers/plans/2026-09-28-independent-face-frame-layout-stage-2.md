@@ -34,7 +34,9 @@ or new structural section.
 
 - Section IDs continue to own interiors.
 - Frame-zone IDs own physical front openings when a layout override exists.
-- Front role keys use the physical opening owner: `front-<openingId>-<leaf>`.
+- Legacy front roles stay `front-<sectionId>-<leaf>`; independent roles encode both authorities as
+  `front-<sectionId>|<openingId>-<leaf>`, preserving structural scene-tree ownership while keeping
+  physical openings unique.
 - Drawer components gain an optional frame-opening identity while retaining `sectionId` for
   structural ownership and old-file compatibility.
 
