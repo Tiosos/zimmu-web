@@ -392,14 +392,23 @@ export function regenerateDrawers(scene: Scene): Scene {
   // preserved when its role disappears — and released the same way. A drawer left over here names
   // an opening that is gone, so its section id goes with it; keeping it would let the drawer
   // reclaim a later opening that happens to be rebuilt under the same id. A driven leftover is
-  // dropped, as a driven part whose role disappeared is.
+  // dropped, and so are its driven boards — a board the user detached from it is theirs and stays,
+  // re-homed on the carcase because the drawer it hung from is going. Dropping the component alone
+  // would leave its boards in the scene naming a parent that no longer exists.
   const released: DrawerComponent[] = []
+  let parts = scene.parts
   for (const c of scene.components) {
-    if (c.kind !== 'drawer' || c.driven || claimed.has(c)) continue
-    released.push(c.sectionId === null ? c : { ...c, sectionId: null })
+    if (c.kind !== 'drawer' || claimed.has(c)) continue
+    if (!c.driven) {
+      released.push(c.sectionId === null ? c : { ...c, sectionId: null })
+      continue
+    }
+    // No board is built, so no material is read.
+    parts = reconcileBoards(parts, c, [], '').map((p) =>
+      p.parentId === c.id ? { ...p, parentId: c.parentId } : p,
+    )
   }
 
-  let parts = scene.parts
   for (const drawer of kept) {
     // A detached drawer is the user's, and its boards are ordinarily driven — so the per-board rule
     // in `reconcileBoards` cannot save them. Skipping is what preservation means here: it leaves

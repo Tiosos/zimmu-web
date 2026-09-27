@@ -123,14 +123,23 @@ material is a fourth *slot*, not a field on the parameter bag.
   land as one undo step; and it puts half-overlay back to overlay when the frame comes off, since
   otherwise the validator refuses the whole cabinet.
 
-### Found in passing, not fixed — a pre-existing drawer bug
+### Found in passing — a pre-existing drawer bug (fixed 2026-09-27)
 
 Switching a drawer front to a door drops the drawer *component* but leaves all five `box-*` boards
 in the scene with a dangling `parentId`: a ghost drawer box in the viewport and the cutting list.
 Reproduced through the real pipeline (five box boards before, five after, all dangling).
 `regenerateDrawers` never reconciles a dropped drawer's boards, `promoteOrphans` runs only at file
 load, and `regenerateDrawers.test.ts:159` counts components rather than boards. The frame pass does
-not repeat it. Out of scope here; raised with the user.
+not repeat it. Out of scope in this slice; raised with the user.
+
+**2026-09-27:** Fixed, following the pattern `regenerateFaceFrames.ts` already used for the same
+problem one component kind over. A driven leftover drawer is now reconciled through
+`reconcileBoards(parts, c, [], '')` before it is dropped, so its driven boards are deleted with it;
+a board the user had detached is re-homed onto the carcase (`c.parentId`) rather than left naming a
+parent that no longer exists — the same "detached is the user's" rule a released component already
+gets. Verified through the real five-stage pipeline: box boards went from 5 → 0 after the switch,
+where they used to go 5 → 5, all five dangling. Two new tests in `regenerateDrawers.test.ts` pin
+both halves (the boards go; a detached one survives and moves), and both are mutation-tested.
 
 ### Known and left
 
