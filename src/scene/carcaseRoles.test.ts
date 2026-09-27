@@ -2134,6 +2134,25 @@ describe('fixed shelves inside a section', () => {
     for (const g of gaps) expect(g).toBeCloseTo(gaps[0], 6)
   })
 
+  it('does not apply removable-access rules to a structural fixed shelf', () => {
+    const p = withFixed(1)
+    const pair: CarcaseParams = {
+      ...p,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        pairStile: true,
+      },
+      section: {
+        ...p.section,
+        front: { kind: 'door', leaves: 2, hinge: 'left' },
+      },
+    }
+    expect(fixedBoxes(pair)).toHaveLength(1)
+  })
+
   it('emits none when the interior asks for none', () => {
     expect(fixedBoxes(withFixed(0))).toEqual([])
   })
