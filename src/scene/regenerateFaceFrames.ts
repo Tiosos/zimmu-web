@@ -1,9 +1,10 @@
 import type { CarcaseComponent, Component, ComponentId, FaceFrameComponent, Part, Scene } from './types'
-import { frontGeometryOf, orientedPanel, validateCarcaseParams } from './carcaseRoles'
+import { frontGeometryOf, openingRect, orientedPanel, sectionThickness, validateCarcaseParams } from './carcaseRoles'
 import { faceFrameGeometry } from './faceFrame'
 import { grainAxisOf, grainFieldFor } from './grain'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
 import { reconcileBoards, type GeneratedBoard } from './reconcileBoards'
+import { resolveSections } from './sectionTree'
 
 const LABEL: Record<string, string> = {
   'stile-left': 'Stile L',
@@ -23,15 +24,29 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
   if (validateCarcaseParams(p, thicknessOf).length > 0) return null
   // The same rectangle every front on this cabinet is measured against, so a toe kick is recessed
   // behind the frame rather than covered by it.
-  const g = faceFrameGeometry(p.section, frontGeometryOf(p).outer, p.frame)
+  const tree = resolveSections(
+    p.section,
+    openingRect(p, thicknessOf),
+    sectionThickness(thicknessOf),
+  )
+  const g = faceFrameGeometry(p.section, frontGeometryOf(p).outer, p.frame, tree)
   if (g === null) return []
+  let midStiles = 0
+  let midRails = 0
   return g.members.map((m) => {
     const t = thicknessOf(m.role)
+    const label =
+      LABEL[m.role] ??
+      (m.role.startsWith('stile-')
+        ? `Mid stile ${++midStiles}`
+        : m.role.startsWith('rail-')
+          ? `Mid rail ${++midRails}`
+          : m.role)
     // In front of the carcase, exactly where an overlay front sits today.
     const box = { x0: m.rect.x0, x1: m.rect.x1, y0: -t, y1: 0, z0: m.rect.z0, z1: m.rect.z1 }
     return {
       role: m.role,
-      label: LABEL[m.role],
+      label,
       panel: orientedPanel(box, 'y'),
       grain: grainFieldFor('y', grainAxisOf(m.role)),
       cuts: [],
