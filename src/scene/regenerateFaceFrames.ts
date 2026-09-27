@@ -42,13 +42,13 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
   const operationsByRole = new Map<string, NonNullable<GeneratedBoard['operations']>>()
   for (const cell of frontCells(p.section, tree, fronts)) {
     if (cell.spec.kind !== 'door' || cell.hinge === undefined) continue
-    const member = hingedFrameMember(g, cell.sectionId, cell.hinge)
+    const member = hingedFrameMember(g, cell.sectionId, cell.hinge, cell.openingId)
     if (member === null) continue
     const overlay = frameOverlay(member, cell.rect, cell.hinge, p.frontMount)
     const hardware = blumFaceFrameHingeFor(p.frontMount, overlay)
     if (hardware === null) continue
 
-    const frontRole = `front-${cell.sectionId}-${cell.leaf}`
+    const frontRole = `front-${cell.openingId}-${cell.leaf}`
     const cup = cupRow(
       {
         length: cell.rect.z1 - cell.rect.z0,
