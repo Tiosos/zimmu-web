@@ -40,6 +40,7 @@ import { regenerateComponents } from './regenerateComponents'
 import { boardsTouch } from './suggestJoints'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { SWEEP } from './__fixtures__/sweep'
+import { adjustableShelfAccessIssues } from './interiorAccess'
 
 // World AABB of a panel spec, in carcase-local space. This is the assertion surface: it pins
 // position and rotation together and is indifferent to which equivalent Euler triple the
@@ -1999,6 +2000,9 @@ describe('adjustable shelves', () => {
       },
     }
     expect(shelfBoxes(pair)).toEqual([])
+    const issues = adjustableShelfAccessIssues(pair, tOf(pair))
+    expect(issues.map((issue) => issue.sectionId)).toEqual([pair.section.id])
+    expect(issues[0].apertures).toHaveLength(2)
     expect(carcaseHoleArrays(pair, 'left-side')).toEqual([])
     expect(carcaseHoleArrays(pair, 'right-side')).toEqual([])
   })
