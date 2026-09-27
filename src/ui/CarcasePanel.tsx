@@ -182,9 +182,8 @@ export function CarcasePanel({
   const thicknessOf = panelThickness(p, materials, parts, component.id)
   const errors = validateCarcaseParams(p, thicknessOf)
   const frame = p.frame
-  // Set, buildable by the validator, and still not built: stage 1 frames a single opening only.
-  // Not an error — an error refuses the whole cabinet — so it is said here instead, or the user
-  // ticks the box and sees nothing happen.
+  // Set, buildable by the validator, and still not built. Not an error — an error refuses the
+  // whole cabinet — so it is said here instead, or the user ticks the box and sees nothing happen.
   const frameDeclined =
     frame !== undefined && errors.length === 0 && frontGeometryOf(p).frameOpenings === undefined
   // A slot can only name a material that states a thickness; anything else collapses every panel
@@ -572,6 +571,27 @@ export function CarcasePanel({
                 min={0}
                 onCommit={(v) => setParams({ frame: { ...frame, railWidth: v } })}
               />
+              <DimInput
+                labelWidth="w-20"
+                label="Mid stile"
+                value={frame.midStileWidth}
+                suffix="mm"
+                min={0}
+                onCommit={(v) => setParams({ frame: { ...frame, midStileWidth: v } })}
+              />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label htmlFor="carcase-pair-stile" className="w-20 shrink-0 text-right">
+                  Pair centre stile
+                </Label>
+                <input
+                  id="carcase-pair-stile"
+                  type="checkbox"
+                  checked={frame.pairStile === true}
+                  onChange={(e) =>
+                    setParams({ frame: { ...frame, pairStile: e.target.checked } })
+                  }
+                />
+              </div>
               <div className="flex items-center gap-1.5 mb-1">
                 <Label htmlFor="carcase-frame-material" className="w-20 shrink-0 text-right">
                   Frame material
