@@ -69,6 +69,9 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
     )
 
     if (hardware.plate.kind === 'inset-adapter') {
+      // Preserve the discriminated-union narrowing across the callback boundary. TypeScript does
+      // not assume a mutable property access stays narrowed inside a closure.
+      const plate = hardware.plate
       const own = operationsByRole.get(member.role) ?? []
       localCenters.forEach((center, i) => {
         own.push({
@@ -79,17 +82,14 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
           face: '-Z',
           at: {
             x: center,
-            y:
-              cell.hinge === 'left'
-                ? memberWidth - hardware.plate.frontOffset
-                : hardware.plate.frontOffset,
+            y: cell.hinge === 'left' ? memberWidth - plate.frontOffset : plate.frontOffset,
             z: 0,
           },
-          diameter: hardware.plate.pilotDiameter,
-          pitch: hardware.plate.pitch,
+          diameter: plate.pilotDiameter,
+          pitch: plate.pitch,
           count: 2,
-          angle: hardware.plate.angle,
-          edgeOffset: hardware.plate.frontOffset,
+          angle: plate.angle,
+          edgeOffset: plate.frontOffset,
           template: 'Blum PLATEMATE',
           instruction:
             'Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
