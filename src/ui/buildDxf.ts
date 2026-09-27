@@ -297,9 +297,7 @@ function dxfTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): string {
     dxfText('TEXT', tbX + 100, tbY + 8, 4, `Scale: ${sheet.scaleLabel}`),
     dxfText('TEXT', tbX + 100, tbY + 16, 4, `Date: ${sheet.date}`),
     ...(sheet.shape === 'board'
-      ? sheet.manufacturingNotes
-          .slice(0, 3)
-          .map((note, i) => dxfText('TEXT', tbX + 155, tbY + 6 + i * 6, 2.4, note))
+      ? sheet.manufacturingNotes.map((note, i) => dxfText('TEXT', tbX + 155, tbY + 6 + i * 6, 2.4, note))
       : []),
   ].join('')
 }
