@@ -265,6 +265,126 @@ describe('frontCells on a face frame', () => {
     expect(cells[1].rect.x0 - cells[0].rect.x1).toBe(3)
   })
 
+  it('generates three fronts from one structural section through independent frame zones', () => {
+    const root = leaf('one')
+    const tree = resolveSections(root, OPENING, () => 18)
+    const frame = faceFrameGeometry(root, OUTER, {
+      stileWidth: 44,
+      railWidth: 32,
+      midStileWidth: 56,
+      midRailWidth: 38,
+      layout: {
+        one: {
+          id: 'root-zone',
+          size: { kind: 'equal' },
+          content: {
+            kind: 'split',
+            axis: 'horizontal',
+            children: [
+              {
+                id: 'lower',
+                size: { kind: 'equal' },
+                content: {
+                  kind: 'split',
+                  axis: 'vertical',
+                  children: [
+                    {
+                      id: 'left-door',
+                      size: { kind: 'equal' },
+                      front: { kind: 'door', leaves: 1, hinge: 'left' },
+                      content: { kind: 'leaf' },
+                    },
+                    {
+                      id: 'right-door',
+                      size: { kind: 'equal' },
+                      front: { kind: 'door', leaves: 1, hinge: 'right' },
+                      content: { kind: 'leaf' },
+                    },
+                  ],
+                },
+              },
+              {
+                id: 'top-drawer',
+                size: { kind: 'fixed', mm: 140 },
+                front: { kind: 'drawer-front' },
+                content: { kind: 'leaf' },
+              },
+            ],
+          },
+        },
+      },
+    })!
+    const cells = frontCells(
+      root,
+      tree,
+      geom({
+        frameOpenings: frame.openings,
+        frameMembers: frame.members,
+        frameFrontOpenings: frame.frontOpenings,
+      }),
+    )
+    expect(cells.map((cell) => cell.openingId)).toEqual([
+      'left-door',
+      'right-door',
+      'top-drawer',
+    ])
+    expect(cells.map((cell) => cell.sectionId)).toEqual(['one', 'one', 'one'])
+    expect(cells.map((cell) => cell.rect)).toEqual([
+      { x0: 1.5, x1: 298.5, z0: 101.5, z1: 527.5 },
+      { x0: 301.5, x1: 598.5, z0: 101.5, z1: 527.5 },
+      { x0: 1.5, x1: 598.5, z0: 530.5, z1: 718.5 },
+    ])
+  })
+
+  it('sizes independent inset fronts strictly inside each physical frame opening', () => {
+    const root = leaf('one')
+    const tree = resolveSections(root, OPENING, () => 18)
+    const frame = faceFrameGeometry(root, OUTER, {
+      stileWidth: 44,
+      railWidth: 32,
+      midStileWidth: 56,
+      midRailWidth: 38,
+      layout: {
+        one: {
+          id: 'zones',
+          size: { kind: 'equal' },
+          content: {
+            kind: 'split',
+            axis: 'horizontal',
+            children: [
+              {
+                id: 'low',
+                size: { kind: 'equal' },
+                front: { kind: 'door', leaves: 1, hinge: 'left' },
+                content: { kind: 'leaf' },
+              },
+              {
+                id: 'high',
+                size: { kind: 'fixed', mm: 140 },
+                front: { kind: 'drawer-front' },
+                content: { kind: 'leaf' },
+              },
+            ],
+          },
+        },
+      },
+    })!
+    const cells = frontCells(
+      root,
+      tree,
+      geom({
+        mount: 'inset',
+        frameOpenings: frame.openings,
+        frameMembers: frame.members,
+        frameFrontOpenings: frame.frontOpenings,
+      }),
+    )
+    expect(cells.map((cell) => cell.rect)).toEqual([
+      { x0: 47, x1: 553, z0: 135, z1: 507 },
+      { x0: 47, x1: 553, z0: 551, z1: 685 },
+    ])
+  })
+
   // A section the frame does not frame — stage 1 declined it — is sized as if frameless.
   it('ignores a frame that has no opening for the section', () => {
     const [cell] = cellsOf(
