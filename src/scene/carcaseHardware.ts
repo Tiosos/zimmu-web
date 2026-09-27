@@ -84,7 +84,7 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
     if (frame === null) continue
     for (const front of frontCells(cabinet.params.section, resolved.tree, fronts)) {
       if (front.spec.kind !== 'door' || front.hinge === undefined) continue
-      const member = hingedFrameMember(frame, front.sectionId, front.hinge)
+      const member = hingedFrameMember(frame, front.sectionId, front.hinge, front.openingId)
       if (member === null) continue
       const overlay = frameOverlay(member, front.rect, front.hinge, cabinet.params.frontMount)
       const hardware = blumFaceFrameHingeFor(cabinet.params.frontMount, overlay)
