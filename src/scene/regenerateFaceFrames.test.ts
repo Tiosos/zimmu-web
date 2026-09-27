@@ -214,6 +214,29 @@ describe('regenerateFaceFrames', () => {
     }
   })
 
+  it('emits a frame-only pair stile without a carcase division board', () => {
+    const section = {
+      ...BASE.section,
+      front: { kind: 'door', leaves: 2, hinge: 'left' } as const,
+    }
+    const out = regenerateFaceFrames(
+      sceneOf([
+        cab('cmp_a', {
+          frame: { ...FRAME, pairStile: true },
+          section,
+        }),
+      ]),
+    )
+    const pairRole = `stile-pair-${section.id}`
+    expect(roles(out)).toContain(pairRole)
+    expect(board(out, pairRole).width).toBe(FRAME.midStileWidth)
+    expect(
+      out.parts.some(
+        (p) => p.kind === 'board' && p.parentId === 'cmp_a' && p.role?.startsWith('division-'),
+      ),
+    ).toBe(false)
+  })
+
   it('emits a mid rail for a horizontally divided cabinet', () => {
     const split = splitSection(BASE.section, BASE.section.id, 'horizontal', 'panel', 2)
     const out = regenerateFaceFrames(sceneOf([cab('cmp_a', { frame: FRAME, section: split })]))

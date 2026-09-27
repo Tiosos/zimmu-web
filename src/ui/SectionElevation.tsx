@@ -64,7 +64,10 @@ export function SectionElevation({
 
   // The same frame-opening map used by fronts, interiors and machining. The elevation must not
   // invent a fourth frame calculation just to print a dimension.
-  const frameOpenings = frontGeometryOf(params, tree).frameOpenings
+  const frontGeometry = frontGeometryOf(params, tree)
+  const frameOpenings = frontGeometry.frameOpenings
+  const frameLeafOpenings = frontGeometry.frameLeafOpenings
+  const frameMembers = frontGeometry.frameMembers ?? []
 
   const W = params.width
   const H = params.height
@@ -76,6 +79,22 @@ export function SectionElevation({
     y: H - z1 + PADDING,
     height: z1 - z0,
   })
+
+  const elevationOpenings = sectionOpenings(params.section, tree)
+  const displayOf = (o: (typeof elevationOpenings)[number]) => {
+    const { x, y, height } = toSvg(o.rect.x0, o.rect.z0, o.rect.z1)
+    const width = o.rect.x1 - o.rect.x0
+    const framed = frameOpenings?.get(o.sectionId)
+    const leftLeaf = frameLeafOpenings?.get(`${o.sectionId}|0`)
+    const rightLeaf = frameLeafOpenings?.get(`${o.sectionId}|1`)
+    const dimension =
+      leftLeaf !== undefined && rightLeaf !== undefined
+        ? `${Math.round(leftLeaf.x1 - leftLeaf.x0)} × ${Math.round(leftLeaf.z1 - leftLeaf.z0)} / ${Math.round(rightLeaf.x1 - rightLeaf.x0)} × ${Math.round(rightLeaf.z1 - rightLeaf.z0)}`
+        : framed === undefined
+          ? null
+          : `${Math.round(framed.x1 - framed.x0)} × ${Math.round(framed.z1 - framed.z0)}`
+    return { x, y, height, width, framed, dimension }
+  }
 
   return (
     <svg
@@ -97,58 +116,26 @@ export function SectionElevation({
         onClick={() => onSelect(null)}
       />
 
-      {sectionOpenings(params.section, tree).map((o, i) => {
-        const { x, y, height } = toSvg(o.rect.x0, o.rect.z0, o.rect.z1)
-        const width = o.rect.x1 - o.rect.x0
-        const framed = frameOpenings?.get(o.sectionId)
+      {elevationOpenings.map((o) => {
+        const { x, y, height, width } = displayOf(o)
         const isSelected = o.sectionId === selected
         return (
-          <g key={o.sectionId}>
-            <rect
-              data-testid={`section-cell-${o.sectionId}`}
-              data-selected={isSelected}
-              x={x}
-              y={y}
-              width={width}
-              height={height}
-              className={
-                isSelected
-                  ? 'fill-primary/25 stroke-primary cursor-pointer'
-                  : 'fill-background stroke-border cursor-pointer hover:fill-accent'
-              }
-              strokeWidth={isSelected ? 3 : 1}
-              onClick={() => onSelect(o.sectionId)}
-            />
-            {/* `SceneTree` numbers `carcaseOpenings`, which is this same `sectionOpenings` array in
-                order — so the two agree by construction. `pointer-events-none` keeps the number from
-                swallowing the click that selects the cell it sits on; no unit test can see that,
-                because happy-dom loads no stylesheet. Three centre-clicks in `e2e/carcase.spec.ts`
-                are what fail if it goes. */}
-            <text
-              data-kind="section-number"
-              x={x + width / 2}
-              y={y + height / 2 - (framed === undefined ? 0 : font * 0.6)}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              className="fill-muted-foreground pointer-events-none"
-              fontSize={font}
-            >
-              {i + 1}
-            </text>
-            {framed !== undefined && (
-              <text
-                data-testid={`section-opening-dimension-${o.sectionId}`}
-                x={x + width / 2}
-                y={y + height / 2 + font * 0.8}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className="fill-muted-foreground pointer-events-none"
-                fontSize={font * 0.7}
-              >
-                {`${Math.round(framed.x1 - framed.x0)} × ${Math.round(framed.z1 - framed.z0)}`}
-              </text>
-            )}
-          </g>
+          <rect
+            key={o.sectionId}
+            data-testid={`section-cell-${o.sectionId}`}
+            data-selected={isSelected}
+            x={x}
+            y={y}
+            width={width}
+            height={height}
+            className={
+              isSelected
+                ? 'fill-primary/25 stroke-primary cursor-pointer'
+                : 'fill-background stroke-border cursor-pointer hover:fill-accent'
+            }
+            strokeWidth={isSelected ? 3 : 1}
+            onClick={() => onSelect(o.sectionId)}
+          />
         )
       })}
 
@@ -164,6 +151,55 @@ export function SectionElevation({
             height={height}
             className="fill-muted-foreground/60"
           />
+        )
+      })}
+
+      {/* Frame members are above carcase divisions but below labels. They never steal the opening click. */}
+      {frameMembers.map((member) => {
+        const { x, y, height } = toSvg(member.rect.x0, member.rect.z0, member.rect.z1)
+        return (
+          <rect
+            key={member.role}
+            data-testid={`frame-member-${member.role}`}
+            x={x}
+            y={y}
+            width={member.rect.x1 - member.rect.x0}
+            height={height}
+            className="fill-muted-foreground/35 pointer-events-none"
+          />
+        )
+      })}
+
+      {elevationOpenings.map((o, i) => {
+        const { x, y, height, width, framed, dimension } = displayOf(o)
+        return (
+          <g key={`label-${o.sectionId}`} className="pointer-events-none">
+            {/* SceneTree numbers this same opening array, so editor and tree agree by construction. */}
+            <text
+              data-kind="section-number"
+              x={x + width / 2}
+              y={y + height / 2 - (framed === undefined ? 0 : font * 0.6)}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="fill-muted-foreground"
+              fontSize={font}
+            >
+              {i + 1}
+            </text>
+            {dimension !== null && (
+              <text
+                data-testid={`section-opening-dimension-${o.sectionId}`}
+                x={x + width / 2}
+                y={y + height / 2 + font * 0.8}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="fill-muted-foreground"
+                fontSize={font * 0.7}
+              >
+                {dimension}
+              </text>
+            )}
+          </g>
         )
       })}
     </svg>

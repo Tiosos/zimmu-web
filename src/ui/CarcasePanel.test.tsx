@@ -572,6 +572,8 @@ describe('CarcasePanel — face frame', () => {
     renderPanel(doored({ frame: FRAME }))
     expect(screen.getByLabelText('Stile width')).toBeTruthy()
     expect(screen.getByLabelText('Rail width')).toBeTruthy()
+    expect(screen.getByLabelText('Mid stile')).toBeTruthy()
+    expect(screen.getByLabelText('Pair centre stile')).toBeTruthy()
     expect(screen.getByLabelText('Frame material')).toBeTruthy()
   })
 
@@ -600,17 +602,39 @@ describe('CarcasePanel — face frame', () => {
     expect(appliedParams(onUpdate, c).frame).toEqual({ ...FRAME, stileWidth: 50 })
   })
 
-  // Stage 1 declines to frame a divided cabinet. That is not an error — an error refuses the whole
-  // cabinet — so without a note the user ticks the box and sees nothing happen.
-  it('says so when the frame is set but cannot be built yet', () => {
+  it('toggles a pair centre stile without changing the structural section tree', async () => {
+    const c = doored({
+      frame: FRAME,
+      section: { ...sec([], 0), front: { kind: 'door', leaves: 2, hinge: 'left' } },
+    })
+    const beforeSection = c.params.section
+    const { onUpdate } = withFrameCallback(c)
+    await userEvent.click(screen.getByLabelText('Pair centre stile'))
+    const next = appliedParams(onUpdate, c)
+    expect(next.frame).toEqual({ ...FRAME, pairStile: true })
+    expect(next.section).toBe(beforeSection)
+  })
+
+  it('does not falsely decline a divided frame now that the sidebar resolves its tree', () => {
     renderPanel(carcase({ frame: FRAME, section: sec([0.5], 0) }))
-    expect(screen.getByText(/face frame is not built/i)).toBeTruthy()
+    expect(screen.queryByText(/face-frame members do not fit/i)).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('says so when an independent pair stile physically consumes its opening', () => {
+    renderPanel(
+      doored({
+        frame: { ...FRAME, pairStile: true, midStileWidth: 600 },
+        section: { ...sec([], 0), front: { kind: 'door', leaves: 2, hinge: 'left' } },
+      }),
+    )
+    expect(screen.getByText(/face-frame members do not fit/i)).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('says nothing when the frame builds', () => {
     renderPanel(doored({ frame: FRAME }))
-    expect(screen.queryByText(/face frame is not built/i)).toBeNull()
+    expect(screen.queryByText(/face-frame members do not fit/i)).toBeNull()
   })
 
   // Half-overlay laps a stile, so a frameless cabinet has nothing for it to mean.

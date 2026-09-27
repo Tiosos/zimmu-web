@@ -9,10 +9,17 @@ export interface FrameMember {
 
 export interface FrameGeometry {
   members: FrameMember[]
-  // The clear opening of each leaf, INSIDE the frame. What a door covers and what a drawer box
-  // must pass through — which is why both read this rather than the carcase's own opening.
+  // The clear opening owned by each structural section. Interiors keep reading this map: adding a
+  // frame-only pair stile must not invent a carcase section or silently move a shelf to one side.
   openings: Map<SectionId, Rect>
+  // A front may have more physical leaves than its structural section has openings. Independent
+  // pair stiles therefore state the clear rectangle of each door leaf separately.
+  leafOpenings: Map<string, Rect>
 }
+
+export const frameLeafKey = (sectionId: SectionId, leaf: 0 | 1): string =>
+  `${sectionId}|${leaf}`
+
 
 const validRect = (rect: Rect): boolean => rect.x1 > rect.x0 && rect.z1 > rect.z0
 
@@ -61,10 +68,29 @@ export function faceFrameGeometry(
     { role: 'rail-bottom', rect: { x0: openX0, x1: openX1, z0: outer.z0, z1: openZ0 } },
   ]
   const openings = new Map<SectionId, Rect>()
+  const leafOpenings = new Map<string, Rect>()
+
+  const placeLeaf = (section: Section, framed: Rect): boolean => {
+    openings.set(section.id, framed)
+    if (!frame.pairStile || section.front?.kind !== 'door' || section.front.leaves !== 2) return true
+    const width = midStileWidth
+    if (width <= 0) return false
+    const center = (framed.x0 + framed.x1) / 2
+    const memberLo = center - width / 2
+    const memberHi = center + width / 2
+    if (memberLo <= framed.x0 || memberHi >= framed.x1) return false
+
+    members.push({
+      role: `stile-pair-${section.id}`,
+      rect: { x0: memberLo, x1: memberHi, z0: framed.z0, z1: framed.z1 },
+    })
+    leafOpenings.set(frameLeafKey(section.id, 0), { ...framed, x1: memberLo })
+    leafOpenings.set(frameLeafKey(section.id, 1), { ...framed, x0: memberHi })
+    return true
+  }
 
   if (root.content.kind === 'leaf') {
-    openings.set(root.id, rootOpening)
-    return { members, openings }
+    return placeLeaf(root, rootOpening) ? { members, openings, leafOpenings } : null
   }
 
   const resolved = tree!
@@ -74,10 +100,7 @@ export function faceFrameGeometry(
 
   const place = (section: Section, framed: Rect): boolean => {
     if (!validRect(framed)) return false
-    if (section.content.kind === 'leaf') {
-      openings.set(section.id, framed)
-      return true
-    }
+    if (section.content.kind === 'leaf') return placeLeaf(section, framed)
 
     const { axis, division, children } = section.content
     const vertical = axis === 'vertical'
@@ -130,7 +153,7 @@ export function faceFrameGeometry(
     return true
   }
 
-  return place(root, rootOpening) ? { members, openings } : null
+  return place(root, rootOpening) ? { members, openings, leafOpenings } : null
 }
 
 

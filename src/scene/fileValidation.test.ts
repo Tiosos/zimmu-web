@@ -6,6 +6,7 @@ import {
   ZimmuFileValidationError,
 } from './fileValidation'
 import { parseFile } from './useFile'
+import { CARCASE_PRESETS, DEFAULT_FRAME } from './carcasePresets'
 
 const CAMERA = { position: { x: 250, y: -200, z: 150 }, target: { x: 0, y: 0, z: 0 } }
 
@@ -158,6 +159,42 @@ describe('zimmu file validation boundary', () => {
       driven: false,
       parentId: null,
     })
+  })
+
+  it('round-trips the optional independent pair-stile frame setting', () => {
+    const params = {
+      ...CARCASE_PRESETS[0].params,
+      frame: { ...DEFAULT_FRAME, pairStile: true },
+    }
+    const component = {
+      kind: 'carcase',
+      id: 'cmp_pair',
+      label: 'Pair frame',
+      parentId: null,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+      params,
+    }
+    const parsed = parseFile(
+      JSON.stringify(
+        file({
+          version: 20,
+          scene: {
+            parts: [],
+            materials: {},
+            hardware: [],
+            joints: [],
+            components: [component],
+          },
+        }),
+      ),
+    )
+    const loaded = parsed.scene.components.find((c) => c.kind === 'carcase')
+    expect(loaded?.kind).toBe('carcase')
+    if (loaded?.kind !== 'carcase') return
+    expect(loaded.params.frame?.pairStile).toBe(true)
   })
 
   it('round-trips a manual machining operation without turning it into a cut', () => {

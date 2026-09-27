@@ -222,6 +222,49 @@ describe('frontCells on a face frame', () => {
     expect(cells[1].rect.x1).toBe(576.5)
   })
 
+  it('sizes an inset pair around an independent centre stile', () => {
+    const root = leaf('a', { kind: 'door', leaves: 2, hinge: 'left' })
+    const tree = resolveSections(root, OPENING, () => 18)
+    const frame = faceFrameGeometry(
+      root,
+      OUTER,
+      { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38, pairStile: true },
+    )!
+    const cells = frontCells(
+      root,
+      tree,
+      geom({
+        mount: 'inset',
+        frameOpenings: frame.openings,
+        frameLeafOpenings: frame.leafOpenings,
+      }),
+    )
+    expect(cells.map((cell) => cell.rect)).toEqual([
+      { x0: 47, x1: 269, z0: 135, z1: 685 },
+      { x0: 331, x1: 553, z0: 135, z1: 685 },
+    ])
+    // 56 mm stile plus a full reveal on each side.
+    expect(cells[1].rect.x0 - cells[0].rect.x1).toBe(62)
+  })
+
+  it('makes an overlay pair meet over the independent stile centreline', () => {
+    const root = leaf('a', { kind: 'door', leaves: 2, hinge: 'left' })
+    const tree = resolveSections(root, OPENING, () => 18)
+    const frame = faceFrameGeometry(
+      root,
+      OUTER,
+      { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38, pairStile: true },
+    )!
+    const cells = frontCells(
+      root,
+      tree,
+      geom({ frameOpenings: frame.openings, frameLeafOpenings: frame.leafOpenings }),
+    )
+    expect(cells[0].rect.x1).toBe(298.5)
+    expect(cells[1].rect.x0).toBe(301.5)
+    expect(cells[1].rect.x0 - cells[0].rect.x1).toBe(3)
+  })
+
   // A section the frame does not frame — stage 1 declined it — is sized as if frameless.
   it('ignores a frame that has no opening for the section', () => {
     const [cell] = cellsOf(

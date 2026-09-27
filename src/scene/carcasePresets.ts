@@ -26,6 +26,7 @@ export const DEFAULT_FRAME: FaceFrameParams = {
   railWidth: 38,
   midStileWidth: 51,
   midRailWidth: 38,
+  pairStile: false,
 }
 // The one place the preset panel thickness is written. `legacyToSection` needs it as a number —
 // a section percentage is a share of the clear span, so it depends on what the divisions spend.

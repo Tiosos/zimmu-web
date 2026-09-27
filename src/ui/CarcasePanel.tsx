@@ -182,11 +182,22 @@ export function CarcasePanel({
   const thicknessOf = panelThickness(p, materials, parts, component.id)
   const errors = validateCarcaseParams(p, thicknessOf)
   const frame = p.frame
-  // Set, buildable by the validator, and still not built: stage 1 frames a single opening only.
-  // Not an error — an error refuses the whole cabinet — so it is said here instead, or the user
-  // ticks the box and sees nothing happen.
+  // Resolve once for every sidebar consumer. In particular, a divided frame MUST receive this tree
+  // just as the generator does; asking frame geometry without it would falsely claim a buildable
+  // Stage-2+ cabinet is unsupported.
+  const resolvedTree = resolveSections(
+    p.section,
+    openingRect(p, thicknessOf),
+    sectionThickness(thicknessOf),
+  )
+  // Set, valid, and still not built. Not an error — an error refuses the whole cabinet — so it is
+  // said here instead, or the user ticks the box and sees nothing happen. Validation gates only
+  // this warning; the opening editor has always remained available while unrelated fields are
+  // invalid or materials are incomplete.
   const frameDeclined =
-    frame !== undefined && errors.length === 0 && frontGeometryOf(p).frameOpenings === undefined
+    frame !== undefined &&
+    errors.length === 0 &&
+    frontGeometryOf(p, resolvedTree).frameOpenings === undefined
   // A slot can only name a material that states a thickness; anything else collapses every panel
   // derived from it. The one already on the carcase is offered too, so a file naming a material
   // this scene does not have still shows what it is set to.
@@ -233,10 +244,7 @@ export function CarcasePanel({
   // pick is held by id rather than by index: the shim rebuilds the tree with new ids whenever the
   // divider or fixed-shelf field is touched, and an index would then silently point at a different
   // opening instead of falling back to the first.
-  const openings = sectionOpenings(
-    p.section,
-    resolveSections(p.section, openingRect(p, thicknessOf), sectionThickness(thicknessOf)),
-  )
+  const openings = sectionOpenings(p.section, resolvedTree)
   // The elevation is the picker now. Two ways to choose an opening is one way to choose the wrong
   // one, so this reads the selection rather than holding a second — and when there is none it says
   // so rather than falling back to the first, which is what the dropdown did and what made it a
@@ -552,8 +560,8 @@ export function CarcasePanel({
             <>
               {frameDeclined && (
                 <p className="text-[11px] text-amber-300 py-1">
-                  The face frame is not built on a divided cabinet or over a drawer yet, so this
-                  cabinet stays frameless for now.
+                  The face-frame members do not fit this opening, so this cabinet stays frameless
+                  until the frame dimensions are reduced.
                 </p>
               )}
               <DimInput
@@ -572,6 +580,27 @@ export function CarcasePanel({
                 min={0}
                 onCommit={(v) => setParams({ frame: { ...frame, railWidth: v } })}
               />
+              <DimInput
+                labelWidth="w-20"
+                label="Mid stile"
+                value={frame.midStileWidth}
+                suffix="mm"
+                min={0}
+                onCommit={(v) => setParams({ frame: { ...frame, midStileWidth: v } })}
+              />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label htmlFor="carcase-pair-stile" className="w-20 shrink-0 text-right">
+                  Pair centre stile
+                </Label>
+                <input
+                  id="carcase-pair-stile"
+                  type="checkbox"
+                  checked={frame.pairStile === true}
+                  onChange={(e) =>
+                    setParams({ frame: { ...frame, pairStile: e.target.checked } })
+                  }
+                />
+              </div>
               <div className="flex items-center gap-1.5 mb-1">
                 <Label htmlFor="carcase-frame-material" className="w-20 shrink-0 text-right">
                   Frame material

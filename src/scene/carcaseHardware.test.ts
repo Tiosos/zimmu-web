@@ -115,6 +115,29 @@ describe('carcaseHardware — hinges', () => {
     expect(qtyOf(scene, 'hinge-overlay')).toBe(0)
   })
 
+  it('keeps pair-stile hinge quantity driven by the two doors cups', () => {
+    const base = CARCASE_PRESETS[0].params
+    const params = {
+      ...base,
+      frame: { ...DEFAULT_FRAME, pairStile: true },
+      section: {
+        ...base.section,
+        front: { kind: 'door', leaves: 2, hinge: 'left' } as const,
+      },
+    }
+    const scene = sceneOf(params)
+    const cups = scene.parts
+      .filter((p): p is BoardPart => p.kind === 'board' && p.role?.startsWith('front-') === true)
+      .flatMap((p) => p.cuts)
+      .filter((cut) => cut.kind === 'hole-array' && cut.id.startsWith('cups_'))
+      .reduce((sum, cut) => sum + (cut.kind === 'hole-array' ? cut.count : 0), 0)
+    const hinges = carcaseHardware(scene)
+      .filter((line) => line.key.startsWith('hinge-blum-'))
+      .reduce((sum, line) => sum + line.qty, 0)
+    expect(cups).toBe(4)
+    expect(hinges).toBe(cups)
+  })
+
   it('can quote different Blum variants from different framed leaves in one cabinet', () => {
     const base = CARCASE_PRESETS[0].params
     let section = splitSection(base.section, base.section.id, 'vertical', 'panel', 2)
