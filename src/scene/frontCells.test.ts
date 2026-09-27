@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { frontCells, type FrontGeometry } from './frontCells'
+import { faceFrameGeometry } from './faceFrame'
 import { resolveSections, type Rect, type Section } from './sectionTree'
 
 // A 600 × 720 cabinet's clear opening on 18 mm stock, matching `openingRect` for the Base preset.
@@ -164,6 +165,42 @@ describe('frontCells on a face frame', () => {
   it('laps a half-overlay door to the midline of every member', () => {
     const [cell] = cellsOf(leaf('a', DOOR), framed('half-overlay'))
     expect(cell.rect).toEqual({ x0: 23.5, x1: 576.5, z0: 117.5, z1: 702.5 })
+  })
+
+  it('laps a generated mid stile to its centre with one reveal between doors', () => {
+    const root: Section = {
+      id: 'root-frame',
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        division: 'panel',
+        children: [
+          leaf('frame-left', DOOR),
+          leaf('frame-right', { kind: 'door', leaves: 1, hinge: 'right' }),
+        ],
+      },
+    }
+    const tree = resolveSections(root, OPENING, () => 18)
+    const frame = faceFrameGeometry(
+      root,
+      OUTER,
+      { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 },
+      tree,
+    )!
+    const [left, right] = frontCells(
+      root,
+      tree,
+      geom({ mount: 'half-overlay', frameOpenings: frame.openings }),
+    )
+
+    // Mid stile: x 272..328, centre 300. Each door stops half a reveal either side of centre.
+    expect(left.rect.x1).toBe(298.5)
+    expect(right.rect.x0).toBe(301.5)
+    expect(right.rect.x0 - left.rect.x1).toBe(3)
+    // Outer stiles still use their own midlines.
+    expect(left.rect.x0).toBe(23.5)
+    expect(right.rect.x1).toBe(576.5)
   })
 
   // The spec's claim, stated as a figure: each door laps only its own stile, so two butted

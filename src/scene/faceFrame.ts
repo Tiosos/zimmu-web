@@ -1,4 +1,4 @@
-import type { Rect, Section, SectionId } from './sectionTree'
+import type { Rect, ResolvedTree, Section, SectionId } from './sectionTree'
 import type { FaceFrameParams } from './types'
 
 // A stile or a rail, as a rectangle on the cabinet's front face in carcase x/z.
@@ -14,20 +14,23 @@ export interface FrameGeometry {
   openings: Map<SectionId, Rect>
 }
 
+const hasDrawerFront = (section: Section): boolean =>
+  section.front?.kind === 'drawer-front' ||
+  (section.content.kind === 'split' && section.content.children.some(hasDrawerFront))
+
+const validRect = (rect: Rect): boolean => rect.x1 > rect.x0 && rect.z1 > rect.z0
+
 // The whole frame rule, stated once.
 //
-// Takes the cabinet's front rectangle rather than its parameters, the same choice `frontCells`
-// makes and for the same reason: this module is about rectangles, so it needs no CarcaseParams,
-// no base-mode branch and no thickness resolver. That rectangle is `floorZ`-based and already
-// accounts for a toe kick, which is the one figure a second copy here would get wrong — and it
-// keeps the dependency pointing one way, since the carcase reads the frame and an import of
-// `floorZ` back out of `carcaseRoles` would be a cycle.
+// The section tree is the only description of the cabinet's divisions. Stage 2 therefore receives
+// the ALREADY RESOLVED carcase tree for split cabinets rather than resolving the children again
+// inside the smaller frame opening. Re-solving would move fixed-size and percentage sections away
+// from the partitions behind the frame. A single-opening cabinet needs no resolved tree and keeps
+// the Stage-1 call shape.
 //
-// Pure: a function of the section tree, that rectangle and the frame parameters, all of which
-// exist before any generator runs. Three consumers read it — `regenerateFaceFrames` for the
-// boards, `frontCells` for the door, and (from stage 3) `regenerateDrawers` for the box — and none
-// reads another's output. That is the only reason the frame, the doors and the drawers do not form
-// a cycle, and it is `drawerBoxMetrics`' shape reused.
+// Mid members are centred on their carcase divisions, then clipped by recursion to the framed
+// rectangle of the section that owns the split. A vertical split nested below a horizontal one
+// therefore makes a stile that stops at those rails instead of crossing the whole cabinet.
 //
 // Null when the frame cannot be built, and the cabinet then emits no frame at all: the same rule
 // as a drawer box with no runner, or a door too thin to bore. A frame that half exists is worse
@@ -36,28 +39,26 @@ export function faceFrameGeometry(
   root: Section,
   outer: Rect,
   frame: FaceFrameParams | undefined,
+  tree?: ResolvedTree,
 ): FrameGeometry | null {
   // `frame === undefined` is the frameless state, the way `anchor === undefined` is the detached
   // one: presence or absence already draws the line, so there is no second flag to disagree with.
   if (frame === undefined) return null
 
-  // Stage 1 builds a single-opening cabinet only. A split cabinet is refused rather than given a
-  // frame that ignores its own partitions; stage 2 adds the mid members.
-  if (root.content.kind === 'split') return null
+  // Drawer openings follow the frame in Stage 3. Until then, a cabinet containing one declines the
+  // whole frame rather than emitting a box that has never been checked against its opening.
+  if (hasDrawerFront(root)) return null
 
-  // A drawer is a LEAF, so the guard above does not catch it — a separate branch, not a wider
-  // condition. Stage 3 sizes a drawer box to the framed opening; until then the cabinet declines
-  // rather than emitting a box that passes through a frame nobody measured it against.
-  if (root.front?.kind === 'drawer-front') return null
-
-  const { stileWidth, railWidth } = frame
+  const { stileWidth, railWidth, midStileWidth, midRailWidth } = frame
   if (stileWidth <= 0 || railWidth <= 0) return null
+  if (root.content.kind === 'split' && tree === undefined) return null
 
   const openX0 = outer.x0 + stileWidth
   const openX1 = outer.x1 - stileWidth
   const openZ0 = outer.z0 + railWidth
   const openZ1 = outer.z1 - railWidth
-  if (openX1 <= openX0 || openZ1 <= openZ0) return null
+  const rootOpening: Rect = { x0: openX0, x1: openX1, z0: openZ0, z1: openZ1 }
+  if (!validRect(rootOpening)) return null
 
   // Stiles run the full height and the rails fit between them — how a face frame is actually made,
   // and what makes the joint a rail tenoned into a stile rather than the reverse.
@@ -67,9 +68,75 @@ export function faceFrameGeometry(
     { role: 'rail-top', rect: { x0: openX0, x1: openX1, z0: openZ1, z1: outer.z1 } },
     { role: 'rail-bottom', rect: { x0: openX0, x1: openX1, z0: outer.z0, z1: openZ0 } },
   ]
+  const openings = new Map<SectionId, Rect>()
 
-  return {
-    members,
-    openings: new Map([[root.id, { x0: openX0, x1: openX1, z0: openZ0, z1: openZ1 }]]),
+  if (root.content.kind === 'leaf') {
+    openings.set(root.id, rootOpening)
+    return { members, openings }
   }
+
+  const resolved = tree!
+  const divisionByKey = new Map(
+    resolved.divisions.map((d) => [`${d.parentId}|${d.index}`, d] as const),
+  )
+
+  const place = (section: Section, framed: Rect): boolean => {
+    if (!validRect(framed)) return false
+    if (section.content.kind === 'leaf') {
+      openings.set(section.id, framed)
+      return true
+    }
+
+    const { axis, division, children } = section.content
+    const vertical = axis === 'vertical'
+    const parentHi = vertical ? framed.x1 : framed.z1
+    let cursor = vertical ? framed.x0 : framed.z0
+
+    for (let i = 0; i < children.length; i++) {
+      const last = i === children.length - 1
+      let childHi = parentHi
+      let nextCursor = parentHi
+
+      if (!last) {
+        if (division === 'none') {
+          // No partition means no frame member. Keep the boundary the carcase resolver already
+          // chose so two neighbouring openings meet at exactly the same place.
+          const childRect = resolved.rects.get(children[i].id)
+          if (childRect === undefined) return false
+          childHi = vertical ? childRect.x1 : childRect.z1
+          nextCursor = childHi
+          if (childHi <= cursor || childHi >= parentHi) return false
+        } else {
+          const d = divisionByKey.get(`${section.id}|${i}`)
+          if (d === undefined) return false
+          const width = vertical ? midStileWidth : midRailWidth
+          if (width <= 0) return false
+          const center = vertical
+            ? (d.rect.x0 + d.rect.x1) / 2
+            : (d.rect.z0 + d.rect.z1) / 2
+          const memberLo = center - width / 2
+          const memberHi = center + width / 2
+          if (memberLo <= cursor || memberHi >= parentHi) return false
+
+          members.push({
+            role: `${vertical ? 'stile' : 'rail'}-${section.id}-${i}`,
+            rect: vertical
+              ? { x0: memberLo, x1: memberHi, z0: framed.z0, z1: framed.z1 }
+              : { x0: framed.x0, x1: framed.x1, z0: memberLo, z1: memberHi },
+          })
+          childHi = memberLo
+          nextCursor = memberHi
+        }
+      }
+
+      const childFramed: Rect = vertical
+        ? { ...framed, x0: cursor, x1: childHi }
+        : { ...framed, z0: cursor, z1: childHi }
+      if (!place(children[i], childFramed)) return false
+      cursor = nextCursor
+    }
+    return true
+  }
+
+  return place(root, rootOpening) ? { members, openings } : null
 }

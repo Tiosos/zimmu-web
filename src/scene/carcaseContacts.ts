@@ -105,7 +105,12 @@ export function faceFrameContactPairs(
   p: CarcaseParams,
   thicknessOf: RoleThickness,
 ): [string, string][] {
-  const g = faceFrameGeometry(p.section, frontGeometryOf(p).outer, p.frame)
+  const tree = resolveSections(
+    p.section,
+    openingRect(p, thicknessOf),
+    sectionThickness(thicknessOf),
+  )
+  const g = faceFrameGeometry(p.section, frontGeometryOf(p).outer, p.frame, tree)
   if (g === null) return []
   const depth = thicknessOf('stile-left')
   const overlaps = (a: Rect, b: Rect): boolean =>

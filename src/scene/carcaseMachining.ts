@@ -119,7 +119,7 @@ export function carcaseMachining(
     openingRect(p, thicknessOf),
     sectionThickness(thicknessOf),
   )
-  const fronts = frontGeometryOf(p)
+  const fronts = frontGeometryOf(p, tree)
   const cells = frontCells(p.section, tree, fronts)
 
   const cuts: HoleArrayCut[] = []

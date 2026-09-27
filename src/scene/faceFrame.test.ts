@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { faceFrameGeometry } from './faceFrame'
 import { splitSection } from './editSection'
-import { newSectionId } from './sectionTree'
+import { newSectionId, resolveSections } from './sectionTree'
 import type { Rect, Section } from './sectionTree'
 import type { FaceFrameParams } from './types'
 
-// Asymmetric on purpose, for the reason panelThickness.test.ts exists: a frame whose stiles and
-// rails are the same width survives almost every wrong rule. 44 and 32 differ, and differ from
-// every figure in the rectangle below.
+// Asymmetric on purpose: every frame width differs, so using an outer width for a mid member (or
+// swapping stile/rail widths) cannot survive the fixtures.
 const FRAME: FaceFrameParams = {
   stileWidth: 44,
   railWidth: 32,
@@ -15,15 +14,23 @@ const FRAME: FaceFrameParams = {
   midRailWidth: 38,
 }
 
-// A base unit above a 100 mm toe kick: z0 is NOT 0, which is what catches a frame that runs to
-// the ground over the kick.
+// A base unit above a 100 mm toe kick.
 const OUTER: Rect = { x0: 0, x1: 600, z0: 100, z1: 720 }
+// The same cabinet's 18 mm carcase opening. Mid members align to divisions resolved HERE, not to a
+// second solve inside the smaller face-frame opening.
+const CARCASE_OPENING: Rect = { x0: 18, x1: 582, z0: 118, z1: 702 }
 
-const leaf = (): Section => ({
-  id: newSectionId(),
+const leaf = (id = newSectionId(), front?: Section['front']): Section => ({
+  id,
   size: { kind: 'equal' },
   content: { kind: 'leaf' },
+  ...(front === undefined ? {} : { front }),
 })
+
+const treeOf = (root: Section) => resolveSections(root, CARCASE_OPENING, () => 18)
+
+const geometry = (root: Section) =>
+  faceFrameGeometry(root, OUTER, FRAME, root.content.kind === 'split' ? treeOf(root) : undefined)
 
 const rectOf = (g: ReturnType<typeof faceFrameGeometry>, role: string): Rect => {
   expect(g).not.toBeNull()
@@ -34,7 +41,7 @@ const rectOf = (g: ReturnType<typeof faceFrameGeometry>, role: string): Rect => 
 
 describe('faceFrameGeometry', () => {
   it('emits four members for a single-opening cabinet', () => {
-    const g = faceFrameGeometry(leaf(), OUTER, FRAME)
+    const g = geometry(leaf())
     expect(g).not.toBeNull()
     expect(g!.members.map((m) => m.role).sort()).toEqual([
       'rail-bottom',
@@ -45,24 +52,15 @@ describe('faceFrameGeometry', () => {
   })
 
   it('runs the stiles full height and fits the rails between them', () => {
-    const g = faceFrameGeometry(leaf(), OUTER, FRAME)
-    const left = rectOf(g, 'stile-left')
-    const right = rectOf(g, 'stile-right')
-    const top = rectOf(g, 'rail-top')
-
-    expect(left).toEqual({ x0: 0, x1: 44, z0: 100, z1: 720 })
-    expect(right).toEqual({ x0: 556, x1: 600, z0: 100, z1: 720 })
-    // A rail stops at the stiles; it does not run the cabinet's full width.
-    expect(top.x0).toBe(44)
-    expect(top.x1).toBe(556)
-    expect(top).toEqual({ x0: 44, x1: 556, z0: 688, z1: 720 })
+    const g = geometry(leaf())
+    expect(rectOf(g, 'stile-left')).toEqual({ x0: 0, x1: 44, z0: 100, z1: 720 })
+    expect(rectOf(g, 'stile-right')).toEqual({ x0: 556, x1: 600, z0: 100, z1: 720 })
+    expect(rectOf(g, 'rail-top')).toEqual({ x0: 44, x1: 556, z0: 688, z1: 720 })
   })
 
-  // The outer rectangle is `floorZ`, which already accounts for the kick. Pinning the floor here
-  // catches a frame that computes its own and gets the base mode wrong.
   it('starts at the rectangle it was given, not at zero', () => {
-    expect(rectOf(faceFrameGeometry(leaf(), OUTER, FRAME), 'stile-left').z0).toBe(100)
-    expect(rectOf(faceFrameGeometry(leaf(), OUTER, FRAME), 'rail-bottom')).toEqual({
+    expect(rectOf(geometry(leaf()), 'stile-left').z0).toBe(100)
+    expect(rectOf(geometry(leaf()), 'rail-bottom')).toEqual({
       x0: 44,
       x1: 556,
       z0: 100,
@@ -71,11 +69,9 @@ describe('faceFrameGeometry', () => {
   })
 
   it('leaves an opening inside the frame', () => {
-    const g = faceFrameGeometry(leaf(), OUTER, FRAME)!
-    expect(g.openings.size).toBe(1)
+    const g = geometry(leaf())!
     const rect = [...g.openings.values()][0]
     expect(rect).toEqual({ x0: 44, x1: 556, z0: 132, z1: 688 })
-    // The opening meets the members exactly — no gap, no overlap.
     expect(rect.z0).toBe(rectOf(g, 'rail-bottom').z1)
     expect(rect.z1).toBe(rectOf(g, 'rail-top').z0)
     expect(rect.x0).toBe(rectOf(g, 'stile-left').x1)
@@ -84,57 +80,118 @@ describe('faceFrameGeometry', () => {
 
   it('keys the opening by the section it belongs to', () => {
     const root = leaf()
-    expect([...faceFrameGeometry(root, OUTER, FRAME)!.openings.keys()]).toEqual([root.id])
+    expect([...geometry(root)!.openings.keys()]).toEqual([root.id])
   })
 
-  // `frame === undefined` IS frameless, the same rule anchors use for detached.
   it('answers null for a frameless cabinet', () => {
     expect(faceFrameGeometry(leaf(), OUTER, undefined)).toBeNull()
   })
 
-  // Declines rather than guessing, exactly as a drawer with no runner emits no boards.
-  it('declines when the stiles leave no opening', () => {
+  it('declines when the outer members leave no opening', () => {
     expect(faceFrameGeometry(leaf(), { ...OUTER, x1: 80 }, FRAME)).toBeNull()
-  })
-
-  it('declines when the rails leave no opening', () => {
     expect(faceFrameGeometry(leaf(), { ...OUTER, z1: 150 }, FRAME)).toBeNull()
-  })
-
-  // The boundary itself. Negative openings fail `<` and `<=` alike, so only an opening of exactly
-  // zero tells them apart — 88 wide leaves 44 + 44 of stile and nothing between them.
-  it('declines an opening of exactly zero', () => {
     expect(faceFrameGeometry(leaf(), { ...OUTER, x1: 88 }, FRAME)).toBeNull()
     expect(faceFrameGeometry(leaf(), { ...OUTER, z1: 164 }, FRAME)).toBeNull()
   })
 
-  it('declines a zero-width member', () => {
+  it('declines a zero-width outer member', () => {
     expect(faceFrameGeometry(leaf(), OUTER, { ...FRAME, stileWidth: 0 })).toBeNull()
   })
 
-  // Stage 1 only. Divisions arrive in stage 2; until then a split cabinet is refused rather than
-  // given a frame that ignores its own partitions.
-  it('declines a cabinet whose tree splits', () => {
-    const root = leaf()
+  it('requires resolved carcase geometry for a split rather than guessing', () => {
+    const root = leaf('root')
     const split = splitSection(root, root.id, 'vertical', 'panel', 2)
     expect(faceFrameGeometry(split, OUTER, FRAME)).toBeNull()
   })
 
-  // Also stage 1 only, and a SEPARATE branch: a drawer is a leaf, so the split guard above does
-  // not catch it. Stage 3 sizes a drawer box to the framed opening; until then the cabinet
-  // declines rather than emitting a box that passes through a frame nobody measured it against.
-  it('declines a leaf wearing a drawer front', () => {
-    const root: Section = { ...leaf(), front: { kind: 'drawer-front' } }
-    expect(faceFrameGeometry(root, OUTER, FRAME)).toBeNull()
+  it('centres a mid stile on the carcase partition and uses the mid-stile width', () => {
+    const root = leaf('root')
+    const split = splitSection(root, root.id, 'vertical', 'panel', 2)
+    const g = geometry(split)!
+    const role = `stile-${root.id}-0`
+    // The 18 mm partition is x 291..309, centred at 300. The mid stile is 56, not outer 44.
+    expect(rectOf(g, role)).toEqual({ x0: 272, x1: 328, z0: 132, z1: 688 })
+    const [left, right] = split.content.kind === 'split' ? split.content.children : []
+    expect(g.openings.get(left.id)).toEqual({ x0: 44, x1: 272, z0: 132, z1: 688 })
+    expect(g.openings.get(right.id)).toEqual({ x0: 328, x1: 556, z0: 132, z1: 688 })
+  })
+
+  it('centres a mid rail on the carcase division and uses the mid-rail width', () => {
+    const root = leaf('root')
+    const split = splitSection(root, root.id, 'horizontal', 'panel', 2)
+    const g = geometry(split)!
+    const role = `rail-${root.id}-0`
+    // The 18 mm division is z 401..419, centred at 410. The mid rail is 38, not outer 32.
+    expect(rectOf(g, role)).toEqual({ x0: 44, x1: 556, z0: 391, z1: 429 })
+  })
+
+  it('clips a nested member to its parent framed opening', () => {
+    const root = leaf('root')
+    const horizontal = splitSection(root, root.id, 'horizontal', 'panel', 2)
+    expect(horizontal.content.kind).toBe('split')
+    if (horizontal.content.kind !== 'split') return
+    const top = horizontal.content.children[1]
+    const mixed = splitSection(horizontal, top.id, 'vertical', 'panel', 2)
+    const g = geometry(mixed)!
+    const rail = rectOf(g, `rail-${root.id}-0`)
+    const stile = rectOf(g, `stile-${top.id}-0`)
+    // The nested stile starts above the parent rail; it does not cross the lower opening.
+    expect(stile.z0).toBe(rail.z1)
+    expect(stile.z1).toBe(688)
+    expect(stile.x1 - stile.x0).toBe(FRAME.midStileWidth)
+    expect(g.openings.size).toBe(3)
+  })
+
+  it('emits no member for division:none and keeps the resolved boundary', () => {
+    const root: Section = {
+      id: 'root',
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        division: 'none',
+        children: [leaf('left'), leaf('right')],
+      },
+    }
+    const g = geometry(root)!
+    expect(g.members).toHaveLength(4)
+    expect(g.openings.get('left')?.x1).toBe(300)
+    expect(g.openings.get('right')?.x0).toBe(300)
+  })
+
+  it('declines when a mid member consumes its parent opening', () => {
+    const root = leaf('root')
+    const split = splitSection(root, root.id, 'vertical', 'panel', 2)
+    expect(
+      faceFrameGeometry(split, OUTER, { ...FRAME, midStileWidth: 600 }, treeOf(split)),
+    ).toBeNull()
+  })
+
+  // Stage 3 remains deliberately out of scope.
+  it('declines any tree containing a drawer-front leaf', () => {
+    const root: Section = {
+      id: 'root',
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        division: 'panel',
+        children: [
+          leaf('door', { kind: 'door', leaves: 1, hinge: 'left' }),
+          leaf('drawer', { kind: 'drawer-front' }),
+        ],
+      },
+    }
+    expect(faceFrameGeometry(root, OUTER, FRAME, treeOf(root))).toBeNull()
   })
 
   it('accepts a leaf wearing a door', () => {
-    const root: Section = { ...leaf(), front: { kind: 'door', leaves: 1, hinge: 'left' } }
-    expect(faceFrameGeometry(root, OUTER, FRAME)).not.toBeNull()
+    expect(geometry(leaf('door', { kind: 'door', leaves: 1, hinge: 'left' }))).not.toBeNull()
   })
 
   it('is idempotent', () => {
-    const root = leaf()
-    expect(faceFrameGeometry(root, OUTER, FRAME)).toEqual(faceFrameGeometry(root, OUTER, FRAME))
+    const root = leaf('root')
+    const split = splitSection(root, root.id, 'vertical', 'panel', 2)
+    expect(geometry(split)).toEqual(geometry(split))
   })
 })
