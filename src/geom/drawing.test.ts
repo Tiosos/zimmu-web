@@ -69,6 +69,41 @@ describe('buildDrawingSheets', () => {
     expect(end.boardRect.h).toBeCloseTo(18 * s, 3)
   })
 
+  it('carries manual machining as a sheet note, never as projected geometry', () => {
+    const sheets = buildDrawingSheets(
+      [
+        makeBoard({
+          operations: [
+            {
+              kind: 'manual-machining',
+              id: 'op1',
+              label: 'Blum inset adapter 1',
+              hardwareKey: 'hinge-blum-clip-inset-175h5030-21',
+              face: '-Z',
+              at: { x: 100, y: 28, z: 0 },
+              diameter: 3,
+              pitch: 32,
+              count: 2,
+              angle: 12,
+              edgeOffset: 10,
+              template: 'Blum PLATEMATE',
+              instruction:
+                'Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
+            },
+          ],
+        }),
+      ],
+      'P',
+    )
+    const sheet = sheets[1]
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
+    expect(sheet.manufacturingNotes).toEqual([
+      'Blum inset adapter 1: Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
+    ])
+    expect(sheet.views.flatMap((view) => view.circles)).toEqual([])
+    expect(sheet.views.flatMap((view) => view.cuts)).toEqual([])
+  })
+
   it('cut on +Z face appears only in Face view', () => {
     const cut = {
       id: 'c1',
