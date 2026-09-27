@@ -48,10 +48,18 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
   // override its material's thickness, so the emitted front is asked the same way the back is.
   // Keyed by role because that is what a slide row names.
   const frontThickness = new Map<string, number>()
+  // A frame board belongs to the FaceFrameComponent, not directly to the carcase. Read its emitted
+  // thickness through the component tree so runner quoting uses the same real frame depth the box
+  // had to clear, including a user-owned thickness override.
+  const frameDepth = new Map<ComponentId, number>()
   for (const p of scene.parts) {
     if (p.kind !== 'board' || p.parentId === null) continue
     if (p.role === 'back') backThickness.set(p.parentId, p.thickness)
     if (p.role?.startsWith('front-')) frontThickness.set(`${p.parentId} ${p.role}`, p.thickness)
+    if (p.role === 'stile-left') {
+      const frameOwner = nearestCarcase(p, byId)?.id
+      if (frameOwner !== undefined) frameDepth.set(frameOwner, p.thickness)
+    }
   }
 
   // A slide row is bored into BOTH uprights of a bay and both carry the same cut id, because both
@@ -101,6 +109,7 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
           clearDepth(cabinet.params, backThickness.get(owner) ?? 0),
           front,
           cabinet.params.frontMount === 'inset',
+          frameDepth.get(owner) ?? 0,
         )
         const key = runnerKeyFor(usable)
         if (key !== null) add(owner, key, 1)
