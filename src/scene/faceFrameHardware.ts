@@ -29,6 +29,7 @@ export interface BlumFaceFrameHinge {
         pilotDiameter: number
         pitch: number
         frontOffset: number
+        angle: number
       }
 }
 
@@ -91,6 +92,7 @@ export function blumFaceFrameHingeFor(
         pilotDiameter: 3,
         pitch: 32,
         frontOffset: 10,
+        angle: 12,
       },
     }
   }
