@@ -106,14 +106,38 @@ describe('regenerateFaceFrames', () => {
     expect(boardsOf(out)).toHaveLength(8)
   })
 
-  // Stage 1 cannot frame a split cabinet. The frame component stays — the cabinet asked for one —
-  // but it emits nothing, exactly as a drawer whose box does not fit keeps its component and
-  // declines its boards.
-  it('keeps the frame but emits no boards where stage 1 cannot build one', () => {
+  it('emits and reconciles a mid stile for a vertically divided cabinet', () => {
     const split = splitSection(BASE.section, BASE.section.id, 'vertical', 'panel', 2)
     const out = regenerateFaceFrames(sceneOf([cab('cmp_a', { frame: FRAME, section: split })]))
     expect(frames(out)).toHaveLength(1)
-    expect(boardsOf(out)).toHaveLength(0)
+    const midRole = `stile-${BASE.section.id}-0`
+    expect(roles(out)).toEqual([
+      'rail-bottom',
+      'rail-top',
+      'stile-left',
+      'stile-right',
+      midRole,
+    ].sort())
+    const mid = board(out, midRole)
+    expect(mid.position).toEqual({ x: 272, y: -20, z: 132 })
+    expect(mid.length).toBe(556)
+    expect(mid.width).toBe(56)
+    expect(mid.label).toBe('Mid stile 1')
+    expect(mid.material).toBe(DEFAULT_FRAME_MATERIAL)
+
+    const again = regenerateFaceFrames(out)
+    expect(board(again, midRole).id).toBe(mid.id)
+  })
+
+  it('emits a mid rail for a horizontally divided cabinet', () => {
+    const split = splitSection(BASE.section, BASE.section.id, 'horizontal', 'panel', 2)
+    const out = regenerateFaceFrames(sceneOf([cab('cmp_a', { frame: FRAME, section: split })]))
+    const midRole = `rail-${BASE.section.id}-0`
+    const mid = board(out, midRole)
+    expect(mid.position).toEqual({ x: 44, y: -20, z: 391 })
+    expect(mid.length).toBe(38)
+    expect(mid.width).toBe(512)
+    expect(mid.label).toBe('Mid rail 1')
   })
 
   it('removes the frame when the cabinet turns frameless', () => {
