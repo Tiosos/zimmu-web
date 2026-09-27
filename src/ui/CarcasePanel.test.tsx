@@ -12,6 +12,7 @@ import {
   firstInterior,
   sectionInteriors,
   sectionOpenings,
+  seedInteriors,
 } from '../scene/sectionInterior'
 import type {
   CarcaseComponent,
@@ -391,7 +392,7 @@ describe('CarcasePanel shelving', () => {
     expect(screen.queryByLabelText('Shelves')).toBeNull()
   })
   it('warns when a requested loose shelf cannot pass the selected opening frame', () => {
-    const section = shelved(sec([], 0), { shelves: 1 })
+    const section = seedInteriors(sec([], 0), defaultInterior(1))
     const c = carcase({
       section: {
         ...section,
