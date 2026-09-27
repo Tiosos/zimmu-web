@@ -106,10 +106,9 @@ describe('carcaseBounds', () => {
       expect(boundsOf(framed({ section: bareLeaf() })).y0).toBe(-25)
     })
 
-    // Stage 1 declines to frame a drawer: nothing is built, so nothing is counted.
-    it('a frame stage 1 declines counts for nothing', () => {
+    it('a drawer front reaches forward from the built frame in stage 3', () => {
       const drawer: Section = { ...bareLeaf(), front: { kind: 'drawer-front' } }
-      expect(boundsOf(framed({ section: drawer })).y0).toBe(-20)
+      expect(boundsOf(framed({ section: drawer })).y0).toBe(-45)
     })
   })
 
