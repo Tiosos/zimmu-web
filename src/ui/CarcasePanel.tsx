@@ -10,6 +10,7 @@ import type {
   RunnerFamily,
   SectionId,
   FaceFrameParams,
+  FrameZone,
 } from '../scene/types'
 import {
   frontGeometryOf,
@@ -284,6 +285,87 @@ export function CarcasePanel({
   // The drawer regenerateDrawers built for this opening, found the same way reconciliation binds it:
   // by (parentId, sectionId), never by index. A drawer-front opening always has one, so its absence
   // means the drawer is mid-regeneration and the params are not editable yet.
+  const selectedLayout =
+    frame !== undefined && opening !== undefined ? frame.layout?.[opening.sectionId] : undefined
+  const railChildren =
+    selectedLayout?.content.kind === 'split' &&
+    selectedLayout.content.axis === 'horizontal' &&
+    selectedLayout.content.children.length === 2
+      ? selectedLayout.content.children
+      : null
+  const lowerZone = railChildren?.[0]
+  const upperZone = railChildren?.[1]
+  const lowerPair =
+    lowerZone?.content.kind === 'split' &&
+    lowerZone.content.axis === 'vertical' &&
+    lowerZone.content.children.length === 2
+
+  const zoneId = () => `fo_${crypto.randomUUID()}`
+  const leafZone = (front: FrontSpec | undefined, size: FrameZone['size']): FrameZone => ({
+    id: zoneId(),
+    size,
+    front,
+    content: { kind: 'leaf' },
+  })
+  const setSelectedLayout = (layout: FrameZone | undefined) => {
+    if (frame === undefined || opening === undefined) return
+    const next = { ...(frame.layout ?? {}) }
+    if (layout === undefined) delete next[opening.sectionId]
+    else next[opening.sectionId] = layout
+    setParams({
+      frame: {
+        ...frame,
+        layout: Object.keys(next).length === 0 ? undefined : next,
+      },
+    })
+  }
+  const setIndependentRail = (enabled: boolean) => {
+    if (!enabled) {
+      setSelectedLayout(undefined)
+      return
+    }
+    if (opening === undefined) return
+    const lower: FrameZone = {
+      id: zoneId(),
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'vertical',
+        children: [
+          leafZone({ kind: 'door', leaves: 1, hinge: 'left' }, { kind: 'equal' }),
+          leafZone({ kind: 'door', leaves: 1, hinge: 'right' }, { kind: 'equal' }),
+        ],
+      },
+    }
+    setSelectedLayout({
+      id: zoneId(),
+      size: { kind: 'equal' },
+      content: {
+        kind: 'split',
+        axis: 'horizontal',
+        children: [
+          lower,
+          leafZone({ kind: 'drawer-front' }, { kind: 'fixed', mm: 140 }),
+        ],
+      },
+    })
+  }
+  const frontOfKind = (kind: string, hinge: 'left' | 'right' = 'left'): FrontSpec | undefined =>
+    kind === 'none'
+      ? undefined
+      : kind === 'door'
+        ? { kind: 'door', leaves: 1, hinge }
+        : { kind: kind as 'drawer-front' | 'false-front' | 'panel' }
+  const updateRailChild = (index: 0 | 1, child: FrameZone) => {
+    if (selectedLayout === undefined || railChildren === null) return
+    const children = [...railChildren]
+    children[index] = child
+    setSelectedLayout({
+      ...selectedLayout,
+      content: { kind: 'split', axis: 'horizontal', children },
+    })
+  }
+
   const selectedDrawer =
     components.find(
       (c): c is DrawerComponent =>
@@ -582,6 +664,14 @@ export function CarcasePanel({
               />
               <DimInput
                 labelWidth="w-20"
+                label="Mid rail"
+                value={frame.midRailWidth}
+                suffix="mm"
+                min={0}
+                onCommit={(v) => setParams({ frame: { ...frame, midRailWidth: v } })}
+              />
+              <DimInput
+                labelWidth="w-20"
                 label="Mid stile"
                 value={frame.midStileWidth}
                 suffix="mm"
@@ -601,6 +691,126 @@ export function CarcasePanel({
                   }
                 />
               </div>
+              {opening !== undefined && (
+                <>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Label htmlFor="carcase-independent-rail" className="w-20 shrink-0 text-right">
+                      Independent rail
+                    </Label>
+                    <input
+                      id="carcase-independent-rail"
+                      type="checkbox"
+                      checked={railChildren !== null}
+                      onChange={(e) => setIndependentRail(e.target.checked)}
+                    />
+                  </div>
+                  {railChildren !== null && lowerZone !== undefined && upperZone !== undefined && (
+                    <>
+                      <DimInput
+                        labelWidth="w-20"
+                        label="Upper height"
+                        value={upperZone.size.kind === 'fixed' ? upperZone.size.mm : 140}
+                        suffix="mm"
+                        min={1}
+                        onCommit={(v) =>
+                          updateRailChild(1, { ...upperZone, size: { kind: 'fixed', mm: v } })
+                        }
+                      />
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Label htmlFor="carcase-upper-front" className="w-20 shrink-0 text-right">
+                          Upper front
+                        </Label>
+                        <select
+                          id="carcase-upper-front"
+                          aria-label="Upper front"
+                          value={upperZone.front?.kind ?? 'none'}
+                          onChange={(e) =>
+                            updateRailChild(1, {
+                              ...upperZone,
+                              front: frontOfKind(e.target.value),
+                            })
+                          }
+                          className="h-7 flex-1 min-w-0 rounded-md border border-input bg-input px-2 text-[11px] text-foreground"
+                        >
+                          {FRONT_KINDS.map((kind) => (
+                            <option key={kind.value} value={kind.value}>
+                              {kind.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Label htmlFor="carcase-lower-front" className="w-20 shrink-0 text-right">
+                          Lower front
+                        </Label>
+                        <select
+                          id="carcase-lower-front"
+                          aria-label="Lower front"
+                          value={
+                            lowerPair
+                              ? 'door'
+                              : lowerZone.content.kind === 'leaf'
+                                ? (lowerZone.front?.kind ?? 'none')
+                                : 'none'
+                          }
+                          onChange={(e) =>
+                            updateRailChild(0, {
+                              ...lowerZone,
+                              front: frontOfKind(e.target.value),
+                              content: { kind: 'leaf' },
+                            })
+                          }
+                          className="h-7 flex-1 min-w-0 rounded-md border border-input bg-input px-2 text-[11px] text-foreground"
+                        >
+                          {FRONT_KINDS.map((kind) => (
+                            <option key={kind.value} value={kind.value}>
+                              {kind.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Label htmlFor="carcase-lower-pair" className="w-20 shrink-0 text-right">
+                          Lower pair
+                        </Label>
+                        <input
+                          id="carcase-lower-pair"
+                          type="checkbox"
+                          checked={lowerPair}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              updateRailChild(0, {
+                                ...lowerZone,
+                                front: undefined,
+                                content: {
+                                  kind: 'split',
+                                  axis: 'vertical',
+                                  children: [
+                                    leafZone(
+                                      { kind: 'door', leaves: 1, hinge: 'left' },
+                                      { kind: 'equal' },
+                                    ),
+                                    leafZone(
+                                      { kind: 'door', leaves: 1, hinge: 'right' },
+                                      { kind: 'equal' },
+                                    ),
+                                  ],
+                                },
+                              })
+                            } else {
+                              updateRailChild(0, {
+                                ...lowerZone,
+                                front: { kind: 'door', leaves: 1, hinge: 'left' },
+                                content: { kind: 'leaf' },
+                              })
+                            }
+                          }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
               <div className="flex items-center gap-1.5 mb-1">
                 <Label htmlFor="carcase-frame-material" className="w-20 shrink-0 text-right">
                   Frame material
@@ -632,6 +842,10 @@ export function CarcasePanel({
           {opening === undefined ? (
             <p className="text-[11px] text-muted-foreground py-1">
               Pick an opening in the elevation to cover it.
+            </p>
+          ) : selectedLayout !== undefined ? (
+            <p className="text-[11px] text-muted-foreground py-1">
+              This opening's fronts are controlled by its independent frame zones above.
             </p>
           ) : (
             <>
