@@ -33,7 +33,10 @@ export interface BlumFaceFrameHinge {
 }
 
 const INCH = 25.4
-const COMPACT_SIDE_ADJUSTMENT = 1.5
+// Blum prints ±1.5 mm and ±1/16 in for the same cam range; 1/16 in is 1.5875 mm. Use the
+// imperial-stated range rounded to one decimal so the selector does not reject a 17.5 mm Zimmu
+// overlay against the stocked 19.05 mm hinge by 0.05 mm of catalogue rounding.
+const COMPACT_SIDE_ADJUSTMENT = 1.6
 
 interface CompactChoice {
   family: '38N' | '39C'
