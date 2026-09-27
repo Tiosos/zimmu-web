@@ -3,6 +3,7 @@ import { resolveCarcase } from './carcaseOpenings'
 import { componentsById } from './componentTree'
 import { boxDepth } from './drawerBox'
 import { nearestCarcase } from './nearestCarcase'
+import { overridesOf, roleThicknessFor } from './resolveThickness'
 import {
   CATALOGUE_ORDER,
   hingeKeyFor,
@@ -48,18 +49,23 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
   // override its material's thickness, so the emitted front is asked the same way the back is.
   // Keyed by role because that is what a slide row names.
   const frontThickness = new Map<string, number>()
-  // A frame board belongs to the FaceFrameComponent, not directly to the carcase. Read its emitted
-  // thickness through the component tree so runner quoting uses the same real frame depth the box
-  // had to clear, including a user-owned thickness override.
+  // The drawer generator reads frame depth from the carcase's material/override inputs, never from
+  // a generated child frame board. Quote from the same inputs so a child-board edit cannot make
+  // hardware disagree with the box geometry that produced the slide row.
   const frameDepth = new Map<ComponentId, number>()
+  for (const cabinet of carcases) {
+    if (cabinet.params.frame === undefined) continue
+    const thicknessOf = roleThicknessFor(
+      cabinet.params,
+      scene.materials,
+      overridesOf(scene.parts, cabinet.id),
+    )
+    frameDepth.set(cabinet.id, thicknessOf('stile-left'))
+  }
   for (const p of scene.parts) {
     if (p.kind !== 'board' || p.parentId === null) continue
     if (p.role === 'back') backThickness.set(p.parentId, p.thickness)
     if (p.role?.startsWith('front-')) frontThickness.set(`${p.parentId} ${p.role}`, p.thickness)
-    if (p.role === 'stile-left') {
-      const frameOwner = nearestCarcase(p, byId)?.id
-      if (frameOwner !== undefined) frameDepth.set(frameOwner, p.thickness)
-    }
   }
 
   // A slide row is bored into BOTH uprights of a bay and both carry the same cut id, because both
