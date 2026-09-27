@@ -139,22 +139,6 @@ export function SectionElevation({
         )
       })}
 
-      {/* Frame members are above opening fills but below labels. They never steal the opening click. */}
-      {frameMembers.map((member) => {
-        const { x, y, height } = toSvg(member.rect.x0, member.rect.z0, member.rect.z1)
-        return (
-          <rect
-            key={member.role}
-            data-testid={`frame-member-${member.role}`}
-            x={x}
-            y={y}
-            width={member.rect.x1 - member.rect.x0}
-            height={height}
-            className="fill-muted-foreground/35 pointer-events-none"
-          />
-        )
-      })}
-
       {tree.divisions.map((d) => {
         const { x, y, height } = toSvg(d.rect.x0, d.rect.z0, d.rect.z1)
         return (
@@ -166,6 +150,22 @@ export function SectionElevation({
             width={d.rect.x1 - d.rect.x0}
             height={height}
             className="fill-muted-foreground/60"
+          />
+        )
+      })}
+
+      {/* Frame members are above carcase divisions but below labels. They never steal the opening click. */}
+      {frameMembers.map((member) => {
+        const { x, y, height } = toSvg(member.rect.x0, member.rect.z0, member.rect.z1)
+        return (
+          <rect
+            key={member.role}
+            data-testid={`frame-member-${member.role}`}
+            x={x}
+            y={y}
+            width={member.rect.x1 - member.rect.x0}
+            height={height}
+            className="fill-muted-foreground/35 pointer-events-none"
           />
         )
       })}
