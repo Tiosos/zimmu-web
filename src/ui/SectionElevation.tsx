@@ -100,6 +100,21 @@ export function SectionElevation({
         onClick={() => onSelect(null)}
       />
 
+      {frameMembers.map((member) => {
+        const { x, y, height } = toSvg(member.rect.x0, member.rect.z0, member.rect.z1)
+        return (
+          <rect
+            key={member.role}
+            data-testid={`frame-member-${member.role}`}
+            x={x}
+            y={y}
+            width={member.rect.x1 - member.rect.x0}
+            height={height}
+            className="fill-muted-foreground/35 pointer-events-none"
+          />
+        )
+      })}
+
       {sectionOpenings(params.section, tree).map((o, i) => {
         const { x, y, height } = toSvg(o.rect.x0, o.rect.z0, o.rect.z1)
         const width = o.rect.x1 - o.rect.x0
@@ -160,21 +175,6 @@ export function SectionElevation({
               </text>
             )}
           </g>
-        )
-      })}
-
-      {frameMembers.map((member) => {
-        const { x, y, height } = toSvg(member.rect.x0, member.rect.z0, member.rect.z1)
-        return (
-          <rect
-            key={member.role}
-            data-testid={`frame-member-${member.role}`}
-            x={x}
-            y={y}
-            width={member.rect.x1 - member.rect.x0}
-            height={height}
-            className="fill-muted-foreground/35 pointer-events-none"
-          />
         )
       })}
 
