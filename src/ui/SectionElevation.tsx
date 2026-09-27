@@ -1,4 +1,9 @@
-import { openingRect, sectionThickness, validateCarcaseParams } from '../scene/carcaseRoles'
+import {
+  frontGeometryOf,
+  openingRect,
+  sectionThickness,
+  validateCarcaseParams,
+} from '../scene/carcaseRoles'
 import { overridesOf, roleThicknessFor } from '../scene/resolveThickness'
 import { resolveSections } from '../scene/sectionTree'
 import { sectionOpenings } from '../scene/sectionInterior'
@@ -57,6 +62,10 @@ export function SectionElevation({
     sectionThickness(thicknessOf),
   )
 
+  // The same frame-opening map used by fronts, interiors and machining. The elevation must not
+  // invent a fourth frame calculation just to print a dimension.
+  const frameOpenings = frontGeometryOf(params, tree).frameOpenings
+
   const W = params.width
   const H = params.height
   const font = Math.min(W, H) / FONT_DIVISOR
@@ -91,6 +100,7 @@ export function SectionElevation({
       {sectionOpenings(params.section, tree).map((o, i) => {
         const { x, y, height } = toSvg(o.rect.x0, o.rect.z0, o.rect.z1)
         const width = o.rect.x1 - o.rect.x0
+        const framed = frameOpenings?.get(o.sectionId)
         const isSelected = o.sectionId === selected
         return (
           <g key={o.sectionId}>
@@ -115,8 +125,9 @@ export function SectionElevation({
                 because happy-dom loads no stylesheet. Three centre-clicks in `e2e/carcase.spec.ts`
                 are what fail if it goes. */}
             <text
+              data-kind="section-number"
               x={x + width / 2}
-              y={y + height / 2}
+              y={y + height / 2 - (framed === undefined ? 0 : font * 0.6)}
               textAnchor="middle"
               dominantBaseline="middle"
               className="fill-muted-foreground pointer-events-none"
@@ -124,6 +135,19 @@ export function SectionElevation({
             >
               {i + 1}
             </text>
+            {framed !== undefined && (
+              <text
+                data-testid={`section-opening-dimension-${o.sectionId}`}
+                x={x + width / 2}
+                y={y + height / 2 + font * 0.8}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="fill-muted-foreground pointer-events-none"
+                fontSize={font * 0.7}
+              >
+                {`${Math.round(framed.x1 - framed.x0)} × ${Math.round(framed.z1 - framed.z0)}`}
+              </text>
+            )}
           </g>
         )
       })}
