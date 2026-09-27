@@ -13,6 +13,7 @@ import type {
 import type { Rect, SectionId } from './sectionTree'
 import { resolveCarcase } from './carcaseOpenings'
 import { clearDepth, frontGeometryOf, orientedPanel, type LocalBox, type PanelSpec } from './carcaseRoles'
+import { usableInteriorRect } from './carcaseLayout'
 import { grainAxisOf, grainFieldFor } from './grain'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
 import {
@@ -85,7 +86,7 @@ function drawerSitesOf(cabinet: CarcaseComponent, scene: Scene): DrawerSite[] | 
       sectionId: o.sectionId,
       // A moving box must pass through the narrowest opening in front of its section. On a framed
       // cabinet that is the frame; frameless keeps the section rectangle byte-for-byte.
-      opening: fronts.frameOpenings?.get(o.sectionId) ?? o.rect,
+      opening: usableInteriorRect(o.rect, fronts.frameOpenings?.get(o.sectionId)),
       ctx: {
         clearDepth: clear,
         // Only a two-leaf door has a leaf 1, so a drawer front's role key always ends in 0.
