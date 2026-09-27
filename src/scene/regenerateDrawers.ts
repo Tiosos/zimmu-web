@@ -13,7 +13,7 @@ import type {
 import type { Rect, SectionId } from './sectionTree'
 import { resolveCarcase } from './carcaseOpenings'
 import { clearDepth, frontGeometryOf, orientedPanel, type LocalBox, type PanelSpec } from './carcaseRoles'
-import { frontCells } from './frontCells'
+import { frontCells, frontRoleOf } from './frontCells'
 import { usableInteriorRect } from './carcaseLayout'
 import { grainAxisOf, grainFieldFor } from './grain'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
@@ -102,7 +102,7 @@ function drawerSitesOf(cabinet: CarcaseComponent, scene: Scene): DrawerSite[] | 
           usableInteriorRect(sectionRect, fronts.frameOpenings?.get(cell.sectionId)),
         ctx: {
           clearDepth: clear,
-          frontThickness: thicknessOf(`front-${cell.openingId}-0`),
+          frontThickness: thicknessOf(frontRoleOf(cell)),
           inset: p.frontMount === 'inset',
           frameDepth,
         },
