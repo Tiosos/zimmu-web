@@ -67,7 +67,7 @@ Framed:
 The hardware tally still counts only `cups_*`; it never counts plate rows and never derives a
 quantity from parameters.
 
-## Physical drilling pattern — DECISION REQUIRED
+## Physical drilling pattern — APPROVED: Blum-backed mixed selection
 
 The existing frameless mounting-plate pattern is a 32 mm-system side-panel row beginning 37 mm back
 from the cabinet front. It cannot be reused on a stile: the stile has a different board frame and
@@ -76,20 +76,30 @@ face-frame adapter plates have their own fixing geometry.
 The project spec explicitly calls face-frame hinge geometry a stated figure requiring a
 woodworker/product decision.
 
-Two supported directions:
+Approved product decision: preserve Zimmu's existing frame geometry and select a documented Blum
+face-frame hinge from the actual overlay at each hinged stile. Cabinet geometry does not move to
+suit a SKU.
 
-### A. Generic Zimmu face-frame pattern
+Implemented selection families:
 
-Define documented replaceable constants for a generic face-frame mounting plate. This keeps Stage 4
-vendor-neutral and lets the future hardware model replace the constants.
+- COMPACT BLUMOTION 38N screw-on for partial overlays covered by its stocked nominal plus published
+  cam side adjustment;
+- COMPACT BLUMOTION 39C screw-on for larger wraparound overlays covered by its stocked nominal plus
+  published cam side adjustment;
+- COMPACT BLUMOTION 38B355BF22 face-mount for overlays >= 35 mm, with its pilot line derived from
+  Blum's published `X = overlay - 35 + 9` replacement rule;
+- CLIP top BLUMOTION 71B3650 + 175H5030.21 for inset.
 
-### B. Product-backed pattern
+If no published application covers a requested overlay, selection returns null: no guessed hinge,
+no cup, no frame plate machining, and no BOM line.
 
-Target a named hinge/adapter family and encode its published mounting dimensions. For example,
-Blum's 175H6 face-frame adapter family is a distinct face-frame pattern, not the existing 32 mm
-frameless side-panel row.
+### Inset machining representation
 
-Do not commit physical hole offsets until A or B is selected.
+The 175H5030.21 is selected and catalogued, but its adapter drawing carries a 12-degree installation
+geometry while Zimmu's current `HoleArrayCut` drills normal to a board face. Stage 4 must not fake
+that as perpendicular CNC machining. Overlay/half-overlay machining proceeds; inset adapter pilot
+machining remains withheld until the project chooses either an angled-drilling primitive or an
+explicit manual/template-operation representation.
 
 ## Tests
 
