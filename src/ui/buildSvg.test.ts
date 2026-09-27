@@ -73,6 +73,36 @@ describe('buildSvg', () => {
     expect((svgStr.match(/<rect /g) ?? []).length).toBeGreaterThanOrEqual(5)
   })
 
+  it('prints manual machining without adding projected geometry', () => {
+    const baseline = buildSvg(buildDrawingSheets([makeBoard()], 'Test')[1])
+    const withOperation = buildSvg(
+      buildDrawingSheets([makeBoard({ operations: [{
+      kind: 'manual-machining' as const,
+      id: 'op1',
+      label: 'Blum inset adapter 1',
+      hardwareKey: 'hinge-blum-clip-inset-175h5030-21',
+      face: '-Z' as const,
+      at: { x: 100, y: 28, z: 0 },
+      diameter: 3,
+      pitch: 32,
+      count: 2,
+      angle: 12,
+      edgeOffset: 10,
+      template: 'Blum PLATEMATE',
+      instruction:
+        'Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
+    }] })], 'Test')[1],
+    )
+    expect(withOperation).toContain('175H5030.21')
+    expect(withOperation).toContain('12°')
+    expect((withOperation.match(/<circle /g) ?? []).length).toBe(
+      (baseline.match(/<circle /g) ?? []).length,
+    )
+    expect((withOperation.match(/<rect /g) ?? []).length).toBe(
+      (baseline.match(/<rect /g) ?? []).length,
+    )
+  })
+
   it('dim text contains the length label', () => {
     const sheets = buildDrawingSheets([makeBoard({ length: 750 })], 'Test')
     const svgStr = buildSvg(sheets[1])
