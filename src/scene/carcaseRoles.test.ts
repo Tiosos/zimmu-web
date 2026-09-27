@@ -2156,12 +2156,10 @@ describe('fronts', () => {
     expect(door.box.y1).toBeCloseTo(-25, 9)
   })
 
-  // Stage 1 declines to frame a drawer, so no frame is built — and the front must not float a
-  // frame's thickness in front of nothing.
-  it('leaves the front where a frameless cabinet puts it when the frame declines', () => {
+  it('puts a drawer front on the face frame once its box can follow the framed opening', () => {
     const [front] = frontBoxes(fronted(framedBay, { kind: 'drawer-front' }))
-    expect(front.box.y0).toBeCloseTo(-T, 9)
-    expect(front.box.y1).toBeCloseTo(0, 9)
+    expect(front.box.y0).toBeCloseTo(-25 - T, 9)
+    expect(front.box.y1).toBeCloseTo(-25, 9)
   })
 
   // The validator measures the reveal against the cells the cabinet would emit, so it must see the

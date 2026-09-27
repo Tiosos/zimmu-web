@@ -15,6 +15,7 @@ import {
   orientedPanel,
   pinRow,
   sectionThickness,
+  usableInteriorRect,
   type LocalBox,
   type PanelSpec,
 } from './carcaseLayout'
@@ -283,10 +284,12 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
   // 0 unless this section actually wears an inset front: an opening with no door has nothing to
   // clear, and asking the *cabinet* instead of the section would set every shelf in the carcase
   // back because one opening has a door.
-  const insetDepthOf = (sectionId: SectionId): number =>
-    p.frontMount === 'inset' && frontedSections.has(sectionId)
-      ? thicknessOf(`front-${sectionId}-0`)
-      : 0
+  const insetDepthOf = (sectionId: SectionId): number => {
+    if (p.frontMount !== 'inset' || !frontedSections.has(sectionId)) return 0
+    const frontThickness = thicknessOf(`front-${sectionId}-0`)
+    // A framed inset front occupies the frame stock before it reaches the carcase interior.
+    return Math.max(0, frontThickness - (fronts.frameOpenings?.has(sectionId) ? frameDepth : 0))
+  }
 
   // Loose shelves on pins, after the divisions: the build order runs shell, then what divides it,
   // then what sits inside. Keyed on the section's own id, the same way a division is keyed on the
@@ -294,7 +297,8 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
   let seated = 0
   for (const { sectionId, rect, spec } of sectionInteriors(p.section, tree)) {
     const a = spec.adjustable
-    const { first, count } = pinRow(rect, a)
+    const usable = usableInteriorRect(rect, fronts.frameOpenings?.get(sectionId))
+    const { first, count } = pinRow(usable, a)
     shelfPins(a.shelves, count).forEach((pin, i) => {
       const role = `adj-shelf-${sectionId}-${i}`
       // The board's underside on the pin's centreline: an L-pin carries the shelf on an arm at
@@ -308,8 +312,8 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
         // walk, and a shelf that only says "Adj Shelf" is a worse cutting list than a numbered one.
         label: `Adj Shelf ${seated}`,
         box: {
-          x0: rect.x0 + SHELF_CLEARANCE,
-          x1: rect.x1 - SHELF_CLEARANCE,
+          x0: usable.x0 + SHELF_CLEARANCE,
+          x1: usable.x1 - SHELF_CLEARANCE,
           // Set back at the front for the door it does not know about, and clear of the back panel
           // at the other end. A shelf that jams against the back cannot be tilted out past the
           // pins, and a shelf touching a panel it is not fixed to would read as an unjoined

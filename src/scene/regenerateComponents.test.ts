@@ -929,6 +929,67 @@ describe('front machining through regeneration', () => {
   })
 })
 
+describe('face-frame stage 3 — adjustable interiors', () => {
+  const frame = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+  const adjustable = seedInteriors(legacyToSection([], 0, 600, 18), {
+    fixedShelves: 0,
+    adjustable: { shelves: 1, count: 10, rows: 1, pitch: 32, setback: 37, backSetback: 37 },
+  })
+  const framedParams: CarcaseParams = { ...params, frame, section: adjustable }
+  const framedScene: Scene = {
+    ...empty,
+    components: [{ ...cabinet, params: framedParams }],
+  }
+
+  it('cuts an adjustable shelf to the face-frame opening, not the wider carcase opening', () => {
+    const out = regenerateComponents(framedScene)
+    const shelf = partsOf(out).find((p) => p.role?.startsWith('adj-shelf-')) as BoardPart
+
+    // Outer frame x is 44..556; the loose shelf keeps the existing 2 mm clearance each side.
+    expect(shelf.position.x).toBe(46)
+    expect(shelf.length).toBe(508)
+  })
+
+  it('moves shelf seating and pin rows into the usable framed height', () => {
+    const out = regenerateComponents(framedScene)
+    const shelf = partsOf(out).find((p) => p.role?.startsWith('adj-shelf-')) as BoardPart
+    const side = partsOf(out).find((p) => p.role === 'left-side') as BoardPart
+    const row = side.cuts.find(
+      (cut): cut is HoleArrayCut => cut.kind === 'hole-array' && cut.id.startsWith('holes_'),
+    )!
+
+    // Frame bottom rail ends at z 32, so the first 32 mm-system hole is z 64. One shelf over ten
+    // positions sits on pin index 5: z 64 + 5*32 = 224. Frameless would be 50 / 210.
+    expect(row.start.y).toBe(64)
+    expect(shelf.position.z).toBe(224)
+  })
+
+  it('leaves a fixed structural shelf spanning the carcase rather than narrowing it to the frame', () => {
+    const fixed = seedInteriors(legacyToSection([], 0, 600, 18), {
+      fixedShelves: 1,
+      adjustable: { shelves: 0, count: 0, rows: 1, pitch: 32, setback: 37, backSetback: 37 },
+    })
+    const bare = { ...params, section: fixed }
+    const framed = { ...bare, frame }
+    const thickness = (p: CarcaseParams) => roleThicknessFor(p, PRESET_MATERIALS, new Map())
+    const boxOf = (p: CarcaseParams) =>
+      carcaseBoxes(p, thickness(p)).find((b) => b.role.startsWith('fixed-shelf-'))!.box
+
+    expect(boxOf(framed)).toEqual(boxOf(bare))
+    expect(boxOf(framed).x0).toBe(18)
+    expect(boxOf(framed).x1).toBe(582)
+  })
+
+  it('keeps frameless adjustable-shelf geometry unchanged', () => {
+    const bareParams = { ...params, section: adjustable }
+    const out = regenerateComponents({ ...empty, components: [{ ...cabinet, params: bareParams }] })
+    const shelf = partsOf(out).find((p) => p.role?.startsWith('adj-shelf-')) as BoardPart
+    expect(shelf.position.x).toBe(20)
+    expect(shelf.length).toBe(560)
+    expect(shelf.position.z).toBe(210)
+  })
+})
+
 // Task 8.3 — the pin rows a cabinet drills for its adjustable shelves.// Task 8.3 — the pin rows a cabinet drills for its adjustable shelves. Component-owned like the
 // toe-kick notch, so the ownership rules above govern them: re-derived on every pass, never added
 // to what the last pass left behind.

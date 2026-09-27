@@ -14,10 +14,6 @@ export interface FrameGeometry {
   openings: Map<SectionId, Rect>
 }
 
-const hasDrawerFront = (section: Section): boolean =>
-  section.front?.kind === 'drawer-front' ||
-  (section.content.kind === 'split' && section.content.children.some(hasDrawerFront))
-
 const validRect = (rect: Rect): boolean => rect.x1 > rect.x0 && rect.z1 > rect.z0
 
 // The whole frame rule, stated once.
@@ -44,10 +40,6 @@ export function faceFrameGeometry(
   // `frame === undefined` is the frameless state, the way `anchor === undefined` is the detached
   // one: presence or absence already draws the line, so there is no second flag to disagree with.
   if (frame === undefined) return null
-
-  // Drawer openings follow the frame in Stage 3. Until then, a cabinet containing one declines the
-  // whole frame rather than emitting a box that has never been checked against its opening.
-  if (hasDrawerFront(root)) return null
 
   const { stileWidth, railWidth, midStileWidth, midRailWidth } = frame
   if (stileWidth <= 0 || railWidth <= 0) return null

@@ -167,8 +167,7 @@ describe('faceFrameGeometry', () => {
     ).toBeNull()
   })
 
-  // Stage 3 remains deliberately out of scope.
-  it('declines any tree containing a drawer-front leaf', () => {
+  it('gives a drawer-front leaf the same clear frame opening as any other leaf', () => {
     const root: Section = {
       id: 'root',
       size: { kind: 'equal' },
@@ -182,7 +181,9 @@ describe('faceFrameGeometry', () => {
         ],
       },
     }
-    expect(faceFrameGeometry(root, OUTER, FRAME, treeOf(root))).toBeNull()
+    const g = faceFrameGeometry(root, OUTER, FRAME, treeOf(root))
+    expect(g).not.toBeNull()
+    expect(g!.openings.get('drawer')).toEqual({ x0: 328, x1: 556, z0: 132, z1: 688 })
   })
 
   it('accepts a leaf wearing a door', () => {

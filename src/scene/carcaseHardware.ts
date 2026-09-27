@@ -48,6 +48,15 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
   // override its material's thickness, so the emitted front is asked the same way the back is.
   // Keyed by role because that is what a slide row names.
   const frontThickness = new Map<string, number>()
+  // The drawer generator reads frame depth from the carcase's frame-material slot, never from a
+  // generated child frame board. Quote from that same slot so a child-board edit cannot make
+  // hardware disagree with the box geometry that produced the slide row.
+  const frameDepth = new Map<ComponentId, number>()
+  for (const cabinet of carcases) {
+    if (cabinet.params.frame === undefined) continue
+    const thickness = scene.materials[cabinet.params.frameMaterial]?.thickness
+    if (thickness !== undefined) frameDepth.set(cabinet.id, thickness)
+  }
   for (const p of scene.parts) {
     if (p.kind !== 'board' || p.parentId === null) continue
     if (p.role === 'back') backThickness.set(p.parentId, p.thickness)
@@ -101,6 +110,7 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
           clearDepth(cabinet.params, backThickness.get(owner) ?? 0),
           front,
           cabinet.params.frontMount === 'inset',
+          frameDepth.get(owner) ?? 0,
         )
         const key = runnerKeyFor(usable)
         if (key !== null) add(owner, key, 1)
