@@ -26,6 +26,26 @@ function fmt(n: number): string {
   return n.toFixed(3)
 }
 
+function wrapManufacturingNotes(notes: string[], maxChars = 90): string[] {
+  return notes.flatMap((note) => {
+    const words = note.split(' ')
+    const lines: string[] = []
+    let line = ''
+    for (const word of words) {
+      const next = line === '' ? word : `${line} ${word}`
+      if (line !== '' && next.length > maxChars) {
+        lines.push(line)
+        line = word
+      } else {
+        line = next
+      }
+    }
+    if (line !== '') lines.push(line)
+    return lines
+  })
+}
+
+
 function el(tag: string, attrs: Record<string, string | number>, content?: string): string {
   const a = Object.entries(attrs)
     .map(([k, v]) => `${k}="${typeof v === 'string' ? escapeXml(v) : v}"`)
@@ -296,9 +316,9 @@ function renderTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): strin
       'font-family': 'sans-serif',
     }),
     ...(sheet.shape === 'board'
-      ? sheet.manufacturingNotes.map((note, i) =>
-          svgText(tbX + 155, tbY + 6 + i * 6, note, {
-            'font-size': '2.4',
+      ? wrapManufacturingNotes(sheet.manufacturingNotes).map((line, i) =>
+          svgText(tbX + 155, tbY + 4 + i * 2.4, line, {
+            'font-size': '2',
             fill: '#000',
             'font-family': 'sans-serif',
           }),
