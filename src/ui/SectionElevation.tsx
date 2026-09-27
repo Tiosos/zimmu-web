@@ -49,23 +49,7 @@ export function SectionElevation({
   // matching every other consumer of the generator: the params are mid-keystroke, not wrong.
   const buildable = validateCarcaseParams(params, thicknessOf).length === 0
   if (!buildable) {
-    const elevationOpenings = sectionOpenings(params.section, tree)
-  const displayOf = (o: (typeof elevationOpenings)[number]) => {
-    const { x, y, height } = toSvg(o.rect.x0, o.rect.z0, o.rect.z1)
-    const width = o.rect.x1 - o.rect.x0
-    const framed = frameOpenings?.get(o.sectionId)
-    const leftLeaf = frameLeafOpenings?.get(`${o.sectionId}|0`)
-    const rightLeaf = frameLeafOpenings?.get(`${o.sectionId}|1`)
-    const dimension =
-      leftLeaf !== undefined && rightLeaf !== undefined
-        ? `${Math.round(leftLeaf.x1 - leftLeaf.x0)} × ${Math.round(leftLeaf.z1 - leftLeaf.z0)} / ${Math.round(rightLeaf.x1 - rightLeaf.x0)} × ${Math.round(rightLeaf.z1 - rightLeaf.z0)}`
-        : framed === undefined
-          ? null
-          : `${Math.round(framed.x1 - framed.x0)} × ${Math.round(framed.z1 - framed.z0)}`
-    return { x, y, height, width, framed, dimension }
-  }
-
-  return (
+    return (
       <p className="text-[11px] text-muted-foreground">
         This cabinet’s parameters do not build, so it has no elevation to draw.
       </p>
@@ -95,6 +79,22 @@ export function SectionElevation({
     y: H - z1 + PADDING,
     height: z1 - z0,
   })
+
+  const elevationOpenings = sectionOpenings(params.section, tree)
+  const displayOf = (o: (typeof elevationOpenings)[number]) => {
+    const { x, y, height } = toSvg(o.rect.x0, o.rect.z0, o.rect.z1)
+    const width = o.rect.x1 - o.rect.x0
+    const framed = frameOpenings?.get(o.sectionId)
+    const leftLeaf = frameLeafOpenings?.get(`${o.sectionId}|0`)
+    const rightLeaf = frameLeafOpenings?.get(`${o.sectionId}|1`)
+    const dimension =
+      leftLeaf !== undefined && rightLeaf !== undefined
+        ? `${Math.round(leftLeaf.x1 - leftLeaf.x0)} × ${Math.round(leftLeaf.z1 - leftLeaf.z0)} / ${Math.round(rightLeaf.x1 - rightLeaf.x0)} × ${Math.round(rightLeaf.z1 - rightLeaf.z0)}`
+        : framed === undefined
+          ? null
+          : `${Math.round(framed.x1 - framed.x0)} × ${Math.round(framed.z1 - framed.z0)}`
+    return { x, y, height, width, framed, dimension }
+  }
 
   return (
     <svg
