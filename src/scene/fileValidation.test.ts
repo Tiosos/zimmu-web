@@ -250,10 +250,7 @@ describe('zimmu file validation boundary', () => {
       params: {
         family: 'side-mount',
         material: '',
-        bottomMaterial: '',
-        clearance: 12.7,
-        bottomClearance: 12,
-        runnerOffset: 35,
+        runnerOffset: 32,
         boxHeight: null,
       },
       driven: true,
