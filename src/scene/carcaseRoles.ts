@@ -1,13 +1,11 @@
-import type { BoxCut, CarcaseParams, Face, Grain, HoleArrayCut, ThicknessAxis, Vec3 } from './types'
+import type { BoxCut, CarcaseParams, Face, Grain, HoleArrayCut, ThicknessAxis } from './types'
 import { dadoDepthFor } from '../geom/dado'
 import { grainAxisOf, grainFieldFor } from './grain'
 import type { RoleThickness } from './resolveThickness'
 import type { CarcaseJointKind, RoleJointKind } from './resolveJointKind'
 import {
   resolveSections,
-  validateSection,
   type Bound,
-  type DivisionThickness,
   type Rect,
   type ResolvedDivision,
   type FrontSpec,
@@ -20,250 +18,22 @@ import { frontCells, type FrontCell, type FrontGeometry } from './frontCells'
 import { faceFrameGeometry } from './faceFrame'
 import { cupRow, plateScrewRows, slideScrewRow } from './frontMachining'
 import { drawerBoxMetrics, type DrawerParams } from './drawerBox'
+import {
+  clearDepth,
+  floorZ,
+  frontGeometryOf,
+  openingRect,
+  orientedPanel,
+  sectionThickness,
+  type LocalBox,
+  type PanelSpec,
+} from './carcaseLayout'
+import { validateCarcaseParams } from './carcaseValidation'
 
 export type { ThicknessAxis }
-
-export interface LocalBox {
-  x0: number
-  x1: number
-  y0: number
-  y1: number
-  z0: number
-  z1: number
-}
-
-export interface PanelSpec {
-  length: number
-  width: number
-  thickness: number
-  position: Vec3
-  rotation: Vec3
-  rotationOrder: 'XYZ'
-}
-
-// Every carcase part is an axis-aligned panel; only which axis carries the material thickness
-// differs. Each rotation maps all three board axes onto carcase axes positively, so the board's
-// local origin always lands on the box's min corner and `position` needs no compensation.
-export function orientedPanel(b: LocalBox, thicknessAxis: ThicknessAxis): PanelSpec {
-  const dx = b.x1 - b.x0
-  const dy = b.y1 - b.y0
-  const dz = b.z1 - b.z0
-  const position = { x: b.x0, y: b.y0, z: b.z0 }
-  const rotationOrder = 'XYZ' as const
-
-  if (thicknessAxis === 'z') {
-    return {
-      length: dx,
-      width: dy,
-      thickness: dz,
-      position,
-      rotation: { x: 0, y: 0, z: 0 },
-      rotationOrder,
-    }
-  }
-  if (thicknessAxis === 'x') {
-    // board x→carcase y, y→z, z→x
-    return {
-      length: dy,
-      width: dz,
-      thickness: dx,
-      position,
-      rotation: { x: 0, y: 90, z: 90 },
-      rotationOrder,
-    }
-  }
-  // board x→carcase z, y→x, z→y
-  return {
-    length: dz,
-    width: dx,
-    thickness: dy,
-    position,
-    rotation: { x: -90, y: 0, z: -90 },
-    rotationOrder,
-  }
-}
-
-// Where the bottom panel sits. Shared by the validator and the role table so a shelf budget is
-// never computed against a floor the generator does not use.
-export function floorZ(p: CarcaseParams): number {
-  return p.baseMode === 'toe-kick' || p.baseMode === 'ladder' ? p.toeKickHeight : 0
-}
-
-// What every front on a cabinet is measured against, stated once for the three places that ask:
-// the validator, the box table and the machining. The frame's openings are carried only where the
-// frame resolved, so a frame stage 1 declines leaves the fronts exactly where a frameless cabinet
-// puts them — the door and the frame boards both read `faceFrameGeometry`, and cannot disagree
-// about whether there is a frame to hang on.
-export function frontGeometryOf(p: CarcaseParams): FrontGeometry {
-  // The carcase *body*, which is what a front covers: from the bottom panel's underside to the
-  // top. `floorZ` already returns `toeKickHeight` for both a toe kick and a ladder and 0
-  // otherwise, so no base-mode branch is needed. Not `carcaseZ0`: under a toe kick the sides run
-  // to the ground and a door that followed them would cover the kick.
-  const outer = { x0: 0, x1: p.width, z0: floorZ(p), z1: p.height }
-  return {
-    outer,
-    mount: p.frontMount,
-    reveal: p.frontReveal,
-    frameOpenings: faceFrameGeometry(p.section, outer, p.frame)?.openings,
-  }
-}
-
-// The rectangle the section tree divides: the clear opening between the shell panels. Each edge
-// spends the thickness of the panel that bounds it — four separate panels, four separate calls —
-// so a 25 mm left side moves x0 to 25 while an 18 mm right side leaves x1 where it was. A fixture
-// whose panels are all the same thickness cannot tell the four apart.
-export function openingRect(p: CarcaseParams, thicknessOf: RoleThickness): Rect {
-  return {
-    x0: thicknessOf('left-side'),
-    x1: p.width - thicknessOf('right-side'),
-    z0: floorZ(p) + thicknessOf('bottom'),
-    z1: p.hasTop ? p.height - thicknessOf('top') : p.height,
-  }
-}
-
-// How deep the inside of the cabinet actually is: a captured back stands inside the carcase and
-// takes its own thickness out of the depth; an applied one hangs behind it and takes none. Stated
-// here because a drawer runner has to fit this and a division panel's length *is* it — two copies
-// of the rule is how a runner comes to disagree with the panel it screws to.
-export function clearDepth(p: CarcaseParams, backThickness: number): number {
-  return p.backMode === 'captured' ? p.depth - backThickness : p.depth
-}
-
-// A division panel is as thick as the panel it is, not as thick as the cabinet: the tree asks by
-// parent section and index, which is exactly what the box table names the role after.
-export function sectionThickness(thicknessOf: RoleThickness): DivisionThickness {
-  return (parentId, index) => thicknessOf(`division-${parentId}-${index}`)
-}
-
-// Total and side-effect free by contract: the generator calls this on every keystroke and emits
-// nothing when it returns errors, so the last-good parts survive transient states like a width of
-// `6` on the way to `600`. Every problem is collected — a panel that reported one at a time would
-// turn fixing three mistakes into three round trips.
-export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickness): string[] {
-  const errors: string[] = []
-
-  // `roleThicknessFor` is fatal by design; here it must not be. The parameter panel validates on
-  // every keystroke, so a slot whose material cannot say how thick it is has to read back as a
-  // message beside the fields rather than as an exception that takes the app down mid-edit. Every
-  // rule below reads thicknesses through this, so the function stays total.
-  const unresolved = new Set<string>()
-  const thicknessAt: RoleThickness = (role) => {
-    try {
-      return thicknessOf(role)
-    } catch {
-      // Named by slot, not by role: every role but the back draws on the same one, so one message
-      // per slot is what the user can act on.
-      const message =
-        role === 'back'
-          ? `backMaterial "${p.backMaterial}" has no thickness`
-          : role.startsWith('stile-') || role.startsWith('rail-')
-            ? `frameMaterial "${p.frameMaterial}" has no thickness`
-            : `carcaseMaterial "${p.carcaseMaterial}" has no thickness`
-      if (!unresolved.has(message)) {
-        unresolved.add(message)
-        errors.push(message)
-      }
-      return 0
-    }
-  }
-  const left = thicknessAt('left-side')
-  const right = thicknessAt('right-side')
-  const bottom = thicknessAt('bottom')
-  // Charged against the height budget whether or not the cabinet has a top, as one cabinet-wide
-  // thickness was: a carcase too short for two panels is too short for the one it does have.
-  const top = thicknessAt('top')
-  const back = p.backMode === 'none' ? 0 : thicknessAt('back')
-  const ladderFront = p.baseMode === 'ladder' ? thicknessAt('ladder-front') : 0
-  const ladderBack = p.baseMode === 'ladder' ? thicknessAt('ladder-back') : 0
-  // Asked about, and the answer discarded: no rule below reads these, but every panel the box
-  // table will build has to fail here, where an unusable material is a message, rather than there,
-  // where it is a throw.
-  if (p.baseMode === 'toe-kick') thicknessAt('toe-kick')
-  if (p.baseMode === 'ladder') {
-    thicknessAt('ladder-left')
-    thicknessAt('ladder-right')
-  }
-  // Only a framed cabinet builds a frame, so only it answers for the frame material. One member
-  // stands for all four: they share one slot.
-  if (p.frame !== undefined) thicknessAt('stile-left')
-  // Nothing below this can mean anything while a thickness is unknown.
-  if (errors.length > 0) return errors
-
-  if (Math.min(left, right, bottom, top) <= 0) errors.push('thickness must be positive')
-  if (p.width <= left + right) errors.push('width must exceed 2 × thickness')
-  if (p.height <= bottom + top) errors.push('height must exceed 2 × thickness')
-  // The thickest shell panel is the one that runs out of depth first.
-  if (p.depth <= Math.max(left, right, bottom, top)) errors.push('depth must exceed thickness')
-  // Both bases spend toeKickHeight out of the total height: a toe kick lifts the bottom panel
-  // inside sides that still reach the ground, a ladder lifts the whole carcase onto its frame.
-  if (p.baseMode === 'toe-kick' || p.baseMode === 'ladder') {
-    if (p.toeKickHeight >= p.height) {
-      errors.push('toeKickHeight must be less than height')
-    } else if (p.toeKickHeight + bottom + top >= p.height) {
-      errors.push('toeKickHeight leaves no room between top and bottom')
-    }
-  }
-  if (p.baseMode === 'toe-kick' && p.toeKickSetback >= p.depth) {
-    errors.push('toeKickSetback must be less than depth')
-  }
-  // A ladder needs the setback to clear two rail thicknesses, not one: its side rails run
-  // y:[KS+T, D-T] and invert — a negative extent OCCT sees as a degenerate solid — before the
-  // front rail alone would run out of depth.
-  if (p.baseMode === 'ladder' && p.toeKickSetback + ladderFront + ladderBack >= p.depth) {
-    errors.push('toeKickSetback leaves no room for the ladder side rails')
-  }
-  if (p.backMode !== 'none' && back >= p.depth) {
-    errors.push('the back material is thicker than the cabinet is deep')
-  }
-  // Refused rather than quietly hung as overlay: half-overlay laps a stile, and a frameless
-  // cabinet has none to lap.
-  if (p.frontMount === 'half-overlay' && p.frame === undefined) {
-    errors.push('half-overlay needs a face frame')
-  }
-  // Only the frame's own impossibilities refuse the cabinet. A frame stage 1 cannot build — on a
-  // split cabinet, or over a drawer — is NOT an error: an error refuses the whole cabinet, so
-  // ticking "frame" would make it vanish. `faceFrameGeometry` declines the frame instead.
-  if (p.frame !== undefined) {
-    const { stileWidth, railWidth } = p.frame
-    if (stileWidth <= 0 || railWidth <= 0) {
-      errors.push('frame members must be wider than zero')
-    } else if (p.width - 2 * stileWidth <= 0 || p.height - floorZ(p) - 2 * railWidth <= 0) {
-      // `floorZ`, because the frame sits on the carcase and the toe kick is recessed behind it —
-      // the same floor the front's own rectangle starts from.
-      errors.push('the face frame leaves no opening')
-    }
-  }
-  errors.push(...validateSection(p.section))
-  // The tree's own rules are about the tree; only the resolved rectangles know whether the cabinet
-  // is big enough to hold it. A section squeezed to nothing does not produce a thin panel, it
-  // produces panels that pass through the shell and through each other — which is what the v12
-  // rules named `dividers` and `fixedShelves` were guarding against.
-  const resolved = resolveSections(
-    p.section,
-    openingRect(p, thicknessAt),
-    sectionThickness(thicknessAt),
-  )
-  for (const rect of resolved.rects.values()) {
-    if (rect.x1 - rect.x0 <= 0 || rect.z1 - rect.z0 <= 0) {
-      errors.push('the sections do not fit in the carcase')
-      break
-    }
-  }
-
-  // A reveal is taken off every edge of every front, so a big enough one turns the door inside out
-  // — an inset front at 400 mm on a 600 cabinet comes out −236 × −216, which reaches OCCT as a
-  // degenerate solid. Read off the cells the cabinet would actually emit rather than off the number
-  // alone: a cabinet with no front cannot be hurt by any reveal, and failing it would reject a
-  // parameter that costs it nothing.
-  if (p.frontReveal < 0) errors.push('the reveal must be 0 or more')
-  else {
-    const cells = frontCells(p.section, resolved, frontGeometryOf(p))
-    if (cells.some((c) => c.rect.x1 - c.rect.x0 <= 0 || c.rect.z1 - c.rect.z0 <= 0)) {
-      errors.push('the reveal leaves no front')
-    }
-  }
-  return errors
-}
+export { clearDepth, floorZ, frontGeometryOf, openingRect, orientedPanel, sectionThickness } from './carcaseLayout'
+export type { LocalBox, PanelSpec } from './carcaseLayout'
+export { validateCarcaseParams } from './carcaseValidation'
 
 // The widest clear span a ladder base is allowed to leave between two of its uprights. A chosen
 // parameter of the rule — the span the existing four-edge frame already carries at a standard
