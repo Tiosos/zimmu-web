@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { CARCASE_PRESETS, DEFAULT_FRAME_MATERIAL, PRESET_MATERIALS } from './carcasePresets'
 import { splitSection } from './editSection'
+import { setFrontOn } from './sectionInterior'
 import type { BoardPart, CarcaseComponent, CarcaseParams, FaceFrameComponent, Scene } from './types'
 
 const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
@@ -127,6 +128,50 @@ describe('regenerateFaceFrames', () => {
 
     const again = regenerateFaceFrames(out)
     expect(board(again, midRole).id).toBe(mid.id)
+  })
+
+  it('bores a large-overlay 38B pattern only into the hinged outer stile', () => {
+    const out = regenerateFaceFrames(sceneOf([cab('cmp_a')]))
+    const left = board(out, 'stile-left')
+    const right = board(out, 'stile-right')
+    const rows = left.cuts.filter((cut) => cut.id.startsWith('frame_plate_'))
+    expect(rows).toHaveLength(2)
+    expect(right.cuts.filter((cut) => cut.id.startsWith('frame_plate_'))).toEqual([])
+    for (const cut of rows) {
+      expect(cut.kind).toBe('hole-array')
+      if (cut.kind !== 'hole-array') continue
+      expect(cut.face).toBe('-Z')
+      expect(cut.count).toBe(2)
+      expect(cut.pitch).toBe(40)
+      // 44 mm stile, 42.5 mm overlay -> Blum X = OL - 35 + 9 = 16.5 from inner edge.
+      expect(cut.start.y).toBeCloseTo(44 - 16.5, 9)
+    }
+  })
+
+  it('puts a half-overlay mid-stile wraparound pilot on that stile, not a carcase side', () => {
+    let section = splitSection(BASE.section, BASE.section.id, 'vertical', 'panel', 2)
+    const kids = section.content.kind === 'split' ? section.content.children : []
+    section = setFrontOn(section, kids[1].id, { kind: 'door', leaves: 1, hinge: 'left' })
+    const out = regenerateFaceFrames(
+      sceneOf([
+        cab('cmp_a', {
+          frame: FRAME,
+          section,
+          frontMount: 'half-overlay',
+        }),
+      ]),
+    )
+    const mid = board(out, `stile-${BASE.section.id}-0`)
+    const rows = mid.cuts.filter((cut) => cut.id.startsWith('frame_plate_'))
+    expect(rows.length).toBeGreaterThan(0)
+    for (const cut of rows) {
+      expect(cut.kind).toBe('hole-array')
+      if (cut.kind !== 'hole-array') continue
+      expect(cut.face).toBe('+Y')
+      expect(cut.count).toBe(1)
+      expect(cut.diameter).toBeCloseTo((1 / 8) * 25.4, 9)
+      expect(cut.start.z).toBeCloseTo(10, 9)
+    }
   })
 
   it('emits a mid rail for a horizontally divided cabinet', () => {
