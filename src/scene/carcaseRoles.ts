@@ -14,7 +14,7 @@ import {
   type SectionId,
 } from './sectionTree'
 import { sectionInteriors, type AdjustableSpec } from './sectionInterior'
-import { frontCells, type FrontCell, type FrontGeometry } from './frontCells'
+import { frontCells, type FrontCell } from './frontCells'
 import { faceFrameGeometry } from './faceFrame'
 import { cupRow, plateScrewRows, slideScrewRow } from './frontMachining'
 import { drawerBoxMetrics, type DrawerParams } from './drawerBox'
