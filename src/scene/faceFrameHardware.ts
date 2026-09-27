@@ -78,8 +78,8 @@ export function blumFaceFrameHingeFor(
     return {
       family: 'CLIP-inset',
       key: 'hinge-blum-clip-inset-175h5030-21',
-      name: 'Blum CLIP top inset + 175H5030.21 face-frame adapter',
-      partNumber: 'CLIP top half-cranked + 175H5030.21',
+      name: 'Blum CLIP top BLUMOTION 71B3650 + 175H5030.21 inset adapter',
+      partNumber: '71B3650 + 175H5030.21',
       nominalOverlay: null,
       cupDepth: 13,
       plate: {
@@ -124,3 +124,12 @@ export function blumFaceFrameHingeFor(
   }
   return best === null ? null : compact(best)
 }
+
+
+// Every concrete SKU/application this selector can return. HardwareCatalogue consumes this list so
+// a selection can never produce a key the BOM table forgot to name.
+export const BLUM_FACE_FRAME_HINGES: BlumFaceFrameHinge[] = [
+  ...COMPACT.map(compact),
+  blumFaceFrameHingeFor('overlay', 35)!,
+  blumFaceFrameHingeFor('inset', 0)!,
+]
