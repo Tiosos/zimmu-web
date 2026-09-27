@@ -3,6 +3,7 @@ import type { RoleThickness } from './resolveThickness'
 import { resolveSections, validateSection } from './sectionTree'
 import { frontCells } from './frontCells'
 import { floorZ, frontGeometryOf, openingRect, sectionThickness } from './carcaseLayout'
+import { validateFrameLayout } from './faceFrame'
 
 // Total and side-effect free by contract: the generator calls this on every keystroke and emits
 // nothing when it returns errors, so the last-good parts survive transient states like a width of
@@ -103,6 +104,7 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
     }
   }
   errors.push(...validateSection(p.section))
+  errors.push(...validateFrameLayout(p.section, p.frame))
   // The tree's own rules are about the tree; only the resolved rectangles know whether the cabinet
   // is big enough to hold it. A section squeezed to nothing does not produce a thin panel, it
   // produces panels that pass through the shell and through each other — which is what the v12
