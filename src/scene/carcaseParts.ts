@@ -336,7 +336,7 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
   // in `carcaseRoles` passes it through face-to-face sized.
   let faced = 0
   for (const cell of cells) {
-    const role = `front-${cell.sectionId}-${cell.leaf}`
+    const role = `front-${cell.openingId}-${cell.leaf}`
     const FT = thicknessOf(role)
     faced += 1
     boxes.push({
