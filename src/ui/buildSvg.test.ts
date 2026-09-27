@@ -103,6 +103,35 @@ describe('buildSvg', () => {
     )
   })
 
+  it('wraps a complete manufacturing note inside the title-block note column', () => {
+    const operation = {
+      kind: 'manual-machining' as const,
+      id: 'op1',
+      label: 'Blum inset adapter 1',
+      hardwareKey: 'hinge-blum-clip-inset-175h5030-21',
+      face: '-Z' as const,
+      at: { x: 100, y: 28, z: 0 },
+      diameter: 3,
+      pitch: 32,
+      count: 2,
+      angle: 12,
+      edgeOffset: 10,
+      template: 'Blum PLATEMATE',
+      instruction:
+        'Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
+    }
+    const sheet = buildDrawingSheets([makeBoard({ operations: [operation] })], 'Test')[1]
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
+    const svg = buildSvg(sheet)
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml')
+    const lines = [...doc.querySelectorAll('text')]
+      .filter((node) => node.getAttribute('x') === '170.000')
+      .map((node) => node.textContent ?? '')
+    expect(lines.length).toBeGreaterThan(1)
+    expect(lines.every((line) => line.length <= 90)).toBe(true)
+    expect(lines.join(' ')).toBe(sheet.manufacturingNotes[0])
+  })
+
   it('dim text contains the length label', () => {
     const sheets = buildDrawingSheets([makeBoard({ length: 750 })], 'Test')
     const svgStr = buildSvg(sheets[1])
