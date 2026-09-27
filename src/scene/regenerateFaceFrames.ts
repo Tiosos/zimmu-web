@@ -39,13 +39,14 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
   // Mounting cuts keyed by the stile geometry chose. They are frame-owned: reconcileBoards tags
   // them with the FaceFrameComponent, while door cups remain carcase-owned.
   const cutsByRole = new Map<string, GeneratedBoard['cuts']>()
+  const operationsByRole = new Map<string, NonNullable<GeneratedBoard['operations']>>()
   for (const cell of frontCells(p.section, tree, fronts)) {
     if (cell.spec.kind !== 'door' || cell.hinge === undefined) continue
     const member = hingedFrameMember(g, cell.sectionId, cell.hinge)
     if (member === null) continue
     const overlay = frameOverlay(member, cell.rect, cell.hinge, p.frontMount)
     const hardware = blumFaceFrameHingeFor(p.frontMount, overlay)
-    if (hardware === null || hardware.plate.kind === 'inset-adapter') continue
+    if (hardware === null) continue
 
     const frontRole = `front-${cell.sectionId}-${cell.leaf}`
     const cup = cupRow(
@@ -66,6 +67,38 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
       { length: cup.count },
       (_, i) => cell.rect.z0 + cup.start.x + cup.pitch * i - member.rect.z0,
     )
+
+    if (hardware.plate.kind === 'inset-adapter') {
+      const own = operationsByRole.get(member.role) ?? []
+      localCenters.forEach((center, i) => {
+        own.push({
+          kind: 'manual-machining',
+          id: `frame_manual_${frontRole}_${i}`,
+          label: `Blum inset adapter ${i + 1}`,
+          hardwareKey: hardware.key,
+          face: '-Z',
+          at: {
+            x: center,
+            y:
+              cell.hinge === 'left'
+                ? memberWidth - hardware.plate.frontOffset
+                : hardware.plate.frontOffset,
+            z: 0,
+          },
+          diameter: hardware.plate.pilotDiameter,
+          pitch: hardware.plate.pitch,
+          count: 2,
+          angle: hardware.plate.angle,
+          edgeOffset: hardware.plate.frontOffset,
+          template: 'Blum PLATEMATE',
+          instruction:
+            'Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
+        })
+      })
+      operationsByRole.set(member.role, own)
+      continue
+    }
+
     const own = cutsByRole.get(member.role) ?? []
     localCenters.forEach((center, i) => {
       if (hardware.plate.kind === 'face-mount') {
@@ -131,6 +164,7 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
       panel: orientedPanel(box, 'y'),
       grain: grainFieldFor('y', grainAxisOf(m.role)),
       cuts: cutsByRole.get(m.role) ?? [],
+      operations: operationsByRole.get(m.role) ?? [],
     }
   })
 }
