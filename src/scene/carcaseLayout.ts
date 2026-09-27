@@ -116,3 +116,28 @@ export function sectionThickness(thicknessOf: RoleThickness): DivisionThickness 
   return (parentId, index) => thicknessOf(`division-${parentId}-${index}`)
 }
 
+
+
+// The widest clear span a ladder base is allowed to leave between two of its uprights.
+const MAX_LADDER_SPAN = 600
+
+export function ladderMidRails(p: CarcaseParams, thicknessOf: RoleThickness): string[] {
+  const clear = p.width - thicknessOf('ladder-left') - thicknessOf('ladder-right')
+  const roles: string[] = []
+  let spent = 0
+  while ((clear - spent) / (roles.length + 1) > MAX_LADDER_SPAN) {
+    const role = `ladder-mid-${roles.length}`
+    spent += thicknessOf(role)
+    roles.push(role)
+  }
+  return roles
+}
+
+export const PIN_DIAMETER = 5
+const FIRST_PIN_INSET = 32
+
+export function pinRow(rect: Rect, a: { count: number; pitch: number }): { first: number; count: number } {
+  const first = rect.z0 + FIRST_PIN_INSET
+  const count = Math.min(a.count, Math.floor((rect.z1 - PIN_DIAMETER / 2 - first) / a.pitch) + 1)
+  return { first, count }
+}
