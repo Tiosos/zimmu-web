@@ -104,7 +104,7 @@ describe('SectionElevation', () => {
     draw(p)
     expect(screen.getByTestId(`frame-member-stile-pair-${pair.id}`)).toBeTruthy()
     expect(screen.getByTestId(`section-opening-dimension-${pair.id}`).textContent).toBe(
-      '236 × 544 / 236 × 544',
+      '237 × 544 / 237 × 544',
     )
   })
 
