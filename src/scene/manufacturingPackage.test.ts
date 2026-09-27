@@ -69,6 +69,81 @@ const frameBoards = (scene: Scene): BoardPart[] =>
       (p.role.startsWith('stile-') || p.role.startsWith('rail-')),
   )
 
+const independentCabinetOf = (): CarcaseComponent => {
+  const base = CARCASE_PRESETS[0].params
+  const section = { ...base.section, front: undefined }
+  return {
+    kind: 'carcase',
+    id: 'cmp_independent_golden',
+    label: 'Independent frame golden cabinet',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    params: {
+      ...base,
+      section,
+      frame: {
+        ...DEFAULT_FRAME,
+        layout: {
+          [section.id]: {
+            id: 'zones',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [
+                {
+                  id: 'lower',
+                  size: { kind: 'equal' },
+                  content: {
+                    kind: 'split',
+                    axis: 'vertical',
+                    children: [
+                      {
+                        id: 'lower-left',
+                        size: { kind: 'equal' },
+                        front: { kind: 'door', leaves: 1, hinge: 'left' },
+                        content: { kind: 'leaf' },
+                      },
+                      {
+                        id: 'lower-right',
+                        size: { kind: 'equal' },
+                        front: { kind: 'door', leaves: 1, hinge: 'right' },
+                        content: { kind: 'leaf' },
+                      },
+                    ],
+                  },
+                },
+                {
+                  id: 'upper-drawer',
+                  size: { kind: 'fixed', mm: 140 },
+                  front: { kind: 'drawer-front' },
+                  content: { kind: 'leaf' },
+                },
+              ],
+            },
+          },
+        },
+      },
+      frontMount: 'inset',
+    },
+  }
+}
+
+const independentScene = (): Scene => {
+  const cabinet = independentCabinetOf()
+  const empty: Scene = {
+    parts: [],
+    materials: { ...PRESET_MATERIALS },
+    hardware: [],
+    joints: [],
+    components: [cabinet],
+  }
+  return regenerateComponents(regenerateDrawers(regenerateFaceFrames(empty)))
+}
+
 describe('golden manufacturing package', () => {
   it('keeps regeneration, hardware, drawings, persistence and stock classification in agreement', () => {
     const scene = goldenScene()
@@ -132,5 +207,67 @@ describe('golden manufacturing package', () => {
     expect(openings[0].x1 - openings[0].x0).not.toBe(openings[1].x1 - openings[1].x0)
 
     expect(isNestable(scene.materials[DEFAULT_FRAME_MATERIAL])).toBe(false)
+  })
+
+  it('builds drawer-over-pair manufacturing truth without a structural partition', () => {
+    const scene = independentScene()
+    const cabinet = scene.components.find(
+      (component): component is CarcaseComponent =>
+        component.kind === 'carcase' && component.id === 'cmp_independent_golden',
+    )!
+    expect(cabinet.params.section.content.kind).toBe('leaf')
+    expect(scene.parts.some((part) => part.role?.startsWith('division-'))).toBe(false)
+
+    const frameRoles = frameBoards(scene).map((part) => part.role)
+    expect(frameRoles).toContain('rail-zone-zones-0')
+    expect(frameRoles).toContain('stile-zone-lower-0')
+
+    const fronts = scene.parts.filter(
+      (part): part is BoardPart => part.kind === 'board' && part.role?.startsWith('front-') === true,
+    )
+    expect(fronts).toHaveLength(3)
+    expect(fronts.every((part) => part.role?.includes('|'))).toBe(true)
+
+    const drawer = scene.components.find((component) => component.kind === 'drawer')
+    expect(drawer?.kind).toBe('drawer')
+    if (drawer?.kind !== 'drawer') return
+    expect(drawer.sectionId).toBe(cabinet.params.section.id)
+    expect(drawer.frameOpeningId).toBe('upper-drawer')
+    expect(scene.parts.filter((part) => part.parentId === drawer.id)).toHaveLength(5)
+
+    const cups = fronts
+      .flatMap((part) => part.cuts)
+      .filter((cut) => cut.kind === 'hole-array' && cut.id.startsWith('cups_'))
+      .reduce((sum, cut) => sum + (cut.kind === 'hole-array' ? cut.count : 0), 0)
+    const hingeQty = carcaseHardware(scene)
+      .filter((line) => line.key.startsWith('hinge-blum-'))
+      .reduce((sum, line) => sum + line.qty, 0)
+    expect(cups).toBe(4)
+    expect(hingeQty).toBe(cups)
+
+    const roundTrip = parseFile(
+      JSON.stringify({
+        version: FILE_FORMAT_VERSION,
+        name: 'Independent frame golden',
+        appVersion: 'test',
+        units: 'mm',
+        createdAt: '2026-09-28T00:00:00.000Z',
+        updatedAt: '2026-09-28T00:00:00.000Z',
+        camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
+        scene,
+      }),
+    )
+    const loadedCabinet = roundTrip.scene.components.find(
+      (component) => component.kind === 'carcase',
+    )
+    expect(loadedCabinet?.kind).toBe('carcase')
+    if (loadedCabinet?.kind !== 'carcase') return
+    expect(loadedCabinet.params.frame?.layout?.[cabinet.params.section.id]?.content.kind).toBe(
+      'split',
+    )
+    const loadedDrawer = roundTrip.scene.components.find((component) => component.kind === 'drawer')
+    expect(loadedDrawer?.kind).toBe('drawer')
+    if (loadedDrawer?.kind !== 'drawer') return
+    expect(loadedDrawer.frameOpeningId).toBe('upper-drawer')
   })
 })
