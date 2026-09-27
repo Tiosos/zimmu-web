@@ -248,7 +248,7 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
     })
   }
 
-  const fronts = frontGeometryOf(p)
+  const fronts = frontGeometryOf(p, tree)
   const cells: FrontCell[] = frontCells(p.section, tree, fronts)
   // How far forward the fronts stand: the frame's thickness where one was built, else nothing. One
   // member stands for all four — they share a slot.
