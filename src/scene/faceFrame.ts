@@ -8,10 +8,13 @@ export interface FrameMember {
   rect: Rect
 }
 
-export interface FrameFrontOpening {
+export interface FrameAccessOpening {
   id: string
   sectionId: SectionId
   rect: Rect
+}
+
+export interface FrameFrontOpening extends FrameAccessOpening {
   front: FrontSpec
 }
 
@@ -26,6 +29,9 @@ export interface FrameGeometry {
   // Physical front openings. Legacy section-driven fronts use the section id; independent
   // frame-zone fronts use their own stable zone id.
   frontOpenings: Map<string, FrameFrontOpening>
+  // Every physical aperture through the frame, including leaves with no front. Removable
+  // interiors use this map for insertion checks; it is deliberately not inferred from fronts.
+  accessOpenings: Map<string, FrameAccessOpening>
 }
 
 export const frameLeafKey = (sectionId: SectionId, leaf: 0 | 1): string =>
@@ -134,10 +140,12 @@ export function faceFrameGeometry(
   const openings = new Map<SectionId, Rect>()
   const leafOpenings = new Map<string, Rect>()
   const frontOpenings = new Map<string, FrameFrontOpening>()
+  const accessOpenings = new Map<string, FrameAccessOpening>()
 
   const placeZone = (sectionId: SectionId, zone: FrameZone, framed: Rect): boolean => {
     if (!validRect(framed)) return false
     if (zone.content.kind === 'leaf') {
+      accessOpenings.set(zone.id, { id: zone.id, sectionId, rect: framed })
       if (zone.front !== undefined) {
         frontOpenings.set(zone.id, { id: zone.id, sectionId, rect: framed, front: zone.front })
       }
@@ -195,7 +203,10 @@ export function faceFrameGeometry(
         front: section.front,
       })
     }
-    if (!frame.pairStile || section.front?.kind !== 'door' || section.front.leaves !== 2) return true
+    if (!frame.pairStile || section.front?.kind !== 'door' || section.front.leaves !== 2) {
+      accessOpenings.set(section.id, { id: section.id, sectionId: section.id, rect: framed })
+      return true
+    }
     const width = midStileWidth
     if (width <= 0) return false
     const center = (framed.x0 + framed.x1) / 2
@@ -207,13 +218,19 @@ export function faceFrameGeometry(
       role: `stile-pair-${section.id}`,
       rect: { x0: memberLo, x1: memberHi, z0: framed.z0, z1: framed.z1 },
     })
-    leafOpenings.set(frameLeafKey(section.id, 0), { ...framed, x1: memberLo })
-    leafOpenings.set(frameLeafKey(section.id, 1), { ...framed, x0: memberHi })
+    const leftKey = frameLeafKey(section.id, 0)
+    const rightKey = frameLeafKey(section.id, 1)
+    const left = { ...framed, x1: memberLo }
+    const right = { ...framed, x0: memberHi }
+    leafOpenings.set(leftKey, left)
+    leafOpenings.set(rightKey, right)
+    accessOpenings.set(leftKey, { id: leftKey, sectionId: section.id, rect: left })
+    accessOpenings.set(rightKey, { id: rightKey, sectionId: section.id, rect: right })
     return true
   }
 
   if (root.content.kind === 'leaf') {
-    return placeLeaf(root, rootOpening) ? { members, openings, leafOpenings, frontOpenings } : null
+    return placeLeaf(root, rootOpening) ? { members, openings, leafOpenings, frontOpenings, accessOpenings } : null
   }
 
   const resolved = tree!
@@ -276,7 +293,7 @@ export function faceFrameGeometry(
     return true
   }
 
-  return place(root, rootOpening) ? { members, openings, leafOpenings, frontOpenings } : null
+  return place(root, rootOpening) ? { members, openings, leafOpenings, frontOpenings, accessOpenings } : null
 }
 
 
