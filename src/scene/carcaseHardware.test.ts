@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { CARCASE_PRESETS, PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
+import {
+  CARCASE_PRESETS,
+  DEFAULT_FRAME,
+  PRESET_MATERIALS,
+  type CarcasePreset,
+} from './carcasePresets'
 import { regenerateComponents } from './regenerateComponents'
 import { regenerateDrawers } from './regenerateDrawers'
 import { regenerateFaceFrames } from './regenerateFaceFrames'
@@ -94,6 +99,39 @@ describe('carcaseHardware — hinges', () => {
     const inset = { ...CARCASE_PRESETS[0].params, frontMount: 'inset' as const }
     expect(qtyOf(sceneOf(inset), 'hinge-inset')).toBe(2)
     expect(qtyOf(sceneOf(inset), 'hinge-overlay')).toBe(0)
+  })
+
+  it('quotes the selected Blum face-frame hinge, one per emitted cup', () => {
+    const params = { ...CARCASE_PRESETS[0].params, frame: DEFAULT_FRAME }
+    const scene = sceneOf(params)
+    const cups = scene.parts
+      .filter((p): p is BoardPart => p.kind === 'board' && p.role?.startsWith('front-') === true)
+      .flatMap((p) => p.cuts)
+      .filter((c) => c.kind === 'hole-array' && c.id.startsWith('cups_'))
+      .reduce((sum, c) => sum + (c.kind === 'hole-array' ? c.count : 0), 0)
+
+    expect(cups).toBe(2)
+    expect(qtyOf(scene, 'hinge-blum-38b355bf22')).toBe(cups)
+    expect(qtyOf(scene, 'hinge-overlay')).toBe(0)
+  })
+
+  it('can quote different Blum variants from different framed leaves in one cabinet', () => {
+    const base = CARCASE_PRESETS[0].params
+    let section = splitSection(base.section, base.section.id, 'vertical', 'panel', 2)
+    const kids = section.content.kind === 'split' ? section.content.children : []
+    section = setFrontOn(section, kids[0].id, { kind: 'door', leaves: 1, hinge: 'left' })
+    section = setFrontOn(section, kids[1].id, { kind: 'door', leaves: 1, hinge: 'left' })
+    const scene = sceneOf({
+      ...base,
+      frame: DEFAULT_FRAME,
+      frontMount: 'half-overlay',
+      section,
+    })
+
+    // Left leaf hangs on the 38 mm outer stile -> 17.5 mm actual overlay -> 38N 3/4.
+    expect(qtyOf(scene, 'hinge-blum-38n355b-12')).toBe(2)
+    // Right leaf hangs on the 51 mm mid stile -> 24 mm actual overlay -> 39C 1 in.
+    expect(qtyOf(scene, 'hinge-blum-39c355b-16')).toBe(2)
   })
 
   // `cupRow` returns null below CUP_DEPTH + MIN_FACE_BEHIND_CUP, so there is no cup to count and

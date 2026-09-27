@@ -1,4 +1,11 @@
-import type { BoardPart, ComponentId, CutDef, Grain, Part } from './types'
+import type {
+  BoardPart,
+  ComponentId,
+  CutDef,
+  Grain,
+  ManualMachiningOperation,
+  Part,
+} from './types'
 import type { PanelSpec } from './carcaseRoles'
 import { PART_COLORS } from './palette'
 
@@ -10,6 +17,8 @@ export interface GeneratedBoard {
   grain: Grain
   // Not `BoxCut[]`: an undermount back carries a hole array rather than a box cut.
   cuts: CutDef[]
+  // Non-geometric shop/template work. Kept separate so it never reaches solid subtraction.
+  operations?: ManualMachiningOperation[]
 }
 
 // Reconciles one component's boards against what it now wants, by role key. Shared by every pass
@@ -43,7 +52,13 @@ export function reconcileBoards(
     if (existing !== undefined && !existing.driven) return existing
 
     const own = b.cuts.map((c) => ({ ...c, sourceComponentId: owner.id }))
+    const ownOperations = (b.operations ?? []).map((op) => ({
+      ...op,
+      sourceComponentId: owner.id,
+    }))
     const existingCuts: CutDef[] = existing?.kind === 'board' ? existing.cuts : []
+    const existingOperations: ManualMachiningOperation[] =
+      existing?.kind === 'board' ? (existing.operations ?? []) : []
     const board: BoardPart = {
       kind: 'board',
       id: existing?.id ?? `board_${crypto.randomUUID()}`,
@@ -64,6 +79,10 @@ export function reconcileBoards(
           (c) => !('sourceComponentId' in c && c.sourceComponentId !== undefined),
         ),
         ...own,
+      ],
+      operations: [
+        ...existingOperations.filter((op) => op.sourceComponentId === undefined),
+        ...ownOperations,
       ],
       visible: existing?.visible ?? true,
       parentId: owner.id,

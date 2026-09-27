@@ -84,6 +84,31 @@ function validateCuts(value: unknown, path: string): void {
   }
 }
 
+function validateOperations(value: unknown, path: string): void {
+  if (value === undefined) return
+  for (const [index, operationValue] of arrayAt(value, path).entries()) {
+    const opPath = `${path}[${index}]`
+    const op = recordAt(operationValue, opPath)
+    if (op.kind !== 'manual-machining') {
+      throw new ZimmuFileValidationError(`${opPath}.kind`, 'must be "manual-machining"')
+    }
+    stringAt(op.id, `${opPath}.id`)
+    stringAt(op.label, `${opPath}.label`)
+    stringAt(op.hardwareKey, `${opPath}.hardwareKey`)
+    stringAt(op.face, `${opPath}.face`)
+    vecAt(op.at, `${opPath}.at`)
+    finiteNumberAt(op.diameter, `${opPath}.diameter`)
+    finiteNumberAt(op.pitch, `${opPath}.pitch`)
+    integerAt(op.count, `${opPath}.count`)
+    finiteNumberAt(op.angle, `${opPath}.angle`)
+    finiteNumberAt(op.edgeOffset, `${opPath}.edgeOffset`)
+    stringAt(op.template, `${opPath}.template`)
+    stringAt(op.instruction, `${opPath}.instruction`)
+    if (op.sourceComponentId !== undefined)
+      stringAt(op.sourceComponentId, `${opPath}.sourceComponentId`)
+  }
+}
+
 function validateLegacyPart(value: unknown, path: string): Part | null {
   const part = recordAt(value, path)
   const kind = stringAt(part.kind, `${path}.kind`)
@@ -101,6 +126,7 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
   vecAt(part.position, `${path}.position`)
   vecAt(part.rotation, `${path}.rotation`)
   validateCuts(part.cuts, `${path}.cuts`)
+  if (kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (kind === 'board') {
     finiteNumberAt(part.width, `${path}.width`)
@@ -207,6 +233,7 @@ function validateCurrentPart(part: Part, index: number): void {
   }
   stringAt(part.material, `${path}.material`)
   validateCuts(part.cuts, `${path}.cuts`)
+  if (part.kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (part.kind === 'board') {
     finiteNumberAt(part.width, `${path}.width`)

@@ -2298,18 +2298,21 @@ describe('front machining', () => {
     expect(carcaseMachining(p, frontRole(p))).toHaveLength(1)
   })
 
-  // Face-frame hinges are stage 4. Until then a framed door is bored for nothing: a frameless cup
-  // and plate pattern would put the plates in a side panel the stile covers, and the hardware list
-  // would quote hinges off those bores. Declining is what a door too thin to bore already does.
-  it.each(['overlay', 'half-overlay', 'inset'] as const)(
-    'bores no hinge into a framed cabinet (%s)',
-    (frontMount) => {
-      const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
-      const p = doored({ frontMount, frame: FRAME })
-      expect(carcaseMachining(p, frontRole(p))).toEqual([])
-      expect(carcaseMachining(p, 'left-side')).toEqual([])
-    },
-  )
+  // Stage 4 bores the selected face-frame hinge cup into the door, but never falls back to the
+  // frameless side-panel plate row. Frame mounting belongs to the generated stile instead.
+  it.each([
+    ['overlay', 11],
+    ['half-overlay', 11],
+    ['inset', 13],
+  ] as const)('bores a framed %s cup but no hinge into the carcase side', (frontMount, depth) => {
+    const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+    const p = doored({ frontMount, frame: FRAME })
+    const cups = carcaseMachining(p, frontRole(p))
+    expect(cups).toHaveLength(1)
+    expect(cups[0].id).toMatch(/^cups_/)
+    expect(cups[0].depth).toBe(depth)
+    expect(carcaseMachining(p, 'left-side')).toEqual([])
+  })
 
   it('bores no cups into a drawer front, a false front or a panel', () => {
     for (const kind of ['drawer-front', 'false-front', 'panel'] as const) {

@@ -1,6 +1,9 @@
 import type { CarcaseComponent, Component, ComponentId, FaceFrameComponent, Part, Scene } from './types'
 import { frontGeometryOf, openingRect, orientedPanel, sectionThickness, validateCarcaseParams } from './carcaseRoles'
-import { faceFrameGeometry } from './faceFrame'
+import { faceFrameGeometry, frameOverlay, hingedFrameMember } from './faceFrame'
+import { frontCells } from './frontCells'
+import { cupRow } from './frontMachining'
+import { blumFaceFrameHingeFor } from './faceFrameHardware'
 import { grainAxisOf, grainFieldFor } from './grain'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
 import { reconcileBoards, type GeneratedBoard } from './reconcileBoards'
@@ -29,8 +32,119 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
     openingRect(p, thicknessOf),
     sectionThickness(thicknessOf),
   )
-  const g = faceFrameGeometry(p.section, frontGeometryOf(p).outer, p.frame, tree)
+  const fronts = frontGeometryOf(p, tree)
+  const g = faceFrameGeometry(p.section, fronts.outer, p.frame, tree)
   if (g === null) return []
+
+  // Mounting cuts keyed by the stile geometry chose. They are frame-owned: reconcileBoards tags
+  // them with the FaceFrameComponent, while door cups remain carcase-owned.
+  const cutsByRole = new Map<string, GeneratedBoard['cuts']>()
+  const operationsByRole = new Map<string, NonNullable<GeneratedBoard['operations']>>()
+  for (const cell of frontCells(p.section, tree, fronts)) {
+    if (cell.spec.kind !== 'door' || cell.hinge === undefined) continue
+    const member = hingedFrameMember(g, cell.sectionId, cell.hinge)
+    if (member === null) continue
+    const overlay = frameOverlay(member, cell.rect, cell.hinge, p.frontMount)
+    const hardware = blumFaceFrameHingeFor(p.frontMount, overlay)
+    if (hardware === null) continue
+
+    const frontRole = `front-${cell.sectionId}-${cell.leaf}`
+    const cup = cupRow(
+      {
+        length: cell.rect.z1 - cell.rect.z0,
+        width: cell.rect.x1 - cell.rect.x0,
+        thickness: thicknessOf(frontRole),
+      },
+      cell.hinge,
+      frontRole,
+      hardware.cupDepth,
+    )
+    if (cup === null) continue
+
+    const memberWidth = member.rect.x1 - member.rect.x0
+    const memberDepth = thicknessOf(member.role)
+    const localCenters = Array.from(
+      { length: cup.count },
+      (_, i) => cell.rect.z0 + cup.start.x + cup.pitch * i - member.rect.z0,
+    )
+
+    if (hardware.plate.kind === 'inset-adapter') {
+      // Preserve the discriminated-union narrowing across the callback boundary. TypeScript does
+      // not assume a mutable property access stays narrowed inside a closure.
+      const plate = hardware.plate
+      const own = operationsByRole.get(member.role) ?? []
+      localCenters.forEach((center, i) => {
+        own.push({
+          kind: 'manual-machining',
+          id: `frame_manual_${frontRole}_${i}`,
+          label: `Blum inset adapter ${i + 1}`,
+          hardwareKey: hardware.key,
+          face: '-Z',
+          at: {
+            x: center,
+            y: cell.hinge === 'left' ? memberWidth - plate.frontOffset : plate.frontOffset,
+            z: 0,
+          },
+          diameter: plate.pilotDiameter,
+          pitch: plate.pitch,
+          count: 2,
+          angle: plate.angle,
+          edgeOffset: plate.frontOffset,
+          template: 'Blum PLATEMATE',
+          instruction:
+            'Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
+        })
+      })
+      operationsByRole.set(member.role, own)
+      continue
+    }
+
+    const own = cutsByRole.get(member.role) ?? []
+    localCenters.forEach((center, i) => {
+      if (hardware.plate.kind === 'face-mount') {
+        const fromInner = hardware.plate.innerEdgeOffset
+        own.push({
+          kind: 'hole-array',
+          id: `frame_plate_${frontRole}_${i}`,
+          label: `Blum 38B plate ${i + 1}`,
+          face: '-Z',
+          axis: 'U',
+          start: {
+            x: center - hardware.plate.pitch / 2,
+            y: cell.hinge === 'left' ? memberWidth - fromInner : fromInner,
+            z: 0,
+          },
+          pitch: hardware.plate.pitch,
+          count: 2,
+          diameter: hardware.plate.pilotDiameter,
+          depth: Math.min(12, (memberDepth * 2) / 3),
+        })
+      } else {
+        // 38N/39C wrap around the frame and take one cabinet pilot through the inner edge,
+        // centred through a nominal 19 mm frame depth in Blum's pattern. Using this board's actual
+        // depth preserves that centre when the frame material is overridden.
+        const face = cell.hinge === 'left' ? '+Y' : '-Y'
+        own.push({
+          kind: 'hole-array',
+          id: `frame_plate_${frontRole}_${i}`,
+          label: `Blum ${hardware.family} plate ${i + 1}`,
+          face,
+          axis: 'U',
+          start: {
+            x: center,
+            y: face === '+Y' ? memberWidth : 0,
+            z: memberDepth / 2,
+          },
+          pitch: 1,
+          count: 1,
+          diameter: hardware.plate.pilotDiameter,
+          depth: Math.min(12, (memberWidth * 2) / 3),
+        })
+      }
+    })
+    cutsByRole.set(member.role, own)
+  }
+
   let midStiles = 0
   let midRails = 0
   return g.members.map((m) => {
@@ -49,7 +163,8 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
       label,
       panel: orientedPanel(box, 'y'),
       grain: grainFieldFor('y', grainAxisOf(m.role)),
-      cuts: [],
+      cuts: cutsByRole.get(m.role) ?? [],
+      operations: operationsByRole.get(m.role) ?? [],
     }
   })
 }

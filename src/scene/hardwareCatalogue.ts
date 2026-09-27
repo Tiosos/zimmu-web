@@ -1,3 +1,5 @@
+import { BLUM_FACE_FRAME_HINGES } from './faceFrameHardware'
+
 // The hardware a generated cabinet implies, as stated figures rather than derived ones — the same
 // contract `frontMachining.ts` has, and for the same reason. A wrong name or nominal here produces
 // a perfectly self-consistent quote for parts that do not fit, and no test in this repo can
@@ -28,6 +30,9 @@ export const HARDWARE_CATALOGUE: Record<string, HardwareDef> = {
   [HINGE_OVERLAY_KEY]: { name: '110° hinge c/w plate', unit: 'pcs' },
   [HINGE_INSET_KEY]: { name: '110° inset hinge c/w plate', unit: 'pcs' },
   ...Object.fromEntries(
+    BLUM_FACE_FRAME_HINGES.map((h) => [h.key, { name: h.name, unit: 'pcs' }]),
+  ),
+  ...Object.fromEntries(
     RUNNER_NOMINALS.map((n) => [`runner-${n}`, { name: `${n} mm drawer runner`, unit: 'pair' }]),
   ),
   [SHELF_PIN_KEY]: { name: '5 mm shelf pin', unit: 'pcs' },
@@ -49,9 +54,8 @@ export function runnerKeyFor(clearDepth: number): string | null {
 // The one figure read from a parameter rather than from geometry. An overlay hinge and an inset
 // hinge are different products fitted to identically bored doors, so the bores cannot answer this
 // and asking them would be false precision.
-// Undefined for half-overlay: that door hangs on a face-frame hinge, which is not catalogued yet.
-// Declining is the rule a door too thin to bore already follows — the cabinet lists no hinge
-// rather than an overlay one that does not fit a frame.
+// Frameless selector. Face-frame variants are geometry-dependent and are selected by
+// faceFrameHardware from the actual overlap of each leaf over its hinged stile.
 export function hingeKeyFor(mount: 'overlay' | 'half-overlay' | 'inset'): string | undefined {
   if (mount === 'half-overlay') return undefined
   return mount === 'overlay' ? HINGE_OVERLAY_KEY : HINGE_INSET_KEY
