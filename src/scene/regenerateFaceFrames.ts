@@ -1,7 +1,7 @@
 import type { CarcaseComponent, Component, ComponentId, FaceFrameComponent, Part, Scene } from './types'
 import { frontGeometryOf, openingRect, orientedPanel, sectionThickness, validateCarcaseParams } from './carcaseRoles'
 import { faceFrameGeometry, frameOverlay, hingedFrameMember } from './faceFrame'
-import { frontCells } from './frontCells'
+import { frontCells, frontRoleOf } from './frontCells'
 import { cupRow } from './frontMachining'
 import { blumFaceFrameHingeFor } from './faceFrameHardware'
 import { grainAxisOf, grainFieldFor } from './grain'
@@ -48,7 +48,7 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
     const hardware = blumFaceFrameHingeFor(p.frontMount, overlay)
     if (hardware === null) continue
 
-    const frontRole = `front-${cell.openingId}-${cell.leaf}`
+    const frontRole = frontRoleOf(cell)
     const cup = cupRow(
       {
         length: cell.rect.z1 - cell.rect.z0,
