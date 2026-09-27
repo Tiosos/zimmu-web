@@ -46,6 +46,47 @@ function zoneSpans(children: FrameZone[], clear: number): number[] {
   return children.map((child, i) => (child.size.kind === 'equal' ? each : stated[i]))
 }
 
+export function validateFrameLayout(root: Section, frame: FaceFrameParams | undefined): string[] {
+  if (frame?.layout === undefined) return []
+  const errors: string[] = []
+  const leaves = new Set<SectionId>()
+  const collectLeaves = (section: Section): void => {
+    if (section.content.kind === 'leaf') {
+      leaves.add(section.id)
+      return
+    }
+    section.content.children.forEach(collectLeaves)
+  }
+  collectLeaves(root)
+
+  const ids = new Set<string>()
+  const walk = (zone: FrameZone): void => {
+    if (ids.has(zone.id)) errors.push('frame opening ids must be unique')
+    ids.add(zone.id)
+    if (zone.size.kind === 'fixed' && zone.size.mm <= 0) {
+      errors.push('a fixed frame-zone size must be positive')
+    }
+    if (zone.size.kind === 'percent' && (zone.size.pct <= 0 || zone.size.pct > 100)) {
+      errors.push('a frame-zone percentage must be between 0 and 100')
+    }
+    if (zone.content.kind === 'leaf') return
+    if (zone.front !== undefined) errors.push('only a leaf frame zone can carry a front')
+    if (zone.content.children.length < 2) errors.push('a frame-zone split needs at least two zones')
+    const pct = zone.content.children.reduce(
+      (sum, child) => sum + (child.size.kind === 'percent' ? child.size.pct : 0),
+      0,
+    )
+    if (pct > 100) errors.push('frame-zone percentages must not exceed 100')
+    zone.content.children.forEach(walk)
+  }
+
+  for (const [sectionId, zone] of Object.entries(frame.layout)) {
+    if (!leaves.has(sectionId)) errors.push('a frame layout must belong to a structural leaf')
+    walk(zone)
+  }
+  return [...new Set(errors)]
+}
+
 // The whole frame rule, stated once.
 //
 // The section tree is the only description of the cabinet's divisions. Stage 2 therefore receives
