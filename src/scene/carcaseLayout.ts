@@ -81,11 +81,13 @@ export function frontGeometryOf(p: CarcaseParams, tree?: ResolvedTree): FrontGeo
   // otherwise, so no base-mode branch is needed. Not `carcaseZ0`: under a toe kick the sides run
   // to the ground and a door that followed them would cover the kick.
   const outer = { x0: 0, x1: p.width, z0: floorZ(p), z1: p.height }
+  const frame = faceFrameGeometry(p.section, outer, p.frame, tree)
   return {
     outer,
     mount: p.frontMount,
     reveal: p.frontReveal,
-    frameOpenings: faceFrameGeometry(p.section, outer, p.frame, tree)?.openings,
+    frameOpenings: frame?.openings,
+    frameLeafOpenings: frame?.leafOpenings,
   }
 }
 
