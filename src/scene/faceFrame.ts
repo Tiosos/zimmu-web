@@ -1,10 +1,18 @@
 import type { Rect, ResolvedTree, Section, SectionId } from './sectionTree'
-import type { FaceFrameParams } from './types'
+import type { FaceFrameParams, FrameZone } from './types'
+import type { FrontSpec, SectionSize } from './sectionTree'
 
 // A stile or a rail, as a rectangle on the cabinet's front face in carcase x/z.
 export interface FrameMember {
   role: string
   rect: Rect
+}
+
+export interface FrameFrontOpening {
+  id: string
+  sectionId: SectionId
+  rect: Rect
+  front: FrontSpec
 }
 
 export interface FrameGeometry {
@@ -15,6 +23,9 @@ export interface FrameGeometry {
   // A front may have more physical leaves than its structural section has openings. Independent
   // pair stiles therefore state the clear rectangle of each door leaf separately.
   leafOpenings: Map<string, Rect>
+  // Physical front openings. Legacy section-driven fronts use the section id; independent
+  // frame-zone fronts use their own stable zone id.
+  frontOpenings: Map<string, FrameFrontOpening>
 }
 
 export const frameLeafKey = (sectionId: SectionId, leaf: 0 | 1): string =>
@@ -22,6 +33,18 @@ export const frameLeafKey = (sectionId: SectionId, leaf: 0 | 1): string =>
 
 
 const validRect = (rect: Rect): boolean => rect.x1 > rect.x0 && rect.z1 > rect.z0
+
+const spanOf = (size: SectionSize, clear: number): number =>
+  size.kind === 'fixed' ? size.mm : size.kind === 'percent' ? (size.pct / 100) * clear : 0
+
+function zoneSpans(children: FrameZone[], clear: number): number[] {
+  const stated = children.map((child) => spanOf(child.size, clear))
+  const claimed = stated.reduce((sum, n) => sum + n, 0)
+  const equals = children.filter((child) => child.size.kind === 'equal').length
+  if (equals === 0) return stated
+  const each = (clear - claimed) / equals
+  return children.map((child, i) => (child.size.kind === 'equal' ? each : stated[i]))
+}
 
 // The whole frame rule, stated once.
 //
@@ -69,9 +92,68 @@ export function faceFrameGeometry(
   ]
   const openings = new Map<SectionId, Rect>()
   const leafOpenings = new Map<string, Rect>()
+  const frontOpenings = new Map<string, FrameFrontOpening>()
+
+  const placeZone = (sectionId: SectionId, zone: FrameZone, framed: Rect): boolean => {
+    if (!validRect(framed)) return false
+    if (zone.content.kind === 'leaf') {
+      if (zone.front !== undefined) {
+        frontOpenings.set(zone.id, { id: zone.id, sectionId, rect: framed, front: zone.front })
+      }
+      return true
+    }
+
+    const { axis, children } = zone.content
+    if (children.length < 2) return false
+    const vertical = axis === 'vertical'
+    const memberWidth = vertical ? midStileWidth : midRailWidth
+    if (memberWidth <= 0) return false
+    const lo = vertical ? framed.x0 : framed.z0
+    const hi = vertical ? framed.x1 : framed.z1
+    const clear = hi - lo - memberWidth * (children.length - 1)
+    if (clear <= 0) return false
+    const spans = zoneSpans(children, clear)
+    if (spans.some((span) => span <= 0) || spans.reduce((sum, n) => sum + n, 0) > clear + 1e-6) {
+      return false
+    }
+
+    let cursor = lo
+    for (let i = 0; i < children.length; i++) {
+      const span = spans[i]
+      const childHi = cursor + span
+      const childRect = vertical
+        ? { ...framed, x0: cursor, x1: childHi }
+        : { ...framed, z0: cursor, z1: childHi }
+      if (!placeZone(sectionId, children[i], childRect)) return false
+      cursor = childHi
+      if (i < children.length - 1) {
+        const memberLo = cursor
+        const memberHi = cursor + memberWidth
+        members.push({
+          role: `${vertical ? 'stile' : 'rail'}-zone-${zone.id}-${i}`,
+          rect: vertical
+            ? { x0: memberLo, x1: memberHi, z0: framed.z0, z1: framed.z1 }
+            : { x0: framed.x0, x1: framed.x1, z0: memberLo, z1: memberHi },
+        })
+        cursor = memberHi
+      }
+    }
+    return Math.abs(cursor - hi) < 1e-6
+  }
 
   const placeLeaf = (section: Section, framed: Rect): boolean => {
     openings.set(section.id, framed)
+    const layout = frame.layout?.[section.id]
+    if (layout !== undefined) return placeZone(section.id, layout, framed)
+
+    if (section.front !== undefined) {
+      frontOpenings.set(section.id, {
+        id: section.id,
+        sectionId: section.id,
+        rect: framed,
+        front: section.front,
+      })
+    }
     if (!frame.pairStile || section.front?.kind !== 'door' || section.front.leaves !== 2) return true
     const width = midStileWidth
     if (width <= 0) return false
@@ -90,7 +172,7 @@ export function faceFrameGeometry(
   }
 
   if (root.content.kind === 'leaf') {
-    return placeLeaf(root, rootOpening) ? { members, openings, leafOpenings } : null
+    return placeLeaf(root, rootOpening) ? { members, openings, leafOpenings, frontOpenings } : null
   }
 
   const resolved = tree!
@@ -153,7 +235,7 @@ export function faceFrameGeometry(
     return true
   }
 
-  return place(root, rootOpening) ? { members, openings, leafOpenings } : null
+  return place(root, rootOpening) ? { members, openings, leafOpenings, frontOpenings } : null
 }
 
 
@@ -163,8 +245,11 @@ export function hingedFrameMember(
   geometry: FrameGeometry,
   sectionId: SectionId,
   hinge: 'left' | 'right',
+  openingId?: string,
 ): FrameMember | null {
-  const opening = geometry.openings.get(sectionId)
+  const opening =
+    (openingId === undefined ? undefined : geometry.frontOpenings.get(openingId)?.rect) ??
+    geometry.openings.get(sectionId)
   if (opening === undefined) return null
   const edge = hinge === 'left' ? opening.x0 : opening.x1
   const EPS = 1e-6
