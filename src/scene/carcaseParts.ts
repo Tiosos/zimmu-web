@@ -41,15 +41,6 @@ const FRONT_LABEL: Record<FrontSpec['kind'], string> = {
   panel: 'Panel',
 }
 
-// The pin positions a section actually has: what its spec asked for, capped by what fits between
-// its own floor and its own ceiling. Stated once because two things read it — the row of bores,
-// and the shelves that have to sit on pins that exist.
-function pinRow(rect: Rect, a: AdjustableSpec): { first: number; count: number } {
-  const first = rect.z0 + FIRST_PIN_INSET
-  const count = Math.min(a.count, Math.floor((rect.z1 - PIN_DIAMETER / 2 - first) / a.pitch) + 1)
-  return { first, count }
-}
-
 // Which pins the shelves sit on: `shelves` of them spread as evenly as the row allows. Spread over
 // the *pin positions*, not over the section's height — a shelf can only rest where a pin is, and a
 // ten-position row covers 288 mm of a 584 mm opening.
