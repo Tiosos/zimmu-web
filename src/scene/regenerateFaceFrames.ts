@@ -15,7 +15,7 @@ const LABEL: Record<string, string> = {
 
 // The boards one cabinet's frame is, or null where the cabinet cannot be resolved at all — the
 // caller then carries the frame through untouched rather than emptying it mid-keystroke. An empty
-// list is different: the cabinet resolved, and stage 1 cannot frame it, so the frame declines.
+// list is different: the cabinet resolved, but this configuration has no buildable frame, so it declines.
 function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] | null {
   const p = cabinet.params
   const thicknessOf = roleThicknessFor(p, scene.materials, overridesOf(scene.parts, cabinet.id))
