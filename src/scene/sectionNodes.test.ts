@@ -60,6 +60,15 @@ describe('sectionNodes', () => {
     expect(carcase).toEqual([])
   })
 
+  it('keeps an independent physical front under its structural opening', () => {
+    const { sections, carcase } = sectionNodes(
+      [opening(A)],
+      [part({ id: 'board_zone', role: `front-${A}|fo_123e4567-e89b-12d3-a456-426614174000-0` })],
+    )
+    expect(sections[0].parts.map((p) => p.id)).toEqual(['board_zone'])
+    expect(carcase).toEqual([])
+  })
+
   // The finding this module turns on. `division-{parentId}-{index}` names the section that was
   // SPLIT, which is by definition an internal node — never a leaf, so never an opening. A divider
   // sits between openings, not in one, which is correct woodworking as well as correct code.
