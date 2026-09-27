@@ -186,6 +186,108 @@ describe('faceFrameGeometry', () => {
     expect(g!.openings.get('drawer')).toEqual({ x0: 328, x1: 556, z0: 132, z1: 688 })
   })
 
+  it('resolves a drawer-over-pair face layout without structural divisions', () => {
+    const root = leaf('one')
+    const frame: FaceFrameParams = {
+      ...FRAME,
+      layout: {
+        one: {
+          id: 'zone-root',
+          size: { kind: 'equal' },
+          content: {
+            kind: 'split',
+            axis: 'horizontal',
+            children: [
+              {
+                id: 'zone-lower',
+                size: { kind: 'equal' },
+                content: {
+                  kind: 'split',
+                  axis: 'vertical',
+                  children: [
+                    {
+                      id: 'door-left',
+                      size: { kind: 'equal' },
+                      front: { kind: 'door', leaves: 1, hinge: 'left' },
+                      content: { kind: 'leaf' },
+                    },
+                    {
+                      id: 'door-right',
+                      size: { kind: 'equal' },
+                      front: { kind: 'door', leaves: 1, hinge: 'right' },
+                      content: { kind: 'leaf' },
+                    },
+                  ],
+                },
+              },
+              {
+                id: 'drawer-top',
+                size: { kind: 'fixed', mm: 140 },
+                front: { kind: 'drawer-front' },
+                content: { kind: 'leaf' },
+              },
+            ],
+          },
+        },
+      },
+    }
+    const g = faceFrameGeometry(root, OUTER, frame)!
+    expect(g.openings).toEqual(new Map([['one', { x0: 44, x1: 556, z0: 132, z1: 688 }]]))
+    expect(rectOf(g, 'rail-zone-zone-root-0')).toEqual({
+      x0: 44,
+      x1: 556,
+      z0: 510,
+      z1: 548,
+    })
+    expect(rectOf(g, 'stile-zone-zone-lower-0')).toEqual({
+      x0: 272,
+      x1: 328,
+      z0: 132,
+      z1: 510,
+    })
+    expect(g.frontOpenings.get('drawer-top')?.rect).toEqual({
+      x0: 44,
+      x1: 556,
+      z0: 548,
+      z1: 688,
+    })
+    expect(g.frontOpenings.get('door-left')?.rect).toEqual({
+      x0: 44,
+      x1: 272,
+      z0: 132,
+      z1: 510,
+    })
+    expect(g.frontOpenings.get('door-right')?.rect).toEqual({
+      x0: 328,
+      x1: 556,
+      z0: 132,
+      z1: 510,
+    })
+  })
+
+  it('declines a frame-zone layout whose fixed children do not fit', () => {
+    const root = leaf('one')
+    expect(
+      faceFrameGeometry(root, OUTER, {
+        ...FRAME,
+        layout: {
+          one: {
+            id: 'bad',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [
+                { id: 'a', size: { kind: 'fixed', mm: 400 }, content: { kind: 'leaf' } },
+                { id: 'b', size: { kind: 'fixed', mm: 400 }, content: { kind: 'leaf' } },
+              ],
+            },
+          },
+        },
+      }),
+    ).toBeNull()
+  })
+
   it('adds a frame-only pair stile without creating a structural section', () => {
     const root = leaf('pair', { kind: 'door', leaves: 2, hinge: 'left' })
     const g = faceFrameGeometry(root, OUTER, { ...FRAME, pairStile: true })!
