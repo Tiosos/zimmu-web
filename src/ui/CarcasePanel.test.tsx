@@ -572,6 +572,7 @@ describe('CarcasePanel — face frame', () => {
     renderPanel(doored({ frame: FRAME }))
     expect(screen.getByLabelText('Stile width')).toBeTruthy()
     expect(screen.getByLabelText('Rail width')).toBeTruthy()
+    expect(screen.getByLabelText('Mid rail')).toBeTruthy()
     expect(screen.getByLabelText('Mid stile')).toBeTruthy()
     expect(screen.getByLabelText('Pair centre stile')).toBeTruthy()
     expect(screen.getByLabelText('Frame material')).toBeTruthy()
@@ -600,6 +601,28 @@ describe('CarcasePanel — face frame', () => {
     await userEvent.type(field, '50')
     await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled())
     expect(appliedParams(onUpdate, c).frame).toEqual({ ...FRAME, stileWidth: 50 })
+  })
+
+  it('creates a generic independent rail layout without changing structural sections', async () => {
+    const c = doored({ frame: FRAME })
+    const beforeSection = c.params.section
+    const { onUpdate } = withFrameCallback(c)
+    await userEvent.click(screen.getByLabelText('Independent rail'))
+    const next = appliedParams(onUpdate, c)
+    expect(next.section).toBe(beforeSection)
+    const layout = next.frame?.layout?.[beforeSection.id]
+    expect(layout?.content.kind).toBe('split')
+    if (layout?.content.kind !== 'split') return
+    expect(layout.content.axis).toBe('horizontal')
+    expect(layout.content.children[1].front).toEqual({ kind: 'drawer-front' })
+    const lower = layout.content.children[0]
+    expect(lower.content.kind).toBe('split')
+    if (lower.content.kind !== 'split') return
+    expect(lower.content.axis).toBe('vertical')
+    expect(lower.content.children.map((zone) => zone.front)).toEqual([
+      { kind: 'door', leaves: 1, hinge: 'left' },
+      { kind: 'door', leaves: 1, hinge: 'right' },
+    ])
   })
 
   it('toggles a pair centre stile without changing the structural section tree', async () => {

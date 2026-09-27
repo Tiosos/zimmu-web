@@ -53,19 +53,20 @@ function regenerateOne(
   // would stop being a function. `regenerateDrawers` runs first, so `byId` already carries every
   // drawer this cabinet needs. Side thickness is resolved here, through the box's one statement of
   // it, because `carcaseMachining` has no access to `materials`.
-  const drawersBySection = new Map<SectionId, { params: DrawerParams; sideThickness: number }>()
+  const drawersByOpening = new Map<string, { params: DrawerParams; sideThickness: number }>()
   for (const c of byId.values()) {
     if (c.kind === 'drawer' && c.parentId === component.id && c.sectionId !== null) {
-      drawersBySection.set(c.sectionId, {
+      drawersByOpening.set(c.frameOpeningId ?? c.sectionId, {
         params: c.params,
         sideThickness: boxSideThickness(c, materials),
       })
     }
   }
   const drawerFor = (
-    sectionId: SectionId,
+    _sectionId: SectionId,
+    openingId: string,
   ): { params: DrawerParams; sideThickness: number } | null =>
-    drawersBySection.get(sectionId) ?? null
+    drawersByOpening.get(openingId) ?? null
 
   const roles = carcaseRoles(component.params, thicknessOf, kindOf)
   // Invalid parameters produce no roles. Preserve the last good parts rather than emptying the

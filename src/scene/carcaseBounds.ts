@@ -1,4 +1,4 @@
-import type { CarcaseParams } from './types'
+import type { CarcaseParams, FrameZone } from './types'
 import type { RoleThickness } from './resolveThickness'
 import { hasAnyFront } from './sectionTree'
 import { frontGeometryOf } from './carcaseRoles'
@@ -20,6 +20,14 @@ export interface Bounds3 {
 // family, never the section id — so this stands in for whichever front the cabinet actually has.
 const FRONT_ROLE = 'front-bounds-0'
 
+const zoneHasFront = (zone: FrameZone): boolean =>
+  zone.front !== undefined ||
+  (zone.content.kind === 'split' && zone.content.children.some(zoneHasFront))
+
+const hasAnyPhysicalFront = (p: CarcaseParams): boolean =>
+  hasAnyFront(p.section) ||
+  Object.values(p.frame?.layout ?? {}).some(zoneHasFront)
+
 // What a cabinet OCCUPIES, not its structural shell. Three things fall outside the shell and every
 // one of them matters when two cabinets are butted together:
 //
@@ -40,7 +48,7 @@ export function carcaseBounds(p: CarcaseParams, thicknessOf: RoleThickness): Bou
   // carcase face. Asked through `frontGeometryOf` so a frame stage 1 declines counts for nothing,
   // exactly as it builds nothing. Not `=== 'overlay'`: half-overlay protrudes just as far.
   const frame = frontGeometryOf(p).frameOpenings === undefined ? 0 : thicknessOf('stile-left')
-  const door = p.frontMount !== 'inset' && hasAnyFront(p.section) ? thicknessOf(FRONT_ROLE) : 0
+  const door = p.frontMount !== 'inset' && hasAnyPhysicalFront(p) ? thicknessOf(FRONT_ROLE) : 0
   const front = frame + door
   const back = p.backMode === 'applied' ? thicknessOf('back') : 0
   return {

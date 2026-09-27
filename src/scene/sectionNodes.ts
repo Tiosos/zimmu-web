@@ -17,7 +17,8 @@ export interface SectionNode {
 
 // A leading capture of the family, then the section id. `division-` is deliberately absent: it
 // names the section that was SPLIT, which is always an internal node and so never an opening.
-const OWNED_BY_SECTION = /^(?:front|adj-shelf|fixed-shelf)-(.+)-\d+$/
+const FRONT_OWNER = /^front-([^|]+)(?:\|.+)?-\d+$/
+const INTERIOR_OWNER = /^(?:adj-shelf|fixed-shelf)-(.+)-\d+$/
 
 export function sectionNodes(
   openings: readonly SectionOpening[],
@@ -28,7 +29,10 @@ export function sectionNodes(
   const carcase: Part[] = []
 
   for (const part of parts) {
-    const owner = part.role === undefined ? null : (OWNED_BY_SECTION.exec(part.role)?.[1] ?? null)
+    const owner =
+      part.role === undefined
+        ? null
+        : (FRONT_OWNER.exec(part.role)?.[1] ?? INTERIOR_OWNER.exec(part.role)?.[1] ?? null)
     const node = owner === null ? undefined : byId.get(owner)
     if (node === undefined) carcase.push(part)
     else node.parts.push(part)

@@ -11,7 +11,7 @@ import {
   SHELF_PIN_KEY,
 } from './hardwareCatalogue'
 import { faceFrameGeometry, frameOverlay, hingedFrameMember } from './faceFrame'
-import { frontCells } from './frontCells'
+import { frontCells, frontRoleOf } from './frontCells'
 import { blumFaceFrameHingeFor } from './faceFrameHardware'
 import type { ComponentId, Scene } from './types'
 
@@ -84,15 +84,12 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
     if (frame === null) continue
     for (const front of frontCells(cabinet.params.section, resolved.tree, fronts)) {
       if (front.spec.kind !== 'door' || front.hinge === undefined) continue
-      const member = hingedFrameMember(frame, front.sectionId, front.hinge)
+      const member = hingedFrameMember(frame, front.sectionId, front.hinge, front.openingId)
       if (member === null) continue
       const overlay = frameOverlay(member, front.rect, front.hinge, cabinet.params.frontMount)
       const hardware = blumFaceFrameHingeFor(cabinet.params.frontMount, overlay)
       if (hardware === null) continue
-      framedHingeKey.set(
-        `${cabinet.id} front-${front.sectionId}-${front.leaf}`,
-        hardware.key,
-      )
+      framedHingeKey.set(`${cabinet.id} ${frontRoleOf(front)}`, hardware.key)
     }
   }
 

@@ -108,6 +108,63 @@ describe('SectionElevation', () => {
     )
   })
 
+  it('draws independent rail/stile stock and dimensions every physical front opening', () => {
+    const section = { ...base.section, front: undefined }
+    const p: CarcaseParams = {
+      ...base,
+      section,
+      frame: {
+        ...DEFAULT_FRAME,
+        layout: {
+          [section.id]: {
+            id: 'zones',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [
+                {
+                  id: 'lower',
+                  size: { kind: 'equal' },
+                  content: {
+                    kind: 'split',
+                    axis: 'vertical',
+                    children: [
+                      {
+                        id: 'left',
+                        size: { kind: 'equal' },
+                        front: { kind: 'door', leaves: 1, hinge: 'left' },
+                        content: { kind: 'leaf' },
+                      },
+                      {
+                        id: 'right',
+                        size: { kind: 'equal' },
+                        front: { kind: 'door', leaves: 1, hinge: 'right' },
+                        content: { kind: 'leaf' },
+                      },
+                    ],
+                  },
+                },
+                {
+                  id: 'upper',
+                  size: { kind: 'fixed', mm: 140 },
+                  front: { kind: 'drawer-front' },
+                  content: { kind: 'leaf' },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }
+    draw(p)
+    expect(screen.getByTestId('frame-member-rail-zone-zones-0')).toBeTruthy()
+    expect(screen.getByTestId('frame-member-stile-zone-lower-0')).toBeTruthy()
+    expect(screen.getByTestId(`section-opening-dimension-${section.id}`).textContent).toBe(
+      '524 × 140 / 237 × 366 / 237 × 366',
+    )
+  })
+
   it('does not invent frame-opening dimensions for a frameless cabinet', () => {
     draw({ ...base, frame: undefined })
     expect(screen.queryAllByTestId(/^section-opening-dimension-/)).toEqual([])

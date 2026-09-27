@@ -106,6 +106,28 @@ describe('carcaseBounds', () => {
       expect(boundsOf(framed({ section: bareLeaf() })).y0).toBe(-25)
     })
 
+    it('counts a front owned only by an independent frame zone', () => {
+      const section = bareLeaf()
+      expect(
+        boundsOf(
+          framed({
+            section,
+            frame: {
+              ...FRAME,
+              layout: {
+                [section.id]: {
+                  id: 'zone',
+                  size: { kind: 'equal' },
+                  front: { kind: 'drawer-front' },
+                  content: { kind: 'leaf' },
+                },
+              },
+            },
+          }),
+        ).y0,
+      ).toBe(-45)
+    })
+
     it('a drawer front reaches forward from the built frame in stage 3', () => {
       const drawer: Section = { ...bareLeaf(), front: { kind: 'drawer-front' } }
       expect(boundsOf(framed({ section: drawer })).y0).toBe(-45)

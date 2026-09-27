@@ -19,16 +19,28 @@ export interface FrontGeometry {
   // Display/manufacturing members from the same frame solve. Consumers such as the elevation can
   // draw the real frame without re-running frame geometry independently.
   frameMembers?: { role: string; rect: Rect }[]
+  frameFrontOpenings?: Map<
+    string,
+    { id: string; sectionId: SectionId; rect: Rect; front: FrontSpec }
+  >
 }
 
 export interface FrontCell {
   sectionId: SectionId
+  // Physical front-opening owner. Equal to sectionId on legacy section-driven fronts.
+  openingId: string
   // Which leaf of a two-leaf door. 0 for everything else, and part of the role key, so a pair of
   // doors cannot collide on one id.
   leaf: 0 | 1
   spec: FrontSpec
   rect: Rect
   hinge: 'left' | 'right' | undefined
+}
+
+export function frontRoleOf(cell: Pick<FrontCell, 'sectionId' | 'openingId' | 'leaf'>): string {
+  return cell.openingId === cell.sectionId
+    ? `front-${cell.sectionId}-${cell.leaf}`
+    : `front-${cell.sectionId}|${cell.openingId}-${cell.leaf}`
 }
 
 // What lies immediately beyond one edge of a section. `expandTo` is where an overlay front reaches
@@ -61,6 +73,91 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
   const cells: FrontCell[] = []
   const half = g.reveal / 2
 
+  const framedReach = (
+    opening: Rect,
+    side: 'left' | 'right' | 'bottom' | 'top',
+  ): number | null => {
+    const EPS = 1e-6
+    const vertical = side === 'left' || side === 'right'
+    const edge =
+      side === 'left'
+        ? opening.x0
+        : side === 'right'
+          ? opening.x1
+          : side === 'bottom'
+            ? opening.z0
+            : opening.z1
+    const member = g.frameMembers?.find((m) => {
+      if (vertical) {
+        const touches = Math.abs((side === 'left' ? m.rect.x1 : m.rect.x0) - edge) < EPS
+        return touches && m.rect.z0 <= opening.z0 + EPS && m.rect.z1 >= opening.z1 - EPS
+      }
+      const touches = Math.abs((side === 'bottom' ? m.rect.z1 : m.rect.z0) - edge) < EPS
+      return touches && m.rect.x0 <= opening.x0 + EPS && m.rect.x1 >= opening.x1 - EPS
+    })
+    if (member === undefined) return null
+
+    if (g.mount === 'half-overlay') {
+      return vertical
+        ? (member.rect.x0 + member.rect.x1) / 2
+        : (member.rect.z0 + member.rect.z1) / 2
+    }
+    if (side === 'left' && Math.abs(member.rect.x0 - g.outer.x0) < EPS) return g.outer.x0
+    if (side === 'right' && Math.abs(member.rect.x1 - g.outer.x1) < EPS) return g.outer.x1
+    if (side === 'bottom' && Math.abs(member.rect.z0 - g.outer.z0) < EPS) return g.outer.z0
+    if (side === 'top' && Math.abs(member.rect.z1 - g.outer.z1) < EPS) return g.outer.z1
+    return vertical
+      ? (member.rect.x0 + member.rect.x1) / 2
+      : (member.rect.z0 + member.rect.z1) / 2
+  }
+
+  const pushFramedOpening = (
+    openingId: string,
+    sectionId: SectionId,
+    opening: Rect,
+    spec: FrontSpec,
+  ): void => {
+    let cell: Rect
+    if (g.mount === 'inset') {
+      cell = {
+        x0: opening.x0 + g.reveal,
+        x1: opening.x1 - g.reveal,
+        z0: opening.z0 + g.reveal,
+        z1: opening.z1 - g.reveal,
+      }
+    } else {
+      const left = framedReach(opening, 'left')
+      const right = framedReach(opening, 'right')
+      const bottom = framedReach(opening, 'bottom')
+      const top = framedReach(opening, 'top')
+      if (left === null || right === null || bottom === null || top === null) return
+      cell = {
+        x0: left + half,
+        x1: right - half,
+        z0: bottom + half,
+        z1: top - half,
+      }
+    }
+    if (cell.x1 <= cell.x0 || cell.z1 <= cell.z0) return
+
+    if (spec.kind === 'door' && spec.leaves === 2) {
+      const mid = (cell.x0 + cell.x1) / 2
+      cells.push(
+        { sectionId, openingId, leaf: 0, spec, rect: { ...cell, x1: mid - half }, hinge: 'left' },
+        { sectionId, openingId, leaf: 1, spec, rect: { ...cell, x0: mid + half }, hinge: 'right' },
+      )
+      return
+    }
+    cells.push({
+      sectionId,
+      openingId,
+      leaf: 0,
+      spec,
+      rect: cell,
+      hinge: spec.kind === 'door' ? spec.hinge : undefined,
+    })
+  }
+
   const walk = (section: Section, sides: Sides): void => {
     const rect = tree.rects.get(section.id)!
 
@@ -90,6 +187,16 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
               : between(near(child, false), near(children[i + 1], true)),
         })
       })
+      return
+    }
+
+    const independent = [...(g.frameFrontOpenings?.values() ?? [])]
+      .filter((opening) => opening.sectionId === section.id && opening.id !== section.id)
+      .sort((a, b) => a.rect.z0 - b.rect.z0 || a.rect.x0 - b.rect.x0)
+    if (independent.length > 0) {
+      independent.forEach((opening) =>
+        pushFramedOpening(opening.id, section.id, opening.rect, opening.front),
+      )
       return
     }
 
@@ -172,8 +279,8 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
               }
             : { ...vertical, x0: center + half, x1: cell.x1 }
         cells.push(
-          { sectionId: section.id, leaf: 0, spec, rect: leftRect, hinge: 'left' },
-          { sectionId: section.id, leaf: 1, spec, rect: rightRect, hinge: 'right' },
+          { sectionId: section.id, openingId: section.id, leaf: 0, spec, rect: leftRect, hinge: 'left' },
+          { sectionId: section.id, openingId: section.id, leaf: 1, spec, rect: rightRect, hinge: 'right' },
         )
         return
       }
@@ -181,14 +288,15 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
       // Legacy pair: no physical member between the doors, only one reveal.
       const mid = (cell.x0 + cell.x1) / 2
       cells.push(
-        { sectionId: section.id, leaf: 0, spec, rect: { ...cell, x1: mid - half }, hinge: 'left' },
-        { sectionId: section.id, leaf: 1, spec, rect: { ...cell, x0: mid + half }, hinge: 'right' },
+        { sectionId: section.id, openingId: section.id, leaf: 0, spec, rect: { ...cell, x1: mid - half }, hinge: 'left' },
+        { sectionId: section.id, openingId: section.id, leaf: 1, spec, rect: { ...cell, x0: mid + half }, hinge: 'right' },
       )
       return
     }
 
     cells.push({
       sectionId: section.id,
+      openingId: section.id,
       leaf: 0,
       spec,
       rect: cell,

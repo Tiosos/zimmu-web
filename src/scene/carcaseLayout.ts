@@ -89,6 +89,7 @@ export function frontGeometryOf(p: CarcaseParams, tree?: ResolvedTree): FrontGeo
     frameOpenings: frame?.openings,
     frameLeafOpenings: frame?.leafOpenings,
     frameMembers: frame?.members,
+    frameFrontOpenings: frame?.frontOpenings,
   }
 }
 

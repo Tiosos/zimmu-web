@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { faceFrameGeometry } from './faceFrame'
+import { faceFrameGeometry, validateFrameLayout } from './faceFrame'
 import { splitSection } from './editSection'
 import { newSectionId, resolveSections } from './sectionTree'
 import type { Rect, Section } from './sectionTree'
@@ -184,6 +184,131 @@ describe('faceFrameGeometry', () => {
     const g = faceFrameGeometry(root, OUTER, FRAME, treeOf(root))
     expect(g).not.toBeNull()
     expect(g!.openings.get('drawer')).toEqual({ x0: 328, x1: 556, z0: 132, z1: 688 })
+  })
+
+  it('rejects duplicate physical opening ids before they can collide in role keys', () => {
+    const root = leaf('one')
+    expect(
+      validateFrameLayout(root, {
+        ...FRAME,
+        layout: {
+          one: {
+            id: 'root-zone',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [
+                { id: 'same', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+                { id: 'same', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+              ],
+            },
+          },
+        },
+      }),
+    ).toContain('frame opening ids must be unique')
+  })
+
+  it('resolves a drawer-over-pair face layout without structural divisions', () => {
+    const root = leaf('one')
+    const frame: FaceFrameParams = {
+      ...FRAME,
+      layout: {
+        one: {
+          id: 'zone-root',
+          size: { kind: 'equal' },
+          content: {
+            kind: 'split',
+            axis: 'horizontal',
+            children: [
+              {
+                id: 'zone-lower',
+                size: { kind: 'equal' },
+                content: {
+                  kind: 'split',
+                  axis: 'vertical',
+                  children: [
+                    {
+                      id: 'door-left',
+                      size: { kind: 'equal' },
+                      front: { kind: 'door', leaves: 1, hinge: 'left' },
+                      content: { kind: 'leaf' },
+                    },
+                    {
+                      id: 'door-right',
+                      size: { kind: 'equal' },
+                      front: { kind: 'door', leaves: 1, hinge: 'right' },
+                      content: { kind: 'leaf' },
+                    },
+                  ],
+                },
+              },
+              {
+                id: 'drawer-top',
+                size: { kind: 'fixed', mm: 140 },
+                front: { kind: 'drawer-front' },
+                content: { kind: 'leaf' },
+              },
+            ],
+          },
+        },
+      },
+    }
+    const g = faceFrameGeometry(root, OUTER, frame)!
+    expect(g.openings).toEqual(new Map([['one', { x0: 44, x1: 556, z0: 132, z1: 688 }]]))
+    expect(rectOf(g, 'rail-zone-zone-root-0')).toEqual({
+      x0: 44,
+      x1: 556,
+      z0: 510,
+      z1: 548,
+    })
+    expect(rectOf(g, 'stile-zone-zone-lower-0')).toEqual({
+      x0: 272,
+      x1: 328,
+      z0: 132,
+      z1: 510,
+    })
+    expect(g.frontOpenings.get('drawer-top')?.rect).toEqual({
+      x0: 44,
+      x1: 556,
+      z0: 548,
+      z1: 688,
+    })
+    expect(g.frontOpenings.get('door-left')?.rect).toEqual({
+      x0: 44,
+      x1: 272,
+      z0: 132,
+      z1: 510,
+    })
+    expect(g.frontOpenings.get('door-right')?.rect).toEqual({
+      x0: 328,
+      x1: 556,
+      z0: 132,
+      z1: 510,
+    })
+  })
+
+  it('declines a frame-zone layout whose fixed children do not fit', () => {
+    const root = leaf('one')
+    expect(
+      faceFrameGeometry(root, OUTER, {
+        ...FRAME,
+        layout: {
+          one: {
+            id: 'bad',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [
+                { id: 'a', size: { kind: 'fixed', mm: 400 }, content: { kind: 'leaf' } },
+                { id: 'b', size: { kind: 'fixed', mm: 400 }, content: { kind: 'leaf' } },
+              ],
+            },
+          },
+        },
+      }),
+    ).toBeNull()
   })
 
   it('adds a frame-only pair stile without creating a structural section', () => {

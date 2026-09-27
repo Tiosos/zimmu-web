@@ -257,6 +257,17 @@ export interface CarcaseParams {
   jointMethod: 'dado-rabbet' | 'finger' | 'dowel' | 'butt-screw' | 'confirmat'
 }
 
+export interface FrameZone {
+  // Stable physical-opening identity. It is deliberately not a SectionId: one structural section
+  // may have several front openings once the face is independent.
+  id: string
+  size: import('./sectionTree').SectionSize
+  front?: import('./sectionTree').FrontSpec
+  content:
+    | { kind: 'leaf' }
+    | { kind: 'split'; axis: 'vertical' | 'horizontal'; children: FrameZone[] }
+}
+
 export interface FaceFrameParams {
   stileWidth: number
   railWidth: number
@@ -269,6 +280,9 @@ export interface FaceFrameParams {
   // frame-only centre stile without creating a structural division panel behind it. Optional so
   // every v20 file written before independent frame layout keeps its exact legacy behaviour.
   pairStile?: boolean
+  // Optional face-owned layout overrides, keyed by the structural leaf they live in. A split here
+  // creates frame stock and physical front openings only; it never creates carcase structure.
+  layout?: Record<SectionId, FrameZone>
 }
 
 export interface GroupComponent {
@@ -326,6 +340,9 @@ export interface DrawerComponent {
   // a drawer to a different bay. `null` on a detached drawer whose opening is gone: the section id
   // is released so a later pass cannot reclaim it, exactly as a detached part's role key is.
   sectionId: SectionId | null
+  // Present when the drawer belongs to one physical frame opening inside its structural section.
+  // Optional for v20 compatibility: legacy drawers are still uniquely identified by sectionId.
+  frameOpeningId?: string
   params: DrawerParams
   // No other component carries this. A detached drawer is the user's — no regeneration, no
   // deletion — exactly as a detached part is. Carcases and groups are deliberately left out: a
