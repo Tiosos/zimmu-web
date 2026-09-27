@@ -16,6 +16,9 @@ export interface FrontGeometry {
   // Clear openings for individual leaves when the face frame divides a structural section without
   // a carcase partition behind it.
   frameLeafOpenings?: Map<string, Rect>
+  // Display/manufacturing members from the same frame solve. Consumers such as the elevation can
+  // draw the real frame without re-running frame geometry independently.
+  frameMembers?: { role: string; rect: Rect }[]
 }
 
 export interface FrontCell {
