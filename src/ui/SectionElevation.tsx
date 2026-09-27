@@ -68,6 +68,7 @@ export function SectionElevation({
   const frameOpenings = frontGeometry.frameOpenings
   const frameLeafOpenings = frontGeometry.frameLeafOpenings
   const frameMembers = frontGeometry.frameMembers ?? []
+  const frameFrontOpenings = frontGeometry.frameFrontOpenings
 
   const W = params.width
   const H = params.height
@@ -87,12 +88,22 @@ export function SectionElevation({
     const framed = frameOpenings?.get(o.sectionId)
     const leftLeaf = frameLeafOpenings?.get(`${o.sectionId}|0`)
     const rightLeaf = frameLeafOpenings?.get(`${o.sectionId}|1`)
+    const independent = [...(frameFrontOpenings?.values() ?? [])]
+      .filter((opening) => opening.sectionId === o.sectionId && opening.id !== o.sectionId)
+      .sort((a, b) => b.rect.z0 - a.rect.z0 || a.rect.x0 - b.rect.x0)
     const dimension =
-      leftLeaf !== undefined && rightLeaf !== undefined
-        ? `${Math.round(leftLeaf.x1 - leftLeaf.x0)} × ${Math.round(leftLeaf.z1 - leftLeaf.z0)} / ${Math.round(rightLeaf.x1 - rightLeaf.x0)} × ${Math.round(rightLeaf.z1 - rightLeaf.z0)}`
-        : framed === undefined
-          ? null
-          : `${Math.round(framed.x1 - framed.x0)} × ${Math.round(framed.z1 - framed.z0)}`
+      independent.length > 0
+        ? independent
+            .map(
+              (opening) =>
+                `${Math.round(opening.rect.x1 - opening.rect.x0)} × ${Math.round(opening.rect.z1 - opening.rect.z0)}`,
+            )
+            .join(' / ')
+        : leftLeaf !== undefined && rightLeaf !== undefined
+          ? `${Math.round(leftLeaf.x1 - leftLeaf.x0)} × ${Math.round(leftLeaf.z1 - leftLeaf.z0)} / ${Math.round(rightLeaf.x1 - rightLeaf.x0)} × ${Math.round(rightLeaf.z1 - rightLeaf.z0)}`
+          : framed === undefined
+            ? null
+            : `${Math.round(framed.x1 - framed.x0)} × ${Math.round(framed.z1 - framed.z0)}`
     return { x, y, height, width, framed, dimension }
   }
 
