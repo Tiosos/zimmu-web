@@ -3,7 +3,6 @@ import { resolveCarcase } from './carcaseOpenings'
 import { componentsById } from './componentTree'
 import { boxDepth } from './drawerBox'
 import { nearestCarcase } from './nearestCarcase'
-import { overridesOf, roleThicknessFor } from './resolveThickness'
 import {
   CATALOGUE_ORDER,
   hingeKeyFor,
@@ -55,12 +54,8 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
   const frameDepth = new Map<ComponentId, number>()
   for (const cabinet of carcases) {
     if (cabinet.params.frame === undefined) continue
-    const thicknessOf = roleThicknessFor(
-      cabinet.params,
-      scene.materials,
-      overridesOf(scene.parts, cabinet.id),
-    )
-    frameDepth.set(cabinet.id, thicknessOf('stile-left'))
+    const thickness = scene.materials[cabinet.params.frameMaterial]?.thickness
+    if (thickness !== undefined) frameDepth.set(cabinet.id, thickness)
   }
   for (const p of scene.parts) {
     if (p.kind !== 'board' || p.parentId === null) continue
