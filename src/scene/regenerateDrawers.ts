@@ -88,27 +88,28 @@ function drawerSitesOf(cabinet: CarcaseComponent, scene: Scene): DrawerSite[] | 
   const bySection = new Map(resolved.openings.map((o) => [o.sectionId, o.rect] as const))
   return frontCells(p.section, resolved.tree, fronts)
     .filter((cell) => cell.spec.kind === 'drawer-front')
-    .map((cell) => {
+    .flatMap((cell): DrawerSite[] => {
       const sectionRect = bySection.get(cell.sectionId)
-      if (sectionRect === undefined) return null
+      if (sectionRect === undefined) return []
       const physical = fronts.frameFrontOpenings?.get(cell.openingId)?.rect
-      return {
-        sectionId: cell.sectionId,
-        openingId: cell.openingId,
-        // A frame-zone drawer passes through its own physical opening; legacy drawers keep using
-        // the section-level frame opening exactly as before.
-        opening:
-          physical ??
-          usableInteriorRect(sectionRect, fronts.frameOpenings?.get(cell.sectionId)),
-        ctx: {
-          clearDepth: clear,
-          frontThickness: thicknessOf(frontRoleOf(cell)),
-          inset: p.frontMount === 'inset',
-          frameDepth,
+      return [
+        {
+          sectionId: cell.sectionId,
+          openingId: cell.openingId,
+          // A frame-zone drawer passes through its own physical opening; legacy drawers keep using
+          // the section-level frame opening exactly as before.
+          opening:
+            physical ??
+            usableInteriorRect(sectionRect, fronts.frameOpenings?.get(cell.sectionId)),
+          ctx: {
+            clearDepth: clear,
+            frontThickness: thicknessOf(frontRoleOf(cell)),
+            inset: p.frontMount === 'inset',
+            frameDepth,
+          },
         },
-      }
+      ]
     })
-    .filter((site): site is DrawerSite => site !== null)
 }
 
 type BoxRole = 'box-left' | 'box-right' | 'box-front' | 'box-back' | 'box-bottom'
