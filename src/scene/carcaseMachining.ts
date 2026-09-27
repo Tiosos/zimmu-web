@@ -3,7 +3,7 @@ import type { RoleThickness } from './resolveThickness'
 import type { RoleJointKind } from './resolveJointKind'
 import { resolveSections, type Bound, type SectionId } from './sectionTree'
 import { sectionInteriors } from './sectionInterior'
-import { frontCells } from './frontCells'
+import { frontCells, frontRoleOf } from './frontCells'
 import { cupRow, plateScrewRows, slideScrewRow } from './frontMachining'
 import { drawerBoxMetrics, type DrawerParams } from './drawerBox'
 import { clearDepth, frontGeometryOf, openingRect, PIN_DIAMETER, pinRow, sectionThickness, usableInteriorRect } from './carcaseLayout'
@@ -133,7 +133,7 @@ export function carcaseMachining(
 
   const cuts: HoleArrayCut[] = []
   for (const cell of cells) {
-    const frontRole = `front-${cell.openingId}-${cell.leaf}`
+    const frontRole = frontRoleOf(cell)
 
     // On the front itself: only a door, and only its cups.
     if (role === frontRole) {
