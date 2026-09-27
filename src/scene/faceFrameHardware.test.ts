@@ -32,6 +32,12 @@ describe('blumFaceFrameHingeFor', () => {
     expect(h.nominalOverlay).toBeCloseTo(19.05, 9)
   })
 
+  it('keeps the default 38 mm outer half-overlay inside the 38N adjustment range', () => {
+    const h = blumFaceFrameHingeFor('half-overlay', 17.5)!
+    expect(h.family).toBe('38N')
+    expect(h.partNumber).toBe('38N355B.12')
+  })
+
   it('uses the dedicated inset face-frame adapter', () => {
     const h = blumFaceFrameHingeFor('inset', 0)!
     expect(h.family).toBe('CLIP-inset')
