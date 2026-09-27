@@ -37,6 +37,12 @@ export interface FrontCell {
   hinge: 'left' | 'right' | undefined
 }
 
+export function frontRoleOf(cell: Pick<FrontCell, 'sectionId' | 'openingId' | 'leaf'>): string {
+  return cell.openingId === cell.sectionId
+    ? `front-${cell.sectionId}-${cell.leaf}`
+    : `front-${cell.sectionId}|${cell.openingId}-${cell.leaf}`
+}
+
 // What lies immediately beyond one edge of a section. `expandTo` is where an overlay front reaches
 // on that side — the cabinet's outer edge, or the midline of the division it shares. `material`
 // says whether a *full* reveal is owed there: an inset front clears carcase material by the whole
