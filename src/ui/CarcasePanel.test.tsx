@@ -390,6 +390,26 @@ describe('CarcasePanel shelving', () => {
     expect(screen.getByText(/pick an opening in the elevation to shelve it/i)).toBeTruthy()
     expect(screen.queryByLabelText('Shelves')).toBeNull()
   })
+  it('warns when a requested loose shelf cannot pass the selected opening frame', () => {
+    const section = shelved(sec([], 0), { shelves: 1 })
+    const c = carcase({
+      section: {
+        ...section,
+        front: { kind: 'door', leaves: 2, hinge: 'left' },
+      },
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        pairStile: true,
+      },
+    })
+    renderPanel(c)
+    expect(
+      screen.getByText(/adjustable shelf cannot pass through any current face-frame opening/i),
+    ).toBeTruthy()
+  })
 })
 
 describe('CarcasePanel fronts', () => {
