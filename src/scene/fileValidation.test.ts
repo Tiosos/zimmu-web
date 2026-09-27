@@ -197,6 +197,91 @@ describe('zimmu file validation boundary', () => {
     expect(loaded.params.frame?.pairStile).toBe(true)
   })
 
+  it('round-trips independent frame zones and drawer physical-opening identity', () => {
+    const base = CARCASE_PRESETS[0].params
+    const zoneId = 'fo_drawer'
+    const params = {
+      ...base,
+      frame: {
+        ...DEFAULT_FRAME,
+        layout: {
+          [base.section.id]: {
+            id: 'fo_root',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [
+                { id: 'fo_low', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+                {
+                  id: zoneId,
+                  size: { kind: 'fixed', mm: 140 },
+                  front: { kind: 'drawer-front' },
+                  content: { kind: 'leaf' },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }
+    const carcase = {
+      kind: 'carcase',
+      id: 'cmp_frame_zones',
+      label: 'Frame zones',
+      parentId: null,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+      params,
+    }
+    const drawer = {
+      kind: 'drawer',
+      id: 'cmp_drawer_zone',
+      label: 'Drawer',
+      parentId: 'cmp_frame_zones',
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      rotationOrder: 'XYZ',
+      visible: true,
+      sectionId: base.section.id,
+      frameOpeningId: zoneId,
+      params: {
+        family: 'side-mount',
+        material: '',
+        bottomMaterial: '',
+        clearance: 12.7,
+        bottomClearance: 12,
+        runnerOffset: 35,
+        boxHeight: null,
+      },
+      driven: true,
+    }
+    const parsed = parseFile(
+      JSON.stringify(
+        file({
+          version: 20,
+          scene: {
+            parts: [],
+            materials: {},
+            hardware: [],
+            joints: [],
+            components: [carcase, drawer],
+          },
+        }),
+      ),
+    )
+    const loaded = parsed.scene.components.find((component) => component.kind === 'carcase')
+    expect(loaded?.kind).toBe('carcase')
+    if (loaded?.kind !== 'carcase') return
+    expect(loaded.params.frame?.layout?.[base.section.id]?.content.kind).toBe('split')
+    const loadedDrawer = parsed.scene.components.find((component) => component.kind === 'drawer')
+    expect(loadedDrawer?.kind).toBe('drawer')
+    if (loadedDrawer?.kind !== 'drawer') return
+    expect(loadedDrawer.frameOpeningId).toBe(zoneId)
+  })
+
   it('round-trips a manual machining operation without turning it into a cut', () => {
     const operation = {
       kind: 'manual-machining',
