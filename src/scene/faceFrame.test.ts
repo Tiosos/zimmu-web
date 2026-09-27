@@ -186,6 +186,32 @@ describe('faceFrameGeometry', () => {
     expect(g!.openings.get('drawer')).toEqual({ x0: 328, x1: 556, z0: 132, z1: 688 })
   })
 
+  it('adds a frame-only pair stile without creating a structural section', () => {
+    const root = leaf('pair', { kind: 'door', leaves: 2, hinge: 'left' })
+    const g = faceFrameGeometry(root, OUTER, { ...FRAME, pairStile: true })!
+    expect(g.openings.size).toBe(1)
+    expect(g.openings.get('pair')).toEqual({ x0: 44, x1: 556, z0: 132, z1: 688 })
+    expect(rectOf(g, 'stile-pair-pair')).toEqual({ x0: 272, x1: 328, z0: 132, z1: 688 })
+    expect(g.leafOpenings.get('pair|0')).toEqual({ x0: 44, x1: 272, z0: 132, z1: 688 })
+    expect(g.leafOpenings.get('pair|1')).toEqual({ x0: 328, x1: 556, z0: 132, z1: 688 })
+  })
+
+  it('keeps legacy pair geometry when the independent pair stile is absent', () => {
+    const root = leaf('pair', { kind: 'door', leaves: 2, hinge: 'left' })
+    const legacy = faceFrameGeometry(root, OUTER, FRAME)!
+    const explicitOff = faceFrameGeometry(root, OUTER, { ...FRAME, pairStile: false })!
+    expect(legacy).toEqual(explicitOff)
+    expect(legacy.members.some((m) => m.role === 'stile-pair-pair')).toBe(false)
+    expect(legacy.leafOpenings.size).toBe(0)
+  })
+
+  it('declines a pair stile that consumes the framed opening', () => {
+    const root = leaf('pair', { kind: 'door', leaves: 2, hinge: 'left' })
+    expect(
+      faceFrameGeometry(root, OUTER, { ...FRAME, pairStile: true, midStileWidth: 600 }),
+    ).toBeNull()
+  })
+
   it('accepts a leaf wearing a door', () => {
     expect(geometry(leaf('door', { kind: 'door', leaves: 1, hinge: 'left' }))).not.toBeNull()
   })
