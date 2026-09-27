@@ -93,16 +93,22 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
     // On a face frame the frame is the material a front meets. A full-overlay front still reaches
     // the outer edge — the frame's outer edge is the cabinet's — so it needs nothing new. An inset
     // front measures to the frame's opening instead of the carcase's. A half-overlay front reaches
-    // each member's midline, halfway between the outer edge and the opening: the midline rule an
-    // overlay front already follows at a division, applied to the frame.
+    // each member's midline: halfway between outer member edges and their openings, or the
+    // existing division midline for an internal member.
     const framed = g.frameOpenings?.get(section.id)
+    // On an OUTER member, `expandTo` is the frame's outer edge, so half-overlay reaches
+    // halfway between that edge and the framed opening. On an INTERNAL member, `expandTo` is
+    // already the division's midline — exactly where half-overlay must stop. Averaging that
+    // midline with the opening edge would cover only a quarter of a mid stile/rail.
+    const halfOverlayEdge = (side: Side, framedEdge: number, outerEdge: number): number =>
+      side.expandTo === outerEdge ? (side.expandTo + framedEdge) / 2 : side.expandTo
     const reach =
       g.mount === 'half-overlay' && framed !== undefined
         ? {
-            left: (sides.left.expandTo + framed.x0) / 2,
-            right: (sides.right.expandTo + framed.x1) / 2,
-            bottom: (sides.bottom.expandTo + framed.z0) / 2,
-            top: (sides.top.expandTo + framed.z1) / 2,
+            left: halfOverlayEdge(sides.left, framed.x0, g.outer.x0),
+            right: halfOverlayEdge(sides.right, framed.x1, g.outer.x1),
+            bottom: halfOverlayEdge(sides.bottom, framed.z0, g.outer.z0),
+            top: halfOverlayEdge(sides.top, framed.z1, g.outer.z1),
           }
         : {
             left: sides.left.expandTo,
