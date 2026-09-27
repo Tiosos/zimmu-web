@@ -1,6 +1,6 @@
 import type { CarcaseParams, ThicknessAxis, Vec3 } from './types'
 import type { RoleThickness } from './resolveThickness'
-import type { DivisionThickness, Rect } from './sectionTree'
+import type { DivisionThickness, Rect, ResolvedTree } from './sectionTree'
 import type { FrontGeometry } from './frontCells'
 import { faceFrameGeometry } from './faceFrame'
 
@@ -75,7 +75,7 @@ export function floorZ(p: CarcaseParams): number {
 // frame resolved, so a frame stage 1 declines leaves the fronts exactly where a frameless cabinet
 // puts them — the door and the frame boards both read `faceFrameGeometry`, and cannot disagree
 // about whether there is a frame to hang on.
-export function frontGeometryOf(p: CarcaseParams): FrontGeometry {
+export function frontGeometryOf(p: CarcaseParams, tree?: ResolvedTree): FrontGeometry {
   // The carcase *body*, which is what a front covers: from the bottom panel's underside to the
   // top. `floorZ` already returns `toeKickHeight` for both a toe kick and a ladder and 0
   // otherwise, so no base-mode branch is needed. Not `carcaseZ0`: under a toe kick the sides run
@@ -85,7 +85,7 @@ export function frontGeometryOf(p: CarcaseParams): FrontGeometry {
     outer,
     mount: p.frontMount,
     reveal: p.frontReveal,
-    frameOpenings: faceFrameGeometry(p.section, outer, p.frame)?.openings,
+    frameOpenings: faceFrameGeometry(p.section, outer, p.frame, tree)?.openings,
   }
 }
 
