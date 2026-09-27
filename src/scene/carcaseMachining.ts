@@ -112,7 +112,10 @@ export function carcaseMachining(
   // never its emitted boards — which is what keeps this pass a function in one direction. Returns
   // null for an opening with no drawer, in which case no slide row is bored. Side thickness is
   // resolved by the caller because this function has no access to `scene.materials`.
-  drawerFor: (sectionId: SectionId) => { params: DrawerParams; sideThickness: number } | null,
+  drawerFor: (
+    sectionId: SectionId,
+    openingId: string,
+  ) => { params: DrawerParams; sideThickness: number } | null,
 ): HoleArrayCut[] {
   // Empty for a carcase whose parameters do not build, which is what makes every line below safe.
   const panel = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === role)?.panel
@@ -194,14 +197,13 @@ export function carcaseMachining(
       // the front's centreline as it was before a box existed to measure from. The box and the
       // screws that carry it cannot drift apart because both read this figure. The section's own
       // rectangle, never the cell: `frontCells` expands an overlay front past the opening.
-      const drawer = drawerFor(cell.sectionId)
+      const drawer = drawerFor(cell.sectionId, cell.openingId)
       if (drawer === null) continue
       const sectionRect = tree.rects.get(cell.sectionId)
       if (sectionRect === undefined) continue
-      const drawerOpening = usableInteriorRect(
-        sectionRect,
-        fronts.frameOpenings?.get(cell.sectionId),
-      )
+      const drawerOpening =
+        fronts.frameFrontOpenings?.get(cell.openingId)?.rect ??
+        usableInteriorRect(sectionRect, fronts.frameOpenings?.get(cell.sectionId))
       const metrics = drawerBoxMetrics(drawerOpening, drawer.params, {
         clearDepth: clearDepth(p, thicknessOf('back')),
         frontThickness: thicknessOf(frontRole),
