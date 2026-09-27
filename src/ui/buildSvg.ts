@@ -295,6 +295,15 @@ function renderTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): strin
       fill: '#444',
       'font-family': 'sans-serif',
     }),
+    ...(sheet.shape === 'board'
+      ? sheet.manufacturingNotes.slice(0, 3).map((note, i) =>
+          svgText(tbX + 155, tbY + 6 + i * 6, note, {
+            'font-size': '2.4',
+            fill: '#000',
+            'font-family': 'sans-serif',
+          }),
+        )
+      : []),
     svgRect(tbX + tbW - 20, tbY + 8, 6, 4, {
       fill: sheet.color,
       stroke: '#333',
