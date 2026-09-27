@@ -261,10 +261,14 @@ export interface FaceFrameParams {
   stileWidth: number
   railWidth: number
   // A centre stile is customarily wider than an edge one, because two half-overlay doors each
-  // cover half of it. Unused until stage 2 adds divisions, but present from v20 so a stage-1 file
-  // stays readable by a stage-2 build.
+  // cover half of it. Structural mid stiles and frame-only pair stiles deliberately share this
+  // figure: both are the same stock decision.
   midStileWidth: number
   midRailWidth: number
+  // Independent of the carcase section tree. When true, every two-leaf door may receive a
+  // frame-only centre stile without creating a structural division panel behind it. Optional so
+  // every v20 file written before independent frame layout keeps its exact legacy behaviour.
+  pairStile?: boolean
 }
 
 export interface GroupComponent {
