@@ -11,7 +11,7 @@ import {
   SHELF_PIN_KEY,
 } from './hardwareCatalogue'
 import { faceFrameGeometry, frameOverlay, hingedFrameMember } from './faceFrame'
-import { frontCells, frontRoleOf } from './frontCells'
+import { frontCells } from './frontCells'
 import { blumFaceFrameHingeFor } from './faceFrameHardware'
 import type { ComponentId, Scene } from './types'
 
