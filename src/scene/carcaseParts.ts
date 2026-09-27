@@ -5,7 +5,7 @@ import type { RoleThickness } from './resolveThickness'
 import type { CarcaseJointKind, RoleJointKind } from './resolveJointKind'
 import { resolveSections, type FrontSpec, type ResolvedDivision, type ResolvedTree, type SectionId } from './sectionTree'
 import { sectionInteriors } from './sectionInterior'
-import { frontCells, type FrontCell } from './frontCells'
+import { frontCells, frontRoleOf, type FrontCell } from './frontCells'
 import {
   clearDepth,
   floorZ,
@@ -336,7 +336,7 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
   // in `carcaseRoles` passes it through face-to-face sized.
   let faced = 0
   for (const cell of cells) {
-    const role = `front-${cell.openingId}-${cell.leaf}`
+    const role = frontRoleOf(cell)
     const FT = thicknessOf(role)
     faced += 1
     boxes.push({
