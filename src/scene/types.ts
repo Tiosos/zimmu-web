@@ -107,6 +107,27 @@ export type ThicknessAxis = 'x' | 'y' | 'z'
 // never what the carcase generator emits — a generated panel always states a direction.
 export type Grain = 'length' | 'width' | 'free'
 
+// A manufacturing instruction that is intentionally NOT solid geometry. Use this when the real
+// process cannot be represented truthfully by CutDef (for example a jig-guided angled pilot).
+// Keeping it outside `cuts` guarantees OCCT, DXF and CNC paths cannot silently turn it into a
+// perpendicular subtraction.
+export interface ManualMachiningOperation {
+  kind: 'manual-machining'
+  id: string
+  label: string
+  hardwareKey: string
+  face: Face
+  at: Vec3 // board-local reference point for the operation
+  diameter: number
+  pitch: number
+  count: number
+  angle: number // degrees from the board-face normal
+  edgeOffset: number
+  template: string
+  instruction: string
+  sourceComponentId?: string
+}
+
 export interface BoardPart {
   kind: 'board'
   id: PartId
@@ -121,6 +142,8 @@ export interface BoardPart {
   rotation: Vec3
   rotationOrder: 'XYZ'
   cuts: CutDef[]
+  // Optional for file compatibility: pre-Stage-4 boards carry none.
+  operations?: ManualMachiningOperation[]
   visible: boolean
   parentId: ComponentId | null
   driven: boolean
