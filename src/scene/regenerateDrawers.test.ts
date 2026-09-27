@@ -57,6 +57,7 @@ const withParams = (s: Scene, params: CarcaseParams): Scene => ({
 })
 
 const BASE = CARCASE_PRESETS[0].params
+const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
 const DOOR = { kind: 'door', leaves: 1, hinge: 'left' } as const
 
 const withFront = (front: Parameters<typeof setFrontOn>[2]): CarcaseParams => ({
@@ -345,6 +346,38 @@ describe('regenerateDrawers — the boards', () => {
     const drawer = drawersOf(out)[0]
     expect(boardsOf(out, drawer.id)).toHaveLength(5)
     expect(out.parts.filter((p) => p.parentId === 'cmp_1')).toHaveLength(0)
+  })
+
+  it('sizes a framed drawer to the clear face-frame opening', () => {
+    const params = { ...oneDrawer(), frame: FRAME }
+    const out = regenerateDrawers(sceneOf(params))
+    const drawer = drawersOf(out)[0]
+    const left = boardsOf(out, drawer.id).find((b) => b.role === 'box-left')!
+
+    // Base 600 outer frame opening: x 44..556, z 132..688. Side-mount then takes 12.7 mm
+    // from each x edge, and the default box height sits 25 mm below the opening top.
+    expect(left.position.x).toBeCloseTo(44 + SIDE_MOUNT_CLEARANCE, 9)
+    expect(left.position.z).toBe(132)
+    expect(left.width).toBe(688 - 132 - 25)
+  })
+
+  it('lets a framed inset front spend the frame depth before it steals drawer depth', () => {
+    // 522 with the 12 mm captured back leaves 510 mm clear. Frameless inset spends the 18 mm
+    // front and drops to the 450 runner; the 20 mm frame contains that front, so framed keeps 500.
+    const shallowInset = { ...oneDrawer(), depth: 522, frontMount: 'inset' as const }
+    const frameless = regenerateDrawers(sceneOf(shallowInset))
+    const framed = regenerateDrawers(sceneOf({ ...shallowInset, frame: FRAME }))
+    const framelessLeft = boardsOf(frameless, drawersOf(frameless)[0].id).find(
+      (b) => b.role === 'box-left',
+    )!
+    const framedLeft = boardsOf(framed, drawersOf(framed)[0].id).find(
+      (b) => b.role === 'box-left',
+    )!
+
+    expect(framelessLeft.position.y).toBe(18)
+    expect(framelessLeft.length).toBe(450)
+    expect(framedLeft.position.y).toBe(0)
+    expect(framedLeft.length).toBe(500)
   })
 
   it('runs the sides the full depth and fits the front and back between them', () => {
