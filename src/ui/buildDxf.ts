@@ -16,6 +16,26 @@ function fmt(n: number): string {
   return n.toFixed(3)
 }
 
+function wrapManufacturingNotes(notes: string[], maxChars = 90): string[] {
+  return notes.flatMap((note) => {
+    const words = note.split(' ')
+    const lines: string[] = []
+    let line = ''
+    for (const word of words) {
+      const next = line === '' ? word : `${line} ${word}`
+      if (line !== '' && next.length > maxChars) {
+        lines.push(line)
+        line = word
+      } else {
+        line = next
+      }
+    }
+    if (line !== '') lines.push(line)
+    return lines
+  })
+}
+
+
 // DXF Y-axis is up; SVG Y-axis is down.
 function fy(y: number): number {
   return SHEET_H - y
@@ -297,7 +317,9 @@ function dxfTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): string {
     dxfText('TEXT', tbX + 100, tbY + 8, 4, `Scale: ${sheet.scaleLabel}`),
     dxfText('TEXT', tbX + 100, tbY + 16, 4, `Date: ${sheet.date}`),
     ...(sheet.shape === 'board'
-      ? sheet.manufacturingNotes.map((note, i) => dxfText('TEXT', tbX + 155, tbY + 6 + i * 6, 2.4, note))
+      ? wrapManufacturingNotes(sheet.manufacturingNotes).map((line, i) =>
+          dxfText('TEXT', tbX + 155, tbY + 4 + i * 2.4, 2, line),
+        )
       : []),
   ].join('')
 }
