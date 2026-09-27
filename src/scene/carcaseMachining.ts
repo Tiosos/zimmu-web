@@ -130,7 +130,7 @@ export function carcaseMachining(
 
   const cuts: HoleArrayCut[] = []
   for (const cell of cells) {
-    const frontRole = `front-${cell.sectionId}-${cell.leaf}`
+    const frontRole = `front-${cell.openingId}-${cell.leaf}`
 
     // On the front itself: only a door, and only its cups.
     if (role === frontRole) {
@@ -140,7 +140,7 @@ export function carcaseMachining(
         // selected from this leaf's overlap. If the geometry has no supported application, decline
         // the cup as well as the plate and BOM: one impossible hinge must not leave half a pattern.
         if (frame === null) continue
-        const member = hingedFrameMember(frame, cell.sectionId, cell.hinge)
+        const member = hingedFrameMember(frame, cell.sectionId, cell.hinge, cell.openingId)
         if (member === null) continue
         const overlay = frameOverlay(member, cell.rect, cell.hinge, p.frontMount)
         const hardware = blumFaceFrameHingeFor(p.frontMount, overlay)
