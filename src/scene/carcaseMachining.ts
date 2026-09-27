@@ -10,6 +10,10 @@ import { clearDepth, frontGeometryOf, openingRect, PIN_DIAMETER, pinRow, section
 import { carcaseRoles } from './carcaseParts'
 import { faceFrameGeometry, frameOverlay, hingedFrameMember } from './faceFrame'
 import { blumFaceFrameHingeFor } from './faceFrameHardware'
+import {
+  ADJUSTABLE_SHELF_SIDE_CLEARANCE,
+  shelfHasAccess,
+} from './interiorAccess'
 
 const LEFT_EDGE_FACE: Face = '+Z'
 const RIGHT_EDGE_FACE: Face = '-Z'
@@ -69,6 +73,23 @@ export function carcaseHoleArrays(
     // not bore. Carried into the panel's frame: board y runs the carcase height and the panel's
     // origin is its own bottom edge.
     const usable = usableInteriorRect(rect, fronts.frameOpenings?.get(sectionId))
+    if (a.shelves > 0) {
+      const shelfWidth =
+        usable.x1 - usable.x0 - 2 * ADJUSTABLE_SHELF_SIDE_CLEARANCE
+      const anyShelfFits = Array.from({ length: a.shelves }, (_, i) =>
+        shelfHasAccess(
+          sectionId,
+          rect,
+          fronts,
+          shelfWidth,
+          thicknessOf(`adj-shelf-${sectionId}-${i}`),
+        ),
+      ).some(Boolean)
+      // A requested loose shelf with no insertion path must not leave behind machining for a part
+      // the generator refused to manufacture. Rows with zero requested shelves remain useful as
+      // pre-bored future shelving and therefore keep their legacy behaviour.
+      if (!anyShelfFits) continue
+    }
     const { first: firstZ, count } = pinRow(usable, a)
     if (count < 1) continue
     const first = firstZ - panel.position.z
