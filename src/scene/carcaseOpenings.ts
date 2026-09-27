@@ -2,10 +2,11 @@ import { openingRect, sectionThickness, validateCarcaseParams } from './carcaseR
 import { overridesOf, roleThicknessFor } from './resolveThickness'
 import { sectionNodes } from './sectionNodes'
 import { sectionOpenings } from './sectionInterior'
-import { resolveSections } from './sectionTree'
+import { resolveSections, type ResolvedTree } from './sectionTree'
 import type { CarcaseComponent, MaterialDef, Part } from './types'
 
 export interface ResolvedCarcase {
+  tree: ResolvedTree
   openings: ReturnType<typeof sectionOpenings>
   nodes: ReturnType<typeof sectionNodes>
 }
@@ -36,7 +37,7 @@ export function resolveCarcase(
     sectionThickness(thicknessOf),
   )
   const openings = sectionOpenings(component.params.section, tree)
-  return { openings, nodes: sectionNodes(openings, own) }
+  return { tree, openings, nodes: sectionNodes(openings, own) }
 }
 
 // Which opening owns which part. The shape two callers already take.
