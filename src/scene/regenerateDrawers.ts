@@ -13,6 +13,7 @@ import type {
 import type { Rect, SectionId } from './sectionTree'
 import { resolveCarcase } from './carcaseOpenings'
 import { clearDepth, frontGeometryOf, orientedPanel, type LocalBox, type PanelSpec } from './carcaseRoles'
+import { frontCells } from './frontCells'
 import { usableInteriorRect } from './carcaseLayout'
 import { grainAxisOf, grainFieldFor } from './grain'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
@@ -33,8 +34,11 @@ import { reconcileBoards, type GeneratedBoard } from './reconcileBoards'
 // Component ids are `cmp_<uuid>` and section ids are `sec_<uuid>`, so neither can contain a `|`.
 // A released drawer names no opening at all, so it is kept out of the map rather than keyed on a
 // stringified `null` — which is a key a section could never be called, right up until one is.
-const keyOf = (cabinetId: ComponentId | null, sectionId: SectionId): string =>
-  `${cabinetId}|${sectionId}`
+const keyOf = (
+  cabinetId: ComponentId | null,
+  sectionId: SectionId,
+  frameOpeningId?: string,
+): string => `${cabinetId}|${sectionId}|${frameOpeningId ?? sectionId}`
 
 // A drawer names its own material and, until the panel lets a user pick one, names nothing at all.
 // So the fallback is what stands between a default drawer and a box with zero-thickness sides —
@@ -57,6 +61,7 @@ export function boxSideThickness(
 // rest, so this is `DrawerContext` less the one field the drawer owns.
 interface DrawerSite {
   sectionId: SectionId
+  openingId: string
   // The SECTION's own rectangle, never the front cell: `frontCells` expands an overlay front to the
   // material midline, so a box sized off a cell would be 33 mm too wide on a Base 600.
   opening: Rect
@@ -80,21 +85,30 @@ function drawerSitesOf(cabinet: CarcaseComponent, scene: Scene): DrawerSite[] | 
   const clear = clearDepth(p, p.backMode === 'none' ? 0 : thicknessOf('back'))
   const fronts = frontGeometryOf(p, resolved.tree)
   const frameDepth = fronts.frameOpenings === undefined ? 0 : thicknessOf('stile-left')
-  return resolved.openings
-    .filter((o) => o.section.front?.kind === 'drawer-front')
-    .map((o) => ({
-      sectionId: o.sectionId,
-      // A moving box must pass through the narrowest opening in front of its section. On a framed
-      // cabinet that is the frame; frameless keeps the section rectangle byte-for-byte.
-      opening: usableInteriorRect(o.rect, fronts.frameOpenings?.get(o.sectionId)),
-      ctx: {
-        clearDepth: clear,
-        // Only a two-leaf door has a leaf 1, so a drawer front's role key always ends in 0.
-        frontThickness: thicknessOf(`front-${o.sectionId}-0`),
-        inset: p.frontMount === 'inset',
-        frameDepth,
-      },
-    }))
+  const bySection = new Map(resolved.openings.map((o) => [o.sectionId, o.rect] as const))
+  return frontCells(p.section, resolved.tree, fronts)
+    .filter((cell) => cell.spec.kind === 'drawer-front')
+    .map((cell) => {
+      const sectionRect = bySection.get(cell.sectionId)
+      if (sectionRect === undefined) return null
+      const physical = fronts.frameFrontOpenings?.get(cell.openingId)?.rect
+      return {
+        sectionId: cell.sectionId,
+        openingId: cell.openingId,
+        // A frame-zone drawer passes through its own physical opening; legacy drawers keep using
+        // the section-level frame opening exactly as before.
+        opening:
+          physical ??
+          usableInteriorRect(sectionRect, fronts.frameOpenings?.get(cell.sectionId)),
+        ctx: {
+          clearDepth: clear,
+          frontThickness: thicknessOf(`front-${cell.openingId}-0`),
+          inset: p.frontMount === 'inset',
+          frameDepth,
+        },
+      }
+    })
+    .filter((site): site is DrawerSite => site !== null)
 }
 
 type BoxRole = 'box-left' | 'box-right' | 'box-front' | 'box-back' | 'box-bottom'
@@ -347,7 +361,8 @@ export function regenerateDrawers(scene: Scene): Scene {
   // in one bay is what keying over driven drawers only produced.
   const existing = new Map<string, DrawerComponent>()
   for (const c of scene.components) {
-    if (c.kind === 'drawer' && c.sectionId !== null) existing.set(keyOf(c.parentId, c.sectionId), c)
+    if (c.kind === 'drawer' && c.sectionId !== null)
+      existing.set(keyOf(c.parentId, c.sectionId, c.frameOpeningId), c)
   }
 
   const kept: DrawerComponent[] = []
@@ -370,7 +385,7 @@ export function regenerateDrawers(scene: Scene): Scene {
       continue
     }
     for (const site of openings) {
-      const found = existing.get(keyOf(cabinet.id, site.sectionId))
+      const found = existing.get(keyOf(cabinet.id, site.sectionId, site.openingId))
       if (found !== undefined) {
         claim(found)
         sites.set(found, site)
@@ -386,6 +401,7 @@ export function regenerateDrawers(scene: Scene): Scene {
         rotationOrder: 'XYZ',
         visible: true,
         sectionId: site.sectionId,
+        frameOpeningId: site.openingId === site.sectionId ? undefined : site.openingId,
         params: defaultDrawerParams('side-mount'),
         driven: true,
       }
@@ -406,7 +422,9 @@ export function regenerateDrawers(scene: Scene): Scene {
   for (const c of scene.components) {
     if (c.kind !== 'drawer' || claimed.has(c)) continue
     if (!c.driven) {
-      released.push(c.sectionId === null ? c : { ...c, sectionId: null })
+      released.push(
+        c.sectionId === null ? c : { ...c, sectionId: null, frameOpeningId: undefined },
+      )
       continue
     }
     // No board is built, so no material is read.
