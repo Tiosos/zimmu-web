@@ -93,6 +93,9 @@ export interface DrawerContext {
   clearDepth: number
   frontThickness: number
   inset: boolean
+  // Depth of a built face frame in front of the carcase. An inset front occupies the frame first;
+  // only the part thicker than the frame protrudes behind y = 0 and steals drawer depth.
+  frameDepth: number
   // The DRAWER's own side material, not the carcase's. Only undermount reads it, and it is required
   // anyway — the mirror of `runnerOffset`, which undermount ignores. Optional with a `?? 0` default
   // sized an undermount box as if its sides were paper: too narrow by twice the stock, and by more
@@ -109,8 +112,21 @@ export interface DrawerContext {
 // for it cannot disagree about length. It belongs on this side of that pair because the dependency
 // runs one way: the carcase generator reads this module for a box's geometry, and a rule about a
 // box kept in `carcaseRoles` would make this module read it back.
-export function boxDepth(clear: number, frontThickness: number, inset: boolean): number {
-  return inset ? clear - frontThickness : clear
+export function frontIntrusion(
+  frontThickness: number,
+  inset: boolean,
+  frameDepth: number,
+): number {
+  return inset ? Math.max(0, frontThickness - frameDepth) : 0
+}
+
+export function boxDepth(
+  clear: number,
+  frontThickness: number,
+  inset: boolean,
+  frameDepth = 0,
+): number {
+  return clear - frontIntrusion(frontThickness, inset, frameDepth)
 }
 
 // The one statement of a drawer box's geometry. The drawer generator reads it to build boards and
@@ -133,7 +149,7 @@ export function drawerBoxMetrics(
 ): DrawerBoxMetrics | null {
   // The nominal is recovered from the key rather than chosen here, so the box and the hardware
   // quote cannot pick different runners for the same cabinet.
-  const runnerKey = runnerKeyFor(boxDepth(ctx.clearDepth, ctx.frontThickness, ctx.inset))
+  const runnerKey = runnerKeyFor(boxDepth(ctx.clearDepth, ctx.frontThickness, ctx.inset, ctx.frameDepth))
   const depth = RUNNER_NOMINALS.find((n) => `runner-${n}` === runnerKey)
   if (depth === undefined) return null
 
@@ -149,9 +165,10 @@ export function drawerBoxMetrics(
   if (span === null) return null
   const [x0, x1] = span
 
-  // The applied front occupies y ∈ [−FT, 0] overlay and y ∈ [0, FT] inset, so the box starts where
-  // the front stops.
-  const y0 = ctx.inset ? ctx.frontThickness : 0
+  // The box starts behind whatever part of an inset front actually protrudes past the frame's back
+  // face. Overlay/half-overlay fronts are entirely in front; a thick frame can also contain an
+  // inset front completely.
+  const y0 = frontIntrusion(ctx.frontThickness, ctx.inset, ctx.frameDepth)
 
   const box: BoxExtents = { x0, x1, y0, y1: y0 + depth, z0: opening.z0, z1: opening.z0 + height }
   const runnerZ = opening.z0 + (params.family === 'side-mount' ? params.runnerOffset : 0)
