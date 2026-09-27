@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { CARCASE_PRESETS, PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
 import { regenerateComponents } from './regenerateComponents'
 import { regenerateDrawers } from './regenerateDrawers'
+import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { hingeCount } from './frontMachining'
 import { carcaseHardware } from './carcaseHardware'
 import { clearDepth } from './carcaseRoles'
@@ -29,12 +30,12 @@ const sceneOf = (
   label = 'Cabinet',
   materials: Record<string, MaterialDef> = PRESET_MATERIALS,
 ): Scene =>
-  // Drawers first, then carcase — the pipeline order `applyPipeline` runs. The slide row now reads
-  // the drawer box, so a scene built without the drawer pass bores no slide screws and quotes no
-  // runner: this helper has to build a cabinet the way the app does or the runner tests below see
-  // an empty scene.
+  // Frame, drawers, then carcase — the relevant pipeline order `applyPipeline` runs. Hardware
+  // reads emitted frame depth and slide rows, so skipping either upstream pass would make a framed
+  // runner fixture quote from a scene the app can never produce.
   regenerateComponents(
-    regenerateDrawers({
+    regenerateDrawers(
+      regenerateFaceFrames({
       parts: [],
       materials: { ...materials },
       hardware: [],
@@ -52,7 +53,8 @@ const sceneOf = (
           params,
         },
       ],
-    }),
+      }),
+    ),
   )
 
 const qtyOf = (scene: Scene, key: string): number =>
@@ -167,6 +169,19 @@ describe('carcaseHardware — runners', () => {
   it('lists no runner in a cabinet too shallow for the smallest one', () => {
     const tiny = { ...withDrawerBays(1), depth: 200 }
     expect(carcaseHardware(sceneOf(tiny)).filter((l) => l.key.startsWith('runner-'))).toEqual([])
+  })
+
+  it('quotes the same longer runner a framed inset drawer actually builds', () => {
+    const shallowInset = { ...withDrawerBays(1), depth: 522, frontMount: 'inset' as const }
+    const frameless = sceneOf(shallowInset)
+    const framed = sceneOf({
+      ...shallowInset,
+      frame: { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 },
+    })
+
+    expect(qtyOf(frameless, 'runner-450')).toBe(1)
+    expect(qtyOf(framed, 'runner-500')).toBe(1)
+    expect(qtyOf(framed, 'runner-450')).toBe(0)
   })
 })
 
