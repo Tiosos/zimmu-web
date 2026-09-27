@@ -89,9 +89,9 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
   if (p.frontMount === 'half-overlay' && p.frame === undefined) {
     errors.push('half-overlay needs a face frame')
   }
-  // Only the frame's own impossibilities refuse the cabinet. A frame stage 1 cannot build — on a
-  // split cabinet, or over a drawer — is NOT an error: an error refuses the whole cabinet, so
-  // ticking "frame" would make it vanish. `faceFrameGeometry` declines the frame instead.
+  // Only the frame's own parameter impossibilities refuse the cabinet here. A configuration the
+  // current frame stage deliberately does not build (notably a drawer opening until Stage 3) is
+  // NOT an error: an error refuses the whole cabinet, while `faceFrameGeometry` can decline safely.
   if (p.frame !== undefined) {
     const { stileWidth, railWidth, midStileWidth, midRailWidth } = p.frame
     if (Math.min(stileWidth, railWidth, midStileWidth, midRailWidth) <= 0) {
