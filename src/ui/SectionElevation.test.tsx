@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SectionElevation } from './SectionElevation'
-import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, DEFAULT_FRAME, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { legacyToSection } from '../scene/migrateSections'
 import { sectionOpenings } from '../scene/sectionInterior'
 import { setSectionSize, splitSection } from '../scene/editSection'
@@ -80,6 +80,41 @@ describe('SectionElevation', () => {
     expect(yOf(low.sectionId)).toBeGreaterThan(yOf(high.sectionId))
   })
 
+  it('shows the clear face-frame opening dimensions from the shared frame geometry', () => {
+    const p: CarcaseParams = { ...base, frame: DEFAULT_FRAME }
+    const [opening] = sectionOpenings(p.section, resolvedOf(p))
+    draw(p)
+    // Base 600 front body is 600 × 620 above the toe kick. Two 38 mm outer members leave
+    // 524 × 544. This is deliberately NOT the 564 mm clear carcase opening.
+    expect(screen.getByTestId(`section-opening-dimension-${opening.sectionId}`).textContent).toBe(
+      '524 × 544',
+    )
+  })
+
+  it('does not invent frame-opening dimensions for a frameless cabinet', () => {
+    draw({ ...base, frame: undefined })
+    expect(screen.queryAllByTestId(/^section-opening-dimension-/)).toEqual([])
+  })
+
+  it('dimensions asymmetric divided leaves from their actual framed rectangles', () => {
+    const root = legacyToSection([], 0, 600, 18)
+    const split = splitSection(root, root.id, 'vertical', 'panel', 2)
+    if (split.content.kind !== 'split') throw new Error('fixture is not a split')
+    const asymmetric = setSectionSize(split, split.content.children[0].id, {
+      kind: 'fixed',
+      mm: 180,
+    })
+    const p: CarcaseParams = { ...base, section: asymmetric, frame: DEFAULT_FRAME }
+    const openings = sectionOpenings(p.section, resolvedOf(p))
+    draw(p)
+    const labels = openings.map((o) =>
+      screen.getByTestId(`section-opening-dimension-${o.sectionId}`).textContent,
+    )
+    expect(labels).toHaveLength(2)
+    expect(labels[0]).not.toBe(labels[1])
+    expect(labels.every((label) => label?.endsWith('× 544'))).toBe(true)
+  })
+
   it('renders nothing rather than throwing for a cabinet that does not build', () => {
     draw({ ...base, width: 5 })
     expect(screen.queryAllByTestId(/^section-cell-/)).toEqual([])
@@ -142,7 +177,9 @@ describe('SectionElevation', () => {
     }
     draw(p)
 
-    const labels = [...screen.getByRole('img').querySelectorAll('text')]
+    const labels = [
+      ...screen.getByRole('img').querySelectorAll('text[data-kind="section-number"]'),
+    ]
     expect(labels).toHaveLength(3)
     // Each number is read off the cell it lands in, never off document order: cells numbered
     // backwards still read 1, 2, 3 down the DOM.
