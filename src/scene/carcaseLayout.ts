@@ -102,6 +102,20 @@ export function openingRect(p: CarcaseParams, thicknessOf: RoleThickness): Rect 
   }
 }
 
+// The opening a removable interior item can actually pass through. A face frame can be narrower
+// than the carcase opening, but it can also be narrower on only one axis or even wider than the
+// carcase where a stile is slim. Intersection states the physical constraint: the item must clear
+// BOTH. Structural fixed shelves deliberately do not use this helper.
+export function usableInteriorRect(section: Rect, framed: Rect | undefined): Rect {
+  if (framed === undefined) return section
+  return {
+    x0: Math.max(section.x0, framed.x0),
+    x1: Math.min(section.x1, framed.x1),
+    z0: Math.max(section.z0, framed.z0),
+    z1: Math.min(section.z1, framed.z1),
+  }
+}
+
 // How deep the inside of the cabinet actually is: a captured back stands inside the carcase and
 // takes its own thickness out of the depth; an applied one hangs behind it and takes none. Stated
 // here because a drawer runner has to fit this and a division panel's length *is* it — two copies
