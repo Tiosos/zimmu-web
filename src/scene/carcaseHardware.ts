@@ -1,4 +1,4 @@
-import { clearDepth } from './carcaseRoles'
+import { clearDepth, frontGeometryOf } from './carcaseRoles'
 import { resolveCarcase } from './carcaseOpenings'
 import { componentsById } from './componentTree'
 import { boxDepth } from './drawerBox'
@@ -10,6 +10,9 @@ import {
   SCREW_KEY,
   SHELF_PIN_KEY,
 } from './hardwareCatalogue'
+import { faceFrameGeometry, frameOverlay, hingedFrameMember } from './faceFrame'
+import { frontCells } from './frontCells'
+import { blumFaceFrameHingeFor } from './faceFrameHardware'
 import type { ComponentId, Scene } from './types'
 
 // What a generated cabinet needs bought, counted off what its machining actually bored.
@@ -63,6 +66,36 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
     if (p.role?.startsWith('front-')) frontThickness.set(`${p.parentId} ${p.role}`, p.thickness)
   }
 
+  // A framed cabinet can need several hinge SKUs: an outer stile and a mid stile can present
+  // different overlays. Resolve the variant per front role from the same tree/frame geometry that
+  // generated the door and frame. Quantity still comes later, exclusively from emitted cup rows.
+  const framedHingeKey = new Map<string, string>()
+  for (const cabinet of carcases) {
+    if (cabinet.params.frame === undefined) continue
+    const resolved = resolveCarcase(cabinet, scene.parts, scene.materials)
+    if (resolved === null) continue
+    const fronts = frontGeometryOf(cabinet.params, resolved.tree)
+    const frame = faceFrameGeometry(
+      cabinet.params.section,
+      fronts.outer,
+      cabinet.params.frame,
+      resolved.tree,
+    )
+    if (frame === null) continue
+    for (const front of frontCells(cabinet.params.section, resolved.tree, fronts)) {
+      if (front.spec.kind !== 'door' || front.hinge === undefined) continue
+      const member = hingedFrameMember(frame, front.sectionId, front.hinge)
+      if (member === null) continue
+      const overlay = frameOverlay(member, front.rect, front.hinge, cabinet.params.frontMount)
+      const hardware = blumFaceFrameHingeFor(cabinet.params.frontMount, overlay)
+      if (hardware === null) continue
+      framedHingeKey.set(
+        `${cabinet.id} front-${front.sectionId}-${front.leaf}`,
+        hardware.key,
+      )
+    }
+  }
+
   // A slide row is bored into BOTH uprights of a bay and both carry the same cut id, because both
   // name the front the bay wears. Deduped by that id, the pair is counted once.
   const seenSlide = new Set<string>()
@@ -85,8 +118,12 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
         // (overlay and inset are different products), and with no cabinet there is no way to know
         // which one to order — unlike a screw, whose key is universal.
         if (cabinet === null) continue
-        const hingeKey = hingeKeyFor(cabinet.params.frontMount)
-        // Same rule again: no catalogued hinge means no row, never a guessed one.
+        const frontRole = cut.id.slice('cups_'.length)
+        const hingeKey =
+          cabinet.params.frame === undefined
+            ? hingeKeyFor(cabinet.params.frontMount)
+            : framedHingeKey.get(`${cabinet.id} ${frontRole}`)
+        // Same rule again: no supported hinge means no row, never a guessed one.
         if (hingeKey === undefined) continue
         add(owner, hingeKey, cut.count)
       }
