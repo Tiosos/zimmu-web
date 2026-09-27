@@ -13,6 +13,9 @@ export interface FrontGeometry {
   // Absent, or silent about a section, and that section's front is sized as if frameless. This
   // is the deliberate fallback when a frame declines a still-unsupported configuration.
   frameOpenings?: Map<SectionId, Rect>
+  // Clear openings for individual leaves when the face frame divides a structural section without
+  // a carcase partition behind it.
+  frameLeafOpenings?: Map<string, Rect>
 }
 
 export interface FrontCell {
@@ -135,8 +138,44 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
           }
 
     if (spec.kind === 'door' && spec.leaves === 2) {
-      // The pair divides the cell, one reveal between them. Each leaf is hinged on its own outer
-      // edge, which is what makes `hinge` meaningless on a two-leaf door and unread here.
+      const leftOpening = g.frameLeafOpenings?.get(`${section.id}|0`)
+      const rightOpening = g.frameLeafOpenings?.get(`${section.id}|1`)
+      if (leftOpening !== undefined && rightOpening !== undefined) {
+        // A frame-only pair stile is real material between the leaves. Inset doors clear each of
+        // its two openings by a full reveal; overlay mounts meet over the stile centreline and give
+        // back half a reveal each, exactly as two fronts meeting over a structural division do.
+        const center = (leftOpening.x1 + rightOpening.x0) / 2
+        const vertical =
+          g.mount === 'inset'
+            ? {
+                z0: leftOpening.z0 + g.reveal,
+                z1: leftOpening.z1 - g.reveal,
+              }
+            : { z0: cell.z0, z1: cell.z1 }
+        const leftRect: Rect =
+          g.mount === 'inset'
+            ? {
+                x0: leftOpening.x0 + g.reveal,
+                x1: leftOpening.x1 - g.reveal,
+                ...vertical,
+              }
+            : { ...vertical, x0: cell.x0, x1: center - half }
+        const rightRect: Rect =
+          g.mount === 'inset'
+            ? {
+                x0: rightOpening.x0 + g.reveal,
+                x1: rightOpening.x1 - g.reveal,
+                ...vertical,
+              }
+            : { ...vertical, x0: center + half, x1: cell.x1 }
+        cells.push(
+          { sectionId: section.id, leaf: 0, spec, rect: leftRect, hinge: 'left' },
+          { sectionId: section.id, leaf: 1, spec, rect: rightRect, hinge: 'right' },
+        )
+        return
+      }
+
+      // Legacy pair: no physical member between the doors, only one reveal.
       const mid = (cell.x0 + cell.x1) / 2
       cells.push(
         { sectionId: section.id, leaf: 0, spec, rect: { ...cell, x1: mid - half }, hinge: 'left' },
