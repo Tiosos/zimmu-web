@@ -102,6 +102,50 @@ describe('regenerateDrawers — component reconciliation', () => {
     expect(drawersOf(out)[0].driven).toBe(true)
   })
 
+  it('creates a drawer for a frame-zone opening while keeping structural ownership', () => {
+    const section = { ...BASE.section, front: undefined }
+    const params: CarcaseParams = {
+      ...BASE,
+      section,
+      frame: {
+        ...FRAME,
+        layout: {
+          [section.id]: {
+            id: 'zones',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [
+                {
+                  id: 'door-zone',
+                  size: { kind: 'equal' },
+                  front: { kind: 'door', leaves: 1, hinge: 'left' },
+                  content: { kind: 'leaf' },
+                },
+                {
+                  id: 'drawer-zone',
+                  size: { kind: 'fixed', mm: 140 },
+                  front: { kind: 'drawer-front' },
+                  content: { kind: 'leaf' },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }
+    const out = regenerateDrawers(sceneOf(params))
+    expect(drawersOf(out)).toHaveLength(1)
+    expect(drawersOf(out)[0]).toMatchObject({
+      parentId: 'cmp_1',
+      sectionId: section.id,
+      frameOpeningId: 'drawer-zone',
+      driven: true,
+    })
+    expect(boardsOf(out, drawersOf(out)[0].id)).toHaveLength(5)
+  })
+
   it('creates none for a door and none for a panel', () => {
     expect(drawersOf(regenerateDrawers(sceneOf(withFront(DOOR))))).toHaveLength(0)
     expect(drawersOf(regenerateDrawers(sceneOf(withFront({ kind: 'panel' }))))).toHaveLength(0)
