@@ -361,6 +361,28 @@ describe('regenerateDrawers — the boards', () => {
     expect(left.width).toBe(688 - 132 - 25)
   })
 
+  it('uses the named leaf opening in an asymmetric divided frame', () => {
+    let section = splitSection(BASE.section, BASE.section.id, 'vertical', 'panel', 2)
+    if (section.content.kind !== 'split') throw new Error('fixture did not split')
+    const [left, right] = section.content.children
+    section = {
+      ...section,
+      content: {
+        ...section.content,
+        children: [{ ...left, size: { kind: 'fixed', mm: 180 } }, right],
+      },
+    }
+    section = setFrontOn(section, right.id, { kind: 'drawer-front' })
+    const out = regenerateDrawers(sceneOf({ ...BASE, frame: FRAME, section }))
+    const drawer = drawersOf(out)[0]
+    const leftSide = boardsOf(out, drawer.id).find((b) => b.role === 'box-left')!
+
+    // Carcase split: left 18..198, partition 198..216, right 216..582. The 56 mm mid stile is
+    // centred at 207, so the RIGHT frame opening begins at 235 — not at the left bay's x = 44.
+    expect(drawer.sectionId).toBe(right.id)
+    expect(leftSide.position.x).toBeCloseTo(235 + SIDE_MOUNT_CLEARANCE, 9)
+  })
+
   it('lets a framed inset front spend the frame depth before it steals drawer depth', () => {
     // 522 with the 12 mm captured back leaves 510 mm clear. Frameless inset spends the 18 mm
     // front and drops to the 450 runner; the 20 mm frame contains that front, so framed keeps 500.
