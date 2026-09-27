@@ -558,8 +558,8 @@ export function CarcasePanel({
             <>
               {frameDeclined && (
                 <p className="text-[11px] text-amber-300 py-1">
-                  The face frame is not built on a divided cabinet or over a drawer yet, so this
-                  cabinet stays frameless for now.
+                  The face-frame members do not fit this opening, so this cabinet stays frameless
+                  until the frame dimensions are reduced.
                 </p>
               )}
               <DimInput
