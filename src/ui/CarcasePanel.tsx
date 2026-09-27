@@ -19,6 +19,7 @@ import {
   validateCarcaseParams,
 } from '../scene/carcaseRoles'
 import { DEFAULT_FRAME } from '../scene/carcasePresets'
+import { adjustableShelfAccessIssues } from '../scene/interiorAccess'
 import { overridesOf, roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
 import {
@@ -251,6 +252,12 @@ export function CarcasePanel({
   // so rather than falling back to the first, which is what the dropdown did and what made it a
   // second selection that could disagree.
   const opening = openings.find((o) => o.sectionId === selectedSectionId)
+  const selectedAccessIssues =
+    errors.length === 0 && opening !== undefined
+      ? adjustableShelfAccessIssues(p, thicknessOf).filter(
+          (issue) => issue.sectionId === opening.sectionId,
+        )
+      : []
 
   // A bare opening is given the same shelving a preset ships, less its shelves — otherwise the
   // first keystroke in any field would have to invent values for all the others.
@@ -581,6 +588,12 @@ export function CarcasePanel({
             </p>
           ) : (
             <>
+              {selectedAccessIssues.length > 0 && (
+                <p className="text-[11px] text-amber-300 py-1">
+                  Adjustable shelf cannot pass through any current face-frame opening. It will not
+                  be manufactured until an access opening is wide enough.
+                </p>
+              )}
               <DimInput
                 labelWidth="w-20"
                 label="Shelves"
