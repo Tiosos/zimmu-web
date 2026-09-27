@@ -132,3 +132,39 @@ export function faceFrameGeometry(
 
   return place(root, rootOpening) ? { members, openings } : null
 }
+
+
+// The stile that physically carries one framed leaf. Geometry, not role naming, is authoritative:
+// outer and nested mid stiles are the same problem once an opening edge is known.
+export function hingedFrameMember(
+  geometry: FrameGeometry,
+  sectionId: SectionId,
+  hinge: 'left' | 'right',
+): FrameMember | null {
+  const opening = geometry.openings.get(sectionId)
+  if (opening === undefined) return null
+  const edge = hinge === 'left' ? opening.x0 : opening.x1
+  const EPS = 1e-6
+  return (
+    geometry.members.find(
+      (m) =>
+        m.role.startsWith('stile-') &&
+        Math.abs((hinge === 'left' ? m.rect.x1 : m.rect.x0) - edge) < EPS &&
+        m.rect.z0 <= opening.z0 + EPS &&
+        m.rect.z1 >= opening.z1 - EPS,
+    ) ?? null
+  )
+}
+
+// How much of the hinged stile the door covers. Inset has no overlay; for overlay mounts the
+// member's inner edge and the already-resolved front edge are enough, including half-overlay and
+// internal stiles.
+export function frameOverlay(
+  member: FrameMember,
+  door: Rect,
+  hinge: 'left' | 'right',
+  mount: 'overlay' | 'half-overlay' | 'inset',
+): number {
+  if (mount === 'inset') return 0
+  return hinge === 'left' ? member.rect.x1 - door.x0 : door.x1 - member.rect.x0
+}
