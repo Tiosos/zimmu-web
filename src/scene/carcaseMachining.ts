@@ -6,7 +6,7 @@ import { sectionInteriors } from './sectionInterior'
 import { frontCells } from './frontCells'
 import { cupRow, plateScrewRows, slideScrewRow } from './frontMachining'
 import { drawerBoxMetrics, type DrawerParams } from './drawerBox'
-import { clearDepth, frontGeometryOf, openingRect, PIN_DIAMETER, pinRow, sectionThickness } from './carcaseLayout'
+import { clearDepth, frontGeometryOf, openingRect, PIN_DIAMETER, pinRow, sectionThickness, usableInteriorRect } from './carcaseLayout'
 import { carcaseRoles } from './carcaseParts'
 
 const LEFT_EDGE_FACE: Face = '+Z'
@@ -49,6 +49,7 @@ export function carcaseHoleArrays(
     openingRect(p, thicknessOf),
     sectionThickness(thicknessOf),
   )
+  const fronts = frontGeometryOf(p, tree)
 
   // Two thirds of the panel this row is bored into: deep enough to seat a pin, never a through
   // hole — which is a statement about that panel, not about the cabinet.
@@ -65,7 +66,8 @@ export function carcaseHoleArrays(
     // The same row the shelves are seated on, so a shelf can never rest on a pin the cabinet did
     // not bore. Carried into the panel's frame: board y runs the carcase height and the panel's
     // origin is its own bottom edge.
-    const { first: firstZ, count } = pinRow(rect, a)
+    const usable = usableInteriorRect(rect, fronts.frameOpenings?.get(sectionId))
+    const { first: firstZ, count } = pinRow(usable, a)
     if (count < 1) continue
     const first = firstZ - panel.position.z
 
@@ -119,8 +121,7 @@ export function carcaseMachining(
     openingRect(p, thicknessOf),
     sectionThickness(thicknessOf),
   )
-  const fronts = frontGeometryOf(p, tree)
-  const cells = frontCells(p.section, tree, fronts)
+    const cells = frontCells(p.section, tree, fronts)
 
   const cuts: HoleArrayCut[] = []
   for (const cell of cells) {
@@ -181,10 +182,15 @@ export function carcaseMachining(
       if (drawer === null) continue
       const sectionRect = tree.rects.get(cell.sectionId)
       if (sectionRect === undefined) continue
-      const metrics = drawerBoxMetrics(sectionRect, drawer.params, {
+      const drawerOpening = usableInteriorRect(
+        sectionRect,
+        fronts.frameOpenings?.get(cell.sectionId),
+      )
+      const metrics = drawerBoxMetrics(drawerOpening, drawer.params, {
         clearDepth: clearDepth(p, thicknessOf('back')),
         frontThickness: thicknessOf(frontRole),
         inset: p.frontMount === 'inset',
+        frameDepth: fronts.frameOpenings?.has(cell.sectionId) ? thicknessOf('stile-left') : 0,
         sideThickness: drawer.sideThickness,
       })
       // Declined, exactly as the box boards are — no runner fits, or the box will not go in its own
