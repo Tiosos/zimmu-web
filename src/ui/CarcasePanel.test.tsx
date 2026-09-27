@@ -572,6 +572,8 @@ describe('CarcasePanel — face frame', () => {
     renderPanel(doored({ frame: FRAME }))
     expect(screen.getByLabelText('Stile width')).toBeTruthy()
     expect(screen.getByLabelText('Rail width')).toBeTruthy()
+    expect(screen.getByLabelText('Mid stile')).toBeTruthy()
+    expect(screen.getByLabelText('Pair centre stile')).toBeTruthy()
     expect(screen.getByLabelText('Frame material')).toBeTruthy()
   })
 
@@ -598,6 +600,19 @@ describe('CarcasePanel — face frame', () => {
     await userEvent.type(field, '50')
     await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled())
     expect(appliedParams(onUpdate, c).frame).toEqual({ ...FRAME, stileWidth: 50 })
+  })
+
+  it('toggles a pair centre stile without changing the structural section tree', async () => {
+    const c = doored({
+      frame: FRAME,
+      section: { ...sec([], 0), front: { kind: 'door', leaves: 2, hinge: 'left' } },
+    })
+    const beforeSection = c.params.section
+    const { onUpdate } = withFrameCallback(c)
+    await userEvent.click(screen.getByLabelText('Pair centre stile'))
+    const next = appliedParams(onUpdate, c)
+    expect(next.frame).toEqual({ ...FRAME, pairStile: true })
+    expect(next.section).toBe(beforeSection)
   })
 
   // Stage 1 declines to frame a divided cabinet. That is not an error — an error refuses the whole
