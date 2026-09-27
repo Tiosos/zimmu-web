@@ -185,15 +185,18 @@ export function CarcasePanel({
   // Resolve once for every sidebar consumer. In particular, a divided frame MUST receive this tree
   // just as the generator does; asking frame geometry without it would falsely claim a buildable
   // Stage-2+ cabinet is unsupported.
-  const resolvedTree =
-    errors.length === 0
-      ? resolveSections(p.section, openingRect(p, thicknessOf), sectionThickness(thicknessOf))
-      : undefined
+  const resolvedTree = resolveSections(
+    p.section,
+    openingRect(p, thicknessOf),
+    sectionThickness(thicknessOf),
+  )
   // Set, valid, and still not built. Not an error — an error refuses the whole cabinet — so it is
-  // said here instead, or the user ticks the box and sees nothing happen.
+  // said here instead, or the user ticks the box and sees nothing happen. Validation gates only
+  // this warning; the opening editor has always remained available while unrelated fields are
+  // invalid or materials are incomplete.
   const frameDeclined =
     frame !== undefined &&
-    resolvedTree !== undefined &&
+    errors.length === 0 &&
     frontGeometryOf(p, resolvedTree).frameOpenings === undefined
   // A slot can only name a material that states a thickness; anything else collapses every panel
   // derived from it. The one already on the carcase is offered too, so a file naming a material
@@ -241,8 +244,7 @@ export function CarcasePanel({
   // pick is held by id rather than by index: the shim rebuilds the tree with new ids whenever the
   // divider or fixed-shelf field is touched, and an index would then silently point at a different
   // opening instead of falling back to the first.
-  const openings =
-    resolvedTree === undefined ? [] : sectionOpenings(p.section, resolvedTree)
+  const openings = sectionOpenings(p.section, resolvedTree)
   // The elevation is the picker now. Two ways to choose an opening is one way to choose the wrong
   // one, so this reads the selection rather than holding a second — and when there is none it says
   // so rather than falling back to the first, which is what the dropdown did and what made it a
