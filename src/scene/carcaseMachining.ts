@@ -8,6 +8,8 @@ import { cupRow, plateScrewRows, slideScrewRow } from './frontMachining'
 import { drawerBoxMetrics, type DrawerParams } from './drawerBox'
 import { clearDepth, frontGeometryOf, openingRect, PIN_DIAMETER, pinRow, sectionThickness, usableInteriorRect } from './carcaseLayout'
 import { carcaseRoles } from './carcaseParts'
+import { faceFrameGeometry, frameOverlay, hingedFrameMember } from './faceFrame'
+import { blumFaceFrameHingeFor } from './faceFrameHardware'
 
 const LEFT_EDGE_FACE: Face = '+Z'
 const RIGHT_EDGE_FACE: Face = '-Z'
@@ -123,6 +125,8 @@ export function carcaseMachining(
   )
   const fronts = frontGeometryOf(p, tree)
   const cells = frontCells(p.section, tree, fronts)
+  const frame =
+    p.frame === undefined ? null : faceFrameGeometry(p.section, fronts.outer, p.frame, tree)
 
   const cuts: HoleArrayCut[] = []
   for (const cell of cells) {
@@ -131,10 +135,20 @@ export function carcaseMachining(
     // On the front itself: only a door, and only its cups.
     if (role === frontRole) {
       if (cell.spec.kind !== 'door' || cell.hinge === undefined) continue
-      // Face-frame hinges are stage 4. Until then a framed door is bored for nothing: a frameless
-      // pattern would put its plates in a side the stile covers, and the hardware list would quote
-      // hinges off those bores. Declining is what a door too thin to bore already does.
-      if (fronts.frameOpenings?.has(cell.sectionId)) continue
+      if (fronts.frameOpenings?.has(cell.sectionId)) {
+        // A framed cup is still on the door, but its depth belongs to the actual Blum application
+        // selected from this leaf's overlap. If the geometry has no supported application, decline
+        // the cup as well as the plate and BOM: one impossible hinge must not leave half a pattern.
+        if (frame === null) continue
+        const member = hingedFrameMember(frame, cell.sectionId, cell.hinge)
+        if (member === null) continue
+        const overlay = frameOverlay(member, cell.rect, cell.hinge, p.frontMount)
+        const hardware = blumFaceFrameHingeFor(p.frontMount, overlay)
+        if (hardware === null) continue
+        const cup = cupRow(panel, cell.hinge, frontRole, hardware.cupDepth)
+        if (cup !== null) cuts.push(cup)
+        continue
+      }
       const cup = cupRow(panel, cell.hinge, frontRole)
       if (cup !== null) cuts.push(cup)
       continue
@@ -149,7 +163,8 @@ export function carcaseMachining(
     const face = BOUND_FACE[side]
 
     if (cell.spec.kind === 'door') {
-      // Stage 4, as above: the plates follow the cups, and a framed door has none.
+      // A framed door's mounting hardware belongs to the face-frame component, never this
+      // carcase upright. The frame pass owns those cuts so the side cannot be bored as well.
       if (fronts.frameOpenings?.has(cell.sectionId)) continue
       // The upright a door is *hinged on* carries its plates, and no other. A row bored into the
       // upright on the handle side is a row of holes nothing will ever use — the same defect Stage D
