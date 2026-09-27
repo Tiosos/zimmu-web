@@ -23,6 +23,8 @@ export interface FrontGeometry {
     string,
     { id: string; sectionId: SectionId; rect: Rect; front: FrontSpec }
   >
+  // Every clear frame aperture, whether or not it carries a front.
+  frameAccessOpenings?: Map<string, { id: string; sectionId: SectionId; rect: Rect }>
 }
 
 export interface FrontCell {
