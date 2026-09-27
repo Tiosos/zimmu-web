@@ -93,8 +93,8 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
   // split cabinet, or over a drawer — is NOT an error: an error refuses the whole cabinet, so
   // ticking "frame" would make it vanish. `faceFrameGeometry` declines the frame instead.
   if (p.frame !== undefined) {
-    const { stileWidth, railWidth } = p.frame
-    if (stileWidth <= 0 || railWidth <= 0) {
+    const { stileWidth, railWidth, midStileWidth, midRailWidth } = p.frame
+    if (Math.min(stileWidth, railWidth, midStileWidth, midRailWidth) <= 0) {
       errors.push('frame members must be wider than zero')
     } else if (p.width - 2 * stileWidth <= 0 || p.height - floorZ(p) - 2 * railWidth <= 0) {
       // `floorZ`, because the frame sits on the carcase and the toe kick is recessed behind it —
@@ -126,7 +126,7 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
   // parameter that costs it nothing.
   if (p.frontReveal < 0) errors.push('the reveal must be 0 or more')
   else {
-    const cells = frontCells(p.section, resolved, frontGeometryOf(p))
+    const cells = frontCells(p.section, resolved, frontGeometryOf(p, resolved))
     if (cells.some((c) => c.rect.x1 - c.rect.x0 <= 0 || c.rect.z1 - c.rect.z0 <= 0)) {
       errors.push('the reveal leaves no front')
     }
