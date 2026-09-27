@@ -1935,6 +1935,74 @@ describe('adjustable shelves', () => {
     expect(shelfBoxes(oneBay(3))).toHaveLength(3)
   })
 
+  it('keeps a full-width shelf when one independent aperture can admit it', () => {
+    const p = oneBay(1)
+    const sectionId = p.section.id
+    const framed: CarcaseParams = {
+      ...p,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        layout: {
+          [sectionId]: {
+            id: 'zones',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [
+                {
+                  id: 'lower',
+                  size: { kind: 'equal' },
+                  content: {
+                    kind: 'split',
+                    axis: 'vertical',
+                    children: [
+                      { id: 'lower-left', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+                      { id: 'lower-right', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+                    ],
+                  },
+                },
+                {
+                  id: 'upper',
+                  size: { kind: 'fixed', mm: 140 },
+                  content: { kind: 'leaf' },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }
+    const [shelf] = shelfBoxes(framed)
+    expect(shelf).toBeDefined()
+    // Installed width follows the section-level outer frame opening, not the narrower lower leaves.
+    expect(shelf.box.x1 - shelf.box.x0).toBeCloseTo(600 - 2 * 44 - 2 * CLEARANCE, 9)
+  })
+
+  it('declines a loose shelf and its pin rows when every physical aperture is too narrow', () => {
+    const p = oneBay(1)
+    const pair: CarcaseParams = {
+      ...p,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        pairStile: true,
+      },
+      section: {
+        ...p.section,
+        front: { kind: 'door', leaves: 2, hinge: 'left' },
+      },
+    }
+    expect(shelfBoxes(pair)).toEqual([])
+    expect(carcaseHoleArrays(pair, 'left-side')).toEqual([])
+    expect(carcaseHoleArrays(pair, 'right-side')).toEqual([])
+  })
+
   it('emits none when the section asks for none', () => {
     expect(shelfBoxes(oneBay(0))).toEqual([])
   })
