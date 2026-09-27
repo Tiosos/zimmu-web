@@ -12,7 +12,7 @@ import type {
 } from './types'
 import type { Rect, SectionId } from './sectionTree'
 import { resolveCarcase } from './carcaseOpenings'
-import { clearDepth, orientedPanel, type LocalBox, type PanelSpec } from './carcaseRoles'
+import { clearDepth, frontGeometryOf, orientedPanel, type LocalBox, type PanelSpec } from './carcaseRoles'
 import { grainAxisOf, grainFieldFor } from './grain'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
 import {
@@ -77,16 +77,21 @@ function drawerSitesOf(cabinet: CarcaseComponent, scene: Scene): DrawerSite[] | 
   // cannot say how thick it is has already returned null above rather than throwing here.
   const thicknessOf = roleThicknessFor(p, scene.materials, overridesOf(scene.parts, cabinet.id))
   const clear = clearDepth(p, p.backMode === 'none' ? 0 : thicknessOf('back'))
+  const fronts = frontGeometryOf(p, resolved.tree)
+  const frameDepth = fronts.frameOpenings === undefined ? 0 : thicknessOf('stile-left')
   return resolved.openings
     .filter((o) => o.section.front?.kind === 'drawer-front')
     .map((o) => ({
       sectionId: o.sectionId,
-      opening: o.rect,
+      // A moving box must pass through the narrowest opening in front of its section. On a framed
+      // cabinet that is the frame; frameless keeps the section rectangle byte-for-byte.
+      opening: fronts.frameOpenings?.get(o.sectionId) ?? o.rect,
       ctx: {
         clearDepth: clear,
         // Only a two-leaf door has a leaf 1, so a drawer front's role key always ends in 0.
         frontThickness: thicknessOf(`front-${o.sectionId}-0`),
         inset: p.frontMount === 'inset',
+        frameDepth,
       },
     }))
 }
