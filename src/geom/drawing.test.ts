@@ -98,10 +98,36 @@ describe('buildDrawingSheets', () => {
     const sheet = sheets[1]
     if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
     expect(sheet.manufacturingNotes).toEqual([
-      'Blum inset adapter 1: Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
+      'Blum PLATEMATE — 1 position at 100 mm: Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
     ])
     expect(sheet.views.flatMap((view) => view.circles)).toEqual([])
     expect(sheet.views.flatMap((view) => view.cuts)).toEqual([])
+  })
+
+  it('consolidates repeated manual operations without losing their positions', () => {
+    const op = {
+      kind: 'manual-machining' as const,
+      id: 'op1',
+      label: 'Blum inset adapter 1',
+      hardwareKey: 'hinge-blum-clip-inset-175h5030-21',
+      face: '-Z' as const,
+      at: { x: 100, y: 28, z: 0 },
+      diameter: 3,
+      pitch: 32,
+      count: 2,
+      angle: 12,
+      edgeOffset: 10,
+      template: 'Blum PLATEMATE',
+      instruction: 'Fit 175H5030.21 with the documented 12° template.',
+    }
+    const sheet = buildDrawingSheets(
+      [makeBoard({ operations: [op, { ...op, id: 'op2', at: { ...op.at, x: 700 } }] })],
+      'P',
+    )[1]
+    if (sheet.kind !== 'part' || sheet.shape !== 'board') throw new Error('expected board part')
+    expect(sheet.manufacturingNotes).toEqual([
+      'Blum PLATEMATE — 2 positions at 100, 700 mm: Fit 175H5030.21 with the documented 12° template.',
+    ])
   })
 
   it('cut on +Z face appears only in Face view', () => {
