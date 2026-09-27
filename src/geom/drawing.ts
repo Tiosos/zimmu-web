@@ -131,6 +131,8 @@ export type DrawingSheet =
   | (PartSheetCommon & {
       kind: 'part'
       shape: 'board'
+      // Shop/template instructions that are deliberately not projected as geometry.
+      manufacturingNotes: string[]
       views: [DrawingView, DrawingView, DrawingView]
     })
   | (PartSheetCommon & {
@@ -332,6 +334,33 @@ function buildView(
   }
 }
 
+function manufacturingNotesOf(p: BoardPart): string[] {
+  const groups = new Map<string, NonNullable<BoardPart['operations']>>()
+  for (const op of p.operations ?? []) {
+    // Geometry-independent identity. Position is deliberately excluded so repeated instances of
+    // one jig/template operation become one complete shop note rather than one line per hinge.
+    const key = [
+      op.hardwareKey,
+      op.template,
+      op.instruction,
+      op.diameter,
+      op.pitch,
+      op.count,
+      op.angle,
+      op.edgeOffset,
+    ].join('|')
+    const own = groups.get(key) ?? []
+    own.push(op)
+    groups.set(key, own)
+  }
+
+  return [...groups.values()].map((ops) => {
+    const first = ops[0]
+    const positions = ops.map((op) => Math.round(op.at.x * 10) / 10).join(', ')
+    return `${first.template} — ${ops.length} position${ops.length === 1 ? '' : 's'} at ${positions} mm: ${first.instruction}`
+  })
+}
+
 function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
   const { length: L, width: W, thickness: T } = p
   const scale = selectScale(L, W, T)
@@ -384,6 +413,7 @@ function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
     material: p.material,
     color: p.color,
     date,
+    manufacturingNotes: manufacturingNotesOf(p),
     views: [faceView, edgeView, endView],
     scaleLabel: toScaleLabel(scale),
   }
