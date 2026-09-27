@@ -148,6 +148,26 @@ describe('regenerateFaceFrames', () => {
     }
   })
 
+  it('records inset adapter work as manual template machining, never fake CNC holes', () => {
+    const out = regenerateFaceFrames(
+      sceneOf([cab('cmp_a', { frame: FRAME, frontMount: 'inset' })]),
+    )
+    const left = board(out, 'stile-left')
+    expect(left.cuts.filter((cut) => cut.id.startsWith('frame_plate_'))).toEqual([])
+    expect(left.operations).toHaveLength(2)
+    for (const op of left.operations ?? []) {
+      expect(op.kind).toBe('manual-machining')
+      expect(op.hardwareKey).toBe('hinge-blum-clip-inset-175h5030-21')
+      expect(op.diameter).toBe(3)
+      expect(op.pitch).toBe(32)
+      expect(op.count).toBe(2)
+      expect(op.angle).toBe(12)
+      expect(op.edgeOffset).toBe(10)
+      expect(op.template).toBe('Blum PLATEMATE')
+      expect(op.sourceComponentId).toBe(frames(out)[0].id)
+    }
+  })
+
   it('puts a half-overlay mid-stile wraparound pilot on that stile, not a carcase side', () => {
     let section = splitSection(BASE.section, BASE.section.id, 'vertical', 'panel', 2)
     const kids = section.content.kind === 'split' ? section.content.children : []
