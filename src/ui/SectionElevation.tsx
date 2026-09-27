@@ -64,7 +64,10 @@ export function SectionElevation({
 
   // The same frame-opening map used by fronts, interiors and machining. The elevation must not
   // invent a fourth frame calculation just to print a dimension.
-  const frameOpenings = frontGeometryOf(params, tree).frameOpenings
+  const frontGeometry = frontGeometryOf(params, tree)
+  const frameOpenings = frontGeometry.frameOpenings
+  const frameLeafOpenings = frontGeometry.frameLeafOpenings
+  const frameMembers = frontGeometry.frameMembers ?? []
 
   const W = params.width
   const H = params.height
@@ -101,6 +104,14 @@ export function SectionElevation({
         const { x, y, height } = toSvg(o.rect.x0, o.rect.z0, o.rect.z1)
         const width = o.rect.x1 - o.rect.x0
         const framed = frameOpenings?.get(o.sectionId)
+        const leftLeaf = frameLeafOpenings?.get(`${o.sectionId}|0`)
+        const rightLeaf = frameLeafOpenings?.get(`${o.sectionId}|1`)
+        const dimension =
+          leftLeaf !== undefined && rightLeaf !== undefined
+            ? `${Math.round(leftLeaf.x1 - leftLeaf.x0)} × ${Math.round(leftLeaf.z1 - leftLeaf.z0)} / ${Math.round(rightLeaf.x1 - rightLeaf.x0)} × ${Math.round(rightLeaf.z1 - rightLeaf.z0)}`
+            : framed === undefined
+              ? null
+              : `${Math.round(framed.x1 - framed.x0)} × ${Math.round(framed.z1 - framed.z0)}`
         const isSelected = o.sectionId === selected
         return (
           <g key={o.sectionId}>
@@ -135,7 +146,7 @@ export function SectionElevation({
             >
               {i + 1}
             </text>
-            {framed !== undefined && (
+            {dimension !== null && (
               <text
                 data-testid={`section-opening-dimension-${o.sectionId}`}
                 x={x + width / 2}
@@ -145,10 +156,25 @@ export function SectionElevation({
                 className="fill-muted-foreground pointer-events-none"
                 fontSize={font * 0.7}
               >
-                {`${Math.round(framed.x1 - framed.x0)} × ${Math.round(framed.z1 - framed.z0)}`}
+                {dimension}
               </text>
             )}
           </g>
+        )
+      })}
+
+      {frameMembers.map((member) => {
+        const { x, y, height } = toSvg(member.rect.x0, member.rect.z0, member.rect.z1)
+        return (
+          <rect
+            key={member.role}
+            data-testid={`frame-member-${member.role}`}
+            x={x}
+            y={y}
+            width={member.rect.x1 - member.rect.x0}
+            height={height}
+            className="fill-muted-foreground/35 pointer-events-none"
+          />
         )
       })}
 
