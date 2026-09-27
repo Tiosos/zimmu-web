@@ -147,3 +147,26 @@ describe('for the presets only, grain agrees with longest-first', () => {
     expect(shelf.panel.length).toBeLessThan(shelf.panel.width)
   })
 })
+
+describe('a face frame member', () => {
+  // Each member carries its grain along its own length: a stile stands, a rail lies.
+  it('runs a stile vertical and a rail horizontal', () => {
+    expect(grainAxisOf('stile-left')).toBe('z')
+    expect(grainAxisOf('stile-right')).toBe('z')
+    expect(grainAxisOf('rail-top')).toBe('x')
+    expect(grainAxisOf('rail-bottom')).toBe('x')
+  })
+
+  // Families, not names: stage 2's mid members must resolve without touching this table again.
+  it('resolves a mid member by family', () => {
+    expect(grainAxisOf('stile-mid-1')).toBe('z')
+    expect(grainAxisOf('rail-mid-1')).toBe('x')
+  })
+
+  // A frame member is thickness-on-y, exactly as a front is, so its grain lies in the board's
+  // plane and resolves to a field rather than tripping grainFieldFor's thickness-axis throw.
+  it('resolves to a board field on a thickness-on-y panel', () => {
+    expect(grainFieldFor('y', grainAxisOf('stile-left'))).toBe('length')
+    expect(() => grainFieldFor('y', grainAxisOf('rail-top'))).not.toThrow()
+  })
+})

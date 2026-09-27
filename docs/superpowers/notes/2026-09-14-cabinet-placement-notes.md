@@ -588,3 +588,32 @@ its pixel.
 **Process note.** The full e2e suite was run locally before pushing — 25 passed — rather than
 pushing the one fixed test and letting CI find the rest. The gizmo overlays the viewport in every
 test where a cabinet is selected, and several other specs sample canvas hues.
+
+### 2026-09-24 — closing the claim placement was justified by
+
+The placement design's "Why this exists" named **two shipped claims unreachable without it**. One
+was half-overlay, which still needs a face frame. The other was `CarcaseParams.frontReveal`'s own
+documentation: *"One number governs ... the gap between the doors of two cabinets standing side by
+side."* Placement made that arrangement buildable — and then nobody wrote the test. Checked before
+claiming it: `resolvePlacement.test.ts` never emits parts at all (0 references to
+`regenerateComponents`/`partsOf`), and no test asserted a `front-` role across two cabinets.
+
+`adjacentFronts.test.ts` closes it.
+
+**The arithmetic was wrong on the first pass, and measuring corrected it.** Reasoning from the
+stated rule — *"an overlay cell reaches to the material midline on every side"* — predicts that two
+butted cabinets put their doors `thickness + reveal` apart (21 mm at 18/3), because there are two
+side panels between them. Probing the real generator gave something else: a 600-wide cabinet at
+reveal 3 emits its door **597 wide at local x = 1.5**, so A spans `[1.5, 598.5]`, B (at x = 600)
+spans `[601.5, 1198.5]`, and the gap is **exactly 3**. The midline rule governs where a cell meets
+*another cell*; at the cabinet's own boundary the cell reaches the outer edge. The documented claim
+is exact, and the derivation that contradicted it was the thing at fault.
+
+Pinned at four reveal values (0, 3, 10, 25) rather than one, so the test says "tracks the reveal"
+rather than "equals 3 at the preset". Mutation-tested against `frontCells.ts`: a full reveal per
+side, and no reveal at all, each kill two of the four.
+
+**A process note that paid for itself immediately.** The second mutation first reported
+`Tests  no tests` — the blind replacement of `reveal / 2` had also hit `g.reveal / 2` and produced
+`g.0`, a syntax error. The rule recorded in the stage-3 entry (*a run reporting no tests is a broken
+mutation, not evidence*) is what stopped that being read as a survivor.

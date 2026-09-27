@@ -3,7 +3,7 @@ import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { CarcasePanel } from './CarcasePanel'
-import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, DEFAULT_FRAME, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { resolvedOf } from '../scene/__fixtures__/resolve'
 import { legacyToSection } from '../scene/migrateSections'
 import { defaultDrawerParams } from '../scene/drawerBox'
@@ -69,6 +69,7 @@ function renderPanel(
   parts: Part[] = [],
   onUpdateComponent = vi.fn(),
   drawers: DrawerComponent[] = drawersFor(component),
+  onSetFrame = vi.fn(),
 ) {
   const pick =
     selectedSectionId === undefined
@@ -84,6 +85,7 @@ function renderPanel(
         components={drawers}
         onUpdate={onUpdate}
         onUpdateComponent={onUpdateComponent}
+        onSetFrame={onSetFrame}
         selectedSectionId={pick}
       />
     </TooltipProvider>,
@@ -207,6 +209,7 @@ describe('CarcasePanel', () => {
           components={[]}
           onUpdate={vi.fn()}
           onUpdateComponent={vi.fn()}
+          onSetFrame={vi.fn()}
           selectedSectionId={null}
         />
       </TooltipProvider>,
@@ -220,6 +223,7 @@ describe('CarcasePanel', () => {
           components={[]}
           onUpdate={vi.fn()}
           onUpdateComponent={vi.fn()}
+          onSetFrame={vi.fn()}
           selectedSectionId={null}
         />
       </TooltipProvider>,
@@ -545,5 +549,78 @@ describe('CarcasePanel — drawer parameters', () => {
     await userEvent.type(field, '48')
     await waitFor(() => expect(onUpdateComponent.mock.calls.length).toBeGreaterThan(before))
     expect(appliedDrawer(onUpdateComponent, drawersFor(c)[0]).params.runnerOffset).toBe(48)
+  })
+})
+
+describe('CarcasePanel — face frame', () => {
+  afterEach(cleanup)
+
+  const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+  const DOOR = { kind: 'door', leaves: 1, hinge: 'left' } as const
+  const doored = (over: Partial<CarcaseParams> = {}) =>
+    carcase({ section: { ...sec([], 0), front: DOOR }, ...over })
+  const withFrameCallback = (c: CarcaseComponent, onSetFrame = vi.fn(), onUpdate = vi.fn()) => {
+    renderPanel(c, onUpdate, PRESET_MATERIALS, undefined, [], vi.fn(), drawersFor(c), onSetFrame)
+    return { onSetFrame, onUpdate }
+  }
+
+  it('offers the frame fields only on a framed cabinet', () => {
+    renderPanel(doored())
+    expect(screen.getByLabelText('Face frame')).toBeTruthy()
+    expect(screen.queryByLabelText('Stile width')).toBeNull()
+    cleanup()
+    renderPanel(doored({ frame: FRAME }))
+    expect(screen.getByLabelText('Stile width')).toBeTruthy()
+    expect(screen.getByLabelText('Rail width')).toBeTruthy()
+    expect(screen.getByLabelText('Frame material')).toBeTruthy()
+  })
+
+  // Through onSetFrame, never a params patch: turning a frame on may have to add its material to
+  // the scene, and that has to be one undo step with the frame.
+  it('turns a frame on with the stated default, not a frame of zeroes', async () => {
+    const { onSetFrame, onUpdate } = withFrameCallback(doored())
+    await userEvent.click(screen.getByLabelText('Face frame'))
+    expect(onSetFrame).toHaveBeenCalledWith(DEFAULT_FRAME)
+    expect(onUpdate).not.toHaveBeenCalled()
+  })
+
+  it('takes the frame off again', async () => {
+    const { onSetFrame } = withFrameCallback(doored({ frame: FRAME }))
+    await userEvent.click(screen.getByLabelText('Face frame'))
+    expect(onSetFrame).toHaveBeenCalledWith(undefined)
+  })
+
+  it('writes a stile width to the frame and leaves the rest of it alone', async () => {
+    const c = doored({ frame: FRAME })
+    const { onUpdate } = withFrameCallback(c)
+    const field = screen.getByLabelText('Stile width')
+    await userEvent.clear(field)
+    await userEvent.type(field, '50')
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled())
+    expect(appliedParams(onUpdate, c).frame).toEqual({ ...FRAME, stileWidth: 50 })
+  })
+
+  // Stage 1 declines to frame a divided cabinet. That is not an error — an error refuses the whole
+  // cabinet — so without a note the user ticks the box and sees nothing happen.
+  it('says so when the frame is set but cannot be built yet', () => {
+    renderPanel(carcase({ frame: FRAME, section: sec([0.5], 0) }))
+    expect(screen.getByText(/face frame is not built/i)).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('says nothing when the frame builds', () => {
+    renderPanel(doored({ frame: FRAME }))
+    expect(screen.queryByText(/face frame is not built/i)).toBeNull()
+  })
+
+  // Half-overlay laps a stile, so a frameless cabinet has nothing for it to mean.
+  it('offers half-overlay only on a framed cabinet', async () => {
+    renderPanel(doored())
+    await userEvent.click(screen.getByLabelText('Mount'))
+    expect(screen.queryByRole('option', { name: 'Half overlay' })).toBeNull()
+    cleanup()
+    renderPanel(doored({ frame: FRAME }))
+    await userEvent.click(screen.getByLabelText('Mount'))
+    expect(screen.getByRole('option', { name: 'Half overlay' })).toBeTruthy()
   })
 })

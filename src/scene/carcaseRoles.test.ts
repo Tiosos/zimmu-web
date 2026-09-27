@@ -215,6 +215,7 @@ const base: CarcaseParams = {
   depth: 560,
   carcaseMaterial: '18mm Ply',
   backMaterial: '12mm MDF',
+  frameMaterial: '18mm Ply',
   hasTop: true,
   backMode: 'captured',
   baseMode: 'toe-kick',
@@ -230,6 +231,74 @@ const base: CarcaseParams = {
 describe('validateCarcaseParams', () => {
   it('accepts a sane base cabinet', () => {
     expect(validateCarcaseParams(base)).toEqual([])
+  })
+
+  describe('a face frame', () => {
+    const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+
+    it('accepts a framed cabinet', () => {
+      expect(validateCarcaseParams({ ...base, frame: FRAME })).toEqual([])
+    })
+
+    it('refuses half-overlay on a frameless cabinet', () => {
+      expect(validateCarcaseParams({ ...base, frontMount: 'half-overlay' })).toContain(
+        'half-overlay needs a face frame',
+      )
+    })
+
+    it('allows half-overlay on a framed cabinet', () => {
+      expect(
+        validateCarcaseParams({ ...base, frame: FRAME, frontMount: 'half-overlay' }),
+      ).toEqual([])
+    })
+
+    it('refuses a frame whose stiles leave no opening', () => {
+      expect(validateCarcaseParams({ ...base, frame: { ...FRAME, stileWidth: 300 } })).toContain(
+        'the face frame leaves no opening',
+      )
+    })
+
+    // Measured from the carcase floor, not from the ground: base sits on a 100 mm toe kick, so
+    // rails of 300 leave 720 − 100 − 600 = 20 mm — an opening — while 311 leaves none. A check
+    // that forgot the kick would still see 720 − 622 = 98 mm and pass the cabinet.
+    it('measures the rails from the carcase floor', () => {
+      expect(
+        validateCarcaseParams({ ...base, frame: { ...FRAME, railWidth: 300 } }),
+      ).not.toContain('the face frame leaves no opening')
+      expect(validateCarcaseParams({ ...base, frame: { ...FRAME, railWidth: 311 } })).toContain(
+        'the face frame leaves no opening',
+      )
+    })
+
+    it('refuses a zero-width member', () => {
+      expect(validateCarcaseParams({ ...base, frame: { ...FRAME, railWidth: 0 } })).toContain(
+        'frame members must be wider than zero',
+      )
+    })
+
+    // The validator is total: an unusable frame material has to read back as a message beside the
+    // field, not as the throw regenerateFaceFrames would hit. And it must name the frame slot —
+    // blaming the carcase material would send the user to the wrong field.
+    it('names the frame material when it has no thickness', () => {
+      const errors = validateCarcaseParams({ ...base, frame: FRAME, frameMaterial: 'Balsa' })
+      expect(errors).toContain('frameMaterial "Balsa" has no thickness')
+      expect(errors.some((e) => e.startsWith('carcaseMaterial'))).toBe(false)
+    })
+
+    // A frameless cabinet builds no frame, so an unusable frame material is not its problem.
+    it('ignores the frame material on a frameless cabinet', () => {
+      expect(validateCarcaseParams({ ...base, frameMaterial: 'Balsa' })).toEqual([])
+    })
+
+    // Stage 1 builds a single opening only, but a split cabinet is NOT refused here: a validation
+    // error refuses the whole cabinet, so ticking "frame" would make it vanish. The geometry
+    // declines the frame instead and the cabinet stands.
+    it('does not refuse a framed cabinet that stage 1 cannot frame', () => {
+      const split = { ...base, frame: FRAME, section: sec([0.5], 1) }
+      expect(split.section.content.kind).toBe('split')
+      expect(validateCarcaseParams({ ...base, section: split.section })).toEqual([])
+      expect(validateCarcaseParams(split)).toEqual([])
+    })
   })
 
   it('rejects a carcase narrower than two side panels', () => {
@@ -2053,6 +2122,60 @@ describe('fronts', () => {
     expect(inset.box.y1).toBeCloseTo(T, 9)
   })
 
+  // A 25 mm frame under an 18 mm door: two different figures, so a door placed off its own
+  // thickness where it should read the frame's — or the reverse — cannot pass.
+  const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+  const framedBay: CarcaseParams = { ...oneBay, frame: FRAME, frameMaterial: '25mm Ply' }
+
+  it('stands an overlay door in front of the frame, not in front of the carcase', () => {
+    const [door] = frontBoxes(fronted({ ...framedBay, frontMount: 'overlay' }))
+    expect(door.box.y0).toBeCloseTo(-25 - T, 9)
+    expect(door.box.y1).toBeCloseTo(-25, 9)
+    // And covers it exactly as it would cover a frameless carcase.
+    const [frameless] = frontBoxes(fronted({ ...oneBay, frontMount: 'overlay' }))
+    expect([door.box.x0, door.box.x1, door.box.z0, door.box.z1]).toEqual([
+      frameless.box.x0,
+      frameless.box.x1,
+      frameless.box.z0,
+      frameless.box.z1,
+    ])
+  })
+
+  it('sets an inset door flush with the face of the frame', () => {
+    const [door] = frontBoxes(fronted({ ...framedBay, frontMount: 'inset' }))
+    expect(door.box.y0).toBeCloseTo(-25, 9)
+    expect(door.box.y1).toBeCloseTo(-25 + T, 9)
+    // Inside the frame opening, a reveal clear of the 44 mm stile.
+    expect(door.box.x0).toBeCloseTo(44 + 3, 9)
+  })
+
+  it('laps a half-overlay door to the midline of its stile', () => {
+    const [door] = frontBoxes(fronted({ ...framedBay, frontMount: 'half-overlay' }))
+    expect(door.box.x0).toBeCloseTo(22 + 1.5, 9)
+    expect(door.box.x1).toBeCloseTo(600 - 22 - 1.5, 9)
+    expect(door.box.y1).toBeCloseTo(-25, 9)
+  })
+
+  // Stage 1 declines to frame a drawer, so no frame is built — and the front must not float a
+  // frame's thickness in front of nothing.
+  it('leaves the front where a frameless cabinet puts it when the frame declines', () => {
+    const [front] = frontBoxes(fronted(framedBay, { kind: 'drawer-front' }))
+    expect(front.box.y0).toBeCloseTo(-T, 9)
+    expect(front.box.y1).toBeCloseTo(0, 9)
+  })
+
+  // The validator measures the reveal against the cells the cabinet would emit, so it must see the
+  // frame too. A 260 reveal fits the carcase's 564 opening but not the frame's 512.
+  it('checks the reveal against the frame opening', () => {
+    const wide = { frontMount: 'inset' as const, frontReveal: 260 }
+    expect(validateCarcaseParams(fronted({ ...oneBay, ...wide }))).not.toContain(
+      'the reveal leaves no front',
+    )
+    expect(validateCarcaseParams(fronted({ ...framedBay, ...wide }))).toContain(
+      'the reveal leaves no front',
+    )
+  })
+
   it('is a thickness-on-y panel that runs grain along its length', () => {
     for (const r of carcaseRoles(fronted(oneBay)).filter((r) => r.role.startsWith('front-'))) {
       expect(r.grain).toBe('length')
@@ -2176,6 +2299,19 @@ describe('front machining', () => {
     const p = doored()
     expect(carcaseMachining(p, frontRole(p))).toHaveLength(1)
   })
+
+  // Face-frame hinges are stage 4. Until then a framed door is bored for nothing: a frameless cup
+  // and plate pattern would put the plates in a side panel the stile covers, and the hardware list
+  // would quote hinges off those bores. Declining is what a door too thin to bore already does.
+  it.each(['overlay', 'half-overlay', 'inset'] as const)(
+    'bores no hinge into a framed cabinet (%s)',
+    (frontMount) => {
+      const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+      const p = doored({ frontMount, frame: FRAME })
+      expect(carcaseMachining(p, frontRole(p))).toEqual([])
+      expect(carcaseMachining(p, 'left-side')).toEqual([])
+    },
+  )
 
   it('bores no cups into a drawer front, a false front or a panel', () => {
     for (const kind of ['drawer-front', 'false-front', 'panel'] as const) {

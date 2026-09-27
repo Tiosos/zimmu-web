@@ -6,6 +6,7 @@ import type { ExportSpec } from '../geom/occt'
 import type {
   BoardPart,
   CarcaseComponent,
+  FaceFrameParams,
   Component,
   ComponentId,
   GroupComponent,
@@ -28,6 +29,7 @@ import { reconcileJoints } from './reconcileJoints'
 import { isJointOwned } from './cutOwnership'
 import { regenerateComponents } from './regenerateComponents'
 import { regenerateDrawers } from './regenerateDrawers'
+import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
 import { freshSectionIds } from './sectionTree'
 import { componentsById, descendantIds, wouldCycle } from './componentTree'
@@ -56,11 +58,13 @@ interface HistoryEntry {
 
 const MAX_HISTORY = 50
 
-// The one place a scene mutation becomes geometry. Three stages, and the order is fixed because
-// the dependencies run one way. Drawers lead: a drawer reads nothing a carcase emits — its inputs
-// are the section tree, its own parameters and the materials — while the carcase's slide machining
-// is a figure about the box that fills the opening, so a pass run the other way round would machine
-// the cabinet against a box it had not built yet. Carcases then emit their parts and
+// The one place a scene mutation becomes geometry. Five stages, and the order is fixed because
+// the dependencies run one way. The face frame leads the generators: it reads nothing any of them
+// emit — its inputs are the section tree, the cabinet's front rectangle, the frame parameters and
+// the materials. Drawers follow for the same reason: a drawer reads nothing a carcase emits — its
+// inputs are the section tree, its own parameters and the materials — while the carcase's slide
+// machining is a figure about the box that fills the opening, so a pass run the other way round
+// would machine the cabinet against a box it had not built yet. Carcases then emit their parts and
 // component-owned cuts, and reconcileJoints derives joint cuts and seats from scene.joints last:
 // reversed, joints would be derived against parts that do not exist yet.
 // Placement leads, and it has to. regenerateDrawers and regenerateComponents genuinely do not read a
@@ -71,7 +75,9 @@ const MAX_HISTORY = 50
 // non-idempotent — the second call re-derives joint cuts the first got wrong — which is how this was
 // caught. A grep for `.position` does not show it; the dependency is through the matrix.
 export function applyPipeline(scene: Scene): Scene {
-  return reconcileJoints(regenerateComponents(regenerateDrawers(resolvePlacement(scene))))
+  return reconcileJoints(
+    regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(scene)))),
+  )
 }
 
 // Lazy singleton — not instantiated at module load so vi.stubGlobal('Worker') works in tests
@@ -145,6 +151,7 @@ export interface UseSceneResult {
   onAddTongueGroove: (grooveHit: FaceHit, tongueHit: FaceHit) => void
   onAddComponent: (parentId: ComponentId | null) => void
   onAddCarcase: (preset: CarcasePreset) => void
+  onSetFrame: (id: ComponentId, frame: FaceFrameParams | undefined) => void
   onDetachPart: (id: PartId, updater?: (p: Part) => Part) => void
   parameterFor: (
     id: PartId,
@@ -1273,6 +1280,50 @@ export function useScene(): UseSceneResult {
     [commitReconciled],
   )
 
+  // Turning a frame on is the moment a cabinet first needs its frame material, and an old file
+  // does not carry it — the migration deliberately adds none. So it is added here, in the same undo
+  // step as the frame: one gesture, one entry. Only when the scene has no material of that name at
+  // all, so a user's own definition of it is never overwritten.
+  const onSetFrame = useCallback(
+    (id: ComponentId, frame: FaceFrameParams | undefined) => {
+      commitReconciled(
+        (before) => {
+          const cabinet = before.components.find((c) => c.id === id)
+          if (cabinet?.kind !== 'carcase') return before
+          const name = cabinet.params.frameMaterial
+          const seed = frame !== undefined && before.materials[name] === undefined
+          const preset = PRESET_MATERIALS[name]
+          return {
+            ...before,
+            materials:
+              seed && preset !== undefined
+                ? { ...before.materials, [name]: preset }
+                : before.materials,
+            components: before.components.map((c) =>
+              c.id === id && c.kind === 'carcase'
+                ? {
+                    ...c,
+                    params: {
+                      ...c.params,
+                      frame,
+                      // Half-overlay laps a stile. Left on a frameless cabinet the validator
+                      // refuses the whole cabinet, so taking the frame off would make it vanish.
+                      frontMount:
+                        frame === undefined && c.params.frontMount === 'half-overlay'
+                          ? 'overlay'
+                          : c.params.frontMount,
+                    },
+                  }
+                : c,
+            ),
+          }
+        },
+        frame === undefined ? 'Remove face frame' : 'Add face frame',
+      )
+    },
+    [commitReconciled],
+  )
+
   const onRemoveComponent = useCallback(
     (id: ComponentId) => {
       const doomed = new Set<ComponentId>([
@@ -1423,6 +1474,7 @@ export function useScene(): UseSceneResult {
     onAddTongueGroove,
     onAddComponent,
     onAddCarcase,
+    onSetFrame,
     onDetachPart,
     parameterFor,
     onRemoveComponent,

@@ -18,7 +18,7 @@ import type {
 } from '../scene/types'
 import type { MaterialDef, HardwareItem } from '../scene/types'
 import { regenerateComponents } from '../scene/regenerateComponents'
-import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
+import { CARCASE_PRESETS, DEFAULT_FRAME_MATERIAL, PRESET_MATERIALS } from '../scene/carcasePresets'
 import type { HardwareRow } from './groupHardware'
 
 function makeDowel(over: Partial<CylinderPart> & { id: string }): Part {
@@ -583,6 +583,14 @@ describe('buildDowelCsv', () => {
 })
 
 describe('isNestable', () => {
+  // Frame members are solid stock bought to length, not cut from a sheet. The preset frame material
+  // carries no `sheet`, so the nest leaves every stile and rail out with no rule about their role.
+  // A user who gives that material a sheet in the library opts it back in — the library's call.
+  it('leaves the preset frame material out of the nest', () => {
+    expect(PRESET_MATERIALS[DEFAULT_FRAME_MATERIAL].sheet).toBeUndefined()
+    expect(isNestable(PRESET_MATERIALS[DEFAULT_FRAME_MATERIAL])).toBe(false)
+  })
+
   it('a material with no sheet is not nested', () => {
     expect(isNestable({ costPerM2: 40 })).toBe(false)
   })

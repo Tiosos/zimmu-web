@@ -72,6 +72,7 @@ function App() {
     onSelect,
     onToggleVisible,
     onUpdateComponent,
+    onSetFrame,
     canUndo,
     canRedo,
     undoLabel,
@@ -691,6 +692,7 @@ function App() {
           parameterFor={parameterFor}
           onDetachPart={onDetachPart}
           onUpdateComponent={onUpdateComponent}
+          onSetFrame={onSetFrame}
           onRemove={onRemove}
           onDuplicate={onDuplicate}
           onUpdate={onUpdate}

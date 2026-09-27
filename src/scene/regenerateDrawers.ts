@@ -1,5 +1,4 @@
 import type {
-  BoardPart,
   BoxCut,
   CarcaseComponent,
   Component,
@@ -7,9 +6,7 @@ import type {
   CutDef,
   DrawerComponent,
   Face,
-  Grain,
   MaterialDef,
-  Part,
   Scene,
   ThicknessAxis,
 } from './types'
@@ -30,7 +27,7 @@ import {
   type DrawerContext,
   type RunnerFamily,
 } from './drawerBox'
-import { PART_COLORS } from './palette'
+import { reconcileBoards, type GeneratedBoard } from './reconcileBoards'
 
 // Component ids are `cmp_<uuid>` and section ids are `sec_<uuid>`, so neither can contain a `|`.
 // A released drawer names no opening at all, so it is kept out of the map rather than keyed on a
@@ -96,13 +93,8 @@ function drawerSitesOf(cabinet: CarcaseComponent, scene: Scene): DrawerSite[] | 
 
 type BoxRole = 'box-left' | 'box-right' | 'box-front' | 'box-back' | 'box-bottom'
 
-interface BoxBoard {
+interface BoxBoard extends GeneratedBoard {
   role: BoxRole
-  label: string
-  panel: PanelSpec
-  grain: Grain
-  // Not `BoxCut[]`: an undermount back carries a hole array rather than a box cut.
-  cuts: CutDef[]
 }
 
 // One wall of the box, as the carcase box it occupies. `minSide` says which end of its own thickness
@@ -331,65 +323,6 @@ function backBores(w: BoxWall, panel: PanelSpec, deviceX: number[]): CutDef[] {
 // board is the user's and comes back untouched, a driven one is rebuilt, and one whose role the box
 // no longer implies is deleted. An empty `wanted` is therefore the decline path, stated by not
 // being stated — the generator emits nothing rather than inventing a size.
-function reconcileBoards(
-  parts: Part[],
-  drawer: DrawerComponent,
-  wanted: BoxBoard[],
-  material: string,
-): Part[] {
-  const mine = parts.filter((p) => p.parentId === drawer.id)
-  const others = parts.filter((p) => p.parentId !== drawer.id)
-  const byRole = new Map<string, Part>()
-  for (const p of mine) if (p.role !== undefined) byRole.set(p.role, p)
-
-  const roles = new Set<string>(wanted.map((b) => b.role))
-  const kept: Part[] = []
-  for (const p of mine) {
-    if (p.role !== undefined && roles.has(p.role)) continue // reconciled in the role pass below
-    if (p.driven && p.role !== undefined) continue // driven, no longer implied → delete
-    // Detached, or never role-bound: the user's. Keep it, and release a role key the box no longer
-    // implies so a later regeneration cannot reclaim the part.
-    kept.push(p.role === undefined ? p : { ...p, role: undefined })
-  }
-
-  const generated: Part[] = wanted.map((b, i) => {
-    const existing = byRole.get(b.role)
-    if (existing !== undefined && !existing.driven) return existing
-
-    const own = b.cuts.map((c) => ({ ...c, sourceComponentId: drawer.id }))
-    const existingCuts: CutDef[] = existing?.kind === 'board' ? existing.cuts : []
-    const board: BoardPart = {
-      kind: 'board',
-      id: existing?.id ?? `board_${crypto.randomUUID()}`,
-      label: existing?.label ?? b.label,
-      length: b.panel.length,
-      width: b.panel.width,
-      thickness: b.panel.thickness,
-      grain: b.grain,
-      material,
-      color: existing?.color ?? PART_COLORS[i % PART_COLORS.length],
-      position: b.panel.position,
-      rotation: b.panel.rotation,
-      rotationOrder: b.panel.rotationOrder,
-      // Only the drawer's own cuts are the drawer's to re-derive. A joint-owned cut belongs to
-      // reconcileJoints and an untagged one to the user, exactly as on a carcase panel.
-      cuts: [
-        ...existingCuts.filter(
-          (c) => !('sourceComponentId' in c && c.sourceComponentId !== undefined),
-        ),
-        ...own,
-      ],
-      visible: existing?.visible ?? true,
-      parentId: drawer.id,
-      driven: true,
-      role: b.role,
-    }
-    return board
-  })
-
-  return [...others, ...kept, ...generated]
-}
-
 // The only pass that adds or removes components.
 //
 // It runs BEFORE `regenerateComponents` because the carcase's slide machining reads drawer

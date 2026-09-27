@@ -38,6 +38,10 @@ export function grainAxisOf(role: string, splitAxis?: 'vertical' | 'horizontal')
   // back — so it joins that branch verbatim and `grainFieldFor('y', 'z')` resolves it to 'length'
   // through the existing GRAIN_IN_PLANE map. No new map entry.
   if (role.startsWith('front-')) return 'z'
+  // A frame member carries its grain along its own length: a stile stands, a rail lies. Families
+  // rather than names, so stage 2's mid members need no new entry here.
+  if (role.startsWith('stile-')) return 'z'
+  if (role.startsWith('rail-')) return 'x'
   if (role === 'bottom' || role === 'top') return 'x'
   if (role === 'toe-kick' || role === 'ladder-front' || role === 'ladder-back') return 'x'
   if (role === 'ladder-left' || role === 'ladder-right' || role.startsWith('ladder-mid-'))

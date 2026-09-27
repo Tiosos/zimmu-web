@@ -9,6 +9,7 @@ export interface MaterialSlots {
   carcaseMaterial: string
   backMaterial: string
   frontMaterial: string
+  frameMaterial: string
 }
 
 export type RoleThickness = (role: string) => number
@@ -39,7 +40,7 @@ export function roleThicknessFor(
 }
 
 // Which material a role is made of: its own override, else the slot its role belongs to. The one
-// place the three slots are told apart — the thickness rule above reads it, and so does the
+// place the four slots are told apart — the thickness rule above reads it, and so does the
 // regeneration that writes the name onto the part.
 export function materialForRole(
   slots: MaterialSlots,
@@ -51,6 +52,9 @@ export function materialForRole(
   if (role === 'back') return slots.backMaterial
   // A family, not a name: a front's role carries the section it covers and which leaf it is.
   if (role.startsWith('front-')) return slots.frontMaterial
+  // Families for the same reason: stage 2's mid members carry an index, and must resolve here
+  // without a new entry.
+  if (role.startsWith('stile-') || role.startsWith('rail-')) return slots.frameMaterial
   return slots.carcaseMaterial
 }
 

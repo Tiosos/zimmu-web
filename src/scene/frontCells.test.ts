@@ -137,3 +137,60 @@ describe('frontCells', () => {
     expect(cellsOf(root, geom()).map((c) => c.sectionId)).toEqual(['b'])
   })
 })
+
+describe('frontCells on a face frame', () => {
+  // The frame opening Task 1's geometry gives the Base cabinet: 44 stiles, 32 rails, on the kick.
+  const FRAMED: Rect = { x0: 44, x1: 556, z0: 132, z1: 688 }
+  const DOOR: Section['front'] = { kind: 'door', leaves: 1, hinge: 'left' }
+  const framed = (mount: FrontGeometry['mount']) =>
+    geom({ mount, frameOpenings: new Map([['a', FRAMED]]) })
+
+  // A frame's outer edge IS the cabinet's outer edge, so a full-overlay door covers it exactly as
+  // it covers a frameless carcase. Only its depth changes, which is not this module's business.
+  it('lays a full-overlay door over the frame exactly as over a frameless carcase', () => {
+    const [onFrame] = cellsOf(leaf('a', DOOR), framed('overlay'))
+    const [frameless] = cellsOf(leaf('a', DOOR), geom())
+    expect(onFrame.rect).toEqual(frameless.rect)
+  })
+
+  it('sits an inset door a full reveal inside the frame opening', () => {
+    const [cell] = cellsOf(leaf('a', DOOR), framed('inset'))
+    expect(cell.rect).toEqual({ x0: 47, x1: 553, z0: 135, z1: 685 })
+  })
+
+  // Half-overlay reaches each member's midline and gives back half a reveal — the rule an overlay
+  // front already follows at a division, applied to the frame. A 44 stile's midline is 22 in; a
+  // 32 rail's is 16.
+  it('laps a half-overlay door to the midline of every member', () => {
+    const [cell] = cellsOf(leaf('a', DOOR), framed('half-overlay'))
+    expect(cell.rect).toEqual({ x0: 23.5, x1: 576.5, z0: 117.5, z1: 702.5 })
+  })
+
+  // The spec's claim, stated as a figure: each door laps only its own stile, so two butted
+  // cabinets show their two stiles as one stile's width of frame plus one reveal.
+  it('makes two butted half-overlay cabinets read as sharing one stile', () => {
+    const [a] = cellsOf(leaf('a', DOOR), framed('half-overlay'))
+    const bLeftEdge = 600 + a.rect.x0
+    expect(bLeftEdge - a.rect.x1).toBe(44 + 3)
+  })
+
+  it('splits a half-overlay pair with one reveal between the leaves', () => {
+    const cells = cellsOf(
+      leaf('a', { kind: 'door', leaves: 2, hinge: 'left' }),
+      framed('half-overlay'),
+    )
+    expect(cells).toHaveLength(2)
+    expect(cells[1].rect.x0 - cells[0].rect.x1).toBe(3)
+    expect(cells[0].rect.x0).toBe(23.5)
+    expect(cells[1].rect.x1).toBe(576.5)
+  })
+
+  // A section the frame does not frame — stage 1 declined it — is sized as if frameless.
+  it('ignores a frame that has no opening for the section', () => {
+    const [cell] = cellsOf(
+      leaf('a', DOOR),
+      geom({ mount: 'inset', frameOpenings: new Map([['other', FRAMED]]) }),
+    )
+    expect(cell.rect).toEqual({ x0: 21, x1: 579, z0: 121, z1: 699 })
+  })
+})

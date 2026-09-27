@@ -16,7 +16,8 @@ import {
   type SectionId,
 } from './sectionTree'
 import { sectionInteriors, type AdjustableSpec } from './sectionInterior'
-import { frontCells, type FrontCell } from './frontCells'
+import { frontCells, type FrontCell, type FrontGeometry } from './frontCells'
+import { faceFrameGeometry } from './faceFrame'
 import { cupRow, plateScrewRows, slideScrewRow } from './frontMachining'
 import { drawerBoxMetrics, type DrawerParams } from './drawerBox'
 
@@ -84,8 +85,27 @@ export function orientedPanel(b: LocalBox, thicknessAxis: ThicknessAxis): PanelS
 
 // Where the bottom panel sits. Shared by the validator and the role table so a shelf budget is
 // never computed against a floor the generator does not use.
-function floorZ(p: CarcaseParams): number {
+export function floorZ(p: CarcaseParams): number {
   return p.baseMode === 'toe-kick' || p.baseMode === 'ladder' ? p.toeKickHeight : 0
+}
+
+// What every front on a cabinet is measured against, stated once for the three places that ask:
+// the validator, the box table and the machining. The frame's openings are carried only where the
+// frame resolved, so a frame stage 1 declines leaves the fronts exactly where a frameless cabinet
+// puts them — the door and the frame boards both read `faceFrameGeometry`, and cannot disagree
+// about whether there is a frame to hang on.
+export function frontGeometryOf(p: CarcaseParams): FrontGeometry {
+  // The carcase *body*, which is what a front covers: from the bottom panel's underside to the
+  // top. `floorZ` already returns `toeKickHeight` for both a toe kick and a ladder and 0
+  // otherwise, so no base-mode branch is needed. Not `carcaseZ0`: under a toe kick the sides run
+  // to the ground and a door that followed them would cover the kick.
+  const outer = { x0: 0, x1: p.width, z0: floorZ(p), z1: p.height }
+  return {
+    outer,
+    mount: p.frontMount,
+    reveal: p.frontReveal,
+    frameOpenings: faceFrameGeometry(p.section, outer, p.frame)?.openings,
+  }
 }
 
 // The rectangle the section tree divides: the clear opening between the shell panels. Each edge
@@ -136,7 +156,9 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
       const message =
         role === 'back'
           ? `backMaterial "${p.backMaterial}" has no thickness`
-          : `carcaseMaterial "${p.carcaseMaterial}" has no thickness`
+          : role.startsWith('stile-') || role.startsWith('rail-')
+            ? `frameMaterial "${p.frameMaterial}" has no thickness`
+            : `carcaseMaterial "${p.carcaseMaterial}" has no thickness`
       if (!unresolved.has(message)) {
         unresolved.add(message)
         errors.push(message)
@@ -161,6 +183,9 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
     thicknessAt('ladder-left')
     thicknessAt('ladder-right')
   }
+  // Only a framed cabinet builds a frame, so only it answers for the frame material. One member
+  // stands for all four: they share one slot.
+  if (p.frame !== undefined) thicknessAt('stile-left')
   // Nothing below this can mean anything while a thickness is unknown.
   if (errors.length > 0) return errors
 
@@ -190,6 +215,24 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
   if (p.backMode !== 'none' && back >= p.depth) {
     errors.push('the back material is thicker than the cabinet is deep')
   }
+  // Refused rather than quietly hung as overlay: half-overlay laps a stile, and a frameless
+  // cabinet has none to lap.
+  if (p.frontMount === 'half-overlay' && p.frame === undefined) {
+    errors.push('half-overlay needs a face frame')
+  }
+  // Only the frame's own impossibilities refuse the cabinet. A frame stage 1 cannot build — on a
+  // split cabinet, or over a drawer — is NOT an error: an error refuses the whole cabinet, so
+  // ticking "frame" would make it vanish. `faceFrameGeometry` declines the frame instead.
+  if (p.frame !== undefined) {
+    const { stileWidth, railWidth } = p.frame
+    if (stileWidth <= 0 || railWidth <= 0) {
+      errors.push('frame members must be wider than zero')
+    } else if (p.width - 2 * stileWidth <= 0 || p.height - floorZ(p) - 2 * railWidth <= 0) {
+      // `floorZ`, because the frame sits on the carcase and the toe kick is recessed behind it —
+      // the same floor the front's own rectangle starts from.
+      errors.push('the face frame leaves no opening')
+    }
+  }
   errors.push(...validateSection(p.section))
   // The tree's own rules are about the tree; only the resolved rectangles know whether the cabinet
   // is big enough to hold it. A section squeezed to nothing does not produce a thin panel, it
@@ -214,11 +257,7 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
   // parameter that costs it nothing.
   if (p.frontReveal < 0) errors.push('the reveal must be 0 or more')
   else {
-    const cells = frontCells(p.section, resolved, {
-      outer: { x0: 0, x1: p.width, z0: floorZ(p), z1: p.height },
-      mount: p.frontMount,
-      reveal: p.frontReveal,
-    })
+    const cells = frontCells(p.section, resolved, frontGeometryOf(p))
     if (cells.some((c) => c.rect.x1 - c.rect.x0 <= 0 || c.rect.z1 - c.rect.z0 <= 0)) {
       errors.push('the reveal leaves no front')
     }
@@ -494,15 +533,11 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
     })
   }
 
-  const cells: FrontCell[] = frontCells(p.section, tree, {
-    // The carcase *body*, which is what a front covers: from the bottom panel's underside to the
-    // top. `floorZ` already returns `toeKickHeight` for both a toe kick and a ladder and 0
-    // otherwise, so no base-mode branch is needed. Not `carcaseZ0`: under a toe kick the sides run
-    // to the ground and a door that followed them would cover the kick.
-    outer: { x0: 0, x1: W, z0: floorZ(p), z1: H },
-    mount: p.frontMount,
-    reveal: p.frontReveal,
-  })
+  const fronts = frontGeometryOf(p)
+  const cells: FrontCell[] = frontCells(p.section, tree, fronts)
+  // How far forward the fronts stand: the frame's thickness where one was built, else nothing. One
+  // member stands for all four — they share a slot.
+  const frameDepth = fronts.frameOpenings === undefined ? 0 : thicknessOf('stile-left')
 
   // Fixed shelves inside a section, before the loose ones: a fixed shelf is structure and the pins
   // hold boards between them. Not a split — a split makes two sections and would want two fronts,
@@ -592,9 +627,10 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
         x0: cell.rect.x0,
         x1: cell.rect.x1,
         // Inset sits in the opening, overlay in front of the carcase face. Both are measured from
-        // y = 0, which is the cabinet's front throughout the generator.
-        y0: p.frontMount === 'inset' ? 0 : -FT,
-        y1: p.frontMount === 'inset' ? FT : 0,
+        // y = 0, which is the cabinet's front throughout the generator — or, on a face frame, from
+        // the frame's face: an inset door flush with it, an overlaying one standing on it.
+        y0: p.frontMount === 'inset' ? -frameDepth : -frameDepth - FT,
+        y1: p.frontMount === 'inset' ? -frameDepth + FT : -frameDepth,
         z0: cell.rect.z0,
         z1: cell.rect.z1,
       },
@@ -942,6 +978,49 @@ export function carcaseContactPairs(
   return pairs
 }
 
+// What a face frame touches that is not joinery, read off the emitted boxes exactly as
+// `carcaseContactPairs` reads its own. Three families, each a contact by an existing precedent:
+//
+//   - stile against rail, which the spec asks the frame to declare rather than report as open —
+//     how the frame is put together is a `jointMethod` question, not a new joint kind;
+//   - a member against a carcase panel's front edge, the mirror of an applied back screwed onto the
+//     rear ones, which `carcaseContactPairs` already declares;
+//   - a front standing on the frame, the overlay front's contact moved one surface out.
+//
+// Empty where no frame was built, so a frame stage 1 declines declares nothing, as it builds
+// nothing. Roles only: which cabinet a board belongs to is the checklist's question, since every
+// cabinet has a `left-side`.
+export function faceFrameContactPairs(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+): [string, string][] {
+  const g = faceFrameGeometry(p.section, frontGeometryOf(p).outer, p.frame)
+  if (g === null) return []
+  const depth = thicknessOf('stile-left')
+  const overlaps = (a: Rect, b: Rect): boolean =>
+    a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1
+  // Two members meet along an edge: flush on one axis, overlapping along the other.
+  const meet = (a: Rect, b: Rect): boolean =>
+    ((a.x1 === b.x0 || b.x1 === a.x0) && a.z0 < b.z1 && b.z0 < a.z1) ||
+    ((a.z1 === b.z0 || b.z1 === a.z0) && a.x0 < b.x1 && b.x0 < a.x1)
+
+  const pairs: [string, string][] = []
+  g.members.forEach((m, i) => {
+    for (const n of g.members.slice(i + 1)) if (meet(m.rect, n.rect)) pairs.push([m.role, n.role])
+  })
+  for (const b of carcaseBoxes(p, thicknessOf)) {
+    const front = b.role.startsWith('front-')
+    // A front's inner face on the frame's face; a panel's front edge on the carcase face, which is
+    // the frame's back. The toe kick and ladder rails are set back and reach neither.
+    if (front ? b.box.y1 !== -depth : b.box.y0 !== 0) continue
+    for (const m of g.members) {
+      if (!overlaps(m.rect, b.box)) continue
+      pairs.push(front ? [b.role, m.role] : [m.role, b.role])
+    }
+  }
+  return pairs
+}
+
 // Cuts a carcase places on its own panels, independent of any joint. With a toe kick the sides run
 // to the floor while the bottom sits on top of the kick, so the recess is blocked by the sides
 // themselves until each is notched at the front bottom corner.
@@ -1075,11 +1154,8 @@ export function carcaseMachining(
     openingRect(p, thicknessOf),
     sectionThickness(thicknessOf),
   )
-  const cells = frontCells(p.section, tree, {
-    outer: { x0: 0, x1: p.width, z0: floorZ(p), z1: p.height },
-    mount: p.frontMount,
-    reveal: p.frontReveal,
-  })
+  const fronts = frontGeometryOf(p)
+  const cells = frontCells(p.section, tree, fronts)
 
   const cuts: HoleArrayCut[] = []
   for (const cell of cells) {
@@ -1088,6 +1164,10 @@ export function carcaseMachining(
     // On the front itself: only a door, and only its cups.
     if (role === frontRole) {
       if (cell.spec.kind !== 'door' || cell.hinge === undefined) continue
+      // Face-frame hinges are stage 4. Until then a framed door is bored for nothing: a frameless
+      // pattern would put its plates in a side the stile covers, and the hardware list would quote
+      // hinges off those bores. Declining is what a door too thin to bore already does.
+      if (fronts.frameOpenings?.has(cell.sectionId)) continue
       const cup = cupRow(panel, cell.hinge, frontRole)
       if (cup !== null) cuts.push(cup)
       continue
@@ -1102,6 +1182,8 @@ export function carcaseMachining(
     const face = BOUND_FACE[side]
 
     if (cell.spec.kind === 'door') {
+      // Stage 4, as above: the plates follow the cups, and a framed door has none.
+      if (fronts.frameOpenings?.has(cell.sectionId)) continue
       // The upright a door is *hinged on* carries its plates, and no other. A row bored into the
       // upright on the handle side is a row of holes nothing will ever use — the same defect Stage D
       // fixed for pin rows, one family further out. A two-leaf pair is hinged at both outer edges,

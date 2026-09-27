@@ -75,6 +75,7 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
     parameterFor: vi.fn(() => null),
     onDetachPart: vi.fn(),
     onUpdateComponent: vi.fn(),
+    onSetFrame: vi.fn(),
     onRemove: vi.fn(),
     onDuplicate: vi.fn(),
     onUpdate: vi.fn(),

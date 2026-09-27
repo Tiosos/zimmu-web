@@ -15,7 +15,7 @@ import { firstInterior, seedInteriors } from './sectionInterior'
 import { legacyToSection } from './migrateSections'
 import { defaultScrewJoint } from './defaultJoint'
 import { carcaseBoxes as boxesOf, validateCarcaseParams as validateOf } from './carcaseRoles'
-import { PRESET_MATERIALS } from './carcasePresets'
+import { DEFAULT_FRAME_MATERIAL, PRESET_MATERIALS } from './carcasePresets'
 import { roleThicknessFor } from './resolveThickness'
 
 // A pre-v14 file states one thickness per carcase; the v14 migration turns those into material
@@ -2057,7 +2057,6 @@ describe('v17 → v18: drawer components', () => {
     expect(spy).not.toHaveBeenCalled()
     spy.mockRestore()
   })
-
 })
 
 describe('v19 anchors', () => {
@@ -2103,16 +2102,6 @@ describe('v19 anchors', () => {
     return c?.kind === 'carcase' ? c.anchor : 'not-a-carcase'
   }
 
-  // The stamp, not the gate, and deliberately a value pin: `buildEnvelope` writes this constant into
-  // every saved file, and that number is read by an app this one cannot run the suite of. Left at 18,
-  // an anchor-bearing file reads as current to a build with no placement pass, and every anchor
-  // passes through unrecognised with nothing said — a consequence no test here can observe, which is
-  // why the constant itself is asserted. This pin replaces the v18 one: the constant is global, so
-  // only the newest value can be asserted.
-  it('states the current file format version', () => {
-    expect(FILE_FORMAT_VERSION).toBe(19)
-  })
-
   it('round-trips an anchor through parseFile', () => {
     const text = fileWith(19, [
       carcase('cmp_a'),
@@ -2130,5 +2119,121 @@ describe('v19 anchors', () => {
   // failing or acquiring a default.
   it('loads a v18 file with every cabinet free-placed', () => {
     expect(anchorOf(fileWith(18, [carcase('cmp_a')]), 'cmp_a')).toBeUndefined()
+  })
+})
+
+describe('v20 face frames', () => {
+  const PARAMS = {
+    width: 600,
+    height: 720,
+    depth: 560,
+    carcaseMaterial: 'Ply18',
+    backMaterial: 'Ply18',
+    frontMaterial: 'Ply18',
+    hasTop: true,
+    backMode: 'captured',
+    baseMode: 'none',
+    toeKickHeight: 100,
+    toeKickSetback: 50,
+    frontMount: 'overlay',
+    frontReveal: 3,
+    section: { id: 'sec_1', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+    jointMethod: 'butt-screw',
+  }
+  const FRAME = { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38 }
+
+  const carcase = (params: Record<string, unknown> = PARAMS) => ({
+    kind: 'carcase',
+    id: 'cmp_a',
+    label: 'a',
+    parentId: null,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    params,
+  })
+  const frame = (over: Record<string, unknown> = {}) => ({
+    kind: 'faceFrame',
+    id: 'cmp_f',
+    label: 'Face frame',
+    parentId: 'cmp_a',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    rotationOrder: 'XYZ',
+    visible: true,
+    driven: true,
+    ...over,
+  })
+  const fileWith = (
+    version: number,
+    components: unknown[],
+    materials: Record<string, unknown> = { Ply18: { thickness: 18 } },
+  ) =>
+    JSON.stringify({
+      version,
+      scene: { parts: [], materials, hardware: [], joints: [], components },
+    })
+  const cabinetOf = (f: ZimmuFile) => {
+    const c = f.scene.components.find((x) => x.id === 'cmp_a')
+    if (c?.kind !== 'carcase') throw new Error('no carcase')
+    return c
+  }
+
+  // The stamp, not the gate, and deliberately a value pin: `buildEnvelope` writes this constant into
+  // every saved file, and that number is read by an app this one cannot run the suite of. Left at 19,
+  // a framed file reads as current to a build with no frame pass, and every frame passes through
+  // unrecognised with nothing said — a consequence no test here can observe, which is why the
+  // constant itself is asserted. This pin replaces the v19 one: the constant is global, so only the
+  // newest value can be asserted.
+  it('states the current file format version', () => {
+    expect(FILE_FORMAT_VERSION).toBe(20)
+  })
+
+  // tsc cannot see this: `base.params` is typed loosely, so a parser that forgot the new slot would
+  // compile and the first framed regeneration would dereference nothing.
+  it('gives a v19 cabinet a frame material slot and no frame', () => {
+    const c = cabinetOf(parseFile(fileWith(19, [carcase()])))
+    expect(c.params.frame).toBeUndefined()
+    expect(c.params.frameMaterial).toBe(DEFAULT_FRAME_MATERIAL)
+  })
+
+  // The slot is named, the material is not added: a migration must not touch a file's materials,
+  // and one appearing in every old file for a frame nobody drew is exactly that. The panel adds it
+  // when the user turns a frame on.
+  it('does not add the frame material to a v19 file', () => {
+    const f = parseFile(fileWith(19, [carcase()]))
+    expect(Object.keys(f.scene.materials)).toEqual(['Ply18'])
+  })
+
+  it('round-trips a framed cabinet and its frame component', () => {
+    const params = {
+      ...PARAMS,
+      frame: FRAME,
+      frameMaterial: 'Ply18',
+      frontMount: 'half-overlay',
+    }
+    const once = parseFile(fileWith(20, [carcase(params), frame()]))
+    const twice = parseFile(JSON.stringify(once))
+    expect(twice.scene.components).toEqual(once.scene.components)
+    expect(cabinetOf(twice).params).toMatchObject({
+      frame: FRAME,
+      frameMaterial: 'Ply18',
+      frontMount: 'half-overlay',
+    })
+    expect(twice.scene.components.find((c) => c.id === 'cmp_f')).toMatchObject({
+      kind: 'faceFrame',
+      parentId: 'cmp_a',
+      driven: true,
+    })
+  })
+
+  // Detached, like every other recovery default in this parser: a frame that lost this field is
+  // kept rather than regenerated over, because staleness is recoverable and deletion is not.
+  it('loads a frame that states no driven flag as detached', () => {
+    const { driven: _omit, ...undriven } = frame()
+    void _omit
+    const f = parseFile(fileWith(20, [carcase({ ...PARAMS, frame: FRAME }), undriven]))
+    expect(f.scene.components.find((c) => c.id === 'cmp_f')).toMatchObject({ driven: false })
   })
 })

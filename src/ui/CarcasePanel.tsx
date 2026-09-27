@@ -9,8 +9,15 @@ import type {
   Part,
   RunnerFamily,
   SectionId,
+  FaceFrameParams,
 } from '../scene/types'
-import { openingRect, sectionThickness, validateCarcaseParams } from '../scene/carcaseRoles'
+import {
+  frontGeometryOf,
+  openingRect,
+  sectionThickness,
+  validateCarcaseParams,
+} from '../scene/carcaseRoles'
+import { DEFAULT_FRAME } from '../scene/carcasePresets'
 import { overridesOf, roleThicknessFor, type RoleThickness } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
 import {
@@ -125,6 +132,7 @@ const FRONT_KINDS: { value: 'none' | FrontSpec['kind']; label: string }[] = [
 
 const FRONT_MOUNTS: { value: CarcaseParams['frontMount']; label: string }[] = [
   { value: 'overlay', label: 'Overlay' },
+  { value: 'half-overlay', label: 'Half overlay' },
   { value: 'inset', label: 'Inset' },
 ]
 
@@ -143,6 +151,7 @@ export function CarcasePanel({
   components,
   onUpdate,
   onUpdateComponent,
+  onSetFrame,
   selectedSectionId,
 }: {
   component: CarcaseComponent
@@ -156,18 +165,28 @@ export function CarcasePanel({
   components: Component[]
   onUpdate: (updater: (c: Component) => Component) => void
   onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
+  // Not a params patch: turning a frame on may add its material to the scene, and the two have to
+  // land as one undo step.
+  onSetFrame: (frame: FaceFrameParams | undefined) => void
   selectedSectionId: SectionId | null
 }) {
   const [placementOpen, setPlacementOpen] = useState(false)
   const [sizeOpen, setSizeOpen] = useState(true)
   const [structureOpen, setStructureOpen] = useState(false)
   const [shelvingOpen, setShelvingOpen] = useState(false)
+  const [frameOpen, setFrameOpen] = useState(false)
   const [frontOpen, setFrontOpen] = useState(false)
   const [joineryOpen, setJoineryOpen] = useState(false)
 
   const p = component.params
   const thicknessOf = panelThickness(p, materials, parts, component.id)
   const errors = validateCarcaseParams(p, thicknessOf)
+  const frame = p.frame
+  // Set, buildable by the validator, and still not built: stage 1 frames a single opening only.
+  // Not an error — an error refuses the whole cabinet — so it is said here instead, or the user
+  // ticks the box and sees nothing happen.
+  const frameDeclined =
+    frame !== undefined && errors.length === 0 && frontGeometryOf(p).frameOpenings === undefined
   // A slot can only name a material that states a thickness; anything else collapses every panel
   // derived from it. The one already on the carcase is offered too, so a file naming a material
   // this scene does not have still shows what it is set to.
@@ -515,6 +534,69 @@ export function CarcasePanel({
         </CollapsibleContent>
       </Collapsible>
 
+      <Collapsible open={frameOpen} onOpenChange={setFrameOpen}>
+        <SectionHeader open={frameOpen} label="Frame" />
+        <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Label htmlFor="carcase-frame" className="w-20 shrink-0 text-right">
+              Face frame
+            </Label>
+            <input
+              id="carcase-frame"
+              type="checkbox"
+              checked={frame !== undefined}
+              onChange={(e) => onSetFrame(e.target.checked ? DEFAULT_FRAME : undefined)}
+            />
+          </div>
+          {frame !== undefined && (
+            <>
+              {frameDeclined && (
+                <p className="text-[11px] text-amber-300 py-1">
+                  The face frame is not built on a divided cabinet or over a drawer yet, so this
+                  cabinet stays frameless for now.
+                </p>
+              )}
+              <DimInput
+                labelWidth="w-20"
+                label="Stile width"
+                value={frame.stileWidth}
+                suffix="mm"
+                min={0}
+                onCommit={(v) => setParams({ frame: { ...frame, stileWidth: v } })}
+              />
+              <DimInput
+                labelWidth="w-20"
+                label="Rail width"
+                value={frame.railWidth}
+                suffix="mm"
+                min={0}
+                onCommit={(v) => setParams({ frame: { ...frame, railWidth: v } })}
+              />
+              <div className="flex items-center gap-1.5 mb-1">
+                <Label htmlFor="carcase-frame-material" className="w-20 shrink-0 text-right">
+                  Frame material
+                </Label>
+                <Select
+                  value={p.frameMaterial}
+                  onValueChange={(v) => setParams({ frameMaterial: v })}
+                >
+                  <SelectTrigger id="carcase-frame-material" className="h-7 flex-1 text-[11px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {materialOptions(p.frameMaterial).map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+
       <Collapsible open={frontOpen} onOpenChange={setFrontOpen}>
         <SectionHeader open={frontOpen} label="Front" />
         <CollapsibleContent forceMount className="data-[state=closed]:hidden">
@@ -663,7 +745,12 @@ export function CarcasePanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {FRONT_MOUNTS.map((m) => (
+                {FRONT_MOUNTS.filter(
+                  // Half-overlay laps a stile, so it means nothing without a frame. Still listed if
+                  // it is already the value, so the select shows what the cabinet is set to.
+                  (m) =>
+                    m.value !== 'half-overlay' || frame !== undefined || p.frontMount === m.value,
+                ).map((m) => (
                   <SelectItem key={m.value} value={m.value}>
                     {m.label}
                   </SelectItem>

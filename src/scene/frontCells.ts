@@ -7,8 +7,12 @@ export interface FrontGeometry {
   // floor to its top. Passed in rather than derived, so this module needs no CarcaseParams and no
   // thickness resolver — it is about rectangles.
   outer: Rect
-  mount: 'overlay' | 'inset'
+  mount: 'overlay' | 'half-overlay' | 'inset'
   reveal: number
+  // Each leaf's clear opening inside the face frame, where the cabinet wears one that resolved.
+  // Absent, or silent about a section, and that section's front is sized as if frameless — which
+  // is what stage 1 leaves a divided cabinet with, since it declines to frame one.
+  frameOpenings?: Map<SectionId, Rect>
 }
 
 export interface FrontCell {
@@ -86,19 +90,42 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
     const spec = section.front
     if (spec === undefined) return
 
-    const cell: Rect =
-      g.mount === 'overlay'
+    // On a face frame the frame is the material a front meets. A full-overlay front still reaches
+    // the outer edge — the frame's outer edge is the cabinet's — so it needs nothing new. An inset
+    // front measures to the frame's opening instead of the carcase's. A half-overlay front reaches
+    // each member's midline, halfway between the outer edge and the opening: the midline rule an
+    // overlay front already follows at a division, applied to the frame.
+    const framed = g.frameOpenings?.get(section.id)
+    const reach =
+      g.mount === 'half-overlay' && framed !== undefined
         ? {
-            x0: sides.left.expandTo + half,
-            x1: sides.right.expandTo - half,
-            z0: sides.bottom.expandTo + half,
-            z1: sides.top.expandTo - half,
+            left: (sides.left.expandTo + framed.x0) / 2,
+            right: (sides.right.expandTo + framed.x1) / 2,
+            bottom: (sides.bottom.expandTo + framed.z0) / 2,
+            top: (sides.top.expandTo + framed.z1) / 2,
           }
         : {
-            x0: rect.x0 + (sides.left.material ? g.reveal : half),
-            x1: rect.x1 - (sides.right.material ? g.reveal : half),
-            z0: rect.z0 + (sides.bottom.material ? g.reveal : half),
-            z1: rect.z1 - (sides.top.material ? g.reveal : half),
+            left: sides.left.expandTo,
+            right: sides.right.expandTo,
+            bottom: sides.bottom.expandTo,
+            top: sides.top.expandTo,
+          }
+    const opening = framed ?? rect
+    // Tested for inset rather than overlay so half-overlay lands on the overlay side: it is an
+    // overlay that stops short.
+    const cell: Rect =
+      g.mount !== 'inset'
+        ? {
+            x0: reach.left + half,
+            x1: reach.right - half,
+            z0: reach.bottom + half,
+            z1: reach.top - half,
+          }
+        : {
+            x0: opening.x0 + (sides.left.material ? g.reveal : half),
+            x1: opening.x1 - (sides.right.material ? g.reveal : half),
+            z0: opening.z0 + (sides.bottom.material ? g.reveal : half),
+            z1: opening.z1 - (sides.top.material ? g.reveal : half),
           }
 
     if (spec.kind === 'door' && spec.leaves === 2) {

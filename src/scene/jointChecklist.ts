@@ -1,10 +1,19 @@
-import type { BoardPart, Component, ComponentId, Joint, MaterialDef, Part, PartId } from './types'
+import type {
+  BoardPart,
+  CarcaseComponent,
+  Component,
+  ComponentId,
+  Joint,
+  MaterialDef,
+  Part,
+  PartId,
+} from './types'
 import type { JointSuggestion } from './suggestJoints'
 import { boardsTouch, aabbCenterDist } from './suggestJoints'
 import { obbOverlap } from './obbOverlap'
 import { groupByPair } from './groupSuggestions'
 import { ancestorsOf, isNodeVisible } from './componentTree'
-import { carcaseContactPairs } from './carcaseRoles'
+import { carcaseContactPairs, faceFrameContactPairs } from './carcaseRoles'
 import { drawerBoxContactPairs } from './drawerBox'
 import { overridesOf, roleThicknessFor } from './resolveThickness'
 
@@ -105,7 +114,37 @@ export function buildJointChecklist(
   }
 
   const contactKeys = new Map<ComponentId, Set<string>>()
+  const frameContactKeys = new Map<ComponentId, Set<string>>()
+  // The cabinet a board belongs to when a face frame is involved: its own parent, or its frame's.
+  const cabinetOf = (x: BoardPart): CarcaseComponent | null => {
+    const parent = x.parentId === null ? undefined : byId.get(x.parentId)
+    const owner =
+      parent?.kind === 'faceFrame' && parent.parentId !== null ? byId.get(parent.parentId) : parent
+    return owner?.kind === 'carcase' ? owner : null
+  }
+  // A frame's contacts cross two components — the frame and the cabinet it is fixed to — so they
+  // cannot be asked of one parent. Every cabinet has a `left-side`, so a pair is honoured only when
+  // both boards resolve to the SAME cabinet: role names alone would lend one cabinet's declaration
+  // to a stranger's board.
+  const declaredFrameContact = (a: BoardPart, b: BoardPart): boolean => {
+    if (a.role === undefined || b.role === undefined) return false
+    const cabinet = cabinetOf(a)
+    if (cabinet === null || cabinet !== cabinetOf(b)) return false
+    let keys = frameContactKeys.get(cabinet.id)
+    if (keys === undefined) {
+      const pairs = faceFrameContactPairs(
+        cabinet.params,
+        roleThicknessFor(cabinet.params, materials, overridesOf(parts, cabinet.id)),
+      )
+      keys = new Set(pairs.map(([x, y]) => pairKey(x, y)))
+      frameContactKeys.set(cabinet.id, keys)
+    }
+    return keys.has(pairKey(a.role, b.role))
+  }
+  const onFrame = (x: BoardPart): boolean =>
+    x.parentId !== null && byId.get(x.parentId)?.kind === 'faceFrame'
   const declaredContact = (a: BoardPart, b: BoardPart): boolean => {
+    if (onFrame(a) || onFrame(b)) return declaredFrameContact(a, b)
     if (a.parentId === null || a.parentId !== b.parentId) return false
     if (a.role === undefined || b.role === undefined) return false
     const parent = byId.get(a.parentId)

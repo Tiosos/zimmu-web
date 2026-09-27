@@ -9,6 +9,7 @@ import type {
   ComponentId,
   Component,
   CarcaseParams,
+  FaceFrameParams,
   SectionId,
 } from '../scene/types'
 import type { DowelCutTool } from '../scene/useAddCut'
@@ -39,6 +40,7 @@ interface SidebarProps {
   ) => keyof CarcaseParams | null
   onDetachPart: (id: PartId, updater?: (p: Part) => Part) => void
   onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
+  onSetFrame: (id: ComponentId, frame: FaceFrameParams | undefined) => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
   onUpdate: (id: PartId, updater: (p: Part) => Part, historyLabel?: string) => void
@@ -81,6 +83,7 @@ export function Sidebar({
   parameterFor,
   onDetachPart,
   onUpdateComponent,
+  onSetFrame,
   onRemove,
   onDuplicate,
   onUpdate,
@@ -251,6 +254,7 @@ export function Sidebar({
             components={scene.components}
             onUpdate={(updater) => onUpdateComponent(selectedCarcase.id, updater)}
             onUpdateComponent={onUpdateComponent}
+            onSetFrame={(frame) => onSetFrame(selectedCarcase.id, frame)}
             selectedSectionId={selectedSectionId}
           />
         )}
