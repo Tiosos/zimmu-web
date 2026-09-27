@@ -10,8 +10,8 @@ export interface FrontGeometry {
   mount: 'overlay' | 'half-overlay' | 'inset'
   reveal: number
   // Each leaf's clear opening inside the face frame, where the cabinet wears one that resolved.
-  // Absent, or silent about a section, and that section's front is sized as if frameless — which
-  // is what stage 1 leaves a divided cabinet with, since it declines to frame one.
+  // Absent, or silent about a section, and that section's front is sized as if frameless. This
+  // is the deliberate fallback when a frame declines a still-unsupported configuration.
   frameOpenings?: Map<SectionId, Rect>
 }
 
