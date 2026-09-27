@@ -160,6 +160,81 @@ describe('zimmu file validation boundary', () => {
     })
   })
 
+  it('round-trips a manual machining operation without turning it into a cut', () => {
+    const operation = {
+      kind: 'manual-machining',
+      id: 'frame_manual_front-a-0',
+      label: 'Blum inset adapter 1',
+      hardwareKey: 'hinge-blum-clip-inset-175h5030-21',
+      face: '-Z',
+      at: { x: 100, y: 34, z: 0 },
+      diameter: 3,
+      pitch: 32,
+      count: 2,
+      angle: 12,
+      edgeOffset: 10,
+      template: 'Blum PLATEMATE',
+      instruction: 'Fit with the documented angled template.',
+      sourceComponentId: 'cmp_frame',
+    }
+    const parsed = parseFile(
+      JSON.stringify(
+        file({
+          scene: {
+            parts: [{ ...board(), operations: [operation] }],
+            materials: {},
+            hardware: [],
+            joints: [],
+            components: [],
+          },
+        }),
+      ),
+    )
+    expect(parsed.scene.parts[0].kind).toBe('board')
+    if (parsed.scene.parts[0].kind !== 'board') return
+    expect(parsed.scene.parts[0].cuts).toEqual([])
+    expect(parsed.scene.parts[0].operations).toEqual([operation])
+  })
+
+  it('rejects malformed manual machining geometry at the file boundary', () => {
+    expect(() =>
+      parseFile(
+        JSON.stringify(
+          file({
+            scene: {
+              parts: [
+                {
+                  ...board(),
+                  operations: [
+                    {
+                      kind: 'manual-machining',
+                      id: 'bad',
+                      label: 'Bad',
+                      hardwareKey: 'hinge',
+                      face: '-Z',
+                      at: { x: 0, y: 0, z: 0 },
+                      diameter: 3,
+                      pitch: 32,
+                      count: 2,
+                      angle: '12',
+                      edgeOffset: 10,
+                      template: 'template',
+                      instruction: 'instruction',
+                    },
+                  ],
+                },
+              ],
+              materials: {},
+              hardware: [],
+              joints: [],
+              components: [],
+            },
+          }),
+        ),
+      ),
+    ).toThrow(/operations\[0\]\.angle/)
+  })
+
   it('the final current-model assertion rejects duplicate part ids', () => {
     const current = file({
       scene: {
