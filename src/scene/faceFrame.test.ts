@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { faceFrameGeometry } from './faceFrame'
+import { faceFrameGeometry, validateFrameLayout } from './faceFrame'
 import { splitSection } from './editSection'
 import { newSectionId, resolveSections } from './sectionTree'
 import type { Rect, Section } from './sectionTree'
@@ -184,6 +184,29 @@ describe('faceFrameGeometry', () => {
     const g = faceFrameGeometry(root, OUTER, FRAME, treeOf(root))
     expect(g).not.toBeNull()
     expect(g!.openings.get('drawer')).toEqual({ x0: 328, x1: 556, z0: 132, z1: 688 })
+  })
+
+  it('rejects duplicate physical opening ids before they can collide in role keys', () => {
+    const root = leaf('one')
+    expect(
+      validateFrameLayout(root, {
+        ...FRAME,
+        layout: {
+          one: {
+            id: 'root-zone',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [
+                { id: 'same', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+                { id: 'same', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+              ],
+            },
+          },
+        },
+      }),
+    ).toContain('frame opening ids must be unique')
   })
 
   it('resolves a drawer-over-pair face layout without structural divisions', () => {
