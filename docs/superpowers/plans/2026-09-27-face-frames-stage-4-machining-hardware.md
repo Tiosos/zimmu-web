@@ -95,11 +95,13 @@ no cup, no frame plate machining, and no BOM line.
 
 ### Inset machining representation
 
-The 175H5030.21 is selected and catalogued, but its adapter drawing carries a 12-degree installation
-geometry while Zimmu's current `HoleArrayCut` drills normal to a board face. Stage 4 must not fake
-that as perpendicular CNC machining. Overlay/half-overlay machining proceeds; inset adapter pilot
-machining remains withheld until the project chooses either an angled-drilling primitive or an
-explicit manual/template-operation representation.
+The 175H5030.21 adapter drawing carries a 12-degree installation geometry while Zimmu's
+`HoleArrayCut` drills normal to a board face. The approved Stage-4 representation is therefore a
+non-geometric `manual-machining` operation on the hinged stile. It records the hardware key,
+hinge-local reference point, Ø3 pilots, 32 mm spacing, 10 mm offset, 12° angle and Blum PLATEMATE
+template instruction. It is persisted and component-owned, but deliberately does not enter OCCT,
+DXF or CNC cut geometry. Arbitrary-angle geometric drilling is a separate future geometry-engine
+milestone.
 
 ## Tests
 
