@@ -131,6 +131,8 @@ export type DrawingSheet =
   | (PartSheetCommon & {
       kind: 'part'
       shape: 'board'
+      // Shop/template instructions that are deliberately not projected as geometry.
+      manufacturingNotes: string[]
       views: [DrawingView, DrawingView, DrawingView]
     })
   | (PartSheetCommon & {
@@ -384,6 +386,7 @@ function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
     material: p.material,
     color: p.color,
     date,
+    manufacturingNotes: (p.operations ?? []).map((op) => `${op.label}: ${op.instruction}`),
     views: [faceView, edgeView, endView],
     scaleLabel: toScaleLabel(scale),
   }
