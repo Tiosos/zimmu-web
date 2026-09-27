@@ -162,6 +162,42 @@ describe('regenerateDrawers — component reconciliation', () => {
     expect(drawersOf(regenerateDrawers(withParams(withDrawer, withFront(DOOR))))).toHaveLength(0)
   })
 
+  // The component going is not enough: its five boards must go with it, or a drawer removed from
+  // the scene tree still shows up as a box in 3D and on the cutting list. The bug this pins:
+  // regenerateDrawers dropped the leftover DrawerComponent without ever calling reconcileBoards on
+  // it, so `others = parts.filter(c => c.kind !== 'drawer')` never touched `scene.parts` at all.
+  it("removes the drawer's boards along with the drawer itself", () => {
+    const withDrawer = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawerId = drawersOf(withDrawer)[0].id
+    expect(boardsOf(withDrawer, drawerId)).toHaveLength(5)
+
+    const out = regenerateDrawers(withParams(withDrawer, withFront(DOOR)))
+    expect(boardsOf(out, drawerId)).toEqual([])
+    // No board anywhere should still name the vanished drawer as its parent.
+    expect(out.parts.some((p) => p.parentId === drawerId)).toBe(false)
+  })
+
+  // The drawer's own preservation rule, one level down: a board the user detached from a driven
+  // drawer is theirs, and it survives the drawer being dropped — re-homed on the carcase, the
+  // component the drawer itself hung from, rather than left naming a parent that no longer exists.
+  it("re-homes a board the user detached from the drawer, when the drawer is dropped", () => {
+    const withDrawer = regenerateDrawers(sceneOf(oneDrawer()))
+    const drawer = drawersOf(withDrawer)[0]
+    const side = boardsOf(withDrawer, drawer.id).find((b) => b.role === 'box-left')!
+    const withDetachedBoard = {
+      ...withDrawer,
+      parts: withDrawer.parts.map((p) => (p.id === side.id ? { ...p, driven: false } : p)),
+    }
+
+    const out = regenerateDrawers(withParams(withDetachedBoard, withFront(DOOR)))
+    expect(drawersOf(out)).toHaveLength(0)
+    const kept = out.parts.find((p) => p.id === side.id)
+    expect(kept?.parentId).toBe('cmp_1')
+    expect(kept?.role).toBeUndefined()
+    const ids = new Set(out.components.map((c) => c.id))
+    expect(out.parts.every((p) => p.parentId === null || ids.has(p.parentId))).toBe(true)
+  })
+
   // A detached drawer is the user's. The component-level mirror of the detached-part rule — kept
   // when its opening goes, and with the section id released, exactly as `regenerateOne` keeps a
   // detached part as `{ ...p, role: undefined }`.
