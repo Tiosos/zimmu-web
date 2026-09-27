@@ -74,8 +74,9 @@ export function cupRow(
   panel: PanelDims,
   hinge: 'left' | 'right',
   frontRole: string,
+  depth = CUP_DEPTH,
 ): HoleArrayCut | null {
-  if (panel.thickness < CUP_DEPTH + MIN_FACE_BEHIND_CUP) return null
+  if (panel.thickness < depth + MIN_FACE_BEHIND_CUP) return null
   const row = hingePositions(panel.length)
   return {
     kind: 'hole-array',
@@ -91,7 +92,7 @@ export function cupRow(
     pitch: row.pitch,
     count: row.count,
     diameter: CUP_DIAMETER,
-    depth: CUP_DEPTH,
+    depth,
   }
 }
 
