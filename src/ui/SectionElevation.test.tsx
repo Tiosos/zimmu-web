@@ -91,6 +91,23 @@ describe('SectionElevation', () => {
     )
   })
 
+  it('draws a frame-only pair stile and dimensions both physical leaf openings', () => {
+    const pair = {
+      ...base.section,
+      front: { kind: 'door', leaves: 2, hinge: 'left' } as const,
+    }
+    const p: CarcaseParams = {
+      ...base,
+      section: pair,
+      frame: { ...DEFAULT_FRAME, pairStile: true },
+    }
+    draw(p)
+    expect(screen.getByTestId(`frame-member-stile-pair-${pair.id}`)).toBeTruthy()
+    expect(screen.getByTestId(`section-opening-dimension-${pair.id}`).textContent).toBe(
+      '236 × 544 / 236 × 544',
+    )
+  })
+
   it('does not invent frame-opening dimensions for a frameless cabinet', () => {
     draw({ ...base, frame: undefined })
     expect(screen.queryAllByTestId(/^section-opening-dimension-/)).toEqual([])
