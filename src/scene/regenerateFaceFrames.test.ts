@@ -168,6 +168,26 @@ describe('regenerateFaceFrames', () => {
     }
   })
 
+  it('replaces generated inset instructions when the mount changes instead of accumulating them', () => {
+    const inset = regenerateFaceFrames(
+      sceneOf([cab('cmp_a', { frame: FRAME, frontMount: 'inset' })]),
+    )
+    expect(board(inset, 'stile-left').operations).toHaveLength(2)
+
+    const overlay = regenerateFaceFrames({
+      ...inset,
+      components: inset.components.map((c) =>
+        c.kind === 'carcase'
+          ? cab('cmp_a', { frame: FRAME, frontMount: 'overlay' })
+          : c,
+      ),
+    })
+    expect(board(overlay, 'stile-left').operations).toEqual([])
+    expect(
+      board(overlay, 'stile-left').cuts.filter((cut) => cut.id.startsWith('frame_plate_')),
+    ).toHaveLength(2)
+  })
+
   it('puts a half-overlay mid-stile wraparound pilot on that stile, not a carcase side', () => {
     let section = splitSection(BASE.section, BASE.section.id, 'vertical', 'panel', 2)
     const kids = section.content.kind === 'split' ? section.content.children : []
