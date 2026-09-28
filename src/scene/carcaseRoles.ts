@@ -11,8 +11,13 @@ export {
 } from './carcaseLayout'
 export type { LocalBox, PanelSpec } from './carcaseLayout'
 export { validateCarcaseParams } from './carcaseValidation'
-export { carcaseBoxes, carcaseRoles } from './carcaseParts'
-export type { RoleBox, RoleSpec } from './carcaseParts'
+export {
+  adjustableShelfAccessIssues,
+  adjustableShelfAccessResults,
+  carcaseBoxes,
+  carcaseRoles,
+} from './carcaseParts'
+export type { AdjustableShelfAccessResult, RoleBox, RoleSpec } from './carcaseParts'
 export { carcaseJoints } from './carcaseJoinery'
 export type { JointDescriptor } from './carcaseJoinery'
 export { carcaseContactPairs, faceFrameContactPairs } from './carcaseContacts'
