@@ -101,6 +101,8 @@ function divisionLabel(tree: ResolvedTree, d: ResolvedDivision): string {
 export interface AdjustableShelfAccessResult {
   sectionId: SectionId
   role: string
+  shelfBox: LocalBox
+  obstacles: AccessObstacle[]
   apertures: InteriorAccessAperture[]
   path: ShelfInsertionPath | null
 }
@@ -358,7 +360,7 @@ export function carcaseBoxes(
         shelfAccessObstacles,
         frameDepth,
       )
-      onShelfAccess?.({ sectionId, role, apertures, path })
+      onShelfAccess?.({ sectionId, role, shelfBox, obstacles: shelfAccessObstacles, apertures, path })
       if (path === null) return
 
       seated += 1
@@ -478,4 +480,3 @@ export function carcaseRoles(
     ),
   }))
 }
-

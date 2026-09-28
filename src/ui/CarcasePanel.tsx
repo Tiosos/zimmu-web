@@ -34,6 +34,7 @@ import type { AdjustableSpec, FrontSpec } from '../scene/sectionTree'
 import { resolveSections } from '../scene/sectionTree'
 import { DimInput } from './DimInput'
 import { PlacementPanel } from './PlacementPanel'
+import { ShelfInsertionPreview } from './ShelfInsertionPreview'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -603,6 +604,11 @@ export function CarcasePanel({
                   Adjustable shelf fits by angled insertion through the face frame.
                 </p>
               )}
+              <ShelfInsertionPreview
+                key={selectedSectionId}
+                results={selectedAccessResults}
+                label={component.label}
+              />
               <DimInput
                 labelWidth="w-20"
                 label="Shelves"
