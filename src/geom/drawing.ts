@@ -14,6 +14,7 @@ import type {
 } from '../scene/types'
 import { faceAxes } from '../scene/snapMath'
 import { mitreFaceOutline } from './mitre'
+import { buildShelfInstallationSheets, type InstallationSheet } from './shelfInstallation'
 import {
   buildAssemblyViews,
   CHAR_EM,
@@ -127,6 +128,7 @@ export interface CabinetSheetInput {
 }
 
 export type DrawingSheet =
+  | InstallationSheet
   | { kind: 'cover'; projectName: string; date: string; rows: CoverRow[] }
   | (PartSheetCommon & {
       kind: 'part'
@@ -558,7 +560,8 @@ export function buildDrawingSheets(
 
   const assemblySheets = cabinets.map((c) => buildAssemblySheet(c, date))
 
-  return [cover, ...assemblySheets, ...partSheets]
+  const installationSheets = cabinets.flatMap((c) => buildShelfInstallationSheets(c, date))
+  return [cover, ...assemblySheets, ...installationSheets, ...partSheets]
 }
 
 // Side view: horizontal = axial z (0..L), vertical = diameter with the centerline at mid-height.

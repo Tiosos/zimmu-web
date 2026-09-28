@@ -71,6 +71,8 @@ export function DrawingViewer({ open, onClose, sheets, projectName }: DrawingVie
       ? 'Cover'
       : sheet.kind === 'assembly'
         ? `Assembly — ${sheet.cabinetLabel}`
+        : sheet.kind === 'installation'
+          ? `Installation — ${sheet.cabinetLabel} / ${sheet.shelfLabel}`
         : `Part ${partSheets.indexOf(sheet) + 1} of ${partSheets.length} — ${sheet.partLabel}`
 
   return (

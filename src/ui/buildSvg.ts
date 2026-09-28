@@ -512,6 +512,14 @@ export function buildSvg(sheet: DrawingSheet): string {
   let body: string
   if (sheet.kind === 'cover') {
     body = renderCoverSheet(sheet)
+  } else if (sheet.kind === 'installation') {
+    body = sheet.lines.map((line) => svgLine(line.a.x, line.a.y, line.b.x, line.b.y, {
+      stroke: line.role === 'structure' ? '#aaa' : '#111',
+      'stroke-width': line.role === 'structure' ? '0.15' : '0.4',
+      ...(line.role === 'entry' ? DASH : {}),
+    })).join('') + sheet.texts.map((text) => svgText(text.x, text.y, text.text, {
+      'font-size': text.size, 'text-anchor': 'middle', 'font-family': 'sans-serif', fill: '#111',
+    })).join('')
   } else if (sheet.kind === 'assembly') {
     body =
       sheet.views.map((v) => renderAssemblyView(v, sheet.scale)).join('') +

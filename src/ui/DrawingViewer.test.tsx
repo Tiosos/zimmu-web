@@ -143,7 +143,7 @@ describe('DrawingViewer', () => {
     expect(spy).toHaveBeenCalledWith('iframe')
   })
 
-  // The deck is [cover, assembly, part], which is what made `Part ${idx} of ${sheets.length - 1}`
+  // The deck is [cover, assembly, installation, part], so numbering must count only part sheets.
   // lie: it assumed sheet 0 was the cover and every other sheet a part, so the one board read
   // "Part 2 of 2". The numbering is over the part sheets themselves.
   it('numbers the part sheets among themselves, not by their place in the deck', () => {
@@ -152,6 +152,13 @@ describe('DrawingViewer', () => {
     ])
     render(<DrawingViewer open onClose={vi.fn()} sheets={cabinetSheets} projectName="Job" />)
     fireEvent.click(screen.getByRole('button', { name: '→' }))
+    fireEvent.click(screen.getByRole('button', { name: '→' }))
+    expect(screen.getByText(/Installation — Base 600/)).toBeTruthy()
+    const download = vi.spyOn(downloadModule, 'downloadBlob').mockImplementation(() => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Download SVG' }))
+    expect(download.mock.calls[0][1]).toContain('-installation.svg')
+    fireEvent.click(screen.getByRole('button', { name: 'Download DXF' }))
+    expect(download.mock.calls[1][1]).toContain('-installation.dxf')
     fireEvent.click(screen.getByRole('button', { name: '→' }))
     expect(screen.getByText(/Part 1 of 1 — Top/)).toBeTruthy()
   })

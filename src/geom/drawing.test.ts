@@ -660,7 +660,7 @@ describe('assembly sheets', () => {
     const sheets = buildDrawingSheets([], 'Job', [
       { cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS },
     ])
-    expect(sheets.map((s) => s.kind)).toEqual(['cover', 'assembly'])
+    expect(sheets.map((s) => s.kind)).toEqual(['cover', 'assembly', 'installation'])
   })
 
   it('leaves the deck alone when there are no cabinets', () => {

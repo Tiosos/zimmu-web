@@ -338,6 +338,16 @@ test('the drawings deck carries an assembly sheet for the cabinet', async ({ pag
 
   await page.getByLabel('→').click()
   await expect(page.getByText(/Assembly — Base 600/)).toBeVisible()
+  await page.getByLabel('→').click()
+  await expect(page.getByText(/Installation — Base 600/)).toBeVisible()
+  await expect(page.locator('svg').getByText('SHELF INSTALLATION')).toBeVisible()
+  await expect(page.locator('svg').getByText(/Straight insertion/)).toBeVisible()
+  for (const format of ['SVG', 'DXF']) {
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: `Download ${format}`, exact: true }).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toContain(`-installation.${format.toLowerCase()}`)
+  }
 })
 
 // The tree and the elevation are two views of one structure, and this is the only place that

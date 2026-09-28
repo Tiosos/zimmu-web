@@ -9,6 +9,8 @@ export function sheetFilename(sheet: DrawingSheet, projectName: string, ext: str
       ? `${projectName}-cover`
       : sheet.kind === 'assembly'
         ? `${projectName}-${sheet.cabinetLabel}-assembly`
+        : sheet.kind === 'installation'
+          ? `${projectName}-${sheet.cabinetLabel}-${sheet.cabinetId}-${sheet.shelfRole}-installation`
         : `${projectName}-${sheet.partLabel}`
   return base.toLowerCase().replace(/\s+/g, '-') + '.' + ext
 }
