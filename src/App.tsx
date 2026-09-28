@@ -26,6 +26,8 @@ import { downloadBlob } from './ui/download'
 import { buildDrawingSheets } from './geom/drawing'
 import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
+import { ManufacturingReadiness } from './ui/ManufacturingReadiness'
+import { buildShelfInstallationSheets } from './geom/shelfInstallation'
 import type {
   CameraState,
   CarcaseComponent,
@@ -335,6 +337,7 @@ function App() {
   const [cuttingListOpen, setCuttingListOpen] = useState(false)
   const closeCuttingList = useCallback(() => setCuttingListOpen(false), [])
   const [drawingsOpen, setDrawingsOpen] = useState(false)
+  const [readinessOpen, setReadinessOpen] = useState(false)
   const [drawingSheets, setDrawingSheets] = useState<DrawingSheet[]>([])
 
   const {
@@ -561,6 +564,7 @@ function App() {
         onExportStl={handleExportStl}
         onExportStep={handleExportStep}
         onOpenDrawings={handleOpenDrawings}
+        onReadiness={() => setReadinessOpen(true)}
         canExport={canExport}
         mainView={mainView}
         onMainViewChange={setMainView}
@@ -746,11 +750,32 @@ function App() {
         />
       )}
       <DrawingViewer
+        key={
+          drawingSheets[0]?.kind === 'installation'
+            ? `${drawingSheets[0].cabinetId}/${drawingSheets[0].shelfRole}`
+            : 'deck'
+        }
         open={drawingsOpen}
         onClose={closeDrawings}
         sheets={drawingSheets}
         projectName={projectName}
       />
+      {readinessOpen && (
+        <ManufacturingReadiness
+          scene={scene}
+          onClose={() => setReadinessOpen(false)}
+          onOpenSheet={(cabinet, role) => {
+            const sheet = buildShelfInstallationSheets(
+              { cabinet, parts: scene.parts, materials: scene.materials, byId: componentMap },
+              new Date().toISOString().slice(0, 10),
+            ).find((s) => s.shelfRole === role)
+            if (!sheet) return
+            setDrawingSheets([sheet])
+            setReadinessOpen(false)
+            setDrawingsOpen(true)
+          }}
+        />
+      )}
     </div>
   )
 }

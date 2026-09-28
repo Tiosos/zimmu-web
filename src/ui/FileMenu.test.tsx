@@ -25,6 +25,7 @@ const baseProps: FileMenuProps = {
   onExportStl: vi.fn(),
   onExportStep: vi.fn(),
   onOpenDrawings: vi.fn(),
+  onReadiness: vi.fn(),
   canExport: true,
   mainView: 'model',
   onMainViewChange: vi.fn(),
@@ -35,6 +36,16 @@ function openMenu() {
 }
 
 describe('FileMenu', () => {
+  it('keeps the report available when exports are unavailable', () => {
+    const onReadiness = vi.fn()
+    render(<FileMenu {...baseProps} canExport={false} onReadiness={onReadiness} />)
+    openMenu()
+    const report = screen.getByRole('button', { name: 'Manufacturing readiness…' })
+    expect((report as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(report)
+    expect(onReadiness).toHaveBeenCalledOnce()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
   })

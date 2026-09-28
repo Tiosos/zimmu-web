@@ -1,0 +1,44 @@
+import { test, expect } from '@playwright/test'
+
+test('readiness links to preview and sheet, reports omissions, and leaves exports available', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({ timeout: 120_000 })
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+  const openReport = async () => {
+    await page.getByRole('button', { name: 'File ▾' }).click()
+    await page.getByRole('button', { name: 'Manufacturing readiness…' }).click()
+  }
+  await openReport()
+  const report = page.getByRole('dialog', { name: 'Manufacturing readiness', exact: true })
+  await expect(report.getByRole('status')).toContainText('1 requested · 1 generated')
+  await report.getByRole('button', { name: 'Preview shelf insertion' }).click()
+  const preview = page.getByRole('dialog', { name: /Shelf insertion/ })
+  await expect(preview.getByRole('status')).toHaveText('Straight insertion')
+  await page.keyboard.press('Escape')
+  await expect(preview).toHaveCount(0)
+  await expect(report).toBeVisible()
+  await report.getByRole('button', { name: 'Installation sheet' }).click()
+  await expect(report).toHaveCount(0)
+  await expect(page.getByText(/Installation — Base 600/)).toBeVisible()
+  await expect(page.locator('svg').getByText('SHELF INSTALLATION')).toBeVisible()
+  await page.getByRole('button', { name: 'Close', exact: true }).click()
+  await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
+  await page.getByRole('button', { name: /Shelving/ }).click()
+  await page.locator('[data-testid^="section-cell-"]').first().click()
+  await page.getByLabel('Pin count', { exact: true }).fill('0')
+  await page.getByLabel('Pin count', { exact: true }).blur()
+  await expect(
+    page.locator('[data-testid^="node-board_"]').filter({ hasText: 'Adj Shelf' }),
+  ).toHaveCount(0)
+  await openReport()
+  await expect(report.getByRole('status')).toContainText('1 requested · 0 generated · 1 missing')
+  await expect(report.getByText('No valid shelf position generated')).toBeVisible()
+  await report.getByRole('button', { name: 'Close readiness report' }).click()
+  await page.getByRole('button', { name: 'File ▾' }).click()
+  await expect(page.getByRole('button', { name: 'Export STL…' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Export STEP…' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '2D Drawings…' })).toBeEnabled()
+})
