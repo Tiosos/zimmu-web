@@ -763,6 +763,11 @@ function App() {
       {readinessOpen && (
         <ManufacturingReadiness
           scene={scene}
+          onInspect={(selection) => {
+            onSelect(selection)
+            setReadinessOpen(false)
+            setMainView('model')
+          }}
           onClose={() => setReadinessOpen(false)}
           onOpenSheet={(cabinet, role) => {
             const sheet = buildShelfInstallationSheets(

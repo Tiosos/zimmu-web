@@ -162,6 +162,7 @@ test('hidden and non-board parts produce no rows', () => {
 test('an empty scene produces empty arrays and zero counts', () => {
   const c = build([])
   expect(c).toEqual({
+    truncated: false,
     rows: [],
     groups: [],
     unresolved: [],
@@ -262,6 +263,7 @@ test('caps rows and no-offer rows independently', () => {
   const c = build(parts)
   // The no-offer flood is capped tightly, while the actionable rows keep their own generous budget.
   expect(c.unresolved).toHaveLength(MAX_NOOFFER_ROWS)
+  expect(c.truncated).toBe(true)
   expect(c.rows).toHaveLength(3)
   expect(c.rows.every((r) => r.state === 'open')).toBe(true)
   expect(c.actionableTotal).toBe(3)

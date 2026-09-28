@@ -51,6 +51,7 @@ export interface ChecklistGroup {
 }
 
 export interface JointChecklist {
+  truncated: boolean
   // Actionable rows whose two parts do not share a component: cross-carcase pairs and loose boards.
   rows: ChecklistRow[]
   groups: ChecklistGroup[]
@@ -68,10 +69,9 @@ function pairKey(x: string, y: string): string {
   return x < y ? `${x}|${y}` : `${y}|${x}`
 }
 
-// Mirrors pairIdsOf for joints. Local to this module — one consumer, so no shared home until there
-// is a second. The never guard makes a sixth joint kind a compile error rather than a pair silently
-// reported as unjointed.
-function jointPairIds(j: Joint): [PartId, PartId] {
+// Shared by the checklist and readiness report. The exhaustive guard keeps new joint kinds from
+// silently losing their endpoints in either assessment.
+export function jointPairIds(j: Joint): [PartId, PartId] {
   switch (j.kind) {
     case 'dado':
       return [j.housingPartId, j.housedPartId]
@@ -281,6 +281,7 @@ export function buildJointChecklist(
   const capped = rows.slice(0, MAX_ACTIONABLE_ROWS)
   const sum = (pick: (g: ChecklistGroup) => number) => groups.reduce((n, g) => n + pick(g), 0)
   return {
+    truncated: rows.length > MAX_ACTIONABLE_ROWS || unresolved.length > MAX_NOOFFER_ROWS,
     rows: capped,
     groups,
     unresolved: unresolved.slice(0, MAX_NOOFFER_ROWS),
