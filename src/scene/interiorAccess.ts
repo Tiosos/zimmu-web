@@ -143,23 +143,52 @@ function projectedRadiusY(box: LocalBox, rotation: Vec3): number {
   )
 }
 
+// Certify the space between poses, not just the poses themselves. The midpoint OBB is enlarged
+// by the maximum centre travel on each local axis and by a bound on every corner's rotational
+// travel. A disjoint enclosure proves the whole interval clear. Otherwise subdivide; unresolved
+// grazing intervals are conservatively declined rather than allowed to tunnel through stock.
+function clearInterval(
+  box: LocalBox,
+  from: ShelfPose,
+  to: ShelfPose,
+  obstacles: AccessObstacle[],
+  depth = 0,
+): boolean {
+  const middle: ShelfPose = {
+    center: lerpVec(from.center, to.center, 0.5),
+    rotation: lerpVec(from.rotation, to.rotation, 0.5),
+  }
+  const enclosure = shelfAt(box, middle)
+  const travel = scale(sub(to.center, from.center), 0.5)
+  const angle = sub(to.rotation, from.rotation)
+  const rotationTravel = Math.hypot(...enclosure.half) * DEG *
+    (Math.abs(angle.x) + Math.abs(angle.y) + Math.abs(angle.z)) / 2
+  enclosure.half = enclosure.half.map((half, i) =>
+    half + Math.abs(dot(travel, enclosure.axes[i])) + rotationTravel,
+  ) as [number, number, number]
+  const nearby = obstacles.filter((obstacle) => intersectsAabb(enclosure, obstacle.box))
+  if (nearby.length === 0) return true
+  if (depth >= 12 || !clearPose(box, middle, nearby)) return false
+  return clearInterval(box, from, middle, nearby, depth + 1) &&
+    clearInterval(box, middle, to, nearby, depth + 1)
+}
+
 function segment(
   box: LocalBox,
   from: ShelfPose,
   to: ShelfPose,
   obstacles: AccessObstacle[],
   steps: number,
-  rotationProgress: (t: number) => number = (t) => t,
 ): ShelfPose[] | null {
   const poses: ShelfPose[] = []
   for (let i = 0; i <= steps; i++) {
     const t = i / steps
-    const rt = rotationProgress(t)
     const pose = {
       center: lerpVec(from.center, to.center, t),
-      rotation: lerpVec(from.rotation, to.rotation, rt),
+      rotation: lerpVec(from.rotation, to.rotation, t),
     }
     if (!clearPose(box, pose, obstacles)) return null
+    if (i > 0 && !clearInterval(box, poses[i - 1], pose, obstacles)) return null
     poses.push(pose)
   }
   return poses
@@ -231,6 +260,24 @@ export function findShelfInsertionPath(
   if (!clearPose(shelfBox, target, obstacles)) return null
 
   for (const aperture of apertures) {
+    // A fixed shelf can divide the physical route without dividing the section/front. Try the
+    // requested height before the aperture centre: a clear straight route must not be declined
+    // just because the centre happens to lie on that fixed shelf.
+    if (
+      shelfBox.x0 >= aperture.rect.x0 && shelfBox.x1 <= aperture.rect.x1 &&
+      shelfBox.z0 >= aperture.rect.z0 && shelfBox.z1 <= aperture.rect.z1
+    ) {
+      const start: ShelfPose = {
+        center: {
+          ...target.center,
+          y: -frameDepth - (shelfBox.y1 - shelfBox.y0) / 2 - 5,
+        },
+        rotation: target.rotation,
+      }
+      const direct = segment(shelfBox, start, target, obstacles, 32)
+      if (direct !== null) return { apertureId: aperture.id, kind: 'straight', poses: direct }
+    }
+
     const throatCenter = {
       x: (aperture.rect.x0 + aperture.rect.x1) / 2,
       y: frameDepth > 0 ? -frameDepth / 2 : 0,
@@ -275,34 +322,27 @@ export function findShelfInsertionPath(
         center: centred.center,
         rotation: { x: 0, y: 0, z: 0 },
       }
-      for (const gamma of [0.5, 1, 2]) {
-        const turned = segment(
-          shelfBox,
-          centred,
-          flat,
-          obstacles,
-          24,
-          (t) => 1 - Math.pow(1 - t, gamma),
-        )
-        if (turned === null) continue
-        const settled = segment(shelfBox, flat, target, obstacles, 20)
-        if (settled === null) continue
-        return {
-          apertureId: aperture.id,
-          kind:
-            Math.abs(rotation.x) < 1e-9 &&
-            Math.abs(rotation.y) < 1e-9 &&
-            Math.abs(rotation.z) < 1e-9
-              ? 'straight'
-              : 'rotated',
-          poses: [
-            ...outside,
-            ...pushed.slice(1),
-            ...shifted.slice(1),
-            ...turned.slice(1),
-            ...settled.slice(1),
-          ],
-        }
+      // Changing rotation speed describes the same geometric route. Validate it once with
+      // linear interpolation, including the swept intervals between the displayed samples.
+      const turned = segment(shelfBox, centred, flat, obstacles, 24)
+      if (turned === null) continue
+      const settled = segment(shelfBox, flat, target, obstacles, 20)
+      if (settled === null) continue
+      return {
+        apertureId: aperture.id,
+        kind:
+          Math.abs(rotation.x) < 1e-9 &&
+          Math.abs(rotation.y) < 1e-9 &&
+          Math.abs(rotation.z) < 1e-9
+            ? 'straight'
+            : 'rotated',
+        poses: [
+          ...outside,
+          ...pushed.slice(1),
+          ...shifted.slice(1),
+          ...turned.slice(1),
+          ...settled.slice(1),
+        ],
       }
     }
   }

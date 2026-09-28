@@ -40,10 +40,18 @@ No flexing, temporary face-frame removal, structural disassembly, or diagonal fo
 - deterministic candidate throat orientations;
 - sampled outside -> aperture -> installed paths;
 - OBB-vs-AABB separating-axis collision tests;
+- conservative swept enclosures between every pair of sampled poses, subdividing ambiguous
+  intervals and declining any interval still unresolved after 12 subdivisions;
 - a witnessed result containing the aperture, maneuver type and sampled poses.
 
 The search is deterministic: fixed angle/pose ordering, no randomness. Numerical epsilon is only a
 collision tolerance, not an invented manufacturing clearance.
+
+Straight insertion first tries the requested shelf height. This preserves clear routes above or
+below fixed shelves that cross the centre of an otherwise usable opening. The rotated search then
+tries the aperture centre. Changing rotation speed does not create another geometric route, so each
+rotation is checked once. Sampled candidate orientations make the search incomplete: a declined
+shelf means no certified route was found, not proof that every possible maneuver is impossible.
 
 ## Apertures
 
@@ -88,6 +96,8 @@ Pure solver tests:
 3. an aperture too small for any sampled rigid-body route fails;
 4. a structural obstacle can invalidate an otherwise valid aperture path;
 5. repeated solves return the same witnessed path.
+6. a fixed shelf at the aperture centre does not block a clear route at the requested height;
+7. a thin obstacle between sampled poses cannot be skipped.
 
 Cabinet tests:
 - full-width shelf behind an independent stile remains full-width and is retained when a rotated
