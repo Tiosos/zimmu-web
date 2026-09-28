@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type {
   CutDef,
   CutId,
@@ -17,6 +18,9 @@ import type { JointSuggestion } from '../scene/suggestJoints'
 import type { InteractionMode, UseInteractionModeResult } from '../scene/useInteractionMode'
 import { EditPanel } from './EditPanel'
 import { CarcasePanel } from './CarcasePanel'
+import { ShelfInsertionPreview } from './ShelfInsertionPreview'
+import { adjustableShelfAccessResults } from '../scene/carcaseParts'
+import { overridesOf, roleThicknessFor } from '../scene/resolveThickness'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { CARCASE_PRESETS, type CarcasePreset } from '../scene/carcasePresets'
 import { SceneTree } from './SceneTree'
@@ -124,6 +128,13 @@ export function Sidebar({
       ? (scene.components.find((c) => c.id === selection.cabinetId) ?? null)
       : selectedComponent
   const selectedCarcase = hostComponent?.kind === 'carcase' ? hostComponent : null
+  const shelfAccess = useMemo(() => {
+    if (selectedPart?.kind !== 'board' || !selectedPart.role?.startsWith('adj-shelf-')) return []
+    const cabinet = scene.components.find((c) => c.id === selectedPart.parentId)
+    if (cabinet?.kind !== 'carcase') return []
+    const thickness = roleThicknessFor(cabinet.params, scene.materials, overridesOf(scene.parts, cabinet.id))
+    return adjustableShelfAccessResults(cabinet.params, thickness).filter((r) => r.role === selectedPart.role)
+  }, [selectedPart, scene.components, scene.materials, scene.parts])
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -260,6 +271,11 @@ export function Sidebar({
         )}
 
         {/* Edit panel for selected part */}
+        {selectedPart && shelfAccess.length > 0 && (
+          <div className="px-2">
+            <ShelfInsertionPreview key={selectedPart.id} results={shelfAccess} label={selectedPart.label} />
+          </div>
+        )}
         {selectedPart && (
           <EditPanel
             key={selectedPart.id}
