@@ -27,6 +27,8 @@ import {
   findShelfInsertionPath,
   frameAccessObstacles,
   type AccessObstacle,
+  type InteriorAccessAperture,
+  type ShelfInsertionPath,
 } from './interiorAccess'
 
 // How much narrower than its opening a loose shelf is cut, on each side. A chosen figure like
@@ -96,7 +98,18 @@ function divisionLabel(tree: ResolvedTree, d: ResolvedDivision): string {
   return inBays ? `Bay ${bay.index + 1} Shelf ${d.index + 1}` : `Shelf ${d.index + 1}`
 }
 
-export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): RoleBox[] {
+export interface AdjustableShelfAccessResult {
+  sectionId: SectionId
+  role: string
+  apertures: InteriorAccessAperture[]
+  path: ShelfInsertionPath | null
+}
+
+export function carcaseBoxes(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+  onShelfAccess?: (result: AdjustableShelfAccessResult) => void,
+): RoleBox[] {
   if (validateCarcaseParams(p, thicknessOf).length > 0) return []
 
   const { width: W, height: H, depth: D } = p
@@ -338,12 +351,14 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
       // Installed envelope and insertion path are different constraints. The rigid-body solver
       // must witness a collision-free path; a frame-only stile is never allowed to resize the
       // manufactured shelf merely to make the access test pass.
+      const apertures = accessAperturesForSection(sectionId, rect, fronts)
       const path = findShelfInsertionPath(
         shelfBox,
-        accessAperturesForSection(sectionId, rect, fronts),
+        apertures,
         shelfAccessObstacles,
         frameDepth,
       )
+      onShelfAccess?.({ sectionId, role, apertures, path })
       if (path === null) return
 
       seated += 1
@@ -385,6 +400,22 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
   }
 
   return boxes
+}
+
+export function adjustableShelfAccessResults(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+): AdjustableShelfAccessResult[] {
+  const results: AdjustableShelfAccessResult[] = []
+  carcaseBoxes(p, thicknessOf, (result) => results.push(result))
+  return results
+}
+
+export function adjustableShelfAccessIssues(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+): AdjustableShelfAccessResult[] {
+  return adjustableShelfAccessResults(p, thicknessOf).filter((result) => result.path === null)
 }
 
 // How far past the housing's near face the housed panel's end runs: to the groove floor for a
