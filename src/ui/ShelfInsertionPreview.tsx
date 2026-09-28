@@ -127,7 +127,10 @@ function PreviewDialog({
     <dialog
       ref={dialog}
       aria-labelledby={titleId}
-      onCancel={onClose}
+      onCancel={(event) => {
+        event.stopPropagation()
+        onClose()
+      }}
       onKeyDown={(e) => e.stopPropagation()}
       className="m-auto w-[min(900px,95vw)] max-h-[95vh] overflow-auto rounded-lg border border-border bg-background text-foreground p-5 backdrop:bg-black/70"
     >

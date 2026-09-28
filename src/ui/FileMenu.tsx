@@ -16,6 +16,7 @@ export interface FileMenuProps {
   onExportStl: () => void
   onExportStep: () => void
   onOpenDrawings: () => void
+  onReadiness: () => void
   canExport: boolean
   mainView: 'model' | 'plan'
   onMainViewChange: (v: 'model' | 'plan') => void
@@ -43,6 +44,7 @@ export function FileMenu({
   onExportStl,
   onExportStep,
   onOpenDrawings,
+  onReadiness,
   canExport,
   mainView,
   onMainViewChange,
@@ -140,6 +142,7 @@ export function FileMenu({
             {menuItem('Save As…', '⌘⇧S', onSaveAs, !supported)}
             <Separator className="my-1" />
             {menuItem('Cutting List…', '⌘⇧E', onCuttingList, false)}
+            {menuItem('Manufacturing readiness…', '', onReadiness, false)}
             <Separator className="my-1" />
             {menuItem('Export STL…', '', onExportStl, !canExport)}
             {menuItem('Export STEP…', '', onExportStep, !canExport)}
