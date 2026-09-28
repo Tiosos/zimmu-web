@@ -251,19 +251,42 @@ export function findShelfInsertionPath(
       const outside = segment(shelfBox, start, throat, obstacles, 12)
       if (outside === null) continue
 
-      // Different rotation schedules model turning early, continuously, or late while translating
-      // from the aperture to the exact installed pose. Every returned pose has been collision
-      // tested; the schedules are search strategies, never geometric shortcuts.
+      // Cabinet-shop maneuver: first push the board completely behind the frame while it still
+      // has the orientation that cleared the aperture. Then move its centre across the bay, turn
+      // it flat where the full structural opening is available, and only then lower/raise it onto
+      // the requested pins. This avoids the false collision produced by trying to move toward the
+      // final pin height while the board was still physically crossing a rail.
+      const insideY = Math.max(target.center.y, projectedRadiusY(shelfBox, rotation) + 1)
+      const behindFrame: ShelfPose = {
+        center: { ...throat.center, y: insideY },
+        rotation,
+      }
+      const pushed = segment(shelfBox, throat, behindFrame, obstacles, 20)
+      if (pushed === null) continue
+
+      const centred: ShelfPose = {
+        center: { x: target.center.x, y: insideY, z: throat.center.z },
+        rotation,
+      }
+      const shifted = segment(shelfBox, behindFrame, centred, obstacles, 16)
+      if (shifted === null) continue
+
+      const flat: ShelfPose = {
+        center: centred.center,
+        rotation: { x: 0, y: 0, z: 0 },
+      }
       for (const gamma of [0.5, 1, 2]) {
-        const inside = segment(
+        const turned = segment(
           shelfBox,
-          throat,
-          target,
+          centred,
+          flat,
           obstacles,
-          32,
+          24,
           (t) => 1 - Math.pow(1 - t, gamma),
         )
-        if (inside === null) continue
+        if (turned === null) continue
+        const settled = segment(shelfBox, flat, target, obstacles, 20)
+        if (settled === null) continue
         return {
           apertureId: aperture.id,
           kind:
@@ -272,7 +295,13 @@ export function findShelfInsertionPath(
             Math.abs(rotation.z) < 1e-9
               ? 'straight'
               : 'rotated',
-          poses: [...outside, ...inside.slice(1)],
+          poses: [
+            ...outside,
+            ...pushed.slice(1),
+            ...shifted.slice(1),
+            ...turned.slice(1),
+            ...settled.slice(1),
+          ],
         }
       }
     }
