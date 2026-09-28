@@ -436,6 +436,11 @@ export function buildDxf(sheet: DrawingSheet): string {
   let entities: string
   if (sheet.kind === 'cover') {
     entities = dxfCoverSheet(sheet)
+  } else if (sheet.kind === 'installation') {
+    entities = sheet.lines.map((line) => line.role === 'entry'
+      ? dxfDashedLine(line.a.x, line.a.y, line.b.x, line.b.y)
+      : dxfLine(line.role === 'shelf' ? 'OUTLINE' : 'DIM', line.a.x, line.a.y, line.b.x, line.b.y)
+    ).join('') + sheet.texts.map((text) => dxfText('TEXT', text.x, text.y, text.size, text.text)).join('')
   } else if (sheet.kind === 'assembly') {
     // Entities only, contributed to the composition below — a whole document returned from here
     // would skip dxfTables(), which is where the HIDDEN layer and the DASHED linetype these
