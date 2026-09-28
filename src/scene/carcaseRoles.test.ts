@@ -2008,6 +2008,40 @@ describe('adjustable shelves', () => {
     expect(carcaseHoleArrays(pair, 'right-side').length).toBeGreaterThan(0)
   })
 
+  it('rotates a full-width shelf through an independent frame-zone stile', () => {
+    const p = oneBay(1)
+    const sectionId = p.section.id
+    const independent: CarcaseParams = {
+      ...p,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        layout: {
+          [sectionId]: {
+            id: 'pair-zones',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'vertical',
+              children: [
+                { id: 'left-zone', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+                { id: 'right-zone', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+              ],
+            },
+          },
+        },
+      },
+    }
+    const [shelf] = shelfBoxes(independent)
+    expect(shelf).toBeDefined()
+    expect(shelf.box.x1 - shelf.box.x0).toBeCloseTo(600 - 2 * 44 - 2 * CLEARANCE, 9)
+    const [result] = adjustableShelfAccessResults(independent, tOf(independent))
+    expect(result.path?.kind).toBe('rotated')
+    expect(['left-zone', 'right-zone']).toContain(result.path?.apertureId)
+  })
+
   it('declines a loose shelf and its pin rows when a two-by-two frame has no rigid-body route', () => {
     const p = oneBay(1)
     const sectionId = p.section.id
