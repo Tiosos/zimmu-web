@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  adjustableShelfAccessIssues,
+  adjustableShelfAccessResults,
   carcaseBoxes as boxesOf,
   carcaseContactPairs as contactPairsOf,
   carcaseCuts as cutsOf,
@@ -40,7 +42,6 @@ import { regenerateComponents } from './regenerateComponents'
 import { boardsTouch } from './suggestJoints'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
 import { SWEEP } from './__fixtures__/sweep'
-import { adjustableShelfAccessIssues } from './interiorAccess'
 
 // World AABB of a panel spec, in carcase-local space. This is the assertion surface: it pins
 // position and rotation together and is indifferent to which equivalent Euler triple the
@@ -1983,7 +1984,7 @@ describe('adjustable shelves', () => {
     expect(shelf.box.x1 - shelf.box.x0).toBeCloseTo(600 - 2 * 44 - 2 * CLEARANCE, 9)
   })
 
-  it('declines a loose shelf and its pin rows when every physical aperture is too narrow', () => {
+  it('rotates a full-width loose shelf through a tall pair-stile opening', () => {
     const p = oneBay(1)
     const pair: CarcaseParams = {
       ...p,
@@ -1999,12 +2000,55 @@ describe('adjustable shelves', () => {
         front: { kind: 'door', leaves: 2, hinge: 'left' },
       },
     }
-    expect(shelfBoxes(pair)).toEqual([])
-    const issues = adjustableShelfAccessIssues(pair, tOf(pair))
-    expect(issues.map((issue) => issue.sectionId)).toEqual([pair.section.id])
-    expect(issues[0].apertures).toHaveLength(2)
-    expect(carcaseHoleArrays(pair, 'left-side')).toEqual([])
-    expect(carcaseHoleArrays(pair, 'right-side')).toEqual([])
+    expect(shelfBoxes(pair)).toHaveLength(1)
+    const [result] = adjustableShelfAccessResults(pair, tOf(pair))
+    expect(result.path?.kind).toBe('rotated')
+    expect(result.apertures).toHaveLength(2)
+    expect(carcaseHoleArrays(pair, 'left-side').length).toBeGreaterThan(0)
+    expect(carcaseHoleArrays(pair, 'right-side').length).toBeGreaterThan(0)
+  })
+
+  it('declines a loose shelf and its pin rows when a two-by-two frame has no rigid-body route', () => {
+    const p = oneBay(1)
+    const sectionId = p.section.id
+    const half = (id: string) => ({
+      id,
+      size: { kind: 'equal' } as const,
+      content: {
+        kind: 'split' as const,
+        axis: 'vertical' as const,
+        children: [
+          { id: `${id}-left`, size: { kind: 'equal' } as const, content: { kind: 'leaf' } as const },
+          { id: `${id}-right`, size: { kind: 'equal' } as const, content: { kind: 'leaf' } as const },
+        ],
+      },
+    })
+    const blocked: CarcaseParams = {
+      ...p,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        layout: {
+          [sectionId]: {
+            id: 'grid',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [half('lower'), half('upper')],
+            },
+          },
+        },
+      },
+    }
+    expect(shelfBoxes(blocked)).toEqual([])
+    const issues = adjustableShelfAccessIssues(blocked, tOf(blocked))
+    expect(issues.map((issue) => issue.sectionId)).toEqual([sectionId])
+    expect(issues[0].apertures).toHaveLength(4)
+    expect(carcaseHoleArrays(blocked, 'left-side')).toEqual([])
+    expect(carcaseHoleArrays(blocked, 'right-side')).toEqual([])
   })
 
   it('emits none when the section asks for none', () => {
