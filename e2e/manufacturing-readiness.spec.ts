@@ -1,5 +1,34 @@
 import { test, expect } from '@playwright/test'
 
+test('an excessive shelf request warns without crashing, and can be corrected', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({ timeout: 120_000 })
+  await page.getByLabel('Add cabinet').click()
+  await page.getByRole('option', { name: 'Base 600' }).click()
+  await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
+  await page.getByRole('button', { name: /Shelving/ }).click()
+  await page.locator('[data-testid^="section-cell-"]').first().click()
+  const shelves = page.getByLabel('Shelves', { exact: true })
+  await shelves.fill('1000000000000')
+  await shelves.blur()
+  await page.getByRole('button', { name: 'File ▾' }).click()
+  await page.getByRole('button', { name: 'Manufacturing readiness…' }).click()
+  const report = page.getByRole('dialog', { name: 'Manufacturing readiness', exact: true })
+  await expect(report.getByText(/exceeds the report limit/)).toBeVisible()
+  await expect(report.getByRole('status')).toContainText('unknown missing')
+  await expect(report.getByRole('table')).toHaveCount(0)
+  await report.getByRole('button', { name: 'Close readiness report' }).click()
+  await shelves.fill('1')
+  await shelves.blur()
+  await page.getByRole('button', { name: 'File ▾' }).click()
+  await expect(page.getByRole('button', { name: 'Export STEP…' })).toBeEnabled()
+  await page.getByRole('button', { name: 'Manufacturing readiness…' }).click()
+  await expect(report.getByRole('status')).toContainText('1 requested · 1 generated · 0 missing')
+  await expect(report.getByRole('table')).toBeVisible()
+})
+
 test('readiness links to preview and sheet, reports omissions, and leaves exports available', async ({
   page,
 }) => {

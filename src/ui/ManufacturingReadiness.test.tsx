@@ -33,6 +33,48 @@ afterEach(() => {
 })
 
 describe('readiness UI', () => {
+  it('keeps oversized reports usable without rows or false zero totals, then recovers', () => {
+    const scene = sceneOf()
+    scene.components = [
+      {
+        ...cabinet,
+        params: {
+          ...cabinet.params,
+          section: {
+            ...cabinet.params.section,
+            interior: {
+              ...cabinet.params.section.interior!,
+              adjustable: {
+                ...cabinet.params.section.interior!.adjustable,
+                shelves: 1e12,
+              },
+            },
+          },
+        },
+      },
+    ]
+    const close = vi.fn()
+    const view = render(
+      <ManufacturingReadiness scene={scene} onClose={close} onOpenSheet={vi.fn()} />,
+    )
+    expect(screen.getByRole('status').textContent).toContain('1000000000000 requested')
+    expect(screen.getByRole('status').textContent).toContain('unknown missing')
+    expect(screen.getByRole('status').textContent).toContain('unknown without a verified route')
+    expect(screen.getByText(/exceeds the report limit/)).toBeTruthy()
+    expect(screen.queryByText('No adjustable shelves requested.')).toBeNull()
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Installation sheet' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Close readiness report' }))
+    expect(close).toHaveBeenCalledOnce()
+    view.rerender(
+      <ManufacturingReadiness scene={sceneOf()} onClose={close} onOpenSheet={vi.fn()} />,
+    )
+    expect(screen.getByRole('table')).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toContain(
+      '1 requested · 1 generated · 0 missing',
+    )
+  })
+
   it('opens the existing preview, keeps the report on preview Escape, and links to the exact sheet', () => {
     const onClose = vi.fn(),
       onOpenSheet = vi.fn()
