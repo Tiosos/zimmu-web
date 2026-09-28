@@ -282,7 +282,7 @@ describe('golden manufacturing package', () => {
     expect(loadedDrawer.frameOpeningId).toBe('upper-drawer')
   })
 
-  it('declines the golden loose shelf when every independent aperture is narrower than it', () => {
+  it('declines the golden loose shelf when no sampled rigid-body route reaches the interior', () => {
     const cabinet = independentCabinetOf()
     const layout = cabinet.params.frame?.layout?.[cabinet.params.section.id]
     if (layout?.content.kind !== 'split') throw new Error('missing independent layout')
