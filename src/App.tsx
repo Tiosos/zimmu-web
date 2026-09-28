@@ -763,6 +763,7 @@ function App() {
       {readinessOpen && (
         <ManufacturingReadiness
           scene={scene}
+          projectName={projectName}
           onInspect={(selection) => {
             onSelect(selection)
             setReadinessOpen(false)

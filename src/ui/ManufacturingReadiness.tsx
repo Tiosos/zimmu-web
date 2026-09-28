@@ -1,10 +1,13 @@
-import { useEffect, useId, useMemo, useRef } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import type { CarcaseComponent, Scene, Selection } from '../scene/types'
 import { buildShelfReadiness, type ShelfReadinessRow } from '../scene/shelfReadiness'
 import { buildProductionReadiness } from '../scene/productionReadiness'
 import { ShelfInsertionPreview } from './ShelfInsertionPreview'
+import { createReadinessSnapshot } from '../scene/readinessSnapshot'
+import { buildReadinessPdf, readinessPdfFilename } from './buildReadinessPdf'
+import { downloadBlob } from './download'
 
 const statusText: Record<ShelfReadinessRow['status'], string> = {
   straight: 'Straight insertion',
@@ -19,14 +22,33 @@ export function ManufacturingReadiness({
   onClose,
   onOpenSheet,
   onInspect,
+  projectName = 'Project',
 }: {
   scene: Scene
   onClose: () => void
   onOpenSheet: (cabinet: CarcaseComponent, role: string) => void
   onInspect?: (selection: NonNullable<Selection>) => void
+  projectName?: string
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useId()
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const exportPdf = async () => {
+    setExporting(true)
+    setExportError(null)
+    try {
+      const snapshot = createReadinessSnapshot(scene, projectName)
+      const bytes = await buildReadinessPdf(snapshot)
+      downloadBlob(bytes as BlobPart, readinessPdfFilename(snapshot.projectName), 'application/pdf')
+    } catch (error) {
+      setExportError(
+        `PDF export failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
+      )
+    } finally {
+      setExporting(false)
+    }
+  }
   const report = useMemo(() => buildShelfReadiness(scene), [scene])
   const production = useMemo(() => buildProductionReadiness(scene), [scene])
   const sum = (field: 'requested' | 'generated' | 'missing' | 'angled' | 'unverified') => {
@@ -55,10 +77,18 @@ export function ManufacturingReadiness({
         <h2 id={heading} className="font-semibold">
           Manufacturing readiness
         </h2>
+        <Button size="sm" variant="outline" disabled={exporting} onClick={() => void exportPdf()}>
+          {exporting ? 'Preparing PDF…' : 'Export readiness PDF'}
+        </Button>
         <Button size="sm" variant="outline" onClick={onClose}>
           Close readiness report
         </Button>
       </div>
+      {exportError && (
+        <p role="alert" className="text-sm text-amber-300 mb-3">
+          {exportError}
+        </p>
+      )}
       <p className="text-sm mb-2">
         Production checks for all cabinets and boards, including hidden items. Shelf counts refer to
         shelf boards in the current scene.

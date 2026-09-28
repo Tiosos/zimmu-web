@@ -1,9 +1,11 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, within, waitFor } from '@testing-library/react'
 import { ManufacturingReadiness } from './ManufacturingReadiness'
 import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 import { DEFAULT_FRAME, PRESET_MATERIALS } from '../scene/carcasePresets'
 import type { Scene } from '../scene/types'
+import * as pdf from './buildReadinessPdf'
+import * as downloads from './download'
 
 vi.mock('./ShelfInsertionCanvas', () => ({
   ShelfInsertionCanvas: () => <div>Preview geometry</div>,
@@ -33,6 +35,35 @@ afterEach(() => {
 })
 
 describe('readiness UI', () => {
+  it('downloads a captured snapshot and recovers from export failures', async () => {
+    const build = vi
+      .spyOn(pdf, 'buildReadinessPdf')
+      .mockRejectedValueOnce(new Error('test failure'))
+      .mockResolvedValue(new Uint8Array([37, 80, 68, 70]))
+    const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+    const scene = sceneOf()
+    render(
+      <ManufacturingReadiness
+        scene={scene}
+        projectName="Workshop A"
+        onClose={vi.fn()}
+        onOpenSheet={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Export readiness PDF' }))
+    expect(screen.getByRole('button', { name: 'Preparing PDF…' }).hasAttribute('disabled')).toBe(
+      true,
+    )
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('test failure'))
+    expect(download).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Export readiness PDF' }))
+    await waitFor(() => expect(download).toHaveBeenCalledOnce())
+    expect(download.mock.calls[0][1]).toBe('Workshop A-manufacturing-readiness.pdf')
+    expect(build.mock.calls[1][0].projectName).toBe('Workshop A')
+    expect(build.mock.calls[1][0].cabinets[0].generated).toBe(1)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('links production findings to the affected cabinet without altering the scene', () => {
     const scene = sceneOf()
     scene.parts = scene.parts.filter((p) => p.role !== 'bottom')

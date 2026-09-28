@@ -45,6 +45,11 @@ test('readiness links to preview and sheet, reports omissions, and leaves export
   await openReport()
   const report = page.getByRole('dialog', { name: 'Manufacturing readiness', exact: true })
   await expect(report.getByRole('status')).toContainText('1 requested · 1 generated')
+  const downloading = page.waitForEvent('download')
+  await report.getByRole('button', { name: 'Export readiness PDF' }).click()
+  const download = await downloading
+  expect(download.suggestedFilename()).toMatch(/-manufacturing-readiness\.pdf$/)
+  expect(await download.failure()).toBeNull()
   await report.getByRole('button', { name: 'Preview shelf insertion' }).click()
   const preview = page.getByRole('dialog', { name: /Shelf insertion/ })
   await expect(preview.getByRole('status')).toHaveText('Straight insertion')
