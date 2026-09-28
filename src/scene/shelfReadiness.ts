@@ -14,11 +14,11 @@ export interface ShelfReadinessRow {
 
 export interface CabinetShelfReadiness {
   cabinet: CarcaseComponent
-  requested: number
+  requested: number | null
   generated: number
-  missing: number
-  angled: number
-  unverified: number
+  missing: number | null
+  angled: number | null
+  unverified: number | null
   issues: string[]
   shelves: ShelfReadinessRow[]
 }
@@ -26,21 +26,71 @@ export interface CabinetShelfReadiness {
 // Requested quantities come from the specification, not the solver's callbacks: a shelf with
 // no available pin position never reaches motion planning. Generated quantities come from the
 // current scene, not from predicting what regeneration ought to emit.
-function requestedRoles(section: Section): string[] {
-  if (section.content.kind === 'split') return section.content.children.flatMap(requestedRoles)
-  const count = section.interior?.adjustable.shelves ?? 0
-  if (!Number.isInteger(count) || count < 0) return []
-  return Array.from({ length: count }, (_, i) => `adj-shelf-${section.id}-${i}`)
+// A report-only resource limit, not a manufacturing limit. Validate the whole cabinet before
+// allocating rows or invoking the solver; the generator itself only seats available pin positions.
+export const MAX_READINESS_SHELVES = 1000
+
+function requestedRoles(root: Section): { count: number | null; roles: string[]; issue?: string } {
+  const leaves: { id: string; count: number }[] = []
+  let count = 0
+  const visit = (section: Section): void => {
+    if (section.content.kind === 'split') {
+      section.content.children.forEach(visit)
+      return
+    }
+    const n = section.interior?.adjustable.shelves ?? 0
+    if (!Number.isSafeInteger(n) || n < 0 || !Number.isSafeInteger(count + n)) {
+      count = NaN
+      return
+    }
+    count += n
+    leaves.push({ id: section.id, count: n })
+  }
+  visit(root)
+  if (!Number.isSafeInteger(count)) {
+    return {
+      count: null,
+      roles: [],
+      issue:
+        'Shelf quantities must be non-negative safe integers with a safely representable total. Correct the shelf quantities to assess this cabinet.',
+    }
+  }
+  if (count > MAX_READINESS_SHELVES) {
+    return {
+      count,
+      roles: [],
+      issue: `Requested shelf quantity exceeds the report limit of ${MAX_READINESS_SHELVES} per cabinet. Assessment was skipped; check the shelf quantities. No design quantities were changed.`,
+    }
+  }
+  return {
+    count,
+    roles: leaves.flatMap((leaf) =>
+      Array.from({ length: leaf.count }, (_, i) => `adj-shelf-${leaf.id}-${i}`),
+    ),
+  }
 }
 
 export function buildShelfReadiness(scene: Scene): CabinetShelfReadiness[] {
   return scene.components
     .filter((c): c is CarcaseComponent => c.kind === 'carcase')
     .map((cabinet) => {
-      const requested = requestedRoles(cabinet.params.section)
+      const request = requestedRoles(cabinet.params.section)
       const parts = scene.parts.filter(
         (p) => p.kind === 'board' && p.parentId === cabinet.id && p.role?.startsWith('adj-shelf-'),
       )
+      if (request.issue) {
+        return {
+          cabinet,
+          requested: request.count,
+          generated: parts.length,
+          missing: null,
+          angled: null,
+          unverified: null,
+          issues: [request.issue],
+          shelves: [],
+        }
+      }
+      const requested = request.roles
       let issues: string[] = []
       let access: AdjustableShelfAccessResult[] = []
       try {

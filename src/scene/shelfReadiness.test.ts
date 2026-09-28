@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildShelfReadiness } from './shelfReadiness'
+import { buildShelfReadiness, MAX_READINESS_SHELVES } from './shelfReadiness'
 import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 import { DEFAULT_FRAME, PRESET_MATERIALS } from './carcasePresets'
 import type { CarcaseParams, Scene } from './types'
@@ -18,6 +18,90 @@ const pair = (): CarcaseParams => ({
 })
 
 describe('shelf readiness report', () => {
+  const withCount = (shelves: number): CarcaseParams => ({
+    ...cabinet.params,
+    section: {
+      ...cabinet.params.section,
+      interior: {
+        ...cabinet.params.section.interior!,
+        adjustable: { ...cabinet.params.section.interior!.adjustable, shelves },
+      },
+    },
+  })
+
+  it.each([MAX_READINESS_SHELVES + 1, 1e12])(
+    'safely skips an excessive request of %s without changing the scene',
+    (count) => {
+      const scene = sceneOf(withCount(count))
+      const before = JSON.stringify(scene)
+      const report = buildShelfReadiness(scene)[0]
+      expect(report.requested).toBe(count)
+      expect(report.generated).toBe(
+        scene.parts.filter((p) => p.role?.startsWith('adj-shelf-')).length,
+      )
+      expect(report.shelves).toEqual([])
+      expect([report.missing, report.angled, report.unverified]).toEqual([null, null, null])
+      expect(report.issues.join(' ')).toContain('report limit')
+      expect(JSON.stringify(scene)).toBe(before)
+    },
+  )
+
+  it.each([NaN, Infinity, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'reports an invalid quantity %s rather than silently treating it as zero',
+    (count) => {
+      const scene = sceneOf()
+      scene.components = [{ ...cabinet, params: withCount(count) }]
+      const report = buildShelfReadiness(scene)[0]
+      expect(report.requested).toBeNull()
+      expect(report.missing).toBeNull()
+      expect(report.shelves).toEqual([])
+      expect(report.issues.join(' ')).toContain('safe integers')
+    },
+  )
+
+  it('assesses the boundary and recovers normally after correcting an excessive quantity', () => {
+    const report = buildShelfReadiness(sceneOf(withCount(MAX_READINESS_SHELVES)))[0]
+    expect(report.shelves).toHaveLength(MAX_READINESS_SHELVES)
+    expect(report.issues).toEqual([])
+    const scene = sceneOf(withCount(1e12))
+    scene.components.push({ ...cabinet, id: 'healthy' })
+    expect(buildShelfReadiness(scene)[1].shelves[0].status).toBe('straight')
+    scene.components[0] = cabinet
+    expect(buildShelfReadiness(scene)[0].shelves).toHaveLength(1)
+  })
+
+  it('applies the budget to the whole cabinet, not each leaf, and handles total overflow', () => {
+    for (const count of [600, Number.MAX_SAFE_INTEGER]) {
+      const scene = sceneOf()
+      const leaf = withCount(count).section
+      scene.components = [
+        {
+          ...cabinet,
+          params: {
+            ...cabinet.params,
+            section: {
+              id: 'root',
+              size: { kind: 'equal' },
+              content: {
+                kind: 'split',
+                axis: 'vertical',
+                division: 'panel',
+                children: [
+                  { ...leaf, id: 'a' },
+                  { ...leaf, id: 'b' },
+                ],
+              },
+            },
+          },
+        },
+      ]
+      const report = buildShelfReadiness(scene)[0]
+      expect(report.shelves).toEqual([])
+      expect(report.missing).toBeNull()
+      expect(report.requested).toBe(count === 600 ? 1200 : null)
+    }
+  })
+
   it('counts actual scene boards and identifies straight, angled and declined shelves', () => {
     const straight = buildShelfReadiness(sceneOf())[0]
     expect([

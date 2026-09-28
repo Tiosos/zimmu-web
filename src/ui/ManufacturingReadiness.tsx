@@ -25,8 +25,15 @@ export function ManufacturingReadiness({
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useId()
   const report = useMemo(() => buildShelfReadiness(scene), [scene])
-  const sum = (field: 'requested' | 'generated' | 'missing' | 'angled' | 'unverified') =>
-    report.reduce((total, c) => total + c[field], 0)
+  const sum = (field: 'requested' | 'generated' | 'missing' | 'angled' | 'unverified') => {
+    let total = 0
+    for (const entry of report) {
+      const value = entry[field]
+      if (value === null || !Number.isSafeInteger(total + value)) return 'unknown'
+      total += value
+    }
+    return total
+  }
   useEffect(() => {
     const node = dialog.current!
     node.showModal()
@@ -69,7 +76,7 @@ export function ManufacturingReadiness({
         >
           <h3 className="font-medium">{entry.cabinet.label}</h3>
           <p className="text-xs text-muted-foreground mt-1 mb-2">
-            {entry.requested} requested / {entry.generated} generated
+            {entry.requested ?? 'unknown'} requested / {entry.generated} generated
           </p>
           {entry.issues.map((issue, i) => (
             <p key={i} className="text-sm text-amber-300">
@@ -77,7 +84,11 @@ export function ManufacturingReadiness({
             </p>
           ))}
           {entry.shelves.length === 0 ? (
-            <p className="text-sm">No adjustable shelves requested.</p>
+            <p className="text-sm">
+              {entry.missing === null
+                ? 'Shelf details unavailable: this cabinet was not assessed.'
+                : 'No adjustable shelves requested.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
