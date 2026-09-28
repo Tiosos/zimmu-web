@@ -33,6 +33,27 @@ afterEach(() => {
 })
 
 describe('readiness UI', () => {
+  it('links production findings to the affected cabinet without altering the scene', () => {
+    const scene = sceneOf()
+    scene.parts = scene.parts.filter((p) => p.role !== 'bottom')
+    const before = JSON.stringify(scene)
+    const inspect = vi.fn()
+    render(
+      <ManufacturingReadiness
+        scene={scene}
+        onClose={vi.fn()}
+        onOpenSheet={vi.fn()}
+        onInspect={inspect}
+      />,
+    )
+    const section = screen.getByRole('region', { name: 'Production checks' })
+    expect(within(section).getByText(/Missing generated part: Bottom/)).toBeTruthy()
+    fireEvent.click(within(section).getAllByRole('button', { name: 'Inspect Base 600' })[0])
+    expect(inspect).toHaveBeenCalledWith({ kind: 'component', id: cabinet.id })
+    expect(JSON.stringify(scene)).toBe(before)
+    expect(screen.getByText(/exports remain available/)).toBeTruthy()
+  })
+
   it('keeps oversized reports usable without rows or false zero totals, then recovers', () => {
     const scene = sceneOf()
     scene.components = [

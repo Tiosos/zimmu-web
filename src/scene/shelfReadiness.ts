@@ -3,6 +3,7 @@ import type { Section } from './sectionTree'
 import { adjustableShelfAccessResults, type AdjustableShelfAccessResult } from './carcaseParts'
 import { roleThicknessFor, overridesOf } from './resolveThickness'
 import { validateCarcaseParams } from './carcaseValidation'
+import { productionLimitIssue } from './readinessLimits'
 
 export interface ShelfReadinessRow {
   role: string
@@ -78,7 +79,8 @@ export function buildShelfReadiness(scene: Scene): CabinetShelfReadiness[] {
       const parts = scene.parts.filter(
         (p) => p.kind === 'board' && p.parentId === cabinet.id && p.role?.startsWith('adj-shelf-'),
       )
-      if (request.issue) {
+      const limitIssue = request.issue ?? productionLimitIssue(cabinet)
+      if (limitIssue) {
         return {
           cabinet,
           requested: request.count,
@@ -86,7 +88,7 @@ export function buildShelfReadiness(scene: Scene): CabinetShelfReadiness[] {
           missing: null,
           angled: null,
           unverified: null,
-          issues: [request.issue],
+          issues: [limitIssue],
           shelves: [],
         }
       }

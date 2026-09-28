@@ -1,8 +1,9 @@
 import { useEffect, useId, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
-import type { CarcaseComponent, Scene } from '../scene/types'
+import type { CarcaseComponent, Scene, Selection } from '../scene/types'
 import { buildShelfReadiness, type ShelfReadinessRow } from '../scene/shelfReadiness'
+import { buildProductionReadiness } from '../scene/productionReadiness'
 import { ShelfInsertionPreview } from './ShelfInsertionPreview'
 
 const statusText: Record<ShelfReadinessRow['status'], string> = {
@@ -17,14 +18,17 @@ export function ManufacturingReadiness({
   scene,
   onClose,
   onOpenSheet,
+  onInspect,
 }: {
   scene: Scene
   onClose: () => void
   onOpenSheet: (cabinet: CarcaseComponent, role: string) => void
+  onInspect?: (selection: NonNullable<Selection>) => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useId()
   const report = useMemo(() => buildShelfReadiness(scene), [scene])
+  const production = useMemo(() => buildProductionReadiness(scene), [scene])
   const sum = (field: 'requested' | 'generated' | 'missing' | 'angled' | 'unverified') => {
     let total = 0
     for (const entry of report) {
@@ -56,13 +60,60 @@ export function ManufacturingReadiness({
         </Button>
       </div>
       <p className="text-sm mb-2">
-        Shelf access report for all cabinets, including hidden cabinets. Generated counts refer to
+        Production checks for all cabinets and boards, including hidden items. Shelf counts refer to
         shelf boards in the current scene.
       </p>
       <p className="text-xs text-muted-foreground mb-4">
-        Report-only: exports remain available. This checks adjustable shelf access, not every
-        manufacturing requirement.
+        Report-only: exports remain available. Checks cover cabinet parameters, material thickness,
+        generated parts, joinery and shelf access. Hardware suitability, machining accuracy and
+        physical installation still need review. A recorded joint does not certify its geometry.
       </p>
+      <section aria-label="Production checks" className="border rounded p-3 mb-4">
+        <h3 className="font-medium">Production checks</h3>
+        <p className="text-sm mb-2">
+          {production.findings.length} findings · {production.intentionalContacts ?? 'unknown'}{' '}
+          intentional contacts · Joinery scan{' '}
+          {production.joineryComplete ? 'complete' : 'incomplete'}
+        </p>
+        <p className="text-xs text-muted-foreground mb-2">
+          Intentional contacts are not missing joints. Detached assemblies are not checked for
+          generated-part completeness.
+        </p>
+        {production.findings.length === 0 && <p>No issues found by the completed checks.</p>}
+        {production.findings.slice(0, 200).map((finding, i) => (
+          <div key={i} className="border-t py-2 text-sm">
+            <p>
+              <strong>{finding.kind === 'unassessed' ? 'Not assessed' : finding.kind}:</strong>{' '}
+              {finding.message}
+            </p>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {finding.targets.map((target) =>
+                onInspect ? (
+                  <Button
+                    key={`${target.selection.kind}/${target.selection.id}`}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onInspect(target.selection)}
+                  >
+                    Inspect {target.label}
+                  </Button>
+                ) : (
+                  <span key={`${target.selection.kind}/${target.selection.id}`}>
+                    {target.label}
+                  </span>
+                ),
+              )}
+            </div>
+          </div>
+        ))}
+        {production.findings.length > 200 && (
+          <p className="text-amber-300">
+            Showing the first 200 findings. Resolve these and reopen the report to review the
+            remaining findings.
+          </p>
+        )}
+      </section>
+      <h3 className="font-medium mb-2">Shelf access</h3>
       <p role="status" className="text-sm border rounded p-3 mb-4">
         {sum('requested')} requested · {sum('generated')} generated · {sum('missing')} missing ·{' '}
         {sum('unverified')} without a verified route · {sum('angled')} requiring angled insertion
