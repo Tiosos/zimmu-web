@@ -391,7 +391,7 @@ describe('CarcasePanel shelving', () => {
     expect(screen.getByText(/pick an opening in the elevation to shelve it/i)).toBeTruthy()
     expect(screen.queryByLabelText('Shelves')).toBeNull()
   })
-  it('warns when a requested loose shelf cannot pass the selected opening frame', () => {
+  it('explains when a requested loose shelf needs angled insertion', () => {
     const section = seedInteriors(sec([], 0), defaultInterior(1))
     const c = carcase({
       section: {
@@ -407,9 +407,45 @@ describe('CarcasePanel shelving', () => {
       },
     })
     renderPanel(c)
-    expect(
-      screen.getByText(/adjustable shelf cannot pass through any current face-frame opening/i),
-    ).toBeTruthy()
+    expect(screen.getByText(/fits by angled insertion through the face frame/i)).toBeTruthy()
+  })
+
+  it('warns when no collision-free shelf insertion path exists', () => {
+    const section = seedInteriors(sec([], 0), defaultInterior(1))
+    const half = (id: string) => ({
+      id,
+      size: { kind: 'equal' } as const,
+      content: {
+        kind: 'split' as const,
+        axis: 'vertical' as const,
+        children: [
+          { id: `${id}-left`, size: { kind: 'equal' } as const, content: { kind: 'leaf' } as const },
+          { id: `${id}-right`, size: { kind: 'equal' } as const, content: { kind: 'leaf' } as const },
+        ],
+      },
+    })
+    const c = carcase({
+      section,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        layout: {
+          [section.id]: {
+            id: 'grid',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [half('lower'), half('upper')],
+            },
+          },
+        },
+      },
+    })
+    renderPanel(c)
+    expect(screen.getByText(/no collision-free shelf insertion path was found/i)).toBeTruthy()
   })
 })
 
