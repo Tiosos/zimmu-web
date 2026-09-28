@@ -13,6 +13,7 @@ import type {
   FrameZone,
 } from '../scene/types'
 import {
+  adjustableShelfAccessResults,
   frontGeometryOf,
   openingRect,
   sectionThickness,
@@ -251,6 +252,16 @@ export function CarcasePanel({
   // so rather than falling back to the first, which is what the dropdown did and what made it a
   // second selection that could disagree.
   const opening = openings.find((o) => o.sectionId === selectedSectionId)
+  const selectedAccessResults =
+    errors.length === 0 && opening !== undefined
+      ? adjustableShelfAccessResults(p, thicknessOf).filter(
+          (result) => result.sectionId === opening.sectionId,
+        )
+      : []
+  const selectedAccessIssues = selectedAccessResults.filter((result) => result.path === null)
+  const selectedRotatedAccess = selectedAccessResults.filter(
+    (result) => result.path?.kind === 'rotated',
+  )
 
   // A bare opening is given the same shelving a preset ships, less its shelves — otherwise the
   // first keystroke in any field would have to invent values for all the others.
@@ -581,6 +592,17 @@ export function CarcasePanel({
             </p>
           ) : (
             <>
+              {selectedAccessIssues.length > 0 && (
+                <p className="text-[11px] text-amber-300 py-1">
+                  No collision-free shelf insertion path was found through the current face frame.
+                  The blocked shelf will not be manufactured.
+                </p>
+              )}
+              {selectedAccessIssues.length === 0 && selectedRotatedAccess.length > 0 && (
+                <p className="text-[11px] text-muted-foreground py-1">
+                  Adjustable shelf fits by angled insertion through the face frame.
+                </p>
+              )}
               <DimInput
                 labelWidth="w-20"
                 label="Shelves"

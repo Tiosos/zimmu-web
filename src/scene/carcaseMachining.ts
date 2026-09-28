@@ -43,7 +43,8 @@ export function carcaseHoleArrays(
   const radius = PIN_DIAMETER / 2
   // Empty for a carcase whose parameters do not build, which is what makes every line below safe:
   // nothing here resolves a thickness or a rectangle for a cabinet the validator rejected.
-  const panel = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === role)?.panel
+  const generatedRoles = carcaseRoles(p, thicknessOf, kindOf)
+  const panel = generatedRoles.find((r) => r.role === role)?.panel
   if (panel === undefined) return []
 
   const tree = resolveSections(
@@ -69,6 +70,12 @@ export function carcaseHoleArrays(
     // not bore. Carried into the panel's frame: board y runs the carcase height and the panel's
     // origin is its own bottom edge.
     const usable = usableInteriorRect(rect, fronts.frameOpenings?.get(sectionId))
+    if (a.shelves > 0) {
+      const prefix = `adj-shelf-${sectionId}-`
+      // The part generator owns the insertion solver. Machining follows emitted manufacturing
+      // truth rather than re-running motion planning with a second obstacle model.
+      if (!generatedRoles.some((generated) => generated.role.startsWith(prefix))) continue
+    }
     const { first: firstZ, count } = pinRow(usable, a)
     if (count < 1) continue
     const first = firstZ - panel.position.z

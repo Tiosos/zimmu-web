@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  adjustableShelfAccessIssues,
+  adjustableShelfAccessResults,
   carcaseBoxes as boxesOf,
   carcaseContactPairs as contactPairsOf,
   carcaseCuts as cutsOf,
@@ -1935,6 +1937,154 @@ describe('adjustable shelves', () => {
     expect(shelfBoxes(oneBay(3))).toHaveLength(3)
   })
 
+  it('keeps a full-width shelf when one independent aperture can admit it', () => {
+    const p = oneBay(1)
+    const sectionId = p.section.id
+    const framed: CarcaseParams = {
+      ...p,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        layout: {
+          [sectionId]: {
+            id: 'zones',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [
+                {
+                  id: 'lower',
+                  size: { kind: 'equal' },
+                  content: {
+                    kind: 'split',
+                    axis: 'vertical',
+                    children: [
+                      { id: 'lower-left', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+                      { id: 'lower-right', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+                    ],
+                  },
+                },
+                {
+                  id: 'upper',
+                  size: { kind: 'fixed', mm: 140 },
+                  content: { kind: 'leaf' },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }
+    const [shelf] = shelfBoxes(framed)
+    expect(shelf).toBeDefined()
+    // Installed width follows the section-level outer frame opening, not the narrower lower leaves.
+    expect(shelf.box.x1 - shelf.box.x0).toBeCloseTo(600 - 2 * 44 - 2 * CLEARANCE, 9)
+  })
+
+  it('rotates a full-width loose shelf through a tall pair-stile opening', () => {
+    const p = oneBay(1)
+    const pair: CarcaseParams = {
+      ...p,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        pairStile: true,
+      },
+      section: {
+        ...p.section,
+        front: { kind: 'door', leaves: 2, hinge: 'left' },
+      },
+    }
+    expect(shelfBoxes(pair)).toHaveLength(1)
+    const [result] = adjustableShelfAccessResults(pair, tOf(pair))
+    expect(result.path?.kind).toBe('rotated')
+    expect(result.apertures).toHaveLength(2)
+    expect(carcaseHoleArrays(pair, 'left-side').length).toBeGreaterThan(0)
+    expect(carcaseHoleArrays(pair, 'right-side').length).toBeGreaterThan(0)
+  })
+
+  it('rotates a full-width shelf through an independent frame-zone stile', () => {
+    const p = oneBay(1)
+    const sectionId = p.section.id
+    const independent: CarcaseParams = {
+      ...p,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        layout: {
+          [sectionId]: {
+            id: 'pair-zones',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'vertical',
+              children: [
+                { id: 'left-zone', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+                { id: 'right-zone', size: { kind: 'equal' }, content: { kind: 'leaf' } },
+              ],
+            },
+          },
+        },
+      },
+    }
+    const [shelf] = shelfBoxes(independent)
+    expect(shelf).toBeDefined()
+    expect(shelf.box.x1 - shelf.box.x0).toBeCloseTo(600 - 2 * 44 - 2 * CLEARANCE, 9)
+    const [result] = adjustableShelfAccessResults(independent, tOf(independent))
+    expect(result.path?.kind).toBe('rotated')
+    expect(['left-zone', 'right-zone']).toContain(result.path?.apertureId)
+  })
+
+  it('declines a loose shelf and its pin rows when a two-by-two frame has no rigid-body route', () => {
+    const p = oneBay(1)
+    const sectionId = p.section.id
+    const half = (id: string) => ({
+      id,
+      size: { kind: 'equal' } as const,
+      content: {
+        kind: 'split' as const,
+        axis: 'vertical' as const,
+        children: [
+          { id: `${id}-left`, size: { kind: 'equal' } as const, content: { kind: 'leaf' } as const },
+          { id: `${id}-right`, size: { kind: 'equal' } as const, content: { kind: 'leaf' } as const },
+        ],
+      },
+    })
+    const blocked: CarcaseParams = {
+      ...p,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        layout: {
+          [sectionId]: {
+            id: 'grid',
+            size: { kind: 'equal' },
+            content: {
+              kind: 'split',
+              axis: 'horizontal',
+              children: [half('lower'), half('upper')],
+            },
+          },
+        },
+      },
+    }
+    expect(shelfBoxes(blocked)).toEqual([])
+    const issues = adjustableShelfAccessIssues(blocked, tOf(blocked))
+    expect(issues.map((issue) => issue.sectionId)).toEqual([sectionId])
+    expect(issues[0].apertures).toHaveLength(4)
+    expect(carcaseHoleArrays(blocked, 'left-side')).toEqual([])
+    expect(carcaseHoleArrays(blocked, 'right-side')).toEqual([])
+  })
+
   it('emits none when the section asks for none', () => {
     expect(shelfBoxes(oneBay(0))).toEqual([])
   })
@@ -2060,6 +2210,25 @@ describe('fixed shelves inside a section', () => {
     expect(fixed).toHaveLength(2)
     const gaps = [fixed[0].box.z0 - 118, fixed[1].box.z0 - fixed[0].box.z1, 702 - fixed[1].box.z1]
     for (const g of gaps) expect(g).toBeCloseTo(gaps[0], 6)
+  })
+
+  it('does not apply removable-access rules to a structural fixed shelf', () => {
+    const p = withFixed(1)
+    const pair: CarcaseParams = {
+      ...p,
+      frame: {
+        stileWidth: 44,
+        railWidth: 32,
+        midStileWidth: 56,
+        midRailWidth: 38,
+        pairStile: true,
+      },
+      section: {
+        ...p.section,
+        front: { kind: 'door', leaves: 2, hinge: 'left' },
+      },
+    }
+    expect(fixedBoxes(pair)).toHaveLength(1)
   })
 
   it('emits none when the interior asks for none', () => {

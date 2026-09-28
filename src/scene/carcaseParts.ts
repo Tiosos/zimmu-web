@@ -21,14 +21,21 @@ import {
 } from './carcaseLayout'
 import { validateCarcaseParams } from './carcaseValidation'
 import { carcaseJoints } from './carcaseJoinery'
+import {
+  ADJUSTABLE_SHELF_SIDE_CLEARANCE,
+  accessAperturesForSection,
+  findShelfInsertionPath,
+  frameAccessObstacles,
+  type AccessObstacle,
+  type InteriorAccessAperture,
+  type ShelfInsertionPath,
+} from './interiorAccess'
 
 // How much narrower than its opening a loose shelf is cut, on each side. A chosen figure like
 // MAX_LADDER_SPAN — enough that a shelf lifts in and out without binding, small enough not to read
 // as a gap — not one derived from the material or from any tolerance the app knows about.
-const SHELF_CLEARANCE = 2
-
 // How far behind the carcase face a loose shelf's front edge sits. A different figure for a
-// different reason: `SHELF_CLEARANCE` clears panels the shelf has to lift past, this clears
+// different reason: `ADJUSTABLE_SHELF_SIDE_CLEARANCE` clears panels the shelf has to lift past, this clears
 // whatever the cabinet ends up wearing. A shelf level with the carcase face rubs any door with an
 // inset, and the door is not there to be measured against when the shelf is generated.
 const SHELF_FRONT_SETBACK = 5
@@ -91,7 +98,18 @@ function divisionLabel(tree: ResolvedTree, d: ResolvedDivision): string {
   return inBays ? `Bay ${bay.index + 1} Shelf ${d.index + 1}` : `Shelf ${d.index + 1}`
 }
 
-export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): RoleBox[] {
+export interface AdjustableShelfAccessResult {
+  sectionId: SectionId
+  role: string
+  apertures: InteriorAccessAperture[]
+  path: ShelfInsertionPath | null
+}
+
+export function carcaseBoxes(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+  onShelfAccess?: (result: AdjustableShelfAccessResult) => void,
+): RoleBox[] {
   if (validateCarcaseParams(p, thicknessOf).length > 0) return []
 
   const { width: W, height: H, depth: D } = p
@@ -291,6 +309,14 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
     return Math.max(0, frontThickness - (fronts.frameOpenings?.has(sectionId) ? frameDepth : 0))
   }
 
+  // Everything built so far is fixed structure. Loose shelves are installed independently, so
+  // they never become obstacles for one another; the face-frame solids are added from the same
+  // geometry that defines the apertures.
+  const shelfAccessObstacles: AccessObstacle[] = [
+    ...boxes.map((part) => ({ role: part.role, box: part.box })),
+    ...frameAccessObstacles(fronts, frameDepth),
+  ]
+
   // Loose shelves on pins, after the divisions: the build order runs shell, then what divides it,
   // then what sits inside. Keyed on the section's own id, the same way a division is keyed on the
   // id of the section it splits, so two openings that both hold shelves cannot name one board.
@@ -301,31 +327,47 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
     const { first, count } = pinRow(usable, a)
     shelfPins(a.shelves, count).forEach((pin, i) => {
       const role = `adj-shelf-${sectionId}-${i}`
+      const shelfThickness = thicknessOf(role)
+
       // The board's underside on the pin's centreline: an L-pin carries the shelf on an arm at
       // about the height of the hole it sits in, and modelling the pin itself would put hardware
       // in the cutting list to hold up a board.
       const z0 = first + pin * a.pitch
+      const shelfBox: LocalBox = {
+        x0: usable.x0 + ADJUSTABLE_SHELF_SIDE_CLEARANCE,
+        x1: usable.x1 - ADJUSTABLE_SHELF_SIDE_CLEARANCE,
+        // Set back at the front for the door it does not know about, and clear of the back panel
+        // at the other end. A shelf that jams against the back cannot be tilted out past the
+        // pins, and a shelf touching a panel it is not fixed to would read as an unjoined
+        // contact on the joinery checklist.
+        // An inset front stands in the first FT millimetres of the opening, so the shelf starts
+        // behind it plus the same clearance it keeps from every other panel. An overlay front is
+        // in front of y = 0 and costs nothing. The constant is the floor, never the answer.
+        y0: Math.max(SHELF_FRONT_SETBACK, insetDepthOf(sectionId) + ADJUSTABLE_SHELF_SIDE_CLEARANCE),
+        y1: shelfBackY - ADJUSTABLE_SHELF_SIDE_CLEARANCE,
+        z0,
+        z1: z0 + shelfThickness,
+      }
+      // Installed envelope and insertion path are different constraints. The rigid-body solver
+      // must witness a collision-free path; a frame-only stile is never allowed to resize the
+      // manufactured shelf merely to make the access test pass.
+      const apertures = accessAperturesForSection(sectionId, rect, fronts)
+      const path = findShelfInsertionPath(
+        shelfBox,
+        apertures,
+        shelfAccessObstacles,
+        frameDepth,
+      )
+      onShelfAccess?.({ sectionId, role, apertures, path })
+      if (path === null) return
+
       seated += 1
       boxes.push({
         role,
         // A cabinet-wide ordinal, like the pin rows label: which bay a leaf is in takes an ancestor
         // walk, and a shelf that only says "Adj Shelf" is a worse cutting list than a numbered one.
         label: `Adj Shelf ${seated}`,
-        box: {
-          x0: usable.x0 + SHELF_CLEARANCE,
-          x1: usable.x1 - SHELF_CLEARANCE,
-          // Set back at the front for the door it does not know about, and clear of the back panel
-          // at the other end. A shelf that jams against the back cannot be tilted out past the
-          // pins, and a shelf touching a panel it is not fixed to would read as an unjoined
-          // contact on the joinery checklist.
-          // An inset front stands in the first FT millimetres of the opening, so the shelf starts
-          // behind it plus the same clearance it keeps from every other panel. An overlay front is
-          // in front of y = 0 and costs nothing. The constant is the floor, never the answer.
-          y0: Math.max(SHELF_FRONT_SETBACK, insetDepthOf(sectionId) + SHELF_CLEARANCE),
-          y1: shelfBackY - SHELF_CLEARANCE,
-          z0,
-          z1: z0 + thicknessOf(role),
-        },
+        box: shelfBox,
         thicknessAxis: 'z',
       })
     })
@@ -358,6 +400,22 @@ export function carcaseBoxes(p: CarcaseParams, thicknessOf: RoleThickness): Role
   }
 
   return boxes
+}
+
+export function adjustableShelfAccessResults(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+): AdjustableShelfAccessResult[] {
+  const results: AdjustableShelfAccessResult[] = []
+  carcaseBoxes(p, thicknessOf, (result) => results.push(result))
+  return results
+}
+
+export function adjustableShelfAccessIssues(
+  p: CarcaseParams,
+  thicknessOf: RoleThickness,
+): AdjustableShelfAccessResult[] {
+  return adjustableShelfAccessResults(p, thicknessOf).filter((result) => result.path === null)
 }
 
 // How far past the housing's near face the housed panel's end runs: to the groove floor for a

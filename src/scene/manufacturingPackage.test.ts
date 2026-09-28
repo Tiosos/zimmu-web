@@ -71,7 +71,11 @@ const frameBoards = (scene: Scene): BoardPart[] =>
 
 const independentCabinetOf = (): CarcaseComponent => {
   const base = CARCASE_PRESETS[0].params
-  const section = { ...base.section, front: undefined }
+  const section = setInterior(
+    { ...base.section, front: undefined },
+    base.section.id,
+    defaultInterior(1),
+  )
   return {
     kind: 'carcase',
     id: 'cmp_independent_golden',
@@ -234,6 +238,13 @@ describe('golden manufacturing package', () => {
     expect(drawer.sectionId).toBe(cabinet.params.section.id)
     expect(drawer.frameOpeningId).toBe('upper-drawer')
     expect(scene.parts.filter((part) => part.parentId === drawer.id)).toHaveLength(5)
+    const looseShelves = scene.parts.filter(
+      (part) => part.kind === 'board' && part.role?.startsWith('adj-shelf-') === true,
+    )
+    expect(looseShelves).toHaveLength(1)
+    // The shelf is still the full installed width behind the frame. It enters through the
+    // full-width upper drawer aperture; the lower pair openings do not resize it.
+    expect(looseShelves[0].length).toBeGreaterThan(400)
 
     const cups = fronts
       .flatMap((part) => part.cuts)
@@ -269,5 +280,67 @@ describe('golden manufacturing package', () => {
     expect(loadedDrawer?.kind).toBe('drawer')
     if (loadedDrawer?.kind !== 'drawer') return
     expect(loadedDrawer.frameOpeningId).toBe('upper-drawer')
+  })
+
+  it('declines the golden loose shelf when no sampled rigid-body route reaches the interior', () => {
+    const cabinet = independentCabinetOf()
+    const layout = cabinet.params.frame?.layout?.[cabinet.params.section.id]
+    if (layout?.content.kind !== 'split') throw new Error('missing independent layout')
+    const [lower, upper] = layout.content.children
+    cabinet.params = {
+      ...cabinet.params,
+      frame: {
+        ...cabinet.params.frame!,
+        layout: {
+          [cabinet.params.section.id]: {
+            ...layout,
+            content: {
+              ...layout.content,
+              children: [
+                lower,
+                {
+                  ...upper,
+                  front: undefined,
+                  content: {
+                    kind: 'split',
+                    axis: 'vertical',
+                    children: [
+                      {
+                        id: 'upper-left',
+                        size: { kind: 'equal' },
+                        front: { kind: 'drawer-front' },
+                        content: { kind: 'leaf' },
+                      },
+                      {
+                        id: 'upper-right',
+                        size: { kind: 'equal' },
+                        content: { kind: 'leaf' },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    }
+    const scene = regenerateComponents(
+      regenerateDrawers(
+        regenerateFaceFrames({
+          parts: [],
+          materials: { ...PRESET_MATERIALS },
+          hardware: [],
+          joints: [],
+          components: [cabinet],
+        }),
+      ),
+    )
+    expect(
+      scene.parts.filter(
+        (part) => part.kind === 'board' && part.role?.startsWith('adj-shelf-') === true,
+      ),
+    ).toEqual([])
+    expect(scene.parts.some((part) => part.role?.startsWith('division-'))).toBe(false)
   })
 })
