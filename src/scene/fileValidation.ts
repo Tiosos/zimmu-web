@@ -312,8 +312,10 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
             const mp = `${wp}.measuredLength`
             const measurement = recordAt(wall.measuredLength, mp)
             positiveAt(measurement.value, `${mp}.value`)
-            stringAt(measurement.source, `${mp}.source`)
-            stringAt(measurement.recordedAt, `${mp}.recordedAt`)
+            if (!stringAt(measurement.source, `${mp}.source`).trim())
+              throw new ZimmuFileValidationError(`${mp}.source`, 'must identify the measurement source')
+            if (!Number.isFinite(Date.parse(stringAt(measurement.recordedAt, `${mp}.recordedAt`))))
+              throw new ZimmuFileValidationError(`${mp}.recordedAt`, 'must be a valid date')
             positiveAt(measurement.uncertainty, `${mp}.uncertainty`, true)
           }
         })

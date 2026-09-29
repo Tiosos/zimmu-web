@@ -74,7 +74,7 @@ function makeDefaultSceneReturn() {
     exportStep: vi.fn(),
     onUpdateMaterial: vi.fn(),
     onUpdateHardware: vi.fn(),
-    onUpdateComponents: vi.fn(),
+    syncComponents: vi.fn(),
     canUndo: true,
     canRedo: false,
     undoLabel: 'Add Board 1',

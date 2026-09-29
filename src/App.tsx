@@ -76,7 +76,7 @@ function App() {
     onSelect,
     onToggleVisible,
     onUpdateComponent,
-    onUpdateComponents,
+    syncComponents,
     onSetFrame,
     canUndo,
     canRedo,
@@ -392,12 +392,12 @@ function App() {
         Math.abs(c.position.x - pose.position.x) > 0.001 || Math.abs(c.position.y - pose.position.y) > 0.001 ||
         Math.abs(c.rotation.z - pose.rotation) > 0.001)
     })) return
-    onUpdateComponents((components) => components.map((c) => {
+    syncComponents((components) => components.map((c) => {
       const pose = poses.get(c.id)
       return c.kind === 'carcase' && pose ? { ...c, anchor: undefined,
         position: { ...c.position, ...pose.position }, rotation: { ...c.rotation, z: pose.rotation } } : c
     }))
-  }, [project, scene.components, onUpdateComponents])
+  }, [project, scene.components, syncComponents])
 
   const detachWallPlacement = (id: string) => {
     if (!project.areas.some((area) => area.rooms.some((room) => room.geometry?.placements.some((p) => p.cabinetId === id)))) return

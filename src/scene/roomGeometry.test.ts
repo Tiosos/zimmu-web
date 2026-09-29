@@ -48,6 +48,10 @@ describe('room geometry', () => {
     expect(() => parseFile(JSON.stringify(withWall))).toThrow(/wallId/)
     Object.assign(withWall.project.areas[0].rooms[0], { geometry: { ...emptyRoomGeometry(), walls: [wall] } })
     expect(parseFile(JSON.stringify({ ...withWall, version: 22 })).project?.areas[0].rooms[0].geometry?.walls[0].end.x).toBe(3983)
+    Object.assign(withWall.project.areas[0].rooms[0], { geometry: { ...emptyRoomGeometry(), walls: [{ ...wall,
+      measuredLength: { value: 3983, source: '', recordedAt: '2026-09-29', uncertainty: 0 },
+    }] } })
+    expect(() => parseFile(JSON.stringify(withWall))).toThrow(/measurement source/)
   })
 
   it('flags a cabinet footprint overlapping a site obstacle', () => {

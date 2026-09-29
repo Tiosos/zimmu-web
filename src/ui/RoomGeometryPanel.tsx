@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { RoomGeometry } from '../scene/projectStructure'
 import type { Scene } from '../scene/types'
 import { emptyRoomGeometry } from '../scene/projectStructure'
@@ -13,6 +14,10 @@ interface Props {
 
 export function RoomGeometryPanel({ geometry: supplied, onChange, cabinets, scene }: Props) {
   const geometry = supplied ?? emptyRoomGeometry()
+  const [measurementDrafts, setMeasurementDrafts] = useState<Record<string, { value: string; source: string; uncertainty: string }>>({})
+  const draftFor = (id: string) => measurementDrafts[id] ?? { value: '', source: '', uncertainty: '' }
+  const editDraft = (id: string, field: 'value' | 'source' | 'uncertainty', value: string) =>
+    setMeasurementDrafts((drafts) => ({ ...drafts, [id]: { ...(drafts[id] ?? { value: '', source: '', uncertainty: '' }), [field]: value } }))
   const number = (label: string, value: number, update: (value: number) => void) =>
     <label className="inline-flex items-center gap-1 text-xs">{label}
       <input aria-label={label} type="number" value={value} onChange={(e) => update(Number(e.target.value))}
@@ -39,9 +44,26 @@ export function RoomGeometryPanel({ geometry: supplied, onChange, cabinets, scen
         <span>Drawn: {Math.round(wallLength(wall))} mm</span>
       </div>
       <div className="flex flex-wrap gap-2 items-center">
-        <Button size="sm" variant="outline" onClick={() => updateWall(wall.id, (w) => ({ ...w,
-          measuredLength: w.measuredLength ? undefined : { value: wallLength(w), source: 'Site measure', recordedAt: new Date().toISOString(), uncertainty: 0 },
-        }))}>{wall.measuredLength ? 'Remove measurement' : 'Record measurement'}</Button>
+        {wall.measuredLength ? <Button size="sm" variant="outline" onClick={() => updateWall(wall.id, (w) => ({ ...w,
+          measuredLength: undefined,
+        }))}>Remove measurement</Button> : <>
+          <input aria-label={`Site measured length for ${wall.name}`} type="number" min="0" placeholder="Measured mm"
+            value={draftFor(wall.id).value} onChange={(e) => editDraft(wall.id, 'value', e.target.value)}
+            className="w-28 bg-background border border-border rounded px-1" />
+          <input aria-label={`Measurement source for ${wall.name}`} placeholder="Source / person"
+            value={draftFor(wall.id).source} onChange={(e) => editDraft(wall.id, 'source', e.target.value)}
+            className="w-32 bg-background border border-border rounded px-1" />
+          <input aria-label={`Measurement uncertainty for ${wall.name}`} type="number" min="0" placeholder="± mm"
+            value={draftFor(wall.id).uncertainty} onChange={(e) => editDraft(wall.id, 'uncertainty', e.target.value)}
+            className="w-20 bg-background border border-border rounded px-1" />
+          <Button size="sm" variant="outline" disabled={!(Number(draftFor(wall.id).value) > 0 &&
+            draftFor(wall.id).source.trim() && draftFor(wall.id).uncertainty !== '' &&
+            Number.isFinite(Number(draftFor(wall.id).uncertainty)) && Number(draftFor(wall.id).uncertainty) >= 0)}
+            onClick={() => updateWall(wall.id, (w) => ({ ...w, measuredLength: {
+              value: Number(draftFor(wall.id).value), source: draftFor(wall.id).source.trim(),
+              uncertainty: Number(draftFor(wall.id).uncertainty), recordedAt: new Date().toISOString(),
+            } }))}>Record measurement</Button>
+        </>}
         {wall.measuredLength && <>
           {number('Measured mm', wall.measuredLength.value, (value) => updateWall(wall.id, (w) => ({ ...w, measuredLength: { ...w.measuredLength!, value } })))}
           {number('Uncertainty ±mm', wall.measuredLength.uncertainty, (uncertainty) => updateWall(wall.id, (w) => ({ ...w, measuredLength: { ...w.measuredLength!, uncertainty } })))}
