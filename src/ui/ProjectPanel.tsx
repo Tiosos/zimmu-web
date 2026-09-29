@@ -1,7 +1,8 @@
 import type { Scene } from '../scene/types'
 import type { ProjectStructure } from '../scene/projectStructure'
-import { emptyRoomGeometry, moveRootToItem } from '../scene/projectStructure'
+import { emptyRoomGeometry, moveRootToItem, roomComponentIds } from '../scene/projectStructure'
 import { RoomGeometryPanel } from './RoomGeometryPanel'
+import { RoomAssessmentPanel } from './RoomAssessmentPanel'
 import { Button } from '@/components/ui/button'
 
 interface Props {
@@ -47,6 +48,10 @@ export function ProjectPanel({ project, scene, onChange, activeItemId, onSelectI
   const items = project.areas.flatMap((a) => a.rooms.flatMap((r) => r.items))
   const roots = scene.components.filter((c) => c.parentId === null)
   const looseParts = scene.parts.filter((p) => p.parentId === null)
+  const changeGeometry = (roomId: string, geometry: NonNullable<ProjectStructure['areas'][number]['rooms'][number]['geometry']>) =>
+    onChange({ ...project, areas: project.areas.map((a) => ({ ...a,
+      rooms: a.rooms.map((r) => r.id === roomId ? { ...r, geometry } : r),
+    })) })
   const input = (id: string, name: string, label: string) => <input aria-label={`${label} name`}
     value={name} onChange={(e) => rename(id, e.target.value)}
     className="bg-background border border-border rounded px-2 py-1 text-xs" />
@@ -77,9 +82,10 @@ export function ProjectPanel({ project, scene, onChange, activeItemId, onSelectI
             scene={scene}
             cabinets={scene.components.filter((c) => c.kind === 'carcase' && c.parentId === null &&
               room.items.some((item) => item.rootComponentIds.includes(c.id))).map((c) => ({ id: c.id, label: c.label }))}
-            onChange={(geometry) => onChange({ ...project,
-            areas: project.areas.map((a) => ({ ...a, rooms: a.rooms.map((r) => r.id === room.id ? { ...r, geometry } : r) })),
-          })} />
+            onChange={(geometry) => changeGeometry(room.id, geometry)} />
+          {room.geometry && <RoomAssessmentPanel room={room.geometry} scene={scene}
+            cabinetIds={roomComponentIds(room.items.flatMap((item) => item.rootComponentIds), scene)}
+            onChange={(geometry) => changeGeometry(room.id, geometry)} />}
         </div>)}
         <Button size="sm" variant="outline" onClick={() => addRoom(area.id)}>Add room</Button>
       </section>)}

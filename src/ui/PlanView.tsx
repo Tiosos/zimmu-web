@@ -5,6 +5,7 @@ import { runsOf } from '../scene/runs'
 import type { CornerWarning } from '../scene/blindCorner'
 import type { RoomGeometry } from '../scene/projectStructure'
 import { roomPoint, wallLength } from '../scene/roomGeometry'
+import { doorSwingEnvelope } from '../scene/roomAssessment'
 import { Button } from '@/components/ui/button'
 
 // The whole job seen from above. The second interactive SVG in the codebase, and it follows the
@@ -94,6 +95,8 @@ export function PlanView({
         { x: o.position.x + o.width, y: o.position.y + o.depth },
         { x: o.position.x, y: o.position.y + o.depth },
       ].map((point) => roomPoint(point, room))) ?? []),
+      ...(room?.siteLevels?.map((level) => roomPoint(level.at, room)) ?? []),
+      ...(room?.openings.flatMap((opening) => doorSwingEnvelope(room, opening) ?? []) ?? []),
     ]
     if (boxes.length === 0 && points.length === 0) return null
     const xMin = Math.min(...boxes.map(({ b }) => b.x0), ...points.map((p) => p.x))
@@ -208,6 +211,23 @@ export function PlanView({
           return <polygon key={obstacle.id} data-testid={`plan-obstacle-${obstacle.id}`}
             points={corners.map((point) => `${toSvg(point.x, point.y, point.y).x},${toSvg(point.x, point.y, point.y).y}`).join(' ')}
             className="fill-amber-500/20 stroke-amber-600" strokeWidth={3} />
+        })}
+        {room?.siteLevels?.map((level) => {
+          const point = roomPoint(level.at, room)
+          const x = toSvg(point.x, point.y, point.y).x
+          const y = toSvg(point.x, point.y, point.y).y
+          return <g key={level.id} data-testid={`plan-level-${level.id}`}>
+            <circle cx={x} cy={y} r={25} className="fill-primary" />
+            <text x={x + 35} y={y - 15} className="fill-foreground" fontSize={40}>
+              {level.name}: {level.elevation.value} ±{level.elevation.uncertainty} mm
+            </text>
+          </g>
+        })}
+        {room?.openings.map((opening) => {
+          const swing = doorSwingEnvelope(room, opening)
+          return swing && <polygon key={`swing-${opening.id}`} data-testid={`plan-door-swing-${opening.id}`}
+            points={swing.map((point) => `${toSvg(point.x, point.y, point.y).x},${toSvg(point.x, point.y, point.y).y}`).join(' ')}
+            className="fill-amber-500/10 stroke-amber-600" strokeWidth={3} strokeDasharray="12 8" />
         })}
         {runs.map((run, i) => {
           const mine = boxes.filter(({ c }) => run.members.includes(c.id))

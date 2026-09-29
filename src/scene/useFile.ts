@@ -26,7 +26,7 @@ import type { Section } from './sectionTree'
 import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 import { defaultProject, reconcileProject, type ProjectStructure } from './projectStructure'
 
-export const FILE_FORMAT_VERSION = 22
+export const FILE_FORMAT_VERSION = 23
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
