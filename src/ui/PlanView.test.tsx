@@ -164,6 +164,14 @@ describe('PlanView', () => {
     expect(screen.getByTestId('plan-obstacle-column-a')).toBeTruthy()
   })
 
+  it('shows only cabinets belonging to the active room', () => {
+    render(<PlanView scene={sceneOf([cab('kitchen', 600, 560), cab('pantry', 450, 500)])}
+      selectedId={null} onSelect={vi.fn()} onDrop={vi.fn()} onTurn={vi.fn()} warnings={[]}
+      cabinetIds={new Set(['kitchen'])} />)
+    expect(screen.getByTestId('plan-cabinet-kitchen')).toBeTruthy()
+    expect(screen.queryByTestId('plan-cabinet-pantry')).toBeNull()
+  })
+
   it('applies the drop a drag lands on', () => {
     const onDrop = vi.fn()
     render(

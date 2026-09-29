@@ -123,7 +123,7 @@ vi.mock('./scene/useFile', () => ({
     fileName: null,
     projectName: 'Test',
     project: { id: 'project_test', areas: [{ id: 'area_test', name: 'Area', rooms: [{
-      id: 'room_test', name: 'Room', items: [{ id: 'item_test', name: 'Item', rootComponentIds: [], rootPartIds: [] }],
+      id: 'room_test', name: 'Room', items: [{ id: 'item_test', name: 'Item', rootComponentIds: ['cmp_1'], rootPartIds: [] }],
     }] }] },
     activeItemId: 'item_test',
     canUndoProject: false,
@@ -499,7 +499,7 @@ describe('the open cabinet', () => {
     expect(viewportShowing()).toBe(true)
   })
 
-  // The plan view is scene-wide, so it cannot live in CabinetEditor. It replaces the viewport
+  // The plan view spans the active room, so it cannot live in CabinetEditor. It replaces the viewport
   // VISUALLY only: viewport.tsx builds its renderer, camera and every mesh in a mount-once effect,
   // so swapping it out of the tree would tear all of that down on each toggle.
   it('shows the plan view without unmounting the viewport', async () => {

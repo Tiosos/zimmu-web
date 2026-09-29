@@ -373,6 +373,12 @@ function App() {
     },
   })
 
+  const activeRoom = project.areas.flatMap((area) => area.rooms).find((room) =>
+    room.items.some((item) => item.id === activeItemId))
+  const roomCabinetIds = useMemo(() => new Set(activeRoom?.items.flatMap((item) =>
+    item.rootComponentIds.flatMap((id) => [id, ...descendantIds(id, scene.components, scene.parts).componentIds])) ?? []),
+  [activeRoom, scene.components, scene.parts])
+
   useEffect(() => {
     const poses = new Map<string, ReturnType<typeof wallPlacementPose>>()
     for (const room of project.areas.flatMap((area) => area.rooms)) {
@@ -681,8 +687,8 @@ function App() {
         {mainView === 'plan' && (
           <PlanView
             scene={scene}
-            room={project.areas.flatMap((area) => area.rooms).find((room) =>
-              room.items.some((item) => item.id === activeItemId))?.geometry}
+            room={activeRoom?.geometry}
+            cabinetIds={roomCabinetIds}
             selectedId={selection?.kind === 'component' ? selection.id : null}
             onSelect={(id) => onSelect({ kind: 'component', id })}
             onDrop={(id, position) => {

@@ -59,6 +59,7 @@ export function PlanView({
   onTurn,
   warnings,
   room,
+  cabinetIds,
 }: {
   scene: Scene
   selectedId: ComponentId | null
@@ -67,18 +68,19 @@ export function PlanView({
   onTurn: (id: ComponentId) => void
   warnings: readonly CornerWarning[]
   room?: RoomGeometry
+  cabinetIds?: ReadonlySet<string>
 }) {
   const boxes = useMemo(
     () =>
       scene.components
-        .filter((c): c is CarcaseComponent => c.kind === 'carcase')
+        .filter((c): c is CarcaseComponent => c.kind === 'carcase' && (!cabinetIds || cabinetIds.has(c.id)))
         .map((c) => ({ c, b: worldBoundsOf(c, scene.materials) })),
-    [scene.components, scene.materials],
+    [scene.components, scene.materials, cabinetIds],
   )
 
   const runs = useMemo(
-    () => runsOf(scene.components, scene.materials),
-    [scene.components, scene.materials],
+    () => runsOf(scene.components.filter((c) => !cabinetIds || cabinetIds.has(c.id)), scene.materials),
+    [scene.components, scene.materials, cabinetIds],
   )
 
   // Computed above the empty-job guard, because hooks below it would not run — and the drag effect
