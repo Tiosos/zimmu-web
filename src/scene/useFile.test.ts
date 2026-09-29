@@ -235,6 +235,25 @@ describe('useFile', () => {
     expect(result.current.isDirty).toBe(true)
   })
 
+  it('suggests a v22 copy when saving a v21 project with no room geometry', async () => {
+    const oldHandle = {
+      name: 'kitchen.zimmu', queryPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockResolvedValue({ text: vi.fn().mockResolvedValue(JSON.stringify({
+        ...FIXTURE, version: 21, project: defaultProject(FIXTURE.scene, 'old'),
+      })) }),
+    } as unknown as FileSystemFileHandle
+    const write = vi.fn().mockResolvedValue(undefined)
+    const nextHandle = { name: 'kitchen-v22.zimmu', isSameEntry: vi.fn().mockResolvedValue(false),
+      createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }) }
+    vi.mocked(idb.readHandle).mockResolvedValue(oldHandle)
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(nextHandle))
+    const { result } = renderHook(() => useFile(makeInput()))
+    await waitFor(() => expect(result.current.fileReady).toBe(true))
+    await act(async () => { await result.current.saveFile() })
+    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v22.zimmu' }))
+    expect(JSON.parse(write.mock.calls[0][0]).version).toBe(22)
+  })
+
   it('openFile dirty + user cancels: no-op, onFileLoaded not called', async () => {
     vi.stubGlobal('confirm', vi.fn().mockReturnValue(false))
     vi.stubGlobal('showOpenFilePicker', vi.fn())
@@ -2248,7 +2267,7 @@ describe('v20 face frames', () => {
   // constant itself is asserted. This pin replaces the v19 one: the constant is global, so only the
   // newest value can be asserted.
   it('states the current file format version', () => {
-    expect(FILE_FORMAT_VERSION).toBe(21)
+    expect(FILE_FORMAT_VERSION).toBe(22)
   })
 
   // tsc cannot see this: `base.params` is typed loosely, so a parser that forgot the new slot would

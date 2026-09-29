@@ -5,6 +5,7 @@ import { PlanView } from './PlanView'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { resolvePlacement } from '../scene/resolvePlacement'
 import type { Anchor, CarcaseComponent, Component, Scene } from '../scene/types'
+import { emptyRoomGeometry } from '../scene/projectStructure'
 
 const cab = (id: string, width: number, depth: number, anchor?: Anchor): CarcaseComponent => ({
   kind: 'carcase',
@@ -149,6 +150,18 @@ describe('PlanView', () => {
   it('says so when the job has no cabinets', () => {
     draw(sceneOf([]))
     expect(screen.getByText(/no cabinets/i)).toBeTruthy()
+  })
+
+  it('draws a measured room wall, opening and obstacle with no cabinets', () => {
+    render(<PlanView scene={sceneOf([])} selectedId={null} onSelect={vi.fn()} onDrop={vi.fn()}
+      onTurn={vi.fn()} warnings={[]} room={{ ...emptyRoomGeometry(), walls: [{
+        id: 'wall-a', name: 'Wall', start: { x: 0, y: 0 }, end: { x: 3000, y: 0 },
+      }], openings: [{ id: 'door-a', wallId: 'wall-a', kind: 'door', offset: 500, width: 900, sill: 0, height: 2100 }],
+      obstacles: [{ id: 'column-a', name: 'Column', position: { x: 100, y: 100 }, width: 200, depth: 200, height: 2500 }],
+    }} />)
+    expect(screen.getByTestId('plan-wall-wall-a')).toBeTruthy()
+    expect(screen.getByTestId('plan-opening-door-a')).toBeTruthy()
+    expect(screen.getByTestId('plan-obstacle-column-a')).toBeTruthy()
   })
 
   it('applies the drop a drag lands on', () => {

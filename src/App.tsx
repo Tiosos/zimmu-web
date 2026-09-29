@@ -28,6 +28,7 @@ import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
 import { ManufacturingReadiness } from './ui/ManufacturingReadiness'
 import { ProjectPanel } from './ui/ProjectPanel'
+import { wallPlacementPose } from './scene/roomGeometry'
 import { buildShelfInstallationSheets } from './geom/shelfInstallation'
 import type {
   CameraState,
@@ -75,6 +76,7 @@ function App() {
     onSelect,
     onToggleVisible,
     onUpdateComponent,
+    onUpdateComponents,
     onSetFrame,
     canUndo,
     canRedo,
@@ -371,6 +373,34 @@ function App() {
     },
   })
 
+  useEffect(() => {
+    const poses = new Map<string, ReturnType<typeof wallPlacementPose>>()
+    for (const room of project.areas.flatMap((area) => area.rooms)) {
+      if (!room.geometry) continue
+      for (const placement of room.geometry.placements)
+        poses.set(placement.cabinetId, wallPlacementPose(room.geometry, placement))
+    }
+    if (!scene.components.some((c) => {
+      const pose = poses.get(c.id)
+      return c.kind === 'carcase' && pose && (c.anchor !== undefined ||
+        Math.abs(c.position.x - pose.position.x) > 0.001 || Math.abs(c.position.y - pose.position.y) > 0.001 ||
+        Math.abs(c.rotation.z - pose.rotation) > 0.001)
+    })) return
+    onUpdateComponents((components) => components.map((c) => {
+      const pose = poses.get(c.id)
+      return c.kind === 'carcase' && pose ? { ...c, anchor: undefined,
+        position: { ...c.position, ...pose.position }, rotation: { ...c.rotation, z: pose.rotation } } : c
+    }))
+  }, [project, scene.components, onUpdateComponents])
+
+  const detachWallPlacement = (id: string) => {
+    if (!project.areas.some((area) => area.rooms.some((room) => room.geometry?.placements.some((p) => p.cabinetId === id)))) return
+    setProject({ ...project, areas: project.areas.map((area) => ({ ...area, rooms: area.rooms.map((room) =>
+      room.geometry ? { ...room, geometry: { ...room.geometry,
+        placements: room.geometry.placements.filter((p) => p.cabinetId !== id) } } : room,
+    ) })) })
+  }
+
   const visibleParts = scene.parts.filter((p) => isNodeVisible(p, componentMap))
   const canExport = visibleParts.length > 0
   const closeDrawings = useCallback(() => setDrawingsOpen(false), [])
@@ -630,6 +660,7 @@ function App() {
                 (c): c is CarcaseComponent => c.kind === 'carcase' && c.id !== id,
               )
               const drop = dropForCentre(dragged, centre, others, scene.materials)
+              detachWallPlacement(id)
               // Through onUpdateComponent like every other edit, so a gizmo drag lands in undo/redo
               // and the four-stage pipeline re-resolves anchored neighbours in the same commit —
               // exactly as the plan view's drop does.
@@ -650,6 +681,8 @@ function App() {
         {mainView === 'plan' && (
           <PlanView
             scene={scene}
+            room={project.areas.flatMap((area) => area.rooms).find((room) =>
+              room.items.some((item) => item.id === activeItemId))?.geometry}
             selectedId={selection?.kind === 'component' ? selection.id : null}
             onSelect={(id) => onSelect({ kind: 'component', id })}
             onDrop={(id, position) => {
@@ -659,6 +692,7 @@ function App() {
                 (c): c is CarcaseComponent => c.kind === 'carcase' && c.id !== id,
               )
               const drop = anchorForDrop(dragged, position, others, scene.materials)
+              detachWallPlacement(id)
               // Through onUpdateComponent like every other edit, so a drag lands in undo/redo and
               // the four-stage pipeline re-resolves the dropped cabinet's neighbours in the same
               // commit. The updater is handed the Component UNION, so it must narrow before
@@ -674,11 +708,12 @@ function App() {
                     : { ...c, anchor: undefined, position: drop.position },
               )
             }}
-            onTurn={(id) =>
+            onTurn={(id) => {
+              detachWallPlacement(id)
               onUpdateComponent(id, (c) =>
                 c.kind !== 'carcase' ? c : turnedInPlace(c, scene.materials, 90),
               )
-            }
+            }}
             warnings={cornerWarnings(scene.components, scene.materials)}
           />
         )}

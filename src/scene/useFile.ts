@@ -26,7 +26,7 @@ import type { Section } from './sectionTree'
 import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 import { defaultProject, reconcileProject, type ProjectStructure } from './projectStructure'
 
-export const FILE_FORMAT_VERSION = 21
+export const FILE_FORMAT_VERSION = 22
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -558,7 +558,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       const migrating = pendingMigrationRef.current && handleRef.current !== null
       const handle = await window.showSaveFilePicker({
         types: PICKER_TYPES,
-        ...(migrating ? { suggestedName: handleRef.current!.name.replace(/\.zimmu$/i, '') + '-v21.zimmu' } : {}),
+        ...(migrating ? { suggestedName: handleRef.current!.name.replace(/\.zimmu$/i, '') + `-v${FILE_FORMAT_VERSION}.zimmu` } : {}),
       })
       if (migrating && handleRef.current &&
         (handle === handleRef.current ||
@@ -695,6 +695,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
   }, [])
 
   const setProject = useCallback((value: ProjectStructure) => {
+    value = reconcileProject(value, sceneRef.current, activeItemIdRef.current)
     projectHistoryRef.current = [...projectHistoryRef.current.slice(0, projectHistoryIndexRef.current + 1), value].slice(-50)
     projectHistoryIndexRef.current = projectHistoryRef.current.length - 1
     setProjectHistoryPosition(projectHistoryIndexRef.current)

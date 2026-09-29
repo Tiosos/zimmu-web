@@ -74,6 +74,7 @@ function makeDefaultSceneReturn() {
     exportStep: vi.fn(),
     onUpdateMaterial: vi.fn(),
     onUpdateHardware: vi.fn(),
+    onUpdateComponents: vi.fn(),
     canUndo: true,
     canRedo: false,
     undoLabel: 'Add Board 1',
@@ -121,6 +122,12 @@ vi.mock('./scene/useFile', () => ({
     fileReady: true,
     fileName: null,
     projectName: 'Test',
+    project: { id: 'project_test', areas: [{ id: 'area_test', name: 'Area', rooms: [{
+      id: 'room_test', name: 'Room', items: [{ id: 'item_test', name: 'Item', rootComponentIds: [], rootPartIds: [] }],
+    }] }] },
+    activeItemId: 'item_test',
+    canUndoProject: false,
+    canRedoProject: false,
     isDirty: false,
     fileError: null,
     newFile: vi.fn(),
@@ -128,6 +135,10 @@ vi.mock('./scene/useFile', () => ({
     saveFile: vi.fn(),
     saveAsFile: vi.fn(),
     setProjectName: vi.fn(),
+    setProject: vi.fn(),
+    setActiveItemId: vi.fn(),
+    undoProject: vi.fn(),
+    redoProject: vi.fn(),
   }),
 }))
 

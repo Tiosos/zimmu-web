@@ -57,6 +57,17 @@ function vecAt(value: unknown, path: string): Vec3 {
   }
 }
 
+function vec2At(value: unknown, path: string): { x: number; y: number } {
+  const record = recordAt(value, path)
+  return { x: finiteNumberAt(record.x, `${path}.x`), y: finiteNumberAt(record.y, `${path}.y`) }
+}
+
+function positiveAt(value: unknown, path: string, allowZero = false): number {
+  const number = finiteNumberAt(value, path)
+  if (allowZero ? number < 0 : number <= 0) throw new ZimmuFileValidationError(path, 'must be positive')
+  return number
+}
+
 function validateMaterial(value: unknown, path: string): MaterialDef {
   const material = recordAt(value, path)
   optionalFiniteNumber(material.costPerM2, `${path}.costPerM2`)
@@ -253,7 +264,9 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
   const ids = new Set<string>([root.id as string])
   const owned = new Set<string>()
   const ownedParts = new Set<string>()
+  const placedCabinets = new Set<string>()
   const roots = new Set(scene.components.filter((c) => c.parentId === null).map((c) => c.id))
+  const rootCabinets = new Set(scene.components.filter((c) => c.parentId === null && c.kind === 'carcase').map((c) => c.id))
   const partRoots = new Set(scene.parts.filter((p) => p.parentId === null).map((p) => p.id))
   const unique = (value: unknown, path: string) => {
     const id = stringAt(value, path)
@@ -275,6 +288,68 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
       unique(room.id, `${roomPath}.id`)
       stringAt(room.name, `${roomPath}.name`)
       const items = arrayAt(room.items, `${roomPath}.items`)
+      const roomRoots = new Set(items.flatMap((item) => {
+        const record = recordAt(item, `${roomPath}.items`)
+        return arrayAt(record.rootComponentIds, `${roomPath}.items.rootComponentIds`)
+      }))
+      if (room.geometry !== undefined) {
+        const path = `${roomPath}.geometry`
+        const geometry = recordAt(room.geometry, path)
+        vec2At(geometry.origin, `${path}.origin`)
+        finiteNumberAt(geometry.rotation, `${path}.rotation`)
+        const walls = arrayAt(geometry.walls, `${path}.walls`)
+        const wallIds = new Set<string>()
+        walls.forEach((rawWall, n) => {
+          const wp = `${path}.walls[${n}]`
+          const wall = recordAt(rawWall, wp)
+          unique(wall.id, `${wp}.id`)
+          wallIds.add(wall.id as string)
+          stringAt(wall.name, `${wp}.name`)
+          const start = vec2At(wall.start, `${wp}.start`)
+          const end = vec2At(wall.end, `${wp}.end`)
+          if (start.x === end.x && start.y === end.y) throw new ZimmuFileValidationError(wp, 'wall must have length')
+          if (wall.measuredLength !== undefined) {
+            const mp = `${wp}.measuredLength`
+            const measurement = recordAt(wall.measuredLength, mp)
+            positiveAt(measurement.value, `${mp}.value`)
+            stringAt(measurement.source, `${mp}.source`)
+            stringAt(measurement.recordedAt, `${mp}.recordedAt`)
+            positiveAt(measurement.uncertainty, `${mp}.uncertainty`, true)
+          }
+        })
+        arrayAt(geometry.openings, `${path}.openings`).forEach((rawOpening, n) => {
+          const op = `${path}.openings[${n}]`
+          const opening = recordAt(rawOpening, op)
+          unique(opening.id, `${op}.id`)
+          if (!wallIds.has(opening.wallId as string)) throw new ZimmuFileValidationError(`${op}.wallId`, 'must name a room wall')
+          if (opening.kind !== 'door' && opening.kind !== 'window') throw new ZimmuFileValidationError(`${op}.kind`, 'must be door or window')
+          positiveAt(opening.offset, `${op}.offset`, true)
+          positiveAt(opening.width, `${op}.width`)
+          positiveAt(opening.sill, `${op}.sill`, true)
+          positiveAt(opening.height, `${op}.height`)
+        })
+        arrayAt(geometry.obstacles, `${path}.obstacles`).forEach((rawObstacle, n) => {
+          const op = `${path}.obstacles[${n}]`
+          const obstacle = recordAt(rawObstacle, op)
+          unique(obstacle.id, `${op}.id`)
+          stringAt(obstacle.name, `${op}.name`)
+          vec2At(obstacle.position, `${op}.position`)
+          positiveAt(obstacle.width, `${op}.width`)
+          positiveAt(obstacle.depth, `${op}.depth`)
+          positiveAt(obstacle.height, `${op}.height`)
+        })
+        arrayAt(geometry.placements, `${path}.placements`).forEach((rawPlacement, n) => {
+          const pp = `${path}.placements[${n}]`
+          const placement = recordAt(rawPlacement, pp)
+          const cabinetId = stringAt(placement.cabinetId, `${pp}.cabinetId`)
+          if (!rootCabinets.has(cabinetId) || !roomRoots.has(cabinetId) || placedCabinets.has(cabinetId)) throw new ZimmuFileValidationError(`${pp}.cabinetId`, 'must name an unplaced cabinet owned by this room')
+          placedCabinets.add(cabinetId)
+          if (!wallIds.has(placement.wallId as string)) throw new ZimmuFileValidationError(`${pp}.wallId`, 'must name a room wall')
+          positiveAt(placement.offset, `${pp}.offset`, true)
+          positiveAt(placement.setback, `${pp}.setback`, true)
+          vec2At(placement.manualOffset, `${pp}.manualOffset`)
+        })
+      }
       if (!items.length) throw new ZimmuFileValidationError(`${roomPath}.items`, 'must not be empty')
       items.forEach((rawItem, i) => {
         const itemPath = `${roomPath}.items[${i}]`

@@ -35,7 +35,7 @@ Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 ### File I/O
 - Save / Save As / Open / New via File System Access API (Chrome/Edge)
 - Graceful degradation message + disabled menus on Firefox/Safari
-- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 21`), with stable project/area/room/item IDs
+- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 22`), with stable project/area/room/item IDs and room geometry
 - Auto-reopen last file on startup (IndexedDB handle persistence)
 - Dirty tracking (`isDirty`, tab title `•` indicator)
 
@@ -132,13 +132,14 @@ pnpm typecheck && pnpm lint && pnpm test
 ## File format
 
 Projects are saved as `.zimmu` files — flat JSON, UTF-8, floats rounded to
-6 decimal places. `FILE_FORMAT_VERSION = 21`. The v21 envelope adds a `project` hierarchy around
-the existing `scene`. A v20 or older file loads with editable Default Area / Default Room /
-Default Joinery Item names. Its first save uses Save As to preserve the original file.
+6 decimal places. `FILE_FORMAT_VERSION = 22`. The v21 envelope adds a `project` hierarchy around
+the existing `scene`; v22 adds optional room walls, openings, obstacles, measurements and wall
+placements. Older files load with editable defaults. Their first save uses Save As to preserve
+the original file.
 
 ```json
 {
-  "version": 21,
+  "version": 22,
   "name": "My Cabinet",
   "appVersion": "0.0.0",
   "units": "mm",
