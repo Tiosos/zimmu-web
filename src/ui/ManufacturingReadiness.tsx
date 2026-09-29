@@ -1,7 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
-import type { CarcaseComponent, HardwareLibraryEntry, Scene, Selection } from '../scene/types'
+import type {
+  CarcaseComponent,
+  HardwareLibraryEntry,
+  MaterialDef,
+  Scene,
+  Selection,
+} from '../scene/types'
 import { buildShelfReadiness, type ShelfReadinessRow } from '../scene/shelfReadiness'
 import { buildProductionReadiness } from '../scene/productionReadiness'
 import { ShelfInsertionPreview } from './ShelfInsertionPreview'
@@ -25,6 +31,7 @@ export function ManufacturingReadiness({
   onInspect,
   projectName = 'Project',
   hardwareLibrary = {},
+  materialLibrary = {},
 }: {
   scene: Scene
   onClose: () => void
@@ -32,6 +39,7 @@ export function ManufacturingReadiness({
   onInspect?: (selection: NonNullable<Selection>) => void
   projectName?: string
   hardwareLibrary?: Record<string, HardwareLibraryEntry>
+  materialLibrary?: Record<string, MaterialDef>
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useId()
@@ -57,7 +65,12 @@ export function ManufacturingReadiness({
     setPacketExporting(true)
     setExportError(null)
     try {
-      const bytes = await buildProductionPacket({ scene, projectName, hardwareLibrary })
+      const bytes = await buildProductionPacket({
+        scene,
+        projectName,
+        hardwareLibrary,
+        materialLibrary,
+      })
       downloadBlob(bytes as BlobPart, productionPacketFilename(projectName), 'application/zip')
     } catch (error) {
       setExportError(
@@ -95,10 +108,20 @@ export function ManufacturingReadiness({
         <h2 id={heading} className="font-semibold">
           Manufacturing readiness
         </h2>
-        <Button size="sm" variant="outline" disabled={exporting || packetExporting} onClick={() => void exportPdf()}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={exporting || packetExporting}
+          onClick={() => void exportPdf()}
+        >
           {exporting ? 'Preparing PDF…' : 'Export readiness PDF'}
         </Button>
-        <Button size="sm" variant="outline" disabled={exporting || packetExporting} onClick={() => void exportPacket()}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={exporting || packetExporting}
+          onClick={() => void exportPacket()}
+        >
           {packetExporting ? 'Preparing packet…' : 'Export production packet'}
         </Button>
         <Button size="sm" variant="outline" onClick={onClose}>

@@ -9,11 +9,12 @@ readiness report does. Keep the existing individual exports available.
 
 ## Snapshot and traceability
 
-Copy the scene, project name, and hardware pricing library synchronously at click time. Derive all
+Copy the scene, project name, and material and hardware pricing libraries synchronously at click time. Derive all
 outputs from that copy. Give the drawing deck the same UTC date as the readiness report. The
 manifest identifies the snapshot time, counts, source SHA-256, and each file's byte length and
 SHA-256. The source hash is not a saved project revision. A recipient needs the source data to
-verify that particular hash; individual file hashes can be checked against the ZIP contents.
+verify that particular hash; individual file hashes can be checked against the ZIP contents. Merge
+material rates field by field as the existing BOM does, with scene values taking precedence.
 
 Never silently omit a referenced shelf sheet. If the readiness engine skipped shelf assessment,
 include the warning in the report and do not run an unbounded installation-sheet generator for

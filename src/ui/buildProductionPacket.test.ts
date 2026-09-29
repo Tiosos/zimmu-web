@@ -5,6 +5,7 @@ import { cabinet } from '../geom/__fixtures__/cabinetSheet'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import type { CarcaseComponent, Scene } from '../scene/types'
+import { buildCsv } from './buildCsv'
 import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
 
 const sceneOf = (): Scene =>
@@ -30,6 +31,7 @@ describe('production handoff packet', () => {
         scene,
         projectName: 'Workshop A',
         hardwareLibrary: {},
+        materialLibrary: {},
         capturedAt,
       }),
     )
@@ -47,7 +49,14 @@ describe('production handoff packet', () => {
     expect(manifest.capturedAt).toBe('2026-09-29T01:00:00.000Z')
     expect(manifest.sourceSha256).toBe(
       await hash(
-        strToU8(JSON.stringify({ scene, projectName: 'Workshop A', hardwareLibrary: {} })),
+        strToU8(
+          JSON.stringify({
+            scene,
+            projectName: 'Workshop A',
+            hardwareLibrary: {},
+            materialLibrary: {},
+          }),
+        ),
       ),
     )
     expect(manifest.counts).toMatchObject({ cabinets: 1, installationSheets: 1 })
@@ -66,6 +75,9 @@ describe('production handoff packet', () => {
   it('freezes scene and prices before async work and reports skipped installation sheets', async () => {
     const scene = sceneOf()
     const library = { 'shelf-pin': { unitCost: 0.25, supplier: 'Original', partNumber: 'P1' } }
+    const materialName = scene.parts.find((p) => p.material)?.material
+    expect(materialName).toBeTruthy()
+    const materialLibrary = { [materialName!]: { costPerM2: 25 } }
     const target = scene.components.find((c): c is CarcaseComponent => c.kind === 'carcase')!
     target.params = {
       ...cabinet.params,
@@ -77,20 +89,29 @@ describe('production handoff packet', () => {
         },
       },
     }
+    const expectedBoards = buildCsv(
+      scene.parts,
+      { ...scene.materials, [materialName!]: { ...scene.materials[materialName!], costPerM2: 25 } },
+      scene.components,
+    )
     const pending = buildProductionPacket({
       scene,
       projectName: 'Original',
       hardwareLibrary: library,
+      materialLibrary,
       capturedAt,
     })
     scene.parts.length = 0
     library['shelf-pin'].supplier = 'Changed'
+    materialLibrary[materialName!].costPerM2 = 999
     const zip = unzipSync(await pending)
     const manifest = JSON.parse(strFromU8(zip['manifest.json']))
     expect(manifest.projectName).toBe('Original')
     expect(manifest.counts.parts).toBeGreaterThan(0)
     expect(manifest.counts.installationSheets).toBe(0)
     expect(strFromU8(zip['lists/boards.csv'])).toContain('Bottom')
+    expect(strFromU8(zip['lists/boards.csv'])).toBe(expectedBoards)
+    expect(strFromU8(zip['lists/boards.csv'])).not.toContain('999')
     expect(strFromU8(zip['lists/hardware.csv'])).not.toContain('Changed')
   })
 
@@ -118,6 +139,7 @@ describe('production handoff packet', () => {
         scene,
         projectName: '木棉/Workshop',
         hardwareLibrary: {},
+        materialLibrary: {},
         capturedAt,
       }),
     )

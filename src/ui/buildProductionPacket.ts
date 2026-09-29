@@ -1,5 +1,5 @@
 import { strToU8, zip } from 'fflate'
-import type { Scene, HardwareLibraryEntry, CarcaseComponent } from '../scene/types'
+import type { Scene, HardwareLibraryEntry, CarcaseComponent, MaterialDef } from '../scene/types'
 import { componentsById, descendantIds } from '../scene/componentTree'
 import { carcaseHardware } from '../scene/carcaseHardware'
 import { createReadinessSnapshot } from '../scene/readinessSnapshot'
@@ -13,6 +13,7 @@ export interface ProductionPacketInput {
   scene: Scene
   projectName: string
   hardwareLibrary: Record<string, HardwareLibraryEntry>
+  materialLibrary: Record<string, MaterialDef>
   capturedAt?: Date
 }
 
@@ -34,11 +35,12 @@ const archive = (files: Record<string, Uint8Array>): Promise<Uint8Array> =>
   })
 
 export async function buildProductionPacket(input: ProductionPacketInput): Promise<Uint8Array> {
-  // This copy happens before the first await, including pricing data outside the project scene.
+  // This copy happens before the first await, including both pricing libraries outside the scene.
   const captured = structuredClone({
     scene: input.scene,
     projectName: input.projectName,
     hardwareLibrary: input.hardwareLibrary,
+    materialLibrary: input.materialLibrary,
   })
   const capturedAt = new Date(input.capturedAt ?? new Date())
   const snapshot = createReadinessSnapshot(captured.scene, captured.projectName, capturedAt)
@@ -76,13 +78,25 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       if (shelf.installationReference && !references.has(shelf.installationReference))
         throw new Error(`Installation sheet missing for ${shelf.installationReference}`)
 
+  // Match BomModal's field-level merge: scene rates override library rates, while missing rates
+  // (such as a dowel's costPerM) remain available from the library.
+  const effectiveMaterials: Record<string, MaterialDef> = {}
+  for (const name of new Set([
+    ...Object.keys(captured.materialLibrary),
+    ...Object.keys(captured.scene.materials),
+  ]))
+    effectiveMaterials[name] = {
+      ...captured.materialLibrary[name],
+      ...captured.scene.materials[name],
+    }
+
   const files: Record<string, Uint8Array> = {
     'readiness/report.pdf': await buildReadinessPdf(snapshot),
     'drawings/shop-drawings.pdf': await buildPdf(sheets),
     'lists/boards.csv': strToU8(
-      buildCsv(captured.scene.parts, captured.scene.materials, captured.scene.components),
+      buildCsv(captured.scene.parts, effectiveMaterials, captured.scene.components),
     ),
-    'lists/dowels.csv': strToU8(buildDowelCsv(captured.scene.parts, captured.scene.materials)),
+    'lists/dowels.csv': strToU8(buildDowelCsv(captured.scene.parts, effectiveMaterials)),
     'lists/hardware.csv': strToU8(
       buildHardwareCsv(
         captured.scene.hardware,
@@ -104,7 +118,7 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
     capturedAt: snapshot.capturedAt,
     sourceSha256: await digest(source),
     sourceDescription:
-      'SHA-256 of JSON.stringify({scene,projectName,hardwareLibrary}) at export time',
+      'SHA-256 of JSON.stringify({scene,projectName,hardwareLibrary,materialLibrary}) at export time',
     counts: {
       cabinets: snapshot.cabinets.length,
       parts: captured.scene.parts.length,
@@ -113,7 +127,7 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       installationSheets: references.size,
     },
     scope:
-      'All cabinets and parts, including hidden items. Readiness is advisory; skipped checks remain marked unknown. Drawing PDF, lists and prices come from the same captured scene and hardware library.',
+      'All cabinets and parts, including hidden items. Readiness is advisory; skipped checks remain marked unknown. Drawing PDF, lists and prices come from the same captured scene and pricing libraries.',
     note: 'Snapshot hash identifies captured source data, not a saved project revision. Drawing PDF uses DIA for the diameter symbol and [U+codepoint] for characters unsupported by its standard font. Verify physical dimensions and machining before production.',
     files: entries,
   }

@@ -47,17 +47,26 @@ describe('readiness UI', () => {
       <ManufacturingReadiness
         scene={scene}
         projectName="Workshop A"
+        materialLibrary={{ Plywood: { costPerM2: 42 } }}
         onClose={vi.fn()}
         onOpenSheet={vi.fn()}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'Export production packet' }))
-    expect(screen.getByRole('button', { name: 'Preparing packet…' }).hasAttribute('disabled')).toBe(true)
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('packet test failure'))
+    expect(screen.getByRole('button', { name: 'Preparing packet…' }).hasAttribute('disabled')).toBe(
+      true,
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('packet test failure'),
+    )
     expect(download).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Export production packet' }))
     await waitFor(() => expect(download).toHaveBeenCalledOnce())
-    expect(build.mock.calls[1][0]).toMatchObject({ scene, projectName: 'Workshop A' })
+    expect(build.mock.calls[1][0]).toMatchObject({
+      scene,
+      projectName: 'Workshop A',
+      materialLibrary: { Plywood: { costPerM2: 42 } },
+    })
     expect(download.mock.calls[0].slice(1)).toEqual([
       'Workshop A-production-packet.zip',
       'application/zip',

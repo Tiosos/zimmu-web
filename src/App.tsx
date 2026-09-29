@@ -765,6 +765,7 @@ function App() {
           scene={scene}
           projectName={projectName}
           hardwareLibrary={hardwareLibrary}
+          materialLibrary={library}
           onInspect={(selection) => {
             onSelect(selection)
             setReadinessOpen(false)
