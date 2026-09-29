@@ -160,6 +160,7 @@ export interface UseSceneResult {
   onRemoveComponent: (id: ComponentId) => void
   onReparentComponent: (id: ComponentId, newParentId: ComponentId | null) => void
   onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
+  syncComponents: (updater: (components: Component[]) => Component[]) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
   onSelect: (next: Selection | null) => void
@@ -1406,6 +1407,13 @@ export function useScene(): UseSceneResult {
     [commitReconciled],
   )
 
+  const syncComponents = useCallback(
+    (updater: (components: Component[]) => Component[]) => {
+      setScene((before) => applyPipeline({ ...before, components: updater(before.components) }))
+    },
+    [],
+  )
+
   const replaceScene = useCallback((next: Scene) => {
     for (const geo of geometriesRef.current.values()) geo.dispose()
     geometriesRef.current.clear()
@@ -1480,6 +1488,7 @@ export function useScene(): UseSceneResult {
     onRemoveComponent,
     onReparentComponent,
     onUpdateComponent,
+    syncComponents,
     onUpdateJoint,
     onRemoveJoint,
     onSelect,

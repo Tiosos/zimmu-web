@@ -658,6 +658,8 @@
 │   ├── resolvePlacement.ts
 │   ├── resolveThickness.test.ts
 │   ├── resolveThickness.ts
+│   ├── roomGeometry.test.ts
+│   ├── roomGeometry.ts
 │   ├── runs.test.ts
 │   ├── runs.ts
 │   ├── sectionInterior.test.ts
@@ -760,6 +762,8 @@
 │   ├── PlanView.test.tsx
 │   ├── PlanView.tsx
 │   ├── ProjectPanel.tsx
+│   ├── RoomGeometryPanel.test.tsx
+│   ├── RoomGeometryPanel.tsx
 │   ├── SceneSuggestionsPanel.test.tsx
 │   ├── SceneSuggestionsPanel.tsx
 │   ├── SceneTree.test.tsx
@@ -951,7 +955,7 @@
       <h2>Data model</h2>
       <p>The scene types live in <code>src/scene/types.ts</code> and the project hierarchy in <code>src/scene/projectStructure.ts</code>. The file format serializes a <code>ZimmuFile</code> to <code>.zimmu</code> (flat JSON).</p>
 
-      <pre><code>// File format (FILE_FORMAT_VERSION = 21)
+      <pre><code>// File format (FILE_FORMAT_VERSION = 22)
 interface ZimmuFile {
   version: number       // older versions migrate on read
   name: string
@@ -961,7 +965,7 @@ interface ZimmuFile {
   updatedAt: string
   camera: CameraState   // { position: Vec3, target: Vec3 }
   scene: Scene
-  project?: ProjectStructure // required on newly saved v21 files
+  project?: ProjectStructure // required on newly saved v22 files
 }
 
 // Project → Area → Room → Joinery Item. An item owns root component and
@@ -1428,7 +1432,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->120<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->122<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1557,7 +1561,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-24-face-frames-notes.md
     │   ├── 2026-09-29-design-to-manufacturing-architecture-notes.md
     │   ├── 2026-09-29-stage-0-baseline.md
-    │   └── 2026-09-29-stage-1-implementation-notes.md
+    │   ├── 2026-09-29-stage-1-implementation-notes.md
+    │   └── 2026-09-29-stage-2-room-geometry-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1665,9 +1670,9 @@ import { useScene } from './useScene'</code></pre>
     <!-- FILE FORMAT -->
     <section id="fileformat">
       <h2>File format</h2>
-      <p>Projects are saved as <code>.zimmu</code> files — flat JSON, human-readable, floats rounded to 6 decimal places. A v21 file has a stable project hierarchy around its scene; older files receive editable default area, room and item names and first save as a new copy.</p>
+      <p>Projects are saved as <code>.zimmu</code> files — flat JSON, human-readable, floats rounded to 6 decimal places. V22 adds optional room walls, openings, obstacles, measurements and wall placements to the v21 project hierarchy. Older files first save as a new copy.</p>
       <pre><code>{
-  "version": 21,
+  "version": 22,
   "name": "My Cabinet",
   "appVersion": "0.0.0",
   "units": "mm",
@@ -1690,8 +1695,8 @@ import { useScene } from './useScene'</code></pre>
           v14 (panel thickness moves onto <code>MaterialDef</code>) → v15 (the <code>screw</code> joint kind) →
         v16 (<code>adjustableShelves</code> moves onto each section's <code>interior</code>; <code>startHeight</code> is dropped) →
         v17 (fronts: <code>frontMaterial</code> / <code>frontMount</code> / <code>frontReveal</code>, <code>Section.front</code>, and <code>interior.fixedShelves</code>) →
-        v18 (the drawer component) → v19 (carcase anchors) → v20 (face frames) → v21 (project hierarchy and item ownership).
-        Now at <code>FILE_FORMAT_VERSION = 21</code>.
+        v18 (the drawer component) → v19 (carcase anchors) → v20 (face frames) → v21 (project hierarchy and item ownership) → v22 (room geometry and wall placement).
+        Now at <code>FILE_FORMAT_VERSION = 22</code>.
         Migration logic lives in <code>useFile.ts</code>; a missing <code>parentId</code> loads as top-level, a dangling one is promoted.
       </p>
 

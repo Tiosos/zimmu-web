@@ -63,6 +63,18 @@ describe('useScene', () => {
     })
   })
 
+  it('does not add a scene undo entry for derived wall positioning', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    expect(result.current.canUndo).toBe(true)
+    const id = result.current.scene.components.find((c) => c.kind === 'carcase')!.id
+    act(() => result.current.syncComponents((components) => components.map((c) => c.id === id
+      ? { ...c, position: { ...c.position, x: 1000 } } : c)))
+    expect(result.current.scene.components.find((c) => c.id === id)?.position.x).toBe(1000)
+    act(() => result.current.undo())
+    expect(result.current.scene.components.find((c) => c.id === id)).toBeUndefined()
+  })
+
   it('starts with one default board labelled "Board 1"', () => {
     const { result } = renderHook(() => useScene())
     expect(result.current.scene.parts).toHaveLength(1)

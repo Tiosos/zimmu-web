@@ -74,6 +74,7 @@ function makeDefaultSceneReturn() {
     exportStep: vi.fn(),
     onUpdateMaterial: vi.fn(),
     onUpdateHardware: vi.fn(),
+    syncComponents: vi.fn(),
     canUndo: true,
     canRedo: false,
     undoLabel: 'Add Board 1',
@@ -121,6 +122,12 @@ vi.mock('./scene/useFile', () => ({
     fileReady: true,
     fileName: null,
     projectName: 'Test',
+    project: { id: 'project_test', areas: [{ id: 'area_test', name: 'Area', rooms: [{
+      id: 'room_test', name: 'Room', items: [{ id: 'item_test', name: 'Item', rootComponentIds: ['cmp_1'], rootPartIds: [] }],
+    }] }] },
+    activeItemId: 'item_test',
+    canUndoProject: false,
+    canRedoProject: false,
     isDirty: false,
     fileError: null,
     newFile: vi.fn(),
@@ -128,6 +135,10 @@ vi.mock('./scene/useFile', () => ({
     saveFile: vi.fn(),
     saveAsFile: vi.fn(),
     setProjectName: vi.fn(),
+    setProject: vi.fn(),
+    setActiveItemId: vi.fn(),
+    undoProject: vi.fn(),
+    redoProject: vi.fn(),
   }),
 }))
 
@@ -488,7 +499,7 @@ describe('the open cabinet', () => {
     expect(viewportShowing()).toBe(true)
   })
 
-  // The plan view is scene-wide, so it cannot live in CabinetEditor. It replaces the viewport
+  // The plan view spans the active room, so it cannot live in CabinetEditor. It replaces the viewport
   // VISUALLY only: viewport.tsx builds its renderer, camera and every mesh in a mount-once effect,
   // so swapping it out of the tree would tear all of that down on each toggle.
   it('shows the plan view without unmounting the viewport', async () => {

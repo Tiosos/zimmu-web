@@ -3,6 +3,8 @@ import type { CarcaseComponent, ComponentId, Scene, Vec3 } from '../scene/types'
 import { worldBoundsOf } from '../scene/carcaseWorldBounds'
 import { runsOf } from '../scene/runs'
 import type { CornerWarning } from '../scene/blindCorner'
+import type { RoomGeometry } from '../scene/projectStructure'
+import { roomPoint, wallLength } from '../scene/roomGeometry'
 import { Button } from '@/components/ui/button'
 
 // The whole job seen from above. The second interactive SVG in the codebase, and it follows the
@@ -56,6 +58,8 @@ export function PlanView({
   onDrop,
   onTurn,
   warnings,
+  room,
+  cabinetIds,
 }: {
   scene: Scene
   selectedId: ComponentId | null
@@ -63,35 +67,46 @@ export function PlanView({
   onDrop: (id: ComponentId, position: Vec3) => void
   onTurn: (id: ComponentId) => void
   warnings: readonly CornerWarning[]
+  room?: RoomGeometry
+  cabinetIds?: ReadonlySet<string>
 }) {
   const boxes = useMemo(
     () =>
       scene.components
-        .filter((c): c is CarcaseComponent => c.kind === 'carcase')
+        .filter((c): c is CarcaseComponent => c.kind === 'carcase' && (!cabinetIds || cabinetIds.has(c.id)))
         .map((c) => ({ c, b: worldBoundsOf(c, scene.materials) })),
-    [scene.components, scene.materials],
+    [scene.components, scene.materials, cabinetIds],
   )
 
   const runs = useMemo(
-    () => runsOf(scene.components, scene.materials),
-    [scene.components, scene.materials],
+    () => runsOf(scene.components.filter((c) => !cabinetIds || cabinetIds.has(c.id)), scene.materials),
+    [scene.components, scene.materials, cabinetIds],
   )
 
   // Computed above the empty-job guard, because hooks below it would not run — and the drag effect
   // needs the frame to know what a pixel is worth.
   const frame = useMemo((): Frame | null => {
-    if (boxes.length === 0) return null
-    const xMin = Math.min(...boxes.map(({ b }) => b.x0))
-    const xMax = Math.max(...boxes.map(({ b }) => b.x1))
-    const yMin = Math.min(...boxes.map(({ b }) => b.y0))
-    const yMax = Math.max(...boxes.map(({ b }) => b.y1))
+    const points = [
+      ...(room?.walls.flatMap((wall) => [roomPoint(wall.start, room), roomPoint(wall.end, room)]) ?? []),
+      ...(room?.obstacles.flatMap((o) => [
+        o.position,
+        { x: o.position.x + o.width, y: o.position.y },
+        { x: o.position.x + o.width, y: o.position.y + o.depth },
+        { x: o.position.x, y: o.position.y + o.depth },
+      ].map((point) => roomPoint(point, room))) ?? []),
+    ]
+    if (boxes.length === 0 && points.length === 0) return null
+    const xMin = Math.min(...boxes.map(({ b }) => b.x0), ...points.map((p) => p.x))
+    const xMax = Math.max(...boxes.map(({ b }) => b.x1), ...points.map((p) => p.x))
+    const yMin = Math.min(...boxes.map(({ b }) => b.y0), ...points.map((p) => p.y))
+    const yMax = Math.max(...boxes.map(({ b }) => b.y1), ...points.map((p) => p.y))
     return {
       xMin,
       yMax,
       width: xMax - xMin + PADDING * 2,
       height: yMax - yMin + PADDING * 2,
     }
-  }, [boxes])
+  }, [boxes, room])
 
   // The cabinets flagged, not the corners: a footprint is drawn per cabinet, and it is the one
   // returning into the corner that is too deep for what it meets.
@@ -131,7 +146,7 @@ export function PlanView({
     return (
       <div className="flex-1 min-w-0 flex items-center justify-center">
         <p className="text-[11px] text-muted-foreground">
-          This job has no cabinets yet, so there is no plan to draw.
+          This room has no cabinets or walls yet, so there is no plan to draw.
         </p>
       </div>
     )
@@ -162,6 +177,38 @@ export function PlanView({
         className="w-full h-full max-h-full"
         preserveAspectRatio="xMidYMid meet"
       >
+        {room?.walls.map((wall) => {
+          const start = roomPoint(wall.start, room)
+          const end = roomPoint(wall.end, room)
+          return <g key={wall.id}>
+            <line data-testid={`plan-wall-${wall.id}`} x1={toSvg(start.x, start.y, start.y).x}
+              y1={toSvg(start.x, start.y, start.y).y} x2={toSvg(end.x, end.y, end.y).x}
+              y2={toSvg(end.x, end.y, end.y).y} className="stroke-foreground" strokeWidth={12} />
+            {room.openings.filter((o) => o.wallId === wall.id).map((opening) => {
+              const length = wallLength(wall)
+              if (length === 0) return null
+              const from = roomPoint({ x: wall.start.x + (wall.end.x - wall.start.x) * opening.offset / length,
+                y: wall.start.y + (wall.end.y - wall.start.y) * opening.offset / length }, room)
+              const to = roomPoint({ x: wall.start.x + (wall.end.x - wall.start.x) * (opening.offset + opening.width) / length,
+                y: wall.start.y + (wall.end.y - wall.start.y) * (opening.offset + opening.width) / length }, room)
+              return <line key={opening.id} data-testid={`plan-opening-${opening.id}`}
+                x1={toSvg(from.x, from.y, from.y).x} y1={toSvg(from.x, from.y, from.y).y}
+                x2={toSvg(to.x, to.y, to.y).x} y2={toSvg(to.x, to.y, to.y).y}
+                className="stroke-background" strokeWidth={16} />
+            })}
+          </g>
+        })}
+        {room?.obstacles.map((obstacle) => {
+          const corners = [
+            obstacle.position,
+            { x: obstacle.position.x + obstacle.width, y: obstacle.position.y },
+            { x: obstacle.position.x + obstacle.width, y: obstacle.position.y + obstacle.depth },
+            { x: obstacle.position.x, y: obstacle.position.y + obstacle.depth },
+          ].map((point) => roomPoint(point, room))
+          return <polygon key={obstacle.id} data-testid={`plan-obstacle-${obstacle.id}`}
+            points={corners.map((point) => `${toSvg(point.x, point.y, point.y).x},${toSvg(point.x, point.y, point.y).y}`).join(' ')}
+            className="fill-amber-500/20 stroke-amber-600" strokeWidth={3} />
+        })}
         {runs.map((run, i) => {
           const mine = boxes.filter(({ c }) => run.members.includes(c.id))
           if (mine.length === 0) return null

@@ -59,6 +59,19 @@ describe('project structure migration', () => {
     expect(updated.areas[0].rooms[0].items[0].rootComponentIds).toEqual(['a', 'b'])
   })
 
+  it('removes a wall link when its cabinet is deleted or moved to another room', () => {
+    const base = defaultProject(scene(['a']), 'room-fixture')
+    const room = base.areas[0].rooms[0]
+    room.geometry!.walls.push({ id: 'wall', name: 'Wall', start: { x: 0, y: 0 }, end: { x: 3000, y: 0 } })
+    room.geometry!.placements.push({ cabinetId: 'a', wallId: 'wall', offset: 100, setback: 0, manualOffset: { x: 0, y: 0 } })
+    expect(reconcileProject(base, scene([])).areas[0].rooms[0].geometry!.placements).toEqual([])
+    const moved = { ...base, areas: [{ ...base.areas[0], rooms: [
+      { ...room, items: [{ ...room.items[0], rootComponentIds: [] }] },
+      { id: 'second', name: 'Second', items: [{ id: 'second-item', name: 'Other', rootComponentIds: ['a'], rootPartIds: [] }] },
+    ] }] }
+    expect(reconcileProject(moved, scene(['a'])).areas[0].rooms[0].geometry!.placements).toEqual([])
+  })
+
   it('rejects duplicate ownership and a malformed cutlist reference at the file boundary', () => {
     const parsed = parseFile(file(scene(['a'])))
     const item = parsed.project!.areas[0].rooms[0].items[0]

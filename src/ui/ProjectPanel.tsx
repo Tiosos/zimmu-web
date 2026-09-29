@@ -1,6 +1,7 @@
 import type { Scene } from '../scene/types'
 import type { ProjectStructure } from '../scene/projectStructure'
-import { moveRootToItem } from '../scene/projectStructure'
+import { emptyRoomGeometry, moveRootToItem } from '../scene/projectStructure'
+import { RoomGeometryPanel } from './RoomGeometryPanel'
 import { Button } from '@/components/ui/button'
 
 interface Props {
@@ -28,14 +29,14 @@ export function ProjectPanel({ project, scene, onChange, activeItemId, onSelectI
     id: `area_${crypto.randomUUID()}`, name: 'New Area', rooms: [{
       id: `room_${crypto.randomUUID()}`, name: 'New Room', items: [{
         id: `item_${crypto.randomUUID()}`, name: 'New Joinery Item', rootComponentIds: [], rootPartIds: [],
-      }],
+      }], geometry: emptyRoomGeometry(),
     }],
   }] })
   const addRoom = (areaId: string) => onChange({ ...project, areas: project.areas.map((area) =>
     area.id === areaId ? { ...area, rooms: [...area.rooms, {
       id: `room_${crypto.randomUUID()}`, name: 'New Room', items: [{
         id: `item_${crypto.randomUUID()}`, name: 'New Joinery Item', rootComponentIds: [], rootPartIds: [],
-      }],
+      }], geometry: emptyRoomGeometry(),
     }] } : area,
   ) })
   const addItem = (roomId: string) => onChange({ ...project, areas: project.areas.map((area) => ({
@@ -72,6 +73,13 @@ export function ProjectPanel({ project, scene, onChange, activeItemId, onSelectI
               onClick={() => onSelectItem(item.id)}>{activeItemId === item.id ? 'Active' : 'Work in item'}</Button>
           </div>)}
           <Button size="sm" variant="outline" onClick={() => addItem(room.id)}>Add item</Button>
+          <RoomGeometryPanel geometry={room.geometry}
+            scene={scene}
+            cabinets={scene.components.filter((c) => c.kind === 'carcase' && c.parentId === null &&
+              room.items.some((item) => item.rootComponentIds.includes(c.id))).map((c) => ({ id: c.id, label: c.label }))}
+            onChange={(geometry) => onChange({ ...project,
+            areas: project.areas.map((a) => ({ ...a, rooms: a.rooms.map((r) => r.id === room.id ? { ...r, geometry } : r) })),
+          })} />
         </div>)}
         <Button size="sm" variant="outline" onClick={() => addRoom(area.id)}>Add room</Button>
       </section>)}

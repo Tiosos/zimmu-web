@@ -13,6 +13,64 @@ export interface ProjectRoom {
   id: string
   name: string
   items: JoineryItem[]
+  geometry?: RoomGeometry
+}
+
+export interface SiteMeasurement {
+  value: number
+  source: string
+  recordedAt: string
+  uncertainty: number
+}
+
+export interface RoomPoint { x: number; y: number }
+
+export interface WallSegment {
+  id: string
+  name: string
+  start: RoomPoint
+  end: RoomPoint
+  measuredLength?: SiteMeasurement
+}
+
+export interface WallOpening {
+  id: string
+  wallId: string
+  kind: 'door' | 'window'
+  offset: number
+  width: number
+  sill: number
+  height: number
+}
+
+export interface RoomObstacle {
+  id: string
+  name: string
+  position: RoomPoint
+  width: number
+  depth: number
+  height: number
+}
+
+export interface WallPlacement {
+  cabinetId: string
+  wallId: string
+  offset: number
+  setback: number
+  manualOffset: RoomPoint
+}
+
+export interface RoomGeometry {
+  origin: RoomPoint
+  rotation: number
+  walls: WallSegment[]
+  openings: WallOpening[]
+  obstacles: RoomObstacle[]
+  placements: WallPlacement[]
+}
+
+export function emptyRoomGeometry(): RoomGeometry {
+  return { origin: { x: 0, y: 0 }, rotation: 0, walls: [], openings: [], obstacles: [], placements: [] }
 }
 
 export interface ProjectArea {
@@ -49,6 +107,7 @@ export function defaultProject(scene: Scene, seed?: string): ProjectStructure {
       rooms: [{
         id: `room_${key}`,
         name: 'Default Room',
+        geometry: emptyRoomGeometry(),
         items: [{
           id: `item_${key}`,
           name: 'Default Joinery Item',
@@ -70,9 +129,8 @@ export function reconcileProject(project: ProjectStructure, scene: Scene, target
   let changed = false
   const areas = project.areas.map((area) => ({
     ...area,
-    rooms: area.rooms.map((room) => ({
-      ...room,
-      items: room.items.map((item) => {
+    rooms: area.rooms.map((room) => {
+      const items = room.items.map((item) => {
         const ids = item.rootComponentIds.filter((id) => {
           if (!live.has(id) || seen.has(id)) { changed = true; return false }
           seen.add(id)
@@ -85,8 +143,12 @@ export function reconcileProject(project: ProjectStructure, scene: Scene, target
         })
         return ids.length === item.rootComponentIds.length && partIds.length === item.rootPartIds.length
           ? item : { ...item, rootComponentIds: ids, rootPartIds: partIds }
-      }),
-    })),
+      })
+      const roomRoots = new Set(items.flatMap((item) => item.rootComponentIds))
+      const placements = room.geometry?.placements.filter((p) => roomRoots.has(p.cabinetId) && live.has(p.cabinetId))
+      if (placements && placements.length !== room.geometry!.placements.length) changed = true
+      return { ...room, items, ...(room.geometry ? { geometry: { ...room.geometry, placements: placements! } } : {}) }
+    }),
   }))
   const unassigned = roots.filter((id) => !seen.has(id))
   const unassignedParts = partRoots.filter((id) => !seenParts.has(id))
