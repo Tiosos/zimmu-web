@@ -16,6 +16,13 @@ The user accepted all six decisions on 2026-09-29:
 5. Keep the design product separate from the operational workflow product; link by IDs and release records.
 6. Improve the browser prototype first; assess desktop/native migration using measured constraints.
 
+Follow-up decisions on 2026-09-29: Designer/Draftsperson initiates the official production release
+in Zimmu and the workflow system registers it automatically; IT controls master construction rules,
+while authorised senior designers maintain approved cabinet catalogue products. The workflow
+system remains authoritative for release status and audit history. Registration must be acknowledged
+before the pack is presented as the current production issue; failed registration leaves a pending
+candidate, not an independently current release.
+
 These decisions supersede conflicting positioning and roadmap assumptions in the older
 `joinery_3d_software_plan.md`. That historical plan remains a reference, not a current delivery
 commitment. Do not interpret this architecture as approval of any particular CNC machine, vendor,
@@ -30,12 +37,18 @@ estimates, contract value, variations, official release control, orders, staff a
 procurement, schedules, production execution, QC, delivery, and installation. A release is the
 handoff contract.
 
-The first end-to-end acceptance fixture is one residential kitchen with two walls, one obstruction,
-at least three related cabinets, a filler/end panel, mixed fronts and drawers, and a deliberately
-changed measurement. The designer places catalogue instances, overrides one item, checks
-clearances, issues drawings and a BOM, formally releases a production pack, and compares a later revision. The
-outputs all identify the same item and release. This is a product acceptance scenario, not a
-claim that these features already exist.
+The first reference fixture is the user-provided staff kitchenette plan (two A3 pages) and
+associated nine-page production cutlist. It is a commercial staff-room example, so it does not by
+itself validate residential-specific conventions. Build an anonymised test fixture from its
+approximately 3983 mm straight run, base and overhead modules, tall fridge enclosure, fillers,
+worktop, sink/appliance/service cutouts, drawer and door fronts, and the cutlist's 19 numbered
+modules. Preserve the relationship between drawing references, module/part quantities, materials,
+edge and grain instructions, hardware, manual comments and the production pack. Do not treat
+dimensions labelled TBC as verified site measurements. The two-wall return and measurement-change
+scenario remain a separate synthetic fixture until a real example supports them. The designer
+places catalogue instances, overrides one item, checks clearances, issues drawings and a BOM,
+formally releases a production pack, and compares a later revision. This is an acceptance scenario,
+not a claim that these features already exist.
 
 ## Identity and aggregate boundaries
 
@@ -80,6 +93,11 @@ construction method, section/front defaults, material slots, hardware selection 
 constraints. A placed item references the catalogue definition and version, stores placement and
 an explicit override map, and resolves to one effective specification. Do not eagerly duplicate
 all catalogue fields into every instance.
+
+IT alone changes master construction-rule templates. Authorised senior designers create and
+maintain cabinet catalogue products within those rules. Product publication/approval authority
+and the permitted scope of instance overrides still require a detailed permission decision; a
+catalogue edit cannot silently alter an existing released instance.
 
 The resolution order is company defaults -> catalogue definition -> project specification -> item
 override, with the resolved values and source of each effective value inspectable. A later company
@@ -127,8 +145,10 @@ remain reproducible and clearly marked; withdrawal/voiding is recorded, never de
 The workflow plan assigns official release to Designer/Draftsperson; any additional approval gate
 must follow project/template approval configuration and be decided before implementation.
 
-The workflow system consumes an explicit release record plus file links and identifiers. Start
-with export/import or a thin API contract; authentication, access control, concurrent editing and
+Zimmu submits an explicit release record plus file links and identifiers to the workflow system;
+the latter acknowledges and registers the official release. Use an idempotent submission key and
+display pending/failed/registered states so retries cannot produce two current packs. Start with
+a thin API contract; authentication, access control, concurrent editing and
 conflict handling must be specified before collaborative cloud writes. The existing six-digit
 cutlist number is assigned in the workflow Cutlist panel, not generated implicitly by CAD.
 
@@ -148,11 +168,12 @@ Validate the production packet against shop-floor review before calling it machi
 
 ## Decisions still needed before their implementation stages
 
-- First real kitchen/job fixture, typical cabinet methods, material thicknesses, edge band rules,
-  front/hinge/runner suppliers, and tolerance conventions.
+- Site-verified dimensions, typical residential cabinet methods, edge band rules and tolerances;
+  the attached reference already supplies one commercial kitchenette drawing/cutlist pair.
 - CNC, saw, boring and edge-bander models; controllers, tooling, origin/coordinate conventions,
   supported import formats and a sample verified machine program.
-- Catalogue administrators, who may override which rules, release approval roles, and who can void.
+- Product publishing authority, who may override which rules, project-specific approval roles,
+  and who can void a registered release.
 - Hosting/offline and collaboration requirements; source of truth for drawings and supplier rates.
 - External system contract for workflow IDs, file links and release status acknowledgement.
 

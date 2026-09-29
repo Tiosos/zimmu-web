@@ -42,6 +42,27 @@ prototype scope, while the current `useFile.ts` declares version 20. Update thos
 summaries separately if they are promoted as current documentation; do not use their old version
 numbers or promised Rust timeline as acceptance criteria for this plan.
 
+## 2026-09-29 — follow-up decisions and reference files
+
+The user chose the recommended release flow: Designer/Draftsperson releases in Zimmu; workflow
+registration happens automatically. The user also chose IT ownership of construction rules and
+senior-designer ownership of approved cabinet products. The fine-grained publishing/override
+permission matrix and additional conditional approvers remain open.
+
+The user supplied `kitchen plan example(1).pdf` (two A3 pages) and `cutlist example.pdf` (nine A4
+pages). They depict the same staff kitchenette, with a straight approximately 3983 mm run and a
+cutlist grouped into MOD 1–19. The cutlist includes a cover sheet, three part-list pages, module
+drawings and instructions; the plan includes plan/elevation/sections, finish/hardware/appliance
+notes and a revision table. Some appliance/fit dimensions are TBC and the drawing and cutlist were
+generated on different dates. Treat them as related design/production examples, not proof of
+final as-built measurements or of a single approved release revision. The files contain project
+identifiers and contact details; keep originals outside git and use anonymised derived fixtures.
+
+This example is for a school staff room, not a residential kitchen. It exercises the common
+cabinet, drawing and cutlist path but cannot establish residential-specific defaults or a two-wall
+corner. The earlier proposed two-wall acceptance case should remain synthetic until a separate
+real reference is supplied.
+
 ## Alternatives and why they were not selected
 
 - Merge CAD and workflow now: rejected for the present architecture because geometry rules and

@@ -8,7 +8,9 @@
 
 Ship the stages as small independently reviewable PRs, with existing `.zimmu` files and current
 manufacturing outputs remaining usable throughout. Every schema change needs a migration fixture.
-Use one real kitchen fixture across stages. Do not treat the stage list as permission to invent
+Use the attached kitchenette drawing/cutlist pair as the first reference fixture across stages;
+it is a staff-room commercial example, so keep a separate synthetic residential/two-wall case.
+Do not commit the source PDFs or identifying project information. Do not treat the stage list as permission to invent
 machine parameters, company rules, or workflow-system endpoints.
 
 ## Stage 0 — baseline and contracts
@@ -16,8 +18,11 @@ machine parameters, company rules, or workflow-system endpoints.
 1. Inventory current scene types, versioned file migration, cabinet generation, drawings, BOM,
    nesting, readiness and packet dependencies. Record the current golden fixtures and run the
    existing typecheck, lint, tests, build and E2E smoke on the current head.
-2. Obtain an anonymised real kitchen layout and one existing production packet; record dimensions,
-   materials and known workshop decisions. Until provided, use an explicitly synthetic fixture.
+2. Extract an anonymised fixture from the supplied two-page drawing and nine-page cutlist. Record
+   the approximately 3983 mm straight run, 19 numbered modules, mixed overhead/base/tall units,
+   fillers, cutouts, material/edge/grain codes, hardware, quantity and TBC annotations. Keep the
+   source PDFs outside git. Ask for a site-verified measurement and actual production approval
+   record before asserting that the fixture is as-built or approved.
 3. Define a decision table for missing site measurements, catalogue overrides, regeneration of
    detached parts, release blockers and cross-room items. Confirm it with design and production.
 4. Map existing file fields to the target IDs. Identify fields that cannot be migrated losslessly.
@@ -50,9 +55,10 @@ code rewrite in this stage.
 2. Add room constraints alongside existing cabinet-to-cabinet anchors; do not reinterpret the
    current `Anchor.to` as a wall ID. Keep free placement available. Detect collision, blocked doors/drawers,
    clearance and measurement gaps with actionable explanations.
-3. Build plan/elevation views from the same room and cabinet transforms. Test a two-wall return,
-   a rotated cabinet, a filler and an obstruction; edits to one wall should move only dependent
-   placements and preserve accepted manual offsets.
+3. Build plan/elevation views from the same room and cabinet transforms. Test the supplied
+   straight kitchenette with filler and appliance obstruction, plus a labelled synthetic two-wall
+   return and rotated cabinet. Edits to one wall should move only dependent placements and
+   preserve accepted manual offsets.
 
 **Exit:** The kitchen fixture can be laid out, saved, reopened and dimensioned consistently.
 
@@ -60,6 +66,7 @@ code rewrite in this stage.
 
 1. Introduce versioned company definitions for a small set of base, wall and tall cabinet recipes.
    Store catalogue reference/version and sparse item overrides. Add resolution and provenance API.
+   IT controls master construction rules; authorised senior designers maintain approved products.
 2. Migrate existing cabinet presets into initial catalogue definitions without changing their
    geometry. Keep custom cabinets and detached parts available; warn when a catalogue change would
    overwrite a user's explicit edit.
@@ -107,14 +114,17 @@ change report; unrelated items remain stable.
    project/template-specific approvers. The existing readiness report is report-only and leaves
    exports available; adding a release gate is a new feature. Preview the complete release,
    including production packet, manifest and source/rule/material versions.
-2. Freeze the officially released snapshot and hash the exported files. Persist a monotonic revision,
-   releasing identity/time and supersession history. Saving the editable model does not alter it.
+2. Freeze the release candidate and hash the exported files. Designer/Draftsperson initiates
+   release in Zimmu; the workflow system registers and acknowledges it before Zimmu marks it
+   current. Persist revision, releasing identity/time, registration receipt and supersession
+   history. Saving the editable model does not alter the registered snapshot.
 3. Add workflow handoff contract mapping project, Group ID, Item ID, JID and externally assigned
    six-digit cutlist number; one cutlist may group multiple items with shared production/delivery
-   progress while installation remains item-specific. Make retry/idempotency and acknowledgement
-   explicit. Start with an inspectable
+   progress while installation remains item-specific. Make retry/idempotency, failed-registration
+   recovery and acknowledgement explicit. Start with an inspectable
    export contract before choosing transport or authentication.
-4. Test authorised release, failed validation, repeated export, edit-after-release, new revision, withdrawal
+4. Test authorised release, failed validation, lost acknowledgement/retry, repeated export,
+   edit-after-release, new revision, withdrawal
    and old release reproduction. Review the packet with the shop floor.
 
 **Exit:** Production can identify and reproduce exactly the approved revision it received.
