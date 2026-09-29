@@ -27,16 +27,19 @@ code rewrite in this stage.
 
 ## Stage 1 — project identity and versioned storage
 
-1. Introduce `Project`, `Area/Room`, `JoineryItem` and placement references around the existing
+1. Introduce `Project`, `Area`, `Room`, `JoineryItem` and placement references around the existing
    `Scene`; use immutable UUID-like IDs and separate display numbers. Retain current part and
    component IDs and avoid a parallel scene representation.
 2. Add a deterministic pure migration from each supported file version, defaults for a legacy
-   single-room project, and explicit validation errors for corrupt/unknown versions. Preserve
-   metadata and provide a copy/backup path before conversion.
+   single-room project, and explicit validation errors for corrupt versions. Preserve the current
+   warning/best-effort parsing of newer versions until a separately reviewed compatibility policy
+   changes it. Preserve metadata and provide a copy/backup path before conversion.
 3. Add project navigation and item selection in small UI increments. Selection must name its
    owning item so identical section IDs in two cabinets cannot resolve ambiguously.
 4. Test old-file round-trip, two items with the same JID, rename without ID change, copy/duplicate
-   with new IDs, deletion references, and undo/redo. Verify current geometry and output unchanged.
+   with new IDs but no copied execution history, deletion references, and undo/redo. Test one
+   cutlist linked to multiple items, at most one cutlist per item, and related-part Item IDs.
+   Verify current geometry and output unchanged.
 
 **Exit:** A legacy file opens and saves as a project without losing a cabinet, part or hardware link.
 
@@ -44,8 +47,8 @@ code rewrite in this stage.
 
 1. Implement wall segments and corners, openings, obstacles, site levels and a local room frame;
    record measured value, source/date and uncertainty separately from designed dimensions.
-2. Extend existing anchor and plan-view rules to room constraints without changing the cabinet-to-
-   cabinet anchor invariant. Keep free placement available. Detect collision, blocked doors/drawers,
+2. Add room constraints alongside existing cabinet-to-cabinet anchors; do not reinterpret the
+   current `Anchor.to` as a wall ID. Keep free placement available. Detect collision, blocked doors/drawers,
    clearance and measurement gaps with actionable explanations.
 3. Build plan/elevation views from the same room and cabinet transforms. Test a two-wall return,
    a rotated cabinet, a filler and an obstruction; edits to one wall should move only dependent
@@ -89,7 +92,8 @@ hardware; the designer can see why each effective value was chosen.
 1. Define drawing sheets/views/dimensions once and render supported PDF/SVG/DXF outputs from that
    model. Add room plan, wall elevation, item elevation/detail and schedules incrementally.
 2. Separate material/hardware quantities from supplier rates, labour, waste, markup and tax.
-   Version the latter as pricing assumptions; do not claim a price is a quote without them.
+   Version the latter as pricing assumptions. The workflow tender estimate, contract baseline and
+   PM variations remain authoritative; CAD-derived cost changes do not change selling price.
 3. Compare working revision against the previous release by stable IDs, including item placement,
    parts, sizes, materials, operations, quantities and affected drawings. Flag unresolved/manual
    changes and annotate revision marks only for actual affected sheets.
@@ -99,14 +103,18 @@ change report; unrelated items remain stable.
 
 ## Stage 6 — production release and workflow handoff
 
-1. Define release blockers and warnings with the actual approver roles. Preview the complete
-   release, including production packet, manifest and source/rule/material versions.
-2. Freeze the approved snapshot and hash the exported files. Persist a monotonic revision,
-   approval identity/time and supersession history. Saving the editable model does not alter it.
+1. Define release blockers and warnings with the Designer/Draftsperson release role and any
+   project/template-specific approvers. The existing readiness report is report-only and leaves
+   exports available; adding a release gate is a new feature. Preview the complete release,
+   including production packet, manifest and source/rule/material versions.
+2. Freeze the officially released snapshot and hash the exported files. Persist a monotonic revision,
+   releasing identity/time and supersession history. Saving the editable model does not alter it.
 3. Add workflow handoff contract mapping project, Group ID, Item ID, JID and externally assigned
-   cutlist number; make retry/idempotency and acknowledgement explicit. Start with an inspectable
+   six-digit cutlist number; one cutlist may group multiple items with shared production/delivery
+   progress while installation remains item-specific. Make retry/idempotency and acknowledgement
+   explicit. Start with an inspectable
    export contract before choosing transport or authentication.
-4. Test approval, failed validation, repeated export, edit-after-release, new revision, withdrawal
+4. Test authorised release, failed validation, repeated export, edit-after-release, new revision, withdrawal
    and old release reproduction. Review the packet with the shop floor.
 
 **Exit:** Production can identify and reproduce exactly the approved revision it received.

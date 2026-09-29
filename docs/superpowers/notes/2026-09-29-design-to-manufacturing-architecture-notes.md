@@ -19,6 +19,29 @@ The separate operational workflow project already has decisions about JIDs, Grou
 six-digit cutlist numbers and production tracking. The design product must reference these; it
 must not issue a new cutlist number or duplicate the workflow's mutable production status.
 
+## 2026-09-29 — cross-check of current plans
+
+`plan_v1.md` (current Library version 68) establishes Company -> Project -> Area -> Room -> Joinery
+Item, with Kitchen/Pantry as items and cabinets below them. Q410–Q417 fix cutlist cardinality,
+shared production/delivery timing and individual installation; Q391–Q400 keep project reference
+files at project level in SharePoint. Its §24 gives official production release to
+Designer/Draftsperson. Its §6 and §16 keep tender estimate, fixed contract value and PM-controlled
+variations in workflow, so CAD costing is an engineering estimate only. The Library copy ends at
+Q431; a later conversation records Q432 as Drafter and PM permitted to create orders and submission
+immediately setting Ready to Order. Do not treat that later answer as already saved in Library.
+
+The existing cabinet-placement design deliberately excluded walls as objects; this new room stage
+extends the product direction without changing the shipped `Anchor` semantics. The sheet-yield
+design deliberately excludes CNC export and describes free nesting for yield estimation. The
+manufacturing-readiness report is explicitly report-only and cannot itself become a production
+release gate. The current production packet's hash identifies captured data, not a saved or
+approved revision. These are boundaries for future stages, not regressions to fix immediately.
+
+The older broad `joinery_3d_software_plan.md` and README describe file version 18 and early
+prototype scope, while the current `useFile.ts` declares version 20. Update those historical
+summaries separately if they are promoted as current documentation; do not use their old version
+numbers or promised Rust timeline as acceptance criteria for this plan.
+
 ## Alternatives and why they were not selected
 
 - Merge CAD and workflow now: rejected for the present architecture because geometry rules and

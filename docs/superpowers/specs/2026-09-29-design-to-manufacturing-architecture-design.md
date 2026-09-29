@@ -24,14 +24,16 @@ postprocessor, price model, hosting service, or rewrite.
 ## Product boundary and vertical workflow
 
 The design application owns job design, room geometry, catalogue instances, cabinet engineering,
-parts, materials, hardware, machining intent, drawings, estimates, validation, and production
-release snapshots. The workflow application owns tenders/orders, staff assignments, procurement,
-schedules, production execution, QC, delivery, and installation. A release is the handoff contract.
+parts, materials, hardware, machining intent, drawings, design-derived quantities and cost
+estimates, validation, and production-release candidates. The workflow application owns tender
+estimates, contract value, variations, official release control, orders, staff assignments,
+procurement, schedules, production execution, QC, delivery, and installation. A release is the
+handoff contract.
 
 The first end-to-end acceptance fixture is one residential kitchen with two walls, one obstruction,
 at least three related cabinets, a filler/end panel, mixed fronts and drawers, and a deliberately
 changed measurement. The designer places catalogue instances, overrides one item, checks
-clearances, issues drawings and a BOM, approves a release, and compares a later revision. The
+clearances, issues drawings and a BOM, formally releases a production pack, and compares a later revision. The
 outputs all identify the same item and release. This is a product acceptance scenario, not a
 claim that these features already exist.
 
@@ -39,24 +41,31 @@ claim that these features already exist.
 
 ```text
 Project
-  Area / Room (site reference and placement frame)
-    Joinery Item (business identity; may contain multiple assemblies)
-      Cabinet / Assembly (catalogue instance or custom assembly)
-        Component / Part (generated or explicitly authored)
-          Manufacturing Operation (machining or manual instruction)
+  Area
+    Room (site reference and placement frame)
+      Joinery Item (business identity; may contain multiple assemblies)
+        Cabinet / Assembly (catalogue instance or custom assembly)
+          Component / Part (generated or explicitly authored)
+            Manufacturing Operation (machining or manual instruction)
 ```
 
 - Each entity receives an immutable internal ID; labels, JIDs, drawing numbers, and cutlist numbers
   are editable external identifiers and never database keys. A JID can be shared as already decided
-  in the workflow requirements. A cutlist number can link to multiple items and has its own
-  workflow; it must not be equated with a cabinet ID.
+  in the workflow requirements. Each Joinery Item can have at most one six-digit cutlist number;
+  one cutlist can link to multiple items and has one shared production-stage/delivery workflow.
+  Installation completion remains individual to each item. A cutlist is not a cabinet ID. Related
+  metal, benchtop and cushion rows have distinct Item IDs, share their parent item's Group ID, and
+  display an issued supplier-order number rather than a cutlist number. For the main Joinery Item,
+  Group ID and Item ID are the same internal number, as specified in the workflow plan.
 - `Project` records units (millimetres internally), locale, provenance and schema version. Site
   dimensions and the model are distinct: measured/as-built, design intent and issued dimensions
   must not overwrite each other silently.
 - `Room` owns a local coordinate system, walls, openings, obstacles, services, ceiling/floor
   reference and measurement provenance. An assembly has one owning item and a placement relative
-  to a room. An item may span more than one assembly; cross-room items need an explicit reference
-  rather than accidental duplication.
+  to a room. A Joinery Item means an operational item such as Kitchen or Pantry, not an individual
+  cabinet; it may contain multiple cabinets. Cross-room items need an explicit reference rather
+  than accidental duplication. Project-level architectural files remain in the linked SharePoint
+  folder; this model does not introduce room-level file storage.
 - The current `Scene` (`parts`, `materials`, `hardware`, `joints`, `components`) remains a valid
   modelling aggregate during migration. Introduce project/room/item identity around it through a
   versioned adapter; do not add a second competing copy of the same geometry.
@@ -102,17 +111,21 @@ until a machine/tooling/postprocessor contract and validation fixture exist.
 ## Drawings, estimates and release
 
 One drawing model supplies plans, elevations, cabinet and part sheets, revision marks, schedules,
-PDF/SVG/DXF where supported, and their shared dimensions. Estimates and BOM use the same
-quantity/material/hardware derivations; labour, wastage, margin, tax and supplier pricing are
-separate versioned pricing assumptions. A change report compares items, parts, operations, BOM,
+PDF/SVG/DXF where supported, and their shared dimensions. Design cost estimates and BOM use the
+same quantity/material/hardware derivations; labour, wastage, margin, tax and supplier pricing are
+separate versioned pricing assumptions. They do not silently change the tender estimate, fixed
+selling price or PM-controlled variations in the workflow system. A change report compares items,
+parts, operations, BOM,
 drawings and costs with the prior release; it does not merely compare total counts.
 
-A production release is an immutable snapshot containing project/item IDs, revision, approver,
+A production release is an immutable snapshot containing project/item IDs, revision, releasing user,
 timestamp, source file/schema versions, catalogue/rule/material versions, validation results,
 generated file manifest with checksums, and machine profile if applicable. The current production
-packet becomes one derived artefact of that release. Release approval is a separate action from
+packet becomes one derived artefact of that release. Official release is a separate action from
 save. Subsequent edits create a working revision and new candidate release. Superseded releases
 remain reproducible and clearly marked; withdrawal/voiding is recorded, never deletion in place.
+The workflow plan assigns official release to Designer/Draftsperson; any additional approval gate
+must follow project/template approval configuration and be decided before implementation.
 
 The workflow system consumes an explicit release record plus file links and identifiers. Start
 with export/import or a thin API contract; authentication, access control, concurrent editing and
