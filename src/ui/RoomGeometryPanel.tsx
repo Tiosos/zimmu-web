@@ -15,9 +15,13 @@ interface Props {
 export function RoomGeometryPanel({ geometry: supplied, onChange, cabinets, scene }: Props) {
   const geometry = supplied ?? emptyRoomGeometry()
   const [measurementDrafts, setMeasurementDrafts] = useState<Record<string, { value: string; source: string; uncertainty: string }>>({})
+  const [swingDrafts, setSwingDrafts] = useState<Record<string, { hinge: string; side: string; radius: string }>>({})
   const draftFor = (id: string) => measurementDrafts[id] ?? { value: '', source: '', uncertainty: '' }
   const editDraft = (id: string, field: 'value' | 'source' | 'uncertainty', value: string) =>
     setMeasurementDrafts((drafts) => ({ ...drafts, [id]: { ...(drafts[id] ?? { value: '', source: '', uncertainty: '' }), [field]: value } }))
+  const swingDraft = (id: string) => swingDrafts[id] ?? { hinge: '', side: '', radius: '' }
+  const editSwing = (id: string, field: 'hinge' | 'side' | 'radius', value: string) =>
+    setSwingDrafts((drafts) => ({ ...drafts, [id]: { ...(drafts[id] ?? { hinge: '', side: '', radius: '' }), [field]: value } }))
   const number = (label: string, value: number, update: (value: number) => void) =>
     <label className="inline-flex items-center gap-1 text-xs">{label}
       <input aria-label={label} type="number" value={value} onChange={(e) => update(Number(e.target.value))}
@@ -82,6 +86,43 @@ export function RoomGeometryPanel({ geometry: supplied, onChange, cabinets, scen
         {(['offset', 'width', 'sill', 'height'] as const).map((field) => number(field, opening[field], (value) => onChange({ ...geometry,
           openings: geometry.openings.map((o) => o.id === opening.id ? { ...o, [field]: value } : o),
         })))}
+        {opening.kind === 'door' && (opening.swing ? <>
+          <select aria-label={`Hinge for ${opening.id}`} value={opening.swing.hinge}
+            onChange={(e) => onChange({ ...geometry, openings: geometry.openings.map((o) => o.id === opening.id
+              ? { ...o, swing: { ...o.swing!, hinge: e.target.value as 'start' | 'end' } } : o) })}>
+            <option value="start">Hinge at start</option><option value="end">Hinge at end</option>
+          </select>
+          <select aria-label={`Swing side for ${opening.id}`} value={opening.swing.side}
+            onChange={(e) => onChange({ ...geometry, openings: geometry.openings.map((o) => o.id === opening.id
+              ? { ...o, swing: { ...o.swing!, side: e.target.value as 'left' | 'right' } } : o) })}>
+            <option value="left">Left of wall</option><option value="right">Right of wall</option>
+          </select>
+          {number('Swing reach mm', opening.swing.radius, (radius) => onChange({ ...geometry,
+            openings: geometry.openings.map((o) => o.id === opening.id ? { ...o, swing: { ...o.swing!, radius } } : o),
+          }))}
+          <Button size="sm" variant="outline" onClick={() => onChange({ ...geometry,
+            openings: geometry.openings.map((o) => o.id === opening.id ? { ...o, swing: undefined } : o),
+          })}>Unassess swing</Button>
+        </> : <>
+          <select aria-label={`Hinge for ${opening.id}`} value={swingDraft(opening.id).hinge}
+            onChange={(e) => editSwing(opening.id, 'hinge', e.target.value)}>
+            <option value="">Choose hinge</option><option value="start">Hinge at start</option><option value="end">Hinge at end</option>
+          </select>
+          <select aria-label={`Swing side for ${opening.id}`} value={swingDraft(opening.id).side}
+            onChange={(e) => editSwing(opening.id, 'side', e.target.value)}>
+            <option value="">Choose side</option><option value="left">Left of wall</option><option value="right">Right of wall</option>
+          </select>
+          <input aria-label={`Swing reach for ${opening.id}`} type="number" min="0" placeholder="Reach mm"
+            value={swingDraft(opening.id).radius} onChange={(e) => editSwing(opening.id, 'radius', e.target.value)}
+            className="w-20 bg-background border border-border rounded px-1" />
+          <Button size="sm" variant="outline" disabled={!(swingDraft(opening.id).hinge && swingDraft(opening.id).side &&
+            Number(swingDraft(opening.id).radius) > 0)} onClick={() => onChange({ ...geometry,
+            openings: geometry.openings.map((o) => o.id === opening.id ? { ...o, swing: {
+              hinge: swingDraft(opening.id).hinge as 'start' | 'end',
+              side: swingDraft(opening.id).side as 'left' | 'right', radius: Number(swingDraft(opening.id).radius),
+            } } : o),
+          })}>Record swing</Button>
+        </>)}
         <Button size="sm" variant="outline" onClick={() => onChange({ ...geometry, openings: geometry.openings.filter((o) => o.id !== opening.id) })}>Remove opening</Button>
       </div>)}
       <div className="flex gap-1">{(['door', 'window'] as const).map((kind) => <Button key={kind} size="sm" variant="outline" onClick={() => onChange({ ...geometry,

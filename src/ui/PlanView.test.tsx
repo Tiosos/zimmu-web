@@ -172,6 +172,25 @@ describe('PlanView', () => {
     expect(screen.queryByTestId('plan-cabinet-pantry')).toBeNull()
   })
 
+  it('shows a recorded site level on the plan without treating it as cabinet geometry', () => {
+    render(<PlanView scene={sceneOf([])} selectedId={null} onSelect={vi.fn()} onDrop={vi.fn()}
+      onTurn={vi.fn()} warnings={[]} room={{ ...emptyRoomGeometry(), siteLevels: [{
+        id: 'floor', name: 'Floor', at: { x: 100, y: 200 },
+        elevation: { value: -12, uncertainty: 2, source: 'Laser', recordedAt: '2026-09-29' },
+      }] }} />)
+    expect(screen.getByTestId('plan-level-floor')).toBeTruthy()
+  })
+
+  it('draws an explicitly assessed room-door swing envelope', () => {
+    render(<PlanView scene={sceneOf([])} selectedId={null} onSelect={vi.fn()} onDrop={vi.fn()}
+      onTurn={vi.fn()} warnings={[]} room={{ ...emptyRoomGeometry(), walls: [{
+        id: 'wall', name: 'Entry', start: { x: 0, y: 0 }, end: { x: 3000, y: 0 },
+      }], openings: [{ id: 'door', wallId: 'wall', kind: 'door', offset: 500,
+        width: 900, sill: 0, height: 2100, swing: { hinge: 'start', side: 'left', radius: 900 },
+      }] }} />)
+    expect(screen.getByTestId('plan-door-swing-door')).toBeTruthy()
+  })
+
   it('applies the drop a drag lands on', () => {
     const onDrop = vi.fn()
     render(

@@ -1,5 +1,5 @@
 import type { MaterialDef, Part, Scene, Vec3, ZimmuFile } from './types'
-import type { ProjectStructure } from './projectStructure'
+import { frontForSection, type ProjectStructure } from './projectStructure'
 
 export class ZimmuFileValidationError extends Error {
   constructor(path: string, message: string) {
@@ -297,6 +297,26 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
         const geometry = recordAt(room.geometry, path)
         vec2At(geometry.origin, `${path}.origin`)
         finiteNumberAt(geometry.rotation, `${path}.rotation`)
+        if (geometry.datum !== undefined) stringAt(geometry.datum, `${path}.datum`)
+        if (geometry.siteLevels !== undefined) {
+          const levels = arrayAt(geometry.siteLevels, `${path}.siteLevels`)
+          if (levels.length && !stringAt(geometry.datum, `${path}.datum`).trim())
+            throw new ZimmuFileValidationError(`${path}.datum`, 'must identify the site level datum')
+          levels.forEach((rawLevel, n) => {
+            const lp = `${path}.siteLevels[${n}]`
+            const level = recordAt(rawLevel, lp)
+            unique(level.id, `${lp}.id`)
+            stringAt(level.name, `${lp}.name`)
+            vec2At(level.at, `${lp}.at`)
+            const elevation = recordAt(level.elevation, `${lp}.elevation`)
+            finiteNumberAt(elevation.value, `${lp}.elevation.value`)
+            positiveAt(elevation.uncertainty, `${lp}.elevation.uncertainty`, true)
+            if (!stringAt(elevation.source, `${lp}.elevation.source`).trim())
+              throw new ZimmuFileValidationError(`${lp}.elevation.source`, 'must identify the measurement source')
+            if (!Number.isFinite(Date.parse(stringAt(elevation.recordedAt, `${lp}.elevation.recordedAt`))))
+              throw new ZimmuFileValidationError(`${lp}.elevation.recordedAt`, 'must be a valid date')
+          })
+        }
         const walls = arrayAt(geometry.walls, `${path}.walls`)
         const wallIds = new Set<string>()
         walls.forEach((rawWall, n) => {
@@ -329,6 +349,15 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
           positiveAt(opening.width, `${op}.width`)
           positiveAt(opening.sill, `${op}.sill`, true)
           positiveAt(opening.height, `${op}.height`)
+          if (opening.swing !== undefined) {
+            if (opening.kind !== 'door') throw new ZimmuFileValidationError(`${op}.swing`, 'only a door can swing')
+            const swing = recordAt(opening.swing, `${op}.swing`)
+            if (swing.hinge !== 'start' && swing.hinge !== 'end')
+              throw new ZimmuFileValidationError(`${op}.swing.hinge`, 'must be start or end')
+            if (swing.side !== 'left' && swing.side !== 'right')
+              throw new ZimmuFileValidationError(`${op}.swing.side`, 'must be left or right')
+            positiveAt(swing.radius, `${op}.swing.radius`)
+          }
         })
         arrayAt(geometry.obstacles, `${path}.obstacles`).forEach((rawObstacle, n) => {
           const op = `${path}.obstacles[${n}]`
@@ -351,6 +380,25 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
           positiveAt(placement.setback, `${pp}.setback`, true)
           vec2At(placement.manualOffset, `${pp}.manualOffset`)
         })
+        if (geometry.clearances !== undefined) {
+          const assessed = new Set<string>()
+          arrayAt(geometry.clearances, `${path}.clearances`).forEach((rawClearance, n) => {
+            const cp = `${path}.clearances[${n}]`
+            const clearance = recordAt(rawClearance, cp)
+            const cabinetId = stringAt(clearance.cabinetId, `${cp}.cabinetId`)
+            const sectionId = stringAt(clearance.sectionId, `${cp}.sectionId`)
+            const cabinet = scene.components.find((c) => c.id === cabinetId)
+            const front = cabinet?.kind === 'carcase' ? frontForSection(cabinet.params.section, sectionId) : undefined
+            const kind = clearance.kind
+            if (!roomRoots.has(cabinetId) || !front ||
+              (kind === 'door' ? front.kind !== 'door' : kind === 'drawer' ? front.kind !== 'drawer-front' : true))
+              throw new ZimmuFileValidationError(cp, 'must name a matching door or drawer front owned by this room')
+            const key = `${cabinetId}:${sectionId}`
+            if (assessed.has(key)) throw new ZimmuFileValidationError(cp, 'must assess each front only once')
+            assessed.add(key)
+            positiveAt(clearance.projection, `${cp}.projection`)
+          })
+        }
       }
       if (!items.length) throw new ZimmuFileValidationError(`${roomPath}.items`, 'must not be empty')
       items.forEach((rawItem, i) => {

@@ -1,4 +1,5 @@
 import type { Scene } from './types'
+import type { Section, FrontSpec } from './sectionTree'
 
 export interface JoineryItem {
   id: string
@@ -23,6 +24,20 @@ export interface SiteMeasurement {
   uncertainty: number
 }
 
+export interface SiteLevel {
+  id: string
+  name: string
+  at: RoomPoint
+  elevation: SiteMeasurement // signed millimetres relative to the project's stated datum
+}
+
+export interface FrontClearance {
+  cabinetId: string
+  sectionId: string
+  kind: 'door' | 'drawer'
+  projection: number // designer-entered travel/swing envelope in mm, not a generated hardware claim
+}
+
 export interface RoomPoint { x: number; y: number }
 
 export interface WallSegment {
@@ -41,6 +56,7 @@ export interface WallOpening {
   width: number
   sill: number
   height: number
+  swing?: { hinge: 'start' | 'end'; side: 'left' | 'right'; radius: number }
 }
 
 export interface RoomObstacle {
@@ -67,10 +83,30 @@ export interface RoomGeometry {
   openings: WallOpening[]
   obstacles: RoomObstacle[]
   placements: WallPlacement[]
+  datum?: string
+  siteLevels?: SiteLevel[]
+  clearances?: FrontClearance[]
 }
 
 export function emptyRoomGeometry(): RoomGeometry {
   return { origin: { x: 0, y: 0 }, rotation: 0, walls: [], openings: [], obstacles: [], placements: [] }
+}
+
+export function frontForSection(section: Section, id: string): FrontSpec | undefined {
+  if (section.id === id) return section.content.kind === 'leaf' ? section.front : undefined
+  if (section.content.kind === 'split')
+    for (const child of section.content.children) {
+      const front = frontForSection(child, id)
+      if (front) return front
+    }
+  return undefined
+}
+
+export function operableFronts(section: Section): { sectionId: string; kind: 'door' | 'drawer' }[] {
+  if (section.content.kind === 'split') return section.content.children.flatMap(operableFronts)
+  if (section.front?.kind === 'door') return [{ sectionId: section.id, kind: 'door' }]
+  if (section.front?.kind === 'drawer-front') return [{ sectionId: section.id, kind: 'drawer' }]
+  return []
 }
 
 export interface ProjectArea {
@@ -147,7 +183,16 @@ export function reconcileProject(project: ProjectStructure, scene: Scene, target
       const roomRoots = new Set(items.flatMap((item) => item.rootComponentIds))
       const placements = room.geometry?.placements.filter((p) => roomRoots.has(p.cabinetId) && live.has(p.cabinetId))
       if (placements && placements.length !== room.geometry!.placements.length) changed = true
-      return { ...room, items, ...(room.geometry ? { geometry: { ...room.geometry, placements: placements! } } : {}) }
+      const clearances = room.geometry?.clearances?.filter((clearance) => {
+        if (!roomRoots.has(clearance.cabinetId)) return false
+        const cabinet = scene.components.find((c) => c.id === clearance.cabinetId)
+        if (cabinet?.kind !== 'carcase') return false
+        const front = frontForSection(cabinet.params.section, clearance.sectionId)
+        return front?.kind === (clearance.kind === 'drawer' ? 'drawer-front' : 'door')
+      })
+      if (clearances && clearances.length !== room.geometry!.clearances!.length) changed = true
+      return { ...room, items, ...(room.geometry ? { geometry: { ...room.geometry, placements: placements!,
+        ...(clearances ? { clearances } : {}) } } : {}) }
     }),
   }))
   const unassigned = roots.filter((id) => !seen.has(id))
