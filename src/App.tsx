@@ -764,6 +764,7 @@ function App() {
         <ManufacturingReadiness
           scene={scene}
           projectName={projectName}
+          hardwareLibrary={hardwareLibrary}
           onInspect={(selection) => {
             onSelect(selection)
             setReadinessOpen(false)

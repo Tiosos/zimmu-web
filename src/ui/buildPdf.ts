@@ -20,13 +20,15 @@ function yflip(y: number): number {
   return PAGE_H_PT - pt(y)
 }
 
-// Only call hexRgb on 6-digit hex (e.g. part colors from the color picker).
-// Short 3-char hex (#000, #555) use the named constants below instead.
 function hexRgb(hex: string) {
+  const value = /^#[0-9a-f]{3}$/i.test(hex)
+    ? `#${Array.from(hex.slice(1), (c) => c + c).join('')}`
+    : hex
+  if (!/^#[0-9a-f]{6}$/i.test(value)) throw new Error(`Invalid part color: ${hex}`)
   return rgb(
-    parseInt(hex.slice(1, 3), 16) / 255,
-    parseInt(hex.slice(3, 5), 16) / 255,
-    parseInt(hex.slice(5, 7), 16) / 255,
+    parseInt(value.slice(1, 3), 16) / 255,
+    parseInt(value.slice(3, 5), 16) / 255,
+    parseInt(value.slice(5, 7), 16) / 255,
   )
 }
 
@@ -480,8 +482,26 @@ export async function buildPdf(sheets: DrawingSheet[]): Promise<Uint8Array> {
   const doc = await PDFDocument.create()
   const font = await doc.embedFont(StandardFonts.Helvetica)
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold)
+  // Standard PDF fonts cannot encode every label in a project (or the diameter sign on a dowel).
+  // Keep the drawing geometry intact while preserving unsupported text as an explicit reference.
+  const supported = new Set(font.getCharacterSet())
+  const safeSheets = JSON.parse(
+    JSON.stringify(sheets, (_key, value: unknown) =>
+      typeof value === 'string'
+        ? Array.from(value.normalize('NFC'))
+            .map((char) =>
+              char === '⌀'
+                ? 'DIA '
+                : supported.has(char.codePointAt(0)!)
+                  ? char
+                  : `[U+${char.codePointAt(0)!.toString(16).toUpperCase()}]`,
+            )
+            .join('')
+        : value,
+    ),
+  ) as DrawingSheet[]
 
-  for (const sheet of sheets) {
+  for (const sheet of safeSheets) {
     const page = doc.addPage([PAGE_W_PT, PAGE_H_PT])
     if (sheet.kind === 'cover') {
       renderPdfCoverSheet(page, sheet, font, fontBold)

@@ -540,9 +540,9 @@ export function buildDrawingSheets(
   parts: Part[],
   projectName: string,
   cabinets: CabinetSheetInput[] = [],
+  date = new Date().toISOString().slice(0, 10),
+  installationCabinetIds?: ReadonlySet<string>,
 ): DrawingSheet[] {
-  const date = new Date().toISOString().slice(0, 10)
-
   const coverRows: CoverRow[] = parts.map((p, i) => ({
     index: i + 1,
     label: p.label,
@@ -560,7 +560,9 @@ export function buildDrawingSheets(
 
   const assemblySheets = cabinets.map((c) => buildAssemblySheet(c, date))
 
-  const installationSheets = cabinets.flatMap((c) => buildShelfInstallationSheets(c, date))
+  const installationSheets = cabinets
+    .filter((c) => !installationCabinetIds || installationCabinetIds.has(c.cabinet.id))
+    .flatMap((c) => buildShelfInstallationSheets(c, date))
   return [cover, ...assemblySheets, ...installationSheets, ...partSheets]
 }
 

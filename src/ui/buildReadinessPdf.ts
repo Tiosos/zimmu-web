@@ -135,7 +135,7 @@ export async function buildReadinessPdf(snapshot: ReadinessSnapshot): Promise<Ui
     'Production assessment uses numeric/tree complexity limits and a conservative 200-part budget per cabinet. Scene joinery scanning is skipped above 200 boards; checklist truncation is reported. Detached assemblies are not assessed for generated-part completeness. Shelf detail assessment is limited to 1,000 requested shelves per cabinet and geometry resource limits. This PDF includes all returned findings, including those beyond the dialog display limit; it cannot recover checks skipped by the assessment engines.',
   )
   line(
-    'Installation references identify separate installation sheets by cabinet ID and shelf role. Open Manufacturing readiness in the matching design, then select Installation sheet for that shelf. Installation drawings are not attached to this report.',
+    'Installation references identify separate installation sheets by cabinet ID and shelf role. They are not embedded in this report PDF. In a production packet, find them in the shop drawings PDF; otherwise open Manufacturing readiness in the matching design and select Installation sheet for that shelf.',
   )
   const finding = (f: ReadinessSnapshot['production']['findings'][number]) => {
     line(
