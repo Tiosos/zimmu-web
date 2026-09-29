@@ -6,6 +6,7 @@ import { DEFAULT_FRAME, PRESET_MATERIALS } from '../scene/carcasePresets'
 import type { Scene } from '../scene/types'
 import * as pdf from './buildReadinessPdf'
 import * as downloads from './download'
+import * as packets from './buildProductionPacket'
 
 vi.mock('./ShelfInsertionCanvas', () => ({
   ShelfInsertionCanvas: () => <div>Preview geometry</div>,
@@ -35,6 +36,44 @@ afterEach(() => {
 })
 
 describe('readiness UI', () => {
+  it('downloads a packet from the scene and recovers from a failed attempt', async () => {
+    const build = vi
+      .spyOn(packets, 'buildProductionPacket')
+      .mockRejectedValueOnce(new Error('packet test failure'))
+      .mockResolvedValue(new Uint8Array([80, 75]))
+    const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+    const scene = sceneOf()
+    render(
+      <ManufacturingReadiness
+        scene={scene}
+        projectName="Workshop A"
+        materialLibrary={{ Plywood: { costPerM2: 42 } }}
+        onClose={vi.fn()}
+        onOpenSheet={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Export production packet' }))
+    expect(screen.getByRole('button', { name: 'Preparing packet…' }).hasAttribute('disabled')).toBe(
+      true,
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('packet test failure'),
+    )
+    expect(download).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Export production packet' }))
+    await waitFor(() => expect(download).toHaveBeenCalledOnce())
+    expect(build.mock.calls[1][0]).toMatchObject({
+      scene,
+      projectName: 'Workshop A',
+      materialLibrary: { Plywood: { costPerM2: 42 } },
+    })
+    expect(download.mock.calls[0].slice(1)).toEqual([
+      'Workshop A-production-packet.zip',
+      'application/zip',
+    ])
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('downloads a captured snapshot and recovers from export failures', async () => {
     const build = vi
       .spyOn(pdf, 'buildReadinessPdf')

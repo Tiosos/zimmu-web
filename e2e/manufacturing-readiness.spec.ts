@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
+import { strFromU8, unzipSync } from 'fflate'
 
 test('an excessive shelf request warns without crashing, and can be corrected', async ({
   page,
@@ -50,6 +52,18 @@ test('readiness links to preview and sheet, reports omissions, and leaves export
   const download = await downloading
   expect(download.suggestedFilename()).toMatch(/-manufacturing-readiness\.pdf$/)
   expect(await download.failure()).toBeNull()
+  const packetDownloading = page.waitForEvent('download')
+  await report.getByRole('button', { name: 'Export production packet' }).click()
+  const packet = await packetDownloading
+  expect(packet.suggestedFilename()).toMatch(/-production-packet\.zip$/)
+  expect(await packet.failure()).toBeNull()
+  const files = unzipSync(new Uint8Array(await readFile(await packet.path())))
+  expect(Object.keys(files)).toContain('readiness/report.pdf')
+  expect(Object.keys(files)).toContain('drawings/shop-drawings.pdf')
+  const manifest = JSON.parse(strFromU8(files['manifest.json']))
+  expect(manifest.counts.installationSheets).toBe(1)
+  expect(manifest.files.map((entry: { path: string }) => entry.path)).toContain('lists/boards.csv')
+  await expect(report).toBeVisible()
   await report.getByRole('button', { name: 'Preview shelf insertion' }).click()
   const preview = page.getByRole('dialog', { name: /Shelf insertion/ })
   await expect(preview.getByRole('status')).toHaveText('Straight insertion')

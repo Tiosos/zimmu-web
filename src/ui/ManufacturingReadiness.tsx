@@ -1,13 +1,20 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
-import type { CarcaseComponent, Scene, Selection } from '../scene/types'
+import type {
+  CarcaseComponent,
+  HardwareLibraryEntry,
+  MaterialDef,
+  Scene,
+  Selection,
+} from '../scene/types'
 import { buildShelfReadiness, type ShelfReadinessRow } from '../scene/shelfReadiness'
 import { buildProductionReadiness } from '../scene/productionReadiness'
 import { ShelfInsertionPreview } from './ShelfInsertionPreview'
 import { createReadinessSnapshot } from '../scene/readinessSnapshot'
 import { buildReadinessPdf, readinessPdfFilename } from './buildReadinessPdf'
 import { downloadBlob } from './download'
+import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
 
 const statusText: Record<ShelfReadinessRow['status'], string> = {
   straight: 'Straight insertion',
@@ -23,16 +30,21 @@ export function ManufacturingReadiness({
   onOpenSheet,
   onInspect,
   projectName = 'Project',
+  hardwareLibrary = {},
+  materialLibrary = {},
 }: {
   scene: Scene
   onClose: () => void
   onOpenSheet: (cabinet: CarcaseComponent, role: string) => void
   onInspect?: (selection: NonNullable<Selection>) => void
   projectName?: string
+  hardwareLibrary?: Record<string, HardwareLibraryEntry>
+  materialLibrary?: Record<string, MaterialDef>
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useId()
   const [exporting, setExporting] = useState(false)
+  const [packetExporting, setPacketExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const exportPdf = async () => {
     setExporting(true)
@@ -47,6 +59,25 @@ export function ManufacturingReadiness({
       )
     } finally {
       setExporting(false)
+    }
+  }
+  const exportPacket = async () => {
+    setPacketExporting(true)
+    setExportError(null)
+    try {
+      const bytes = await buildProductionPacket({
+        scene,
+        projectName,
+        hardwareLibrary,
+        materialLibrary,
+      })
+      downloadBlob(bytes as BlobPart, productionPacketFilename(projectName), 'application/zip')
+    } catch (error) {
+      setExportError(
+        `Packet export failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
+      )
+    } finally {
+      setPacketExporting(false)
     }
   }
   const report = useMemo(() => buildShelfReadiness(scene), [scene])
@@ -73,12 +104,25 @@ export function ManufacturingReadiness({
       onKeyDown={(e) => e.stopPropagation()}
       className="m-auto w-[min(1050px,96vw)] max-h-[92vh] overflow-auto rounded-lg border border-border bg-background text-foreground p-5 backdrop:bg-black/70"
     >
-      <div className="flex justify-between items-center gap-3 mb-3">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
         <h2 id={heading} className="font-semibold">
           Manufacturing readiness
         </h2>
-        <Button size="sm" variant="outline" disabled={exporting} onClick={() => void exportPdf()}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={exporting || packetExporting}
+          onClick={() => void exportPdf()}
+        >
           {exporting ? 'Preparing PDF…' : 'Export readiness PDF'}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={exporting || packetExporting}
+          onClick={() => void exportPacket()}
+        >
+          {packetExporting ? 'Preparing packet…' : 'Export production packet'}
         </Button>
         <Button size="sm" variant="outline" onClick={onClose}>
           Close readiness report
@@ -97,6 +141,11 @@ export function ManufacturingReadiness({
         Report-only: exports remain available. Checks cover cabinet parameters, material thickness,
         generated parts, joinery and shelf access. Hardware suitability, machining accuracy and
         physical installation still need review. A recorded joint does not certify its geometry.
+      </p>
+      <p className="text-xs text-muted-foreground mb-4">
+        Production packet (ZIP): readiness PDF, shop drawings with available installation sheets,
+        board/dowel/hardware CSVs, and a snapshot manifest. Includes hidden items. It is advisory
+        and does not save a project revision.
       </p>
       <section aria-label="Production checks" className="border rounded p-3 mb-4">
         <h3 className="font-medium">Production checks</h3>
