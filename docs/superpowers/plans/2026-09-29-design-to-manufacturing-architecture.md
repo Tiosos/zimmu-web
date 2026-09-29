@@ -104,6 +104,9 @@ hardware; the designer can see why each effective value was chosen.
 3. Compare working revision against the previous release by stable IDs, including item placement,
    parts, sizes, materials, operations, quantities and affected drawings. Flag unresolved/manual
    changes and annotate revision marks only for actual affected sheets.
+4. Build a shared drawing/cutlist fact check against the same candidate revision. Report a
+   structured discrepancy with item/module/part ID and both source locations. The user-provided
+   PDF pair illustrates fields to compare; it is not itself a known matching golden release.
 
 **Exit:** A late measurement change updates the affected sheets/BOM and produces an intelligible
 change report; unrelated items remain stable.
@@ -113,7 +116,9 @@ change report; unrelated items remain stable.
 1. Define release blockers and warnings with the Designer/Draftsperson release role and any
    project/template-specific approvers. The existing readiness report is report-only and leaves
    exports available; adding a release gate is a new feature. Preview the complete release,
-   including production packet, manifest and source/rule/material versions.
+   including production packet, manifest, source/rule/material versions and drawing/cutlist check.
+   Any detected inconsistency blocks release; only Designer/Draftsperson reconciliation followed
+   by regenerated outputs and a passing check clears it. No exception approval bypasses this gate.
 2. Freeze the release candidate and hash the exported files. Designer/Draftsperson initiates
    release in Zimmu; the workflow system registers and acknowledges it before Zimmu marks it
    current. Persist revision, releasing identity/time, registration receipt and supersession
@@ -123,8 +128,9 @@ change report; unrelated items remain stable.
    progress while installation remains item-specific. Make retry/idempotency, failed-registration
    recovery and acknowledgement explicit. Start with an inspectable
    export contract before choosing transport or authentication.
-4. Test authorised release, failed validation, lost acknowledgement/retry, repeated export,
-   edit-after-release, new revision, withdrawal
+4. Test authorised release, mismatched quantity/dimension/material/edge/hardware, correction and
+   recheck, failed validation, lost acknowledgement/retry, repeated export, edit-after-release,
+   new revision, withdrawal
    and old release reproduction. Review the packet with the shop floor.
 
 **Exit:** Production can identify and reproduce exactly the approved revision it received.

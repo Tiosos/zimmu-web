@@ -63,6 +63,15 @@ cabinet, drawing and cutlist path but cannot establish residential-specific defa
 corner. The earlier proposed two-wall acceptance case should remain synthetic until a separate
 real reference is supplied.
 
+## 2026-09-29 — drawing and cutlist release gate
+
+The user selected the strict option: Zimmu blocks production release when a drawing and cutlist
+disagree until Designer/Draftsperson reconciles them. An exception record or manager approval does
+not bypass this discrepancy. The implementation must compare generated candidate outputs from one
+revision, expose the conflicting facts and sources, regenerate after correction, and retain the
+passing check with the registered release. Different creation dates on the supplied historical
+PDFs are a reason to avoid claiming they are one verified issue, not proof of an actual mismatch.
+
 ## Alternatives and why they were not selected
 
 - Merge CAD and workflow now: rejected for the present architecture because geometry rules and

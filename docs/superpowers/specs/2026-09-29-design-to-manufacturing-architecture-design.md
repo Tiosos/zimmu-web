@@ -133,8 +133,18 @@ PDF/SVG/DXF where supported, and their shared dimensions. Design cost estimates 
 same quantity/material/hardware derivations; labour, wastage, margin, tax and supplier pricing are
 separate versioned pricing assumptions. They do not silently change the tender estimate, fixed
 selling price or PM-controlled variations in the workflow system. A change report compares items,
-parts, operations, BOM,
-drawings and costs with the prior release; it does not merely compare total counts.
+parts, operations, BOM, drawings and costs with the prior release; it does not merely compare total
+counts.
+
+Drawing-to-cutlist consistency is a hard production-release gate. Compare the candidate outputs
+from the same design revision by stable item/module/part identity, quantities, dimensions,
+materials, edge and grain specifications, hardware and machining instructions wherever those
+facts occur in both outputs. Show each detected discrepancy with both values and source locations.
+The Designer/Draftsperson corrects the underlying model or controlled input, regenerates both
+outputs, and reruns validation; acknowledging a mismatch or recording an exception cannot release
+the pack. Record the reconciliation and final passing check in the release audit. A difference in
+historical PDF creation dates alone is not evidence of a dimensional discrepancy, and the supplied
+PDF pair must not be treated as a verified current release.
 
 A production release is an immutable snapshot containing project/item IDs, revision, releasing user,
 timestamp, source file/schema versions, catalogue/rule/material versions, validation results,
