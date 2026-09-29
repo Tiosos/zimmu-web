@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { RoomAssessmentPanel } from './RoomAssessmentPanel'
 import { emptyRoomGeometry } from '../scene/projectStructure'
+import { CARCASE_PRESETS, DEFAULT_FRAME, PRESET_MATERIALS } from '../scene/carcasePresets'
+import type { CarcaseComponent } from '../scene/types'
 
 describe('room assessment panel', () => {
   afterEach(cleanup)
@@ -43,5 +45,24 @@ describe('room assessment panel', () => {
     expect(screen.getByTestId('elevation-window')).toBeTruthy()
     expect(screen.getByText(/Corner: -12 ±2 mm/)).toBeTruthy()
     expect((screen.getByLabelText('Level datum') as HTMLInputElement).disabled).toBe(true)
+  })
+
+  it('offers an assessment for an independent physical face-frame opening', () => {
+    const params = CARCASE_PRESETS[0].params
+    const cabinet: CarcaseComponent = { kind: 'carcase', id: 'framed', label: 'Framed', parentId: null,
+      position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, rotationOrder: 'XYZ', visible: true,
+      params: { ...params, frame: { ...DEFAULT_FRAME, layout: {
+        [params.section.id]: { id: 'physical-door', size: { kind: 'equal' },
+          front: { kind: 'door', leaves: 1, hinge: 'left' }, content: { kind: 'leaf' } },
+      } } },
+    }
+    const onChange = vi.fn()
+    render(<RoomAssessmentPanel room={emptyRoomGeometry()}
+      scene={{ parts: [], materials: PRESET_MATERIALS, hardware: [], joints: [], components: [cabinet] }}
+      cabinetIds={new Set([cabinet.id])} onChange={onChange} />)
+    fireEvent.change(screen.getByLabelText('Projection for Framed physical-door'), { target: { value: '600' } })
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ clearances: [
+      { cabinetId: 'framed', sectionId: 'physical-door', kind: 'door', projection: 600 },
+    ] }))
   })
 })

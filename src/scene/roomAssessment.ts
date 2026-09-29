@@ -3,23 +3,38 @@ import type { RoomGeometry, RoomPoint, WallOpening, WallSegment } from './projec
 import { operableFronts } from './projectStructure'
 import { roomPoint, wallLength } from './roomGeometry'
 import { resolveCarcase } from './carcaseOpenings'
+import { frontCells } from './frontCells'
+import { frontGeometryOf } from './carcaseRoles'
 import { carcaseBounds } from './carcaseBounds'
 import { roleThicknessFor } from './resolveThickness'
-import { rotateVector } from '../geom/transform'
-import { worldBoundsOf } from './carcaseWorldBounds'
+import { applyMatrixToPoint, resolveWorldMatrix } from '../geom/transform'
+import { componentsById } from './componentTree'
 
 function footprint(cabinet: CarcaseComponent, scene: Scene): RoomPoint[] {
   const b = carcaseBounds(cabinet.params, roleThicknessFor(cabinet.params, scene.materials, new Map()))
-  return corners(b.x0, b.x1, b.y0, b.y1).map((point) => placed(point, cabinet))
+  return corners(b.x0, b.x1, b.y0, b.y1).map((point) => placed(point, cabinet, scene))
 }
 
 function corners(x0: number, x1: number, y0: number, y1: number): RoomPoint[] {
   return [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }]
 }
 
-function placed(point: RoomPoint, cabinet: CarcaseComponent): RoomPoint {
-  const rotated = rotateVector(cabinet.rotation, point.x, point.y, 0)
-  return { x: cabinet.position.x + rotated[0], y: cabinet.position.y + rotated[1] }
+function placed(point: RoomPoint, cabinet: CarcaseComponent, scene: Scene): RoomPoint {
+  const [x, y] = applyMatrixToPoint(resolveWorldMatrix(cabinet, componentsById(scene.components)), point.x, point.y, 0)
+  return { x, y }
+}
+
+function verticalExtent(cabinet: CarcaseComponent, scene: Scene, x0: number, x1: number,
+  y0: number, y1: number, z0: number, z1: number): { z0: number; z1: number } {
+  const matrix = resolveWorldMatrix(cabinet, componentsById(scene.components))
+  const zs = [z0, z1].flatMap((z) => corners(x0, x1, y0, y1)
+    .map((p) => applyMatrixToPoint(matrix, p.x, p.y, z)[2]))
+  return { z0: Math.min(...zs), z1: Math.max(...zs) }
+}
+
+function cabinetHeight(cabinet: CarcaseComponent, scene: Scene): { z0: number; z1: number } {
+  const b = carcaseBounds(cabinet.params, roleThicknessFor(cabinet.params, scene.materials, new Map()))
+  return verticalExtent(cabinet, scene, b.x0, b.x1, b.y0, b.y1, b.z0, b.z1)
 }
 
 function overlaps(a: RoomPoint[], b: RoomPoint[]): boolean {
@@ -47,7 +62,8 @@ export function doorSwingEnvelope(room: RoomGeometry, door: WallOpening): RoomPo
   const hinge = { x: wall.start.x + tangent.x * hingeOffset, y: wall.start.y + tangent.y * hingeOffset }
   const along = door.swing.hinge === 'start' ? 1 : -1
   const side = door.swing.side === 'left' ? 1 : -1
-  const radius = door.swing.radius
+  // A short entered reach must never shrink the envelope below the leaf's stated width.
+  const radius = Math.max(door.width, door.swing.radius)
   return [hinge,
     { x: hinge.x + tangent.x * along * radius, y: hinge.y + tangent.y * along * radius },
     { x: hinge.x + tangent.x * along * radius - tangent.y * side * radius,
@@ -60,25 +76,34 @@ export function clearanceIssues(room: RoomGeometry, scene: Scene, cabinetIds: Re
   const cabinets = scene.components.filter((c): c is CarcaseComponent => c.kind === 'carcase' && cabinetIds.has(c.id))
   const issues: string[] = []
   for (const cabinet of cabinets) {
-    const openings = resolveCarcase(cabinet, scene.parts, scene.materials)?.openings
-    const fronts = operableFronts(cabinet.params.section)
-    if (!openings && fronts.length) {
+    const resolved = resolveCarcase(cabinet, scene.parts, scene.materials)
+    const fronts = operableFronts(cabinet.params.section, cabinet.params.frame)
+    if (!resolved && fronts.length) {
       issues.push(`${cabinet.label}: front clearances cannot be assessed until cabinet geometry resolves`)
       continue
     }
+    const cells = resolved ? frontCells(cabinet.params.section, resolved.tree,
+      frontGeometryOf(cabinet.params, resolved.tree)) : []
     for (const front of fronts) {
       const assumption = room.clearances?.find((c) => c.cabinetId === cabinet.id && c.sectionId === front.sectionId)
       if (!assumption) {
         issues.push(`${cabinet.label}: ${front.kind} ${front.sectionId} has no stated clearance projection`)
         continue
       }
-      const opening = openings?.find((o) => o.sectionId === front.sectionId)
-      if (!opening) continue
+      const matching = cells.filter((cell) => cell.openingId === front.sectionId)
+      if (!matching.length) {
+        issues.push(`${cabinet.label}: ${front.kind} ${front.sectionId} has no resolved physical opening`)
+        continue
+      }
+      const rect = { x0: Math.min(...matching.map((cell) => cell.rect.x0)),
+        x1: Math.max(...matching.map((cell) => cell.rect.x1)),
+        z0: Math.min(...matching.map((cell) => cell.rect.z0)),
+        z1: Math.max(...matching.map((cell) => cell.rect.z1)) }
       const face = carcaseBounds(cabinet.params, roleThicknessFor(cabinet.params, scene.materials, new Map())).y0
-      const envelope = corners(opening.rect.x0, opening.rect.x1, face - assumption.projection, face)
-        .map((point) => placed(point, cabinet))
-      const z0 = cabinet.position.z + opening.rect.z0
-      const z1 = cabinet.position.z + opening.rect.z1
+      const envelope = corners(rect.x0, rect.x1, face - assumption.projection, face)
+        .map((point) => placed(point, cabinet, scene))
+      const { z0, z1 } = verticalExtent(cabinet, scene, rect.x0, rect.x1,
+        face - assumption.projection, face, rect.z0, rect.z1)
       for (const obstacle of room.obstacles) {
         if (z0 >= obstacle.height || z1 <= 0) continue
         const shape = corners(obstacle.position.x, obstacle.position.x + obstacle.width,
@@ -88,7 +113,7 @@ export function clearanceIssues(room: RoomGeometry, scene: Scene, cabinetIds: Re
       }
       for (const other of cabinets) {
         if (other.id === cabinet.id) continue
-        const bounds = worldBoundsOf(other, scene.materials)
+        const bounds = cabinetHeight(other, scene)
         if (z0 >= bounds.z1 || z1 <= bounds.z0) continue
         if (overlaps(envelope, footprint(other, scene)))
           issues.push(`${cabinet.label}: ${front.kind} ${front.sectionId} may be blocked by ${other.label}`)
@@ -100,10 +125,12 @@ export function clearanceIssues(room: RoomGeometry, scene: Scene, cabinetIds: Re
       issues.push(`Room door ${door.id}: hinge side and swing reach not assessed`)
       continue
     }
+    if (door.swing.radius < door.width)
+      issues.push(`Room door ${door.id}: stated swing reach is shorter than door width; using door width conservatively`)
     const swing = doorSwingEnvelope(room, door)
     if (!swing) continue
     for (const cabinet of cabinets) {
-      const b = worldBoundsOf(cabinet, scene.materials)
+      const b = cabinetHeight(cabinet, scene)
       if (b.z0 < door.sill + door.height && b.z1 > door.sill && overlaps(swing, footprint(cabinet, scene)))
         issues.push(`Room door ${door.id}: swing may be blocked by ${cabinet.label}`)
     }
@@ -133,7 +160,7 @@ export function wallElevation(room: RoomGeometry, wall: WallSegment, scene: Scen
     const cabinet = scene.components.find((c): c is CarcaseComponent => c.id === placement.cabinetId && c.kind === 'carcase')
     if (!cabinet) continue
     const projected = footprint(cabinet, scene).map((point) => (point.x - a.x) * tangent.x + (point.y - a.y) * tangent.y)
-    const bounds = worldBoundsOf(cabinet, scene.materials)
+    const bounds = cabinetHeight(cabinet, scene)
     spans.push({ id: cabinet.id, label: cabinet.label,
       x0: Math.min(...projected), x1: Math.max(...projected), z0: bounds.z0, z1: bounds.z1 })
   }

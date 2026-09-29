@@ -1,5 +1,5 @@
 import type { MaterialDef, Part, Scene, Vec3, ZimmuFile } from './types'
-import { frontForSection, type ProjectStructure } from './projectStructure'
+import { frontForSection, roomComponentIds, type ProjectStructure } from './projectStructure'
 
 export class ZimmuFileValidationError extends Error {
   constructor(path: string, message: string) {
@@ -292,6 +292,7 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
         const record = recordAt(item, `${roomPath}.items`)
         return arrayAt(record.rootComponentIds, `${roomPath}.items.rootComponentIds`)
       }))
+      const roomComponents = roomComponentIds(roomRoots as Set<string>, scene)
       if (room.geometry !== undefined) {
         const path = `${roomPath}.geometry`
         const geometry = recordAt(room.geometry, path)
@@ -388,9 +389,9 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
             const cabinetId = stringAt(clearance.cabinetId, `${cp}.cabinetId`)
             const sectionId = stringAt(clearance.sectionId, `${cp}.sectionId`)
             const cabinet = scene.components.find((c) => c.id === cabinetId)
-            const front = cabinet?.kind === 'carcase' ? frontForSection(cabinet.params.section, sectionId) : undefined
+            const front = cabinet?.kind === 'carcase' ? frontForSection(cabinet.params.section, sectionId, cabinet.params.frame) : undefined
             const kind = clearance.kind
-            if (!roomRoots.has(cabinetId) || !front ||
+            if (!roomComponents.has(cabinetId) || !front ||
               (kind === 'door' ? front.kind !== 'door' : kind === 'drawer' ? front.kind !== 'drawer-front' : true))
               throw new ZimmuFileValidationError(cp, 'must name a matching door or drawer front owned by this room')
             const key = `${cabinetId}:${sectionId}`

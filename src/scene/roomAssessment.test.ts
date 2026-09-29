@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { clearanceIssues, wallElevation } from './roomAssessment'
+import { clearanceIssues, doorSwingEnvelope, wallElevation } from './roomAssessment'
 import { defaultProject, emptyRoomGeometry, reconcileProject, type RoomGeometry } from './projectStructure'
-import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
+import { CARCASE_PRESETS, DEFAULT_FRAME, PRESET_MATERIALS } from './carcasePresets'
 import { setFrontOn } from './sectionInterior'
 import type { CarcaseComponent, Scene } from './types'
 import { FILE_FORMAT_VERSION, parseFile } from './useFile'
@@ -108,6 +108,11 @@ describe('room assessment', () => {
     expect(clearanceIssues(room, scene([]), new Set())).toContain('Room door entry: swing may be blocked by Post')
     room.openings[0].swing.side = 'right'
     expect(clearanceIssues(room, scene([]), new Set())).not.toContain('Room door entry: swing may be blocked by Post')
+    room.openings[0].swing = { hinge: 'start', side: 'left', radius: 100 }
+    expect(doorSwingEnvelope(room, room.openings[0])?.[1].x).toBe(1400)
+    expect(clearanceIssues(room, scene([]), new Set())).toContain(
+      'Room door entry: stated swing reach is shorter than door width; using door width conservatively')
+    expect(clearanceIssues(room, scene([]), new Set())).toContain('Room door entry: swing may be blocked by Post')
   })
 
   it('drops an obsolete clearance when its front is removed', () => {
@@ -119,5 +124,61 @@ describe('room assessment', () => {
     const withoutFront = { ...c, params: { ...c.params,
       section: setFrontOn(c.params.section, c.params.section.id, undefined) } }
     expect(reconcileProject(project, scene([withoutFront])).areas[0].rooms[0].geometry?.clearances).toEqual([])
+  })
+
+  it('round-trips a nested cabinet assessment and uses its composed room position', () => {
+    const child = { ...cabinet('nested'), parentId: 'group' }
+    const group = { kind: 'group' as const, id: 'group', label: 'Kitchen group', parentId: null,
+      visible: true, position: { x: 1500, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 90 },
+      rotationOrder: 'XYZ' as const }
+    const nestedScene: Scene = { ...scene([child]), components: [group, child] }
+    const project = defaultProject(nestedScene, 'nested-clearance')
+    const geometry = project.areas[0].rooms[0].geometry!
+    geometry.clearances = [{ cabinetId: child.id, sectionId: child.params.section.id,
+      kind: 'door', projection: 600 }]
+    geometry.obstacles = [{ id: 'post', name: 'Post', position: { x: 1700, y: 100 },
+      width: 150, depth: 200, height: 2000 }]
+    const envelope = { version: FILE_FORMAT_VERSION, name: 'Nested kitchen', appVersion: '0', units: 'mm',
+      createdAt: '2026-09-29', updatedAt: '2026-09-29',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+      scene: nestedScene, project }
+    expect(parseFile(JSON.stringify(envelope)).project?.areas[0].rooms[0].geometry?.clearances).toEqual(geometry.clearances)
+    expect(reconcileProject(project, nestedScene)).toBe(project)
+    expect(clearanceIssues(geometry, nestedScene, new Set(['group', child.id]))).toContain(
+      'nested: door ' + child.params.section.id + ' may be blocked by Post')
+    group.position.z = 2500
+    expect(clearanceIssues(geometry, nestedScene, new Set(['group', child.id])).some((issue) => issue.includes('Post'))).toBe(false)
+    group.position.z = 0
+    const moved = structuredClone(project)
+    moved.areas[0].rooms[0].items[0].rootComponentIds = []
+    expect(reconcileProject(moved, nestedScene).areas[0].rooms[0].geometry?.clearances).toEqual([])
+  })
+
+  it('assesses independent face-frame door and drawer openings by physical ID', () => {
+    const base = cabinet('framed')
+    const c: CarcaseComponent = { ...base, params: { ...base.params, frame: { ...DEFAULT_FRAME, layout: {
+      [base.params.section.id]: { id: 'zones', size: { kind: 'equal' }, content: { kind: 'split',
+        axis: 'horizontal', children: [
+          { id: 'lower-door', size: { kind: 'equal' }, front: { kind: 'door', leaves: 1, hinge: 'left' },
+            content: { kind: 'leaf' } },
+          { id: 'upper-drawer', size: { kind: 'equal' }, front: { kind: 'drawer-front' },
+            content: { kind: 'leaf' } },
+        ] } },
+    } } } }
+    const s = scene([c])
+    const project = defaultProject(s, 'frame-clearance')
+    const room = project.areas[0].rooms[0].geometry!
+    room.clearances = [{ cabinetId: c.id, sectionId: 'lower-door', kind: 'door', projection: 600 },
+      { cabinetId: c.id, sectionId: 'upper-drawer', kind: 'drawer', projection: 600 }]
+    room.obstacles = [{ id: 'short-post', name: 'Short post', position: { x: 100, y: -400 },
+      width: 200, depth: 200, height: 300 }]
+    const warnings = clearanceIssues(room, s, new Set([c.id]))
+    expect(warnings).toContain('framed: door lower-door may be blocked by Short post')
+    expect(warnings.some((issue) => issue.includes('upper-drawer') && issue.includes('Short post'))).toBe(false)
+    const envelope = { version: FILE_FORMAT_VERSION, name: 'Frame kitchen', appVersion: '0', units: 'mm',
+      createdAt: '2026-09-29', updatedAt: '2026-09-29',
+      camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } }, scene: s, project }
+    expect(parseFile(JSON.stringify(envelope)).project?.areas[0].rooms[0].geometry?.clearances).toEqual(room.clearances)
+    expect(reconcileProject(project, s)).toBe(project)
   })
 })

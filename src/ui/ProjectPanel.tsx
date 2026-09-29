@@ -1,9 +1,8 @@
 import type { Scene } from '../scene/types'
 import type { ProjectStructure } from '../scene/projectStructure'
-import { emptyRoomGeometry, moveRootToItem } from '../scene/projectStructure'
+import { emptyRoomGeometry, moveRootToItem, roomComponentIds } from '../scene/projectStructure'
 import { RoomGeometryPanel } from './RoomGeometryPanel'
 import { RoomAssessmentPanel } from './RoomAssessmentPanel'
-import { descendantIds } from '../scene/componentTree'
 import { Button } from '@/components/ui/button'
 
 interface Props {
@@ -85,8 +84,7 @@ export function ProjectPanel({ project, scene, onChange, activeItemId, onSelectI
               room.items.some((item) => item.rootComponentIds.includes(c.id))).map((c) => ({ id: c.id, label: c.label }))}
             onChange={(geometry) => changeGeometry(room.id, geometry)} />
           {room.geometry && <RoomAssessmentPanel room={room.geometry} scene={scene}
-            cabinetIds={new Set(room.items.flatMap((item) => item.rootComponentIds.flatMap((id) =>
-              [id, ...descendantIds(id, scene.components, scene.parts).componentIds])))}
+            cabinetIds={roomComponentIds(room.items.flatMap((item) => item.rootComponentIds), scene)}
             onChange={(geometry) => changeGeometry(room.id, geometry)} />}
         </div>)}
         <Button size="sm" variant="outline" onClick={() => addRoom(area.id)}>Add room</Button>

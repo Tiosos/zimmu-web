@@ -1,5 +1,6 @@
-import type { Scene } from './types'
+import type { FaceFrameParams, FrameZone, Scene } from './types'
 import type { Section, FrontSpec } from './sectionTree'
+import { descendantIds } from './componentTree'
 
 export interface JoineryItem {
   id: string
@@ -92,21 +93,37 @@ export function emptyRoomGeometry(): RoomGeometry {
   return { origin: { x: 0, y: 0 }, rotation: 0, walls: [], openings: [], obstacles: [], placements: [] }
 }
 
-export function frontForSection(section: Section, id: string): FrontSpec | undefined {
-  if (section.id === id) return section.content.kind === 'leaf' ? section.front : undefined
-  if (section.content.kind === 'split')
-    for (const child of section.content.children) {
-      const front = frontForSection(child, id)
-      if (front) return front
-    }
-  return undefined
+export function roomComponentIds(rootIds: Iterable<string>, scene: Scene): Set<string> {
+  const ids = new Set<string>()
+  for (const rootId of rootIds) {
+    ids.add(rootId)
+    for (const id of descendantIds(rootId, scene.components, scene.parts).componentIds) ids.add(id)
+  }
+  return ids
 }
 
-export function operableFronts(section: Section): { sectionId: string; kind: 'door' | 'drawer' }[] {
-  if (section.content.kind === 'split') return section.content.children.flatMap(operableFronts)
-  if (section.front?.kind === 'door') return [{ sectionId: section.id, kind: 'door' }]
-  if (section.front?.kind === 'drawer-front') return [{ sectionId: section.id, kind: 'drawer' }]
-  return []
+function zoneFronts(zone: FrameZone): { sectionId: string; front: FrontSpec }[] {
+  if (zone.content.kind === 'split') return zone.content.children.flatMap(zoneFronts)
+  return zone.front ? [{ sectionId: zone.id, front: zone.front }] : []
+}
+
+function physicalFronts(section: Section, frame?: FaceFrameParams): { sectionId: string; front: FrontSpec }[] {
+  if (section.content.kind === 'split') return section.content.children.flatMap((child) => physicalFronts(child, frame))
+  const layout = frame?.layout?.[section.id]
+  if (layout) return zoneFronts(layout)
+  return section.front ? [{ sectionId: section.id, front: section.front }] : []
+}
+
+// sectionId stores the physical opening ID for independent face-frame fronts; for a
+// structural front, the physical opening ID and section ID are the same.
+export function frontForSection(section: Section, id: string, frame?: FaceFrameParams): FrontSpec | undefined {
+  return physicalFronts(section, frame).find((entry) => entry.sectionId === id)?.front
+}
+
+export function operableFronts(section: Section, frame?: FaceFrameParams): { sectionId: string; kind: 'door' | 'drawer' }[] {
+  return physicalFronts(section, frame).flatMap(({ sectionId, front }): { sectionId: string; kind: 'door' | 'drawer' }[] =>
+    front.kind === 'door' ? [{ sectionId, kind: 'door' }] :
+      front.kind === 'drawer-front' ? [{ sectionId, kind: 'drawer' }] : [])
 }
 
 export interface ProjectArea {
@@ -181,13 +198,14 @@ export function reconcileProject(project: ProjectStructure, scene: Scene, target
           ? item : { ...item, rootComponentIds: ids, rootPartIds: partIds }
       })
       const roomRoots = new Set(items.flatMap((item) => item.rootComponentIds))
+      const roomComponents = roomComponentIds(roomRoots, scene)
       const placements = room.geometry?.placements.filter((p) => roomRoots.has(p.cabinetId) && live.has(p.cabinetId))
       if (placements && placements.length !== room.geometry!.placements.length) changed = true
       const clearances = room.geometry?.clearances?.filter((clearance) => {
-        if (!roomRoots.has(clearance.cabinetId)) return false
+        if (!roomComponents.has(clearance.cabinetId)) return false
         const cabinet = scene.components.find((c) => c.id === clearance.cabinetId)
         if (cabinet?.kind !== 'carcase') return false
-        const front = frontForSection(cabinet.params.section, clearance.sectionId)
+        const front = frontForSection(cabinet.params.section, clearance.sectionId, cabinet.params.frame)
         return front?.kind === (clearance.kind === 'drawer' ? 'drawer-front' : 'door')
       })
       if (clearances && clearances.length !== room.geometry!.clearances!.length) changed = true

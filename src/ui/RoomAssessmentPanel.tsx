@@ -57,7 +57,7 @@ export function RoomAssessmentPanel({ room, scene, cabinetIds, onChange }: Props
     <div className="space-y-1">
       <h4 className="font-medium">Designer-stated front projection (mm)</h4>
       <p className="text-muted-foreground">Enter actual travel or the conservative swing envelope; no hardware reach is assumed.</p>
-      {cabinets.flatMap((cabinet) => operableFronts(cabinet.params.section).map((front) => {
+      {cabinets.flatMap((cabinet) => operableFronts(cabinet.params.section, cabinet.params.frame).map((front) => {
         const assumption = room.clearances?.find((c) => c.cabinetId === cabinet.id && c.sectionId === front.sectionId)
         return <label key={`${cabinet.id}:${front.sectionId}`} className="flex gap-2 items-center">
           {cabinet.label} {front.kind} ({front.sectionId})
@@ -67,7 +67,7 @@ export function RoomAssessmentPanel({ room, scene, cabinetIds, onChange }: Props
               const projection = Number(e.target.value)
               onChange({ ...room, clearances: [
                 ...(room.clearances ?? []).filter((c) => c.cabinetId !== cabinet.id || c.sectionId !== front.sectionId),
-                ...(e.target.value && projection > 0 ? [{ cabinetId: cabinet.id, sectionId: front.sectionId,
+                ...(e.target.value && Number.isFinite(projection) && projection > 0 ? [{ cabinetId: cabinet.id, sectionId: front.sectionId,
                   kind: front.kind, projection }] : []),
               ] })
             }} className="w-24 bg-background border border-border rounded px-1" />

@@ -116,7 +116,7 @@ export function RoomGeometryPanel({ geometry: supplied, onChange, cabinets, scen
             value={swingDraft(opening.id).radius} onChange={(e) => editSwing(opening.id, 'radius', e.target.value)}
             className="w-20 bg-background border border-border rounded px-1" />
           <Button size="sm" variant="outline" disabled={!(swingDraft(opening.id).hinge && swingDraft(opening.id).side &&
-            Number(swingDraft(opening.id).radius) > 0)} onClick={() => onChange({ ...geometry,
+            Number.isFinite(Number(swingDraft(opening.id).radius)) && Number(swingDraft(opening.id).radius) > 0)} onClick={() => onChange({ ...geometry,
             openings: geometry.openings.map((o) => o.id === opening.id ? { ...o, swing: {
               hinge: swingDraft(opening.id).hinge as 'start' | 'end',
               side: swingDraft(opening.id).side as 'left' | 'right', radius: Number(swingDraft(opening.id).radius),
