@@ -24,8 +24,9 @@ import { legacyToSection } from './migrateSections'
 import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
 import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
+import { defaultProject, reconcileProject, type ProjectStructure } from './projectStructure'
 
-export const FILE_FORMAT_VERSION = 20
+export const FILE_FORMAT_VERSION = 21
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -39,6 +40,10 @@ export interface UseFileResult {
   fileReady: boolean
   fileName: string | null
   projectName: string
+  project: ProjectStructure
+  activeItemId: string
+  canUndoProject: boolean
+  canRedoProject: boolean
   isDirty: boolean
   fileError: string | null
   newFile: () => Promise<void>
@@ -46,6 +51,10 @@ export interface UseFileResult {
   saveFile: () => Promise<void>
   saveAsFile: () => Promise<void>
   setProjectName: (name: string) => void
+  setProject: (project: ProjectStructure) => void
+  setActiveItemId: (id: string) => void
+  undoProject: () => void
+  redoProject: () => void
 }
 
 function serialize(envelope: ZimmuFile): string {
@@ -407,30 +416,56 @@ export function parseFile(text: string): ZimmuFile {
   // Migration/defaulting is followed by a second assertion for the current model. That means no
   // caller receives a half-valid `ZimmuFile`: malformed input either degrades through an explicit
   // recovery rule above or fails here with a path-aware validation error.
-  return validateCurrentFile({ ...raw, scene: breakComponentCycles(promoteOrphans(scene)) })
+  const repaired = breakComponentCycles(promoteOrphans(scene))
+  return validateCurrentFile({
+    ...raw,
+    scene: repaired,
+    project: raw.project === undefined ? defaultProject(repaired, text) : raw.project,
+  })
 }
 
 export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): UseFileResult {
   const [fileReady, setFileReady] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const [projectName, setProjectNameState] = useState('Untitled')
+  const [project, setProjectState] = useState(() => defaultProject(scene))
+  const [activeItemId, setActiveItemIdState] = useState(project.areas[0].rooms[0].items[0].id)
+  const [projectHistoryPosition, setProjectHistoryPosition] = useState(0)
+  const [projectHistorySize, setProjectHistorySize] = useState(1)
   const [isDirty, setIsDirty] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
 
   const handleRef = useRef<FileSystemFileHandle | null>(null)
   const lastSavedSceneRef = useRef(JSON.stringify(scene))
   const lastSavedProjectNameRef = useRef('Untitled')
+  const lastSavedProjectRef = useRef<string | null>(null)
+  const pendingMigrationRef = useRef(false)
   const createdAtRef = useRef<string | null>(null)
   const sceneRef = useRef(scene)
   const getCameraStateRef = useRef(getCameraState)
   const onFileLoadedRef = useRef(onFileLoaded)
   const projectNameRef = useRef('Untitled')
+  const projectRef = useRef(project)
+  const activeItemIdRef = useRef(activeItemId)
+  const projectHistoryRef = useRef([project])
+  const projectHistoryIndexRef = useRef(0)
+  const resetProjectHistory = (value: ProjectStructure) => {
+    projectHistoryRef.current = [value]
+    projectHistoryIndexRef.current = 0
+    setProjectHistoryPosition(0)
+    setProjectHistorySize(1)
+  }
   const isDirtyRef = useRef(false)
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useLayoutEffect(() => {
     sceneRef.current = scene
-  })
+    const next = reconcileProject(projectRef.current, scene, activeItemIdRef.current)
+    if (next !== projectRef.current) {
+      projectRef.current = next
+      setProjectState(next)
+    }
+  }, [scene])
   useLayoutEffect(() => {
     getCameraStateRef.current = getCameraState
   })
@@ -440,11 +475,13 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
 
   useEffect(() => {
     const dirty =
+      pendingMigrationRef.current ||
       JSON.stringify(scene) !== lastSavedSceneRef.current ||
-      projectNameRef.current !== lastSavedProjectNameRef.current
+      projectNameRef.current !== lastSavedProjectNameRef.current ||
+      (lastSavedProjectRef.current !== null && JSON.stringify(project) !== lastSavedProjectRef.current)
     isDirtyRef.current = dirty
     setIsDirty(dirty)
-  }, [scene])
+  }, [scene, project])
 
   useEffect(
     () => () => {
@@ -474,6 +511,13 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
             const envelope = parseFile(await file.text())
             lastSavedSceneRef.current = JSON.stringify(envelope.scene)
             lastSavedProjectNameRef.current = envelope.name
+            projectRef.current = envelope.project!
+            lastSavedProjectRef.current = JSON.stringify(envelope.project)
+            pendingMigrationRef.current = envelope.version < FILE_FORMAT_VERSION
+            setProjectState(envelope.project!)
+            resetProjectHistory(envelope.project!)
+            activeItemIdRef.current = envelope.project!.areas[0].rooms[0].items[0].id
+            setActiveItemIdState(activeItemIdRef.current)
             createdAtRef.current = envelope.createdAt
             handleRef.current = handle
             projectNameRef.current = envelope.name
@@ -505,12 +549,23 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       updatedAt: now,
       camera: getCameraStateRef.current(),
       scene: sceneRef.current,
+      project: reconcileProject(projectRef.current, sceneRef.current, activeItemIdRef.current),
     }
   }
 
   const saveAsFile = useCallback(async () => {
     try {
-      const handle = await window.showSaveFilePicker({ types: PICKER_TYPES })
+      const migrating = pendingMigrationRef.current && handleRef.current !== null
+      const handle = await window.showSaveFilePicker({
+        types: PICKER_TYPES,
+        ...(migrating ? { suggestedName: handleRef.current!.name.replace(/\.zimmu$/i, '') + '-v21.zimmu' } : {}),
+      })
+      if (migrating && handleRef.current &&
+        (handle === handleRef.current ||
+          (typeof handle.isSameEntry === 'function' && await handle.isSameEntry(handleRef.current)))) {
+        showError('Choose a different file to preserve the original project')
+        return
+      }
       const content = serialize(buildEnvelope())
       const writable = await handle.createWritable()
       await writable.write(content)
@@ -520,6 +575,8 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       handleRef.current = handle
       lastSavedSceneRef.current = JSON.stringify(sceneRef.current)
       lastSavedProjectNameRef.current = projectNameRef.current
+      lastSavedProjectRef.current = JSON.stringify(projectRef.current)
+      pendingMigrationRef.current = false
       isDirtyRef.current = false
       setFileName(handle.name)
       setIsDirty(false)
@@ -530,7 +587,9 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
   }, [showError])
 
   const saveFile = useCallback(async () => {
-    if (!handleRef.current) {
+    // A converted legacy project must be written to a new file first, leaving its v20 source
+    // available as a backup. The picker still lets the user choose the destination.
+    if (!handleRef.current || pendingMigrationRef.current) {
       await saveAsFile()
       return
     }
@@ -542,6 +601,8 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       await idb.writeHandle(handleRef.current)
       lastSavedSceneRef.current = JSON.stringify(sceneRef.current)
       lastSavedProjectNameRef.current = projectNameRef.current
+      lastSavedProjectRef.current = JSON.stringify(projectRef.current)
+      pendingMigrationRef.current = false
       isDirtyRef.current = false
       setIsDirty(false)
       setFileError(null)
@@ -558,14 +619,21 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       const envelope = parseFile(await file.text())
       lastSavedSceneRef.current = JSON.stringify(envelope.scene)
       lastSavedProjectNameRef.current = envelope.name
+      projectRef.current = envelope.project!
+      lastSavedProjectRef.current = JSON.stringify(envelope.project)
+      pendingMigrationRef.current = envelope.version < FILE_FORMAT_VERSION
+      setProjectState(envelope.project!)
+      resetProjectHistory(envelope.project!)
+      activeItemIdRef.current = envelope.project!.areas[0].rooms[0].items[0].id
+      setActiveItemIdState(activeItemIdRef.current)
       createdAtRef.current = envelope.createdAt
       handleRef.current = handle
       projectNameRef.current = envelope.name
       await idb.writeHandle(handle)
       setFileName(handle.name)
       setProjectNameState(envelope.name)
-      isDirtyRef.current = false
-      setIsDirty(false)
+      isDirtyRef.current = pendingMigrationRef.current
+      setIsDirty(pendingMigrationRef.current)
       setFileError(null)
       onFileLoadedRef.current(envelope)
     } catch (err) {
@@ -595,12 +663,20 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       updatedAt: now,
       camera: getCameraStateRef.current(),
       scene: emptyScene(),
+      project: defaultProject(emptyScene()),
     }
     handleRef.current = null
     createdAtRef.current = null
     projectNameRef.current = 'Untitled'
     lastSavedSceneRef.current = JSON.stringify(emptyScene())
     lastSavedProjectNameRef.current = 'Untitled'
+    projectRef.current = envelope.project!
+    lastSavedProjectRef.current = JSON.stringify(envelope.project)
+    pendingMigrationRef.current = false
+    setProjectState(envelope.project!)
+    resetProjectHistory(envelope.project!)
+    activeItemIdRef.current = envelope.project!.areas[0].rooms[0].items[0].id
+    setActiveItemIdState(activeItemIdRef.current)
     isDirtyRef.current = false
     setFileName(null)
     setProjectNameState('Untitled')
@@ -618,10 +694,43 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     setIsDirty(true)
   }, [])
 
+  const setProject = useCallback((value: ProjectStructure) => {
+    projectHistoryRef.current = [...projectHistoryRef.current.slice(0, projectHistoryIndexRef.current + 1), value].slice(-50)
+    projectHistoryIndexRef.current = projectHistoryRef.current.length - 1
+    setProjectHistoryPosition(projectHistoryIndexRef.current)
+    setProjectHistorySize(projectHistoryRef.current.length)
+    projectRef.current = value
+    setProjectState(value)
+    isDirtyRef.current = true
+    setIsDirty(true)
+  }, [])
+
+  const stepProjectHistory = useCallback((direction: -1 | 1) => {
+    const index = projectHistoryIndexRef.current + direction
+    if (index < 0 || index >= projectHistoryRef.current.length) return
+    projectHistoryIndexRef.current = index
+    setProjectHistoryPosition(index)
+    const value = reconcileProject(projectHistoryRef.current[index], sceneRef.current, activeItemIdRef.current)
+    projectRef.current = value
+    setProjectState(value)
+    isDirtyRef.current = true
+    setIsDirty(true)
+  }, [])
+
+  const setActiveItemId = useCallback((id: string) => {
+    if (!projectRef.current.areas.some((area) => area.rooms.some((room) => room.items.some((item) => item.id === id)))) return
+    activeItemIdRef.current = id
+    setActiveItemIdState(id)
+  }, [])
+
   return {
     fileReady,
     fileName,
     projectName,
+    project,
+    activeItemId,
+    canUndoProject: projectHistoryPosition > 0,
+    canRedoProject: projectHistoryPosition < projectHistorySize - 1,
     isDirty,
     fileError,
     newFile,
@@ -629,5 +738,9 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     saveFile,
     saveAsFile,
     setProjectName,
+    setProject,
+    setActiveItemId,
+    undoProject: () => stepProjectHistory(-1),
+    redoProject: () => stepProjectHistory(1),
   }
 }

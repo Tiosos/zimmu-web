@@ -1,4 +1,5 @@
 import type { MaterialDef, Part, Scene, Vec3, ZimmuFile } from './types'
+import type { ProjectStructure } from './projectStructure'
 
 export class ZimmuFileValidationError extends Error {
   constructor(path: string, message: string) {
@@ -246,6 +247,64 @@ function validateCurrentPart(part: Part, index: number): void {
   }
 }
 
+function validateProject(project: ProjectStructure, scene: Scene): void {
+  const root = recordAt(project, 'file.project')
+  stringAt(root.id, 'file.project.id')
+  const ids = new Set<string>([root.id as string])
+  const owned = new Set<string>()
+  const ownedParts = new Set<string>()
+  const roots = new Set(scene.components.filter((c) => c.parentId === null).map((c) => c.id))
+  const partRoots = new Set(scene.parts.filter((p) => p.parentId === null).map((p) => p.id))
+  const unique = (value: unknown, path: string) => {
+    const id = stringAt(value, path)
+    if (!id || ids.has(id)) throw new ZimmuFileValidationError(path, 'must be a unique non-empty id')
+    ids.add(id)
+  }
+  const areas = arrayAt(root.areas, 'file.project.areas')
+  if (!areas.length) throw new ZimmuFileValidationError('file.project.areas', 'must not be empty')
+  areas.forEach((rawArea, a) => {
+    const path = `file.project.areas[${a}]`
+    const area = recordAt(rawArea, path)
+    unique(area.id, `${path}.id`)
+    stringAt(area.name, `${path}.name`)
+    const rooms = arrayAt(area.rooms, `${path}.rooms`)
+    if (!rooms.length) throw new ZimmuFileValidationError(`${path}.rooms`, 'must not be empty')
+    rooms.forEach((rawRoom, r) => {
+      const roomPath = `${path}.rooms[${r}]`
+      const room = recordAt(rawRoom, roomPath)
+      unique(room.id, `${roomPath}.id`)
+      stringAt(room.name, `${roomPath}.name`)
+      const items = arrayAt(room.items, `${roomPath}.items`)
+      if (!items.length) throw new ZimmuFileValidationError(`${roomPath}.items`, 'must not be empty')
+      items.forEach((rawItem, i) => {
+        const itemPath = `${roomPath}.items[${i}]`
+        const item = recordAt(rawItem, itemPath)
+        unique(item.id, `${itemPath}.id`)
+        stringAt(item.name, `${itemPath}.name`)
+        if (item.jid !== undefined) stringAt(item.jid, `${itemPath}.jid`)
+        if (item.cutlistNumber !== undefined && !/^\d{6}$/.test(stringAt(item.cutlistNumber, `${itemPath}.cutlistNumber`)))
+          throw new ZimmuFileValidationError(`${itemPath}.cutlistNumber`, 'must be six digits')
+        arrayAt(item.rootComponentIds, `${itemPath}.rootComponentIds`).forEach((value, n) => {
+          const refPath = `${itemPath}.rootComponentIds[${n}]`
+          const id = stringAt(value, refPath)
+          if (!roots.has(id) || owned.has(id))
+            throw new ZimmuFileValidationError(refPath, 'must name one unassigned root component')
+          owned.add(id)
+        })
+        arrayAt(item.rootPartIds, `${itemPath}.rootPartIds`).forEach((value, n) => {
+          const refPath = `${itemPath}.rootPartIds[${n}]`
+          const id = stringAt(value, refPath)
+          if (!partRoots.has(id) || ownedParts.has(id))
+            throw new ZimmuFileValidationError(refPath, 'must name one unassigned root part')
+          ownedParts.add(id)
+        })
+      })
+    })
+  })
+  if (owned.size !== roots.size || ownedParts.size !== partRoots.size)
+    throw new ZimmuFileValidationError('file.project', 'must assign every root component and part to one item')
+}
+
 /** Final assertion for the current model after all migrations/defaults/repairs have run. */
 export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   integerAt(file.version, 'file.version')
@@ -299,6 +358,8 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   for (const [name, material] of Object.entries(file.scene.materials)) {
     validateMaterial(material, `file.scene.materials.${JSON.stringify(name)}`)
   }
+
+  if (file.project !== undefined) validateProject(file.project, file.scene)
 
   return file
 }

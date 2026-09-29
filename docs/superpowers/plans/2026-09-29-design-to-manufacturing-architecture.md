@@ -41,10 +41,12 @@ code rewrite in this stage.
    changes it. Preserve metadata and provide a copy/backup path before conversion.
 3. Add project navigation and item selection in small UI increments. Selection must name its
    owning item so identical section IDs in two cabinets cannot resolve ambiguously.
-4. Test old-file round-trip, two items with the same JID, rename without ID change, copy/duplicate
-   with new IDs but no copied execution history, deletion references, and undo/redo. Test one
-   cutlist linked to multiple items, at most one cutlist per item, and related-part Item IDs.
-   Verify current geometry and output unchanged.
+4. Test old-file round-trip, two items with the same JID and shared cutlist reference, rename
+   without ID change, ownership of new/deleted root components and loose parts, and project
+   metadata undo/redo. Preserve scene undo/redo. CAD-level duplication of a complete item and
+   workflow-side related-part Item IDs need their own contract before implementation; they must
+   not be faked by copying metadata without geometry or execution rules. Verify current geometry
+   and output unchanged.
 
 **Exit:** A legacy file opens and saves as a project without losing a cabinet, part or hardware link.
 

@@ -1,0 +1,124 @@
+import type { Scene } from './types'
+
+export interface JoineryItem {
+  id: string
+  name: string
+  jid?: string
+  cutlistNumber?: string
+  rootComponentIds: string[]
+  rootPartIds: string[]
+}
+
+export interface ProjectRoom {
+  id: string
+  name: string
+  items: JoineryItem[]
+}
+
+export interface ProjectArea {
+  id: string
+  name: string
+  rooms: ProjectRoom[]
+}
+
+export interface ProjectStructure {
+  id: string
+  areas: ProjectArea[]
+}
+
+// Stable on repeated reads of the same legacy file; the IDs become persistent on first save.
+// This is identity for migration, not a content checksum or release identifier.
+function legacyKey(source: string): string {
+  let forward = 0xcbf29ce484222325n
+  let reverse = 0x84222325cbf29ce4n
+  const mask = (1n << 64n) - 1n
+  for (let i = 0; i < source.length; i++) {
+    forward = ((forward ^ BigInt(source.charCodeAt(i))) * 0x100000001b3n) & mask
+    reverse = ((reverse ^ BigInt(source.charCodeAt(source.length - i - 1))) * 0x100000001b3n) & mask
+  }
+  return forward.toString(16).padStart(16, '0') + reverse.toString(16).padStart(16, '0')
+}
+
+export function defaultProject(scene: Scene, seed?: string): ProjectStructure {
+  const key = seed === undefined ? crypto.randomUUID() : `legacy_${legacyKey(seed)}`
+  return {
+    id: `project_${key}`,
+    areas: [{
+      id: `area_${key}`,
+      name: 'Default Area',
+      rooms: [{
+        id: `room_${key}`,
+        name: 'Default Room',
+        items: [{
+          id: `item_${key}`,
+          name: 'Default Joinery Item',
+          rootComponentIds: scene.components.filter((c) => c.parentId === null).map((c) => c.id),
+          rootPartIds: scene.parts.filter((p) => p.parentId === null).map((p) => p.id),
+        }],
+      }],
+    }],
+  }
+}
+
+export function reconcileProject(project: ProjectStructure, scene: Scene, targetItemId?: string): ProjectStructure {
+  const roots = scene.components.filter((c) => c.parentId === null).map((c) => c.id)
+  const partRoots = scene.parts.filter((p) => p.parentId === null).map((p) => p.id)
+  const live = new Set(roots)
+  const liveParts = new Set(partRoots)
+  const seen = new Set<string>()
+  const seenParts = new Set<string>()
+  let changed = false
+  const areas = project.areas.map((area) => ({
+    ...area,
+    rooms: area.rooms.map((room) => ({
+      ...room,
+      items: room.items.map((item) => {
+        const ids = item.rootComponentIds.filter((id) => {
+          if (!live.has(id) || seen.has(id)) { changed = true; return false }
+          seen.add(id)
+          return true
+        })
+        const partIds = item.rootPartIds.filter((id) => {
+          if (!liveParts.has(id) || seenParts.has(id)) { changed = true; return false }
+          seenParts.add(id)
+          return true
+        })
+        return ids.length === item.rootComponentIds.length && partIds.length === item.rootPartIds.length
+          ? item : { ...item, rootComponentIds: ids, rootPartIds: partIds }
+      }),
+    })),
+  }))
+  const unassigned = roots.filter((id) => !seen.has(id))
+  const unassignedParts = partRoots.filter((id) => !seenParts.has(id))
+  if (!changed && unassigned.length === 0 && unassignedParts.length === 0) return project
+  const target = areas.flatMap((area) => area.rooms).flatMap((room) => room.items)
+    .find((item) => item.id === targetItemId) ?? areas[0].rooms[0].items[0]
+  const destination = areas.flatMap((area) => area.rooms).find((room) => room.items.some((item) => item.id === target.id))!
+  destination.items = destination.items.map((item) => item.id === target.id
+    ? { ...item, rootComponentIds: [...item.rootComponentIds, ...unassigned],
+      rootPartIds: [...item.rootPartIds, ...unassignedParts] } : item)
+  return { ...project, areas }
+}
+
+export function moveRootToItem(project: ProjectStructure, rootId: string, itemId: string, kind: 'component' | 'part' = 'component'): ProjectStructure {
+  return {
+    ...project,
+    areas: project.areas.map((area) => ({
+      ...area,
+      rooms: area.rooms.map((room) => ({
+        ...room,
+        items: room.items.map((item) => ({
+          ...item,
+          rootComponentIds: kind === 'part' ? item.rootComponentIds : [
+            ...item.rootComponentIds.filter((id) => id !== rootId),
+            ...(item.id === itemId ? [rootId] : []),
+          ],
+          rootPartIds: kind === 'component' ? item.rootPartIds : [
+            ...item.rootPartIds.filter((id) => id !== rootId),
+            ...(item.id === itemId ? [rootId] : []),
+          ],
+        })),
+      })),
+    })),
+  }
+}

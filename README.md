@@ -35,7 +35,7 @@ Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 ### File I/O
 - Save / Save As / Open / New via File System Access API (Chrome/Edge)
 - Graceful degradation message + disabled menus on Firefox/Safari
-- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 18`)
+- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 21`), with stable project/area/room/item IDs
 - Auto-reopen last file on startup (IndexedDB handle persistence)
 - Dirty tracking (`isDirty`, tab title `•` indicator)
 
@@ -132,15 +132,18 @@ pnpm typecheck && pnpm lint && pnpm test
 ## File format
 
 Projects are saved as `.zimmu` files — flat JSON, UTF-8, floats rounded to
-6 decimal places. `FILE_FORMAT_VERSION = 18`.
+6 decimal places. `FILE_FORMAT_VERSION = 21`. The v21 envelope adds a `project` hierarchy around
+the existing `scene`. A v20 or older file loads with editable Default Area / Default Room /
+Default Joinery Item names. Its first save uses Save As to preserve the original file.
 
 ```json
 {
-  "version": 12,
+  "version": 21,
   "name": "My Cabinet",
   "appVersion": "0.0.0",
   "units": "mm",
   "camera": { "position": { "x": 500, "y": -800, "z": 600 }, "target": { "x": 0, "y": 0, "z": 0 } },
+  "project": { "id": "project_…", "areas": [{ "id": "area_…", "name": "Default Area", "rooms": [{ "id": "room_…", "name": "Default Room", "items": [{ "id": "item_…", "name": "Default Joinery Item", "rootComponentIds": [], "rootPartIds": [] }] }] }] },
   "scene": {
     "parts": [{ "kind": "board", "id": "…", "label": "Side Panel", "length": 800, "width": 400, "thickness": 18, "cuts": [], "visible": true, "…": "…" }],
     "materials": { "18mm Birch Ply": { "costPerM2": 42.50 } },
