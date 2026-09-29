@@ -1,0 +1,97 @@
+{
+  "fixtureVersion": 1,
+  "kind": "anonymised-reference-facts",
+  "status": "not-site-verified-or-approved-release",
+  "project": {
+    "id": "example-project",
+    "areaId": "example-area",
+    "roomId": "example-room",
+    "itemId": "example-item",
+    "itemLabel": "Staff kitchenette",
+    "displayDrawingRef": "DRAWING-EXAMPLE",
+    "displayCutlistRef": "000001"
+  },
+  "drawing": {
+    "pages": 2,
+    "layout": "straight-run",
+    "overallWidthMm": 3983,
+    "nominalTopDepthMm": 700,
+    "overallHeightIncludingBulkheadMm": 2700,
+    "nominalKickerHeightMm": 100,
+    "baseWidthsShownMm": [600, 650, 450, 500, 837.5],
+    "contains": [
+      "base-cabinets",
+      "overhead-cabinets",
+      "tall-fridge-surround",
+      "fillers",
+      "worktop",
+      "sink-and-service-cutouts",
+      "doors-and-drawers",
+      "led-provision"
+    ],
+    "unresolved": [
+      "appliance-and-service-dimensions-marked-TBC",
+      "bulkhead-by-others",
+      "site-measurement-not-provided"
+    ]
+  },
+  "cutlist": {
+    "pages": 9,
+    "moduleCount": 19,
+    "modules": [
+      { "id": "module-01", "category": "kicker" },
+      { "id": "module-02", "category": "kicker" },
+      { "id": "module-03", "category": "worktop" },
+      { "id": "module-04", "category": "filler" },
+      { "id": "module-05", "category": "panel-or-return" },
+      { "id": "module-06", "category": "drawer-base" },
+      { "id": "module-07", "category": "appliance-panel" },
+      { "id": "module-08", "category": "base" },
+      { "id": "module-09", "category": "drawer-base" },
+      { "id": "module-10", "category": "base" },
+      { "id": "module-11", "category": "tall-surround" },
+      { "id": "module-12", "category": "filler" },
+      { "id": "module-13", "category": "filler" },
+      { "id": "module-14", "category": "filler" },
+      { "id": "module-15", "category": "overhead" },
+      { "id": "module-16", "category": "overhead" },
+      { "id": "module-17", "category": "filler" },
+      { "id": "module-18", "category": "overhead" },
+      { "id": "module-19", "category": "filler-with-returns" }
+    ],
+    "representativeRows": [
+      {
+        "moduleId": "module-06",
+        "partRole": "bottom",
+        "quantity": 1,
+        "printedLengthMm": 567,
+        "printedWidthMm": 642.5,
+        "materialCategory": "16mm-white-board",
+        "printedEdgeCode": "1S"
+      },
+      {
+        "moduleId": "module-09",
+        "partRole": "drawer-box-back",
+        "quantity": 4,
+        "printedLengthMm": 380,
+        "printedWidthMm": 83.5,
+        "materialCategory": "16mm-white-board",
+        "printedEdgeCode": "1L"
+      },
+      {
+        "moduleId": "module-16",
+        "partRole": "adjustable-shelf",
+        "quantity": 1,
+        "printedLengthMm": 574,
+        "printedWidthMm": 349,
+        "materialCategory": "27mm-decorative-board",
+        "printedEdgeCode": "1L"
+      }
+    ],
+    "requiresInterpretation": [
+      "edge-codes-are-not-yet-a-physical-edge-map",
+      "printed-dimensions-are-not-yet-verified-cut-versus-finished-sizes",
+      "module-category-is-an-interpretation-not-an-issued-product-code"
+    ]
+  }
+}

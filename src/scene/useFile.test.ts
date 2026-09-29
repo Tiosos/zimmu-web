@@ -14,6 +14,7 @@ import type { Section } from './sectionTree'
 import { firstInterior, seedInteriors } from './sectionInterior'
 import { legacyToSection } from './migrateSections'
 import { defaultScrewJoint } from './defaultJoint'
+import { defaultProject } from './projectStructure'
 import { carcaseBoxes as boxesOf, validateCarcaseParams as validateOf } from './carcaseRoles'
 import { DEFAULT_FRAME_MATERIAL, PRESET_MATERIALS } from './carcasePresets'
 import { roleThicknessFor } from './resolveThickness'
@@ -69,6 +70,21 @@ describe('useFile', () => {
     expect(result.current.isDirty).toBe(false)
   })
 
+  it('undoes and redoes a project hierarchy rename without changing its ID', async () => {
+    const { result } = renderHook(() => useFile(makeInput()))
+    await waitFor(() => expect(result.current.fileReady).toBe(true))
+    const original = result.current.project
+    const renamed = { ...original, areas: original.areas.map((area) => ({ ...area, name: 'Kitchen level' })) }
+    act(() => result.current.setProject(renamed))
+    expect(result.current.canUndoProject).toBe(true)
+    expect(result.current.project.areas[0].name).toBe('Kitchen level')
+    act(() => result.current.undoProject())
+    expect(result.current.project).toEqual(original)
+    act(() => result.current.redoProject())
+    expect(result.current.project.areas[0].id).toBe(original.areas[0].id)
+    expect(result.current.project.areas[0].name).toBe('Kitchen level')
+  })
+
   it('valid stored handle: calls onFileLoaded, sets fileName and projectName', async () => {
     const mockHandle = {
       name: 'shelf.zimmu',
@@ -86,7 +102,7 @@ describe('useFile', () => {
     expect(onFileLoaded).toHaveBeenCalledWith(expect.objectContaining({ name: 'Garden Shelf' }))
     expect(result.current.fileName).toBe('shelf.zimmu')
     expect(result.current.projectName).toBe('Garden Shelf')
-    expect(result.current.isDirty).toBe(false)
+    expect(result.current.isDirty).toBe(true) // legacy file needs its v21 hierarchy saved
   })
 
   it('stored handle with permission prompt: falls back silently, does not call requestPermission', async () => {
@@ -157,7 +173,9 @@ describe('useFile', () => {
       queryPermission: vi.fn().mockResolvedValue('granted'),
       getFile: vi
         .fn()
-        .mockResolvedValue({ text: vi.fn().mockResolvedValue(JSON.stringify(FIXTURE)) }),
+        .mockResolvedValue({ text: vi.fn().mockResolvedValue(JSON.stringify({
+          ...FIXTURE, version: FILE_FORMAT_VERSION, project: defaultProject(FIXTURE.scene, 'current'),
+        })) }),
       createWritable: vi.fn().mockResolvedValue(mockWritable),
     } as unknown as FileSystemFileHandle
     vi.mocked(idb.readHandle).mockResolvedValue(storedHandle)
@@ -172,6 +190,49 @@ describe('useFile', () => {
 
     expect(window.showSaveFilePicker).not.toHaveBeenCalled()
     expect(mockWritable.close).toHaveBeenCalled()
+  })
+
+  it('saves a converted legacy file as a new copy, preserving the old handle', async () => {
+    const oldWritable = vi.fn()
+    const oldHandle = {
+      name: 'legacy.zimmu', queryPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockResolvedValue({ text: vi.fn().mockResolvedValue(JSON.stringify(FIXTURE)) }),
+      createWritable: oldWritable,
+    } as unknown as FileSystemFileHandle
+    const write = vi.fn().mockResolvedValue(undefined)
+    const newHandle = { name: 'converted.zimmu', createWritable: vi.fn().mockResolvedValue({
+      write, close: vi.fn().mockResolvedValue(undefined),
+    }) } as unknown as FileSystemFileHandle
+    vi.mocked(idb.readHandle).mockResolvedValue(oldHandle)
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(newHandle))
+    const { result } = renderHook(() => useFile(makeInput()))
+    await waitFor(() => expect(result.current.fileReady).toBe(true))
+    expect(result.current.isDirty).toBe(true)
+    await act(async () => { await result.current.saveFile() })
+    expect(oldWritable).not.toHaveBeenCalled()
+    expect(window.showSaveFilePicker).toHaveBeenCalled()
+    expect(result.current.fileName).toBe('converted.zimmu')
+    expect(parseFile(write.mock.calls[0][0]).project).toBeDefined()
+    expect(JSON.parse(write.mock.calls[0][0]).version).toBe(FILE_FORMAT_VERSION)
+  })
+
+  it('refuses to overwrite the source file when a migration picker selects the same entry', async () => {
+    const writable = vi.fn()
+    const oldHandle = {
+      name: 'legacy.zimmu', queryPermission: vi.fn().mockResolvedValue('granted'),
+      getFile: vi.fn().mockResolvedValue({ text: vi.fn().mockResolvedValue(JSON.stringify(FIXTURE)) }),
+      createWritable: writable,
+      isSameEntry: vi.fn().mockResolvedValue(true),
+    } as unknown as FileSystemFileHandle
+    const sameFileHandle = { ...oldHandle, isSameEntry: vi.fn().mockResolvedValue(true) }
+    vi.mocked(idb.readHandle).mockResolvedValue(oldHandle)
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(sameFileHandle))
+    const { result } = renderHook(() => useFile(makeInput()))
+    await waitFor(() => expect(result.current.fileReady).toBe(true))
+    await act(async () => { await result.current.saveFile() })
+    expect(writable).not.toHaveBeenCalled()
+    expect(result.current.fileError).toMatch(/different file/)
+    expect(result.current.isDirty).toBe(true)
   })
 
   it('openFile dirty + user cancels: no-op, onFileLoaded not called', async () => {
@@ -2187,7 +2248,7 @@ describe('v20 face frames', () => {
   // constant itself is asserted. This pin replaces the v19 one: the constant is global, so only the
   // newest value can be asserted.
   it('states the current file format version', () => {
-    expect(FILE_FORMAT_VERSION).toBe(20)
+    expect(FILE_FORMAT_VERSION).toBe(21)
   })
 
   // tsc cannot see this: `base.params` is typed loosely, so a parser that forgot the new slot would

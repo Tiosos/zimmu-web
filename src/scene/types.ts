@@ -1,6 +1,7 @@
 import type { Section, SectionId } from './sectionTree'
 import type { PartOverrides } from './resolveThickness'
 import type { DrawerParams } from './drawerBox'
+import type { ProjectStructure } from './projectStructure'
 
 export type { Section, SectionId, SectionSize, SectionContent, DivisionKind } from './sectionTree'
 export type { DrawerParams, RunnerFamily } from './drawerBox'
@@ -515,4 +516,5 @@ export interface ZimmuFile {
   updatedAt: string
   camera: CameraState
   scene: Scene
+  project?: ProjectStructure // absent in v20 and earlier; parsed files receive a default hierarchy
 }

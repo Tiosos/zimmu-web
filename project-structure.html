@@ -536,6 +536,8 @@
 │   ├── occt.worker.ts
 │   ├── screw.test.ts
 │   ├── screw.ts
+│   ├── shelfInstallation.test.ts
+│   ├── shelfInstallation.ts
 │   ├── stl.test.ts
 │   ├── stl.ts
 │   ├── tonguegroove.test.ts
@@ -553,6 +555,8 @@
 │   ├── nest.ts
 │   └── nest.worker.ts
 ├── render/
+│   ├── shelfInsertionPreview.test.ts
+│   ├── shelfInsertionPreview.ts
 │   └── viewport.tsx
 ├── scene/
 │   ├── __fixtures__/
@@ -565,14 +569,21 @@
 │   ├── blindCorner.ts
 │   ├── carcaseBounds.test.ts
 │   ├── carcaseBounds.ts
+│   ├── carcaseContacts.ts
+│   ├── carcaseCuts.ts
 │   ├── carcaseHardware.test.ts
 │   ├── carcaseHardware.ts
+│   ├── carcaseJoinery.ts
+│   ├── carcaseLayout.ts
+│   ├── carcaseMachining.ts
 │   ├── carcaseOpenings.test.ts
 │   ├── carcaseOpenings.ts
+│   ├── carcaseParts.ts
 │   ├── carcasePresets.test.ts
 │   ├── carcasePresets.ts
 │   ├── carcaseRoles.test.ts
 │   ├── carcaseRoles.ts
+│   ├── carcaseValidation.ts
 │   ├── carcaseWorldBounds.test.ts
 │   ├── carcaseWorldBounds.ts
 │   ├── changeJointKind.test.ts
@@ -592,6 +603,8 @@
 │   ├── editSection.ts
 │   ├── faceFrame.test.ts
 │   ├── faceFrame.ts
+│   ├── faceFrameHardware.test.ts
+│   ├── faceFrameHardware.ts
 │   ├── fileValidation.test.ts
 │   ├── fileValidation.ts
 │   ├── fitCamera.test.ts
@@ -608,10 +621,13 @@
 │   ├── hardwareCatalogue.ts
 │   ├── idb.test.ts
 │   ├── idb.ts
+│   ├── interiorAccess.test.ts
+│   ├── interiorAccess.ts
 │   ├── jointChecklist.test.ts
 │   ├── jointChecklist.ts
 │   ├── jointInvolves.test.ts
 │   ├── jointInvolves.ts
+│   ├── manufacturingPackage.test.ts
 │   ├── migrateSections.test.ts
 │   ├── migrateSections.ts
 │   ├── moveGizmo.test.ts
@@ -622,6 +638,12 @@
 │   ├── obbOverlap.ts
 │   ├── palette.ts
 │   ├── panelThickness.test.ts
+│   ├── productionReadiness.test.ts
+│   ├── productionReadiness.ts
+│   ├── projectStructure.test.ts
+│   ├── projectStructure.ts
+│   ├── readinessLimits.ts
+│   ├── readinessSnapshot.ts
 │   ├── reconcileBoards.ts
 │   ├── reconcileJoints.test.ts
 │   ├── reconcileJoints.ts
@@ -644,6 +666,8 @@
 │   ├── sectionNodes.ts
 │   ├── sectionTree.test.ts
 │   ├── sectionTree.ts
+│   ├── shelfReadiness.test.ts
+│   ├── shelfReadiness.ts
 │   ├── snapMath.test.ts
 │   ├── snapMath.ts
 │   ├── suggestionOutline.test.ts
@@ -691,6 +715,10 @@
 │   ├── buildDxf.ts
 │   ├── buildPdf.test.ts
 │   ├── buildPdf.ts
+│   ├── buildProductionPacket.test.ts
+│   ├── buildProductionPacket.ts
+│   ├── buildReadinessPdf.test.ts
+│   ├── buildReadinessPdf.ts
 │   ├── buildSheetSvg.test.ts
 │   ├── buildSheetSvg.ts
 │   ├── buildSvg.test.ts
@@ -724,11 +752,14 @@
 │   ├── HardwareTab.tsx
 │   ├── JointsPanel.test.tsx
 │   ├── JointsPanel.tsx
+│   ├── ManufacturingReadiness.test.tsx
+│   ├── ManufacturingReadiness.tsx
 │   ├── NumberField.tsx
 │   ├── PlacementPanel.test.tsx
 │   ├── PlacementPanel.tsx
 │   ├── PlanView.test.tsx
 │   ├── PlanView.tsx
+│   ├── ProjectPanel.tsx
 │   ├── SceneSuggestionsPanel.test.tsx
 │   ├── SceneSuggestionsPanel.tsx
 │   ├── SceneTree.test.tsx
@@ -739,6 +770,9 @@
 │   ├── sheetFilename.ts
 │   ├── SheetsTab.test.tsx
 │   ├── SheetsTab.tsx
+│   ├── ShelfInsertionCanvas.tsx
+│   ├── ShelfInsertionPreview.test.tsx
+│   ├── ShelfInsertionPreview.tsx
 │   ├── sidebar.test.tsx
 │   ├── sidebar.tsx
 │   ├── SuggestionsPanel.test.tsx
@@ -915,11 +949,11 @@
     <!-- DATA MODEL -->
     <section id="datamodel">
       <h2>Data model</h2>
-      <p>All canonical types live in <code>src/scene/types.ts</code>. The file format serializes a <code>ZimmuFile</code> to <code>.zimmu</code> (flat JSON).</p>
+      <p>The scene types live in <code>src/scene/types.ts</code> and the project hierarchy in <code>src/scene/projectStructure.ts</code>. The file format serializes a <code>ZimmuFile</code> to <code>.zimmu</code> (flat JSON).</p>
 
-      <pre><code>// File format (FILE_FORMAT_VERSION = 18)
+      <pre><code>// File format (FILE_FORMAT_VERSION = 21)
 interface ZimmuFile {
-  version: number       // must equal FILE_FORMAT_VERSION
+  version: number       // older versions migrate on read
   name: string
   appVersion: string
   units: 'mm'
@@ -927,7 +961,11 @@ interface ZimmuFile {
   updatedAt: string
   camera: CameraState   // { position: Vec3, target: Vec3 }
   scene: Scene
+  project?: ProjectStructure // required on newly saved v21 files
 }
+
+// Project → Area → Room → Joinery Item. An item owns root component and
+// loose-part IDs; the existing Scene remains the only geometry authority.
 
 interface Scene {
   parts: Part[]
@@ -1390,7 +1428,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->108<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->120<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1473,6 +1511,8 @@ import { useScene } from './useScene'</code></pre>
       <pre><code><!-- AUTOGEN:docs-tree -->docs/
 ├── keyboard-shortcuts.md
 └── superpowers/
+    ├── fixtures/
+    │   └── 2026-09-29-kitchenette-reference.json
     ├── notes/
     │   ├── 2026-05-29-save-load-notes.md
     │   ├── 2026-05-29-scene-model-notes.md
@@ -1514,7 +1554,10 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-06-driven-hardware-notes.md
     │   ├── 2026-09-12-drawer-boxes-notes.md
     │   ├── 2026-09-14-cabinet-placement-notes.md
-    │   └── 2026-09-24-face-frames-notes.md
+    │   ├── 2026-09-24-face-frames-notes.md
+    │   ├── 2026-09-29-design-to-manufacturing-architecture-notes.md
+    │   ├── 2026-09-29-stage-0-baseline.md
+    │   └── 2026-09-29-stage-1-implementation-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1555,7 +1598,21 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-17-cabinet-placement-stage-2-adjacency.md
     │   ├── 2026-09-17-cabinet-placement-stage-3-corners.md
     │   ├── 2026-09-24-cabinet-placement-stage-4-gizmo.md
-    │   └── 2026-09-24-face-frames-stage-1-the-frame-exists.md
+    │   ├── 2026-09-24-face-frames-stage-1-the-frame-exists.md
+    │   ├── 2026-09-27-face-frames-stage-2-divisions.md
+    │   ├── 2026-09-27-face-frames-stage-3-interiors.md
+    │   ├── 2026-09-27-face-frames-stage-4-machining-hardware.md
+    │   ├── 2026-09-27-independent-face-frame-layout.md
+    │   ├── 2026-09-27-manufacturing-instructions-shop-drawings.md
+    │   ├── 2026-09-28-frame-aware-interior-access-clearance.md
+    │   ├── 2026-09-28-independent-face-frame-layout-stage-2.md
+    │   ├── 2026-09-28-manufacturing-readiness-report.md
+    │   ├── 2026-09-28-shelf-insertion-preview.md
+    │   ├── 2026-09-28-shelf-installation-sheets.md
+    │   ├── 2026-09-29-design-to-manufacturing-architecture.md
+    │   ├── 2026-09-29-production-readiness-checks.md
+    │   ├── 2026-09-29-readiness-handoff-packet.md
+    │   └── 2026-09-29-readiness-pdf-report.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1601,21 +1658,23 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-09-06-driven-hardware-design.md
         ├── 2026-09-12-drawer-boxes-design.md
         ├── 2026-09-14-cabinet-placement-design.md
-        └── 2026-09-24-face-frames-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-09-24-face-frames-design.md
+        └── 2026-09-29-design-to-manufacturing-architecture-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
     <section id="fileformat">
       <h2>File format</h2>
-      <p>Projects are saved as <code>.zimmu</code> files — flat JSON, human-readable, floats rounded to 6 decimal places.</p>
+      <p>Projects are saved as <code>.zimmu</code> files — flat JSON, human-readable, floats rounded to 6 decimal places. A v21 file has a stable project hierarchy around its scene; older files receive editable default area, room and item names and first save as a new copy.</p>
       <pre><code>{
-  "version": 17,
+  "version": 21,
   "name": "My Cabinet",
   "appVersion": "0.0.0",
   "units": "mm",
   "createdAt": "2026-06-13T00:00:00.000Z",
   "updatedAt": "2026-06-13T12:34:56.000Z",
   "camera": { "position": { "x": 500, "y": -800, "z": 600 }, "target": { "x": 0, "y": 0, "z": 0 } },
+  "project": { "id": "project_…", "areas": [ { "id": "area_…", "name": "Default Area", "rooms": [ { "id": "room_…", "name": "Default Room", "items": [ { "id": "item_…", "name": "Default Joinery Item", "rootComponentIds": [ "cmp_…" ], "rootPartIds": [] } ] } ] } ] },
   "scene": {
     "parts": [ { "kind": "board", "id": "…", "label": "Side Panel", "parentId": "cmp_…", "driven": true, … } ],
     "materials": { "18mm Birch Ply": { "costPerM2": 42.50, "thickness": 18 } },
@@ -1631,8 +1690,8 @@ import { useScene } from './useScene'</code></pre>
           v14 (panel thickness moves onto <code>MaterialDef</code>) → v15 (the <code>screw</code> joint kind) →
         v16 (<code>adjustableShelves</code> moves onto each section's <code>interior</code>; <code>startHeight</code> is dropped) →
         v17 (fronts: <code>frontMaterial</code> / <code>frontMount</code> / <code>frontReveal</code>, <code>Section.front</code>, and <code>interior.fixedShelves</code>) →
-        v18 (the drawer component).
-        Now at <code>FILE_FORMAT_VERSION = 18</code>.
+        v18 (the drawer component) → v19 (carcase anchors) → v20 (face frames) → v21 (project hierarchy and item ownership).
+        Now at <code>FILE_FORMAT_VERSION = 21</code>.
         Migration logic lives in <code>useFile.ts</code>; a missing <code>parentId</code> loads as top-level, a dangling one is promoted.
       </p>
 

@@ -27,6 +27,7 @@ import { buildDrawingSheets } from './geom/drawing'
 import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
 import { ManufacturingReadiness } from './ui/ManufacturingReadiness'
+import { ProjectPanel } from './ui/ProjectPanel'
 import { buildShelfInstallationSheets } from './geom/shelfInstallation'
 import type {
   CameraState,
@@ -338,12 +339,17 @@ function App() {
   const closeCuttingList = useCallback(() => setCuttingListOpen(false), [])
   const [drawingsOpen, setDrawingsOpen] = useState(false)
   const [readinessOpen, setReadinessOpen] = useState(false)
+  const [projectPanelOpen, setProjectPanelOpen] = useState(false)
   const [drawingSheets, setDrawingSheets] = useState<DrawingSheet[]>([])
 
   const {
     fileReady,
     fileName,
     projectName,
+    project,
+    activeItemId,
+    canUndoProject,
+    canRedoProject,
     isDirty,
     fileError,
     newFile,
@@ -351,6 +357,10 @@ function App() {
     saveFile,
     saveAsFile,
     setProjectName,
+    setProject,
+    setActiveItemId,
+    undoProject,
+    redoProject,
   } = useFile({
     scene,
     getCameraState: () => cameraStateRef.current,
@@ -560,6 +570,7 @@ function App() {
           void saveAsFile()
         }}
         onProjectNameChange={setProjectName}
+        onProjectStructure={() => setProjectPanelOpen(true)}
         onCuttingList={() => setCuttingListOpen(true)}
         onExportStl={handleExportStl}
         onExportStep={handleExportStep}
@@ -569,6 +580,10 @@ function App() {
         mainView={mainView}
         onMainViewChange={setMainView}
       />
+      {projectPanelOpen && <ProjectPanel project={project} scene={scene} onChange={setProject}
+        activeItemId={activeItemId} onSelectItem={setActiveItemId}
+        canUndo={canUndoProject} canRedo={canRedoProject} onUndo={undoProject} onRedo={redoProject}
+        onClose={() => setProjectPanelOpen(false)} />}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Hidden, never unmounted. `viewport.tsx` builds its renderer, camera, controls and every
             mesh in a mount-once effect, so rendering the editor *instead of* it would tear all of
