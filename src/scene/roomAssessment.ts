@@ -144,7 +144,7 @@ export function clearanceIssues(room: RoomGeometry, scene: Scene, cabinetIds: Re
   return issues
 }
 
-export interface ElevationSpan { id: string; label: string; x0: number; x1: number; z0: number; z1: number }
+export interface ElevationSpan { id: string; kind: 'opening' | 'cabinet'; label: string; x0: number; x1: number; z0: number; z1: number }
 
 export function wallElevation(room: RoomGeometry, wall: WallSegment, scene: Scene, cabinetIds: ReadonlySet<string>): ElevationSpan[] {
   const length = wallLength(wall)
@@ -153,7 +153,7 @@ export function wallElevation(room: RoomGeometry, wall: WallSegment, scene: Scen
   const b = roomPoint(wall.end, room)
   const tangent = { x: (b.x - a.x) / length, y: (b.y - a.y) / length }
   const spans: ElevationSpan[] = room.openings.filter((o) => o.wallId === wall.id).map((o) => ({
-    id: o.id, label: `${o.kind} ${Math.round(o.width)} × ${Math.round(o.height)}`,
+    id: o.id, kind: 'opening' as const, label: `${o.kind} ${Math.round(o.width)} × ${Math.round(o.height)}`,
     x0: o.offset, x1: o.offset + o.width, z0: o.sill, z1: o.sill + o.height,
   }))
   for (const placement of room.placements.filter((p) => p.wallId === wall.id && cabinetIds.has(p.cabinetId))) {
@@ -161,7 +161,7 @@ export function wallElevation(room: RoomGeometry, wall: WallSegment, scene: Scen
     if (!cabinet) continue
     const projected = footprint(cabinet, scene).map((point) => (point.x - a.x) * tangent.x + (point.y - a.y) * tangent.y)
     const bounds = cabinetHeight(cabinet, scene)
-    spans.push({ id: cabinet.id, label: cabinet.label,
+    spans.push({ id: cabinet.id, kind: 'cabinet', label: cabinet.label,
       x0: Math.min(...projected), x1: Math.max(...projected), z0: bounds.z0, z1: bounds.z1 })
   }
   return spans
