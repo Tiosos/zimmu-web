@@ -58,26 +58,6 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
         byId,
       }
     })
-  const withInstallation = new Set(
-    snapshot.cabinets
-      .filter((c) => c.shelves.some((s) => s.installationReference !== null))
-      .map((c) => c.id),
-  )
-  const sheets = buildDrawingSheets(
-    captured.scene.parts,
-    captured.projectName,
-    cabinets,
-    capturedAt.toISOString().slice(0, 10),
-    withInstallation,
-  )
-  const references = new Set(
-    sheets.filter((s) => s.kind === 'installation').map((s) => `${s.cabinetId}/${s.shelfRole}`),
-  )
-  for (const cabinet of snapshot.cabinets)
-    for (const shelf of cabinet.shelves)
-      if (shelf.installationReference && !references.has(shelf.installationReference))
-        throw new Error(`Installation sheet missing for ${shelf.installationReference}`)
-
   // Match BomModal's field-level merge: scene rates override library rates, while missing rates
   // (such as a dowel's costPerM) remain available from the library.
   const effectiveMaterials: Record<string, MaterialDef> = {}
@@ -89,6 +69,28 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       ...captured.materialLibrary[name],
       ...captured.scene.materials[name],
     }
+
+  const withInstallation = new Set(
+    snapshot.cabinets
+      .filter((c) => c.shelves.some((s) => s.installationReference !== null))
+      .map((c) => c.id),
+  )
+  const sheets = buildDrawingSheets(
+    captured.scene.parts,
+    captured.projectName,
+    cabinets,
+    capturedAt.toISOString().slice(0, 10),
+    withInstallation,
+    [],
+    { materials: effectiveMaterials, byId },
+  )
+  const references = new Set(
+    sheets.filter((s) => s.kind === 'installation').map((s) => `${s.cabinetId}/${s.shelfRole}`),
+  )
+  for (const cabinet of snapshot.cabinets)
+    for (const shelf of cabinet.shelves)
+      if (shelf.installationReference && !references.has(shelf.installationReference))
+        throw new Error(`Installation sheet missing for ${shelf.installationReference}`)
 
   const files: Record<string, Uint8Array> = {
     'readiness/report.pdf': await buildReadinessPdf(snapshot),

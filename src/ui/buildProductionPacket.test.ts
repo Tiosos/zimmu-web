@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { unzipSync, strFromU8, strToU8 } from 'fflate'
-import { PDFDocument } from 'pdf-lib'
+import { PDFArray, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib'
 import { cabinet } from '../geom/__fixtures__/cabinetSheet'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
 import { regenerateComponents } from '../scene/regenerateComponents'
@@ -148,5 +148,42 @@ describe('production handoff packet', () => {
     ).toBeGreaterThan(0)
     expect(strFromU8(zip['lists/dowels.csv'])).toContain('木棉 Dowel')
     expect(productionPacketFilename('../A:B/Workshop')).not.toMatch(/[/:]/)
+  })
+
+  it('prints the edge line on part sheets of a banded cabinet', async () => {
+    const banded = sceneOf()
+    const scene: Scene = regenerateComponents({
+      ...banded,
+      materials: { ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge' } },
+      components: banded.components.map((c) =>
+        c.kind === 'carcase' ? { ...c, params: { ...c.params, edgeMaterial: 'ABS 1mm' } } : c,
+      ),
+    })
+    const zip = unzipSync(
+      await buildProductionPacket({
+        scene,
+        projectName: 'Workshop A',
+        hardwareLibrary: {},
+        materialLibrary: {},
+        capturedAt,
+      }),
+    )
+    const doc = await PDFDocument.load(zip['drawings/shop-drawings.pdf'])
+    const hexOf = (text: string) =>
+      [...text].map((ch) => ch.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+    let found = false
+    for (let i = 0; i < doc.getPageCount(); i++) {
+      const contents = doc.getPage(i).node.get(PDFName.of('Contents'))
+      if (!(contents instanceof PDFArray)) continue
+      const stream = doc.context.lookup(contents.get(0))
+      if (!(stream instanceof PDFRawStream)) continue
+      const content = await new Response(
+        new Blob([new Uint8Array(stream.contents)])
+          .stream()
+          .pipeThrough(new DecompressionStream('deflate')),
+      ).text()
+      if (content.toLowerCase().includes(hexOf('Edge 1'))) found = true
+    }
+    expect(found).toBe(true)
   })
 })
