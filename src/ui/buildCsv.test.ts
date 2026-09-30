@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  cutDimensions,
+  finishedDimensions,
   groupParts,
   buildCsv,
   buildHardwareCsv,
@@ -20,6 +20,8 @@ import type { MaterialDef, HardwareItem } from '../scene/types'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, DEFAULT_FRAME_MATERIAL, PRESET_MATERIALS } from '../scene/carcasePresets'
 import type { HardwareRow } from './groupHardware'
+import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
+import { isSwapped } from '../scene/grain'
 
 function makeDowel(over: Partial<CylinderPart> & { id: string }): Part {
   return {
@@ -280,9 +282,9 @@ describe('buildHardwareCsv', () => {
   })
 })
 
-describe('cutDimensions', () => {
+describe('finishedDimensions', () => {
   it('reports the longer in-plane dimension as the length', () => {
-    expect(cutDimensions({ ...plywoodPart, length: 600, width: 100, thickness: 18 })).toEqual({
+    expect(finishedDimensions({ ...plywoodPart, length: 600, width: 100, thickness: 18 })).toEqual({
       length: 600,
       width: 100,
       thickness: 18,
@@ -290,7 +292,7 @@ describe('cutDimensions', () => {
   })
 
   it('swaps a width-longer board so the length is the long edge', () => {
-    expect(cutDimensions({ ...plywoodPart, length: 100, width: 600, thickness: 18 })).toEqual({
+    expect(finishedDimensions({ ...plywoodPart, length: 100, width: 600, thickness: 18 })).toEqual({
       length: 600,
       width: 100,
       thickness: 18,
@@ -298,7 +300,7 @@ describe('cutDimensions', () => {
   })
 
   it('never moves the thickness, even when it is the largest dimension', () => {
-    expect(cutDimensions({ ...plywoodPart, length: 40, width: 60, thickness: 100 }).thickness).toBe(
+    expect(finishedDimensions({ ...plywoodPart, length: 40, width: 60, thickness: 100 }).thickness).toBe(
       100,
     )
   })
@@ -308,25 +310,25 @@ describe('cutDimensions', () => {
   // it when grain is unconstrained.
   it('grain decides the length, even when it is the shorter dimension', () => {
     expect(
-      cutDimensions({ ...plywoodPart, length: 285, width: 548, thickness: 18, grain: 'length' }),
+      finishedDimensions({ ...plywoodPart, length: 285, width: 548, thickness: 18, grain: 'length' }),
     ).toEqual({ length: 285, width: 548, thickness: 18 })
   })
 
   it('grain on width swaps the pair', () => {
     expect(
-      cutDimensions({ ...plywoodPart, length: 560, width: 720, thickness: 18, grain: 'width' }),
+      finishedDimensions({ ...plywoodPart, length: 560, width: 720, thickness: 18, grain: 'width' }),
     ).toEqual({ length: 720, width: 560, thickness: 18 })
   })
 
   it('free grain keeps the longest-first rule', () => {
     expect(
-      cutDimensions({ ...plywoodPart, length: 560, width: 720, thickness: 18, grain: 'free' }),
+      finishedDimensions({ ...plywoodPart, length: 560, width: 720, thickness: 18, grain: 'free' }),
     ).toEqual({ length: 720, width: 560, thickness: 18 })
   })
 })
 
 describe('grain in the cutting list', () => {
-  // The reported grain is relative to the *reported* dimensions, not the stored ones: cutDimensions
+  // The reported grain is relative to the *reported* dimensions, not the stored ones: finishedDimensions
   // has already put the grain-running dimension into `length`.
   it('reports a directional board as running along the reported length', () => {
     const a: Part = { ...plywoodPart, id: 'a', label: 'A', length: 300, width: 600, grain: 'width' }
@@ -604,5 +606,76 @@ describe('isNestable', () => {
 
   it('a sheet with both dimensions is nested', () => {
     expect(isNestable({ sheet: { length: 2440, width: 1220 } })).toBe(true)
+  })
+})
+
+describe('isSwapped', () => {
+  const b = (length: number, width: number, grain: 'length' | 'width' | 'free') =>
+    ({ length, width, grain }) as BoardPart
+  it('follows grain, and puts a free board longer side first', () => {
+    expect(isSwapped(b(300, 600, 'length'))).toBe(false)
+    expect(isSwapped(b(600, 300, 'width'))).toBe(true)
+    expect(isSwapped(b(300, 600, 'free'))).toBe(true)
+    expect(isSwapped(b(600, 300, 'free'))).toBe(false)
+    expect(isSwapped(b(400, 400, 'free'))).toBe(false)
+  })
+})
+
+describe('cutlist edge banding', () => {
+  const mats: Record<string, MaterialDef> = {
+    ...PRESET_MATERIALS,
+    'ABS 1mm': { thickness: 1, use: 'edge', costPerM: 2 },
+  }
+  const banded = { ...cabinet, params: { ...cabinet.params, edgeMaterial: 'ABS 1mm' } }
+  const components: Component[] = [banded]
+  const parts = partsOfCarcase(banded.params)
+  const bottom = parts.find((p) => p.kind === 'board' && p.role === 'bottom') as BoardPart
+
+  it('reports the cut size in Length/Width and the finished size beside it', () => {
+    const row = groupParts([bottom], mats, components)[0]
+    expect(row.finishedLength - row.length + row.finishedWidth - row.width).toBe(1)
+    expect(row.edgeCode).not.toBe('')
+    expect(row.edgeMaterials).toBe('ABS 1mm')
+  })
+
+  it('leaves an unbanded part exactly as before', () => {
+    const plain = groupParts([bottom], mats, [cabinet])[0]
+    expect(plain.length).toBe(plain.finishedLength)
+    expect(plain.width).toBe(plain.finishedWidth)
+    expect(plain.edgeCode).toBe('')
+  })
+
+  it('does not merge identical boards whose edges differ', () => {
+    const other: BoardPart = { ...bottom, id: 'other', edgeBanding: { y0: null } }
+    expect(groupParts([bottom, other], mats, components)).toHaveLength(2)
+  })
+
+  it('flags a cut size that has run out', () => {
+    const thin: BoardPart = { ...bottom, width: 1, edgeBanding: { y0: 'ABS 1mm', y1: 'ABS 1mm' } }
+    const row = groupParts([thin], mats, components)[0]
+    expect(row.problem).toMatch(/zero or negative/)
+  })
+
+  it('swaps L and S with the cutlist orientation', () => {
+    const tall = parts.find((p) => p.kind === 'board' && p.role === 'left-side') as BoardPart
+    const rows = [
+      groupParts([{ ...tall, grain: 'length' }], mats, components)[0],
+      groupParts([{ ...tall, grain: 'width' }], mats, components)[0],
+    ]
+    expect(rows[0].edgeCode).not.toBe(rows[1].edgeCode)
+  })
+
+  it('appends the new columns after Total so existing columns keep their places', () => {
+    const csv = buildCsv([bottom], mats, components)
+    const [header, row] = csv.split('\n')
+    expect(
+      header.startsWith(
+        'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Grain,Cuts,Cost/unit,Total',
+      ),
+    ).toBe(true)
+    expect(header.endsWith(',Finished length (mm),Finished width (mm),Edges,Edge material')).toBe(
+      true,
+    )
+    expect(row.includes(',ABS 1mm')).toBe(true)
   })
 })

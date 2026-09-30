@@ -131,12 +131,16 @@ export function CuttingList({
           <th className="pb-2 px-2 font-medium text-xs">Cuts</th>
           <th className="pb-2 px-2 font-medium text-xs">Cost/unit</th>
           <th className="pb-2 px-2 font-medium text-xs">Total</th>
+          <th className="pb-2 px-2 font-medium text-xs">Finished length (mm)</th>
+          <th className="pb-2 px-2 font-medium text-xs">Finished width (mm)</th>
+          <th className="pb-2 px-2 font-medium text-xs">Edges</th>
+          <th className="pb-2 px-2 font-medium text-xs">Edge material</th>
         </tr>
       </thead>
       <tbody>
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={12} className="py-3 text-muted-foreground text-center text-xs">
+            <td colSpan={16} className="py-3 text-muted-foreground text-center text-xs">
               No parts
             </td>
           </tr>
@@ -190,7 +194,10 @@ export function CuttingList({
                   {row.color}
                 </span>
               </td>
-              <td className="py-1.5 px-2 text-xs">{row.length}</td>
+              <td className="py-1.5 px-2 text-xs">
+                {row.length}
+                {row.problem && <div className="text-destructive text-[10px]">{row.problem}</div>}
+              </td>
               <td className="py-1.5 px-2 text-xs">{row.width}</td>
               <td className="py-1.5 px-2 text-xs">{row.thickness}</td>
               {/* A dash reads as "unconstrained"; the word "free" reads as a cost. */}
@@ -202,6 +209,10 @@ export function CuttingList({
               <td className="py-1.5 px-2 text-xs">
                 {row.totalCost !== null ? `$${row.totalCost.toFixed(2)}` : '—'}
               </td>
+              <td className="py-1.5 px-2 text-xs">{row.finishedLength}</td>
+              <td className="py-1.5 px-2 text-xs">{row.finishedWidth}</td>
+              <td className="py-1.5 px-2 text-xs">{row.edgeCode || '—'}</td>
+              <td className="py-1.5 px-2 text-xs">{row.edgeMaterials || '—'}</td>
             </tr>
           ))
         )}
@@ -211,6 +222,7 @@ export function CuttingList({
               Board total
             </td>
             <td className="pt-2 px-2 text-xs">${boardSubtotal.toFixed(2)}</td>
+            <td colSpan={4} />
           </tr>
         )}
       </tbody>

@@ -21,7 +21,9 @@ import { DowelCutsPanel } from './DowelCutsPanel'
 import { JointsPanel } from './JointsPanel'
 import { SuggestionsPanel } from './SuggestionsPanel'
 import { DimInput } from './DimInput'
-import { cutDimensions } from './buildCsv'
+import { cutDimensions, finishedDimensions } from './buildCsv'
+import { edgesOf } from '../scene/edgeBanding'
+import { componentsById } from '../scene/componentTree'
 import { faceAxes } from '../scene/snapMath'
 import { isJointOwned } from '../scene/cutOwnership'
 import { PART_COLORS } from '../scene/palette'
@@ -553,9 +555,16 @@ export function EditPanel({
   // The cutting list reports the long edge as the length; the stored order is whatever the
   // generator's min-corner placement produced. Showing both stops the two from looking like a
   // contradiction, and stays hidden when they agree.
-  const cut = part.kind === 'board' ? cutDimensions(part) : null
+  const finished = part.kind === 'board' ? finishedDimensions(part) : null
+  const cut =
+    part.kind === 'board'
+      ? cutDimensions(part, edgesOf(part, componentsById(scene.components)), scene.materials)
+      : null
   const cutSizeNote =
-    part.kind === 'board' && cut !== null && cut.length !== part.length
+    part.kind === 'board' &&
+    finished !== null &&
+    cut !== null &&
+    (cut.length !== part.length || cut.width !== part.width || finished.length !== part.length)
       ? `Cut size ${cut.length} × ${cut.width} × ${cut.thickness} mm`
       : null
 
