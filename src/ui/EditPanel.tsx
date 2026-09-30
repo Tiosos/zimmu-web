@@ -13,6 +13,7 @@ import type {
   CarcaseParams,
   Component,
   ComponentId,
+  EdgeKey,
 } from '../scene/types'
 import type { PartOverrides } from '../scene/resolveThickness'
 import type { DowelCutTool } from '../scene/useAddCut'
@@ -22,7 +23,7 @@ import { JointsPanel } from './JointsPanel'
 import { SuggestionsPanel } from './SuggestionsPanel'
 import { DimInput } from './DimInput'
 import { cutDimensions, finishedDimensions } from './buildCsv'
-import { edgesOf } from '../scene/edgeBanding'
+import { EDGE_KEYS, edgesOf } from '../scene/edgeBanding'
 import { componentsById } from '../scene/componentTree'
 import { faceAxes } from '../scene/snapMath'
 import { isJointOwned } from '../scene/cutOwnership'
@@ -545,8 +546,9 @@ export function EditPanel({
   // offered as well, so a file naming a material this scene lacks still shows what it is set to.
   const ownMaterial = part.kind === 'board' ? part.overrides?.material : undefined
   const usableMaterials = Object.keys(scene.materials).filter(
-    (name) => scene.materials[name].thickness !== undefined,
+    (name) => scene.materials[name].thickness !== undefined && scene.materials[name].use !== 'edge',
   )
+  const edgeStock = Object.keys(scene.materials).filter((n) => scene.materials[n].use === 'edge')
   const materialOptions =
     ownMaterial !== undefined && !usableMaterials.includes(ownMaterial)
       ? [ownMaterial, ...usableMaterials]
@@ -734,6 +736,60 @@ export function EditPanel({
               {cutSizeNote && (
                 <div className="mt-1 text-[11px] text-muted-foreground">{cutSizeNote}</div>
               )}
+              {(() => {
+                const mitred = part.cuts.some((c) => c.kind === 'mitre')
+                const cabinetEdges = edgesOf(
+                  { ...part, edgeBanding: undefined },
+                  componentsById(scene.components),
+                  scene.materials,
+                )
+                const canFollow = part.driven && part.role !== undefined
+                const setEdge = (key: EdgeKey, v: string) =>
+                  onUpdate(part.id, (p) => {
+                    if (p.kind !== 'board') return p
+                    const next = { ...p.edgeBanding }
+                    if (v === 'follow') delete next[key]
+                    else next[key] = v === 'none' ? null : v
+                    return { ...p, edgeBanding: Object.keys(next).length > 0 ? next : undefined }
+                  })
+                return (
+                  <fieldset className="mt-2 text-xs">
+                    <legend className="text-muted-foreground">Edge banding</legend>
+                    {mitred && (
+                      <p className="text-muted-foreground">Mitred boards are not banded here.</p>
+                    )}
+                    {EDGE_KEYS.map((key) => {
+                      const own = part.edgeBanding?.[key]
+                      const value =
+                        own === undefined ? (canFollow ? 'follow' : 'none') : (own ?? 'none')
+                      return (
+                        <label key={key} className="flex items-center gap-2 mb-0.5">
+                          <span className="w-6">{key}</span>
+                          <select
+                            aria-label={`Edge ${key}`}
+                            disabled={mitred}
+                            value={value}
+                            className="bg-background border border-border rounded px-1 flex-1"
+                            onChange={(e) => setEdge(key, e.target.value)}
+                          >
+                            {canFollow && (
+                              <option value="follow">
+                                Follow cabinet ({cabinetEdges[key] ?? 'none'})
+                              </option>
+                            )}
+                            <option value="none">None</option>
+                            {edgeStock.map((n) => (
+                              <option key={n} value={n}>
+                                {n}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )
+                    })}
+                  </fieldset>
+                )
+              })()}
               {pending && (
                 <div className="mt-1 rounded border border-amber-700/50 bg-amber-950/30 px-2 py-1.5">
                   <div className="mb-1.5 text-[11px] text-amber-200">

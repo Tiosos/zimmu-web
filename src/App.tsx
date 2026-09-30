@@ -832,6 +832,7 @@ function App() {
           onDetachPart={onDetachPart}
           onUpdateComponent={onUpdateComponent}
           onSetFrame={onSetFrame}
+          onAddMaterial={onUpdateMaterial}
           onRemove={onRemove}
           onDuplicate={onDuplicate}
           onUpdate={onUpdate}

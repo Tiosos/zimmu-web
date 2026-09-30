@@ -35,6 +35,7 @@ import { resolveSections } from '../scene/sectionTree'
 import { DimInput } from './DimInput'
 import { PlacementPanel } from './PlacementPanel'
 import { ShelfInsertionPreview } from './ShelfInsertionPreview'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -155,6 +156,7 @@ export function CarcasePanel({
   onUpdate,
   onUpdateComponent,
   onSetFrame,
+  onAddMaterial,
   selectedSectionId,
 }: {
   component: CarcaseComponent
@@ -171,6 +173,7 @@ export function CarcasePanel({
   // Not a params patch: turning a frame on may add its material to the scene, and the two have to
   // land as one undo step.
   onSetFrame: (frame: FaceFrameParams | undefined) => void
+  onAddMaterial: (name: string, def: MaterialDef) => void
   selectedSectionId: SectionId | null
 }) {
   const [placementOpen, setPlacementOpen] = useState(false)
@@ -180,6 +183,8 @@ export function CarcasePanel({
   const [frameOpen, setFrameOpen] = useState(false)
   const [frontOpen, setFrontOpen] = useState(false)
   const [joineryOpen, setJoineryOpen] = useState(false)
+  const [edgeName, setEdgeName] = useState('')
+  const [edgeThickness, setEdgeThickness] = useState('')
 
   const p = component.params
   const thicknessOf = panelThickness(p, materials, parts, component.id)
@@ -205,9 +210,17 @@ export function CarcasePanel({
   // derived from it. The one already on the carcase is offered too, so a file naming a material
   // this scene does not have still shows what it is set to.
   const materialOptions = (current: string): string[] => {
-    const usable = Object.keys(materials).filter((name) => materials[name].thickness !== undefined)
+    const usable = Object.keys(materials).filter(
+      (name) => materials[name].thickness !== undefined && materials[name].use !== 'edge',
+    )
     return current !== '' && !usable.includes(current) ? [current, ...usable] : usable
   }
+  const edgeStock = Object.keys(materials).filter((name) => materials[name].use === 'edge')
+  const edgeMissing = p.edgeMaterial !== undefined && !edgeStock.includes(p.edgeMaterial)
+  const canAddEdge =
+    edgeName.trim() !== '' &&
+    materials[edgeName.trim()] === undefined &&
+    Number(edgeThickness) > 0
   // legacyToSection lays out a tree whose divisions have no role keys yet. Every one of them draws
   // on the carcase slot, which is the same slot the bottom panel draws on.
   const divisionThickness = thicknessOf('bottom')
@@ -451,6 +464,62 @@ export function CarcasePanel({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Label htmlFor="carcase-edge-band" className="w-20 shrink-0 text-right">
+              Edge band
+            </Label>
+            <Select
+              value={p.edgeMaterial ?? 'none'}
+              onValueChange={(v) => setParams({ edgeMaterial: v === 'none' ? undefined : v })}
+            >
+              <SelectTrigger id="carcase-edge-band" className="h-7 flex-1 text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {edgeMissing && <SelectItem value={p.edgeMaterial!}>{p.edgeMaterial}</SelectItem>}
+                <SelectItem value="none">None</SelectItem>
+                {edgeStock.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {edgeMissing && (
+            <p className="text-xs text-amber-600 mb-1">
+              Edge material “{p.edgeMaterial}” is not in this project; no automatic banding.
+            </p>
+          )}
+          <div className="flex items-end gap-1 mb-1">
+            <Input
+              aria-label="Edge band name"
+              placeholder="e.g. ABS white"
+              value={edgeName}
+              onChange={(e) => setEdgeName(e.target.value)}
+            />
+            <Input
+              aria-label="Edge band thickness (mm)"
+              type="number"
+              min="0"
+              step="any"
+              className="w-20"
+              value={edgeThickness}
+              onChange={(e) => setEdgeThickness(e.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!canAddEdge}
+              onClick={() => {
+                onAddMaterial(edgeName.trim(), { thickness: Number(edgeThickness), use: 'edge' })
+                setEdgeName('')
+                setEdgeThickness('')
+              }}
+            >
+              Add edge band
+            </Button>
           </div>
         </CollapsibleContent>
       </Collapsible>

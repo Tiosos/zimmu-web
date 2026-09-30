@@ -456,3 +456,77 @@ describe('EditPanel — a part taking ownership of a field', () => {
     expect(boardOf(regenerate(owned), 'bottom').thickness).toBe(25)
   })
 })
+
+describe('EditPanel — edge banding', () => {
+  afterEach(cleanup)
+
+  const ABS = { thickness: 1, use: 'edge' } as const
+  const bandedScene: Scene = {
+    parts: [],
+    materials: { ...PRESET_MATERIALS, 'ABS 1mm': ABS, 'PVC 2mm': { thickness: 2, use: 'edge' } },
+    hardware: [],
+    joints: [],
+    components: [{ ...cabinet, params: { ...cabinet.params, edgeMaterial: 'ABS 1mm' } }],
+  }
+  const mitre: MitreCut = {
+    kind: 'mitre',
+    id: 'm1',
+    label: 'Mitre',
+    end: '+X',
+    axis: 'Z',
+    angle: 45,
+  }
+  const apply = (onUpdate: Mock, part: BoardPart): BoardPart => {
+    const next = (onUpdate.mock.calls.at(-1)![1] as (p: Part) => Part)(part)
+    if (next.kind !== 'board') throw new Error('expected a board')
+    return next
+  }
+  const choose = async (label: string, option: string) =>
+    userEvent.selectOptions(screen.getByLabelText(label), option)
+
+  it('offers Follow cabinet, None and each edge material, and writes explicit decisions', async () => {
+    const part = board({ role: 'bottom' })
+    const h = renderPanel({ part, scene: bandedScene })
+    const options = within(screen.getByLabelText('Edge y0'))
+      .getAllByRole('option')
+      .map((o) => o.textContent)
+    expect(options).toEqual(['Follow cabinet (ABS 1mm)', 'None', 'ABS 1mm', 'PVC 2mm'])
+
+    await choose('Edge y0', 'None')
+    expect(apply(h.onUpdate, part).edgeBanding).toEqual({ y0: null })
+    await choose('Edge y1', 'PVC 2mm')
+    expect(apply(h.onUpdate, part).edgeBanding).toEqual({ y1: 'PVC 2mm' })
+  })
+
+  it('returns an edge to the cabinet, and leaves no empty object behind', async () => {
+    const part = board({ role: 'bottom', edgeBanding: { y0: null } })
+    const h = renderPanel({ part, scene: bandedScene })
+    expect((screen.getByLabelText('Edge y0') as HTMLSelectElement).value).toBe('none')
+    await choose('Edge y0', 'Follow cabinet (ABS 1mm)')
+    expect(apply(h.onUpdate, part).edgeBanding).toBeUndefined()
+  })
+
+  it('does not offer edge stock as the part material override', async () => {
+    renderPanel({ part: board({ role: 'bottom' }), scene: bandedScene })
+    await userEvent.click(screen.getByLabelText('Material for this part'))
+    const names = screen.getAllByRole('option').map((o) => o.textContent)
+    expect(names).not.toContain('ABS 1mm')
+    expect(names).not.toContain('PVC 2mm')
+  })
+
+  it('disables the edge control on a mitred board and says why', () => {
+    renderPanel({ part: board({ role: 'bottom', cuts: [mitre] }), scene: bandedScene })
+    expect((screen.getByLabelText('Edge y0') as HTMLSelectElement).disabled).toBe(true)
+    expect(screen.getByText('Mitred boards are not banded here.')).toBeTruthy()
+  })
+
+  it('shows a manual board None by default and never Follow cabinet', () => {
+    renderPanel({
+      part: board({ driven: false, role: undefined, parentId: null }),
+      scene: bandedScene,
+    })
+    const select = screen.getByLabelText('Edge y0') as HTMLSelectElement
+    expect(select.value).toBe('none')
+    expect([...select.options].map((o) => o.textContent)).toEqual(['None', 'ABS 1mm', 'PVC 2mm'])
+  })
+})

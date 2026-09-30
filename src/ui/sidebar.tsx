@@ -3,6 +3,7 @@ import type {
   CutDef,
   CutId,
   Joint,
+  MaterialDef,
   Part,
   PartId,
   Scene,
@@ -44,6 +45,7 @@ interface SidebarProps {
   ) => keyof CarcaseParams | null
   onDetachPart: (id: PartId, updater?: (p: Part) => Part) => void
   onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
+  onAddMaterial: (name: string, def: MaterialDef) => void
   onSetFrame: (id: ComponentId, frame: FaceFrameParams | undefined) => void
   onRemove: (id: PartId) => void
   onDuplicate: (id: PartId) => void
@@ -87,6 +89,7 @@ export function Sidebar({
   parameterFor,
   onDetachPart,
   onUpdateComponent,
+  onAddMaterial,
   onSetFrame,
   onRemove,
   onDuplicate,
@@ -266,6 +269,7 @@ export function Sidebar({
             onUpdate={(updater) => onUpdateComponent(selectedCarcase.id, updater)}
             onUpdateComponent={onUpdateComponent}
             onSetFrame={(frame) => onSetFrame(selectedCarcase.id, frame)}
+            onAddMaterial={onAddMaterial}
             selectedSectionId={selectedSectionId}
           />
         )}
