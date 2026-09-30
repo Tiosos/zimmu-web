@@ -491,7 +491,10 @@ function App() {
             ],
       )
     setDrawingSheets(
-      buildDrawingSheets(visibleParts, projectName, cabinets, undefined, undefined, rooms),
+      buildDrawingSheets(visibleParts, projectName, cabinets, undefined, undefined, rooms, {
+        materials: scene.materials,
+        byId: componentMap,
+      }),
     )
     setDrawingsOpen(true)
   }, [visibleParts, projectName, project, scene, componentMap])

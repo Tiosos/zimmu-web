@@ -13,7 +13,7 @@ import type { DrawingSheet } from './drawing'
 import type { AssemblyDim } from './assembly'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import { cabinet, partsOfBase600 } from './__fixtures__/cabinetSheet'
+import { cabinet, partsOfBase600, partsOfCarcase } from './__fixtures__/cabinetSheet'
 import { kitchenWall, SITE } from './__fixtures__/wallElevation'
 import { sheetFilename } from '../ui/sheetFilename'
 import type {
@@ -800,9 +800,15 @@ describe('wall elevation sheets', () => {
     expect(sheets).toHaveLength(1)
     const sheet = sheets[0]
     if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
-    expect(sheet).toMatchObject({ roomName: 'Kitchenette', wallName: 'Kitchen', scaleLabel: '1:20' })
+    expect(sheet).toMatchObject({
+      roomName: 'Kitchenette',
+      wallName: 'Kitchen',
+      scaleLabel: '1:20',
+    })
     expect(sheet.view.placement).toEqual({ x: MARGIN + sheet.ring, y: MARGIN })
-    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(297 - 2 * MARGIN - 2 * sheet.ring + 1e-9)
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(
+      297 - 2 * MARGIN - 2 * sheet.ring + 1e-9,
+    )
   })
 
   it('sizes the ring from the vertical labels, not the long horizontal provenance label', () => {
@@ -836,7 +842,10 @@ describe('wall elevation sheets', () => {
       ],
     }
     expect(
-      buildWallElevationSheets({ roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds }, 'd'),
+      buildWallElevationSheets(
+        { roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds },
+        'd',
+      ),
     ).toEqual([])
   })
 
@@ -860,5 +869,49 @@ describe('wall elevation sheets', () => {
   it('names the file after the room and wall', () => {
     const sheet = buildWallElevationSheets(input(), 'd')[0]
     expect(sheetFilename(sheet, 'Job', 'svg')).toBe('job-kitchenette-kitchen-elevation.svg')
+  })
+})
+
+describe('part sheet edge note', () => {
+  const mats = { ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge' as const } }
+  const banded = { ...cabinet, params: { ...cabinet.params, edgeMaterial: 'ABS 1mm' } }
+  const parts = partsOfCarcase(banded.params)
+  const byId = new Map<ComponentId, Component>([[banded.id, banded]])
+  const noteLines = (sheets: DrawingSheet[], label: string): string[] => {
+    const sheet = sheets.find((s) => s.kind === 'part' && s.partLabel === label)
+    if (!sheet || sheet.kind !== 'part' || sheet.shape !== 'board')
+      throw new Error('expected a board sheet')
+    return sheet.manufacturingNotes
+  }
+
+  it('adds one edge line to a banded board sheet', () => {
+    const sheets = buildDrawingSheets(parts, 'Job', [], '2026-09-30', undefined, [], {
+      materials: mats,
+      byId,
+    })
+    expect(noteLines(sheets, 'Bottom').some((n) => /^Edge 1[LS] — ABS 1mm 1 mm$/.test(n))).toBe(
+      true,
+    )
+  })
+
+  it('adds nothing when the cabinet has no edge material', () => {
+    const sheets = buildDrawingSheets(
+      partsOfCarcase(cabinet.params),
+      'Job',
+      [],
+      '2026-09-30',
+      undefined,
+      [],
+      {
+        materials: mats,
+        byId: new Map([[cabinet.id, cabinet]]),
+      },
+    )
+    expect(noteLines(sheets, 'Bottom').some((n) => n.startsWith('Edge'))).toBe(false)
+  })
+
+  it('leaves sheets alone when no edge context is given', () => {
+    const sheets = buildDrawingSheets(parts, 'Job')
+    expect(noteLines(sheets, 'Bottom').some((n) => n.startsWith('Edge'))).toBe(false)
   })
 })

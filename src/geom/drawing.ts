@@ -15,6 +15,8 @@ import type {
 } from '../scene/types'
 import type { RoomGeometry, WallSegment } from '../scene/projectStructure'
 import { wallLength } from '../scene/roomGeometry'
+import { edgeCode, edgesOf, EDGE_KEYS } from '../scene/edgeBanding'
+import { isSwapped } from '../scene/grain'
 import { faceAxes } from '../scene/snapMath'
 import { mitreFaceOutline } from './mitre'
 import { buildShelfInstallationSheets, type InstallationSheet } from './shelfInstallation'
@@ -390,7 +392,24 @@ function manufacturingNotesOf(p: BoardPart): string[] {
   })
 }
 
-function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
+export interface EdgeContext {
+  materials: Record<string, MaterialDef>
+  byId: Map<ComponentId, Component>
+}
+
+// Not geometry, so it rides the notes the title block already prints.
+function edgeNoteOf(p: BoardPart, ctx: EdgeContext): string[] {
+  const edges = edgesOf(p, ctx.byId, ctx.materials)
+  const code = edgeCode(edges, isSwapped(p))
+  if (code === '') return []
+  const names = [
+    ...new Set(EDGE_KEYS.map((k) => edges[k]).filter((m): m is string => m !== null)),
+  ].sort()
+  const label = names.map((n) => `${n} ${ctx.materials[n]?.thickness ?? '?'} mm`).join(', ')
+  return [`Edge ${code} — ${label}`]
+}
+
+function buildBoardSheet(p: BoardPart, date: string, edge?: EdgeContext): DrawingSheet {
   const { length: L, width: W, thickness: T } = p
   const scale = selectScale(L, W, T)
   const board = { length: L, width: W, thickness: T }
@@ -442,7 +461,7 @@ function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
     material: p.material,
     color: p.color,
     date,
-    manufacturingNotes: manufacturingNotesOf(p),
+    manufacturingNotes: [...manufacturingNotesOf(p), ...(edge ? edgeNoteOf(p, edge) : [])],
     views: [faceView, edgeView, endView],
     scaleLabel: toScaleLabel(scale),
   }
@@ -613,6 +632,7 @@ export function buildDrawingSheets(
   date = new Date().toISOString().slice(0, 10),
   installationCabinetIds?: ReadonlySet<string>,
   rooms: RoomElevationInput[] = [],
+  edgeContext?: EdgeContext,
 ): DrawingSheet[] {
   const coverRows: CoverRow[] = parts.map((p, i) => ({
     index: i + 1,
@@ -626,7 +646,7 @@ export function buildDrawingSheets(
   const cover: DrawingSheet = { kind: 'cover', projectName, date, rows: coverRows }
 
   const partSheets: DrawingSheet[] = parts.map((p) =>
-    p.kind === 'board' ? buildBoardSheet(p, date) : buildDowelSheet(p, date),
+    p.kind === 'board' ? buildBoardSheet(p, date, edgeContext) : buildDowelSheet(p, date),
   )
 
   const assemblySheets = cabinets.map((c) => buildAssemblySheet(c, date))
