@@ -66,10 +66,16 @@ function edgeFacing(rotation: Vec3, direction: Direction): EdgeKey | null {
 // The effective edges of a board: the cabinet's rule for a generated one, then the board's own
 // explicit entries on top. A detached or manual board follows only its explicit entries. A mitred
 // board carries none, like a shaped edge — its outline is not the rectangle these rules measure.
-export function edgesOf(part: BoardPart, byId: Map<ComponentId, Component>): BoardEdges {
+export function edgesOf(
+  part: BoardPart,
+  byId: Map<ComponentId, Component>,
+  materials: Record<string, MaterialDef>,
+): BoardEdges {
   if (part.cuts.some((c) => c.kind === 'mitre')) return { ...NONE }
   const edges: BoardEdges = { ...NONE }
-  const material = part.driven && part.role !== undefined ? nearestCarcase(part, byId)?.params.edgeMaterial : undefined
+  const named = part.driven && part.role !== undefined ? nearestCarcase(part, byId)?.params.edgeMaterial : undefined
+  // A name the scene cannot resolve to edge stock is a note in the cabinet panel, not banding.
+  const material = named !== undefined && materials[named]?.use === 'edge' ? named : undefined
   if (material && part.role !== undefined) {
     const rule = edgeRuleOf(part.role)
     const keys = rule === 'all' ? EDGE_KEYS : rule.map((d) => edgeFacing(part.rotation, d))
@@ -153,7 +159,7 @@ export function cutPartOf(
   byId: Map<ComponentId, Component>,
   materials: Record<string, MaterialDef>,
 ): BoardPart {
-  const edges = edgesOf(part, byId)
+  const edges = edgesOf(part, byId, materials)
   const size = cutSizeOf(part, edges, materials)
   if (size.problem !== undefined) return part
   if (size.length === part.length && size.width === part.width) return part

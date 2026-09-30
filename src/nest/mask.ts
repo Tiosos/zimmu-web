@@ -4,7 +4,7 @@ import { mitreFaceOutline } from '../geom/mitre'
 // A part's footprint on a sheet, rasterised at 1 mm per cell.
 //
 // The mask is in the board's OWN axes — `w` is `part.length`, `h` is `part.width` — and never in
-// `cutDimensions`' grain-ordered pair. The two answer different questions: `cutDimensions` says
+// `finishedDimensions`' grain-ordered pair. The two answer different questions: `finishedDimensions` says
 // which dimension the cutting list calls the length, this says what shape the part is on a sheet.
 // Placement reads `part.grain` to decide which rotations are allowed, and a pre-transposed mask
 // would apply that decision twice.

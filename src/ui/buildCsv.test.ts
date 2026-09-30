@@ -662,8 +662,28 @@ describe('cutlist edge banding', () => {
       groupParts([{ ...tall, grain: 'length' }], mats, components)[0],
       groupParts([{ ...tall, grain: 'width' }], mats, components)[0],
     ]
-    expect(rows[0].edgeCode).not.toBe(rows[1].edgeCode)
+    expect(rows[0].edgeCode).toBe('1S')
+    expect(rows[1].edgeCode).toBe('1L')
   })
+
+  it('does not merge boards with one cut size and edge pattern but different orientation', () => {
+    const a: BoardPart = { ...bottom, id: 'a', length: 600, width: 300, grain: 'length', edgeBanding: { y0: 'ABS 1mm' } }
+    const b: BoardPart = { ...bottom, id: 'b', length: 299, width: 601, grain: 'width', edgeBanding: { y0: 'ABS 1mm' } }
+    const rows = groupParts([a, b], mats, components)
+    expect(rows[0].length).toBe(rows[1].length)
+    expect(rows[0].width).toBe(rows[1].width)
+    expect(rows).toHaveLength(2)
+  })
+
+  it.each([['a missing material', 'Ghost'], ['a panel material', 'Plywood']])(
+    'bands nothing and raises no problem when the cabinet edge material is %s',
+    (_name, edgeMaterial) => {
+      const c = { ...cabinet, params: { ...cabinet.params, edgeMaterial } }
+      const row = groupParts([bottom], mats, [c])[0]
+      expect(row.edgeCode).toBe('')
+      expect(row.problem).toBeUndefined()
+    },
+  )
 
   it('appends the new columns after Total so existing columns keep their places', () => {
     const csv = buildCsv([bottom], mats, components)

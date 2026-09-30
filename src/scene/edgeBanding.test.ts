@@ -10,7 +10,7 @@ import {
 import { orientedPanel } from './carcaseLayout'
 import { applyMatrixToPoint, composeWorldMatrix } from '../geom/transform'
 import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
-import { PRESET_MATERIALS } from './carcasePresets'
+import { DEFAULT_CARCASE_MATERIAL, PRESET_MATERIALS } from './carcasePresets'
 import type { BoardPart, Component, ComponentId, MaterialDef } from './types'
 
 const ABS: MaterialDef = { thickness: 1, use: 'edge' }
@@ -56,7 +56,7 @@ describe('direction to board edge', () => {
     const panel = orientedPanel(box, axis)
     const part = { ...role(name), rotation: panel.rotation, position: panel.position,
       length: panel.length, width: panel.width, thickness: panel.thickness }
-    const edges = edgesOf(part, byId)
+    const edges = edgesOf(part, byId, materials)
     const key = (['x0', 'x1', 'y0', 'y1'] as const).find((k) => edges[k] !== null)!
     const mid = {
       x0: [0, panel.width / 2, 0],
@@ -70,39 +70,51 @@ describe('direction to board edge', () => {
 
   it('finds no front edge on a panel whose thickness runs front to back', () => {
     const part = { ...role('top'), rotation: orientedPanel(box, 'y').rotation }
-    expect(edgesOf(part, byId)).toEqual({ x0: null, x1: null, y0: null, y1: null })
+    expect(edgesOf(part, byId, materials)).toEqual({ x0: null, x1: null, y0: null, y1: null })
   })
 
   it('flips a side and a bottom differently: side front is x0, bottom front is y0', () => {
-    expect(edgesOf(role('left-side'), byId)).toEqual({ x0: 'ABS 1mm', x1: null, y0: null, y1: null })
-    expect(edgesOf(role('bottom'), byId)).toEqual({ x0: null, x1: null, y0: 'ABS 1mm', y1: null })
+    expect(edgesOf(role('left-side'), byId, materials)).toEqual({ x0: 'ABS 1mm', x1: null, y0: null, y1: null })
+    expect(edgesOf(role('bottom'), byId, materials)).toEqual({ x0: null, x1: null, y0: 'ABS 1mm', y1: null })
   })
 })
 
 describe('effective edges', () => {
   it('bands all four edges of a door', () => {
     const door: BoardPart = { ...role('left-side'), role: 'front-a-0' }
-    expect(Object.values(edgesOf(door, byId))).toEqual(['ABS 1mm', 'ABS 1mm', 'ABS 1mm', 'ABS 1mm'])
+    expect(Object.values(edgesOf(door, byId, materials))).toEqual(['ABS 1mm', 'ABS 1mm', 'ABS 1mm', 'ABS 1mm'])
   })
 
   it('bands nothing without a cabinet edge material', () => {
     const plain = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
-    expect(edgesOf(role('left-side'), plain)).toEqual({ x0: null, x1: null, y0: null, y1: null })
+    expect(edgesOf(role('left-side'), plain, materials)).toEqual({ x0: null, x1: null, y0: null, y1: null })
   })
+
+  it.each([['a missing material', 'Ghost'], ['a panel material', DEFAULT_CARCASE_MATERIAL]])(
+    'bands nothing automatically when the cabinet edge material is %s',
+    (_name, edgeMaterial) => {
+      const c = { ...cabinet, params: { ...cabinet.params, edgeMaterial } }
+      const map = new Map<ComponentId, Component>([[c.id, c]])
+      const side = role('left-side')
+      const edges = edgesOf(side, map, materials)
+      expect(edges).toEqual({ x0: null, x1: null, y0: null, y1: null })
+      expect(cutSizeOf(side, edges, materials).problem).toBeUndefined()
+    },
+  )
 
   it('lets an explicit null beat the rule and an explicit material beat the default', () => {
     const side = { ...role('left-side'), edgeBanding: { x0: null, y1: 'ABS 2mm' } }
-    expect(edgesOf(side, byId)).toEqual({ x0: null, x1: null, y0: null, y1: 'ABS 2mm' })
+    expect(edgesOf(side, byId, materials)).toEqual({ x0: null, x1: null, y0: null, y1: 'ABS 2mm' })
   })
 
   it('follows only explicit edges on a detached board', () => {
     const detached = { ...role('left-side'), driven: false, edgeBanding: { y0: 'ABS 1mm' } }
-    expect(edgesOf(detached, byId)).toEqual({ x0: null, x1: null, y0: 'ABS 1mm', y1: null })
+    expect(edgesOf(detached, byId, materials)).toEqual({ x0: null, x1: null, y0: 'ABS 1mm', y1: null })
   })
 
   it('reports no edges at all on a mitred board', () => {
     const mitred = { ...role('left-side'), cuts: [{ id: 'm', kind: 'mitre', label: 'Mitre' }] } as unknown as BoardPart
-    expect(edgesOf(mitred, byId)).toEqual({ x0: null, x1: null, y0: null, y1: null })
+    expect(edgesOf(mitred, byId, materials)).toEqual({ x0: null, x1: null, y0: null, y1: null })
   })
 })
 

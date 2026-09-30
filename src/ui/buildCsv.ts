@@ -89,7 +89,7 @@ export function groupParts(
   for (const p of parts) {
     if (p.kind !== 'board') continue
     const finished = finishedDimensions(p)
-    const edges = edgesOf(p, byId)
+    const edges = edgesOf(p, byId, materials)
     const dims = cutDimensions(p, edges, materials)
     const code = edgeCode(edges, isSwapped(p))
     const edgeMaterials = [
@@ -102,7 +102,7 @@ export function groupParts(
     const component = nearestCarcase(p, byId)?.label ?? ''
     // Grain is in the key, not just the row: a part the nester may rotate and one it may not are
     // different cuts even at identical dimensions.
-    const key = `${component}|${dims.length}×${dims.width}×${dims.thickness}|${cutGrain(p)}|${p.material}|${p.color}|${EDGE_KEYS.map((k) => edges[k] ?? '-').join('/')}`
+    const key = `${component}|${dims.length}×${dims.width}×${dims.thickness}|${finished.length}×${finished.width}|${code}|${cutGrain(p)}|${p.material}|${p.color}|${EDGE_KEYS.map((k) => edges[k] ?? '-').join('/')}`
     const rate = materials[p.material]?.costPerM2
     const costPerUnit = rate !== undefined ? ((dims.length * dims.width) / 1_000_000) * rate : null
     const existing = map.get(key)

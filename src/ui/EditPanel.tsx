@@ -558,7 +558,11 @@ export function EditPanel({
   const finished = part.kind === 'board' ? finishedDimensions(part) : null
   const cut =
     part.kind === 'board'
-      ? cutDimensions(part, edgesOf(part, componentsById(scene.components)), scene.materials)
+      ? cutDimensions(
+          part,
+          edgesOf(part, componentsById(scene.components), scene.materials),
+          scene.materials,
+        )
       : null
   const cutSizeNote =
     part.kind === 'board' &&
