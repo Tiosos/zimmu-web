@@ -8,11 +8,19 @@ import type {
 } from '../scene/types'
 import type { HardwareLine } from '../scene/carcaseHardware'
 import { CATALOGUE_ORDER, HARDWARE_CATALOGUE } from '../scene/hardwareCatalogue'
-import { CuttingList } from './CuttingList'
+import { CuttingList, MaterialPopover } from './CuttingList'
 import { DowelList } from './DowelList'
 import { HardwareTab } from './HardwareTab'
 import { groupHardware } from './groupHardware'
-import { groupParts, buildCsv, buildHardwareCsv, groupDowels, buildDowelCsv } from './buildCsv'
+import {
+  groupParts,
+  buildCsv,
+  buildHardwareCsv,
+  groupDowels,
+  buildDowelCsv,
+  groupEdgeBand,
+  type EdgeBandLine,
+} from './buildCsv'
 import { downloadBlob } from './download'
 import { SheetsTab } from './SheetsTab'
 import type { NestReport } from '../scene/useNest'
@@ -271,6 +279,81 @@ function LibraryTab({
   )
 }
 
+function EdgeBandTable({
+  lines,
+  materials,
+  onMaterialCostChange,
+}: {
+  lines: EdgeBandLine[]
+  materials: Record<string, MaterialDef>
+  onMaterialCostChange: (name: string, def: MaterialDef) => void
+}) {
+  const [openPopover, setOpenPopover] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (openPopover === null) return
+    const handler = () => setOpenPopover(null)
+    window.addEventListener('mousedown', handler)
+    return () => window.removeEventListener('mousedown', handler)
+  }, [openPopover])
+
+  return (
+    <div className="mt-4">
+      <h3 className="text-xs font-semibold mb-1">Edge banding</h3>
+      <table className="w-full border-collapse text-xs">
+        <thead>
+          <tr className="border-b border-border text-muted-foreground text-left">
+            <th className="pb-1 pr-2 font-medium">Edge material</th>
+            <th className="pb-1 px-2 font-medium">Metres</th>
+            <th className="pb-1 px-2 font-medium">Cost/m</th>
+            <th className="pb-1 px-2 font-medium">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((l) => (
+            <tr key={l.material} className="border-b border-border/30">
+              <td className="py-1 pr-2">
+                <div className="relative inline-block">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setOpenPopover(openPopover === l.material ? null : l.material)
+                    }}
+                    className="underline decoration-dotted cursor-pointer hover:text-foreground text-xs"
+                    title="Click to set $/m rate"
+                  >
+                    {l.material}
+                  </button>
+                  {openPopover === l.material && (
+                    <MaterialPopover
+                      current={materials[l.material]?.costPerM}
+                      unitLabel="$/m"
+                      onSave={(num) => {
+                        onMaterialCostChange(l.material, {
+                          ...materials[l.material],
+                          costPerM: num,
+                        })
+                        setOpenPopover(null)
+                      }}
+                      onClose={() => setOpenPopover(null)}
+                    />
+                  )}
+                </div>
+              </td>
+              <td className="py-1 px-2">{l.metres.toFixed(2)}</td>
+              <td className="py-1 px-2">
+                {l.costPerM !== null ? `$${l.costPerM.toFixed(2)}` : '—'}
+              </td>
+              <td className="py-1 px-2">{l.cost !== null ? `$${l.cost.toFixed(2)}` : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export function BomModal({
   parts,
   components,
@@ -330,7 +413,9 @@ export function BomModal({
   const hardwareSubtotal =
     hardware.reduce((sum, item) => sum + item.qty * item.unitCost, 0) +
     derivedHardware.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
-  const grandTotal = boardSubtotal + dowelSubtotal + hardwareSubtotal
+  const edgeLines = groupEdgeBand(parts, effectiveMaterials, components)
+  const edgeSubtotal = edgeLines.reduce((sum, l) => sum + (l.cost ?? 0), 0)
+  const grandTotal = boardSubtotal + dowelSubtotal + hardwareSubtotal + edgeSubtotal
 
   const handleMaterialCostChange = (name: string, def: MaterialDef) => {
     onMaterialCostChange(name, def)
@@ -426,15 +511,24 @@ export function BomModal({
         {/* Tab content */}
         <div className="flex-1 overflow-auto px-6 py-4">
           {tab === 'boards' ? (
-            <CuttingList
-              parts={parts}
-              projectName={projectName}
-              onClose={onClose}
-              materials={effectiveMaterials}
-              components={components}
-              onMaterialCostChange={handleMaterialCostChange}
-              hideExportButtons
-            />
+            <>
+              <CuttingList
+                parts={parts}
+                projectName={projectName}
+                onClose={onClose}
+                materials={effectiveMaterials}
+                components={components}
+                onMaterialCostChange={handleMaterialCostChange}
+                hideExportButtons
+              />
+              {edgeLines.length > 0 && (
+                <EdgeBandTable
+                  lines={edgeLines}
+                  materials={effectiveMaterials}
+                  onMaterialCostChange={handleMaterialCostChange}
+                />
+              )}
+            </>
           ) : tab === 'dowels' ? (
             <DowelList
               parts={parts}
@@ -502,6 +596,15 @@ export function BomModal({
                 !derivedHardware.some((r) => r.totalCost !== null)
                   ? '—'
                   : `$${hardwareSubtotal.toFixed(2)}`}
+              </span>
+            </span>
+            <span className="text-border">|</span>
+            <span>
+              Edge banding:{' '}
+              <span className="text-foreground">
+                {edgeSubtotal === 0 && !edgeLines.some((l) => l.cost !== null)
+                  ? '—'
+                  : `$${edgeSubtotal.toFixed(2)}`}
               </span>
             </span>
             <span className="text-border">|</span>

@@ -7,6 +7,7 @@ import {
   groupDowels,
   buildDowelCsv,
   isNestable,
+  groupEdgeBand,
 } from './buildCsv'
 import type {
   BoardPart,
@@ -697,5 +698,53 @@ describe('cutlist edge banding', () => {
       true,
     )
     expect(row.includes(',ABS 1mm')).toBe(true)
+  })
+
+  describe('edge band totals', () => {
+    it('totals banded run lengths per edge material, priced per metre', () => {
+      const lines = groupEdgeBand(parts, mats, components)
+      const abs = lines.find((l) => l.material === 'ABS 1mm')!
+      expect(abs.metres).toBeGreaterThan(0)
+      expect(abs.cost).toBeCloseTo(abs.metres * 2, 6)
+    })
+
+    it('prices nothing when the material has no rate', () => {
+      const lines = groupEdgeBand(
+        parts,
+        { ...mats, 'ABS 1mm': { thickness: 1, use: 'edge' } },
+        components,
+      )
+      expect(lines[0].cost).toBeNull()
+    })
+
+    it('counts each board once per quantity, so two identical boards double the metres', () => {
+      const one = groupEdgeBand([bottom], mats, components)[0].metres
+      const two = groupEdgeBand([bottom, { ...bottom, id: 'b2' }], mats, components)[0].metres
+      expect(two).toBeCloseTo(one * 2, 9)
+    })
+
+    it('appends an edge band section to the board CSV', () => {
+      const csv = buildCsv([bottom], mats, components)
+      expect(csv).toContain('\n\nEdge material,Metres,Cost/m,Total\n')
+      expect(csv).toContain('ABS 1mm,')
+    })
+
+    it('appends the section after the board total when boards carry a cost', () => {
+      const priced: BoardPart = { ...bottom, material: 'Ply' }
+      const csv = buildCsv([priced], { ...mats, Ply: { costPerM2: 50 } }, components)
+      expect(csv.indexOf('Board total')).toBeGreaterThan(-1)
+      expect(csv.indexOf('Board total')).toBeLessThan(csv.indexOf('Edge material,Metres'))
+    })
+
+    it('leaves the CSV of a scene with no banded edges unchanged', () => {
+      const rows = groupParts([bottom], mats, [cabinet])
+      const r = rows[0]
+      const expected = [
+        'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Grain,Cuts,Cost/unit,Total,Finished length (mm),Finished width (mm),Edges,Edge material',
+        `${r.component},${r.qty},${r.labels},${r.material},${r.color},${r.length},${r.width},${r.thickness},${r.grain},${r.cuts},${r.costPerUnit?.toFixed(2) ?? ''},${r.totalCost?.toFixed(2) ?? ''},${r.finishedLength},${r.finishedWidth},,`,
+        ...(r.totalCost !== null ? [`,,,,,,,,,,Board total,${r.totalCost.toFixed(2)}`] : []),
+      ].join('\n')
+      expect(buildCsv([bottom], mats, [cabinet])).toBe(expected)
+    })
   })
 })

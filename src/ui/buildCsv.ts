@@ -4,6 +4,7 @@ import { nearestCarcase } from '../scene/nearestCarcase'
 import { isSwapped } from '../scene/grain'
 import {
   EDGE_KEYS,
+  bandedEdgeLengths,
   cutSizeOf,
   edgeCode,
   edgesOf,
@@ -161,12 +162,59 @@ export function buildCsv(
     return `${quoteField(row.component)},${row.qty},${quoteField(row.labels)},${quoteField(row.material)},${row.color},${row.length},${row.width},${row.thickness},${row.grain},${row.cuts},${costStr},${totalStr},${row.finishedLength},${row.finishedWidth},${row.edgeCode},${quoteField(row.edgeMaterials)}`
   })
 
+  const edge = groupEdgeBand(parts, materials, components)
+  const edgeSection =
+    edge.length === 0
+      ? []
+      : [
+          '',
+          'Edge material,Metres,Cost/m,Total',
+          ...edge.map(
+            (l) =>
+              `${quoteField(l.material)},${l.metres.toFixed(3)},${l.costPerM !== null ? l.costPerM.toFixed(2) : ''},${l.cost !== null ? l.cost.toFixed(2) : ''}`,
+          ),
+        ]
+
   const anyHasCost = rows.some((r) => r.totalCost !== null)
-  if (!anyHasCost) return [header, ...dataRows].join('\n')
+  if (!anyHasCost) return [header, ...dataRows, ...edgeSection].join('\n')
 
   const boardTotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
   const subtotalRow = `,,,,,,,,,,Board total,${boardTotal.toFixed(2)}`
-  return [header, ...dataRows, subtotalRow].join('\n')
+  return [header, ...dataRows, subtotalRow, ...edgeSection].join('\n')
+}
+
+export interface EdgeBandLine {
+  material: string
+  metres: number
+  costPerM: number | null
+  cost: number | null
+}
+
+export function groupEdgeBand(
+  parts: Part[],
+  materials: Record<string, MaterialDef> = {},
+  components: Component[] = [],
+): EdgeBandLine[] {
+  const byId = componentsById(components)
+  const totals = new Map<string, number>()
+  for (const p of parts) {
+    if (p.kind !== 'board') continue
+    for (const { material, mm } of bandedEdgeLengths(p, edgesOf(p, byId, materials))) {
+      totals.set(material, (totals.get(material) ?? 0) + mm)
+    }
+  }
+  return [...totals]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([material, mm]) => {
+      const rate = materials[material]?.costPerM
+      const metres = mm / 1000
+      return {
+        material,
+        metres,
+        costPerM: rate ?? null,
+        cost: rate !== undefined ? metres * rate : null,
+      }
+    })
 }
 
 export interface DowelRow {

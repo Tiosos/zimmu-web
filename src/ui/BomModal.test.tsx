@@ -3,6 +3,8 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BomModal } from './BomModal'
 import type { HardwareItem, HardwareLibraryEntry, MaterialDef, Part } from '../scene/types'
+import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
+import { PRESET_MATERIALS } from '../scene/carcasePresets'
 import type { HardwareLine } from '../scene/carcaseHardware'
 
 afterEach(cleanup)
@@ -73,6 +75,23 @@ describe('BomModal', () => {
     render(<BomModal {...baseProps} />)
     const boardsTab = screen.getByRole('tab', { name: /boards/i })
     expect(boardsTab.getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('lists banded edge metres under an Edge banding table', () => {
+    const cab = {
+      ...cabinet,
+      params: { ...cabinet.params, edgeMaterial: 'ABS 1mm' },
+    }
+    render(
+      <BomModal
+        {...baseProps}
+        parts={partsOfCarcase(cab.params)}
+        components={[cab]}
+        materials={{ ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge', costPerM: 2 } }}
+      />,
+    )
+    expect(screen.getByText('Edge banding')).toBeTruthy()
+    expect(screen.getAllByText('ABS 1mm').length).toBeGreaterThan(0)
   })
 
   it('shows board table (cl-panel) in Boards tab', () => {
