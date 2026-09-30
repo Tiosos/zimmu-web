@@ -550,4 +550,15 @@ describe('buildSvg — elevation sheets', () => {
     expect(group('window')).toContain('stroke-dasharray')
     expect(group('kitchen')).not.toContain('stroke-dasharray')
   })
+
+  it('keeps the fixed page size for export and drops it, and the print rule, when embedded', () => {
+    const sheet = sheetFor(SITE)
+    expect(buildSvg(sheet)).toContain('width="297mm" height="210mm"')
+    expect(buildSvg(sheet)).toContain('<style>')
+    const embedded = buildSvg(sheet, { embedded: true })
+    expect(embedded).not.toContain('<style')
+    expect(embedded).not.toContain('297mm')
+    expect(embedded).toContain('viewBox="0 0 297 210"')
+    expect(embedded).toContain('style="width:100%;height:auto"')
+  })
 })

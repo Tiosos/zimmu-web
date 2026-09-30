@@ -5,13 +5,6 @@ import { emptyRoomGeometry } from '../scene/projectStructure'
 import { CARCASE_PRESETS, DEFAULT_FRAME, PRESET_MATERIALS } from '../scene/carcasePresets'
 import type { CarcaseComponent } from '../scene/types'
 
-// happy-dom drops everything after a <style> inside an injected <svg>; browsers do not. The real
-// sheet is embedded with only that element removed, so the assertions still read real output.
-vi.mock('./buildSvg', async (importOriginal) => {
-  const real = await importOriginal<typeof import('./buildSvg')>()
-  return { ...real, buildSvg: (sheet: Parameters<typeof real.buildSvg>[0]) => real.buildSvg(sheet).replace(/<style>.*?<\/style>/, '') }
-})
-
 describe('room assessment panel', () => {
   afterEach(cleanup)
 

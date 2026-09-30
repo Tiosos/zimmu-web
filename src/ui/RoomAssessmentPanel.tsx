@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { RoomGeometry } from '../scene/projectStructure'
 import { operableFronts } from '../scene/projectStructure'
 import type { CarcaseComponent, Scene } from '../scene/types'
@@ -23,6 +23,13 @@ interface Props {
 export function RoomAssessmentPanel({ room, roomName, projectName, scene, cabinetIds, onChange }: Props) {
   const [draft, setDraft] = useState({ name: '', x: '0', y: '0', value: '', uncertainty: '', source: '' })
   const cabinets = scene.components.filter((c): c is CarcaseComponent => c.kind === 'carcase' && cabinetIds.has(c.id))
+  const elevations = useMemo(() => {
+    const date = new Date().toISOString().slice(0, 10)
+    return room.walls.map((wall) => {
+      const sheet = buildWallElevationSheet({ roomName, room, scene, cabinetIds }, wall, date)
+      return { wall, sheet, preview: sheet && buildSvg(sheet, { embedded: true }) }
+    })
+  }, [room, scene, cabinetIds, roomName])
   const warnings = clearanceIssues(room, scene, cabinetIds)
   const canRecord = Boolean(room.datum?.trim() && draft.name.trim() && draft.source.trim() &&
     draft.value !== '' && draft.uncertainty !== '' && Number.isFinite(Number(draft.value)) &&
@@ -86,16 +93,14 @@ export function RoomAssessmentPanel({ room, roomName, projectName, scene, cabine
     </div>
     <div className="space-y-2">
       <h4 className="font-medium">Wall elevations (mm)</h4>
-      {room.walls.map((wall) => {
-        const sheet = buildWallElevationSheet({ roomName, room, scene, cabinetIds }, wall,
-          new Date().toISOString().slice(0, 10))
+      {elevations.map(({ wall, sheet, preview }) => {
         return <div key={wall.id} className="overflow-x-auto border border-border rounded p-1">
           <div>{wall.name} — {Math.round(wallLength(wall))} mm drawn length</div>
           {sheet === null
             ? <p className="text-muted-foreground">Nothing placed on this wall and no site length recorded.</p>
             : <>
               <div role="img" aria-label={`Elevation of ${wall.name}`} className="min-w-[400px] bg-white"
-                dangerouslySetInnerHTML={{ __html: buildSvg(sheet) }} />
+                dangerouslySetInnerHTML={{ __html: preview ?? '' }} />
               <div className="flex gap-2 mt-1">
                 <Button size="sm" variant="outline" aria-label={`Export ${wall.name} elevation SVG`}
                   onClick={() => downloadBlob(buildSvg(sheet), sheetFilename(sheet, projectName, 'svg'), 'image/svg+xml')}>

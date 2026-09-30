@@ -567,8 +567,12 @@ function renderElevationTitleBlock(sheet: Extract<DrawingSheet, { kind: 'elevati
   ].join('')
 }
 
-export function buildSvg(sheet: DrawingSheet): string {
-  const printStyle = `<style>@media print{svg{width:100%;height:auto;page-break-after:always;}}</style>`
+export function buildSvg(sheet: DrawingSheet, options: { embedded?: boolean } = {}): string {
+  const embedded = options.embedded === true
+  // Inline SVG style is document-global, so an embedded preview must not carry the print rule.
+  const printStyle = embedded
+    ? ''
+    : `<style>@media print{svg{width:100%;height:auto;page-break-after:always;}}</style>`
 
   let body: string
   if (sheet.kind === 'cover') {
@@ -595,8 +599,10 @@ export function buildSvg(sheet: DrawingSheet): string {
 
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" width="297mm" height="210mm">`,
-    printStyle,
+    embedded
+      ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" style="width:100%;height:auto">`
+      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" width="297mm" height="210mm">`,
+    ...(printStyle === '' ? [] : [printStyle]),
     body,
     `</svg>`,
   ].join('\n')
