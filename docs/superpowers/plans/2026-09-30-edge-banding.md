@@ -875,7 +875,7 @@ export function groupEdgeBand(
   const totals = new Map<string, number>()
   for (const p of parts) {
     if (p.kind !== 'board') continue
-    for (const { material, mm } of bandedEdgeLengths(p, edgesOf(p, byId))) {
+    for (const { material, mm } of bandedEdgeLengths(p, edgesOf(p, byId, materials))) {
       totals.set(material, (totals.get(material) ?? 0) + mm)
     }
   }
@@ -1097,7 +1097,7 @@ export interface EdgeContext {
 // One shop line per board: the code in cutlist orientation and the material with its thickness.
 // Not geometry, so it rides the notes the title block already prints.
 function edgeNoteOf(p: BoardPart, ctx: EdgeContext): string[] {
-  const edges = edgesOf(p, ctx.byId)
+  const edges = edgesOf(p, ctx.byId, ctx.materials)
   const code = edgeCode(edges, isSwapped(p))
   if (code === '') return []
   const names = [...new Set(EDGE_KEYS.map((k) => edges[k]).filter((m): m is string => m !== null))].sort()
@@ -1244,7 +1244,7 @@ with `const canAddEdge = edgeName.trim() !== '' && materials[edgeName.trim()] ==
 {part.kind === 'board' && (() => {
   const mitred = part.cuts.some((c) => c.kind === 'mitre')
   const edgeMats = Object.keys(scene.materials).filter((n) => scene.materials[n].use === 'edge')
-  const effective = edgesOf(part, componentsById(scene.components))
+  const effective = edgesOf(part, componentsById(scene.components), scene.materials)
   const canFollow = part.driven && part.role !== undefined
   const labels: Record<EdgeKey, string> = { x0: 'x0', x1: 'x1', y0: 'y0', y1: 'y1' }
   return (
@@ -1390,4 +1390,4 @@ git push -u origin claude/festive-brown-tdhoa9
 | Invariants in CLAUDE.md, mutation testing, notes | 8 |
 | Shaped edges, trim allowance, graphical marks, waste allowance | out of scope (spec) |
 
-Type consistency: `EdgeKey`/`EdgeDecisions` (Task 1) are read by Tasks 2, 7. `edgesOf(part, byId)`, `cutSizeOf(part, edges, materials)`, `cutPartOf(part, byId, materials)`, `edgeCode(edges, swapped)`, `bandedEdgeLengths(part, edges)` (Task 2) are called with exactly those signatures in Tasks 3 to 6. `isSwapped` (Task 3, in `grain.ts`) is read by Tasks 3 and 6; `finishedDimensions` (Task 3) by Task 3's callers. `groupParts` keeps its three parameters; `useNest`'s new `components` parameter is threaded in Task 5.
+Type consistency: `EdgeKey`/`EdgeDecisions` (Task 1) are read by Tasks 2, 7. `edgesOf(part, byId, materials)` (signature changed after Task 2's review: a dangling cabinet `edgeMaterial` must mean no banding, so `edgesOf` applies the rule only when the material exists and is edge stock), `cutSizeOf(part, edges, materials)`, `cutPartOf(part, byId, materials)`, `edgeCode(edges, swapped)`, `bandedEdgeLengths(part, edges)` (Task 2) are called with exactly those signatures in Tasks 3 to 6. `isSwapped` (Task 3, in `grain.ts`) is read by Tasks 3 and 6; `finishedDimensions` (Task 3) by Task 3's callers. `groupParts` keeps its three parameters; `useNest`'s new `components` parameter is threaded in Task 5.
