@@ -11,7 +11,10 @@ import type {
   MaterialDef,
   MitreCut,
   Part,
+  Scene,
 } from '../scene/types'
+import type { RoomGeometry, WallSegment } from '../scene/projectStructure'
+import { wallLength } from '../scene/roomGeometry'
 import { faceAxes } from '../scene/snapMath'
 import { mitreFaceOutline } from './mitre'
 import { buildShelfInstallationSheets, type InstallationSheet } from './shelfInstallation'
@@ -24,6 +27,7 @@ import {
   type AssemblyDim,
   type AssemblyView,
 } from './assembly'
+import { buildWallElevation, type WallElevationView } from './wallElevation'
 
 export interface Point2D {
   x: number
@@ -127,6 +131,17 @@ export interface CabinetSheetInput {
   byId: Map<ComponentId, Component>
 }
 
+export interface PlacedWallElevationView extends WallElevationView {
+  placement: Point2D
+}
+
+export interface RoomElevationInput {
+  roomName: string
+  room: RoomGeometry
+  scene: Scene
+  cabinetIds: ReadonlySet<string>
+}
+
 export type DrawingSheet =
   | InstallationSheet
   | { kind: 'cover'; projectName: string; date: string; rows: CoverRow[] }
@@ -154,6 +169,18 @@ export type DrawingSheet =
       // drift. It does not scale with the drawing — the sheet font is a fixed page size.
       ring: number
       views: [PlacedAssemblyView, PlacedAssemblyView, PlacedAssemblyView]
+    }
+  | {
+      kind: 'elevation'
+      roomName: string
+      wallName: string
+      date: string
+      scaleLabel: string
+      scale: number
+      // Sheet millimetres, like the assembly sheet's: measured once here and read by every renderer.
+      ring: number
+      verified: boolean
+      view: PlacedWallElevationView
     }
 
 const SHEET_H = 210
@@ -536,12 +563,56 @@ function buildAssemblySheet(input: CabinetSheetInput, date: string): DrawingShee
   }
 }
 
+// STANDARD_SCALES stops at 1:20, which a 4.9 m wall already overflows. Only elevation sheets need
+// the smaller ones, so board and assembly sheets keep the scales they always had.
+const ELEVATION_SCALES = [...STANDARD_SCALES, 0.02, 0.01, 0.005]
+
+// Only the vertical labels set the side rings' width. The long horizontal provenance label lies
+// along ring 2 and needs height, not width, so sizing from it would reserve ~50 mm a side for nothing.
+function elevationRing(view: WallElevationView): number {
+  const widest = Math.max(...view.dims.filter((d) => d.axis === 'v').map((d) => d.label.length), 1)
+  return SHEET_FONT * (RING_EM[2] + TICK_EM + TEXT_GAP_EM + CHAR_EM * widest)
+}
+
+function selectElevationScale(w: number, h: number, ring: number): number {
+  const raw = Math.min((PAGE_W - 2 * ring) / w, (PAGE_H - ring) / h)
+  return ELEVATION_SCALES.find((s) => s <= raw) ?? ELEVATION_SCALES[ELEVATION_SCALES.length - 1]
+}
+
+export function buildWallElevationSheet(
+  input: RoomElevationInput,
+  wall: WallSegment,
+  date: string,
+): Extract<DrawingSheet, { kind: 'elevation' }> | null {
+  if (wallLength(wall) === 0) return null
+  const view = buildWallElevation(input.room, wall, input.scene, input.cabinetIds)
+  if (view.spans.length === 0 && !wall.measuredLength) return null
+  const ring = elevationRing(view)
+  const scale = selectElevationScale(view.bounds.w, view.bounds.h, ring)
+  return {
+    kind: 'elevation',
+    roomName: input.roomName,
+    wallName: wall.name,
+    date,
+    scale,
+    scaleLabel: toScaleLabel(scale),
+    ring,
+    verified: view.length.verified,
+    view: { ...view, placement: { x: MARGIN + ring, y: MARGIN } },
+  }
+}
+
+export function buildWallElevationSheets(input: RoomElevationInput, date: string): DrawingSheet[] {
+  return input.room.walls.flatMap((wall) => buildWallElevationSheet(input, wall, date) ?? [])
+}
+
 export function buildDrawingSheets(
   parts: Part[],
   projectName: string,
   cabinets: CabinetSheetInput[] = [],
   date = new Date().toISOString().slice(0, 10),
   installationCabinetIds?: ReadonlySet<string>,
+  rooms: RoomElevationInput[] = [],
 ): DrawingSheet[] {
   const coverRows: CoverRow[] = parts.map((p, i) => ({
     index: i + 1,
@@ -563,7 +634,8 @@ export function buildDrawingSheets(
   const installationSheets = cabinets
     .filter((c) => !installationCabinetIds || installationCabinetIds.has(c.cabinet.id))
     .flatMap((c) => buildShelfInstallationSheets(c, date))
-  return [cover, ...assemblySheets, ...installationSheets, ...partSheets]
+  const elevationSheets = rooms.flatMap((r) => buildWallElevationSheets(r, date))
+  return [cover, ...elevationSheets, ...assemblySheets, ...installationSheets, ...partSheets]
 }
 
 // Side view: horizontal = axial z (0..L), vertical = diameter with the centerline at mid-height.

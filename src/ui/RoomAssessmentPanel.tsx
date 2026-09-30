@@ -2,18 +2,25 @@ import { useState } from 'react'
 import type { RoomGeometry } from '../scene/projectStructure'
 import { operableFronts } from '../scene/projectStructure'
 import type { CarcaseComponent, Scene } from '../scene/types'
-import { clearanceIssues, wallElevation } from '../scene/roomAssessment'
+import { clearanceIssues } from '../scene/roomAssessment'
 import { wallLength } from '../scene/roomGeometry'
+import { buildWallElevationSheet } from '../geom/drawing'
+import { buildSvg } from './buildSvg'
+import { buildDxf } from './buildDxf'
+import { downloadBlob } from './download'
+import { sheetFilename } from './sheetFilename'
 import { Button } from '@/components/ui/button'
 
 interface Props {
   room: RoomGeometry
+  roomName: string
+  projectName: string
   scene: Scene
   cabinetIds: ReadonlySet<string>
   onChange: (room: RoomGeometry) => void
 }
 
-export function RoomAssessmentPanel({ room, scene, cabinetIds, onChange }: Props) {
+export function RoomAssessmentPanel({ room, roomName, projectName, scene, cabinetIds, onChange }: Props) {
   const [draft, setDraft] = useState({ name: '', x: '0', y: '0', value: '', uncertainty: '', source: '' })
   const cabinets = scene.components.filter((c): c is CarcaseComponent => c.kind === 'carcase' && cabinetIds.has(c.id))
   const warnings = clearanceIssues(room, scene, cabinetIds)
@@ -80,35 +87,24 @@ export function RoomAssessmentPanel({ room, scene, cabinetIds, onChange }: Props
     <div className="space-y-2">
       <h4 className="font-medium">Wall elevations (mm)</h4>
       {room.walls.map((wall) => {
-        const spans = wallElevation(room, wall, scene, cabinetIds)
-        const length = wallLength(wall)
-        const top = Math.max(0, ...spans.map((span) => span.z1)) + 300
-        const pad = 120
+        const sheet = buildWallElevationSheet({ roomName, room, scene, cabinetIds }, wall,
+          new Date().toISOString().slice(0, 10))
         return <div key={wall.id} className="overflow-x-auto border border-border rounded p-1">
-          <div>{wall.name} — {Math.round(length)} mm drawn length</div>
-          <svg role="img" aria-label={`Elevation of ${wall.name}`} viewBox={`0 0 ${length + 2 * pad} ${top + 2 * pad}`}
-            className="w-full min-w-[400px] h-48 bg-background">
-            <line x1={pad} x2={pad + length} y1={pad + top} y2={pad + top} stroke="currentColor" strokeWidth="4" />
-            <line x1={pad} x2={pad + length} y1={pad / 2} y2={pad / 2} stroke="currentColor" strokeWidth="2" />
-            <text x={pad + length / 2} y={pad / 2 - 10} textAnchor="middle" fill="currentColor" fontSize="50">
-              {Math.round(length)} mm
-            </text>
-            {spans.map((span) => <g key={span.id} data-testid={`elevation-${span.id}`}>
-              <rect x={pad + span.x0} y={pad + top - span.z1} width={span.x1 - span.x0}
-                height={span.z1 - span.z0} fill="none" stroke="currentColor" strokeWidth="3"
-                strokeDasharray={room.openings.some((o) => o.id === span.id) ? '12 8' : undefined} />
-              <text x={pad + (span.x0 + span.x1) / 2} y={pad + top - span.z1 - 15}
-                textAnchor="middle" fill="currentColor" fontSize="40">{span.label}</text>
-              <text x={pad + (span.x0 + span.x1) / 2} y={pad + top - span.z0 + 55}
-                textAnchor="middle" fill="currentColor" fontSize="36">
-                {Math.round(span.x1 - span.x0)} × {Math.round(span.z1 - span.z0)} mm
-              </text>
-              <text x={pad + (span.x0 + span.x1) / 2} y={pad + top - span.z0 + 95}
-                textAnchor="middle" fill="currentColor" fontSize="30">
-                From start {Math.round(span.x0)} mm · base {Math.round(span.z0)} mm
-              </text>
-            </g>)}
-          </svg>
+          <div>{wall.name} — {Math.round(wallLength(wall))} mm drawn length</div>
+          {sheet === null
+            ? <p className="text-muted-foreground">Nothing placed on this wall and no site length recorded.</p>
+            : <>
+              <div role="img" aria-label={`Elevation of ${wall.name}`} className="min-w-[400px] bg-white"
+                dangerouslySetInnerHTML={{ __html: buildSvg(sheet) }} />
+              <div className="flex gap-2 mt-1">
+                <Button size="sm" variant="outline" aria-label={`Export ${wall.name} elevation SVG`}
+                  onClick={() => downloadBlob(buildSvg(sheet), sheetFilename(sheet, projectName, 'svg'), 'image/svg+xml')}>
+                  Export SVG</Button>
+                <Button size="sm" variant="outline" aria-label={`Export ${wall.name} elevation DXF`}
+                  onClick={() => downloadBlob(buildDxf(sheet), sheetFilename(sheet, projectName, 'dxf'), 'application/dxf')}>
+                  Export DXF</Button>
+              </div>
+            </>}
         </div>
       })}
     </div>

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildDxf } from './buildDxf'
-import { assemblyDimLine, buildDrawingSheets } from '../geom/drawing'
+import { assemblyDimLine, buildDrawingSheets, buildWallElevationSheets } from '../geom/drawing'
+import { kitchenWall, SITE } from '../geom/__fixtures__/wallElevation'
 import type { PlacedAssemblyView } from '../geom/drawing'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
@@ -394,5 +395,32 @@ describe('buildDxf — assembly sheets', () => {
     expect(expected.size).toBeGreaterThan(1)
     const asc = (s: Set<number>) => [...s].sort((a, b) => a - b)
     expect(asc(drawn)).toEqual(asc(expected))
+  })
+})
+
+describe('buildDxf — elevation sheets', () => {
+  const sheet = () => {
+    const f = kitchenWall(SITE)
+    const s = buildWallElevationSheets(
+      { roomName: 'Kitchenette', room: f.room, scene: f.scene, cabinetIds: f.cabinetIds },
+      '2026-09-30',
+    )[0]
+    if (s.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    return s
+  }
+
+  it('carries every dimension label and the title, and goes through the shared tables', () => {
+    const s = sheet()
+    const dxf = buildDxf(s)
+    for (const d of s.view.dims) expect(dxf).toContain(d.label)
+    expect(dxf).toContain('Kitchenette — Kitchen')
+    expect(dxf).toContain('2\nTABLES')
+  })
+
+  it('draws as many dimension lines as the view has dimensions', () => {
+    const s = sheet()
+    // dxfDimLine emits three DIM-layer lines per dimension: the line and two ticks.
+    const dimLines = buildDxf(s).split('\n8\nDIM\n').length - 1
+    expect(dimLines).toBe(s.view.dims.length * 3)
   })
 })

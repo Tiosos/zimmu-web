@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { PDFArray, PDFDocument, PDFName, PDFRawStream, StandardFonts } from 'pdf-lib'
-import { assemblyDimLine, buildDrawingSheets } from '../geom/drawing'
+import { assemblyDimLine, buildDrawingSheets, buildWallElevationSheets } from '../geom/drawing'
+import { kitchenWall, SITE } from '../geom/__fixtures__/wallElevation'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
 import { cabinet } from '../geom/__fixtures__/cabinetSheet'
@@ -58,6 +59,31 @@ describe('buildPdf', () => {
   })
 })
 
+// pdf-lib keeps no model of what was drawn, so a page can only be asked for its content stream:
+// the operators, Flate-compressed, with every string written as hex. That is enough — an undrawn
+// page carries no Contents entry at all, so page count and orientation alone would pass a
+// renderer that drew nothing on it.
+const contentOf = async (doc: PDFDocument, page: number): Promise<string> => {
+  const contents = doc.getPage(page).node.get(PDFName.of('Contents'))
+  if (!(contents instanceof PDFArray)) throw new Error('the page carries no content stream')
+  const stream = doc.context.lookup(contents.get(0))
+  if (!(stream instanceof PDFRawStream)) throw new Error('expected a raw content stream')
+  return new Response(
+    new Blob([new Uint8Array(stream.contents)])
+      .stream()
+      .pipeThrough(new DecompressionStream('deflate')),
+  ).text()
+}
+
+// Every string pdf-lib shows is preceded by the text matrix that positions it, so the stream can
+// be read back as (x, y, label) even though the document keeps no model of what was drawn.
+const textsIn = (content: string) =>
+  [...content.matchAll(/1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm\s*<([0-9A-Fa-f]*)> Tj/g)].map((m) => ({
+    x: Number(m[1]),
+    y: Number(m[2]),
+    label: (m[3].match(/../g) ?? []).map((b) => String.fromCharCode(parseInt(b, 16))).join(''),
+  }))
+
 describe('buildPdf — assembly sheets', () => {
   const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
 
@@ -97,33 +123,8 @@ describe('buildPdf — assembly sheets', () => {
     return { sheets, sheet }
   }
 
-  // pdf-lib keeps no model of what was drawn, so a page can only be asked for its content stream:
-  // the operators, Flate-compressed, with every string written as hex. That is enough — an undrawn
-  // page carries no Contents entry at all, so page count and orientation alone would pass a
-  // renderer that drew nothing on it.
-  const contentOf = async (doc: PDFDocument, page: number): Promise<string> => {
-    const contents = doc.getPage(page).node.get(PDFName.of('Contents'))
-    if (!(contents instanceof PDFArray)) throw new Error('the page carries no content stream')
-    const stream = doc.context.lookup(contents.get(0))
-    if (!(stream instanceof PDFRawStream)) throw new Error('expected a raw content stream')
-    return new Response(
-      new Blob([new Uint8Array(stream.contents)])
-        .stream()
-        .pipeThrough(new DecompressionStream('deflate')),
-    ).text()
-  }
-
   const hex = (s: string): string =>
     [...s].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase()).join('')
-
-  // Every string pdf-lib shows is preceded by the text matrix that positions it, so the stream can
-  // be read back as (x, y, label) even though the document keeps no model of what was drawn.
-  const textsIn = (content: string) =>
-    [...content.matchAll(/1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm\s*<([0-9A-Fa-f]*)> Tj/g)].map((m) => ({
-      x: Number(m[1]),
-      y: Number(m[2]),
-      label: (m[3].match(/../g) ?? []).map((b) => String.fromCharCode(parseInt(b, 16))).join(''),
-    }))
 
   const MM_TO_PT = 72 / 25.4
   const ptOf = (mm: number) => mm * MM_TO_PT
@@ -193,5 +194,21 @@ describe('buildPdf — assembly sheets', () => {
     }
     expect(onLeft).toBeGreaterThan(0)
     expect(onRight).toBeGreaterThan(0)
+  })
+})
+
+describe('buildPdf — elevation sheets', () => {
+  it('draws every dimension label on one landscape page', async () => {
+    const f = kitchenWall(SITE)
+    const sheets = buildWallElevationSheets(
+      { roomName: 'Kitchenette', room: f.room, scene: f.scene, cabinetIds: f.cabinetIds },
+      '2026-09-30',
+    )
+    const sheet = sheets[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    const doc = await PDFDocument.load(await buildPdf(sheets))
+    expect(doc.getPageCount()).toBe(1)
+    const labels = textsIn(await contentOf(doc, 0)).map((t) => t.label)
+    for (const d of sheet.view.dims) expect(labels).toContain(d.label)
   })
 })

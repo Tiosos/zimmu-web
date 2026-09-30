@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { buildSvg } from './buildSvg'
-import { assemblyDimLine, buildDrawingSheets, MARGIN, TITLE_H } from '../geom/drawing'
+import {
+  assemblyDimLine,
+  buildDrawingSheets,
+  buildWallElevationSheets,
+  MARGIN,
+  TITLE_H,
+} from '../geom/drawing'
+import { kitchenWall, SITE } from '../geom/__fixtures__/wallElevation'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { cabinet, partsOfBase600 } from '../geom/__fixtures__/cabinetSheet'
@@ -494,5 +501,53 @@ describe('buildSvg — assembly sheets', () => {
     }
     expect(onLeft).toBeGreaterThan(0)
     expect(onRight).toBeGreaterThan(0)
+  })
+})
+
+describe('buildSvg — elevation sheets', () => {
+  const sheetFor = (measured?: typeof SITE) => {
+    const f = kitchenWall(measured)
+    const sheet = buildWallElevationSheets(
+      { roomName: 'Kitchenette', room: f.room, scene: f.scene, cabinetIds: f.cabinetIds },
+      '2026-09-30',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    return sheet
+  }
+
+  it('draws every dimension label, every span and the title block', () => {
+    const sheet = sheetFor(SITE)
+    const svg = buildSvg(sheet)
+    for (const d of sheet.view.dims) expect(svg).toContain(`>${d.label}</text>`)
+    for (const s of sheet.view.spans) expect(svg).toContain(`data-testid="elevation-${s.id}"`)
+    expect(svg).toContain('Kitchenette — Kitchen')
+    expect(svg).toContain('Scale: 1:20')
+    expect(svg).not.toContain('not site-verified')
+  })
+
+  it('says so on the sheet when the wall length is unverified', () => {
+    const svg = buildSvg(sheetFor(undefined))
+    expect(svg).toContain('Wall length not site-verified')
+    expect(svg).toContain('3983 drawn — unverified')
+  })
+
+  it('draws the floor at the bottom: the cabinet top is above the floor line in the page', () => {
+    const sheet = sheetFor(SITE)
+    const svg = buildSvg(sheet)
+    const { x: px, y: py } = sheet.view.placement
+    const floorY = py + sheet.view.bounds.h * sheet.scale
+    const cabinet = sheet.view.spans.find((s) => s.kind === 'cabinet')!
+    const top = floorY - cabinet.z1 * sheet.scale
+    expect(svg).toContain(
+      `<rect x="${(px + cabinet.x0 * sheet.scale).toFixed(3)}" y="${top.toFixed(3)}"`,
+    )
+    expect(top).toBeLessThan(floorY)
+  })
+
+  it('draws an opening dashed and a cabinet solid', () => {
+    const svg = buildSvg(sheetFor(SITE))
+    const group = (id: string) => svg.split(`data-testid="elevation-${id}"`)[1].split('</g>')[0]
+    expect(group('window')).toContain('stroke-dasharray')
+    expect(group('kitchen')).not.toContain('stroke-dasharray')
   })
 })

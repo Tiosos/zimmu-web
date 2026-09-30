@@ -29,6 +29,7 @@ import { DrawingViewer } from './ui/DrawingViewer'
 import { ManufacturingReadiness } from './ui/ManufacturingReadiness'
 import { ProjectPanel } from './ui/ProjectPanel'
 import { wallPlacementPose } from './scene/roomGeometry'
+import { roomComponentIds } from './scene/projectStructure'
 import { buildShelfInstallationSheets } from './geom/shelfInstallation'
 import type {
   CameraState,
@@ -427,9 +428,16 @@ function App() {
           byId: componentMap,
         }
       })
-    setDrawingSheets(buildDrawingSheets(visibleParts, projectName, cabinets))
+    const rooms = project.areas.flatMap((area) => area.rooms).flatMap((room) =>
+      room.geometry === undefined ? [] : [{
+        roomName: room.name,
+        room: room.geometry,
+        scene,
+        cabinetIds: roomComponentIds(room.items.flatMap((item) => item.rootComponentIds), scene),
+      }])
+    setDrawingSheets(buildDrawingSheets(visibleParts, projectName, cabinets, undefined, undefined, rooms))
     setDrawingsOpen(true)
-  }, [visibleParts, projectName, scene.components, scene.parts, scene.materials, componentMap])
+  }, [visibleParts, projectName, project, scene, componentMap])
 
   const handleExportStl = useCallback(() => {
     downloadBlob(
@@ -616,7 +624,7 @@ function App() {
         mainView={mainView}
         onMainViewChange={setMainView}
       />
-      {projectPanelOpen && <ProjectPanel project={project} scene={scene} onChange={setProject}
+      {projectPanelOpen && <ProjectPanel project={project} scene={scene} projectName={projectName} onChange={setProject}
         activeItemId={activeItemId} onSelectItem={setActiveItemId}
         canUndo={canUndoProject} canRedo={canRedoProject} onUndo={undoProject} onRedo={redoProject}
         onClose={() => setProjectPanelOpen(false)} />}

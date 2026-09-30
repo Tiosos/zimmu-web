@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   assemblyDimLine,
   buildDrawingSheets,
+  buildWallElevationSheet,
+  buildWallElevationSheets,
   MARGIN,
   SHEET_FONT,
   STANDARD_SCALES,
@@ -12,6 +14,8 @@ import type { AssemblyDim } from './assembly'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { cabinet, partsOfBase600 } from './__fixtures__/cabinetSheet'
+import { kitchenWall, SITE } from './__fixtures__/wallElevation'
+import { sheetFilename } from '../ui/sheetFilename'
 import type {
   BoardPart,
   CarcaseParams,
@@ -782,5 +786,79 @@ describe('assemblyDimLine', () => {
     const line = assemblyDimLine(dim({ axis: 'v', start: 0, end: 100 }), bounds, 0.1)
     expect(line.start).toBeCloseTo((720 - 100) * 0.1, 6)
     expect(line.end).toBeCloseTo(720 * 0.1, 6)
+  })
+})
+
+describe('wall elevation sheets', () => {
+  const input = (measured?: typeof SITE) => {
+    const f = kitchenWall(measured ?? SITE)
+    return { roomName: 'Kitchenette', room: f.room, scene: f.scene, cabinetIds: f.cabinetIds }
+  }
+
+  it('builds one sheet per wall with something to show, placed inside its own ring', () => {
+    const sheets = buildWallElevationSheets(input(), '2026-09-30')
+    expect(sheets).toHaveLength(1)
+    const sheet = sheets[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    expect(sheet).toMatchObject({ roomName: 'Kitchenette', wallName: 'Kitchen', scaleLabel: '1:20' })
+    expect(sheet.view.placement).toEqual({ x: MARGIN + sheet.ring, y: MARGIN })
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(297 - 2 * MARGIN - 2 * sheet.ring + 1e-9)
+  })
+
+  it('sizes the ring from the vertical labels, not the long horizontal provenance label', () => {
+    const sheet = buildWallElevationSheets(input({ ...SITE, value: 3950 }), 'd')[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    const widestVertical = Math.max(
+      ...sheet.view.dims.filter((d) => d.axis === 'v').map((d) => d.label.length),
+    )
+    expect(sheet.ring).toBeCloseTo(SHEET_FONT * (1.8 + 0.4 + 0.3 + 0.65 * widestVertical))
+    expect(sheet.ring).toBeLessThan(20)
+  })
+
+  it('drops to 1:50 for a wall too long for 1:20', () => {
+    const f = kitchenWall()
+    const room = { ...f.room, walls: [{ ...f.room.walls[0], end: { x: 6000, y: 0 } }] }
+    const sheet = buildWallElevationSheets(
+      { roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds },
+      'd',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    expect(sheet.scaleLabel).toBe('1:50')
+  })
+
+  it('skips a zero-length wall and a wall with neither a span nor a site length', () => {
+    const f = kitchenWall()
+    const room = {
+      ...f.room,
+      walls: [
+        { id: 'zero', name: 'Zero', start: { x: 0, y: 0 }, end: { x: 0, y: 0 } },
+        { id: 'bare', name: 'Bare', start: { x: 0, y: 0 }, end: { x: 0, y: 2000 } },
+      ],
+    }
+    expect(
+      buildWallElevationSheets({ roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds }, 'd'),
+    ).toEqual([])
+  })
+
+  it('keeps an empty wall that has a site length', () => {
+    const f = kitchenWall(SITE)
+    const room = { ...f.room, openings: [], placements: [] }
+    expect(
+      buildWallElevationSheet(
+        { roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds },
+        room.walls[0],
+        'd',
+      ),
+    ).not.toBeNull()
+  })
+
+  it('puts elevation sheets after the cover and before the assembly sheets', () => {
+    const sheets = buildDrawingSheets([], 'Job', [], '2026-09-30', undefined, [input()])
+    expect(sheets.map((s) => s.kind)).toEqual(['cover', 'elevation'])
+  })
+
+  it('names the file after the room and wall', () => {
+    const sheet = buildWallElevationSheets(input(), 'd')[0]
+    expect(sheetFilename(sheet, 'Job', 'svg')).toBe('job-kitchenette-kitchen-elevation.svg')
   })
 })

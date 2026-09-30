@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 interface Props {
   project: ProjectStructure
   scene: Scene
+  projectName: string
   onChange: (value: ProjectStructure) => void
   activeItemId: string
   onSelectItem: (id: string) => void
@@ -18,7 +19,7 @@ interface Props {
   onClose: () => void
 }
 
-export function ProjectPanel({ project, scene, onChange, activeItemId, onSelectItem,
+export function ProjectPanel({ project, scene, projectName, onChange, activeItemId, onSelectItem,
   canUndo, canRedo, onUndo, onRedo, onClose }: Props) {
   const rename = (id: string, name: string) => onChange({ ...project, areas: project.areas.map((area) => ({
     ...area, name: area.id === id ? name : area.name,
@@ -83,7 +84,7 @@ export function ProjectPanel({ project, scene, onChange, activeItemId, onSelectI
             cabinets={scene.components.filter((c) => c.kind === 'carcase' && c.parentId === null &&
               room.items.some((item) => item.rootComponentIds.includes(c.id))).map((c) => ({ id: c.id, label: c.label }))}
             onChange={(geometry) => changeGeometry(room.id, geometry)} />
-          {room.geometry && <RoomAssessmentPanel room={room.geometry} scene={scene}
+          {room.geometry && <RoomAssessmentPanel room={room.geometry} roomName={room.name} projectName={projectName} scene={scene}
             cabinetIds={roomComponentIds(room.items.flatMap((item) => item.rootComponentIds), scene)}
             onChange={(geometry) => changeGeometry(room.id, geometry)} />}
         </div>)}

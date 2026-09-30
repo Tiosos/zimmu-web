@@ -5,6 +5,7 @@ import { buildDrawingSheets } from '../geom/drawing'
 import * as downloadModule from './download'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
 import { cabinet, partsOfBase600 } from '../geom/__fixtures__/cabinetSheet'
+import { kitchenWall } from '../geom/__fixtures__/wallElevation'
 import type { BoardPart, Component, ComponentId, CylinderPart } from '../scene/types'
 
 const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
@@ -199,5 +200,15 @@ describe('DrawingViewer', () => {
     expect(screen.getByText(/Part 1 of 1 — Pin/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /Download SVG/ }))
     expect(spy).toHaveBeenCalledWith(expect.any(String), 'kit-pin.svg', 'image/svg+xml')
+  })
+
+  it('labels an elevation sheet in the deck and previews it', () => {
+    const f = kitchenWall()
+    const sheets = buildDrawingSheets([], 'Job', [], '2026-09-30', undefined, [
+      { roomName: 'Kitchenette', room: f.room, scene: f.scene, cabinetIds: f.cabinetIds },
+    ])
+    render(<DrawingViewer open={true} onClose={vi.fn()} sheets={sheets} projectName="Job" />)
+    fireEvent.click(screen.getByLabelText('→'))
+    expect(screen.getByText('Elevation — Kitchenette / Kitchen')).toBeTruthy()
   })
 })

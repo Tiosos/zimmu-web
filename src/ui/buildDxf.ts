@@ -7,6 +7,7 @@ import type {
   DimLine,
   DrawCircle,
   PlacedAssemblyView,
+  PlacedWallElevationView,
   Rect2D,
 } from '../geom/drawing'
 
@@ -339,6 +340,46 @@ function dxfAssemblyTitleBlock(sheet: Extract<DrawingSheet, { kind: 'assembly' }
   ].join('')
 }
 
+function dxfElevationView(view: PlacedWallElevationView, scale: number): string {
+  const { x: px, y: py } = view.placement
+  const H = view.bounds.h
+  // Sheet millimetres with y running down, as every dxf* helper takes; the single flip is here.
+  const fx = (u: number) => px + u * scale
+  const fy = (v: number) => py + (H - v) * scale
+  const out: string[] = [
+    dxfText('TEXT', px, py - 2, 3, view.wallName),
+    dxfLine('OUTLINE', px, fy(0), fx(view.bounds.w), fy(0)),
+  ]
+  for (const span of view.spans) {
+    out.push(
+      dxfRect(
+        span.kind === 'opening' ? 'CUTS' : 'OUTLINE',
+        fx(span.x0),
+        fy(span.z1),
+        (span.x1 - span.x0) * scale,
+        (span.z1 - span.z0) * scale,
+      ),
+      dxfText('TEXT', fx((span.x0 + span.x1) / 2), fy((span.z0 + span.z1) / 2), 2, span.label),
+    )
+  }
+  for (const d of view.dims) out.push(dxfDimLine(assemblyDimLine(d, view.bounds, scale), px, py))
+  return out.join('')
+}
+
+function dxfElevationTitleBlock(sheet: Extract<DrawingSheet, { kind: 'elevation' }>): string {
+  const MARGIN = 15
+  const tbY = SHEET_H - MARGIN - 25
+  const tbX = MARGIN
+  return [
+    dxfRect('TITLE', tbX, tbY, 297 - 2 * MARGIN, 25),
+    dxfText('TITLE', tbX + 4, tbY + 8, 7, `${sheet.roomName} — ${sheet.wallName}`),
+    dxfText('TEXT', tbX + 4, tbY + 16, 4, 'Wall elevation'),
+    ...(sheet.verified ? [] : [dxfText('TEXT', tbX + 4, tbY + 22, 3, 'Wall length not site-verified')]),
+    dxfText('TEXT', tbX + 140, tbY + 8, 4, `Scale: ${sheet.scaleLabel}`),
+    dxfText('TEXT', tbX + 140, tbY + 16, 4, `Date: ${sheet.date}`),
+  ].join('')
+}
+
 function dxfCoverSheet(sheet: Extract<DrawingSheet, { kind: 'cover' }>): string {
   const MARGIN = 15
   const cx = MARGIN
@@ -441,6 +482,8 @@ export function buildDxf(sheet: DrawingSheet): string {
       ? dxfDashedLine(line.a.x, line.a.y, line.b.x, line.b.y)
       : dxfLine(line.role === 'shelf' ? 'OUTLINE' : 'DIM', line.a.x, line.a.y, line.b.x, line.b.y)
     ).join('') + sheet.texts.map((text) => dxfText('TEXT', text.x, text.y, text.size, text.text)).join('')
+  } else if (sheet.kind === 'elevation') {
+    entities = dxfElevationView(sheet.view, sheet.scale) + dxfElevationTitleBlock(sheet)
   } else if (sheet.kind === 'assembly') {
     // Entities only, contributed to the composition below — a whole document returned from here
     // would skip dxfTables(), which is where the HIDDEN layer and the DASHED linetype these
