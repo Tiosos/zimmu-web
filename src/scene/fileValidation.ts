@@ -76,6 +76,9 @@ function validateMaterial(value: unknown, path: string): MaterialDef {
   if (material.hasGrain !== undefined && typeof material.hasGrain !== 'boolean') {
     throw new ZimmuFileValidationError(`${path}.hasGrain`, 'must be a boolean')
   }
+  if (material.use !== undefined && material.use !== 'edge') {
+    throw new ZimmuFileValidationError(`${path}.use`, 'must be "edge"')
+  }
   if (material.sheet !== undefined) {
     const sheet = recordAt(material.sheet, `${path}.sheet`)
     finiteNumberAt(sheet.length, `${path}.sheet.length`)
@@ -432,6 +435,27 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
 }
 
 /** Final assertion for the current model after all migrations/defaults/repairs have run. */
+const EDGE_KEYS = ['x0', 'x1', 'y0', 'y1']
+
+function validateEdgeFacts(scene: Scene): void {
+  const isEdge = (name: string): boolean => scene.materials[name]?.use === 'edge'
+  scene.parts.forEach((part, index) => {
+    if (part.kind !== 'board' || part.edgeBanding === undefined) return
+    const path = `file.scene.parts[${index}].edgeBanding`
+    for (const [key, value] of Object.entries(recordAt(part.edgeBanding, path))) {
+      if (!EDGE_KEYS.includes(key)) {
+        throw new ZimmuFileValidationError(`${path}.${key}`, 'is not an edge (x0, x1, y0 or y1)')
+      }
+      if (value !== null && (typeof value !== 'string' || !isEdge(value))) {
+        throw new ZimmuFileValidationError(
+          `${path}.${key}`,
+          'must be null or the name of an edge-band material',
+        )
+      }
+    }
+  })
+}
+
 export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   integerAt(file.version, 'file.version')
   stringAt(file.name, 'file.name')
@@ -454,6 +478,7 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
 
   file.scene.parts.forEach(validateCurrentPart)
   assertUniqueIds(file.scene.parts, 'file.scene.parts')
+  validateEdgeFacts(file.scene)
   assertUniqueIds(file.scene.components, 'file.scene.components')
 
   const componentIds = new Set(file.scene.components.map((component) => component.id))
