@@ -8,6 +8,7 @@ import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { carcaseBoxes } from '../scene/carcaseRoles'
 import { roleThicknessFor } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
+import { cutPartOf } from '../scene/edgeBanding'
 
 function board(over: Partial<BoardPart> = {}): BoardPart {
   return {
@@ -312,24 +313,25 @@ describe('occupancyMask — clearance dilation', () => {
 // Every combination of the parameters that decide which roles exist, mirroring the sweep in
 // grain.test.ts: the properties below must hold for every board a carcase can emit, not for three
 // presets someone picked.
-const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as const).flatMap((baseMode) =>
-  (['captured', 'applied', 'none'] as const).flatMap((backMode) =>
-    [true, false].flatMap((hasTop) =>
-      [[], [1 / 3, 2 / 3]].flatMap((dividers) =>
-        [0, 2].map(
-          (fixedShelves): CarcaseParams => ({
-            ...CARCASE_PRESETS[0].params,
-            width: 1400,
-            height: 2100,
-            baseMode,
-            backMode,
-            hasTop,
-            section: legacyToSection(dividers, fixedShelves, 1400, 18),
-          }),
+const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as const).flatMap(
+  (baseMode) =>
+    (['captured', 'applied', 'none'] as const).flatMap((backMode) =>
+      [true, false].flatMap((hasTop) =>
+        [[], [1 / 3, 2 / 3]].flatMap((dividers) =>
+          [0, 2].map(
+            (fixedShelves): CarcaseParams => ({
+              ...CARCASE_PRESETS[0].params,
+              width: 1400,
+              height: 2100,
+              baseMode,
+              backMode,
+              hasTop,
+              section: legacyToSection(dividers, fixedShelves, 1400, 18),
+            }),
+          ),
         ),
       ),
     ),
-  ),
 )
 
 // One board per role family. The sweep emits well over a thousand boards, most of them near
@@ -427,3 +429,13 @@ describe('occupancyMask — properties over every role a carcase can emit', () =
 })
 
 export { board, boxCut }
+
+describe('occupancyMask of a banded part', () => {
+  it('masks a banded part at its cut size, smaller than the finished one', () => {
+    const part = board({ length: 564, width: 520, edgeBanding: { y0: 'ABS 1mm' } })
+    const materials = { 'ABS 1mm': { thickness: 1, use: 'edge' as const } }
+    const cut = cutPartOf(part, new Map(), materials)
+    expect(maskArea(occupancyMask(cut, 0))).toBeLessThan(maskArea(occupancyMask(part, 0)))
+    expect(occupancyMask(cut, 0).h).toBe(519)
+  })
+})
