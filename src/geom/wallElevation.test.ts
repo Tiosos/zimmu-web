@@ -34,6 +34,7 @@ describe('buildWallElevation', () => {
 
   it.each([
     ['measured, inside tolerance', { ...SITE, value: 3980 }, '3980 ±5 (site)', true],
+    ['measured, exactly on the tolerance', { ...SITE, value: 3978 }, '3978 ±5 (site)', true],
     ['measured, outside tolerance', { ...SITE, value: 3950 }, 'drawn 3983 / site 3950 ±5', false],
     ['drawn only', undefined, '3983 drawn — unverified', false],
     ['fractional uncertainty', { ...SITE, value: 3983, uncertainty: 0.5 }, '3983 ±0.5 (site)', true],

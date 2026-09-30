@@ -37,8 +37,8 @@ WallElevationView {
 }
 ```
 
-`ElevationSpan` and the footprint/height logic move out of `roomAssessment.ts`; `wallElevation()`
-is removed or re-exported and its callers updated. The builder emits a side and a ring, never a
+`wallElevation()` and `ElevationSpan` stay in `roomAssessment.ts` as the span source and the builder
+calls them (refinement, see below); `ElevationSpan` gains `kind: 'opening' | 'cabinet'`. The builder emits a side and a ring, never a
 page offset or a scale.
 
 ### Dimensions
@@ -64,11 +64,13 @@ ring; view: PlacedWallElevationView }`.
 
 - One sheet per wall that has a span or a measured length. A zero-length wall gives none; a wall
   with no spans still shows its length dimension.
-- Scale: the largest `STANDARD_SCALES` entry that fits, with the ring reserved on all four sides
+- Scale: the largest `ELEVATION_SCALES` entry that fits (`[...STANDARD_SCALES, 0.02, 0.01, 0.005]`;
+  `STANDARD_SCALES` stops at 1:20 and is left alone for board and assembly sheets), with the ring reserved on all four sides
   (as `selectAssemblyScale` does). About 3983 mm fits at 1:20 on A4 landscape; over about 4900 mm
   drops to 1:50.
 - Ring size comes from `assembly.ts`'s em table (`RING_EM`, `TICK_EM`, `TEXT_GAP_EM`, `CHAR_EM`),
-  sized by the widest label including the longer provenance labels. No absolute-millimetre ring.
+  sized by the widest **vertical** label only; the long horizontal provenance label lies along
+  ring 2 and needs height, not width. No absolute-millimetre ring.
 - `buildDrawingSheets` takes an optional wall-elevation input; elevation sheets follow the cover
   and precede the assembly sheets. Inputs are scoped by the same `cabinetIds` the Room panel uses.
 
@@ -78,7 +80,9 @@ ring; view: PlacedWallElevationView }`.
   (openings dashed), span labels, and every dimension through `assemblyDimLine`. The DXF uses the
   assembly sheet's layers. Title block: `<room> — <wall>`, scale, date; a wall that is not
   site-verified also gets "Wall length not site-verified".
-- `RoomAssessmentPanel` replaces its ad hoc SVG with the same view, fitted to the pane, keeps the
+- `RoomAssessmentPanel` replaces its ad hoc SVG with the same sheet via
+  `buildSvg(sheet, { embedded: true })` (fluid width, no mm size, no document-global print rule),
+  memoised per wall, keeps the
   `data-testid="elevation-<id>"` hooks, and adds per-wall SVG/DXF export via `sheetFilename.ts` and
   `downloadBlob`.
 - `DrawingViewer` lists elevation sheets without change to its switching logic; `App` builds the
@@ -108,3 +112,15 @@ Deterministic tests on the pure builder; each guard mutation-tested per CLAUDE.m
 - One wall that forces 1:50.
 - SVG, DXF and PDF draw the same dimension count for one fixture.
 - Panel and deck each rendered once from the same scene.
+
+## Refinements decided during planning and review
+
+- `wallElevation()` stays in `roomAssessment.ts`; the builder wraps it. Surgical, no behaviour change.
+- `ELEVATION_SCALES` extends `STANDARD_SCALES` with 1:50, 1:100, 1:200 for elevation sheets only.
+- A span hanging past a wall end widens `bounds`; `originX` is where the wall start sits in view space.
+- Ring width is sized from vertical labels only.
+- Vertical dimensions: cabinet heights left, opening sill/height right; overlapping ones go to ring 2;
+  identical ones are emitted once.
+- The Room panel takes `roomName` and `projectName` props, passed by `ProjectPanel`.
+- Review fix: `buildSvg(sheet, { embedded: true })` for the panel, so the embedded preview carries no
+  fixed page size and no global `@media print` rule.

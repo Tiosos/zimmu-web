@@ -511,7 +511,8 @@
 │       └── tooltip.tsx
 ├── geom/
 │   ├── __fixtures__/
-│   │   └── cabinetSheet.ts
+│   │   ├── cabinetSheet.ts
+│   │   └── wallElevation.ts
 │   ├── assembly.test.ts
 │   ├── assembly.ts
 │   ├── dado.test.ts
@@ -543,7 +544,9 @@
 │   ├── tonguegroove.test.ts
 │   ├── tonguegroove.ts
 │   ├── transform.test.ts
-│   └── transform.ts
+│   ├── transform.ts
+│   ├── wallElevation.test.ts
+│   └── wallElevation.ts
 ├── index.css
 ├── lib/
 │   └── utils.ts
@@ -1436,7 +1439,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->124<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->125<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1567,7 +1570,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-29-stage-0-baseline.md
     │   ├── 2026-09-29-stage-1-implementation-notes.md
     │   ├── 2026-09-29-stage-2-clearance-and-elevation-notes.md
-    │   └── 2026-09-29-stage-2-room-geometry-notes.md
+    │   ├── 2026-09-29-stage-2-room-geometry-notes.md
+    │   └── 2026-09-30-wall-elevations-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1622,7 +1626,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-29-design-to-manufacturing-architecture.md
     │   ├── 2026-09-29-production-readiness-checks.md
     │   ├── 2026-09-29-readiness-handoff-packet.md
-    │   └── 2026-09-29-readiness-pdf-report.md
+    │   ├── 2026-09-29-readiness-pdf-report.md
+    │   └── 2026-09-30-wall-elevations.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1669,7 +1674,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-09-12-drawer-boxes-design.md
         ├── 2026-09-14-cabinet-placement-design.md
         ├── 2026-09-24-face-frames-design.md
-        └── 2026-09-29-design-to-manufacturing-architecture-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-09-29-design-to-manufacturing-architecture-design.md
+        └── 2026-09-30-wall-elevations-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->

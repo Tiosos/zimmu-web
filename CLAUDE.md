@@ -127,7 +127,15 @@ src/
 │   │                    world matrix (composed through ancestor components), parity-tested
 │   ├── stl.ts           buildBinaryStl(parts, geometries) — world-space binary STL
 │   ├── drawing.ts       buildDrawingSheet(part) → DrawingView[] (Face/Edge/End orthographic
-│   │                    projections with cut rects, dimension lines, and cut labels)
+│   │                    projections with cut rects, dimension lines, and cut labels). Also the
+│   │                    `elevation` sheet kind: buildWallElevationSheet(s), one per wall, on its own
+│   │                    ELEVATION_SCALES (down to 1:200)
+│   ├── wallElevation.ts  buildWallElevation(room, wall, scene, cabinetIds) → WallElevationView in
+│   │                    unscaled mm: spans (from roomAssessment's wallElevation), a chain of
+│   │                    dimensions from the wall start, sill/height dimensions and the overall
+│   │                    length labelled by provenance. assemblyDimLine places its dimensions
+│   │                    through the same ring as a cabinet view; the Room panel embeds the same
+│   │                    sheet via buildSvg(sheet, { embedded: true })
 │   ├── hiddenLine.ts    Span + subtractIntervals + EPS — the occlusion rule, stated once.
 │   │                    Visible spans, then its own complement for the dashed ones
 │   ├── assembly.ts      buildAssemblyViews(parts, byId, cabinet, materials) → three
@@ -380,6 +388,7 @@ src/
 - **The nest runs off-thread, and only while the Sheets tab is open.** A six-cabinet job is ~4.8 s (0.4 s masking, 4.4 s placement), so running one on every scene edit would compute a figure nobody is looking at. `BomModal` drives `useNest`'s `enabled` flag from its tab state *and clears it on unmount*. Masks are built **in** the worker, never posted to it: a dilated mask for a 2100 mm panel is over a megabyte.
 - **A nest mask is in board axes; a placement reports material.** `occupancyMask` is dilated by `mask.pad` on every side, so `nestSheets` positions the dilated mask and reports the undilated rectangle. Never recompute the padding formula outside `mask.ts`.
 - **`resolveWorldMatrix` is the single source of world placement.** For `parentId: null` it is byte-identical to `composeWorldMatrix`; never call `composeWorldMatrix` directly outside `transform.ts`. The one remaining mention of `composeWorldMatrix` elsewhere (in `occt.ts`) is a comment describing the matrix layout, not a call, so the invariant already holds.
+- **A wall's length is labelled by where it came from, and the word "drawn" is in the label.** `lengthLabel` in `wallElevation.ts` states the rule once: a site value inside its uncertainty reads `3980 ±5 (site)`; outside it, both figures; none, `3983 drawn — unverified`. The Stage 2 rule is that a drawn length is never presented as a site measurement, and a label that only implied it would be one edit from breaking it. The elevation sheet's ring is sized from its **vertical** labels only — the long horizontal provenance label lies along ring 2 and needs height, not width.
 - **A cabinet projection is one pure function with two consumers.** `buildAssemblyViews` returns **unscaled millimetres**; the pane fits them to itself and the sheet picks a standard scale. A projector that scaled would need a page size the pane does not have at render time. `drawing.ts` stays a sheet builder — merging the two would put an `if (kind === 'assembly')` through the middle of a module that does one thing.
 - **Hidden-line removal here is interval subtraction, not polygon clipping.** Every generated panel is an axis-aligned box in the cabinet's frame, so an occluder covers a contiguous run of an edge. `subtractIntervals` answers both halves — `visible`, then its own complement for `hidden` — and a part is an occluder only if its eight **corners** say it is a box. Never read that off `rotation`: a board turned 180° is still axis-aligned, and a `rotation === 0` test silently exempts it. A mitred board is deliberately *not* a box: it draws as its convex hull and occludes nothing.
 - **Top and End are sections; Front is not.** Pure hidden-line removal of a closed box is one solid rectangle. Measured on a Base 600 with the cull disabled: the End view shows **2 of 8** parts carrying any visible edge and Top shows **4 of 8**; with the cull, End shows 7 of 7 and Top 6 of 7. So Top and End omit everything entirely nearer than the parameter midpoint, and a part crossing the plane is drawn whole. Front is never culled — an elevation that dropped its door would be useless. The rule is stated as *a section shows the majority of what it cuts through*, never as a part count: `culled` filters parts **out**, so disabling it raises the count and any `length > 1` assertion survives the mutation.
