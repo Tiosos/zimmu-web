@@ -4,7 +4,7 @@ import { assemblyDimLine, buildDrawingSheets, buildWallElevationSheets } from '.
 import { kitchenWall, SITE } from '../geom/__fixtures__/wallElevation'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
-import { cabinet } from '../geom/__fixtures__/cabinetSheet'
+import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 import type { BoardPart, Component, ComponentId, Part } from '../scene/types'
 import { buildPdf } from './buildPdf'
 
@@ -210,5 +210,39 @@ describe('buildPdf — elevation sheets', () => {
     expect(doc.getPageCount()).toBe(1)
     const labels = textsIn(await contentOf(doc, 0)).map((t) => t.label)
     for (const d of sheet.view.dims) expect(labels).toContain(d.label)
+  })
+})
+
+describe('buildPdf — part sheet notes', () => {
+  const mats = { ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge' as const } }
+  const banded = { ...cabinet, params: { ...cabinet.params, edgeMaterial: 'ABS 1mm' } }
+  const byId = new Map<ComponentId, Component>([[banded.id, banded]])
+  const bottomPage = async (edge: boolean): Promise<string[]> => {
+    const parts = partsOfCarcase(banded.params)
+    const sheets = buildDrawingSheets(
+      parts,
+      'Job',
+      [],
+      '2026-09-30',
+      undefined,
+      [],
+      edge ? { materials: mats, byId } : undefined,
+    )
+    const index = sheets.findIndex((s) => s.kind === 'part' && s.partLabel === 'Bottom')
+    const doc = await PDFDocument.load(await buildPdf(sheets))
+    return textsIn(await contentOf(doc, index)).map((t) => t.label)
+  }
+
+  // The em dash is WinAnsi 0x97 and does not survive String.fromCharCode, so the line is matched
+  // on its ASCII head and tail.
+  it('prints the edge line in the title block', async () => {
+    const labels = await bottomPage(true)
+    expect(labels.some((l) => /^Edge 1[LS] .*ABS 1mm 1 mm$/.test(l))).toBe(true)
+  })
+
+  it('draws no extra text for a sheet without notes', async () => {
+    const labels = await bottomPage(false)
+    expect(labels.some((l) => l.startsWith('Edge 1'))).toBe(false)
+    expect(labels.length).toBe((await bottomPage(true)).length - 1)
   })
 })

@@ -422,6 +422,24 @@ function renderPdfElevationTitleBlock(
   text(`Date: ${sheet.date}`, tbX + 140, tbY + 16, 4, font)
 }
 
+function wrapManufacturingNotes(notes: string[], maxChars = 90): string[] {
+  return notes.flatMap((note) => {
+    const lines: string[] = []
+    let line = ''
+    for (const word of note.split(' ')) {
+      const next = line === '' ? word : `${line} ${word}`
+      if (line !== '' && next.length > maxChars) {
+        lines.push(line)
+        line = word
+      } else {
+        line = next
+      }
+    }
+    if (line !== '') lines.push(line)
+    return lines
+  })
+}
+
 function renderPdfTitleBlock(
   page: PDFPage,
   sheet: Extract<DrawingSheet, { kind: 'part' }>,
@@ -468,6 +486,17 @@ function renderPdfTitleBlock(
     font,
     color: C_DARK_GRAY,
   })
+  if (sheet.shape === 'board') {
+    wrapManufacturingNotes(sheet.manufacturingNotes).forEach((line, i) => {
+      page.drawText(line, {
+        x: pt(tbX + 155),
+        y: yflip(tbY + 4 + i * 2.4),
+        size: pt(2),
+        font,
+        color: C_BLACK,
+      })
+    })
+  }
   page.drawRectangle({
     x: pt(tbX + tbW - 20),
     y: PAGE_H_PT - pt(tbY + 8 + 4),
@@ -579,17 +608,24 @@ export async function buildPdf(sheets: DrawingSheet[]): Promise<Uint8Array> {
     if (sheet.kind === 'cover') {
       renderPdfCoverSheet(page, sheet, font, fontBold)
     } else if (sheet.kind === 'installation') {
-      sheet.lines.forEach((line) => page.drawLine({
-        start: { x: pt(line.a.x), y: yflip(line.a.y) },
-        end: { x: pt(line.b.x), y: yflip(line.b.y) },
-        thickness: pt(line.role === 'structure' ? 0.15 : 0.4),
-        color: line.role === 'structure' ? C_LIGHT_GRAY : C_BLACK,
-        ...(line.role === 'entry' ? { dashArray: [pt(1.2), pt(0.8)] } : {}),
-      }))
-      sheet.texts.forEach((text) => page.drawText(text.text, {
-        x: pt(text.x) - font.widthOfTextAtSize(text.text, pt(text.size)) / 2,
-        y: yflip(text.y), size: pt(text.size), font, color: C_BLACK,
-      }))
+      sheet.lines.forEach((line) =>
+        page.drawLine({
+          start: { x: pt(line.a.x), y: yflip(line.a.y) },
+          end: { x: pt(line.b.x), y: yflip(line.b.y) },
+          thickness: pt(line.role === 'structure' ? 0.15 : 0.4),
+          color: line.role === 'structure' ? C_LIGHT_GRAY : C_BLACK,
+          ...(line.role === 'entry' ? { dashArray: [pt(1.2), pt(0.8)] } : {}),
+        }),
+      )
+      sheet.texts.forEach((text) =>
+        page.drawText(text.text, {
+          x: pt(text.x) - font.widthOfTextAtSize(text.text, pt(text.size)) / 2,
+          y: yflip(text.y),
+          size: pt(text.size),
+          font,
+          color: C_BLACK,
+        }),
+      )
     } else if (sheet.kind === 'elevation') {
       renderPdfElevationView(page, sheet.view, sheet.scale, font)
       renderPdfElevationTitleBlock(page, sheet, font, fontBold)
