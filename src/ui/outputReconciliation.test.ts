@@ -251,6 +251,37 @@ describe('reconcileOutputs', () => {
     })
   })
 
+  describe('grouping key', () => {
+    it('keeps boards of one cut size and edge code in different stock as separate rows that each agree', () => {
+      const stock: Record<string, MaterialDef> = {
+        ...mats,
+        'ABS white 1mm': { thickness: 1, use: 'edge' },
+        'ABS oak 1mm': { thickness: 1, use: 'edge' },
+      }
+      const twin = (id: string, edge: string): BoardPart => ({
+        ...bottom,
+        id,
+        label: 'Shelf',
+        role: undefined,
+        edgeBanding: { x0: edge },
+      })
+      const pair = [twin('w', 'ABS white 1mm'), twin('o', 'ABS oak 1mm')]
+      const rows = groupParts(pair, stock, [banded])
+      expect(rows).toHaveLength(2)
+      expect(rows[0].edgeCode).toBe(rows[1].edgeCode)
+      const r = reconcileOutputs(
+        buildDrawingSheets(pair, 'Job', [], '2026-10-01', undefined, [], {
+          materials: stock,
+          byId,
+        }),
+        rows,
+        [],
+      )
+      expect(r.findings).toEqual([])
+      expect(r.status).toBe('passed')
+    })
+  })
+
   describe('orientation', () => {
     it('agrees for a grain-width board and still catches a real size change on it', () => {
       const g: BoardPart = { ...bottom, id: 'g', grain: 'width' }
