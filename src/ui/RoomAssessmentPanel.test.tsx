@@ -50,6 +50,26 @@ describe('room assessment panel', () => {
     expect((screen.getByLabelText('Level datum') as HTMLInputElement).disabled).toBe(true)
   })
 
+  it('says a zero-length wall has no elevation, rather than claiming nothing is recorded', () => {
+    const room = { ...emptyRoomGeometry(), walls: [{ id: 'wall', name: 'Collapsed',
+      start: { x: 0, y: 0 }, end: { x: 0, y: 0 },
+      measuredLength: { value: 3983, uncertainty: 5, source: 'Laser', recordedAt: '2026-09-30' } }] }
+    render(<RoomAssessmentPanel roomName="Kitchenette" projectName="Job" room={room}
+      scene={{ parts: [], materials: {}, hardware: [], joints: [], components: [] }}
+      cabinetIds={new Set()} onChange={vi.fn()} />)
+    expect(screen.getByText('This wall has zero length, so no elevation can be drawn.')).toBeTruthy()
+    expect(screen.queryByText(/no site length recorded/)).toBeNull()
+  })
+
+  it('still says nothing is placed on a wall with length but no spans and no site length', () => {
+    const room = { ...emptyRoomGeometry(), walls: [{ id: 'wall', name: 'Bare',
+      start: { x: 0, y: 0 }, end: { x: 2000, y: 0 } }] }
+    render(<RoomAssessmentPanel roomName="Kitchenette" projectName="Job" room={room}
+      scene={{ parts: [], materials: {}, hardware: [], joints: [], components: [] }}
+      cabinetIds={new Set()} onChange={vi.fn()} />)
+    expect(screen.getByText('Nothing placed on this wall and no site length recorded.')).toBeTruthy()
+  })
+
   it('offers an assessment for an independent physical face-frame opening', () => {
     const params = CARCASE_PRESETS[0].params
     const cabinet: CarcaseComponent = { kind: 'carcase', id: 'framed', label: 'Framed', parentId: null,

@@ -97,7 +97,9 @@ export function RoomAssessmentPanel({ room, roomName, projectName, scene, cabine
         return <div key={wall.id} className="overflow-x-auto border border-border rounded p-1">
           <div>{wall.name} — {Math.round(wallLength(wall))} mm drawn length</div>
           {sheet === null
-            ? <p className="text-muted-foreground">Nothing placed on this wall and no site length recorded.</p>
+            ? <p className="text-muted-foreground">{wallLength(wall) === 0
+              ? 'This wall has zero length, so no elevation can be drawn.'
+              : 'Nothing placed on this wall and no site length recorded.'}</p>
             : <>
               <div role="img" aria-label={`Elevation of ${wall.name}`} className="min-w-[400px] bg-white"
                 dangerouslySetInnerHTML={{ __html: preview ?? '' }} />
