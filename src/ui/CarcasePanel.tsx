@@ -218,8 +218,10 @@ export function CarcasePanel({
   const edgeStock = Object.keys(materials).filter((name) => materials[name].use === 'edge')
   const edgeMaterial = p.edgeMaterial === '' ? undefined : p.edgeMaterial
   const edgeMissing = edgeMaterial !== undefined && !edgeStock.includes(edgeMaterial)
+  const edgeNameReserved = ['none', 'follow'].includes(edgeName.trim().toLowerCase())
   const canAddEdge =
     edgeName.trim() !== '' &&
+    !edgeNameReserved &&
     materials[edgeName.trim()] === undefined &&
     Number(edgeThickness) > 0
   // legacyToSection lays out a tree whose divisions have no role keys yet. Every one of them draws
@@ -522,6 +524,11 @@ export function CarcasePanel({
               Add edge band
             </Button>
           </div>
+          {edgeNameReserved && (
+            <p className="text-xs text-amber-600 mb-1">
+              “none” and “follow” are reserved; choose another name.
+            </p>
+          )}
         </CollapsibleContent>
       </Collapsible>
 

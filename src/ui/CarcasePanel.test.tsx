@@ -778,6 +778,19 @@ describe('CarcasePanel — edge banding', () => {
     expect(appliedParams(again.onUpdate, named).edgeMaterial).toBeUndefined()
   })
 
+  it.each(['none', 'None', ' FOLLOW ', 'follow'])(
+    'refuses the name %j, which the pickers use for their own choices, and says why',
+    (name) => {
+      render_()
+      fireEvent.change(screen.getByLabelText('Edge band name'), { target: { value: name } })
+      fireEvent.change(screen.getByLabelText('Edge band thickness (mm)'), {
+        target: { value: '2' },
+      })
+      expect((screen.getByRole('button', { name: 'Add edge band' }) as HTMLButtonElement).disabled).toBe(true)
+      expect(screen.getByText(/reserved/i)).toBeTruthy()
+    },
+  )
+
   it('treats an empty edge material exactly like none', () => {
     render_(carcase({ edgeMaterial: '' }))
     expect(screen.getByLabelText('Edge band').textContent).toBe('None')
