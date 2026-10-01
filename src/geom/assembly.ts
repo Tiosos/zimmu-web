@@ -196,10 +196,12 @@ export interface AssemblyPart {
 // once, in ems, and each multiplies by its own font. It lives beside `AssemblyDim.ring`, the field
 // that indexes it. Millimetres here would have made it a page size, and this module knows no page.
 //
-// Indexed by `AssemblyDim.ring`, which is 1 or 2 — index 0 is never read and is here so the index
+// Indexed by `AssemblyDim.ring`, which is 1, 2 or 3 — index 0 is never read and is here so the index
 // IS the ring number rather than one less than it. The gap between rings exceeds 1 em, so a label
 // on the outer ring cannot land on the inner one's line.
-export const RING_EM = [0, 0.5, 1.8]
+// Ring 3 exists for a wall elevation, where three vertical dimensions can overlap; a cabinet view
+// never uses it, so nothing reserves its width unless a dimension is actually placed there.
+export const RING_EM = [0, 0.5, 1.8, 3.1]
 export const TICK_EM = 0.4 // clearance between the view's edge and the innermost ring
 export const TEXT_GAP_EM = 0.3 // between a ring's line and the label reading off it
 // An upper bound on a digit's advance, not an average. The padding has to hold the widest glyphs
@@ -213,7 +215,7 @@ export const CHAR_EM = 0.65
 export interface AssemblyDim {
   axis: 'h' | 'v'
   side: 'above' | 'below' | 'left' | 'right'
-  ring: 1 | 2
+  ring: 1 | 2 | 3
   start: number
   end: number
   label: string

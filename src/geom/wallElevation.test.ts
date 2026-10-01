@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildWallElevation, lengthLabel } from './wallElevation'
 import { kitchenWall, SITE, wallCabinet, wallScene } from './__fixtures__/wallElevation'
 import type { RoomGeometry } from '../scene/projectStructure'
+import type { AssemblyDim } from './assembly'
 
 const build = (f = kitchenWall()) =>
   buildWallElevation(f.room, f.room.walls[0], f.scene, f.cabinetIds)
@@ -83,6 +84,53 @@ describe('buildWallElevation', () => {
     const left = view.dims.filter((d) => d.side === 'left')
     expect(left).toHaveLength(2)
     expect(left.map((d) => d.ring).sort()).toEqual([1, 2])
+  })
+
+  const expectNoSharedRing = (dims: AssemblyDim[]) => {
+    for (const a of dims)
+      for (const b of dims) {
+        if (a === b || a.ring !== b.ring) continue
+        expect(a.end <= b.start || b.end <= a.start, `${a.label} and ${b.label} share ring ${a.ring}`).toBe(true)
+      }
+    for (const d of dims) expect(d.label).toBe(String(Math.round(d.end - d.start)))
+  }
+
+  it('gives a third overlapping cabinet height its own ring instead of sharing ring 2', () => {
+    const base = wallCabinet('base', 0)
+    const wall = { ...wallCabinet('wall', 700), position: { x: 700, y: 0, z: 1400 } }
+    const tall = wallCabinet('tall', 1400, { height: 2100 })
+    const room: RoomGeometry = {
+      ...kitchenWall().room,
+      openings: [],
+      placements: [base, wall, tall].map((c) => ({
+        cabinetId: c.id,
+        wallId: 'long',
+        offset: c.position.x,
+        setback: 0,
+        manualOffset: { x: 0, y: 0 },
+      })),
+    }
+    const view = buildWallElevation(room, room.walls[0], wallScene([base, wall, tall]), new Set(['base', 'wall', 'tall']))
+    const left = view.dims.filter((d) => d.side === 'left')
+    expectNoSharedRing(left)
+    expect(left.find((d) => d.label === '2100')?.ring).toBe(3)
+  })
+
+  it('stacks two windows of different sills and a door on the right without overlap', () => {
+    const f = kitchenWall()
+    const room: RoomGeometry = {
+      ...f.room,
+      placements: [],
+      openings: [
+        { id: 'a', wallId: 'long', kind: 'window', offset: 100, width: 1000, sill: 900, height: 1100 },
+        { id: 'b', wallId: 'long', kind: 'window', offset: 1500, width: 1000, sill: 1000, height: 800 },
+        { id: 'd', wallId: 'long', kind: 'door', offset: 3000, width: 800, sill: 0, height: 2000 },
+      ],
+    }
+    const view = buildWallElevation(room, room.walls[0], f.scene, new Set())
+    const right = view.dims.filter((d) => d.side === 'right')
+    expectNoSharedRing(right)
+    expect(Math.max(...right.map((d) => d.ring))).toBe(3)
   })
 
   it('projects onto the wall, not the world x axis (rotated wall, turned cabinet)', () => {

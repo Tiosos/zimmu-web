@@ -622,8 +622,10 @@ const ELEVATION_SCALES = [...STANDARD_SCALES, 0.02, 0.01, 0.005]
 // Only the vertical labels set the side rings' width. The long horizontal provenance label lies
 // along ring 2 and needs height, not width, so sizing from it would reserve ~50 mm a side for nothing.
 function elevationRing(view: WallElevationView): number {
-  const widest = Math.max(...view.dims.filter((d) => d.axis === 'v').map((d) => d.label.length), 1)
-  return SHEET_FONT * (RING_EM[2] + TICK_EM + TEXT_GAP_EM + CHAR_EM * widest)
+  const vertical = view.dims.filter((d) => d.axis === 'v')
+  const widest = Math.max(...vertical.map((d) => d.label.length), 1)
+  const outer = vertical.some((d) => d.ring === 3) ? RING_EM[3] : RING_EM[2]
+  return SHEET_FONT * (outer + TICK_EM + TEXT_GAP_EM + CHAR_EM * widest)
 }
 
 function selectElevationScale(w: number, h: number, ring: number): number {

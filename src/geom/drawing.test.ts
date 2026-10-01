@@ -14,7 +14,7 @@ import type { AssemblyDim } from './assembly'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { cabinet, partsOfBase600, partsOfCarcase } from './__fixtures__/cabinetSheet'
-import { kitchenWall, SITE } from './__fixtures__/wallElevation'
+import { kitchenWall, SITE, wallCabinet, wallScene } from './__fixtures__/wallElevation'
 import { sheetFilename } from '../ui/sheetFilename'
 import type {
   BoardPart,
@@ -832,6 +832,33 @@ describe('wall elevation sheets', () => {
     )
     expect(sheet.ring).toBeCloseTo(SHEET_FONT * (1.8 + 0.4 + 0.3 + 0.65 * widestVertical))
     expect(sheet.ring).toBeLessThan(20)
+  })
+
+  it('reserves a third ring, in ems, only when a third ring is drawn, and still fits the page', () => {
+    const base = wallCabinet('base', 0)
+    const wall = { ...wallCabinet('wall', 700), position: { x: 700, y: 0, z: 1400 } }
+    const tall = wallCabinet('tall', 1400, { height: 2100 })
+    const f = kitchenWall()
+    const room = {
+      ...f.room,
+      openings: [],
+      placements: [base, wall, tall].map((c) => ({
+        cabinetId: c.id,
+        wallId: 'long',
+        offset: c.position.x,
+        setback: 0,
+        manualOffset: { x: 0, y: 0 },
+      })),
+    }
+    const sheet = buildWallElevationSheets(
+      { roomName: 'R', room, scene: wallScene([base, wall, tall]), cabinetIds: new Set(['base', 'wall', 'tall']) },
+      'd',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    const widest = Math.max(...sheet.view.dims.filter((d) => d.axis === 'v').map((d) => d.label.length))
+    expect(sheet.ring).toBeCloseTo(SHEET_FONT * (3.1 + 0.4 + 0.3 + 0.65 * widest))
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(297 - 2 * MARGIN - 2 * sheet.ring + 1e-9)
+    expect(sheet.view.bounds.h * sheet.scale).toBeLessThanOrEqual(210 - 2 * MARGIN - TITLE_H - sheet.ring + 1e-9)
   })
 
   it('drops to 1:50 for a wall too long for 1:20', () => {

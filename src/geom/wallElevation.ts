@@ -44,13 +44,13 @@ export function lengthLabel(length: WallLength): string {
 
 type FlatDim = Omit<AssemblyDim, 'ring'>
 
-// Ring 1 where the dimension's range is free, ring 2 otherwise. There are only two rings; a third
-// overlapping dimension shares ring 2.
+// The first ring whose existing dimensions this one does not overlap. A fourth overlapping
+// dimension shares ring 3: three heights already cover every wall the Room panel can describe.
 function ringed(dims: FlatDim[]): AssemblyDim[] {
-  const taken: FlatDim[][] = [[], []]
+  const taken: FlatDim[][] = [[], [], []]
   return dims.map((d) => {
-    const free = taken[0].every((t) => d.end <= t.start || d.start >= t.end)
-    const ring: 1 | 2 = free ? 1 : 2
+    const free = taken.findIndex((ring) => ring.every((t) => d.end <= t.start || d.start >= t.end))
+    const ring = (free === -1 ? 3 : free + 1) as 1 | 2 | 3
     taken[ring - 1].push(d)
     return { ...d, ring }
   })
