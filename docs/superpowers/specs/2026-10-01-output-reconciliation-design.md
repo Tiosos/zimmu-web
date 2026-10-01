@@ -12,8 +12,15 @@ action that makes it a hard gate is a later stage (the architecture plan's Stage
 
 The drawings and the cutlist are derived from one scene by separate builders (`buildBoardSheet` and
 `groupParts`). Nothing checks that the two builders agree on identity, quantity, size, material, colour,
-cut count and edges. A builder that drops a part, merges the wrong parts, orders a board's axes
-differently, or loses an edge would go unnoticed.
+cut count and edges. A builder that drops a part, duplicates one, or merges the wrong parts would go
+unnoticed.
+
+**What the check really guards.** It is a **coverage, duplicate-id and grouping-key** check: every part
+that has a sheet has a cutlist member and the reverse, no id appears twice in one output, and parts the
+cutlist merged into one row are parts that really agree on what that row prints. It is **not** an
+independent check of orientation, edge derivation or cut count. Those facts come from the same function
+applied to the same part on both sides (see "Independence" below), so they cannot fail separately; they
+would only differ if a line were deleted from one builder.
 
 What this check does **not** see: anything a renderer or serialiser does after the builders. PDF part
 sheets once omitted `manufacturingNotes` while SVG and DXF printed them; the sheet model was right and
@@ -44,8 +51,9 @@ No separate parallel "facts" structure is added. Each side's own printed data is
   - `partId`.
   - `board: { length, width, thickness }` for a board, `{ diameter, length }` for a dowel: the
     dimensions the sheet's views are drawn from.
-  - `cutCount`: the number of cuts the sheet draws, counted from the cut entries the builder emits, not
-    read from `part.cuts.length`. A cut kind a builder drops therefore shows up as a difference.
+  - `cutCount`: the number of cuts the sheet draws, counted from the builder's own cut partition. It
+    always equals `part.cuts.length` today (the partition is an exhaustive switch), so it is a record of
+    what the sheet carries, not an independent measurement.
   - `edge?: { code, materials: string[] }` (boards only): the structured value the printed edge note is
     formatted from. It is absent when the sheet was built without an edge context, which means *not
     carried*, never "unbanded".
@@ -61,7 +69,8 @@ No separate parallel "facts" structure is added. Each side's own printed data is
 
 Sizes are compared in one canonical orientation: `[max(length, width), min(length, width), thickness]`
 for a board (the sheet's `board` against the row's printed finished size) and `[diameter, length]` for a
-dowel. A grain-order swap therefore cannot cause a false mismatch or hide a real one.
+dowel. A grain-order swap therefore cannot cause a false mismatch. The same sort erases orientation, so
+the check says nothing about which of length and width a board is drawn or listed as.
 
 **Per part, matched by `partId`** (sheet vs the row that lists the part as a member):
 `label`, `material`, `color`, `size`, `cutCount` (boards: the sheet's drawn cut count against the
@@ -78,7 +87,9 @@ occurrence only. `compared` is the number of part ids present in both outputs an
 ## Findings, status and ordering
 
 Each finding names the part (label and id) and both values with both locations:
-- drawing location: the deck page, 1-based sheet index (one sheet is one page in the packet's PDF);
+- drawing location: the 1-based sheet index. In the packet that is the PDF page ("drawings, PDF page
+  N"); in the panel it is a position in the check's own part-sheet list ("sheet N of the checked
+  drawing set"), which is not a page of any exported file;
 - cutlist location: the cabinet and the 1-based row number in the board or dowel rows.
 
 Kinds: `missing-from-drawings`, `missing-from-cutlist`, `duplicate` (carries which output),
@@ -94,6 +105,19 @@ Status: `failed` if there is any finding; `passed` if `compared > 0` and there a
 Findings are capped at 200 in both the panel and `reconciliation.json`; the file records
 `totalFindings` and `truncated`, and the panel shows the same notice the Production checks section
 already uses.
+
+## Independence
+
+What can and cannot fail separately, so the result is not read as more than it is:
+
+- **Independent enough to catch a defect:** coverage (a part with a sheet and no member, or the
+  reverse), duplicate ids, and the cutlist's grouping key (boards merged into one row must agree on
+  size, code, grain, material, colour and the per-edge stock).
+- **Not independent:** orientation (the canonical sort erases it); edge code and edge materials (both
+  sides call `edgesOf` and `edgeCode(isSwapped)` on the same part); cut count (the sheet's count comes
+  from an exhaustive switch that always equals `p.cuts.length`); a row's printed `qty` and `labels`
+  (incremented in the same branch that pushes the member). Each of these only catches a deleted line.
+- **Size** on a sheet is the part's own dimensions, not a measurement of the drawing.
 
 ## Not compared (always listed as unassessed)
 
@@ -140,6 +164,7 @@ agreement.
   "not carried", never "unbanded".
 - The packet reconciles the rows it serialises and the sheets it renders, not rebuilt copies.
 - A `failed` result means the builders disagree; it does not prove the PDF bytes or CSV text.
+- Orientation, edge derivation and cut count are not independent checks (see "Independence").
 
 ## Out of scope
 
@@ -156,6 +181,7 @@ assembly and installation sheet facts; hardware and operations reconciliation; w
 - Row-level: `qty` against member count, the printed `labels`, the printed summed `cuts`; three
   identical shelves merged into one row still agree.
 - Orientation: a grain-width board agrees; a real size change on it is still caught.
+- Grouping key: two boards of one cut size and code banded in different stock stay two rows.
 - A sheet built without an edge context: edge fields unassessed, not mismatched.
 - The unassessed list is present on every result; status passed, failed and unassessed; `compared`
   counts parts; the order is total (two findings with the same id and field are ordered by output).
@@ -171,8 +197,8 @@ assembly and installation sheet facts; hardware and operations reconciliation; w
 
 - A sheet's `cutCount` is counted from the board builder's own cut partition (`boxCuts.length +
   mitres.length + holeArrays.length`; a dowel sheet uses `p.cuts.length`). It equals `p.cuts.length`
-  today, so its discrimination is low and is stated as such: its value is that a cut kind later added to
-  the partition wrongly would differ from the cutlist's `p.cuts.length`.
+  today, so it is not an independent check; it would differ only if the partition stopped being
+  exhaustive.
 - Finding sides are `left` and `right`, each `{ source, value }`. `left` is the drawings side, or for a
   row-level check the figure the row prints; `right` is the cutlist side, or what the row's members imply.
 - A drawing location differs by surface. In the packet it is the PDF page. In the panel the deck is the

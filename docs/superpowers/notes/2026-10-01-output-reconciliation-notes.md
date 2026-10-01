@@ -28,10 +28,12 @@ A single-pass max-level review (no fan-out) of the first spec found 14 issues; a
   (sheet `partLabel`/`material`/`color` plus new typed `partId`, `board`, `cutCount`, `edge`; row printed
   columns plus `members`). The sheet's `cutCount` counts the cuts it draws, not `part.cuts.length`, and
   the sheet's `board` is what its views are drawn from, so a divergence between the two builders can show
-  up. Size on the sheet is still the part's own dimensions, not measured; discrimination on size is low
-  and the check's value is mostly identity, quantity, orientation, edge and cut count.
+  up. Size on the sheet is still the part's own dimensions, not measured. (Corrected below: the cut
+  count and the edge facts turned out to come from the same function on both sides, so the check's value
+  is coverage, duplicate ids and the grouping key, not orientation, edge or cut count.)
 - Cut count: the cutlist prints a summed `Cuts` per merged row, so the row-level sum is compared and
   `qty`/`labels` are checked against members; dowel cut count is unassessed (the dowel list has none).
+  These are record-keeping comparisons, not independent ones (see the honesty correction below).
 - Packet: `buildCsv` regroups internally, so the packet now groups once and serialises via new
   `...FromRows` functions; existing signatures unchanged.
 - Panel: scoped and titled as the packet's inputs (all parts); toolbar deck uses visible parts only and
@@ -49,13 +51,15 @@ A single-pass max-level review (no fan-out) of the first spec found 14 issues; a
 
 ## 2026-10-01 — decisions made while planning and building
 
-- `cutCount` is counted from the builder's own cut partition so a divergence between the builder and the
-  cutlist can show; it equals `p.cuts.length` today, so discrimination is low. Stated, not hidden.
+- `cutCount` is counted from the builder's own cut partition; it equals `p.cuts.length` today, so it is
+  not an independent check. Stated, not hidden.
 - Finding sides are `left`/`right` rather than drawings/cutlist because the row-level checks compare a
   row against its own members, where neither word fits.
 - The panel's drawing location says "sheet N of the checked drawing set". The panel builds its own
   part-sheet list, which is not the deck any exported file contains, so a page number would be a claim
-  about a file that does not exist. The packet's location is the real PDF page.
+  about a file that does not exist. The packet's location is the real PDF page ("PDF page N");
+  `reconcileOutputs` takes a `locate` option, `'pdf-page'` by default and `'checked-set'` from
+  `reconcileScene`.
 - `NO_LIBRARY` is a module constant: a default `{}` parameter is a new object per render and made the
   `useMemo` recompute every time.
 - `compareFindings` (first called `byOrder`) is exported because the order cannot be observed through
@@ -97,10 +101,28 @@ Run against the code at HEAD ad49e91; every file was restored from a scratchpad 
 | 16 | row-level findings labelled with `row.labels` | first-member-label test | one test, but only for `qty`; `cuts` and `labels` individually **survived** | survived; the test now sets qty, labels and cuts together and asserts all three findings name the first member; each killed |
 | 17 | `compared` counts every cutlist part | missing-part tests | **none failed** | survived; both missing-part tests now assert `compared` is one fewer; killed (also with `drawings.size`) |
 
+## 2026-10-01 — honesty correction after a second max-level review
+
+The review proved by mutation that the check is sound as a guard on **coverage, duplicate ids and the
+`groupParts` grouping key**, and found the earlier wording claimed more. Corrected here, in the spec and
+in CLAUDE.md:
+
+- **Orientation** is erased by the canonical sort, so a swapped length and width cannot be seen.
+- **Edge code and edge materials** are produced on both sides by `edgesOf` / `edgeCode(isSwapped)` called
+  on the same part, so they cannot disagree unless a line is deleted.
+- **Cut count**: the sheet's count comes from an exhaustive switch that always equals `p.cuts.length`.
+- **Row-level `qty` and `labels`** are incremented in the same branch as `members.push`.
+- Dropping `${code}` and the per-edge materials from the grouping key left every reconciliation and
+  packet test green; a test with two boards in different edge stock of one thickness now kills it.
+
+None of these is an independent check; each catches only a deleted line. The panel and the packet must
+not be read as verifying them.
+
 ## Known limitations
 
-- Size on the sheet is the part's own dimensions, not measured off the drawn geometry, so size
-  discrimination is low. The check's value is mostly identity, quantity, orientation, edge and cut count.
+- Size on the sheet is the part's own dimensions, not measured off the drawn geometry. Orientation, edge
+  derivation and cut count are not independent checks: the check's value is coverage, duplicate ids and
+  the grouping key.
 - Renderer parity is unchecked: SVG, DXF and PDF each drawing every declared field is not compared, so
   a gap such as the PDF notes would not be caught. A `failed` result does not prove the PDF or CSV bytes.
 - A `failed` result means the two builders disagree. The designer cannot clear it by editing the model;
