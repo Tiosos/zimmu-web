@@ -339,6 +339,11 @@ describe('reconcileOutputs', () => {
     })
     const key = (x: ReconFinding) => [x.partId, x.kind, x.field ?? '', x.output ?? ''].join('/')
 
+    it('orders ids by code unit, not by locale', () => {
+      const shuffled = [f('a1', 'missing-from-drawings'), f('B1', 'missing-from-drawings')]
+      expect(shuffled.sort(compareFindings).map((x) => x.partId)).toEqual(['B1', 'a1'])
+    })
+
     it('orders one id by kind, then output', () => {
       const shuffled = [
         f('a', 'duplicate', { output: 'cutlist' }),

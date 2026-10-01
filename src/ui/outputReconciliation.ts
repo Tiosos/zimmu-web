@@ -152,8 +152,11 @@ const FIELD_RANK: Record<ReconField, number> = {
 }
 const OUTPUT_RANK: Record<ReconOutput, number> = { drawings: 0, cutlist: 1 }
 
+// Code-unit order: the result is hashed into the packet, so it cannot depend on the locale.
+const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
 export const compareFindings = (a: ReconFinding, b: ReconFinding): number =>
-  a.partId.localeCompare(b.partId) ||
+  byCodeUnit(a.partId, b.partId) ||
   KIND_RANK[a.kind] - KIND_RANK[b.kind] ||
   (a.field ? FIELD_RANK[a.field] : -1) - (b.field ? FIELD_RANK[b.field] : -1) ||
   (a.output ? OUTPUT_RANK[a.output] : -1) - (b.output ? OUTPUT_RANK[b.output] : -1)
