@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { Scene } from '../scene/types'
 import type { ProjectStructure } from '../scene/projectStructure'
 import { emptyRoomGeometry, moveRootToItem, roomComponentIds } from '../scene/projectStructure'
@@ -46,6 +47,14 @@ export function ProjectPanel({ project, scene, projectName, onChange, activeItem
       id: `item_${crypto.randomUUID()}`, name: 'New Joinery Item', rootComponentIds: [], rootPartIds: [],
     }] } : room),
   })) })
+  const roomIds = useMemo(
+    () => new Map(project.areas.flatMap((area) => area.rooms.map((room) =>
+      [room.id, roomComponentIds(room.items.flatMap((item) => item.rootComponentIds), scene)] as const))),
+    // roomComponentIds reads only scene.components and scene.parts; keying on the whole scene would
+    // rebuild every Set (and every wall elevation downstream) on a geometry-only edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [project.areas, scene.components, scene.parts],
+  )
   const items = project.areas.flatMap((a) => a.rooms.flatMap((r) => r.items))
   const roots = scene.components.filter((c) => c.parentId === null)
   const looseParts = scene.parts.filter((p) => p.parentId === null)
@@ -85,7 +94,7 @@ export function ProjectPanel({ project, scene, projectName, onChange, activeItem
               room.items.some((item) => item.rootComponentIds.includes(c.id))).map((c) => ({ id: c.id, label: c.label }))}
             onChange={(geometry) => changeGeometry(room.id, geometry)} />
           {room.geometry && <RoomAssessmentPanel room={room.geometry} roomName={room.name} projectName={projectName} scene={scene}
-            cabinetIds={roomComponentIds(room.items.flatMap((item) => item.rootComponentIds), scene)}
+            cabinetIds={roomIds.get(room.id)!}
             onChange={(geometry) => changeGeometry(room.id, geometry)} />}
         </div>)}
         <Button size="sm" variant="outline" onClick={() => addRoom(area.id)}>Add room</Button>
