@@ -365,7 +365,18 @@ describe('reconcileOutputs', () => {
     row.qty = row.members.length
     const dup = run(o).findings.filter((f) => f.kind === 'duplicate' && f.partId === bottom.id)
     expect(dup.map((f) => f.output)).toEqual(['drawings', 'cutlist'])
-    expect(run(o)).toEqual(run(o))
+    partSheet(o, boards[0].id).partLabel = 'Other'
+    partSheet(o, boards[1].id).material = 'Oak'
+    const shape = (r: ReturnType<typeof run>) =>
+      r.findings.map((f) => [f.partId, f.kind, f.field, f.output, f.left?.value, f.right?.value])
+    const forward = shape(run(o))
+    expect(forward.length).toBeGreaterThan(3)
+    const reversed = {
+      sheets: [...o.sheets].reverse(),
+      boardRows: [...o.boardRows].reverse(),
+      dowelRows: [...o.dowelRows].reverse(),
+    }
+    expect(shape(run(reversed))).toEqual(forward)
   })
 
   describe('compareFindings', () => {
