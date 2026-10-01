@@ -1,0 +1,262 @@
+import { describe, expect, it } from 'vitest'
+import { buildDrawingSheets, type DrawingSheet } from '../geom/drawing'
+import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
+import { PRESET_MATERIALS } from '../scene/carcasePresets'
+import type {
+  BoardPart,
+  Component,
+  ComponentId,
+  CylinderPart,
+  MaterialDef,
+  Part,
+} from '../scene/types'
+import { groupDowels, groupParts, type GroupedRow } from './buildCsv'
+import { ALWAYS_UNASSESSED, reconcileOutputs } from './outputReconciliation'
+
+const mats: Record<string, MaterialDef> = {
+  ...PRESET_MATERIALS,
+  'ABS 1mm': { thickness: 1, use: 'edge' },
+}
+const banded = { ...cabinet, params: { ...cabinet.params, edgeMaterial: 'ABS 1mm' } }
+const byId = new Map<ComponentId, Component>([[banded.id, banded]])
+const dowel: CylinderPart = {
+  kind: 'cylinder',
+  id: 'dowel_1',
+  label: 'Dowel 1',
+  diameter: 8,
+  length: 40,
+  material: '',
+  color: '#ca8',
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  rotationOrder: 'XYZ',
+  cuts: [],
+  visible: true,
+  parentId: banded.id,
+  driven: false,
+}
+const boards = partsOfCarcase(banded.params).filter((p): p is BoardPart => p.kind === 'board')
+const bottom = boards.find((p) => p.role === 'bottom')!
+
+function outputs(parts: Part[], withEdgeContext = true) {
+  return {
+    sheets: structuredClone(
+      buildDrawingSheets(
+        parts,
+        'Job',
+        [],
+        '2026-10-01',
+        undefined,
+        [],
+        withEdgeContext ? { materials: mats, byId } : undefined,
+      ),
+    ),
+    boardRows: structuredClone(groupParts(parts, mats, [banded])),
+    dowelRows: structuredClone(groupDowels(parts, mats)),
+  }
+}
+const run = (o: ReturnType<typeof outputs>) => reconcileOutputs(o.sheets, o.boardRows, o.dowelRows)
+const partSheet = (o: ReturnType<typeof outputs>, id: string) =>
+  o.sheets.find((s) => s.kind === 'part' && s.partId === id) as Extract<
+    DrawingSheet,
+    { kind: 'part' }
+  >
+const rowOf = (o: ReturnType<typeof outputs>, id: string): GroupedRow =>
+  o.boardRows.find((r) => r.members.some((m) => m.id === id))!
+const all: Part[] = [...boards, dowel]
+
+describe('reconcileOutputs', () => {
+  it('passes when the two builders agree, boards and dowels', () => {
+    const r = run(outputs(all))
+    expect(r.findings).toEqual([])
+    expect(r.status).toBe('passed')
+    expect(r.compared).toBe(all.length)
+  })
+
+  it('always lists what it did not compare', () => {
+    expect(run(outputs(all)).unassessed).toEqual(expect.arrayContaining(ALWAYS_UNASSESSED))
+  })
+
+  it('is unassessed when there is nothing to compare', () => {
+    const r = reconcileOutputs([], [], [])
+    expect(r.status).toBe('unassessed')
+    expect(r.compared).toBe(0)
+  })
+
+  it('reports a part with no sheet', () => {
+    const o = outputs(all)
+    o.sheets = o.sheets.filter((s) => !(s.kind === 'part' && s.partId === bottom.id))
+    expect(run(o)).toMatchObject({
+      status: 'failed',
+      findings: [expect.objectContaining({ kind: 'missing-from-drawings', partId: bottom.id })],
+    })
+  })
+
+  it('reports a part with no cutlist member', () => {
+    const o = outputs(all)
+    const row = rowOf(o, bottom.id)
+    row.members = row.members.filter((m) => m.id !== bottom.id)
+    row.qty = row.members.length
+    const r = run(o)
+    expect(r.findings).toContainEqual(
+      expect.objectContaining({ kind: 'missing-from-cutlist', partId: bottom.id }),
+    )
+  })
+
+  it('reports an id that appears twice, in either output', () => {
+    const o = outputs(all)
+    o.sheets.push(structuredClone(partSheet(o, bottom.id)))
+    expect(run(o).findings).toContainEqual(
+      expect.objectContaining({ kind: 'duplicate', output: 'drawings', partId: bottom.id }),
+    )
+    const p = outputs(all)
+    const row = rowOf(p, bottom.id)
+    row.members.push({ ...row.members.find((m) => m.id === bottom.id)! })
+    row.qty = row.members.length
+    expect(run(p).findings).toContainEqual(
+      expect.objectContaining({ kind: 'duplicate', output: 'cutlist', partId: bottom.id }),
+    )
+  })
+
+  it.each([
+    [
+      'label',
+      (o: ReturnType<typeof outputs>) => {
+        partSheet(o, bottom.id).partLabel = 'Other'
+      },
+    ],
+    [
+      'material',
+      (o) => {
+        partSheet(o, bottom.id).material = 'Oak'
+      },
+    ],
+    [
+      'color',
+      (o) => {
+        partSheet(o, bottom.id).color = '#000'
+      },
+    ],
+    [
+      'size',
+      (o) => {
+        const s = partSheet(o, bottom.id)
+        if (s.shape === 'board') s.board.length += 1
+      },
+    ],
+    [
+      'cutCount',
+      (o) => {
+        partSheet(o, bottom.id).cutCount += 1
+      },
+    ],
+    [
+      'edgeCode',
+      (o) => {
+        const s = partSheet(o, bottom.id)
+        if (s.shape === 'board' && s.edge) s.edge.code = '2L2S'
+      },
+    ],
+    [
+      'edgeMaterials',
+      (o) => {
+        const s = partSheet(o, bottom.id)
+        if (s.shape === 'board' && s.edge) s.edge.materials = ['ABS 9mm']
+      },
+    ],
+  ])('catches a difference in %s', (field, corrupt) => {
+    const o = outputs(all)
+    corrupt(o)
+    const r = run(o)
+    expect(r.status).toBe('failed')
+    expect(r.findings).toContainEqual(
+      expect.objectContaining({ kind: 'mismatch', field, partId: bottom.id }),
+    )
+    const own = r.findings.filter((f) => f.partId === bottom.id && f.kind === 'mismatch')
+    expect(own.filter((f) => f.field === field)).toHaveLength(1)
+    // A wrong sheet cut count also makes the row's printed Cuts disagree with its sheets, by design.
+    expect(own.filter((f) => f.field !== field && f.field !== 'cuts')).toEqual([])
+  })
+
+  it('catches a size difference on a dowel', () => {
+    const o = outputs(all)
+    const s = partSheet(o, dowel.id)
+    if (s.shape === 'dowel') s.dowel.diameter = 9
+    expect(run(o).findings).toContainEqual(
+      expect.objectContaining({ kind: 'mismatch', field: 'size', partId: dowel.id }),
+    )
+  })
+
+  describe('row level', () => {
+    it('catches a printed Qty that differs from its members', () => {
+      const o = outputs(all)
+      rowOf(o, bottom.id).qty += 1
+      expect(run(o).findings).toContainEqual(expect.objectContaining({ field: 'qty' }))
+    })
+    it('catches printed Labels that differ from its members', () => {
+      const o = outputs(all)
+      rowOf(o, bottom.id).labels = 'Wrong'
+      expect(run(o).findings).toContainEqual(expect.objectContaining({ field: 'labels' }))
+    })
+    it('catches a printed summed Cuts that differs from the sheets', () => {
+      const o = outputs(all)
+      rowOf(o, bottom.id).cuts += 3
+      expect(run(o).findings).toContainEqual(expect.objectContaining({ field: 'cuts' }))
+    })
+    it('still agrees when identical boards merge into one row', () => {
+      const trio = [0, 1, 2].map(
+        (i): BoardPart => ({ ...bottom, id: `t${i}`, label: `Shelf ${i}` }),
+      )
+      const o = outputs(trio)
+      expect(o.boardRows).toHaveLength(1)
+      expect(o.boardRows[0].qty).toBe(3)
+      expect(run(o).status).toBe('passed')
+    })
+  })
+
+  describe('orientation', () => {
+    it('agrees for a grain-width board and still catches a real size change on it', () => {
+      const g: BoardPart = { ...bottom, id: 'g', grain: 'width' }
+      const o = outputs([g])
+      expect(run(o).status).toBe('passed')
+      const s = partSheet(o, 'g')
+      if (s.shape === 'board') s.board.width += 1
+      expect(run(o).findings).toContainEqual(
+        expect.objectContaining({ kind: 'mismatch', field: 'size', partId: 'g' }),
+      )
+    })
+  })
+
+  it('treats a sheet built without an edge context as not carrying edges', () => {
+    const r = run(outputs(all, false))
+    expect(r.findings).toEqual([])
+    expect(r.status).toBe('passed')
+    expect(r.unassessed.some((u) => /without an edge context/i.test(u))).toBe(true)
+    expect(run(outputs(all)).unassessed.some((u) => /without an edge context/i.test(u))).toBe(false)
+  })
+
+  it('orders findings totally: id, then kind, then field, then output', () => {
+    const o = outputs(all)
+    o.sheets.push(structuredClone(partSheet(o, bottom.id)))
+    const row = rowOf(o, bottom.id)
+    row.members.push({ ...row.members.find((m) => m.id === bottom.id)! })
+    row.qty = row.members.length
+    const dup = run(o).findings.filter((f) => f.kind === 'duplicate' && f.partId === bottom.id)
+    expect(dup.map((f) => f.output)).toEqual(['drawings', 'cutlist'])
+    expect(run(o)).toEqual(run(o))
+  })
+
+  it('caps findings at 200 and says how many there were', () => {
+    const many = Array.from(
+      { length: 250 },
+      (_, i): BoardPart => ({ ...bottom, id: `m${i}`, label: `B${i}` }),
+    )
+    const o = outputs(many)
+    for (const s of o.sheets) if (s.kind === 'part') s.partLabel = 'X'
+    const r = run(o)
+    expect(r.totalFindings).toBe(250)
+    expect(r.findings).toHaveLength(200)
+    expect(r.truncated).toBe(true)
+    expect(run(outputs(all)).truncated).toBe(false)
+  })
+})
