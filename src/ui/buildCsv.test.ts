@@ -646,6 +646,19 @@ describe('cutlist edge banding', () => {
     expect(plain.edgeCode).toBe('')
   })
 
+  it('does not merge boards of one cut size and code banded in different materials', () => {
+    const twoStocks: Record<string, MaterialDef> = {
+      ...mats,
+      'PVC 1mm': { thickness: 1, use: 'edge', costPerM: 3 },
+    }
+    const other: BoardPart = { ...bottom, id: 'other', edgeBanding: { y0: 'PVC 1mm' } }
+    const rows = groupParts([bottom, other], twoStocks, components)
+    expect(rows).toHaveLength(2)
+    expect(rows[0].edgeCode).toBe(rows[1].edgeCode)
+    expect(rows[0].length).toBe(rows[1].length)
+    expect(rows.map((r) => r.edgeMaterials).sort()).toEqual(['ABS 1mm', 'PVC 1mm'])
+  })
+
   it('does not merge identical boards whose edges differ', () => {
     const other: BoardPart = { ...bottom, id: 'other', edgeBanding: { y0: null } }
     expect(groupParts([bottom, other], mats, components)).toHaveLength(2)

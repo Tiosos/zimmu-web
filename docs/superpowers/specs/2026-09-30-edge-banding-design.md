@@ -81,7 +81,7 @@ the cutlist and the drawings therefore cannot say what the saw cuts.
   builds masks from what it receives. The job signature includes the edge state. `useNest` and its
   callers gain the components that edge resolution needs.
 - **Part drawing.** `buildBoardSheet` appends one line to `manufacturingNotes`, for example
-  `Edge 2L1S — ABS white 1 mm`. The SVG, DXF and PDF part title blocks already print those notes.
+  `Edge 2L1S — ABS white 1 mm`. The SVG and DXF part title blocks already print those notes; PDF did not (see Refinements).
 
 ## Editing
 
@@ -89,7 +89,7 @@ the cutlist and the drawings therefore cannot say what the saw cuts.
 - Part editor: a per-edge control (`x0 x1 y0 y1`), each Follow cabinet, None or a material, labelled
   with its cutlist meaning (for example "front edge" on a generated side). Disabled on a mitred
   board.
-- Material form: an "Edge band" flag that hides the sheet-size fields.
+- Edge stock: a small "Add edge band" form (name and thickness) in the cabinet panel, calling the existing `onUpdateMaterial` (see Refinements).
 
 ## Errors
 
@@ -105,6 +105,19 @@ the cutlist and the drawings therefore cannot say what the saw cuts.
   viewport, and is read only by the outputs.
 - The edge rule is stated in carcase terms and derived through the panel axis map.
 - The cut-size subtraction is stated once.
+
+## Refinements made while planning and building
+
+- Direction to edge is found by rotating the four board edge normals by the part's own rotation and matching the carcase direction, not by a thickness-axis table.
+- There is no material form to hang an "Edge band" flag on, so edge stock is added through an "Add edge band" form in the cabinet panel instead of a material form.
+- The new CSV columns are appended after `Total`, so every existing column keeps its place.
+- The mitre guard lives in `edgesOf`: a mitred board reports no edges, covering every consumer.
+- A dangling cabinet `edgeMaterial` is not a file error and means no banding: `edgesOf` takes the materials and applies the cabinet rule only when the named material is edge stock.
+- `buildDrawingSheets` gained a seventh parameter, `edgeContext`; `buildProductionPacket` passes it as well.
+- `useNest` takes the components, because resolving a board's edges needs its cabinet.
+- `isSwapped` (the cutlist orientation rule) lives in `src/scene/grain.ts`.
+- The claim above that the SVG, DXF and PDF title blocks already print `manufacturingNotes` was wrong for PDF. Fixed: PDF now prints them, which also restores hinge and template notes that PDF part sheets silently lacked.
+- The per-edge editor labels are the board-axis names `x0`/`x1`/`y0`/`y1`.
 
 ## Out of scope
 
