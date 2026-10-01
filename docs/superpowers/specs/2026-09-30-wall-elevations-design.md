@@ -55,7 +55,8 @@ page offset or a scale.
   The word "drawn" is in the label itself, honouring the Stage 2 rule that a drawn length is never
   presented as a site measurement.
 - **Left (vertical):** each cabinet's height; each opening's sill height and height. Overlapping
-  dimensions stack into rings 1 and 2.
+  dimensions stack into rings 1, 2 and 3 (the first ring a dimension does not overlap; a fourth
+  overlapping one shares ring 3). Ring 3's width is reserved only when a dimension is placed on it.
 
 ## Sheet (`drawing.ts`)
 
@@ -64,7 +65,7 @@ ring; view: PlacedWallElevationView }`.
 
 - One sheet per wall that has a span or a measured length. A zero-length wall gives none; a wall
   with no spans still shows its length dimension.
-- Scale: the largest `ELEVATION_SCALES` entry that fits (`[...STANDARD_SCALES, 0.02, 0.01, 0.005]`;
+- Scale: the largest `ELEVATION_SCALES` entry that fits (`[...STANDARD_SCALES, 0.02, 0.01, 0.005, 0.002]`, i.e. down to 1:500;
   `STANDARD_SCALES` stops at 1:20 and is left alone for board and assembly sheets), with the ring reserved on all four sides
   (as `selectAssemblyScale` does). About 3983 mm fits at 1:20 on A4 landscape; over about 4900 mm
   drops to 1:50.
@@ -85,8 +86,8 @@ ring; view: PlacedWallElevationView }`.
   memoised per wall, keeps the
   `data-testid="elevation-<id>"` hooks, and adds per-wall SVG/DXF export via `sheetFilename.ts` and
   `downloadBlob`.
-- `DrawingViewer` lists elevation sheets without change to its switching logic; `App` builds the
-  inputs from the project's rooms.
+- `DrawingViewer` gains one line: the sheet label for an elevation (`Elevation — <room> / <wall>`);
+  its switching logic is otherwise unchanged. `App` builds the inputs from the project's rooms.
 
 ## Out of scope
 
@@ -116,10 +117,11 @@ Deterministic tests on the pure builder; each guard mutation-tested per CLAUDE.m
 ## Refinements decided during planning and review
 
 - `wallElevation()` stays in `roomAssessment.ts`; the builder wraps it. Surgical, no behaviour change.
-- `ELEVATION_SCALES` extends `STANDARD_SCALES` with 1:50, 1:100, 1:200 for elevation sheets only.
+- `ELEVATION_SCALES` extends `STANDARD_SCALES` with 1:50, 1:100, 1:200 and 1:500 for elevation sheets
+  only (1:500 added in review: a 60 m wall overflowed at 1:200).
 - A span hanging past a wall end widens `bounds`; `originX` is where the wall start sits in view space.
 - Ring width is sized from vertical labels only.
-- Vertical dimensions: cabinet heights left, opening sill/height right; overlapping ones go to ring 2;
+- Vertical dimensions: cabinet heights left, opening sill/height right; overlapping ones go to the first free ring of 1, 2, 3;
   identical ones are emitted once.
 - The Room panel takes `roomName` and `projectName` props, passed by `ProjectPanel`.
 - Review fix: `buildSvg(sheet, { embedded: true })` for the panel, so the embedded preview carries no

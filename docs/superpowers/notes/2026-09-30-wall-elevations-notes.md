@@ -54,4 +54,48 @@ No mutation survived, so the only test added was the tolerance-boundary row for 
 - The PDF label test uses a measured fixture: an em dash is not a one-byte round trip through the text
   reader, so a plain length assertion would be wrong.
 - Two walls with the same name in one room collide on the export filename.
-- A name outside WinAnsi fails the deck PDF, exactly as part labels already do.
+- A name outside WinAnsi does not fail the deck PDF: `buildPdf` replaces such characters with
+  `[U+XXXX]` (the review ran "厨房", "→" and "≠" names and each produced a PDF). The text is
+  substituted, not drawn, so such a name reads oddly on the PDF page.
+
+## Review follow-ups
+
+Fixed after the max-level review, one commit each:
+
+- Overlapping vertical dimensions: `AssemblyDim.ring` is now `1 | 2 | 3` and `RING_EM` has a third
+  entry (3.1 em, spaced like the others; entries 1 and 2 are untouched, so cabinet sheets and panes
+  are byte-identical). `ringed` gives each dimension the first ring whose intervals it does not
+  overlap; a fourth overlapping one shares ring 3. `elevationRing` reserves ring 3's width only when a
+  ring-3 dimension exists. Before, a Base 600, a wall unit at z = 1400 and a Tall 600 put "1400" and
+  "2100" on one line of ring 2.
+- DXF: the elevation title and the warning line are left-justified (group 72 = 0, no second
+  alignment point), so a long title no longer starts left of the page. `dxfText` now writes DXF-safe
+  text everywhere (`±` to `%%p`, `—` to `-`) because the file is AC1009 with no code page. Openings are
+  drawn with `dxfDashedLine` (HIDDEN layer, DASHED linetype), as SVG and PDF dash them. One existing
+  test asserted the raw `—`/`±` and now asserts the escaped form.
+- Spans below the floor: the view shifts z so the lowest drawn z is 0 and records `floorZ` (0 on a
+  normal wall); all three renderers draw the floor line at `floorZ`. Dimension labels keep their real
+  heights; only start/end are in view space.
+- 1:500 added to `ELEVATION_SCALES`.
+- `ProjectPanel` memoises each room's cabinet id set, so the Room panel's elevation memo is stable.
+- A zero-length wall says "This wall has zero length, so no elevation can be drawn."
+- Rule change: the `verified` test in `buildWallElevation` is `|drawn - value| <= max(uncertainty,
+  0.5)`. A zero uncertainty and a float drawn length (from `hypot`) otherwise read as a disagreement
+  ("drawn 3983 / site 3983 ±0"). The printed uncertainty is unchanged.
+- Tests that could not fail now can: deck order with a cabinet present (mutation: swapping elevation
+  and assembly fails it), a moved and turned room (mutation: ignoring the room transform in
+  `wallElevation` fails it), and a height-bound scale (mutation: dropping the `h` term gives 1:5, not
+  1:50).
+
+Known and not fixed:
+
+- Rounded chain labels need not sum to the overall length (sub-millimetre).
+- `EPS` merging can drift a breakpoint by under 1 mm.
+- The embedded preview renders 2 mm text at about 4 px in a ~600 px panel.
+- Vertical dimensions have no extension lines, so on a multi-cabinet wall which "720" belongs to which
+  cabinet is ambiguous.
+- Very long room or wall names run into the title block's Scale field after about 35 characters, in
+  every format.
+- Same-named walls in one room share an export filename.
+- The production packet's drawings never include wall elevations (it passes `rooms = []`). Out of
+  scope here; the decision is pending with the user.
