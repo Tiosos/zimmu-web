@@ -132,6 +132,20 @@ describe('cut size', () => {
     expect(cutSizeOf(part(), e('ABS 1mm', 'ABS 2mm', null, null), materials).length).toBe(561)
   })
 
+  it.each([
+    [0.4, 718.4, 519.7],
+    [0.45, 718.35, 519.65],
+    [0.7, 718.1, 519.4],
+    [0.8, 718, 519.3],
+  ])('leaves no float noise with a %f mm band', (t, length, width) => {
+    const m = { ...materials, thin: { thickness: t, use: 'edge' as const } }
+    const r = cutSizeOf(part({ length: 718.8, width: 520.1 }), e('thin', null, 'thin', null), m)
+    expect(r.length).toBe(length)
+    expect(r.width).toBe(width)
+    const two = cutSizeOf(part({ length: 564.5, width: 520.1 }), e('thin', 'thin', null, null), m)
+    expect(two.length).toBe(Math.round((564.5 - 2 * t) * 100) / 100)
+  })
+
   it('reports a problem rather than a clamped size when nothing is left', () => {
     const r = cutSizeOf(part({ width: 2 }), e(null, null, 'ABS 1mm', 'ABS 1mm'), materials)
     expect(r.width).toBe(0)

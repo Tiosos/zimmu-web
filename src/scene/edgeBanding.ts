@@ -101,6 +101,8 @@ function thicknessOfEdge(name: string | null, materials: Record<string, Material
   return materials[name]?.thickness ?? null
 }
 
+const round2 = (v: number): number => Math.round(v * 100) / 100
+
 // The one statement of the subtraction: a banded x-edge removes its thickness from the LENGTH, a
 // banded y-edge from the WIDTH. Board axes; the cutlist reorders by grain afterwards.
 export function cutSizeOf(
@@ -120,6 +122,8 @@ export function cutSizeOf(
     if (key === 'x0' || key === 'x1') length -= t
     else width -= t
   }
+  length = round2(length)
+  width = round2(width)
   if (problem === undefined && (length <= 0 || width <= 0)) {
     problem = 'cut size is zero or negative'
   }

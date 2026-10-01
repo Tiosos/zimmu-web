@@ -666,6 +666,31 @@ describe('cutlist edge banding', () => {
     expect(groupParts([bottom, other], mats, components)).toHaveLength(2)
   })
 
+  describe('float noise in a cut size', () => {
+    const thin: Record<string, MaterialDef> = { ...mats, 'ABS 0.45': { thickness: 0.45, use: 'edge' } }
+    const noisy = (id: string, length: number): BoardPart => ({
+      ...bottom,
+      id,
+      length,
+      width: 300,
+      grain: 'length',
+      edgeBanding: { x0: 'ABS 0.45' },
+    })
+
+    it('shows the clean figure in the row and the CSV text', () => {
+      const row = groupParts([noisy('a', 616.55)], thin, components)[0]
+      expect(row.length).toBe(616.1)
+      expect(buildCsv([noisy('a', 616.55)], thin, components)).not.toMatch(/616\.0999/)
+    })
+
+    it('groups identical boards into one row whose key carries the clean figure', () => {
+      const rows = groupParts([noisy('a', 616.55), noisy('b', 616.55)], thin, components)
+      expect(rows).toHaveLength(1)
+      expect(rows[0].qty).toBe(2)
+      expect(rows[0].key).not.toMatch(/616\.0999/)
+    })
+  })
+
   it('flags a cut size that has run out', () => {
     const thin: BoardPart = { ...bottom, width: 1, edgeBanding: { y0: 'ABS 1mm', y1: 'ABS 1mm' } }
     const row = groupParts([thin], mats, components)[0]
