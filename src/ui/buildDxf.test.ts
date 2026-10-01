@@ -398,6 +398,8 @@ describe('buildDxf — assembly sheets', () => {
   })
 })
 
+const dxfSafe = (text: string): string => text.replaceAll('±', '%%p').replaceAll('—', '-')
+
 describe('buildDxf — elevation sheets', () => {
   const sheet = () => {
     const f = kitchenWall(SITE)
@@ -412,8 +414,8 @@ describe('buildDxf — elevation sheets', () => {
   it('carries every dimension label and the title, and goes through the shared tables', () => {
     const s = sheet()
     const dxf = buildDxf(s)
-    for (const d of s.view.dims) expect(dxf).toContain(d.label)
-    expect(dxf).toContain('Kitchenette — Kitchen')
+    for (const d of s.view.dims) expect(dxf).toContain(dxfSafe(d.label))
+    expect(dxf).toContain('Kitchenette - Kitchen')
     expect(dxf).toContain('2\nTABLES')
   })
 
@@ -422,5 +424,48 @@ describe('buildDxf — elevation sheets', () => {
     // dxfDimLine emits three DIM-layer lines per dimension: the line and two ticks.
     const dimLines = buildDxf(s).split('\n8\nDIM\n').length - 1
     expect(dimLines).toBe(s.view.dims.length * 3)
+  })
+
+  // `entitiesOf` splits on every '\n0\n', which also eats a group VALUE of 0 (a left-justified 72).
+  const textOf = (dxf: string, content: string): string => {
+    const found = dxf
+      .split(/\n0\n(?=[A-Z]+\n)/)
+      .filter((e) => e.startsWith('TEXT\n'))
+      .find((e) => group(e, '1') === content)
+    if (!found) throw new Error(`no TEXT entity reading ${content}`)
+    return found
+  }
+
+  it('left-justifies the title and the warning at the title block, not around it', () => {
+    const dxf = buildDxf({ ...sheet(), verified: false })
+    for (const content of ['Kitchenette - Kitchen', 'Wall length not site-verified']) {
+      const text = textOf(dxf, content)
+      expect(group(text, '72')).toBe('0')
+      expect(group(text, '10')).toBe('19.000')
+    }
+  })
+
+  it('leaves every other sheet centre-justified', () => {
+    const dxf = buildDxf(buildDrawingSheets([], 'Job', [], '2026-09-30')[0])
+    const texts = entitiesOf(dxf, 'TEXT')
+    expect(texts.length).toBeGreaterThan(0)
+    expect(texts.every((e) => group(e, '72') === '1')).toBe(true)
+  })
+
+  it('writes a plus-minus as %%p and an em dash as a hyphen, so an R12 reader does not garble them', () => {
+    const dxf = buildDxf(sheet())
+    expect(dxf).toContain('3983 %%p5 (site)')
+    expect(dxf).not.toMatch(/[±—]/)
+  })
+
+  it('dashes an opening and leaves a cabinet solid', () => {
+    const lines = entitiesOf(buildDxf(sheet()), 'LINE')
+    const dashed = lines.filter((e) => group(e, '6') === 'DASHED')
+    expect(dashed).toHaveLength(4)
+    expect(dashed.every((e) => group(e, '8') === 'HIDDEN')).toBe(true)
+    const outline = lines.filter((e) => group(e, '8') === 'OUTLINE')
+    expect(outline.length).toBeGreaterThan(0)
+    expect(outline.every((e) => group(e, '6') === '')).toBe(true)
+    expect(lines.filter((e) => group(e, '8') === 'CUTS')).toHaveLength(0)
   })
 })
