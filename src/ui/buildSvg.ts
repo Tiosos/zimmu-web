@@ -517,7 +517,7 @@ function renderElevationView(view: PlacedWallElevationView, scale: number): stri
 
   out.push(
     svgText(px, py - 2, view.wallName, { 'font-size': '3', fill: '#888', 'font-family': 'sans-serif' }),
-    svgLine(px, fy(0), fx(view.bounds.w), fy(0), { stroke: '#000', 'stroke-width': '0.5' }),
+    svgLine(px, fy(view.floorZ), fx(view.bounds.w), fy(view.floorZ), { stroke: '#000', 'stroke-width': '0.5' }),
   )
 
   for (const span of view.spans) {

@@ -24,6 +24,9 @@ export interface WallElevationView {
   bounds: Rect2D
   // Where the wall's own start sits in view space: 0 unless a span hangs out past the start.
   originX: number
+  // Where the floor sits in view space: 0 unless a span hangs below it, in which case everything is
+  // shifted up so the lowest thing drawn is at 0. Dimension LABELS keep their real heights.
+  floorZ: number
   spans: ElevationSpan[]
   dims: AssemblyDim[]
   length: WallLength
@@ -56,7 +59,12 @@ function ringed(dims: FlatDim[]): AssemblyDim[] {
   })
 }
 
-function verticalDims(spans: ElevationSpan[], kind: ElevationSpan['kind'], side: 'left' | 'right'): AssemblyDim[] {
+function verticalDims(
+  spans: ElevationSpan[],
+  kind: ElevationSpan['kind'],
+  side: 'left' | 'right',
+  floorZ: number,
+): AssemblyDim[] {
   const seen = new Set<string>()
   const flat: FlatDim[] = []
   const add = (start: number, end: number) => {
@@ -66,7 +74,7 @@ function verticalDims(spans: ElevationSpan[], kind: ElevationSpan['kind'], side:
     flat.push({ axis: 'v', side, start, end, label: mm(end - start) })
   }
   for (const span of spans.filter((s) => s.kind === kind)) {
-    if (span.z0 > EPS) add(0, span.z0)
+    if (span.z0 > floorZ + EPS) add(floorZ, span.z0)
     add(span.z0, span.z1)
   }
   return ringed(flat)
@@ -82,7 +90,15 @@ export function buildWallElevation(
   const raw = wallElevation(room, wall, scene, cabinetIds)
   const xMin = Math.min(0, ...raw.map((s) => s.x0))
   const xMax = Math.max(drawn, ...raw.map((s) => s.x1))
-  const spans = raw.map((s) => ({ ...s, x0: s.x0 - xMin, x1: s.x1 - xMin }))
+  const lowest = Math.min(0, ...raw.map((s) => s.z0))
+  const floorZ = lowest < 0 ? -lowest : 0
+  const spans = raw.map((s) => ({
+    ...s,
+    x0: s.x0 - xMin,
+    x1: s.x1 - xMin,
+    z0: s.z0 + floorZ,
+    z1: s.z1 + floorZ,
+  }))
   const originX = 0 - xMin
 
   const measured = wall.measuredLength
@@ -116,8 +132,14 @@ export function buildWallElevation(
     wallName: wall.name,
     bounds: { x: 0, y: 0, w: xMax - xMin, h: Math.max(1, ...spans.map((s) => s.z1)) },
     originX,
+    floorZ,
     spans,
-    dims: [...chain, overall, ...verticalDims(spans, 'cabinet', 'left'), ...verticalDims(spans, 'opening', 'right')],
+    dims: [
+      ...chain,
+      overall,
+      ...verticalDims(spans, 'cabinet', 'left', floorZ),
+      ...verticalDims(spans, 'opening', 'right', floorZ),
+    ],
     length,
   }
 }

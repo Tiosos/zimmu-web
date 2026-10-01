@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildDxf } from './buildDxf'
 import { assemblyDimLine, buildDrawingSheets, buildWallElevationSheets } from '../geom/drawing'
-import { kitchenWall, SITE } from '../geom/__fixtures__/wallElevation'
+import { kitchenWall, SITE, wallCabinet, wallScene } from '../geom/__fixtures__/wallElevation'
 import type { PlacedAssemblyView } from '../geom/drawing'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
@@ -467,5 +467,28 @@ describe('buildDxf — elevation sheets', () => {
     expect(outline.length).toBeGreaterThan(0)
     expect(outline.every((e) => group(e, '6') === '')).toBe(true)
     expect(lines.filter((e) => group(e, '8') === 'CUTS')).toHaveLength(0)
+  })
+
+  it('draws the floor line above the bottom of a cabinet that sinks below it', () => {
+    const f = kitchenWall()
+    const sunk = { ...wallCabinet('sunk', 0), position: { x: 0, y: 0, z: -300 } }
+    const room = {
+      ...f.room,
+      openings: [],
+      placements: [{ cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } }],
+    }
+    const s = buildWallElevationSheets(
+      { roomName: 'R', room, scene: wallScene([sunk]), cabinetIds: new Set(['sunk']) },
+      'd',
+    )[0]
+    if (s.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    const ys = entitiesOf(buildDxf(s), 'LINE')
+      .filter((e) => group(e, '8') === 'OUTLINE')
+      .map((e) => Number(group(e, '20')))
+    const bottom = 210 - (s.view.placement.y + s.view.bounds.h * s.scale)
+    const floor = bottom + s.view.floorZ * s.scale
+    expect(Math.min(...ys)).toBeCloseTo(bottom, 2)
+    expect(ys.some((y) => Math.abs(y - floor) < 1e-2)).toBe(true)
+    expect(floor).toBeGreaterThan(bottom)
   })
 })

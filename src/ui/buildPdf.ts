@@ -371,8 +371,8 @@ function renderPdfElevationView(
 
   page.drawText(view.wallName, { x: pt(px), y: yflip(py - 2), size: pt(3), font, color: C_GRAY })
   page.drawLine({
-    start: { x: pt(px), y: yflip(fy(0)) },
-    end: { x: pt(fx(view.bounds.w)), y: yflip(fy(0)) },
+    start: { x: pt(px), y: yflip(fy(view.floorZ)) },
+    end: { x: pt(fx(view.bounds.w)), y: yflip(fy(view.floorZ)) },
     thickness: pt(0.5),
     color: C_BLACK,
   })

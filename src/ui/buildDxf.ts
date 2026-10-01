@@ -368,7 +368,7 @@ function dxfElevationView(view: PlacedWallElevationView, scale: number): string 
   const fy = (v: number) => py + (H - v) * scale
   const out: string[] = [
     dxfText('TEXT', px, py - 2, 3, view.wallName),
-    dxfLine('OUTLINE', px, fy(0), fx(view.bounds.w), fy(0)),
+    dxfLine('OUTLINE', px, fy(view.floorZ), fx(view.bounds.w), fy(view.floorZ)),
   ]
   for (const span of view.spans) {
     const x0 = fx(span.x0)

@@ -173,6 +173,28 @@ describe('buildWallElevation', () => {
     expect(start.bounds.w).toBeCloseTo(4183)
   })
 
+  it('keeps a span below the floor inside the bounds, with the floor above its bottom', () => {
+    const sunk = { ...wallCabinet('sunk', 0), position: { x: 0, y: 0, z: -300 } }
+    const room: RoomGeometry = {
+      ...kitchenWall().room,
+      openings: [],
+      placements: [{ cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } }],
+    }
+    const view = buildWallElevation(room, room.walls[0], wallScene([sunk]), new Set(['sunk']))
+    const span = view.spans[0]
+    expect(view.floorZ).toBe(300)
+    expect(span.z0).toBe(0)
+    expect(view.bounds.h).toBeCloseTo(span.z1)
+    expect(view.floorZ).toBeGreaterThan(span.z0)
+    const height = view.dims.find((d) => d.side === 'left')!
+    expect([height.start, height.end]).toEqual([span.z0, span.z1])
+    expect(height.label).toBe('720')
+  })
+
+  it('puts the floor at 0 on a normal wall', () => {
+    expect(build().floorZ).toBe(0)
+  })
+
   it('still draws an empty wall, with only its length', () => {
     const f = kitchenWall()
     const room = { ...f.room, openings: [], placements: [] }

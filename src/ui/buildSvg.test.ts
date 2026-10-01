@@ -7,7 +7,7 @@ import {
   MARGIN,
   TITLE_H,
 } from '../geom/drawing'
-import { kitchenWall, SITE } from '../geom/__fixtures__/wallElevation'
+import { kitchenWall, SITE, wallCabinet, wallScene } from '../geom/__fixtures__/wallElevation'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { cabinet, partsOfBase600, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
@@ -551,6 +551,28 @@ describe('buildSvg — elevation sheets', () => {
       `<rect x="${(px + cabinet.x0 * sheet.scale).toFixed(3)}" y="${top.toFixed(3)}"`,
     )
     expect(top).toBeLessThan(floorY)
+  })
+
+  it('draws the floor line above the bottom of a cabinet that sinks below it', () => {
+    const f = kitchenWall()
+    const sunk = { ...wallCabinet('sunk', 0), position: { x: 0, y: 0, z: -300 } }
+    const room = {
+      ...f.room,
+      openings: [],
+      placements: [{ cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } }],
+    }
+    const sheet = buildWallElevationSheets(
+      { roomName: 'R', room, scene: wallScene([sunk]), cabinetIds: new Set(['sunk']) },
+      'd',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    const { y: py } = sheet.view.placement
+    const bottom = py + sheet.view.bounds.h * sheet.scale
+    const floor = bottom - sheet.view.floorZ * sheet.scale
+    const svg = buildSvg(sheet)
+    expect(floor).toBeLessThan(bottom)
+    expect(svg).toContain(`y1="${floor.toFixed(3)}" x2=`)
+    expect(svg).toContain(`<rect x="${sheet.view.placement.x.toFixed(3)}" y="${(bottom - sheet.view.spans[0].z1 * sheet.scale).toFixed(3)}"`)
   })
 
   it('draws an opening dashed and a cabinet solid', () => {
