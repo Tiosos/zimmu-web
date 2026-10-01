@@ -872,6 +872,18 @@ describe('wall elevation sheets', () => {
     expect(sheet.scaleLabel).toBe('1:50')
   })
 
+  it('falls to 1:500 for a 60 m wall and still fits the page', () => {
+    const f = kitchenWall()
+    const room = { ...f.room, walls: [{ ...f.room.walls[0], end: { x: 60000, y: 0 } }] }
+    const sheet = buildWallElevationSheets(
+      { roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds },
+      'd',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    expect(sheet.scaleLabel).toBe('1:500')
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(297 - 2 * MARGIN - 2 * sheet.ring + 1e-9)
+  })
+
   it('skips a zero-length wall and a wall with neither a span nor a site length', () => {
     const f = kitchenWall()
     const room = {

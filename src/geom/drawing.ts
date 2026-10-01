@@ -617,7 +617,7 @@ function buildAssemblySheet(input: CabinetSheetInput, date: string): DrawingShee
 
 // STANDARD_SCALES stops at 1:20, which a 4.9 m wall already overflows. Only elevation sheets need
 // the smaller ones, so board and assembly sheets keep the scales they always had.
-const ELEVATION_SCALES = [...STANDARD_SCALES, 0.02, 0.01, 0.005]
+const ELEVATION_SCALES = [...STANDARD_SCALES, 0.02, 0.01, 0.005, 0.002]
 
 // Only the vertical labels set the side rings' width. The long horizontal provenance label lies
 // along ring 2 and needs height, not width, so sizing from it would reserve ~50 mm a side for nothing.
