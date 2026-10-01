@@ -5,7 +5,9 @@ import { cabinet } from '../geom/__fixtures__/cabinetSheet'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import type { CarcaseComponent, Scene } from '../scene/types'
-import { buildCsv } from './buildCsv'
+import { buildCsv, buildDowelCsv } from './buildCsv'
+import { effectiveMaterialsOf } from './effectiveMaterials'
+import { reconcileScene } from './outputReconciliation'
 import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
 
 const sceneOf = (): Scene =>
@@ -42,6 +44,7 @@ describe('production handoff packet', () => {
       'lists/dowels.csv',
       'lists/hardware.csv',
       'manifest.json',
+      'readiness/reconciliation.json',
       'readiness/report.pdf',
     ])
     const manifest = JSON.parse(strFromU8(zip['manifest.json']))
@@ -185,5 +188,78 @@ describe('production handoff packet', () => {
       if (content.toLowerCase().includes(hexOf('Edge 1'))) found = true
     }
     expect(found).toBe(true)
+  })
+})
+
+describe('reconciliation in the packet', () => {
+  const packetOf = async (scene: Scene) =>
+    unzipSync(
+      await buildProductionPacket({
+        scene,
+        projectName: 'Workshop A',
+        hardwareLibrary: {},
+        materialLibrary: {},
+        capturedAt,
+      }),
+    )
+
+  it('records the result in the manifest and writes it as a hashed file', async () => {
+    const files = await packetOf(sceneOf())
+    const manifest = JSON.parse(strFromU8(files['manifest.json']))
+    expect(manifest.reconciliation).toMatchObject({ status: 'passed' })
+    expect(manifest.reconciliation.compared).toBeGreaterThan(0)
+    expect(manifest.reconciliation.unassessed.length).toBeGreaterThan(0)
+    expect(manifest.files.map((f: { path: string }) => f.path)).toContain(
+      'readiness/reconciliation.json',
+    )
+    const raw = strFromU8(files['readiness/reconciliation.json'])
+    expect(raw.endsWith('}\n')).toBe(true)
+    expect(raw).toContain('\n  "status"')
+    expect(JSON.parse(raw).status).toBe(manifest.reconciliation.status)
+    expect(manifest.scope).toContain('advisory and does not block any export')
+  })
+
+  it('writes the same CSV text the part-based serialisers produce', async () => {
+    const scene = sceneOf()
+    const files = await packetOf(scene)
+    const merged = effectiveMaterialsOf({}, scene.materials)
+    expect(strFromU8(files['lists/boards.csv'])).toBe(
+      buildCsv(scene.parts, merged, scene.components),
+    )
+    expect(strFromU8(files['lists/dowels.csv'])).toBe(buildDowelCsv(scene.parts, merged))
+  })
+
+  it('still builds every export when the check fails', async () => {
+    const base = sceneOf()
+    const dup: Scene = { ...base, parts: [...base.parts, structuredClone(base.parts[0])] }
+    const files = await packetOf(dup)
+    expect(JSON.parse(strFromU8(files['manifest.json'])).reconciliation.status).toBe('failed')
+    for (const path of [
+      'readiness/report.pdf',
+      'drawings/shop-drawings.pdf',
+      'lists/boards.csv',
+      'lists/dowels.csv',
+      'lists/hardware.csv',
+    ])
+      expect(files[path].byteLength).toBeGreaterThan(0)
+  })
+
+  it('gives the packet and the panel helper the same verdict for one scene', async () => {
+    const scene = sceneOf()
+    const files = await packetOf(scene)
+    const packet = JSON.parse(strFromU8(files['readiness/reconciliation.json']))
+    const panel = reconcileScene(scene, {})
+    const shape = (r: {
+      status: string
+      compared: number
+      totalFindings: number
+      findings: { kind: string; field?: string; partId: string }[]
+    }) => ({
+      status: r.status,
+      compared: r.compared,
+      totalFindings: r.totalFindings,
+      findings: r.findings.map((f) => [f.kind, f.field, f.partId]),
+    })
+    expect(shape(packet)).toEqual(shape(panel))
   })
 })
