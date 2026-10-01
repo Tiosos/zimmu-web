@@ -17,7 +17,9 @@ const describeFinding = (f: ReconFinding): string => {
     case 'duplicate':
       return `${f.label}: appears more than once in the ${f.output}`
     case 'mismatch':
-      return `${f.label}: ${f.field} differs`
+      return f.field === 'kind'
+        ? `${f.label}: is a board in one output and a dowel in the other`
+        : `${f.label}: ${f.field} differs`
   }
 }
 

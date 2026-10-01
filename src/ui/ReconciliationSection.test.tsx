@@ -50,6 +50,40 @@ describe('ReconciliationSection', () => {
     expect(onInspect).toHaveBeenCalledWith({ kind: 'part', id: 'p1' })
   })
 
+  it('shows where the one known side of a missing part is', () => {
+    const missing: ReconResult = {
+      ...failed,
+      findings: [
+        {
+          kind: 'missing-from-drawings',
+          partId: 'p2',
+          label: 'Shelf',
+          right: { source: 'cutlist row 5 (Base 600)', value: 'Shelf' },
+        },
+      ],
+    }
+    render(<ReconciliationSection result={missing} />)
+    expect(screen.getByText(/cutlist row 5 \(Base 600\)/)).toBeTruthy()
+  })
+
+  it('says a board and a dowel were confused rather than that "kind" differs', () => {
+    const confused: ReconResult = {
+      ...failed,
+      findings: [
+        {
+          kind: 'mismatch',
+          partId: 'p3',
+          label: 'Dowel 1',
+          field: 'kind',
+          left: { source: 'drawings, PDF page 2', value: 'board' },
+          right: { source: 'dowel list row 1', value: 'dowel' },
+        },
+      ],
+    }
+    render(<ReconciliationSection result={confused} />)
+    expect(screen.getByText(/board in one output and a dowel in the other/)).toBeTruthy()
+  })
+
   it('says when findings were truncated', () => {
     render(<ReconciliationSection result={{ ...failed, truncated: true, totalFindings: 250 }} />)
     expect(screen.getByText(/first 200 of 250/i)).toBeTruthy()

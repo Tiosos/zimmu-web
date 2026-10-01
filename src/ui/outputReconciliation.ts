@@ -10,6 +10,7 @@ export type FindingKind =
   | 'duplicate'
   | 'mismatch'
 export type ReconField =
+  | 'kind'
   | 'label'
   | 'material'
   | 'color'
@@ -139,16 +140,17 @@ const KIND_RANK: Record<FindingKind, number> = {
   mismatch: 3,
 }
 const FIELD_RANK: Record<ReconField, number> = {
-  label: 0,
-  material: 1,
-  color: 2,
-  size: 3,
-  cutCount: 4,
-  edgeCode: 5,
-  edgeMaterials: 6,
-  qty: 7,
-  labels: 8,
-  cuts: 9,
+  kind: 0,
+  label: 1,
+  material: 2,
+  color: 3,
+  size: 4,
+  cutCount: 5,
+  edgeCode: 6,
+  edgeMaterials: 7,
+  qty: 8,
+  labels: 9,
+  cuts: 10,
 }
 const OUTPUT_RANK: Record<ReconOutput, number> = { drawings: 0, cutlist: 1 }
 
@@ -221,6 +223,16 @@ export function reconcileOutputs(
     }
     compared++
     const at = drawn(d).source
+    if (d.isBoard !== c.isBoard) {
+      mismatch(
+        id,
+        d.label,
+        'kind',
+        { source: at, value: d.isBoard ? 'board' : 'dowel' },
+        { source: c.source, value: c.isBoard ? 'board' : 'dowel' },
+      )
+      continue
+    }
     mismatch(
       id,
       d.label,

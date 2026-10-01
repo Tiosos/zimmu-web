@@ -126,6 +126,18 @@ describe('reconcileOutputs', () => {
     )
   })
 
+  it('reports one kind mismatch when a board and a dowel share an id, and compares nothing else', () => {
+    const o = outputs(all)
+    const row = rowOf(o, bottom.id)
+    row.members = row.members.filter((m) => m.id !== bottom.id)
+    row.qty = row.members.length
+    o.dowelRows[0].members[0].id = bottom.id
+    const own = run(o).findings.filter((f) => f.partId === bottom.id && f.kind === 'mismatch')
+    expect(own.map((f) => f.field)).toEqual(['kind'])
+    expect(own[0].left?.value).toBe('board')
+    expect(own[0].right?.value).toBe('dowel')
+  })
+
   describe('locations', () => {
     it('says where the known side of a missing part is', () => {
       const o = outputs(all)

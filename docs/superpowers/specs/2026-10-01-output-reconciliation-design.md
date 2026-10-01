@@ -82,7 +82,10 @@ member's `cuts`), `edgeCode`, `edgeMaterials` (sorted lists).
 - the printed summed `cuts` equals the sum of the member sheets' drawn cut counts (boards only).
 
 A part id that appears twice in one output is reported once as `duplicate` and compared using its first
-occurrence only. `compared` is the number of part ids present in both outputs and field-compared.
+occurrence only. A
+id that is a board on one side and a dowel on the other is one `kind` mismatch and nothing else is compared
+for it. Every finding that has a known side carries its location, including `duplicate` and
+`missing-from-*` (the side that exists). `compared` is the number of part ids present in both outputs and field-compared.
 
 ## Findings, status and ordering
 
@@ -96,7 +99,7 @@ Kinds: `missing-from-drawings`, `missing-from-cutlist`, `duplicate` (carries whi
 `mismatch` (field, drawing value, cutlist value).
 
 Order is total: part id, then kind (`missing-from-drawings`, `missing-from-cutlist`, `duplicate`,
-`mismatch`), then field (`label`, `material`, `color`, `size`, `cutCount`, `edgeCode`, `edgeMaterials`,
+`mismatch`), then field (`kind`, `label`, `material`, `color`, `size`, `cutCount`, `edgeCode`, `edgeMaterials`,
 then the row-level `qty`, `labels`, `cuts`), then output (`drawings` before `cutlist`).
 
 Status: `failed` if there is any finding; `passed` if `compared > 0` and there are none; `unassessed` if
