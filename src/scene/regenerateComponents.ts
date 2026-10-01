@@ -128,6 +128,9 @@ function regenerateOne(
       // Carried across the regeneration that read it: an override the pass consumed but did not
       // write back would last exactly one edit.
       overrides: existing?.kind === 'board' ? existing.overrides : undefined,
+      ...(existing?.kind === 'board' && existing.edgeBanding !== undefined
+        ? { edgeBanding: existing.edgeBanding }
+        : {}),
     }
     return board
   })
