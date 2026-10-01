@@ -5,6 +5,7 @@ import { carcaseHardware } from '../scene/carcaseHardware'
 import { createReadinessSnapshot } from '../scene/readinessSnapshot'
 import { buildDrawingSheets } from '../geom/drawing'
 import { buildCsv, buildDowelCsv, buildHardwareCsv } from './buildCsv'
+import { effectiveMaterialsOf } from './effectiveMaterials'
 import { groupHardware } from './groupHardware'
 import { buildPdf } from './buildPdf'
 import { buildReadinessPdf, readinessPdfFilename } from './buildReadinessPdf'
@@ -60,15 +61,7 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
     })
   // Match BomModal's field-level merge: scene rates override library rates, while missing rates
   // (such as a dowel's costPerM) remain available from the library.
-  const effectiveMaterials: Record<string, MaterialDef> = {}
-  for (const name of new Set([
-    ...Object.keys(captured.materialLibrary),
-    ...Object.keys(captured.scene.materials),
-  ]))
-    effectiveMaterials[name] = {
-      ...captured.materialLibrary[name],
-      ...captured.scene.materials[name],
-    }
+  const effectiveMaterials = effectiveMaterialsOf(captured.materialLibrary, captured.scene.materials)
 
   const withInstallation = new Set(
     snapshot.cabinets
