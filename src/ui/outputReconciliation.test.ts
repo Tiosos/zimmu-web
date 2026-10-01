@@ -126,6 +126,16 @@ describe('reconcileOutputs', () => {
     )
   })
 
+  it('reports a duplicate once per id and output however many times it repeats', () => {
+    const o = outputs(all)
+    for (let i = 0; i < 2; i++) o.sheets.push(structuredClone(partSheet(o, bottom.id)))
+    const row = rowOf(o, bottom.id)
+    for (let i = 0; i < 2; i++) row.members.push({ ...row.members.find((m) => m.id === bottom.id)! })
+    row.qty = row.members.length
+    const dup = run(o).findings.filter((f) => f.kind === 'duplicate' && f.partId === bottom.id)
+    expect(dup.map((f) => f.output)).toEqual(['drawings', 'cutlist'])
+  })
+
   it('compares the first occurrence of a repeated id, not the last', () => {
     const o = outputs(all)
     const repeat = structuredClone(partSheet(o, bottom.id))

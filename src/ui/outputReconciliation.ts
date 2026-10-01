@@ -168,16 +168,20 @@ export function reconcileOutputs(
 
   // First occurrence wins; a repeat is reported once as a duplicate and not compared.
   const drawings = new Map<string, SheetFact>()
+  const duplicated = new Set<string>()
+  const duplicate = (output: ReconOutput, partId: string, label: string) => {
+    if (duplicated.has(`${output}|${partId}`)) return
+    duplicated.add(`${output}|${partId}`)
+    findings.push({ kind: 'duplicate', output, partId, label })
+  }
   for (const f of sheetFacts(sheets)) {
-    if (drawings.has(f.partId)) {
-      findings.push({ kind: 'duplicate', output: 'drawings', partId: f.partId, label: f.label })
-    } else drawings.set(f.partId, f)
+    if (drawings.has(f.partId)) duplicate('drawings', f.partId, f.label)
+    else drawings.set(f.partId, f)
   }
   const cutlist = new Map<string, CutFact>()
   for (const f of cutFacts(boardRows, dowelRows)) {
-    if (cutlist.has(f.partId)) {
-      findings.push({ kind: 'duplicate', output: 'cutlist', partId: f.partId, label: f.label })
-    } else cutlist.set(f.partId, f)
+    if (cutlist.has(f.partId)) duplicate('cutlist', f.partId, f.label)
+    else cutlist.set(f.partId, f)
   }
 
   let compared = 0
