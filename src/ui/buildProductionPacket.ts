@@ -143,6 +143,7 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       status: reconciliation.status,
       compared: reconciliation.compared,
       totalFindings: reconciliation.totalFindings,
+      truncated: reconciliation.truncated,
       unassessed: reconciliation.unassessed,
     },
     scope:

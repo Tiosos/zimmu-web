@@ -137,7 +137,7 @@ agreement.
   serialisers take rows (`buildCsvFromRows`, `buildDowelCsvFromRows`); `buildCsv` and `buildDowelCsv`
   keep their signatures and call them, so BomModal and CuttingList are untouched. It writes
   `readiness/reconciliation.json` (hashed in the manifest's `files`) and adds a manifest `reconciliation`
-  summary: `status`, `compared`, `totalFindings`, the unassessed field names. Exports are never
+  summary: `status`, `compared`, `totalFindings`, `truncated` (so the manifest alone says the JSON was capped), the unassessed field names. Exports are never
   blocked.
 - **Readiness panel:** a read-only section titled "Production packet drawings and lists agree?" (it
   checks the packet's inputs, all parts, not the toolbar deck, which uses only visible parts), computed

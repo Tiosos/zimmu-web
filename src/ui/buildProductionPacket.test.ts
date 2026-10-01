@@ -219,6 +219,19 @@ describe('reconciliation in the packet', () => {
     expect(manifest.scope).toContain('advisory and does not block any export')
   })
 
+  it('records in the manifest whether the written findings were capped', async () => {
+    const clean = JSON.parse(strFromU8((await packetOf(sceneOf()))['manifest.json']))
+    expect(clean.reconciliation.truncated).toBe(false)
+
+    const base = sceneOf()
+    const twins = Array.from({ length: 101 }, (_, i) => ({ ...base.parts[0], id: `twin${i}` }))
+    const capped = await packetOf({ ...base, parts: [...base.parts, ...twins, ...twins] })
+    const manifest = JSON.parse(strFromU8(capped['manifest.json']))
+    const written = JSON.parse(strFromU8(capped['readiness/reconciliation.json']))
+    expect(written.truncated).toBe(true)
+    expect(manifest.reconciliation.truncated).toBe(true)
+  })
+
   it('writes the same CSV text the part-based serialisers produce', async () => {
     const scene = sceneOf()
     const files = await packetOf(scene)
