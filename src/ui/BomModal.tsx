@@ -22,6 +22,7 @@ import {
   type EdgeBandLine,
 } from './buildCsv'
 import { downloadBlob } from './download'
+import { effectiveMaterialsOf } from './effectiveMaterials'
 import { SheetsTab } from './SheetsTab'
 import type { NestReport } from '../scene/useNest'
 import { Button } from '@/components/ui/button'
@@ -401,10 +402,7 @@ export function BomModal({
 
   // Field-level merge so a material keeps both rates: a library-only costPerM
   // (dowel rate) must not be shadowed by a scene entry that has only costPerM2.
-  const effectiveMaterials: Record<string, MaterialDef> = {}
-  for (const name of new Set([...Object.keys(library), ...Object.keys(materials)])) {
-    effectiveMaterials[name] = { ...library[name], ...materials[name] }
-  }
+  const effectiveMaterials = effectiveMaterialsOf(library, materials)
 
   const rows = groupParts(parts, effectiveMaterials, components)
   const boardSubtotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)

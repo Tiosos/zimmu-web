@@ -31,11 +31,11 @@ import { ProjectPanel } from './ui/ProjectPanel'
 import { wallPlacementPose } from './scene/roomGeometry'
 import { roomComponentIds } from './scene/projectStructure'
 import { buildShelfInstallationSheets } from './geom/shelfInstallation'
+import { effectiveMaterialsOf } from './ui/effectiveMaterials'
 import type {
   CameraState,
   CarcaseComponent,
   ComponentId,
-  MaterialDef,
   PartId,
   SectionId,
   Selection,
@@ -279,11 +279,7 @@ function App() {
   // someone is actually looking at.
   const [sheetsTabOpen, setSheetsTabOpen] = useState(false)
   const nestMaterials = useMemo(() => {
-    const merged: Record<string, MaterialDef> = {}
-    for (const name of new Set([...Object.keys(library), ...Object.keys(scene.materials)])) {
-      merged[name] = { ...library[name], ...scene.materials[name] }
-    }
-    return merged
+    return effectiveMaterialsOf(library, scene.materials)
   }, [library, scene.materials])
   const { reports: nestReports, pending: nestPending } = useNest(
     scene.parts,

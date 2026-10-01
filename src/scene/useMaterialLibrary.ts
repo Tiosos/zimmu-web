@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { MaterialDef } from './types'
+import { withoutUse } from '../ui/effectiveMaterials'
 import {
   readLibrary,
   writeLibraryEntry,
@@ -30,7 +31,10 @@ export function useMaterialLibrary(): UseMaterialLibraryResult {
       .catch((err: unknown) => console.error('Failed to load tool clearance:', err))
   }, [])
 
-  const saveRate = useCallback((name: string, def: MaterialDef) => {
+  const saveRate = useCallback((name: string, fullDef: MaterialDef) => {
+    // `use` is a per-project fact: a library entry carrying it would make a same-named material in
+    // another project edge stock.
+    const def = withoutUse(fullDef)
     setLibrary((prev) => ({ ...prev, [name]: def }))
     void writeLibraryEntry(name, def).catch((err: unknown) =>
       console.error('Failed to save material library entry:', err),

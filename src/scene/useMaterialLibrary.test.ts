@@ -52,6 +52,18 @@ describe('useMaterialLibrary', () => {
     })
   })
 
+  it('saveRate never persists `use`, in state or in IDB', async () => {
+    const { result } = renderHook(() => useMaterialLibrary())
+    act(() => {
+      result.current.saveRate('ABS 1mm', { thickness: 1, use: 'edge', costPerM: 2 })
+    })
+    expect(result.current.library['ABS 1mm']).toEqual({ thickness: 1, costPerM: 2 })
+    await waitFor(async () => {
+      const stored = await readLibrary()
+      expect(stored['ABS 1mm']).toEqual({ thickness: 1, costPerM: 2 })
+    })
+  })
+
   it('deleteEntry removes from state', async () => {
     const { result } = renderHook(() => useMaterialLibrary())
     act(() => {
