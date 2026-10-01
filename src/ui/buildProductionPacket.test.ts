@@ -244,6 +244,23 @@ describe('reconciliation in the packet', () => {
       expect(files[path].byteLength).toBeGreaterThan(0)
   })
 
+  it('reconciles the rows it wrote, including a banded cabinet whose edges only its own rows carry', async () => {
+    const base = sceneOf()
+    const materials = { ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge' as const } }
+    const scene: Scene = regenerateComponents({
+      ...base,
+      materials,
+      components: base.components.map((c) =>
+        c.kind === 'carcase' ? { ...c, params: { ...c.params, edgeMaterial: 'ABS 1mm' } } : c,
+      ),
+    })
+    const files = await packetOf(scene)
+    expect(JSON.parse(strFromU8(files['readiness/reconciliation.json']))).toMatchObject({
+      status: 'passed',
+    })
+    expect(strFromU8(files['lists/boards.csv'])).toContain('ABS 1mm')
+  })
+
   it('gives the packet and the panel helper the same verdict for one scene', async () => {
     const scene = sceneOf()
     const files = await packetOf(scene)

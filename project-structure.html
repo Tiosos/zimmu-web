@@ -752,6 +752,8 @@
 │   ├── DrawingViewer.tsx
 │   ├── EditPanel.test.tsx
 │   ├── EditPanel.tsx
+│   ├── effectiveMaterials.test.ts
+│   ├── effectiveMaterials.ts
 │   ├── FileMenu.test.tsx
 │   ├── FileMenu.tsx
 │   ├── groupHardware.test.ts
@@ -765,11 +767,15 @@
 │   ├── ManufacturingReadiness.test.tsx
 │   ├── ManufacturingReadiness.tsx
 │   ├── NumberField.tsx
+│   ├── outputReconciliation.test.ts
+│   ├── outputReconciliation.ts
 │   ├── PlacementPanel.test.tsx
 │   ├── PlacementPanel.tsx
 │   ├── PlanView.test.tsx
 │   ├── PlanView.tsx
 │   ├── ProjectPanel.tsx
+│   ├── ReconciliationSection.test.tsx
+│   ├── ReconciliationSection.tsx
 │   ├── RoomAssessmentPanel.test.tsx
 │   ├── RoomAssessmentPanel.tsx
 │   ├── RoomGeometryPanel.test.tsx
@@ -1442,7 +1448,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->127<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->130<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1575,7 +1581,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-29-stage-2-clearance-and-elevation-notes.md
     │   ├── 2026-09-29-stage-2-room-geometry-notes.md
     │   ├── 2026-09-30-edge-banding-notes.md
-    │   └── 2026-09-30-wall-elevations-notes.md
+    │   ├── 2026-09-30-wall-elevations-notes.md
+    │   └── 2026-10-01-output-reconciliation-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1632,7 +1639,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-29-readiness-handoff-packet.md
     │   ├── 2026-09-29-readiness-pdf-report.md
     │   ├── 2026-09-30-edge-banding.md
-    │   └── 2026-09-30-wall-elevations.md
+    │   ├── 2026-09-30-wall-elevations.md
+    │   └── 2026-10-01-output-reconciliation.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1681,7 +1689,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-09-24-face-frames-design.md
         ├── 2026-09-29-design-to-manufacturing-architecture-design.md
         ├── 2026-09-30-edge-banding-design.md
-        └── 2026-09-30-wall-elevations-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-09-30-wall-elevations-design.md
+        └── 2026-10-01-output-reconciliation-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->

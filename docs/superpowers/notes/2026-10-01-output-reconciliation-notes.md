@@ -46,3 +46,67 @@ A single-pass max-level review (no fan-out) of the first spec found 14 issues; a
   ordering and duplicate handling; 200-finding cap with truncation fields; more tests.
 - Open for the release stage: a `failed` result is a generator defect, which the plan's "designer
   corrects the model" wording does not cover.
+
+## 2026-10-01 — decisions made while planning and building
+
+- `cutCount` is counted from the builder's own cut partition so a divergence between the builder and the
+  cutlist can show; it equals `p.cuts.length` today, so discrimination is low. Stated, not hidden.
+- Finding sides are `left`/`right` rather than drawings/cutlist because the row-level checks compare a
+  row against its own members, where neither word fits.
+- The panel's drawing location says "sheet N of the checked drawing set". The panel builds its own
+  part-sheet list, which is not the deck any exported file contains, so a page number would be a claim
+  about a file that does not exist. The packet's location is the real PDF page.
+- `NO_LIBRARY` is a module constant: a default `{}` parameter is a new object per render and made the
+  `useMemo` recompute every time.
+- `compareFindings` (first called `byOrder`) is exported because the order cannot be observed through
+  the capped, already-sorted result without a test that restates the comparator.
+- Row-level findings use the first member's label: the joined `row.labels` is a printed figure under
+  test and names no part. Skipping the row-level `cuts` check when a member has no sheet avoids
+  reporting one absent sheet twice. A corrupted sheet cutCount gives two findings (per-part `cutCount`
+  and row-level `cuts`) by design; the test excludes the `cuts` echo explicitly.
+- Process: several implementers skipped the red phase on first pass, and review found an ordering test
+  that did not discriminate (it passed with the tiers removed); it was rewritten against
+  `compareFindings`. The mutation run below found four more gaps, each closed with a test.
+
+## Mutation results (Task 7)
+
+Run against the code at HEAD ad49e91; every file was restored from a scratchpad copy and compared with
+`cmp` afterwards. "Observed" is what failed; all failures were `AssertionError`s naming the rule.
+
+| # | Mutation | Predicted | Observed | Result |
+|---|---|---|---|---|
+| 1 | sheet size not canonicalised | agree + size tests | 7 failed (agree, no-sheet, no-edge-context, readiness, packet, scene) | killed |
+| 1b | cutlist size not canonicalised (extra) | grain-width test | grain-width test only | killed |
+| 2 | skip edge comparison | edgeCode/edgeMaterials tests | those two | killed |
+| 3 | edge compared when absent (treated as empty) | no-edge-context test | that test | killed |
+| 4 | duplicate: last occurrence wins (drawings and cutlist) | duplicate tests | **none failed** | survived; added "compares the first occurrence of a repeated id, not the last" (a repeat that differs); both sides now killed |
+| 5 | ordering reduced to id only | three `compareFindings` tests | the three | killed |
+| 5k/5f/5o | each of kind, field, output tier dropped alone | one test each | one each | killed |
+| 6 | no 200 cap | cap test | cap test | killed |
+| 7 | row-level `qty` dropped | qty test | qty and first-member-label tests | killed |
+| 8 | row-level `cuts` dropped | cuts test | cuts test | killed |
+| 9 | `passed` when `compared === 0` | unassessed test | that test | killed |
+| 10 | sheet cutCount read as 0 | cutCount tests | cutCount, no-echo, packet | killed |
+| 11 | merged members not pushed (boards; dowels) | members tests | 20 failed (boards); dowel members test (dowels) | killed |
+| 12 | `sheetEdgeOf` drops `.sort()` | a two-material case | **none failed** (the reconciler sorts both sides, so it is equivalent there) | survived; added a drawing test that the sheet's own `edge.materials` is sorted; killed |
+| 12b | `groupParts` edge list not sorted (extra) | sorted-list test | that test | killed |
+| 13 | packet reconciles rebuilt rows (`groupParts(..., [])`) | equivalence/CSV tests | **none failed** (the fixture is unbanded, so rebuilt rows match) | survived; added a banded-cabinet packet test; killed |
+| 14 | board sheet `cutCount` + 1 | "counts the cuts it draws" | that test and 18 others | killed |
+| 14b | dowel sheet `cutCount` + 1 (extra) | none predicted | **none failed** | survived; added a dowel sheet test (part id, dimensions, cut count); killed |
+| 15 | row `cuts` check without the no-sheet guard | no-echo test | that test | killed |
+| 16 | row-level findings labelled with `row.labels` | first-member-label test | one test, but only for `qty`; `cuts` and `labels` individually **survived** | survived; the test now sets qty, labels and cuts together and asserts all three findings name the first member; each killed |
+| 17 | `compared` counts every cutlist part | missing-part tests | **none failed** | survived; both missing-part tests now assert `compared` is one fewer; killed (also with `drawings.size`) |
+
+## Known limitations
+
+- Size on the sheet is the part's own dimensions, not measured off the drawn geometry, so size
+  discrimination is low. The check's value is mostly identity, quantity, orientation, edge and cut count.
+- Renderer parity is unchecked: SVG, DXF and PDF each drawing every declared field is not compared, so
+  a gap such as the PDF notes would not be caught. A `failed` result does not prove the PDF or CSV bytes.
+- A `failed` result means the two builders disagree. The designer cannot clear it by editing the model;
+  what the release stage does with it is open.
+- `BomModal` keeps its own copy of the library merge; only the packet and `reconcileScene` share
+  `effectiveMaterialsOf`.
+- The panel checks all parts (as the packet does), while the toolbar drawing deck uses visible parts.
+- A row with zero members passes silently. It is unreachable: the grouper only creates a row with a
+  member.

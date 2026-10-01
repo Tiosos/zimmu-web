@@ -166,3 +166,25 @@ assembly and installation sheet facts; hardware and operations reconciliation; w
   packet; the panel renders passed and failed states from a hand-built result and its findings call
   `onInspect`.
 - Mutation testing of each guard, per CLAUDE.md.
+
+## Refinements made while planning and building
+
+- A sheet's `cutCount` is counted from the board builder's own cut partition (`boxCuts.length +
+  mitres.length + holeArrays.length`; a dowel sheet uses `p.cuts.length`). It equals `p.cuts.length`
+  today, so its discrimination is low and is stated as such: its value is that a cut kind later added to
+  the partition wrongly would differ from the cutlist's `p.cuts.length`.
+- Finding sides are `left` and `right`, each `{ source, value }`. `left` is the drawings side, or for a
+  row-level check the figure the row prints; `right` is the cutlist side, or what the row's members imply.
+- A drawing location differs by surface. In the packet it is the PDF page. In the panel the deck is the
+  check's own part-sheet list, so it reads "sheet N of the checked drawing set" and is **not** a page of
+  any exported file. Packet and panel equivalence is therefore asserted on status, `compared`,
+  `totalFindings` and each finding's `kind`/`field`/`partId`, never on locations.
+- The panel's default `materialLibrary = {}` was a fresh object every render and defeated `useMemo`; it
+  is now a module constant, `NO_LIBRARY`.
+- `compareFindings` is exported so the ordering can be tested directly.
+- A row-level finding (`qty`, `labels`, `cuts`) names the row's **first member** as its part and label,
+  not the joined row labels, so it points at one real part.
+- The row-level `cuts` check is skipped when any member has no sheet: that absence is already reported
+  as `missing-from-drawings`, and echoing it as a cuts mismatch would double-report one fault.
+- A corrupted sheet `cutCount` yields two findings by design: the per-part `cutCount` mismatch and the
+  row-level `cuts` mismatch, because the row's printed sum no longer equals its sheets.

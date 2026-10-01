@@ -337,6 +337,19 @@ describe('buildDrawingSheets — dowels', () => {
     expect(cover.rows[0]).toMatchObject({ dimensions: '⌀20×100', cutCount: 0 })
   })
 
+  it('records its part id, its dimensions and its cut count', () => {
+    const sheet = dowelSheet(
+      [
+        { kind: 'end', id: 'c1', label: 'Trim', end: '+Z', offset: 10, angle: 0, azimuth: 0 },
+        { kind: 'notch', id: 'c2', label: 'Notch', position: 50, width: 20, depth: 5, azimuth: 0 },
+      ],
+      { id: 'dw1' },
+    )
+    expect(sheet.partId).toBe('dw1')
+    expect(sheet.dowel).toEqual({ diameter: 20, length: 100 })
+    expect(sheet.cutCount).toBe(2)
+  })
+
   it('square end cut shortens the Side outline by offset', () => {
     const side = dowelSheet([
       { kind: 'end', id: 'c1', label: 'Trim', end: '+Z', offset: 10, angle: 0, azimuth: 0 },
@@ -978,6 +991,18 @@ describe('part sheets record what they print', () => {
     expect(edge?.materials).toEqual(['ABS 1mm'])
     expect(edge?.code).toMatch(/^1[LS]$/)
     expect(boardSheet(deck(), bottom.id).edge).toBeUndefined()
+  })
+
+  it('lists the edge materials sorted, whatever order the edges are visited in', () => {
+    const bottom = parts.find((p) => p.kind === 'board' && p.role === 'bottom')!
+    if (bottom.kind !== 'board') throw new Error('expected a board')
+    const two = { ...bottom, edgeBanding: { x0: 'ABS 2mm', y0: 'ABS 1mm' } }
+    const ctx: EdgeContext = {
+      materials: { ...mats, 'ABS 2mm': { thickness: 2, use: 'edge' as const } },
+      byId,
+    }
+    const sheets = buildDrawingSheets([two], 'Job', [], '2026-10-01', undefined, [], ctx)
+    expect(boardSheet(sheets, two.id).edge?.materials).toEqual(['ABS 1mm', 'ABS 2mm'])
   })
 
   it('carries an empty edge, not an absent one, for an unbanded board built with a context', () => {

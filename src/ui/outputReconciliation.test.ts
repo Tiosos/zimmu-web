@@ -96,6 +96,7 @@ describe('reconcileOutputs', () => {
       status: 'failed',
       findings: [expect.objectContaining({ kind: 'missing-from-drawings', partId: bottom.id })],
     })
+    expect(run(o).compared).toBe(all.length - 1)
   })
 
   it('reports a part with no cutlist member', () => {
@@ -107,6 +108,7 @@ describe('reconcileOutputs', () => {
     expect(r.findings).toContainEqual(
       expect.objectContaining({ kind: 'missing-from-cutlist', partId: bottom.id }),
     )
+    expect(r.compared).toBe(all.length - 1)
   })
 
   it('reports an id that appears twice, in either output', () => {
@@ -122,6 +124,22 @@ describe('reconcileOutputs', () => {
     expect(run(p).findings).toContainEqual(
       expect.objectContaining({ kind: 'duplicate', output: 'cutlist', partId: bottom.id }),
     )
+  })
+
+  it('compares the first occurrence of a repeated id, not the last', () => {
+    const o = outputs(all)
+    const repeat = structuredClone(partSheet(o, bottom.id))
+    repeat.material = 'Elsewhere'
+    o.sheets.push(repeat)
+    const r = run(o).findings.filter((f) => f.partId === bottom.id)
+    expect(r.map((f) => f.kind)).toEqual(['duplicate'])
+
+    const p = outputs(all)
+    const twin = structuredClone(rowOf(p, bottom.id))
+    twin.material = 'Elsewhere'
+    p.boardRows.push(twin)
+    const q = run(p).findings.filter((f) => f.partId === bottom.id && f.kind === 'mismatch')
+    expect(q).toEqual([])
   })
 
   it.each([
@@ -204,9 +222,13 @@ describe('reconcileOutputs', () => {
       const row = rowOf(o, bottom.id)
       row.labels = 'Shelf, Shelf, Shelf'
       row.qty += 1
-      const finding = run(o).findings.find((f) => f.field === 'qty')
-      expect(finding?.partId).toBe(row.members[0].id)
-      expect(finding?.label).toBe(row.members[0].label)
+      row.cuts += 3
+      const findings = run(o).findings
+      for (const field of ['qty', 'labels', 'cuts'] as const) {
+        const finding = findings.find((f) => f.field === field)
+        expect(finding?.partId, field).toBe(row.members[0].id)
+        expect(finding?.label, field).toBe(row.members[0].label)
+      }
     })
     it('catches printed Labels that differ from its members', () => {
       const o = outputs(all)
