@@ -11,7 +11,12 @@ import type {
   Part,
 } from '../scene/types'
 import { groupDowels, groupParts, type GroupedRow } from './buildCsv'
-import { ALWAYS_UNASSESSED, reconcileOutputs } from './outputReconciliation'
+import {
+  ALWAYS_UNASSESSED,
+  compareFindings,
+  reconcileOutputs,
+  type ReconFinding,
+} from './outputReconciliation'
 
 const mats: Record<string, MaterialDef> = {
   ...PRESET_MATERIALS,
@@ -244,6 +249,75 @@ describe('reconcileOutputs', () => {
     const dup = run(o).findings.filter((f) => f.kind === 'duplicate' && f.partId === bottom.id)
     expect(dup.map((f) => f.output)).toEqual(['drawings', 'cutlist'])
     expect(run(o)).toEqual(run(o))
+  })
+
+  describe('compareFindings', () => {
+    // Insertion order inside reconcileOutputs already follows the rank on one id, so the
+    // tie-breaks are pinned by sorting findings handed over in reverse rank order.
+    const f = (
+      partId: string,
+      kind: ReconFinding['kind'],
+      extra: Partial<ReconFinding> = {},
+    ): ReconFinding => ({
+      kind,
+      partId,
+      label: partId,
+      ...extra,
+    })
+    const key = (x: ReconFinding) => [x.partId, x.kind, x.field ?? '', x.output ?? ''].join('/')
+
+    it('orders one id by kind, then output', () => {
+      const shuffled = [
+        f('a', 'duplicate', { output: 'cutlist' }),
+        f('a', 'mismatch', { field: 'label' }),
+        f('a', 'duplicate', { output: 'drawings' }),
+      ]
+      expect(shuffled.sort(compareFindings).map(key)).toEqual([
+        'a/duplicate//drawings',
+        'a/duplicate//cutlist',
+        'a/mismatch/label/',
+      ])
+    })
+
+    it('orders one id and kind by field', () => {
+      const shuffled = [
+        f('a', 'mismatch', { field: 'edgeMaterials' }),
+        f('a', 'mismatch', { field: 'label' }),
+      ]
+      expect(shuffled.sort(compareFindings).map((x) => x.field)).toEqual(['label', 'edgeMaterials'])
+    })
+
+    it('orders missing-from-drawings before missing-from-cutlist, and ids first of all', () => {
+      const shuffled = [
+        f('b', 'missing-from-drawings'),
+        f('a', 'mismatch', { field: 'size' }),
+        f('a', 'missing-from-cutlist'),
+        f('a', 'missing-from-drawings'),
+      ]
+      expect(shuffled.sort(compareFindings).map(key)).toEqual([
+        'a/missing-from-drawings//',
+        'a/missing-from-cutlist//',
+        'a/mismatch/size/',
+        'b/missing-from-drawings//',
+      ])
+    })
+  })
+
+  it('does not echo a missing sheet as a row-level cuts finding', () => {
+    const o = outputs(all)
+    const row = rowOf(o, bottom.id)
+    partSheet(o, bottom.id).cutCount = 2
+    row.members.find((m) => m.id === bottom.id)!.cuts = 2
+    row.cuts += 2
+    expect(run(o).findings).toEqual([])
+    o.sheets = o.sheets.filter((s) => !(s.kind === 'part' && s.partId === bottom.id))
+    const r = run(o)
+    expect(r.findings).toContainEqual(
+      expect.objectContaining({ kind: 'missing-from-drawings', partId: bottom.id }),
+    )
+    expect(
+      r.findings.filter((x) => x.field === 'cuts' && row.members.some((m) => m.id === x.partId)),
+    ).toEqual([])
   })
 
   it('caps findings at 200 and says how many there were', () => {

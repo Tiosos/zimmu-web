@@ -149,7 +149,7 @@ const FIELD_RANK: Record<ReconField, number> = {
 }
 const OUTPUT_RANK: Record<ReconOutput, number> = { drawings: 0, cutlist: 1 }
 
-const byOrder = (a: ReconFinding, b: ReconFinding): number =>
+export const compareFindings = (a: ReconFinding, b: ReconFinding): number =>
   a.partId.localeCompare(b.partId) ||
   KIND_RANK[a.kind] - KIND_RANK[b.kind] ||
   (a.field ? FIELD_RANK[a.field] : -1) - (b.field ? FIELD_RANK[b.field] : -1) ||
@@ -197,7 +197,6 @@ export function reconcileOutputs(
     }
     compared++
     const at = `drawings, sheet ${d.sheet}`
-    const text = (v: string | number) => String(v)
     mismatch(
       id,
       d.label,
@@ -238,8 +237,8 @@ export function reconcileOutputs(
         id,
         d.label,
         'cutCount',
-        { source: at, value: text(d.cutCount) },
-        { source: c.source, value: text(c.cuts ?? 0) },
+        { source: at, value: String(d.cutCount) },
+        { source: c.source, value: String(c.cuts ?? 0) },
       )
       if (d.edge === undefined) edgeNotCarried = true
       else {
@@ -285,7 +284,9 @@ export function reconcileOutputs(
     )
     if (isBoard) {
       const printed = (row as GroupedRow).cuts
-      const drawn = row.members.reduce((sum, m) => sum + (drawings.get(m.id)?.cutCount ?? 0), 0)
+      const sheetsOfRow = row.members.map((m) => drawings.get(m.id))
+      if (sheetsOfRow.some((d) => d === undefined)) return
+      const drawn = sheetsOfRow.reduce((sum, d) => sum + (d?.cutCount ?? 0), 0)
       mismatch(
         first.id,
         row.labels,
@@ -300,7 +301,7 @@ export function reconcileOutputs(
   )
   dowelRows.forEach((row, i) => rowChecks(row, `dowel list row ${i + 1}`, false))
 
-  findings.sort(byOrder)
+  findings.sort(compareFindings)
   const status: ReconResult['status'] =
     findings.length > 0 ? 'failed' : compared > 0 ? 'passed' : 'unassessed'
   return {

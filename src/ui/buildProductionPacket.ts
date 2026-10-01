@@ -61,7 +61,10 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
     })
   // Match BomModal's field-level merge: scene rates override library rates, while missing rates
   // (such as a dowel's costPerM) remain available from the library.
-  const effectiveMaterials = effectiveMaterialsOf(captured.materialLibrary, captured.scene.materials)
+  const effectiveMaterials = effectiveMaterialsOf(
+    captured.materialLibrary,
+    captured.scene.materials,
+  )
 
   const withInstallation = new Set(
     snapshot.cabinets
