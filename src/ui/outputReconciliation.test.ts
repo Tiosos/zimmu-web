@@ -126,11 +126,43 @@ describe('reconcileOutputs', () => {
     )
   })
 
+  describe('locations', () => {
+    it('says where the known side of a missing part is', () => {
+      const o = outputs(all)
+      o.sheets = o.sheets.filter((s) => !(s.kind === 'part' && s.partId === bottom.id))
+      const gone = run(o).findings.find((f) => f.kind === 'missing-from-drawings')
+      expect(gone?.right?.source).toMatch(/^cutlist row \d+ /)
+      expect(gone?.left).toBeUndefined()
+
+      const p = outputs(all)
+      const row = rowOf(p, bottom.id)
+      row.members = row.members.filter((m) => m.id !== bottom.id)
+      row.qty = row.members.length
+      const unlisted = run(p).findings.find((f) => f.kind === 'missing-from-cutlist')
+      expect(unlisted?.left?.source).toMatch(/^drawings, PDF page \d+$/)
+      expect(unlisted?.right).toBeUndefined()
+    })
+
+    it('says where each repeat of an id was found', () => {
+      const o = outputs(all)
+      o.sheets.push(structuredClone(partSheet(o, bottom.id)))
+      const row = rowOf(o, bottom.id)
+      row.members.push({ ...row.members.find((m) => m.id === bottom.id)! })
+      row.qty = row.members.length
+      const dup = run(o).findings.filter((f) => f.kind === 'duplicate')
+      expect(dup.find((f) => f.output === 'drawings')?.left?.source).toBe(
+        `drawings, PDF page ${o.sheets.length}`,
+      )
+      expect(dup.find((f) => f.output === 'cutlist')?.right?.source).toMatch(/^cutlist row \d+ /)
+    })
+  })
+
   it('reports a duplicate once per id and output however many times it repeats', () => {
     const o = outputs(all)
     for (let i = 0; i < 2; i++) o.sheets.push(structuredClone(partSheet(o, bottom.id)))
     const row = rowOf(o, bottom.id)
-    for (let i = 0; i < 2; i++) row.members.push({ ...row.members.find((m) => m.id === bottom.id)! })
+    for (let i = 0; i < 2; i++)
+      row.members.push({ ...row.members.find((m) => m.id === bottom.id)! })
     row.qty = row.members.length
     const dup = run(o).findings.filter((f) => f.kind === 'duplicate' && f.partId === bottom.id)
     expect(dup.map((f) => f.output)).toEqual(['drawings', 'cutlist'])

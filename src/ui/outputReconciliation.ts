@@ -168,22 +168,35 @@ export function reconcileOutputs(
   { locate = 'pdf-page' }: { locate?: 'pdf-page' | 'checked-set' } = {},
 ): ReconResult {
   const findings: ReconFinding[] = []
+  const drawn = (d: SheetFact): ReconSide => ({
+    source:
+      locate === 'pdf-page'
+        ? `drawings, PDF page ${d.sheet}`
+        : `drawings, sheet ${d.sheet} of the checked drawing set`,
+    value: d.label,
+  })
+  const listed = (c: CutFact): ReconSide => ({ source: c.source, value: c.label })
 
   // First occurrence wins; a repeat is reported once as a duplicate and not compared.
   const drawings = new Map<string, SheetFact>()
   const duplicated = new Set<string>()
-  const duplicate = (output: ReconOutput, partId: string, label: string) => {
+  const duplicate = (
+    output: ReconOutput,
+    partId: string,
+    label: string,
+    side: Pick<ReconFinding, 'left' | 'right'>,
+  ) => {
     if (duplicated.has(`${output}|${partId}`)) return
     duplicated.add(`${output}|${partId}`)
-    findings.push({ kind: 'duplicate', output, partId, label })
+    findings.push({ kind: 'duplicate', output, partId, label, ...side })
   }
   for (const f of sheetFacts(sheets)) {
-    if (drawings.has(f.partId)) duplicate('drawings', f.partId, f.label)
+    if (drawings.has(f.partId)) duplicate('drawings', f.partId, f.label, { left: drawn(f) })
     else drawings.set(f.partId, f)
   }
   const cutlist = new Map<string, CutFact>()
   for (const f of cutFacts(boardRows, dowelRows)) {
-    if (cutlist.has(f.partId)) duplicate('cutlist', f.partId, f.label)
+    if (cutlist.has(f.partId)) duplicate('cutlist', f.partId, f.label, { right: listed(f) })
     else cutlist.set(f.partId, f)
   }
 
@@ -203,14 +216,11 @@ export function reconcileOutputs(
   for (const [id, d] of drawings) {
     const c = cutlist.get(id)
     if (!c) {
-      findings.push({ kind: 'missing-from-cutlist', partId: id, label: d.label })
+      findings.push({ kind: 'missing-from-cutlist', partId: id, label: d.label, left: drawn(d) })
       continue
     }
     compared++
-    const at =
-      locate === 'pdf-page'
-        ? `drawings, PDF page ${d.sheet}`
-        : `drawings, sheet ${d.sheet} of the checked drawing set`
+    const at = drawn(d).source
     mismatch(
       id,
       d.label,
@@ -276,7 +286,7 @@ export function reconcileOutputs(
   }
   for (const [id, c] of cutlist) {
     if (!drawings.has(id))
-      findings.push({ kind: 'missing-from-drawings', partId: id, label: c.label })
+      findings.push({ kind: 'missing-from-drawings', partId: id, label: c.label, right: listed(c) })
   }
 
   const rowChecks = (row: GroupedRow | DowelRow, source: string, isBoard: boolean) => {
