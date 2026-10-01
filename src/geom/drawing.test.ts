@@ -884,6 +884,26 @@ describe('wall elevation sheets', () => {
     expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(297 - 2 * MARGIN - 2 * sheet.ring + 1e-9)
   })
 
+  it('is limited by height on a short, very tall wall', () => {
+    const f = kitchenWall()
+    const room = {
+      ...f.room,
+      walls: [{ ...f.room.walls[0], end: { x: 1000, y: 0 } }],
+      placements: [],
+      openings: [
+        { id: 'shaft', wallId: 'long', kind: 'door' as const, offset: 0, width: 800, sill: 0, height: 6000 },
+      ],
+    }
+    const sheet = buildWallElevationSheets(
+      { roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds },
+      'd',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    expect(sheet.scaleLabel).toBe('1:50')
+    expect(sheet.view.bounds.h * sheet.scale).toBeLessThanOrEqual(210 - 2 * MARGIN - TITLE_H - sheet.ring + 1e-9)
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThan((297 - 2 * MARGIN - 2 * sheet.ring) / 5)
+  })
+
   it('skips a zero-length wall and a wall with neither a span nor a site length', () => {
     const f = kitchenWall()
     const room = {
@@ -916,6 +936,26 @@ describe('wall elevation sheets', () => {
   it('puts elevation sheets after the cover and before the assembly sheets', () => {
     const sheets = buildDrawingSheets([], 'Job', [], '2026-09-30', undefined, [input()])
     expect(sheets.map((s) => s.kind)).toEqual(['cover', 'elevation'])
+  })
+
+  it('orders a deck with a cabinet as cover, elevations, assembly, installation, then parts', () => {
+    const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
+    const sheets = buildDrawingSheets(
+      partsOfBase600(),
+      'Job',
+      [{ cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS }],
+      '2026-09-30',
+      undefined,
+      [input()],
+    )
+    const kinds = sheets.map((s) => s.kind)
+    const runs = kinds.filter((k, i) => i === 0 || k !== kinds[i - 1])
+    expect(runs.slice(0, 3)).toEqual(['cover', 'elevation', 'assembly'])
+    expect(runs.at(-1)).toBe('part')
+    expect(runs.filter((k) => k === 'part')).toHaveLength(1)
+    expect(runs.filter((k) => k === 'elevation')).toHaveLength(1)
+    expect(runs.filter((k) => k === 'assembly')).toHaveLength(1)
+    expect(runs.slice(3, -1).every((k) => k === 'installation')).toBe(true)
   })
 
   it('names the file after the room and wall', () => {

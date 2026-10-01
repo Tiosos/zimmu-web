@@ -161,6 +161,28 @@ describe('buildWallElevation', () => {
     expect(span.x1).toBeCloseTo(reference.x1, 6)
   })
 
+  it('reads the same spans for a room that is moved and turned as for one that is not', () => {
+    const turned = 30
+    const radians = (turned * Math.PI) / 180
+    const origin = { x: 5000, y: 2000 }
+    const c = {
+      ...wallCabinet('moved', 0),
+      position: { x: origin.x + 500 * Math.cos(radians), y: origin.y + 500 * Math.sin(radians), z: 0 },
+      rotation: { x: 0, y: 0, z: turned },
+    }
+    const room: RoomGeometry = {
+      ...kitchenWall().room,
+      origin,
+      rotation: turned,
+      openings: [],
+      placements: [{ cabinetId: 'moved', wallId: 'long', offset: 500, setback: 0, manualOffset: { x: 0, y: 0 } }],
+    }
+    const view = buildWallElevation(room, room.walls[0], wallScene([c]), new Set(['moved']))
+    expect(view.spans).toHaveLength(1)
+    expect(view.spans[0].x0).toBeCloseTo(500, 6)
+    expect(view.spans[0].x1).toBeCloseTo(1100, 6)
+  })
+
   it('shows the real extent of a cabinet hanging past either wall end', () => {
     const over = wallCabinet('over', 3700)
     const room: RoomGeometry = {
