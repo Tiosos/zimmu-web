@@ -162,6 +162,7 @@ export function reconcileOutputs(
   sheets: DrawingSheet[],
   boardRows: GroupedRow[],
   dowelRows: DowelRow[],
+  { locate = 'pdf-page' }: { locate?: 'pdf-page' | 'checked-set' } = {},
 ): ReconResult {
   const findings: ReconFinding[] = []
 
@@ -199,7 +200,10 @@ export function reconcileOutputs(
       continue
     }
     compared++
-    const at = `drawings, sheet ${d.sheet}`
+    const at =
+      locate === 'pdf-page'
+        ? `drawings, PDF page ${d.sheet}`
+        : `drawings, sheet ${d.sheet} of the checked drawing set`
     mismatch(
       id,
       d.label,
@@ -333,5 +337,6 @@ export function reconcileScene(
     sheets,
     groupParts(scene.parts, materials, scene.components),
     groupDowels(scene.parts, materials),
+    { locate: 'checked-set' },
   )
 }
