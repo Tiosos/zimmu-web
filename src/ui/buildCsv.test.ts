@@ -6,6 +6,8 @@ import {
   buildHardwareCsv,
   groupDowels,
   buildDowelCsv,
+  buildCsvFromRows,
+  buildDowelCsvFromRows,
   isNestable,
   groupEdgeBand,
 } from './buildCsv'
@@ -711,6 +713,51 @@ describe('cutlist edge banding', () => {
       true,
     )
     expect(row.includes(',ABS 1mm')).toBe(true)
+  })
+
+  describe('cutlist rows keep their members', () => {
+    it('lists every merged board with its label and cut count', () => {
+      const a: BoardPart = { ...bottom, id: 'a', label: 'Shelf A', cuts: [] }
+      const b: BoardPart = { ...bottom, id: 'b', label: 'Shelf B', cuts: [] }
+      const rows = groupParts([a, b], mats, components)
+      expect(rows).toHaveLength(1)
+      expect(rows[0].members).toEqual([
+        { id: 'a', label: 'Shelf A', cuts: 0 },
+        { id: 'b', label: 'Shelf B', cuts: 0 },
+      ])
+      expect(rows[0].qty).toBe(rows[0].members.length)
+    })
+
+    it('carries the edge materials as a sorted list beside the printed string', () => {
+      const two: BoardPart = { ...bottom, edgeBanding: { x0: 'ABS 2mm', y0: 'ABS 1mm' } }
+      const row = groupParts([two], { ...mats, 'ABS 2mm': { thickness: 2, use: 'edge' } }, components)[0]
+      expect(row.edgeMaterialList).toEqual(['ABS 1mm', 'ABS 2mm'])
+      expect(row.edgeMaterials).toBe('ABS 1mm, ABS 2mm')
+    })
+
+    it('lists dowel members', () => {
+      const dowelA = makeDowel({ id: 'dA', diameter: 8, length: 100, material: 'Beech' })
+      const dowelB = makeDowel({ id: 'dB', diameter: 8, length: 100, material: 'Beech' })
+      const rows = groupDowels([dowelA, dowelB], mats)
+      expect(rows[0].members).toEqual([
+        { id: dowelA.id, label: dowelA.label },
+        { id: dowelB.id, label: dowelB.label },
+      ])
+    })
+  })
+
+  describe('serialising from rows', () => {
+    it('produces exactly what the part-based functions produce', () => {
+      const rows = groupParts(parts, mats, components)
+      expect(buildCsvFromRows(rows, groupEdgeBand(parts, mats, components))).toBe(
+        buildCsv(parts, mats, components),
+      )
+      const dowels = [
+        makeDowel({ id: 'dA', diameter: 8, length: 100, material: 'Beech' }),
+        makeDowel({ id: 'dB', diameter: 8, length: 100, material: 'Beech' }),
+      ]
+      expect(buildDowelCsvFromRows(groupDowels(dowels, mats))).toBe(buildDowelCsv(dowels, mats))
+    })
   })
 
   describe('edge band totals', () => {

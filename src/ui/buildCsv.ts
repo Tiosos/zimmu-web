@@ -75,6 +75,8 @@ export interface GroupedRow {
   finishedWidth: number
   edgeCode: string
   edgeMaterials: string // distinct edge materials, comma-separated; '' when unbanded
+  edgeMaterialList: string[]
+  members: { id: string; label: string; cuts: number }[]
   problem?: string
 }
 
@@ -93,11 +95,10 @@ export function groupParts(
     const edges = edgesOf(p, byId, materials)
     const dims = cutDimensions(p, edges, materials)
     const code = edgeCode(edges, isSwapped(p))
-    const edgeMaterials = [
+    const edgeMaterialList = [
       ...new Set(EDGE_KEYS.map((k) => edges[k]).filter((m): m is string => m !== null)),
-    ]
-      .sort()
-      .join(', ')
+    ].sort()
+    const edgeMaterials = edgeMaterialList.join(', ')
     // The label is part of the grouping key below, so naming the wrong ancestor does not just
     // mislabel a row — it merges boards cut for different cabinets into one.
     const component = nearestCarcase(p, byId)?.label ?? ''
@@ -111,6 +112,7 @@ export function groupParts(
       existing.qty += 1
       existing.labels += `, ${p.label}`
       existing.cuts += p.cuts.length
+      existing.members.push({ id: p.id, label: p.label, cuts: p.cuts.length })
       existing.totalCost =
         existing.costPerUnit !== null ? existing.costPerUnit * existing.qty : null
     } else {
@@ -133,6 +135,8 @@ export function groupParts(
         finishedWidth: finished.width,
         edgeCode: code,
         edgeMaterials,
+        edgeMaterialList,
+        members: [{ id: p.id, label: p.label, cuts: p.cuts.length }],
         ...(dims.problem ? { problem: dims.problem } : {}),
       })
     }
@@ -148,21 +152,15 @@ function quoteField(value: string): string {
   return value
 }
 
-export function buildCsv(
-  parts: Part[],
-  materials: Record<string, MaterialDef> = {},
-  components: Component[] = [],
-): string {
+export function buildCsvFromRows(rows: GroupedRow[], edge: EdgeBandLine[]): string {
   const header =
     'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Grain,Cuts,Cost/unit,Total,Finished length (mm),Finished width (mm),Edges,Edge material'
-  const rows = groupParts(parts, materials, components)
   const dataRows = rows.map((row) => {
     const costStr = row.costPerUnit !== null ? row.costPerUnit.toFixed(2) : ''
     const totalStr = row.totalCost !== null ? row.totalCost.toFixed(2) : ''
     return `${quoteField(row.component)},${row.qty},${quoteField(row.labels)},${quoteField(row.material)},${row.color},${row.length},${row.width},${row.thickness},${row.grain},${row.cuts},${costStr},${totalStr},${row.finishedLength},${row.finishedWidth},${row.edgeCode},${quoteField(row.edgeMaterials)}`
   })
 
-  const edge = groupEdgeBand(parts, materials, components)
   const edgeSection =
     edge.length === 0
       ? []
@@ -181,6 +179,17 @@ export function buildCsv(
   const boardTotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
   const subtotalRow = `,,,,,,,,,,Board total,${boardTotal.toFixed(2)}`
   return [header, ...dataRows, subtotalRow, ...edgeSection].join('\n')
+}
+
+export function buildCsv(
+  parts: Part[],
+  materials: Record<string, MaterialDef> = {},
+  components: Component[] = [],
+): string {
+  return buildCsvFromRows(
+    groupParts(parts, materials, components),
+    groupEdgeBand(parts, materials, components),
+  )
 }
 
 export interface EdgeBandLine {
@@ -227,6 +236,7 @@ export interface DowelRow {
   length: number
   costPerUnit: number | null // null = no costPerM rate for this material
   totalCost: number | null
+  members: { id: string; label: string }[]
 }
 
 export function groupDowels(
@@ -245,6 +255,7 @@ export function groupDowels(
     if (existing) {
       existing.qty += 1
       existing.labels += `, ${p.label}`
+      existing.members.push({ id: p.id, label: p.label })
       existing.totalCost =
         existing.costPerUnit !== null ? existing.costPerUnit * existing.qty : null
     } else {
@@ -253,6 +264,7 @@ export function groupDowels(
         key,
         qty: 1,
         labels: p.label,
+        members: [{ id: p.id, label: p.label }],
         material: p.material,
         color: p.color,
         diameter: p.diameter,
@@ -267,8 +279,11 @@ export function groupDowels(
 }
 
 export function buildDowelCsv(parts: Part[], materials: Record<string, MaterialDef> = {}): string {
+  return buildDowelCsvFromRows(groupDowels(parts, materials))
+}
+
+export function buildDowelCsvFromRows(rows: DowelRow[]): string {
   const header = 'Qty,Labels,Material,Color,Diameter (mm),Length (mm),Cost/unit,Total'
-  const rows = groupDowels(parts, materials)
   const dataRows = rows.map((row) => {
     const costStr = row.costPerUnit !== null ? row.costPerUnit.toFixed(2) : ''
     const totalStr = row.totalCost !== null ? row.totalCost.toFixed(2) : ''
