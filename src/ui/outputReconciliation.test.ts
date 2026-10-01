@@ -15,6 +15,7 @@ import {
   ALWAYS_UNASSESSED,
   compareFindings,
   reconcileOutputs,
+  reconcileScene,
   type ReconFinding,
 } from './outputReconciliation'
 
@@ -332,5 +333,28 @@ describe('reconcileOutputs', () => {
     expect(r.findings).toHaveLength(200)
     expect(r.truncated).toBe(true)
     expect(run(outputs(all)).truncated).toBe(false)
+  })
+})
+
+describe('reconcileScene', () => {
+  const scene = {
+    parts: all,
+    materials: PRESET_MATERIALS,
+    hardware: [],
+    joints: [],
+    components: [banded],
+  }
+
+  it('builds the packet inputs from the live scene and agrees with itself', () => {
+    const r = reconcileScene(scene, { 'ABS 1mm': { thickness: 1, use: 'edge' } })
+    expect(r.status).toBe('passed')
+    expect(r.compared).toBe(all.length)
+  })
+
+  it('checks all parts, hidden ones included', () => {
+    const hidden = { ...scene, parts: all.map((p) => ({ ...p, visible: false })) }
+    expect(
+      reconcileScene(hidden, { 'ABS 1mm': { thickness: 1, use: 'edge' } }).compared,
+    ).toBe(all.length)
   })
 })

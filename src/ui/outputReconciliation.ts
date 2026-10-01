@@ -1,5 +1,8 @@
-import type { DrawingSheet, SheetEdge } from '../geom/drawing'
-import type { DowelRow, GroupedRow } from './buildCsv'
+import { buildDrawingSheets, type DrawingSheet, type SheetEdge } from '../geom/drawing'
+import { componentsById } from '../scene/componentTree'
+import type { MaterialDef, Scene } from '../scene/types'
+import { groupDowels, groupParts, type DowelRow, type GroupedRow } from './buildCsv'
+import { effectiveMaterialsOf } from './effectiveMaterials'
 
 export type FindingKind =
   | 'missing-from-drawings'
@@ -312,4 +315,23 @@ export function reconcileOutputs(
     findings: findings.slice(0, FINDING_CAP),
     unassessed: [...ALWAYS_UNASSESSED, ...(edgeNotCarried ? [NO_EDGE_CONTEXT] : [])],
   }
+}
+
+// The packet's inputs, built from the live scene: every part, hidden ones included, the merged
+// material library and an edge context. Cabinet and installation sheets are left out because only
+// part sheets are compared. A sheet number here counts the check's own part-sheet list, not a page of
+// any exported file.
+export function reconcileScene(
+  scene: Scene,
+  materialLibrary: Record<string, MaterialDef>,
+  date = new Date().toISOString().slice(0, 10),
+): ReconResult {
+  const materials = effectiveMaterialsOf(materialLibrary, scene.materials)
+  const byId = componentsById(scene.components)
+  const sheets = buildDrawingSheets(scene.parts, '', [], date, undefined, [], { materials, byId })
+  return reconcileOutputs(
+    sheets,
+    groupParts(scene.parts, materials, scene.components),
+    groupDowels(scene.parts, materials),
+  )
 }
