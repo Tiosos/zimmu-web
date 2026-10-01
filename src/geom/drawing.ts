@@ -108,12 +108,23 @@ export interface CoverRow {
   cutCount: number
 }
 
+// What a board sheet's edge note is formatted from. Present only when the sheet was built with an
+// edge context: absent means "not carried", never "unbanded".
+export interface SheetEdge {
+  code: string
+  materials: string[]
+}
+
 interface PartSheetCommon {
+  partId: string
   partLabel: string
   material: string
   color: string
   date: string
   scaleLabel: string
+  // Counted from the entries the builder emits rather than read from the part, so a builder that
+  // mishandles a cut kind disagrees with the cutlist.
+  cutCount: number
 }
 
 export interface PlacedAssemblyView extends AssemblyView {
@@ -150,6 +161,8 @@ export type DrawingSheet =
   | (PartSheetCommon & {
       kind: 'part'
       shape: 'board'
+      board: { length: number; width: number; thickness: number }
+      edge?: SheetEdge
       // Shop/template instructions that are deliberately not projected as geometry.
       manufacturingNotes: string[]
       views: [DrawingView, DrawingView, DrawingView]
@@ -157,6 +170,7 @@ export type DrawingSheet =
   | (PartSheetCommon & {
       kind: 'part'
       shape: 'dowel'
+      dowel: { diameter: number; length: number }
       views: [DowelView, DowelView]
     })
   | {
@@ -397,19 +411,27 @@ export interface EdgeContext {
   byId: Map<ComponentId, Component>
 }
 
-// Not geometry, so it rides the notes the title block already prints.
-function edgeNoteOf(p: BoardPart, ctx: EdgeContext): string[] {
+function sheetEdgeOf(p: BoardPart, ctx: EdgeContext): SheetEdge {
   const edges = edgesOf(p, ctx.byId, ctx.materials)
-  const code = edgeCode(edges, isSwapped(p))
-  if (code === '') return []
-  const names = [
-    ...new Set(EDGE_KEYS.map((k) => edges[k]).filter((m): m is string => m !== null)),
-  ].sort()
-  const label = names.map((n) => `${n} ${ctx.materials[n]?.thickness ?? '?'} mm`).join(', ')
-  return [`Edge ${code} — ${label}`]
+  return {
+    code: edgeCode(edges, isSwapped(p)),
+    materials: [
+      ...new Set(EDGE_KEYS.map((k) => edges[k]).filter((m): m is string => m !== null)),
+    ].sort(),
+  }
 }
 
-function buildBoardSheet(p: BoardPart, date: string, edge?: EdgeContext): DrawingSheet {
+// Not geometry, so it rides the notes the title block already prints. Formatted from the structured
+// edge the sheet carries, so the printed line and the reconciled fact are one value.
+function edgeNoteOf(edge: SheetEdge, ctx: EdgeContext): string[] {
+  if (edge.code === '') return []
+  const label = edge.materials
+    .map((n) => `${n} ${ctx.materials[n]?.thickness ?? '?'} mm`)
+    .join(', ')
+  return [`Edge ${edge.code} — ${label}`]
+}
+
+function buildBoardSheet(p: BoardPart, date: string, edgeCtx?: EdgeContext): DrawingSheet {
   const { length: L, width: W, thickness: T } = p
   const scale = selectScale(L, W, T)
   const board = { length: L, width: W, thickness: T }
@@ -454,14 +476,22 @@ function buildBoardSheet(p: BoardPart, date: string, edge?: EdgeContext): Drawin
     placement: { x: ox, y: oy + faceData.boardRect.h + GAP },
   }
 
+  const edge = edgeCtx ? sheetEdgeOf(p, edgeCtx) : undefined
   return {
     kind: 'part',
     shape: 'board',
+    partId: p.id,
     partLabel: p.label,
     material: p.material,
     color: p.color,
     date,
-    manufacturingNotes: [...manufacturingNotesOf(p), ...(edge ? edgeNoteOf(p, edge) : [])],
+    board,
+    cutCount: boxCuts.length + mitres.length + holeArrays.length,
+    ...(edge ? { edge } : {}),
+    manufacturingNotes: [
+      ...manufacturingNotesOf(p),
+      ...(edge && edgeCtx ? edgeNoteOf(edge, edgeCtx) : []),
+    ],
     views: [faceView, edgeView, endView],
     scaleLabel: toScaleLabel(scale),
   }
@@ -477,10 +507,13 @@ function buildDowelSheet(p: CylinderPart, date: string): DrawingSheet {
   return {
     kind: 'part',
     shape: 'dowel',
+    partId: p.id,
     partLabel: p.label,
     material: p.material,
     color: p.color,
     date,
+    dowel: { diameter: p.diameter, length: p.length },
+    cutCount: p.cuts.length,
     views: buildDowelViews(p, scale),
     scaleLabel: toScaleLabel(scale),
   }

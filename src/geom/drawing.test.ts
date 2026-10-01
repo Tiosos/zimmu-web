@@ -9,7 +9,7 @@ import {
   STANDARD_SCALES,
   TITLE_H,
 } from './drawing'
-import type { DrawingSheet } from './drawing'
+import type { DrawingSheet, EdgeContext } from './drawing'
 import type { AssemblyDim } from './assembly'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
@@ -913,5 +913,92 @@ describe('part sheet edge note', () => {
   it('leaves sheets alone when no edge context is given', () => {
     const sheets = buildDrawingSheets(parts, 'Job')
     expect(noteLines(sheets, 'Bottom').some((n) => n.startsWith('Edge'))).toBe(false)
+  })
+})
+
+describe('part sheets record what they print', () => {
+  const mats = { ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge' as const } }
+  const banded = { ...cabinet, params: { ...cabinet.params, edgeMaterial: 'ABS 1mm' } }
+  const parts = partsOfCarcase(banded.params)
+  const byId = new Map<ComponentId, Component>([[banded.id, banded]])
+  const deck = (ctx?: EdgeContext) =>
+    buildDrawingSheets(parts, 'Job', [], '2026-10-01', undefined, [], ctx)
+  const boardSheet = (sheets: DrawingSheet[], id: string) => {
+    const s = sheets.find((x) => x.kind === 'part' && x.shape === 'board' && x.partId === id)
+    if (!s || s.kind !== 'part' || s.shape !== 'board') throw new Error(`no board sheet for ${id}`)
+    return s
+  }
+
+  it('carries the part id and the dimensions its views are drawn from', () => {
+    const sheets = deck()
+    for (const p of parts) {
+      if (p.kind !== 'board') continue
+      expect(boardSheet(sheets, p.id).board).toEqual({
+        length: p.length,
+        width: p.width,
+        thickness: p.thickness,
+      })
+    }
+  })
+
+  it('counts the cuts it draws', () => {
+    const withCuts = makeBoard({
+      cuts: [
+        {
+          kind: 'box',
+          id: 'c1',
+          label: 'Dado',
+          face: '+Z',
+          position: { x: 10, y: 0, z: 0 },
+          size: { x: 5, y: 20, z: 6 },
+        },
+        {
+          kind: 'hole-array',
+          id: 'h1',
+          label: 'Pins',
+          face: '+Z',
+          axis: 'U',
+          start: { x: 20, y: 20, z: 0 },
+          pitch: 32,
+          count: 3,
+          diameter: 5,
+          depth: 10,
+        },
+      ],
+    })
+    const sheet = buildDrawingSheets([withCuts], 'Job').find((s) => s.kind === 'part')!
+    if (sheet.kind !== 'part') throw new Error('expected a part sheet')
+    expect(sheet.cutCount).toBe(2)
+  })
+
+  it('carries a structured edge only when it was built with an edge context', () => {
+    const ctx: EdgeContext = { materials: mats, byId }
+    const bottom = parts.find((p) => p.kind === 'board' && p.role === 'bottom')!
+    const edge = boardSheet(deck(ctx), bottom.id).edge
+    expect(edge?.materials).toEqual(['ABS 1mm'])
+    expect(edge?.code).toMatch(/^1[LS]$/)
+    expect(boardSheet(deck(), bottom.id).edge).toBeUndefined()
+  })
+
+  it('carries an empty edge, not an absent one, for an unbanded board built with a context', () => {
+    const back = parts.find((p) => p.kind === 'board' && p.role === 'back')!
+    expect(boardSheet(deck({ materials: mats, byId }), back.id).edge).toEqual({
+      code: '',
+      materials: [],
+    })
+  })
+
+  it('prints the edge note from the same structured value', () => {
+    const bottom = parts.find((p) => p.kind === 'board' && p.role === 'bottom')!
+    const sheet = boardSheet(deck({ materials: mats, byId }), bottom.id)
+    expect(sheet.manufacturingNotes).toContain(`Edge ${sheet.edge!.code} — ABS 1mm 1 mm`)
+  })
+
+  it('identifies a dowel sheet and its drawn dimensions', () => {
+    const dowel = makeDowel({ id: 'd1', diameter: 8, length: 40 })
+    const sheet = buildDrawingSheets([dowel], 'Job').find((s) => s.kind === 'part')!
+    if (sheet.kind !== 'part' || sheet.shape !== 'dowel') throw new Error('expected a dowel sheet')
+    expect(sheet.partId).toBe('d1')
+    expect(sheet.dowel).toEqual({ diameter: 8, length: 40 })
   })
 })
