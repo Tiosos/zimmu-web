@@ -105,7 +105,9 @@ export function buildWallElevation(
   const length: WallLength = {
     drawn,
     ...(measured ? { measured } : {}),
-    verified: measured !== undefined && Math.abs(drawn - measured.value) <= measured.uncertainty,
+    // A drawn length from hypot is a float, so an uncertainty of 0 would call 3983.0000001 a disagreement.
+    verified:
+      measured !== undefined && Math.abs(drawn - measured.value) <= Math.max(measured.uncertainty, 0.5),
   }
 
   const breaks = [originX, originX + drawn, ...spans.flatMap((s) => [s.x0, s.x1])].sort((a, b) => a - b)

@@ -46,6 +46,19 @@ describe('buildWallElevation', () => {
     expect(view.dims.find((d) => d.ring === 2 && d.axis === 'h')?.label).toBe(label)
   })
 
+  it('treats a zero-uncertainty site value as agreeing with a drawn float within half a millimetre', () => {
+    const f = kitchenWall({ ...SITE, uncertainty: 0 })
+    const near = { ...f.room, walls: [{ ...f.room.walls[0], end: { x: 3983.2, y: 0 } }] }
+    const agreeing = buildWallElevation(near, near.walls[0], f.scene, f.cabinetIds)
+    expect(agreeing.length.verified).toBe(true)
+    expect(lengthLabel(agreeing.length)).toBe('3983 ±0 (site)')
+
+    const far = { ...f.room, walls: [{ ...f.room.walls[0], end: { x: 3983.6, y: 0 } }] }
+    const disagreeing = buildWallElevation(far, far.walls[0], f.scene, f.cabinetIds)
+    expect(disagreeing.length.verified).toBe(false)
+    expect(lengthLabel(disagreeing.length)).toBe('drawn 3984 / site 3983 ±0')
+  })
+
   it('dimensions opening sill and height on the right, cabinet height on the left', () => {
     const view = build()
     const right = view.dims.filter((d) => d.side === 'right')
