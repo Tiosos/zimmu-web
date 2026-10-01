@@ -216,7 +216,8 @@ export function CarcasePanel({
     return current !== '' && !usable.includes(current) ? [current, ...usable] : usable
   }
   const edgeStock = Object.keys(materials).filter((name) => materials[name].use === 'edge')
-  const edgeMissing = p.edgeMaterial !== undefined && !edgeStock.includes(p.edgeMaterial)
+  const edgeMaterial = p.edgeMaterial === '' ? undefined : p.edgeMaterial
+  const edgeMissing = edgeMaterial !== undefined && !edgeStock.includes(edgeMaterial)
   const canAddEdge =
     edgeName.trim() !== '' &&
     materials[edgeName.trim()] === undefined &&
@@ -470,14 +471,14 @@ export function CarcasePanel({
               Edge band
             </Label>
             <Select
-              value={p.edgeMaterial ?? 'none'}
+              value={edgeMaterial ?? 'none'}
               onValueChange={(v) => setParams({ edgeMaterial: v === 'none' ? undefined : v })}
             >
               <SelectTrigger id="carcase-edge-band" className="h-7 flex-1 text-[11px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {edgeMissing && <SelectItem value={p.edgeMaterial!}>{p.edgeMaterial}</SelectItem>}
+                {edgeMissing && <SelectItem value={edgeMaterial!}>{edgeMaterial}</SelectItem>}
                 <SelectItem value="none">None</SelectItem>
                 {edgeStock.map((name) => (
                   <SelectItem key={name} value={name}>
@@ -489,7 +490,7 @@ export function CarcasePanel({
           </div>
           {edgeMissing && (
             <p className="text-xs text-amber-600 mb-1">
-              Edge material “{p.edgeMaterial}” is not in this project; no automatic banding.
+              Edge material “{edgeMaterial}” is not in this project; no automatic banding.
             </p>
           )}
           <div className="flex items-end gap-1 mb-1">

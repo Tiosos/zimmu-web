@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FILE_FORMAT_VERSION, parseFile } from './useFile'
-import { PRESET_MATERIALS } from './carcasePresets'
-import type { BoardPart, Scene } from './types'
+import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'
+import type { BoardPart, CarcaseParams, ComponentId, Scene } from './types'
 
 const board = (edgeBanding?: BoardPart['edgeBanding']): BoardPart => ({
   kind: 'board',
@@ -87,5 +87,48 @@ describe('edge banding in the file', () => {
     const s = scene(board())
     s.materials['ABS 1mm'] = { thickness: 1, use: 'trim' } as never
     expect(() => parseFile(fileText(s))).toThrow(/edge/)
+  })
+})
+
+describe('a carcase edge material in the file', () => {
+  const withEdge = (edgeMaterial: unknown): string => {
+    const s: Scene = {
+      ...scene(board()),
+      parts: [],
+      components: [
+        {
+          kind: 'carcase',
+          id: 'cmp_1' as ComponentId,
+          label: 'Base',
+          parentId: null,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          visible: true,
+          params: { ...CARCASE_PRESETS[0].params, edgeMaterial } as CarcaseParams,
+        },
+      ],
+    }
+    const env = envelopeFor(s)
+    const item = env.project.areas[0].rooms[0].items[0] as { rootComponentIds: string[]; rootPartIds: string[] }
+    item.rootComponentIds = ['cmp_1']
+    item.rootPartIds = []
+    return JSON.stringify(env)
+  }
+  const edgeOf = (text: string): string | undefined => {
+    const c = parseFile(text).scene.components[0]
+    return c.kind === 'carcase' ? c.params.edgeMaterial : 'not a carcase'
+  }
+
+  it('round-trips an edge material', () => {
+    expect(edgeOf(withEdge('ABS 1mm'))).toBe('ABS 1mm')
+  })
+
+  it.each([['an empty name', ''], ['a name the project lacks', 'Ghost']])('accepts %s', (_l, name) => {
+    expect(edgeOf(withEdge(name))).toBe(name)
+  })
+
+  it.each([['a number', 5], ['an object', { name: 'ABS 1mm' }]])('rejects %s', (_l, value) => {
+    expect(() => parseFile(withEdge(value))).toThrow(/edgeMaterial/)
   })
 })

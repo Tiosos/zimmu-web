@@ -778,6 +778,12 @@ describe('CarcasePanel — edge banding', () => {
     expect(appliedParams(again.onUpdate, named).edgeMaterial).toBeUndefined()
   })
 
+  it('treats an empty edge material exactly like none', () => {
+    render_(carcase({ edgeMaterial: '' }))
+    expect(screen.getByLabelText('Edge band').textContent).toBe('None')
+    expect(screen.queryByText(/is not in this project/)).toBeNull()
+  })
+
   it('shows an edge material this project lacks, with a note', () => {
     render_(carcase({ edgeMaterial: 'Ghost' }))
     expect(screen.getByText(/“Ghost” is not in this project/)).toBeTruthy()
