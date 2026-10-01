@@ -37,8 +37,8 @@ export function ReconciliationSection({
       </p>
       <p className="text-xs text-muted-foreground mb-2">
         Compares the built part sheets with the grouped cutlist rows for all parts, hidden ones
-        included, as the production packet writes them. A failure means the two builders disagree; it
-        does not check the PDF or CSV files themselves. Exports are never blocked.
+        included, as the production packet writes them. A failure means the two builders disagree;
+        it does not check the PDF or CSV files themselves. Exports are never blocked.
       </p>
       {result.findings.map((f, i) => (
         <div key={i} className="border-t py-2 text-sm">
@@ -72,7 +72,9 @@ export function ReconciliationSection({
           Showing the first {FINDING_CAP} of {result.totalFindings} findings.
         </p>
       )}
-      <p className="text-xs text-muted-foreground mt-2">Not compared (never counted as agreement):</p>
+      <p className="text-xs text-muted-foreground mt-2">
+        Not compared (never counted as agreement):
+      </p>
       <ul className="text-xs list-disc pl-5">
         {result.unassessed.map((line) => (
           <li key={line}>{line}</li>

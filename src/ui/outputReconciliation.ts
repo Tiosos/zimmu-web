@@ -273,14 +273,14 @@ export function reconcileOutputs(
     if (!first) return
     mismatch(
       first.id,
-      row.labels,
+      first.label,
       'qty',
       { source: `${source}, printed Qty`, value: String(row.qty) },
       { source: `${source}, its members`, value: String(row.members.length) },
     )
     mismatch(
       first.id,
-      row.labels,
+      first.label,
       'labels',
       { source: `${source}, printed Labels`, value: row.labels },
       { source: `${source}, its members`, value: row.members.map((m) => m.label).join(', ') },
@@ -292,7 +292,7 @@ export function reconcileOutputs(
       const drawn = sheetsOfRow.reduce((sum, d) => sum + (d?.cutCount ?? 0), 0)
       mismatch(
         first.id,
-        row.labels,
+        first.label,
         'cuts',
         { source: `${source}, printed Cuts`, value: String(printed) },
         { source: `${source}, its members' sheets`, value: String(drawn) },

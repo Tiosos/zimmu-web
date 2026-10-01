@@ -199,6 +199,15 @@ describe('reconcileOutputs', () => {
       rowOf(o, bottom.id).qty += 1
       expect(run(o).findings).toContainEqual(expect.objectContaining({ field: 'qty' }))
     })
+    it('names the first member, not the joined row labels, on a row-level finding', () => {
+      const o = outputs(all)
+      const row = rowOf(o, bottom.id)
+      row.labels = 'Shelf, Shelf, Shelf'
+      row.qty += 1
+      const finding = run(o).findings.find((f) => f.field === 'qty')
+      expect(finding?.partId).toBe(row.members[0].id)
+      expect(finding?.label).toBe(row.members[0].label)
+    })
     it('catches printed Labels that differ from its members', () => {
       const o = outputs(all)
       rowOf(o, bottom.id).labels = 'Wrong'
@@ -353,8 +362,8 @@ describe('reconcileScene', () => {
 
   it('checks all parts, hidden ones included', () => {
     const hidden = { ...scene, parts: all.map((p) => ({ ...p, visible: false })) }
-    expect(
-      reconcileScene(hidden, { 'ABS 1mm': { thickness: 1, use: 'edge' } }).compared,
-    ).toBe(all.length)
+    expect(reconcileScene(hidden, { 'ABS 1mm': { thickness: 1, use: 'edge' } }).compared).toBe(
+      all.length,
+    )
   })
 })
