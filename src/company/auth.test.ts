@@ -158,6 +158,41 @@ describe('Keycloak company session', () => {
     expect(navigate).toHaveBeenCalledWith('https://identity.example.invalid/logout')
     await expect(session.token()).rejects.toBeInstanceOf(SignInRequired)
   })
+  it('erases local tokens even if the SDK cannot generate the logout URL', async () => {
+    const navigate = vi.fn()
+    const session = createCompanySession(config, navigate)
+    await session.prepare()
+    authenticate()
+    sdk.createLogoutUrl.mockImplementation(() => {
+      throw new Error('logout endpoint unavailable')
+    })
+    await expect(session.signOut()).rejects.toThrow('logout endpoint unavailable')
+    expect(sdk.clients[0].token).toBeUndefined()
+    expect(sdk.clients[0].idToken).toBeUndefined()
+    expect(navigate).not.toHaveBeenCalled()
+    await expect(session.token()).rejects.toBeInstanceOf(SignInRequired)
+  })
+  it('clears callback tokens if logout URL generation fails after pending initialization', async () => {
+    let finish!: (value: boolean) => void
+    sdk.init.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve
+        }),
+    )
+    const session = createCompanySession(config, vi.fn())
+    const preparing = session.prepare()
+    const logout = session.signOut()
+    sdk.createLogoutUrl.mockImplementation(() => {
+      throw new Error('logout unavailable')
+    })
+    authenticate()
+    finish(true)
+    expect(await preparing).toBe(false)
+    await expect(logout).rejects.toThrow('logout unavailable')
+    expect(sdk.clients[0].token).toBeUndefined()
+    expect(sdk.clients[0].idToken).toBeUndefined()
+  })
   it('rejects late refresh and login responses after sign-out', async () => {
     const session = createCompanySession(config, vi.fn())
     await session.prepare()

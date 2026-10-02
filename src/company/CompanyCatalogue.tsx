@@ -59,6 +59,7 @@ export function CompanyCatalogue({
   const generation = useRef(0)
   const working = useRef(false)
   const dialog = useRef<HTMLDialogElement>(null)
+  const discarding = useRef(false)
   const dirty =
     !!editor &&
     (!editor.saved ||
@@ -73,7 +74,19 @@ export function CompanyCatalogue({
       previous?.focus()
     }
   }, [])
+  useEffect(() => {
+    if (!dirty) return
+    discarding.current = false
+    const warn = (event: BeforeUnloadEvent) => {
+      if (discarding.current) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
   function clear() {
+    discarding.current = true
     setActor(null)
     setDrafts([])
     setVersions([])
@@ -140,7 +153,10 @@ export function CompanyCatalogue({
   }
   const abandon = () => !dirty || window.confirm('Discard unsaved catalogue changes?')
   const close = () => {
-    if (abandon()) onClose()
+    if (abandon()) {
+      discarding.current = true
+      onClose()
+    }
   }
   async function selectDraft(draft: Draft, current: () => boolean) {
     if (!api) return

@@ -341,6 +341,42 @@ describe('company publishing UI', () => {
     ).toBeTruthy()
     expect(rules.content).not.toHaveProperty('materials.ABS 1mm')
   })
+  it('warns for native close/refresh only while the content is unsaved', async () => {
+    const { user } = harness(author, { ...initial, state: 'draft' })
+    await connect(user)
+    await select(user)
+    const leave = () => {
+      const event = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    expect(leave()).toBe(false)
+    await user.clear(screen.getByRole('spinbutton', { name: 'Depth override (mm)' }))
+    expect(leave()).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Save draft' }))
+    await screen.findByText(/Draft saved/)
+    expect(leave()).toBe(false)
+    await user.type(screen.getByRole('spinbutton', { name: 'Depth override (mm)' }), '650')
+    expect(leave()).toBe(true)
+    cleanup()
+    expect(leave()).toBe(false)
+  })
+  it('does not prompt again during a deliberately confirmed sign-out redirect', async () => {
+    const { user, session } = harness(author, { ...initial, state: 'draft' })
+    await connect(user)
+    await select(user)
+    await user.clear(screen.getByRole('spinbutton', { name: 'Depth override (mm)' }))
+    let prevented: boolean | undefined
+    session.signOut.mockImplementationOnce(async () => {
+      const event = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(event)
+      prevented = event.defaultPrevented
+    })
+    await user.click(screen.getByRole('button', { name: 'Sign out' }))
+    expect(window.confirm).toHaveBeenCalledWith('Discard unsaved catalogue changes?')
+    expect(session.signOut).toHaveBeenCalledTimes(1)
+    expect(prevented).toBe(false)
+  })
   it('allows inheriting product dimensions and prevents dirty close without consent', async () => {
     const { user, onClose } = harness(author, { ...initial, state: 'draft' })
     await connect(user)

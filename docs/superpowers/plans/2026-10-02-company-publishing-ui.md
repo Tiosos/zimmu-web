@@ -8,3 +8,5 @@ Supersedes the earlier Entra/MSAL selection after the user chose option B.
 4. Keep existing rule/stock/product forms, creator-only commands, different-designer review, saved revision/digest/pin confirmation and reload locks. Update visible sign-in labels and optional configuration errors.
 5. Rewrite browser entry/callback checks, add callback-data and Keycloak session unit tests, deliberately break each new security guard and restore originals byte-for-byte.
 6. Update setup docs, architecture index and living notes. Run frozen installation, full type/lint/unit gates and both builds. Publish drafts and verify GitHub CI/E2E. Live realm acceptance remains IT's deployment prerequisite.
+
+7. Review fixes: add dirty beforeunload protection with a deliberate-discard bypass; clear tokens in finally blocks around SDK logout URL generation. Add regression tests and mutate each guard, restoring originals; rerun gates before merge.

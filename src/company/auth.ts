@@ -116,12 +116,20 @@ export function createCompanySession(
       signedOut = true
       // Preserve the SDK-generated ID-token hint, then erase tokens before navigation.
       const pending = ready
-      const existingLogout = initialized ? client.createLogoutUrl({ redirectUri }) : undefined
-      client.clearToken()
+      let existingLogout: string | undefined
+      try {
+        if (initialized) existingLogout = client.createLogoutUrl({ redirectUri })
+      } finally {
+        client.clearToken()
+      }
       if (pending) await pending.catch(() => false)
       if (!initialized) return
-      const logout = existingLogout ?? client.createLogoutUrl({ redirectUri })
-      client.clearToken()
+      let logout: string
+      try {
+        logout = existingLogout ?? client.createLogoutUrl({ redirectUri })
+      } finally {
+        client.clearToken()
+      }
       navigate(logout)
     },
   }
