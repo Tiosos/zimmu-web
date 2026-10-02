@@ -1,7 +1,7 @@
 # Drawing-to-cutlist reconciliation — design
 
 Status: approved in brainstorming 2026-10-01; revised the same day after a max-level review (see the
-notes file). Plan: `docs/superpowers/plans/2026-10-01-output-reconciliation.md` (to be written).
+notes file). Plan: `docs/superpowers/plans/2026-10-01-output-reconciliation.md`.
 Notes: `docs/superpowers/notes/2026-10-01-output-reconciliation-notes.md`.
 
 Builds the drawing/cutlist consistency check that `2026-09-29-design-to-manufacturing-architecture-design.md`

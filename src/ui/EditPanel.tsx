@@ -555,8 +555,9 @@ export function EditPanel({
       : usableMaterials
 
   // The cutting list reports the long edge as the length; the stored order is whatever the
-  // generator's min-corner placement produced. Showing both stops the two from looking like a
-  // contradiction, and stays hidden when they agree.
+  // generator's min-corner placement produced, and edge banding takes its thickness off the cut
+  // size. Showing the cut size stops the lists and this panel from looking like a contradiction,
+  // and the note stays hidden when they agree.
   const finished = part.kind === 'board' ? finishedDimensions(part) : null
   const cut =
     part.kind === 'board'

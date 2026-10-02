@@ -409,6 +409,21 @@
             <td><code>scene/faceFrame.ts</code>, <code>scene/regenerateFaceFrames.ts</code>, <code>scene/reconcileBoards.ts</code>, <code>scene/frontCells.ts</code>, <code>ui/CarcasePanel.tsx</code></td>
           </tr>
           <tr>
+            <td><strong>Edge banding</strong><br><span style="color:var(--muted);font-size:12px">Banding is derived on read from each role's front-facing edges (<code>edgeRuleOf</code>) and the user's explicit per-edge decisions; it never changes finished geometry. The cutting list, BOM, nest and part sheet subtract it from the cut size through <code>cutSizeOf</code></span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>scene/edgeBanding.ts</code>, <code>ui/buildCsv.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Wall elevations</strong><br><span style="color:var(--muted);font-size:12px">One elevation sheet per wall with a dimension chain from the wall start, sill and height dimensions, and the wall length labelled by provenance (site, drawn or unverified)</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>geom/wallElevation.ts</code>, <code>geom/drawing.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Output reconciliation</strong><br><span style="color:var(--muted);font-size:12px">The drawing deck's part sheets are checked against the grouped cutlist rows for identity, quantity, size, material, colour, cut count and edges. Advisory: it reports disagreement and never blocks an export</span></td>
+            <td><span class="badge badge-green">Done</span></td>
+            <td><code>ui/outputReconciliation.ts</code>, <code>ui/ReconciliationSection.tsx</code></td>
+          </tr>
+          <tr>
             <td><strong>FSAPI fallback for non-Chromium browsers</strong></td>
             <td><span class="badge badge-yellow">Planned</span></td>
             <td>—</td>
@@ -605,6 +620,7 @@
 │   ├── edgeBanding.test.ts
 │   ├── edgeBanding.ts
 │   ├── edgeBandingFile.test.ts
+│   ├── edgeBandingPipeline.test.ts
 │   ├── editSection.test.ts
 │   ├── editSection.ts
 │   ├── faceFrame.test.ts
@@ -773,7 +789,10 @@
 │   ├── PlacementPanel.tsx
 │   ├── PlanView.test.tsx
 │   ├── PlanView.tsx
+│   ├── ProjectPanel.test.tsx
 │   ├── ProjectPanel.tsx
+│   ├── reconciliationLibrary.test.ts
+│   ├── reconciliationLocation.test.ts
 │   ├── ReconciliationSection.test.tsx
 │   ├── ReconciliationSection.tsx
 │   ├── RoomAssessmentPanel.test.tsx
@@ -812,7 +831,7 @@
           <tr><td><code>mesh.ts</code></td><td><code>TopoDS_Shape</code> → <code>MeshData</code> (Float32Arrays) + <code>THREE.BufferGeometry</code> via <code>BRepMesh_IncrementalMesh</code>.</td></tr>
           <tr><td><code>transform.ts</code></td><td><code>composeWorldMatrix(part)</code> + <code>resolveWorldMatrix(part, byId)</code> (composes placement through ancestor components) + <code>multiplyMatrix</code> — THREE-free. <code>resolveWorldMatrix</code> is the single source of truth for part placement; equals <code>composeWorldMatrix</code> exactly for a top-level part.</td></tr>
           <tr><td><code>stl.ts</code></td><td><code>buildBinaryStl(parts, geometries)</code> — world-space binary STL triangle soup with recomputed facet normals. Visible parts only.</td></tr>
-          <tr><td><code>drawing.ts</code></td><td><code>buildDrawingSheet(part)</code> → <code>DrawingView[]</code>. Face/Edge/End orthographic projections with cut rects, dimension lines, cut labels. Also the <code>assembly</code> sheet variant — three cabinet views in a row — and <code>assemblyDimLine</code>, the one place an <code>AssemblyDim</code> becomes a placed <code>DimLine</code>.</td></tr>
+          <tr><td><code>drawing.ts</code></td><td><code>buildDrawingSheet(part)</code> → <code>DrawingView[]</code>. Face/Edge/End orthographic projections with cut rects, dimension lines, cut labels. Also the <code>assembly</code> sheet variant — three cabinet views in a row — the per-wall <code>elevation</code> sheet (<code>buildWallElevationSheet</code>, fed by <code>wallElevation.ts</code>), and <code>assemblyDimLine</code>, the one place an <code>AssemblyDim</code> becomes a placed <code>DimLine</code>.</td></tr>
           <tr><td><code>hiddenLine.ts</code></td><td><code>subtractIntervals(span, holes)</code>. The occlusion rule stated once: visible spans, and its own complement for the dashed ones.</td></tr>
           <tr><td><code>assembly.ts</code></td><td><code>buildAssemblyViews(parts, byId, cabinet, materials)</code> → three orthographic views of a whole cabinet in unscaled mm. Silhouettes after through-cuts, hidden edges, the near-half cull, dimension chains, bores. Owns the em table the annotation ring is sized from.</td></tr>
           <tr><td><code>dado.ts</code></td><td>Pure dado-joint geometry — <code>isValidDadoSeat</code>, <code>deriveDadoAxes</code>, <code>computeDadoGroove</code>, <code>computeDadoSeat</code>, <code>computeRabbet</code>, <code>hasTongue</code>, <code>computeNotch</code> (stopped/blind-dado housed-corner cut), and <code>deriveJoint</code> (the list of derived cuts + seat consumed by <code>reconcileJoints</code>). Three-typed but browser-free.</td></tr>
@@ -932,7 +951,7 @@
           <tr><td><code>HardwareEditPanel.tsx</code></td><td>Hardware item form: name, qty, unit, supplier, part #, unit cost, notes, linked boards (checkbox list per board part).</td></tr>
           <tr><td><code>DrawingViewer.tsx</code></td><td>Modal for 2D shop drawings. SVG preview; SVG + DXF download.</td></tr>
           <tr><td><code>groupHardware.ts</code></td><td><code>groupHardware(lines, catalogue, library)</code> → <code>HardwareRow[]</code> — joins <code>carcaseHardware</code>'s counts against <code>HARDWARE_CATALOGUE</code> and the price library, blank (never <code>$0.00</code>) when unpriced. The grouper stays separate from <code>buildCsv.ts</code>'s serializer, mirroring the parts/dowels split already there.</td></tr>
-          <tr><td><code>buildCsv.ts</code></td><td><code>groupParts()</code> + <code>cutDimensions()</code> (grain decides which dimension is the length; size decides only when grain is <code>free</code>) + <code>isNestable()</code> + CSV serialization for cutting list, dowels and the hardware BOM (<code>buildHardwareCsv</code>, hand-typed rows plus <code>groupHardware</code>'s generated rows, three totals).</td></tr>
+          <tr><td><code>buildCsv.ts</code></td><td><code>groupParts()</code> + <code>cutDimensions()</code> (grain decides which dimension is the length; size decides only when grain is <code>free</code>; banded edges come off the cut size) + <code>groupEdgeBand()</code> + <code>isNestable()</code> + CSV serialization for cutting list, dowels and the hardware BOM (<code>buildHardwareCsv</code>, hand-typed rows plus <code>groupHardware</code>'s generated rows, three totals).</td></tr>
           <tr><td><code>buildSvg.ts</code></td><td><code>DrawingSheet</code> → SVG string (orthographic views + dimensions + cut labels).</td></tr>
           <tr><td><code>buildDxf.ts</code></td><td><code>DrawingSheet</code> → DXF string (CAD-friendly format).</td></tr>
           <tr><td><code>download.ts</code></td><td><code>downloadBlob()</code> — Blob + anchor click, browser-agnostic delivery.</td></tr>
@@ -971,7 +990,7 @@
       <h2>Data model</h2>
       <p>The scene types live in <code>src/scene/types.ts</code> and the project hierarchy in <code>src/scene/projectStructure.ts</code>. The file format serializes a <code>ZimmuFile</code> to <code>.zimmu</code> (flat JSON).</p>
 
-      <pre><code>// File format (FILE_FORMAT_VERSION = 23)
+      <pre><code>// File format (FILE_FORMAT_VERSION = 24)
 interface ZimmuFile {
   version: number       // older versions migrate on read
   name: string
@@ -981,7 +1000,7 @@ interface ZimmuFile {
   updatedAt: string
   camera: CameraState   // { position: Vec3, target: Vec3 }
   scene: Scene
-  project?: ProjectStructure // required on newly saved v23 files
+  project?: ProjectStructure // required on newly saved v24 files
 }
 
 // Project → Area → Room → Joinery Item. An item owns root component and
@@ -1448,7 +1467,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->130<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->134<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1696,9 +1715,9 @@ import { useScene } from './useScene'</code></pre>
     <!-- FILE FORMAT -->
     <section id="fileformat">
       <h2>File format</h2>
-      <p>Projects are saved as <code>.zimmu</code> files — flat JSON, human-readable, floats rounded to 6 decimal places. V22 adds room geometry and wall placements; v23 adds site levels and explicit clearance assumptions. Older files first save as a new copy.</p>
+      <p>Projects are saved as <code>.zimmu</code> files — flat JSON, human-readable, floats rounded to 6 decimal places. V22 adds room geometry and wall placements; v23 adds site levels and explicit clearance assumptions; v24 adds edge banding. Older files first save as a new copy.</p>
       <pre><code>{
-  "version": 23,
+  "version": 24,
   "name": "My Cabinet",
   "appVersion": "0.0.0",
   "units": "mm",
@@ -1721,8 +1740,8 @@ import { useScene } from './useScene'</code></pre>
           v14 (panel thickness moves onto <code>MaterialDef</code>) → v15 (the <code>screw</code> joint kind) →
         v16 (<code>adjustableShelves</code> moves onto each section's <code>interior</code>; <code>startHeight</code> is dropped) →
         v17 (fronts: <code>frontMaterial</code> / <code>frontMount</code> / <code>frontReveal</code>, <code>Section.front</code>, and <code>interior.fixedShelves</code>) →
-        v18 (the drawer component) → v19 (carcase anchors) → v20 (face frames) → v21 (project hierarchy and item ownership) → v22 (room geometry and wall placement) → v23 (site levels and clearance assumptions).
-        Now at <code>FILE_FORMAT_VERSION = 23</code>.
+        v18 (the drawer component) → v19 (carcase anchors) → v20 (face frames) → v21 (project hierarchy and item ownership) → v22 (room geometry and wall placement) → v23 (site levels and clearance assumptions) → v24 (edge banding).
+        Now at <code>FILE_FORMAT_VERSION = 24</code>.
         Migration logic lives in <code>useFile.ts</code>; a missing <code>parentId</code> loads as top-level, a dangling one is promoted.
       </p>
 

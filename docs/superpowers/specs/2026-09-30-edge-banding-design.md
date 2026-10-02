@@ -1,7 +1,7 @@
 # Edge banding and finished versus cut dimensions — design
 
 Status: approved in brainstorming, 2026-09-30.
-Plan: `docs/superpowers/plans/2026-09-30-edge-banding.md` (to be written).
+Plan: `docs/superpowers/plans/2026-09-30-edge-banding.md`.
 Notes: `docs/superpowers/notes/2026-09-30-edge-banding-notes.md`.
 
 Part of Stage 4 of `2026-09-29-design-to-manufacturing-architecture-design.md` ("edge band on a named

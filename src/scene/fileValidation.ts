@@ -1,4 +1,5 @@
 import type { MaterialDef, Part, Scene, Vec3, ZimmuFile } from './types'
+import { EDGE_KEYS } from './edgeBanding'
 import { frontForSection, roomComponentIds, type ProjectStructure } from './projectStructure'
 
 export class ZimmuFileValidationError extends Error {
@@ -434,16 +435,13 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
     throw new ZimmuFileValidationError('file.project', 'must assign every root component and part to one item')
 }
 
-/** Final assertion for the current model after all migrations/defaults/repairs have run. */
-const EDGE_KEYS = ['x0', 'x1', 'y0', 'y1']
-
 function validateEdgeFacts(scene: Scene): void {
   const isEdge = (name: string): boolean => scene.materials[name]?.use === 'edge'
   scene.parts.forEach((part, index) => {
     if (part.kind !== 'board' || part.edgeBanding === undefined) return
     const path = `file.scene.parts[${index}].edgeBanding`
     for (const [key, value] of Object.entries(recordAt(part.edgeBanding, path))) {
-      if (!EDGE_KEYS.includes(key)) {
+      if (!EDGE_KEYS.some((k) => k === key)) {
         throw new ZimmuFileValidationError(`${path}.${key}`, 'is not an edge (x0, x1, y0 or y1)')
       }
       if (value !== null && (typeof value !== 'string' || !isEdge(value))) {
@@ -456,6 +454,7 @@ function validateEdgeFacts(scene: Scene): void {
   })
 }
 
+/** Final assertion for the current model after all migrations/defaults/repairs have run. */
 export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   integerAt(file.version, 'file.version')
   stringAt(file.name, 'file.name')
