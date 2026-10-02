@@ -17,8 +17,12 @@ test('company catalogue is accessible without configuring sign-in or changing CA
 })
 
 test('sign-in bridge page is independent of the CAD application', async ({ page }) => {
-  await page.goto('/company-auth.html')
-  await expect(page).toHaveTitle('Company sign-in — Zimmu')
-  await expect(page.locator('#status')).toBeVisible()
+  await page.goto('/company-auth.html?code=test-code&state=invalid')
+  // The SDK owns the callback title and clears invalid response parameters.
+  await expect(page).toHaveTitle('Microsoft Authentication')
+  await expect(page).toHaveURL(/\/company-auth\.html$/)
+  await expect(page.locator('#status')).toHaveText(
+    'Sign-in could not complete. Close this window and try again from Zimmu.',
+  )
   await expect(page.getByRole('button', { name: 'File ▾', exact: true })).toHaveCount(0)
 })
