@@ -371,21 +371,11 @@ function App() {
     },
   })
 
-  const activeRoom = project.areas
-    .flatMap((area) => area.rooms)
-    .find((room) => room.items.some((item) => item.id === activeItemId))
-  const roomCabinetIds = useMemo(
-    () =>
-      new Set(
-        activeRoom?.items.flatMap((item) =>
-          item.rootComponentIds.flatMap((id) => [
-            id,
-            ...descendantIds(id, scene.components, scene.parts).componentIds,
-          ]),
-        ) ?? [],
-      ),
-    [activeRoom, scene.components, scene.parts],
-  )
+  const activeRoom = project.areas.flatMap((area) => area.rooms).find((room) =>
+    room.items.some((item) => item.id === activeItemId))
+  const roomCabinetIds = useMemo(() => new Set(activeRoom?.items.flatMap((item) =>
+    item.rootComponentIds.flatMap((id) => [id, ...descendantIds(id, scene.components, scene.parts).componentIds])) ?? []),
+  [activeRoom, scene.components, scene.parts])
 
   useEffect(() => {
     const poses = new Map<string, ReturnType<typeof wallPlacementPose>>()
@@ -394,59 +384,25 @@ function App() {
       for (const placement of room.geometry.placements)
         poses.set(placement.cabinetId, wallPlacementPose(room.geometry, placement))
     }
-    if (
-      !scene.components.some((c) => {
-        const pose = poses.get(c.id)
-        return (
-          c.kind === 'carcase' &&
-          pose &&
-          (c.anchor !== undefined ||
-            Math.abs(c.position.x - pose.position.x) > 0.001 ||
-            Math.abs(c.position.y - pose.position.y) > 0.001 ||
-            Math.abs(c.rotation.z - pose.rotation) > 0.001)
-        )
-      })
-    )
-      return
-    syncComponents((components) =>
-      components.map((c) => {
-        const pose = poses.get(c.id)
-        return c.kind === 'carcase' && pose
-          ? {
-              ...c,
-              anchor: undefined,
-              position: { ...c.position, ...pose.position },
-              rotation: { ...c.rotation, z: pose.rotation },
-            }
-          : c
-      }),
-    )
+    if (!scene.components.some((c) => {
+      const pose = poses.get(c.id)
+      return c.kind === 'carcase' && pose && (c.anchor !== undefined ||
+        Math.abs(c.position.x - pose.position.x) > 0.001 || Math.abs(c.position.y - pose.position.y) > 0.001 ||
+        Math.abs(c.rotation.z - pose.rotation) > 0.001)
+    })) return
+    syncComponents((components) => components.map((c) => {
+      const pose = poses.get(c.id)
+      return c.kind === 'carcase' && pose ? { ...c, anchor: undefined,
+        position: { ...c.position, ...pose.position }, rotation: { ...c.rotation, z: pose.rotation } } : c
+    }))
   }, [project, scene.components, syncComponents])
 
   const detachWallPlacement = (id: string) => {
-    if (
-      !project.areas.some((area) =>
-        area.rooms.some((room) => room.geometry?.placements.some((p) => p.cabinetId === id)),
-      )
-    )
-      return
-    setProject({
-      ...project,
-      areas: project.areas.map((area) => ({
-        ...area,
-        rooms: area.rooms.map((room) =>
-          room.geometry
-            ? {
-                ...room,
-                geometry: {
-                  ...room.geometry,
-                  placements: room.geometry.placements.filter((p) => p.cabinetId !== id),
-                },
-              }
-            : room,
-        ),
-      })),
-    })
+    if (!project.areas.some((area) => area.rooms.some((room) => room.geometry?.placements.some((p) => p.cabinetId === id)))) return
+    setProject({ ...project, areas: project.areas.map((area) => ({ ...area, rooms: area.rooms.map((room) =>
+      room.geometry ? { ...room, geometry: { ...room.geometry,
+        placements: room.geometry.placements.filter((p) => p.cabinetId !== id) } } : room,
+    ) })) })
   }
 
   const visibleParts = scene.parts.filter((p) => isNodeVisible(p, componentMap))

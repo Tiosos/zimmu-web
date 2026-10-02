@@ -313,25 +313,24 @@ describe('occupancyMask — clearance dilation', () => {
 // Every combination of the parameters that decide which roles exist, mirroring the sweep in
 // grain.test.ts: the properties below must hold for every board a carcase can emit, not for three
 // presets someone picked.
-const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as const).flatMap(
-  (baseMode) =>
-    (['captured', 'applied', 'none'] as const).flatMap((backMode) =>
-      [true, false].flatMap((hasTop) =>
-        [[], [1 / 3, 2 / 3]].flatMap((dividers) =>
-          [0, 2].map(
-            (fixedShelves): CarcaseParams => ({
-              ...CARCASE_PRESETS[0].params,
-              width: 1400,
-              height: 2100,
-              baseMode,
-              backMode,
-              hasTop,
-              section: legacyToSection(dividers, fixedShelves, 1400, 18),
-            }),
-          ),
+const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as const).flatMap((baseMode) =>
+  (['captured', 'applied', 'none'] as const).flatMap((backMode) =>
+    [true, false].flatMap((hasTop) =>
+      [[], [1 / 3, 2 / 3]].flatMap((dividers) =>
+        [0, 2].map(
+          (fixedShelves): CarcaseParams => ({
+            ...CARCASE_PRESETS[0].params,
+            width: 1400,
+            height: 2100,
+            baseMode,
+            backMode,
+            hasTop,
+            section: legacyToSection(dividers, fixedShelves, 1400, 18),
+          }),
         ),
       ),
     ),
+  ),
 )
 
 // One board per role family. The sweep emits well over a thousand boards, most of them near

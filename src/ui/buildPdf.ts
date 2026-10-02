@@ -608,24 +608,17 @@ export async function buildPdf(sheets: DrawingSheet[]): Promise<Uint8Array> {
     if (sheet.kind === 'cover') {
       renderPdfCoverSheet(page, sheet, font, fontBold)
     } else if (sheet.kind === 'installation') {
-      sheet.lines.forEach((line) =>
-        page.drawLine({
-          start: { x: pt(line.a.x), y: yflip(line.a.y) },
-          end: { x: pt(line.b.x), y: yflip(line.b.y) },
-          thickness: pt(line.role === 'structure' ? 0.15 : 0.4),
-          color: line.role === 'structure' ? C_LIGHT_GRAY : C_BLACK,
-          ...(line.role === 'entry' ? { dashArray: [pt(1.2), pt(0.8)] } : {}),
-        }),
-      )
-      sheet.texts.forEach((text) =>
-        page.drawText(text.text, {
-          x: pt(text.x) - font.widthOfTextAtSize(text.text, pt(text.size)) / 2,
-          y: yflip(text.y),
-          size: pt(text.size),
-          font,
-          color: C_BLACK,
-        }),
-      )
+      sheet.lines.forEach((line) => page.drawLine({
+        start: { x: pt(line.a.x), y: yflip(line.a.y) },
+        end: { x: pt(line.b.x), y: yflip(line.b.y) },
+        thickness: pt(line.role === 'structure' ? 0.15 : 0.4),
+        color: line.role === 'structure' ? C_LIGHT_GRAY : C_BLACK,
+        ...(line.role === 'entry' ? { dashArray: [pt(1.2), pt(0.8)] } : {}),
+      }))
+      sheet.texts.forEach((text) => page.drawText(text.text, {
+        x: pt(text.x) - font.widthOfTextAtSize(text.text, pt(text.size)) / 2,
+        y: yflip(text.y), size: pt(text.size), font, color: C_BLACK,
+      }))
     } else if (sheet.kind === 'elevation') {
       renderPdfElevationView(page, sheet.view, sheet.scale, font)
       renderPdfElevationTitleBlock(page, sheet, font, fontBold)
