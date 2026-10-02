@@ -50,6 +50,29 @@ test('imports company versions and updates a placed cabinet only after preview a
   await page.getByLabel('Catalogue update version').selectOption('2')
   await page.getByRole('button', { name: 'Preview catalogue update' }).click()
   await expect(page.getByRole('button', { name: 'Apply catalogue update' })).toBeEnabled()
+  const impact = page.getByRole('region', { name: 'Update manufacturing impact' })
+  await expect(impact).toBeVisible()
+  await expect(impact.getByText(/Total cost change unavailable/)).toBeVisible()
+  await impact
+    .locator('summary')
+    .filter({ hasText: /^Material quantities:/ })
+    .click()
+  await expect(
+    impact.getByRole('table', { name: 'Material quantities before and after' }),
+  ).toBeVisible()
+  await expect(impact.getByRole('cell', { name: 'm²', exact: true }).first()).toBeVisible()
+  await impact
+    .locator('summary')
+    .filter({ hasText: /^Part and operation changes/ })
+    .click()
+  await expect(impact.getByText(/: changed —/).first()).toBeVisible()
+  await impact
+    .locator('summary')
+    .filter({ hasText: /: changed —/ })
+    .first()
+    .click()
+  await expect(impact.getByText(/^Part ID:/).first()).toBeVisible()
+  await expect(impact.getByText(/^Machining:/).first()).toBeVisible()
   await expect(page.locator('summary').filter({ hasText: /^Company base v1/ })).toBeVisible()
   await page.getByRole('button', { name: 'Apply catalogue update' }).click()
   await expect(page.locator('summary').filter({ hasText: /^Company base v2/ })).toBeVisible()

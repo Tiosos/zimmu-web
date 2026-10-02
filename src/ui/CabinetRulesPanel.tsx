@@ -1,3 +1,5 @@
+import { RuleImpactDetails } from './RuleImpactDetails'
+import type { ImpactPricing } from './ruleImpact'
 import { RULE_LABELS } from './ruleLabels'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -5,19 +7,20 @@ import { DEFAULT_CABINET_RULES, RULE_KEYS, type RuleKey, type CabinetRules } fro
 import { previewProjectRules, type RulePreview } from '../scene/ruleFlow'
 import type { Scene } from '../scene/types'
 
-export function RulePreviewDetails({ preview }: { preview: RulePreview }) {
+export function RulePreviewDetails({ preview, library, hardwareLibrary }: { preview: RulePreview } & ImpactPricing) {
   return <div className="text-xs space-y-1" aria-live="polite">
     {preview.errors.map((error, index) => <p key={index} className="text-destructive">{error}</p>)}
     {!preview.errors.length && <>
       <p>{preview.changes.length} cabinets affected; {preview.partsChanged} parts changed.</p>
       <p>Hardware quantities or selection: {preview.hardwareChanged ? 'changed' : 'unchanged'}. Review priced BOM before production.</p>
+      <RuleImpactDetails preview={preview} library={library} hardwareLibrary={hardwareLibrary} />
       {preview.changes.map((change) => <p key={change.cabinetId}>{change.label}: {change.fields.map((key) =>
         RULE_LABELS[key as RuleKey] ?? key).join(', ') || 'catalogue version only'}</p>)}
     </>}
   </div>
 }
 
-export function CabinetRulesPanel({ scene, onApply }: { scene: Scene; onApply: (preview: RulePreview) => boolean }) {
+export function CabinetRulesPanel({ scene, onApply, library, hardwareLibrary }: { scene: Scene; onApply: (preview: RulePreview) => boolean } & ImpactPricing) {
   const [draft, setDraft] = useState<CabinetRules>(scene.cabinetRules ?? DEFAULT_CABINET_RULES)
   const [preview, setPreview] = useState<RulePreview | null>(null)
   const [error, setError] = useState('')
@@ -49,7 +52,7 @@ export function CabinetRulesPanel({ scene, onApply }: { scene: Scene; onApply: (
         </select>}
     </label>)}
     <Button size="sm" variant="outline" onClick={() => { setPreview(previewProjectRules(scene, draft)); setError('') }}>Preview project rules</Button>
-    {preview && <><RulePreviewDetails preview={preview} />
+    {preview && <><RulePreviewDetails preview={preview} library={library} hardwareLibrary={hardwareLibrary} />
       <Button size="sm" disabled={preview.errors.length > 0} onClick={() => {
         if (onApply(preview)) { setPreview(null); setError('') }
         else setError('The design changed after preview. Preview again before applying.')

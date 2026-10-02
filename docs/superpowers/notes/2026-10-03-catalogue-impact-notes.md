@@ -1,0 +1,11 @@
+# Catalogue impact implementation notes
+
+Spec: ../specs/2026-10-03-catalogue-impact-design.md
+Plan: ../plans/2026-10-03-catalogue-impact.md
+
+- 2026-10-03: Selected impact review as the next Stage 3 increment after #78. The roadmap calls for comparing parts, operations and costs; current previews only have fields/counts and a hardware boolean. Signed package keys and live Keycloak setup are IT-dependent and remain separate.
+- 2026-10-03: Cost comparison belongs beside existing pure UI production derivations. Source/candidate are captured geometry; current rate libraries reprice both sides together, without affecting adoption. No rate is inferred for a new version-qualified stock.
+- 2026-10-03: Comparing local part placement misses an anchored neighbour moved by a changed upstream cabinet. Impact facts now include world placement through the existing resolveWorldMatrix/decomposeMatrix helpers. A real imported 610→620 mm update proves the custom neighbour's unchanged local parts still appear as assembly-placement changes.
+- 2026-10-03: Invalid cut area is unavailable, not negative stock or a credit. A mutation initially survived because a second numeric guard also rejected negative area; the regression now uses two negative cut dimensions whose product is positive, proving the cut-size problem guard independently. Another test verifies one invalid row keeps a grouped stock quantity unavailable.
+- 2026-10-03: Fifteen deliberate mutations produced AssertionError failures: world/indirect placement, invalid round stock, blocked preview, exact machining/manual comparison, unchanged part/quantity filtering, numeric price validity, unusable quantities, subtotal overflow, complete-total/delta guards, invalid cut quantity, null propagation and current-library merge. Source was restored byte-for-byte after each mutation. Focused comparison/UI tests pass.
+- 2026-10-03: Local gates passed with 153 unit-test files, 2,708 passed/10 skipped, typecheck, lint, CAD build, API build and diff checks. The browser import test now expands stock quantities and exact part/operation details before explicit acceptance and verifies undo as before. GitHub checks are inspected on the published draft head.

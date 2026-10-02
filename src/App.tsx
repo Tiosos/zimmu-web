@@ -651,6 +651,8 @@ function App() {
       />
       {projectPanelOpen && (
         <ProjectPanel
+          library={library}
+          hardwareLibrary={hardwareLibrary}
           onApplyRulePreview={onApplyRulePreview}
           project={project}
           scene={scene}
@@ -770,6 +772,8 @@ function App() {
         )}
         {selectedCarcase !== null && mainView === 'model' && (
           <CabinetEditor
+            library={library}
+            hardwareLibrary={hardwareLibrary}
             scene={scene}
             onApplyRulePreview={onApplyRulePreview}
             key={selectedCarcase.id}

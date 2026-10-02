@@ -1,3 +1,4 @@
+import type { ImpactPricing } from './ruleImpact'
 import { useState } from 'react'
 import { previewCatalogueUpdate, type RulePreview } from '../scene/ruleFlow'
 import { RulePreviewDetails } from './CabinetRulesPanel'
@@ -57,6 +58,8 @@ export function CabinetEditor({
   projectName,
   scene,
   onApplyRulePreview,
+  library,
+  hardwareLibrary,
 }: {
   component: CarcaseComponent
   materials: Record<string, MaterialDef>
@@ -72,7 +75,7 @@ export function CabinetEditor({
   projectName: string
   scene?: Scene
   onApplyRulePreview?: (preview: RulePreview) => boolean
-}) {
+} & ImpactPricing) {
   const definition = component.catalogue && catalogueDefinition(component.catalogue.id, component.catalogue.version, scene?.companyCatalogues)
   const sources = catalogueSources(component, scene?.cabinetRules, scene?.companyCatalogues)
   const [version, setVersion] = useState(component.catalogue?.version ?? 1)
@@ -115,7 +118,7 @@ export function CabinetEditor({
                 </select></label>
                 <p>{definition?.companyLabel ? 'Company publication records' : 'Starter examples'}. Preview before accepting an installed version.</p>
                 <Button size="sm" variant="outline" onClick={() => { setPreview(previewCatalogueUpdate(scene, component.id, version)); setUpdateError('') }}>Preview catalogue update</Button>
-                {preview && <><RulePreviewDetails preview={preview} />
+                {preview && <><RulePreviewDetails preview={preview} library={library} hardwareLibrary={hardwareLibrary} />
                   <Button size="sm" disabled={preview.errors.length > 0} onClick={() => {
                     if (onApplyRulePreview(preview)) { setPreview(null); setUpdateError('') }
                     else setUpdateError('The design changed after preview. Preview again before applying.')

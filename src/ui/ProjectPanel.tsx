@@ -1,3 +1,4 @@
+import type { ImpactPricing } from './ruleImpact'
 import { useMemo } from 'react'
 import type { Scene } from '../scene/types'
 import type { ProjectStructure } from '../scene/projectStructure'
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { CabinetRulesPanel } from './CabinetRulesPanel'
 import type { RulePreview } from '../scene/ruleFlow'
 
-interface Props {
+interface Props extends ImpactPricing {
   onApplyRulePreview?: (preview: RulePreview) => boolean
   project: ProjectStructure
   scene: Scene
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export function ProjectPanel({ project, scene, projectName, onChange, activeItemId, onSelectItem, onApplyRulePreview,
-  canUndo, canRedo, onUndo, onRedo, onClose }: Props) {
+  canUndo, canRedo, onUndo, onRedo, onClose, library, hardwareLibrary }: Props) {
   const rename = (id: string, name: string) => onChange({ ...project, areas: project.areas.map((area) => ({
     ...area, name: area.id === id ? name : area.name,
     rooms: area.rooms.map((room) => ({ ...room, name: room.id === id ? name : room.name,
@@ -80,7 +81,7 @@ export function ProjectPanel({ project, scene, projectName, onChange, activeItem
           <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
         </div></div>
       <p className="text-xs text-muted-foreground">Names are editable; IDs remain stable. Assign each top-level assembly to one item.</p>
-      {onApplyRulePreview && <CabinetRulesPanel key={JSON.stringify(scene.cabinetRules)} scene={scene} onApply={onApplyRulePreview} />}
+      {onApplyRulePreview && <CabinetRulesPanel key={JSON.stringify(scene.cabinetRules)} scene={scene} onApply={onApplyRulePreview} library={library} hardwareLibrary={hardwareLibrary} />}
       {project.areas.map((area) => <section key={area.id} className="border border-border rounded p-3 space-y-2">
         <div className="text-xs">Area {input(area.id, area.name, 'Area')}</div>
         {area.rooms.map((room) => <div key={room.id} className="ml-3 border-l border-border pl-3 space-y-2">
