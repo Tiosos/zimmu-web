@@ -52,6 +52,11 @@ test('imports company versions and updates a placed cabinet only after preview a
   await expect(page.getByRole('button', { name: 'Apply catalogue update' })).toBeEnabled()
   const impact = page.getByRole('region', { name: 'Update manufacturing impact' })
   await expect(impact).toBeVisible()
+  const bounds = await impact.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect(bounds!.width).toBeGreaterThan(500)
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width)
   await expect(impact.getByText(/Total cost change unavailable/)).toBeVisible()
   await impact
     .locator('summary')

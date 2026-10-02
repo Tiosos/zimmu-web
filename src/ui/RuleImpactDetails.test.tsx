@@ -148,4 +148,7 @@ it('catalogue preview uses current libraries and leaves the cabinet on its saved
   expect(screen.queryByText('Missing rates or unusable quantities')).toBeNull()
   expect(onApplyRulePreview).not.toHaveBeenCalled()
   expect(c.catalogue?.version).toBe(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Close impact review' }))
+  expect(screen.queryByRole('region', { name: 'Update manufacturing impact' })).toBeNull()
+  expect(onApplyRulePreview).not.toHaveBeenCalled()
 })
