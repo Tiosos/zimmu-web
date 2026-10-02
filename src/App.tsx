@@ -57,6 +57,7 @@ function App() {
     onAdd,
     onAddComponent,
     onAddCarcase,
+    onApplyRulePreview,
     parameterFor,
     onDetachPart,
     onRemove,
@@ -638,6 +639,7 @@ function App() {
       />
       {projectPanelOpen && (
         <ProjectPanel
+          onApplyRulePreview={onApplyRulePreview}
           project={project}
           scene={scene}
           projectName={projectName}
@@ -756,6 +758,8 @@ function App() {
         )}
         {selectedCarcase !== null && mainView === 'model' && (
           <CabinetEditor
+            scene={scene}
+            onApplyRulePreview={onApplyRulePreview}
             key={selectedCarcase.id}
             component={selectedCarcase}
             materials={scene.materials}

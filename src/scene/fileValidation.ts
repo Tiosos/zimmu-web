@@ -1,6 +1,7 @@
 import type { MaterialDef, Part, Scene, Vec3, ZimmuFile } from './types'
 import { EDGE_KEYS } from './edgeBanding'
 import { frontForSection, roomComponentIds, type ProjectStructure } from './projectStructure'
+import { RULE_KEYS } from './constructionRules'
 
 export class ZimmuFileValidationError extends Error {
   constructor(path: string, message: string) {
@@ -454,6 +455,29 @@ function validateEdgeFacts(scene: Scene): void {
   })
 }
 
+/** Shared validation for persisted rules and preview input. */
+export function validateCabinetRules(value: unknown): void {
+  const rules = recordAt(value, 'file.scene.cabinetRules')
+  if (!stringAt(rules.companyId, 'file.scene.cabinetRules.companyId').trim())
+    throw new ZimmuFileValidationError('file.scene.cabinetRules.companyId', 'must be non-empty')
+  if (integerAt(rules.companyVersion, 'file.scene.cabinetRules.companyVersion') < 1)
+    throw new ZimmuFileValidationError('file.scene.cabinetRules.companyVersion', 'must be positive')
+  const overrides = recordAt(rules.project, 'file.scene.cabinetRules.project')
+  const enums: Record<string, readonly string[]> = {
+    backMode: ['captured', 'applied', 'none'],
+    jointMethod: ['dado-rabbet', 'finger', 'dowel', 'butt-screw', 'confirmat'],
+    frontMount: ['overlay', 'half-overlay', 'inset'],
+  }
+  for (const [key, value] of Object.entries(overrides)) {
+    const path = `file.scene.cabinetRules.project.${key}`
+    if (!(RULE_KEYS as readonly string[]).includes(key)) throw new ZimmuFileValidationError(path, 'is not a supported project rule')
+    if (key === 'frontReveal') positiveAt(value, path, true)
+    else if (enums[key]) {
+      if (!enums[key].includes(stringAt(value, path))) throw new ZimmuFileValidationError(path, 'has an unsupported value')
+    } else if (!stringAt(value, path).trim() && key !== 'edgeMaterial') throw new ZimmuFileValidationError(path, 'must name a material')
+  }
+}
+
 /** Final assertion for the current model after all migrations/defaults/repairs have run. */
 export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   integerAt(file.version, 'file.version')
@@ -461,6 +485,7 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   if (file.units !== 'mm') throw new ZimmuFileValidationError('file.units', 'must be "mm"')
   vecAt(file.camera.position, 'file.camera.position')
   vecAt(file.camera.target, 'file.camera.target')
+  if (file.scene.cabinetRules !== undefined) validateCabinetRules(file.scene.cabinetRules)
 
   if (!Array.isArray(file.scene.parts)) {
     throw new ZimmuFileValidationError('file.scene.parts', 'must be an array')

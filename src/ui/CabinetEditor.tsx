@@ -1,3 +1,8 @@
+import { useState } from 'react'
+import { previewCatalogueUpdate, type RulePreview } from '../scene/ruleFlow'
+import { RulePreviewDetails } from './CabinetRulesPanel'
+import { RULE_LABELS } from './ruleLabels'
+import type { RuleKey } from '../scene/constructionRules'
 import { Button } from '@/components/ui/button'
 import { buildDrawingSheets } from '../geom/drawing'
 import { CabinetProjection } from './CabinetProjection'
@@ -7,7 +12,7 @@ import { buildDxf } from './buildDxf'
 import { buildSvg } from './buildSvg'
 import { downloadBlob } from './download'
 import { sheetFilename } from './sheetFilename'
-import { catalogueDefinition, catalogueSources } from '../scene/catalogue'
+import { CABINET_CATALOGUE, catalogueDefinition, catalogueSources } from '../scene/catalogue'
 import type {
   CarcaseComponent,
   Component,
@@ -16,6 +21,7 @@ import type {
   Part,
   PartId,
   SectionId,
+  Scene,
 } from '../scene/types'
 
 // The cabinet edit level: selecting a cabinet turns the main pane into its editor. The tabs are the
@@ -49,6 +55,8 @@ export function CabinetEditor({
   selectedPartId,
   onSelectPart,
   projectName,
+  scene,
+  onApplyRulePreview,
 }: {
   component: CarcaseComponent
   materials: Record<string, MaterialDef>
@@ -62,9 +70,14 @@ export function CabinetEditor({
   selectedPartId: PartId | null
   onSelectPart: (id: PartId) => void
   projectName: string
+  scene?: Scene
+  onApplyRulePreview?: (preview: RulePreview) => boolean
 }) {
   const definition = component.catalogue && catalogueDefinition(component.catalogue.id, component.catalogue.version)
-  const sources = catalogueSources(component)
+  const sources = catalogueSources(component, scene?.cabinetRules)
+  const [version, setVersion] = useState(component.catalogue?.version ?? 1)
+  const [preview, setPreview] = useState<RulePreview | null>(null)
+  const [updateError, setUpdateError] = useState('')
   // The same sheet object the drawings deck would show, built from the same projector this pane
   // reads, so the two export paths cannot produce different files for the same cabinet.
   const exportSheet = (ext: 'svg' | 'dxf') => {
@@ -90,9 +103,25 @@ export function CabinetEditor({
               {definition && Object.values(sources).includes('item') ? ' · item overrides' : ''}
             </summary>
             <div className="absolute z-20 bg-background border border-border rounded p-2 max-h-64 overflow-auto min-w-44 shadow-md">
-              {definition ? Object.entries(sources).map(([key, source]) =>
-                <div key={key}>{key}: {source === 'item' ? 'Item override' : 'Catalogue'}</div>) :
-                'Saved cabinet geometry is preserved; this version cannot be resolved.'}
+              {definition && Object.keys(sources).length ? Object.entries(sources).map(([key, source]) =>
+                <div key={key}>{RULE_LABELS[key as RuleKey] ?? key}: {{ item: 'Item override', catalogue: 'Catalogue', company: 'Company', project: 'Project' }[source]}</div>) :
+                'Saved cabinet geometry is preserved; the catalogue or company rule version cannot be resolved.'}
+              {scene && onApplyRulePreview && <div className="space-y-2 mt-2 border-t pt-2">
+                <label>Installed version <select aria-label="Catalogue update version" value={version}
+                  onChange={(event) => { setVersion(Number(event.target.value)); setPreview(null); setUpdateError('') }}>
+                  {CABINET_CATALOGUE.filter((entry) => entry.catalogueId === component.catalogue?.id).map((entry) =>
+                    <option key={entry.catalogueVersion} value={entry.catalogueVersion}>v{entry.catalogueVersion}</option>)}
+                </select></label>
+                <p>Starter examples. Preview before accepting an installed version.</p>
+                <Button size="sm" variant="outline" onClick={() => { setPreview(previewCatalogueUpdate(scene, component.id, version)); setUpdateError('') }}>Preview catalogue update</Button>
+                {preview && <><RulePreviewDetails preview={preview} />
+                  <Button size="sm" disabled={preview.errors.length > 0} onClick={() => {
+                    if (onApplyRulePreview(preview)) { setPreview(null); setUpdateError('') }
+                    else setUpdateError('The design changed after preview. Preview again before applying.')
+                  }}>Apply catalogue update</Button></>}
+                {updateError && <p role="alert">{updateError}</p>}
+              </div>}
+
             </div>
           </details>
         )}

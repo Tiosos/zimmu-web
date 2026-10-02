@@ -5,8 +5,11 @@ import { emptyRoomGeometry, moveRootToItem, roomComponentIds } from '../scene/pr
 import { RoomGeometryPanel } from './RoomGeometryPanel'
 import { RoomAssessmentPanel } from './RoomAssessmentPanel'
 import { Button } from '@/components/ui/button'
+import { CabinetRulesPanel } from './CabinetRulesPanel'
+import type { RulePreview } from '../scene/ruleFlow'
 
 interface Props {
+  onApplyRulePreview?: (preview: RulePreview) => boolean
   project: ProjectStructure
   scene: Scene
   projectName: string
@@ -20,7 +23,7 @@ interface Props {
   onClose: () => void
 }
 
-export function ProjectPanel({ project, scene, projectName, onChange, activeItemId, onSelectItem,
+export function ProjectPanel({ project, scene, projectName, onChange, activeItemId, onSelectItem, onApplyRulePreview,
   canUndo, canRedo, onUndo, onRedo, onClose }: Props) {
   const rename = (id: string, name: string) => onChange({ ...project, areas: project.areas.map((area) => ({
     ...area, name: area.id === id ? name : area.name,
@@ -77,6 +80,7 @@ export function ProjectPanel({ project, scene, projectName, onChange, activeItem
           <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
         </div></div>
       <p className="text-xs text-muted-foreground">Names are editable; IDs remain stable. Assign each top-level assembly to one item.</p>
+      {onApplyRulePreview && <CabinetRulesPanel key={JSON.stringify(scene.cabinetRules)} scene={scene} onApply={onApplyRulePreview} />}
       {project.areas.map((area) => <section key={area.id} className="border border-border rounded p-3 space-y-2">
         <div className="text-xs">Area {input(area.id, area.name, 'Area')}</div>
         {area.rooms.map((room) => <div key={room.id} className="ml-3 border-l border-border pl-3 space-y-2">
