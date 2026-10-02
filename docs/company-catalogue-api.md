@@ -14,7 +14,7 @@ This is a server increment, separate from the browser CAD application. It provid
    | `Catalogue.ProductDesigner` | Authorised senior designers | Create/edit/submit products; review another designer's submitted product |
 
    Assign these roles to the intended users/groups on the API enterprise application. Neither directory role names nor browser-selected roles grant catalogue authority. A user with both app roles has both permissions but still cannot approve their own product.
-4. Register a separate single-tenant SPA client with delegated permission to this API and company/admin consent. Expose the API scope as `api://<api-client-id>/Catalogue.Access` for this client. Register the exact SPA callback URI `<site-origin>/<base-path>company-auth.html` (development: `http://localhost:5173/company-auth.html`). The editor uses MSAL Browser authorization code flow with PKCE; no client secret belongs in a browser. Keep implicit grant disabled. Assign catalogue app roles on the API enterprise application, not the SPA registration.
+4. Register a separate single-tenant SPA client with delegated permission to this API and company/admin consent. Expose the API scope as `api://<api-client-id>/Catalogue.Access` for this client. Register the exact SPA callback URI `<site-origin>/<base-path>company-auth.html` (development: `http://localhost:5173/company-auth.html`). Also register the site origin/root as a SPA reply URL for the Microsoft logout return (`postLogoutRedirectUri` uses `window.location.origin`); this lets MSAL close the logout popup and re-enable sign-in. The editor uses MSAL Browser authorization code flow with PKCE; no client secret belongs in a browser. Keep implicit grant disabled. Assign catalogue app roles on the API enterprise application, not the SPA registration.
 
 Identity uses the verified tenant ID plus immutable object ID, never email/display name. Role assignment changes take effect as access tokens expire/are refreshed; immediate revocation/Conditional Access integration is a deployment follow-up. Live tenant configuration has not been exercised in this repository.
 
@@ -87,9 +87,9 @@ The company rule reference must already be published. Product overrides currentl
 Set these public build variables in your build environment (GUID placeholders are intentionally not provided as working configuration):
 
 ```sh
-VITE_ENTRA_TENANT_ID='<directory-tenant-guid>'
-VITE_ENTRA_SPA_CLIENT_ID='<spa-application-client-guid>'
-VITE_ENTRA_API_CLIENT_ID='<api-application-client-guid>'
+export VITE_ENTRA_TENANT_ID='<directory-tenant-guid>'
+export VITE_ENTRA_SPA_CLIENT_ID='<spa-application-client-guid>'
+export VITE_ENTRA_API_CLIENT_ID='<api-application-client-guid>'
 pnpm build
 ```
 
@@ -113,3 +113,5 @@ No tenant/app IDs or service deployment are supplied by the repository, so live 
 - [Microsoft: MSAL initialization](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/initialization)
 - [Microsoft: MSAL v5 redirect bridge for Vite](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/redirect-bridge)
 - [Microsoft: silent API token acquisition](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-spa-acquire-token)
+
+- [Microsoft: popup logout and registered reply URLs](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/logout)
