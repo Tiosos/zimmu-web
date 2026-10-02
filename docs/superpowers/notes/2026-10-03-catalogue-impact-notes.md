@@ -25,3 +25,7 @@ The floating review height is also bounded by the space below its top offset, no
 Exact operation comparison includes ownership references. Show the source joint and owning assembly in readable details, so an ownership-only change does not produce indistinguishable before/after rows. Regression tests cover each owner independently.
 
 - Traceability follow-up gates: 2,716 tests passed / 10 skipped across 153 files; typecheck, lint, CAD build and diff checks passed. All 25 final mutations failed by AssertionError and restored exact bytes. Catalogue API sources are unchanged from the successful API build.
+
+- Browser assertion correction: measure the fixed scroll container containing Close, not the nested content wrapper. Expanded content is intentionally taller than the viewport; only the scroll container must be bounded. The selector follows the fixed container instead of assuming the button parent is that container.
+
+- Fresh Chromium gate reproduced two test failures: the compact bounds assertion measured inner content, and the pre-existing project-rule scenario expected the former ambiguous count wording. Corrected the container selector and both count assertions; added an explicit zero manufacturing/assembly changes check for no-op preview. The other 31 browser scenarios passed.

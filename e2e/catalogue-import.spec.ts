@@ -82,7 +82,9 @@ test('imports company versions and updates a placed cabinet only after preview a
   await expect(impact.getByText(/^Stock properties:/).first()).toBeVisible()
   const desktopViewport = page.viewportSize()!
   await page.setViewportSize({ width: 390, height: 240 })
-  const panel = page.getByRole('button', { name: 'Close impact review' }).locator('..')
+  const panel = page.locator('div.fixed').filter({
+    has: page.getByRole('button', { name: 'Close impact review' }),
+  })
   const compactBounds = await panel.boundingBox()
   expect(compactBounds).not.toBeNull()
   expect(compactBounds!.x).toBeGreaterThanOrEqual(0)
