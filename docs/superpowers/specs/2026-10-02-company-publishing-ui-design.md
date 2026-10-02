@@ -1,0 +1,11 @@
+# Company publishing UI — Keycloak design (supersedes Entra selection)
+
+Build on the Keycloak API replacement of merged #75. Keep PR #76 stacked on that API branch. File → Company catalogue opens `company-auth.html` in a separate window without an opener so authentication redirects preserve unsaved CAD. Use the supported Keycloak JS standard authorization-code flow with enforced S256 PKCE, explicit login and memory-only SDK tokens. Initialize before mounting React; load verified identity/drafts/versions before enabling the editor. Build-time public URL/realm/SPA client config is optional; malformed/missing values disable sign-in. No secret, token paste, simulated role, persistent token storage or cross-window token transfer.
+
+Same-origin bearer API only. The API maps subjects to stable IT-owned staff UUIDs; `/me` supplies roles and canonical identity. Product publication still needs a different authorised designer. IT owns rules. Browser controls are conveniences; API remains authoritative.
+
+Keep native rule/material and product forms, pinned rule/layout references, creator save/submit/withdraw, review notes, exact saved-revision confirmation and immutable history. Dirty edits prevent submission; conflicts/uncertain writes require explicit reload. Expiry/sign-out clears private snapshots and rejects late responses. Tokens clear before logout navigation; sign-out then explicit sign-in changes accounts. Dirty form close asks before discarding.
+
+CAD adoption, company layout authoring, production release and live realm provisioning remain separate. Verify config, init/login/refresh/logout races, initial callback data, revision/permission guards, independent page build and browser entry/close. Run full gates and deliberate guard mutations. Live Keycloak acceptance requires IT setup.
+
+Review hardening: native tab/window close and refresh must warn while catalogue content is dirty. Explicitly confirmed close/sign-out and session expiry bypass that warning only as data is deliberately discarded. Logout must erase local SDK tokens even if generating the logout URL fails, while retaining the normal ID-token hint in the generated URL.

@@ -102,3 +102,33 @@ The company rule reference must already be published. Product overrides currentl
 - [Keycloak server administration: scopes, roles and audience mappers](https://www.keycloak.org/docs/latest/server_admin/index.html)
 - [Keycloak production configuration](https://www.keycloak.org/server/configuration-production)
 - [jose JWT verification](https://github.com/panva/jose/blob/main/docs/jwt/verify/functions/jwtVerify.md)
+
+## Browser publishing editor (#76)
+
+Set these public build variables to the same realm and SPA client configured above:
+
+```sh
+export VITE_KEYCLOAK_URL='https://identity.example.invalid'
+export VITE_KEYCLOAK_REALM='company'
+export VITE_KEYCLOAK_CLIENT_ID='zimmu-catalogue-editor'
+pnpm build
+```
+
+No browser secret or token belongs in build variables. Old `VITE_ENTRA_*` variables are not supported. Missing or malformed configuration leaves sign-in unavailable while CAD remains usable. Serve the built `company-auth.html` page and assets as a real separate entry; do not rewrite it to `index.html`. HTTPS is required outside loopback development. Match any deployment base path exactly in both Keycloak redirect lists.
+
+**File → Company catalogue…** opens a separate window with no opener link. Standard code/PKCE sign-in redirects only that window, preserving unsaved CAD work. Keycloak initializes and consumes the callback before React mounts. The API's `/me` response supplies canonical identity and roles before authoring becomes available. Access/refresh tokens stay in the SDK's memory in this window; they are not stored or sent to the CAD window. API requests refresh the token if needed; failed refresh requires explicit sign-in. Reload/reopen requires another explicit sign-in. Sign-out clears tokens and private editor data before navigating to the realm logout page. The login-status iframe is disabled; revocation outside this window is detected at token refresh/expiry or by removing the identity binding.
+
+Route `/api/catalogue/*` on the **same site origin** to the private catalogue API. Bearer requests omit cookies, disable cache and refuse redirects. Vite development proxies to `127.0.0.1:8787`; run the configured API separately. There is no browser endpoint picker or cross-origin token sharing.
+
+IT creates master rules/material stock and saves/submits/publishes an exact version. Senior designers create products pinned to a published rule and installed starter layout, then save/submit. A different authorised designer reviews and publishes or requests changes with a note. Creators may withdraw submissions. Published history offers Draft next version without altering an issued snapshot. There is no local role selector.
+
+Dirty edits block submission; publication confirms the saved revision, digest, next version and pins. Conflicts/uncertain network outcomes disable commands until explicit reload/review; writes are not retried automatically. Closing dirty forms asks before discarding. Expiry/sign-out clears private data and invalidates late responses. Publication is catalogue approval; CAD adoption and production release remain separate decisions.
+
+### Live acceptance checklist
+
+1. Inspect a real realm token and confirm exact issuer, API audience, SPA authorized party, Bearer type, Catalogue.Access scope and API client roles. Verify PKCE enforcement, exact redirect/logout URIs, origin, MFA and disabled alternative grants.
+2. Verify production HTTPS routing and callback assets. Exercise login, refresh expiry/reconnect and logout in supported browsers; confirm CAD's unsaved state survives redirects in the separate window.
+3. Verify every staff account is bound to its existing canonical staff UUID before migration. Publish a rule as IT; submit as designer A and approve as designer B. A must still be denied self-approval on pre-migration drafts. Readers cannot write; unbound/wrong-realm/wrong-client accounts are denied.
+4. Remove a binding and verify immediate API denial. Test stale revisions in two sessions, immutable history/audit over restart and no automatic CAD changes.
+
+No realm credentials or service deployment are supplied. Live Keycloak acceptance is an IT deployment prerequisite and is not claimed by the local or GitHub test suites.

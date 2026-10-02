@@ -627,6 +627,13 @@ function App() {
           void saveAsFile()
         }}
         onProjectNameChange={setProjectName}
+        onCompanyCatalogue={() =>
+          window.open(
+            new URL(`${import.meta.env.BASE_URL}company-auth.html`, window.location.origin).href,
+            '_blank',
+            'noopener,noreferrer',
+          )
+        }
         onProjectStructure={() => setProjectPanelOpen(true)}
         onCuttingList={() => setCuttingListOpen(true)}
         onExportStl={handleExportStl}
