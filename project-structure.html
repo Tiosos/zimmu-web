@@ -514,6 +514,17 @@
       <pre><code><!-- AUTOGEN:src-tree -->src/
 ├── App.test.tsx
 ├── App.tsx
+├── company/
+│   ├── api.test.ts
+│   ├── api.ts
+│   ├── auth.test.ts
+│   ├── auth.ts
+│   ├── CompanyCatalogue.test.tsx
+│   ├── CompanyCatalogue.tsx
+│   ├── ContentForm.tsx
+│   ├── redirect.ts
+│   ├── seed.ts
+│   └── types.ts
 ├── components/
 │   └── ui/
 │       ├── button.tsx
@@ -864,6 +875,7 @@
         <thead><tr><th>File</th><th>Role</th></tr></thead>
         <tbody>
           <tr><td><code>types.ts</code></td><td>Canonical types: <code>ZimmuFile</code>, <code>Scene</code>, <code>Part</code>/<code>BoardPart</code>, <code>CutDef</code> (incl. <code>hole-array</code>), <code>MaterialDef</code>, <code>HardwareItem</code>, <code>Joint</code>, <code>Component</code>, <code>CarcaseParams</code>, <code>FaceHit</code>, <code>CameraState</code>.</td></tr>
+          <tr><td><code>src/company</code></td><td>Optional Company catalogue window: MSAL memory session and separate sign-in bridge, same-origin bearer client, IT rule/stock and senior-designer recipe forms, saved-revision review and immutable history. Explicit reload after conflicts; session generations invalidate late responses. CAD adoption remains separate.</td></tr>
           <tr><td><code>server/catalogue</code></td><td>Separate Entra-authenticated API: verified delegated tokens, IT rule ownership, independent designer product approval, immutable SQLite versions and atomic audit. No browser role simulation or automatic CAD adoption.</td></tr>
           <tr><td><code>useScene.ts</code></td><td>Scene state + geometry lifecycle + undo/redo + <code>exportStep</code> + cut linking + materials/hardware CRUD + component/carcase CRUD + detach. Every mutation passes through <code>applyPipeline</code> (<code>regenerateComponents</code> → <code>reconcileJoints</code>). Lazy Comlink worker singleton.</td></tr>
           <tr><td><code>useFile.ts</code></td><td>File System Access API save/open/new. Auto-reopen last file via IDB. <code>isDirty</code> tracking via JSON snapshot comparison.</td></tr>
@@ -1477,7 +1489,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->137<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->140<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1615,6 +1627,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-30-wall-elevations-notes.md
     │   ├── 2026-10-01-output-reconciliation-notes.md
     │   ├── 2026-10-02-catalogue-rule-flow-notes.md
+    │   ├── 2026-10-02-company-publishing-ui-notes.md
     │   └── 2026-10-02-entra-catalogue-publishing-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
@@ -1675,6 +1688,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-30-wall-elevations.md
     │   ├── 2026-10-01-output-reconciliation.md
     │   ├── 2026-10-02-catalogue-rule-flow.md
+    │   ├── 2026-10-02-company-publishing-ui.md
     │   └── 2026-10-02-entra-catalogue-publishing.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
@@ -1727,6 +1741,7 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-09-30-wall-elevations-design.md
         ├── 2026-10-01-output-reconciliation-design.md
         ├── 2026-10-02-catalogue-rule-flow-design.md
+        ├── 2026-10-02-company-publishing-ui-design.md
         └── 2026-10-02-entra-catalogue-publishing-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 

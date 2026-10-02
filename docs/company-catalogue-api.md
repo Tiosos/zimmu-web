@@ -1,6 +1,6 @@
 # Company catalogue API — Entra setup and operation
 
-This is a server increment, separate from the browser CAD application. It provides authenticated rule/product authoring and controlled publication. The CAD UI does not yet sign in, fetch these company definitions, or adopt published versions. Starter examples in CAD remain examples.
+This is a server increment, separate from the browser CAD application. It provides authenticated rule/product authoring and controlled publication. The browser Company catalogue window signs in and authors/reviews company definitions. CAD does not yet adopt published company definitions. Starter examples in CAD remain examples.
 
 ## IT setup
 
@@ -14,7 +14,7 @@ This is a server increment, separate from the browser CAD application. It provid
    | `Catalogue.ProductDesigner` | Authorised senior designers | Create/edit/submit products; review another designer's submitted product |
 
    Assign these roles to the intended users/groups on the API enterprise application. Neither directory role names nor browser-selected roles grant catalogue authority. A user with both app roles has both permissions but still cannot approve their own product.
-4. Register a separate single-tenant SPA client for the later editor, with SPA redirect URIs and delegated permission to this API. Use MSAL authorization code flow with PKCE; no client secret belongs in a browser. The SPA and MSAL editor are not implemented by this PR. For API verification, acquire a delegated access token for this API using an IT-approved client, then supply it as a bearer token.
+4. Register a separate single-tenant SPA client with delegated permission to this API and company/admin consent. Expose the API scope as `api://<api-client-id>/Catalogue.Access` for this client. Register the exact SPA callback URI `<site-origin>/<base-path>company-auth.html` (development: `http://localhost:5173/company-auth.html`). The editor uses MSAL Browser authorization code flow with PKCE; no client secret belongs in a browser. Keep implicit grant disabled. Assign catalogue app roles on the API enterprise application, not the SPA registration.
 
 Identity uses the verified tenant ID plus immutable object ID, never email/display name. Role assignment changes take effect as access tokens expire/are refreshed; immediate revocation/Conditional Access integration is a deployment follow-up. Live tenant configuration has not been exercised in this repository.
 
@@ -81,3 +81,35 @@ The company rule reference must already be published. Product overrides currentl
 - [Microsoft: validate identity and authorisation claims](https://learn.microsoft.com/en-us/entra/identity-platform/claims-validation)
 - [jose: JWT verification](https://github.com/panva/jose/blob/main/docs/jwt/verify/functions/jwtVerify.md)
 - [Node 22: SQLite](https://nodejs.org/download/release/latest-jod/docs/api/sqlite.html)
+
+## Browser publishing editor
+
+Set these public build variables in your build environment (GUID placeholders are intentionally not provided as working configuration):
+
+```sh
+VITE_ENTRA_TENANT_ID='<directory-tenant-guid>'
+VITE_ENTRA_SPA_CLIENT_ID='<spa-application-client-guid>'
+VITE_ENTRA_API_CLIENT_ID='<api-application-client-guid>'
+pnpm build
+```
+
+These IDs are public application configuration. Never add a client secret or access token to a `VITE_*` variable. Missing or malformed IDs leave company sign-in unavailable while CAD remains usable. Serve the built `company-auth.html` page and its generated assets. MSAL v5 requires that callback page to run the redirect bridge independently of React/CAD and without Cross-Origin-Opener-Policy headers; do not rewrite it to `index.html`. Serve HTTPS in production; localhost is the development exception. The app requests only the configured API scope and explicitly prompts for an account. API tokens are acquired silently for requests; an interaction-required result asks the user to sign in again. MSAL uses memory storage; reload/reopen requires an explicit sign-in. Account changes require sign-out then sign-in. Browser memory is cleared locally on sign-out before the Microsoft logout popup finishes.
+
+Route `/api/catalogue/*` on the **same site origin** to the private catalogue API. Bearer requests omit cookies, disable HTTP cache and refuse redirects. No cross-origin endpoint picker or CORS token sharing is implemented. Vite development proxies this route to `127.0.0.1:8787`; run the configured API separately. The proxy target is fixed and carries no embedded credentials.
+
+Open **File → Company catalogue…**. IT creates master rules/material stock and saves/submits/publishes an exact version. Authorised senior designers create products pinned to a published rule and installed starter layout, save and submit; a different authorised senior designer reviews the saved snapshot and publishes or requests changes with a note. Blank product overrides inherit. A creator can withdraw their submission for editing. Published history offers **Draft next version**; it does not edit an issued snapshot. The API supplies all roles and authoritative identity; there is no local role selector. Reader accounts can browse published history.
+
+Unsaved edits block submission. Publication requires a separate confirmation showing the exact saved revision, digest, next version and rule/layout pins. Conflict, permission error or uncertain network outcome disables commands until explicit reload/review; writes are never automatically retried. Closing dirty forms asks before discarding. Sign-out/expiry clears the editor and invalidates late responses. Publication remains catalogue approval, not production release or automatic CAD adoption.
+
+### Live acceptance checklist for IT
+
+1. Verify both registrations are single-tenant and the API uses v2 access tokens. Check API scope consent, SPA callback URI and API app-role assignments with real staff accounts.
+2. Route same-origin HTTPS API traffic and serve callback assets with the documented header exception. Verify sign-in, refresh/interaction-required reconnect and logout in supported desktop browsers, including company popup/Conditional Access policies.
+3. Use IT to publish a rule; use designer A to submit a product and designer B to approve. Confirm designer A cannot self-approve, readers cannot write, and unauthorised/other-tenant accounts are rejected by the API.
+4. Open the same draft in two staff sessions; verify stale revision commands require reload. Check audit identity/time/note and immutable versions across service restart. Confirm no existing CAD scene changes on publication.
+
+No tenant/app IDs or service deployment are supplied by the repository, so live Microsoft sign-in/consent/Conditional Access acceptance is a deployment prerequisite, not a claimed local test.
+
+- [Microsoft: MSAL initialization](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/initialization)
+- [Microsoft: MSAL v5 redirect bridge for Vite](https://learn.microsoft.com/en-us/entra/msal/javascript/browser/redirect-bridge)
+- [Microsoft: silent API token acquisition](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-spa-acquire-token)

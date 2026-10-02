@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { lazy, Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
@@ -42,6 +42,10 @@ import type {
 } from './scene/types'
 
 const supported = 'showOpenFilePicker' in window
+
+const CompanyCatalogue = lazy(() =>
+  import('./company/CompanyCatalogue').then((module) => ({ default: module.CompanyCatalogue })),
+)
 
 function App() {
   const {
@@ -340,6 +344,7 @@ function App() {
   const closeCuttingList = useCallback(() => setCuttingListOpen(false), [])
   const [drawingsOpen, setDrawingsOpen] = useState(false)
   const [readinessOpen, setReadinessOpen] = useState(false)
+  const [companyCatalogueOpen, setCompanyCatalogueOpen] = useState(false)
   const [projectPanelOpen, setProjectPanelOpen] = useState(false)
   const [drawingSheets, setDrawingSheets] = useState<DrawingSheet[]>([])
 
@@ -627,6 +632,7 @@ function App() {
           void saveAsFile()
         }}
         onProjectNameChange={setProjectName}
+        onCompanyCatalogue={() => setCompanyCatalogueOpen(true)}
         onProjectStructure={() => setProjectPanelOpen(true)}
         onCuttingList={() => setCuttingListOpen(true)}
         onExportStl={handleExportStl}
@@ -637,6 +643,11 @@ function App() {
         mainView={mainView}
         onMainViewChange={setMainView}
       />
+      {companyCatalogueOpen && (
+        <Suspense fallback={<p role="status">Loading company catalogue…</p>}>
+          <CompanyCatalogue onClose={() => setCompanyCatalogueOpen(false)} />
+        </Suspense>
+      )}
       {projectPanelOpen && (
         <ProjectPanel
           onApplyRulePreview={onApplyRulePreview}

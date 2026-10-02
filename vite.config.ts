@@ -42,7 +42,16 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        companyAuth: path.resolve(__dirname, 'company-auth.html'),
+      },
+    },
+  },
   server: {
+    proxy: { '/api/catalogue': 'http://127.0.0.1:8787' },
     fs: {
       allow: ['..'],
     },
