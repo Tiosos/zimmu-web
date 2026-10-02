@@ -1,0 +1,11 @@
+# Keycloak company catalogue authentication
+
+Replace merged #75's Entra authentication with a single trusted Keycloak realm. Keep the catalogue store, revision transitions, company isolation and immutable evidence unchanged. Validate RS256 JWT issuer, API audience, expiration/issued-at, opaque subject, Bearer token type, Catalogue.Access scope and exact authorised SPA client. Accept only known catalogue roles under resource_access[configured API client]; ignore realm/other-client/email/attribute roles. Require server-owned IT identity bindings for every account, including readers. No service-account or ID-token path.
+
+Keep a stable company UUID and staff UUID in existing Principal fields. An absolute IT-owned JSON bindings file associates Keycloak subjects with stable staff UUIDs and is bound to the exact issuer/company. Reject invalid/duplicate identities, excessive file size and missing files; load it on each authenticated request so removal revokes service access without waiting for token expiry. Never trust identity claims, usernames or email for linkage. Existing deployments reuse original company tenant UUID and staff object UUIDs after IT verifies each person; do not rewrite old evidence or assign a second staff ID to the same person.
+
+Production requires HTTPS; HTTP is permitted only for loopback development. Realm/API/SPA clients, claim mappers, user provisioning/MFA and binding-file permissions remain IT deployment responsibilities. Do not deploy a Keycloak instance or enrol live users in this change. Provide a current replacement setup guide and explicitly retire Entra settings.
+
+The UI follow-up uses standard Keycloak JS authorization-code/PKCE redirects within a separate catalogue window, preserving unsaved CAD. Tokens remain in that window's memory. Browser roles come from /me. API follow-up is a new draft PR; #76 is stacked on it. No merge without user instruction.
+
+Tests: genuinely signed tokens including wrong issuer/audience/client/type/scope, forged subjects/claims, foreign keys, role sources and ID-token exclusion; bindings immutability/duplicate errors and immediate unbinding; real HTTP creator/self-approval across provider migration and preserved audit. Mutation-test each new security guard, full local gates and CI/E2E.

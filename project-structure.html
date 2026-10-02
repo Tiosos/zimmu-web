@@ -864,7 +864,7 @@
         <thead><tr><th>File</th><th>Role</th></tr></thead>
         <tbody>
           <tr><td><code>types.ts</code></td><td>Canonical types: <code>ZimmuFile</code>, <code>Scene</code>, <code>Part</code>/<code>BoardPart</code>, <code>CutDef</code> (incl. <code>hole-array</code>), <code>MaterialDef</code>, <code>HardwareItem</code>, <code>Joint</code>, <code>Component</code>, <code>CarcaseParams</code>, <code>FaceHit</code>, <code>CameraState</code>.</td></tr>
-          <tr><td><code>server/catalogue</code></td><td>Separate Entra-authenticated API: verified delegated tokens, IT rule ownership, independent designer product approval, immutable SQLite versions and atomic audit. No browser role simulation or automatic CAD adoption.</td></tr>
+          <tr><td><code>server/catalogue</code></td><td>Separate Keycloak-authenticated API: verified realm/API tokens, IT-owned stable staff identity bindings, IT rule ownership, independent designer product approval, immutable SQLite versions and atomic audit. No browser role simulation or automatic CAD adoption.</td></tr>
           <tr><td><code>useScene.ts</code></td><td>Scene state + geometry lifecycle + undo/redo + <code>exportStep</code> + cut linking + materials/hardware CRUD + component/carcase CRUD + detach. Every mutation passes through <code>applyPipeline</code> (<code>regenerateComponents</code> → <code>reconcileJoints</code>). Lazy Comlink worker singleton.</td></tr>
           <tr><td><code>useFile.ts</code></td><td>File System Access API save/open/new. Auto-reopen last file via IDB. <code>isDirty</code> tracking via JSON snapshot comparison.</td></tr>
           <tr><td><code>idb.ts</code></td><td>IndexedDB wrapper (schema v4) — four object stores: <code>handles</code> (FileSystemFileHandle), <code>library</code> (material cost rates and sheet stock), <code>settings</code> (the global tool clearance) and <code>hardware</code> (hardware catalogue prices, keyed by catalogue key).</td></tr>
@@ -1615,7 +1615,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-30-wall-elevations-notes.md
     │   ├── 2026-10-01-output-reconciliation-notes.md
     │   ├── 2026-10-02-catalogue-rule-flow-notes.md
-    │   └── 2026-10-02-entra-catalogue-publishing-notes.md
+    │   ├── 2026-10-02-entra-catalogue-publishing-notes.md
+    │   └── 2026-10-02-keycloak-catalogue-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1675,7 +1676,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-30-wall-elevations.md
     │   ├── 2026-10-01-output-reconciliation.md
     │   ├── 2026-10-02-catalogue-rule-flow.md
-    │   └── 2026-10-02-entra-catalogue-publishing.md
+    │   ├── 2026-10-02-entra-catalogue-publishing.md
+    │   └── 2026-10-02-keycloak-catalogue.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1727,7 +1729,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-09-30-wall-elevations-design.md
         ├── 2026-10-01-output-reconciliation-design.md
         ├── 2026-10-02-catalogue-rule-flow-design.md
-        └── 2026-10-02-entra-catalogue-publishing-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-10-02-entra-catalogue-publishing-design.md
+        └── 2026-10-02-keycloak-catalogue-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
