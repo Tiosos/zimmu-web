@@ -1,7 +1,7 @@
 import type { RoomGeometry, SiteMeasurement, WallSegment } from '../scene/projectStructure'
 import type { Scene } from '../scene/types'
 import { wallElevation, type ElevationSpan } from '../scene/roomAssessment'
-import { wallLength } from '../scene/roomGeometry'
+import { lengthVerified, wallLength } from '../scene/roomGeometry'
 import type { AssemblyDim } from './assembly'
 import type { Rect2D } from './drawing'
 
@@ -105,9 +105,7 @@ export function buildWallElevation(
   const length: WallLength = {
     drawn,
     ...(measured ? { measured } : {}),
-    // A drawn length from hypot is a float, so an uncertainty of 0 would call 3983.0000001 a disagreement.
-    verified:
-      measured !== undefined && Math.abs(drawn - measured.value) <= Math.max(measured.uncertainty, 0.5),
+    verified: measured !== undefined && lengthVerified(drawn, measured),
   }
 
   const breaks = [originX, originX + drawn, ...spans.flatMap((s) => [s.x0, s.x1])].sort((a, b) => a - b)
