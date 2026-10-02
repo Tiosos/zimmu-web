@@ -198,6 +198,7 @@ describe('manufacturing impact comparison', () => {
     const next = structuredClone(source)
     next.parts[0].edgeBanding = { x0: 'Tape', x1: 'Tape' }
     const result = buildRuleImpact(comparison(source, next))!
+    expect(result.parts).toHaveLength(1)
     expect(result.parts[0].fields).toEqual(['cut size', 'edge treatment'])
     expect(result.parts[0].before?.finished).toEqual([1000, 500, 18])
     expect(result.parts[0].after?.cut).toEqual([996, 500, 18])
@@ -298,6 +299,7 @@ describe('manufacturing impact comparison', () => {
     const next = structuredClone(source)
     next.parts[0].edgeBanding = { x0: 'Tape', x1: 'Tape', y0: 'Tape', y1: 'Tape' }
     const result = buildRuleImpact(comparison(source, next))!
+    expect(result.parts).toHaveLength(1)
     expect(result.parts[0].after?.problem).toBeTruthy()
     expect(result.materials.find((q) => q.name === 'Board: Ply')?.after).toBeNull()
     expect(result.afterCost.total).toBeNull()

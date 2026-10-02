@@ -4,15 +4,9 @@ import type { HardwareLibraryEntry, MaterialDef, Part, Scene } from '../scene/ty
 import { componentsById } from '../scene/componentTree'
 import { carcaseHardware } from '../scene/carcaseHardware'
 import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
-import { edgesOf } from '../scene/edgeBanding'
+import { manufacturingParts, type ManufacturingPart } from '../scene/manufacturingPart'
 import { canonicalContent } from '../scene/cataloguePackage'
-import {
-  cutDimensions,
-  finishedDimensions,
-  groupDowels,
-  groupEdgeBand,
-  groupParts,
-} from './buildCsv'
+import { groupDowelsFromRecords, groupEdgeBandFromRecords, groupPartsFromRecords } from './buildCsv'
 import { groupHardware } from './groupHardware'
 
 export interface ImpactPricing {
@@ -114,47 +108,39 @@ function operationDetails(operation: object): string {
     )
     .join('; ')
 }
-function partFacts(scene: Scene, pricing: ImpactPricing): Map<string, PartFacts> {
+function partFacts(scene: Scene, records: ManufacturingPart[]): Map<string, PartFacts> {
   const byId = componentsById(scene.components)
-  const materials = effectiveMaterialsOf(pricing.library ?? {}, scene.materials)
   return new Map(
-    scene.parts.map((p) => {
+    records.map((record, index) => {
+      const p = scene.parts[index]
       const world = decomposeMatrix(resolveWorldMatrix(p, byId))
-      const edges = p.kind === 'board' ? edgesOf(p, byId, materials) : undefined
-      const finished = p.kind === 'board' ? finishedDimensions(p) : undefined
-      const cut = p.kind === 'board' ? cutDimensions(p, edges!, materials) : undefined
+      const edges = record.kind === 'board' ? record.edges : undefined
       return [
         p.id,
         {
-          label: p.label,
-          kind: p.kind,
+          label: record.label,
+          kind: record.kind,
           localDimensions:
-            p.kind === 'board' ? [p.length, p.width, p.thickness] : [p.length, p.diameter],
-          color: p.color,
-          stock: canonicalContent({
-            thickness: materials[p.material]?.thickness ?? null,
-            hasGrain: materials[p.material]?.hasGrain ?? true,
-            sheet: materials[p.material]?.sheet
-              ? {
-                  length: materials[p.material].sheet!.length,
-                  width: materials[p.material].sheet!.width,
-                }
-              : null,
-            use: materials[p.material]?.use ?? null,
-          }),
-          finished: finished
-            ? [finished.length, finished.width, finished.thickness]
-            : [p.length, p.kind === 'cylinder' ? p.diameter : 0],
-          cut: cut
-            ? [cut.length, cut.width, cut.thickness]
-            : [p.length, p.kind === 'cylinder' ? p.diameter : 0],
-          material: p.material,
-          grain: p.kind === 'board' ? p.grain : '—',
+            record.kind === 'board'
+              ? [record.local.length, record.local.width, record.local.thickness]
+              : [record.length, record.diameter],
+          color: record.color,
+          stock: canonicalContent(record.stock),
+          finished:
+            record.kind === 'board'
+              ? [record.finished.length, record.finished.width, record.finished.thickness]
+              : [record.length, record.diameter],
+          cut:
+            record.kind === 'board'
+              ? [record.cut.length, record.cut.width, record.cut.thickness]
+              : [record.length, record.diameter],
+          material: record.material,
+          grain: record.kind === 'board' ? record.grain : '—',
           edges: edges ? canonicalContent(edges) : '—',
-          machining: canonicalContent(p.cuts),
-          machiningDetails: p.cuts.map(operationDetails),
-          instructionDetails: p.kind === 'board' ? (p.operations ?? []).map(operationDetails) : [],
-          instructions: canonicalContent(p.kind === 'board' ? (p.operations ?? []) : []),
+          machining: canonicalContent(record.cuts),
+          machiningDetails: record.cuts.map(operationDetails),
+          instructionDetails: record.operations.map(operationDetails),
+          instructions: canonicalContent(record.operations),
           placement: canonicalContent({
             parentId: p.parentId,
             localPosition: p.position,
@@ -163,7 +149,7 @@ function partFacts(scene: Scene, pricing: ImpactPricing): Map<string, PartFacts>
             worldRotation: world.rotation,
             rotationOrder: p.rotationOrder,
           }),
-          ...(cut?.problem ? { problem: cut.problem } : {}),
+          ...(record.kind === 'board' && record.cut.problem ? { problem: record.cut.problem } : {}),
         },
       ]
     }),
@@ -195,11 +181,15 @@ function quantities(before: QuantityFact[], after: QuantityFact[]): QuantityImpa
     return old === next ? [] : [{ key, name: q.name, unit: q.unit, before: old, after: next }]
   })
 }
-function production(scene: Scene, pricing: ImpactPricing) {
-  const materials = effectiveMaterialsOf(pricing.library ?? {}, scene.materials)
-  const boards = groupParts(scene.parts, materials, scene.components)
-  const dowels = groupDowels(scene.parts, materials)
-  const edges = groupEdgeBand(scene.parts, materials, scene.components)
+function production(
+  scene: Scene,
+  pricing: ImpactPricing,
+  materials: Record<string, MaterialDef>,
+  records: ManufacturingPart[],
+) {
+  const boards = groupPartsFromRecords(records, materials)
+  const dowels = groupDowelsFromRecords(records, materials)
+  const edges = groupEdgeBandFromRecords(records, materials)
   const hardware = groupHardware(carcaseHardware(scene), pricing.hardwareLibrary ?? {})
   const totals = new Map<string, QuantityFact>()
   const issues = new Set<string>()
@@ -290,8 +280,16 @@ export function buildRuleImpact(
   if (preview.errors.length) return undefined
   // RulePreview.source is the captured scene signature, never a newer live scene.
   const source = JSON.parse(preview.source) as Scene
-  const before = partFacts(source, pricing)
-  const after = partFacts(preview.candidate, pricing)
+  const beforeMaterials = effectiveMaterialsOf(pricing.library ?? {}, source.materials)
+  const afterMaterials = effectiveMaterialsOf(pricing.library ?? {}, preview.candidate.materials)
+  const beforeRecords = manufacturingParts(source.parts, beforeMaterials, source.components)
+  const afterRecords = manufacturingParts(
+    preview.candidate.parts,
+    afterMaterials,
+    preview.candidate.components,
+  )
+  const before = partFacts(source, beforeRecords)
+  const after = partFacts(preview.candidate, afterRecords)
   const parts = [...new Set([...before.keys(), ...after.keys()])]
     .sort()
     .flatMap((id): PartImpact[] => {
@@ -304,8 +302,8 @@ export function buildRuleImpact(
         .map(([, label]) => label)
       return changed.length ? [{ id, status: 'changed', fields: changed, before: a, after: b }] : []
     })
-  const old = production(source, pricing)
-  const next = production(preview.candidate, pricing)
+  const old = production(source, pricing, beforeMaterials, beforeRecords)
+  const next = production(preview.candidate, pricing, afterMaterials, afterRecords)
   return {
     parts,
     materials: quantities(old.materials, next.materials),

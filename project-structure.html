@@ -593,6 +593,8 @@
 ├── scene/
 │   ├── __fixtures__/
 │   │   ├── companyCatalogue.ts
+│   │   ├── manufacturingCsv.json
+│   │   ├── manufacturingProject.ts
 │   │   ├── resolve.ts
 │   │   └── sweep.ts
 │   ├── adjacentFronts.test.ts
@@ -672,6 +674,8 @@
 │   ├── jointInvolves.test.ts
 │   ├── jointInvolves.ts
 │   ├── manufacturingPackage.test.ts
+│   ├── manufacturingPart.test.ts
+│   ├── manufacturingPart.ts
 │   ├── migrateSections.test.ts
 │   ├── migrateSections.ts
 │   ├── moveGizmo.test.ts
@@ -807,6 +811,7 @@
 │   ├── HardwareTab.tsx
 │   ├── JointsPanel.test.tsx
 │   ├── JointsPanel.tsx
+│   ├── manufacturingParity.test.ts
 │   ├── ManufacturingReadiness.test.tsx
 │   ├── ManufacturingReadiness.tsx
 │   ├── NumberField.tsx
@@ -1501,7 +1506,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->146<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->148<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1643,7 +1648,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-02-company-publishing-ui-notes.md
     │   ├── 2026-10-02-entra-catalogue-publishing-notes.md
     │   ├── 2026-10-02-keycloak-catalogue-notes.md
-    │   └── 2026-10-03-catalogue-impact-notes.md
+    │   ├── 2026-10-03-catalogue-impact-notes.md
+    │   └── 2026-10-03-manufacturing-record-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1707,7 +1713,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-02-company-publishing-ui.md
     │   ├── 2026-10-02-entra-catalogue-publishing.md
     │   ├── 2026-10-02-keycloak-catalogue.md
-    │   └── 2026-10-03-catalogue-impact.md
+    │   ├── 2026-10-03-catalogue-impact.md
+    │   └── 2026-10-03-manufacturing-record.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1763,7 +1770,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-02-company-publishing-ui-design.md
         ├── 2026-10-02-entra-catalogue-publishing-design.md
         ├── 2026-10-02-keycloak-catalogue-design.md
-        └── 2026-10-03-catalogue-impact-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-10-03-catalogue-impact-design.md
+        └── 2026-10-03-manufacturing-record-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
@@ -1808,6 +1816,6 @@ import { useScene } from './useScene'</code></pre>
   </main>
 </div>
 <section><h2>Published company catalogues in CAD</h2><p>The dedicated company window exports authenticated published snapshots without tokens. CAD validates content and dependencies, asks for a trusted source confirmation and installs into scene.companyCatalogues. Company/rule/version-qualified stock avoids material collisions. v27 project files retain installed definitions for offline use. Import and reopening preserve cabinet parameters and parts; the cabinet editor previews an installed product update before explicit acceptance. Offline hashes do not authenticate approval records or release production.</p></section>
-<p>Catalogue and project-rule impact previews use the captured source and pipeline candidate, stable part IDs and composed world transforms. UI-side ruleImpact reuses existing BOM, edge and hardware derivations with current libraries, and RuleImpactDetails exposes exact operations, quantity changes and explicit price coverage before acceptance.</p>
+<p>Catalogue and project-rule impact previews use the captured source and pipeline candidate, stable part IDs and composed world transforms. The scene-side manufacturingPart adapter provides physical part records, separate local/BOM axes, edge stock/run lengths and generation/catalogue provenance. BOM and UI-side ruleImpact share these records and apply current pricing separately, and RuleImpactDetails exposes exact operations, quantity changes and explicit price coverage before acceptance.</p>
 </body>
 </html>

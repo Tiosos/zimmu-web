@@ -13,16 +13,17 @@ import { DowelList } from './DowelList'
 import { HardwareTab } from './HardwareTab'
 import { groupHardware } from './groupHardware'
 import {
-  groupParts,
+  groupPartsFromRecords,
   buildCsv,
   buildHardwareCsv,
-  groupDowels,
+  groupDowelsFromRecords,
   buildDowelCsv,
-  groupEdgeBand,
+  groupEdgeBandFromRecords,
   type EdgeBandLine,
 } from './buildCsv'
 import { downloadBlob } from './download'
 import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
+import { manufacturingParts } from '../scene/manufacturingPart'
 import { SheetsTab } from './SheetsTab'
 import type { NestReport } from '../scene/useNest'
 import { Button } from '@/components/ui/button'
@@ -404,14 +405,15 @@ export function BomModal({
   // (dowel rate) must not be shadowed by a scene entry that has only costPerM2.
   const effectiveMaterials = effectiveMaterialsOf(library, materials)
 
-  const rows = groupParts(parts, effectiveMaterials, components)
+  const records = manufacturingParts(parts, effectiveMaterials, components)
+  const rows = groupPartsFromRecords(records, effectiveMaterials)
   const boardSubtotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
-  const dowelRows = groupDowels(parts, effectiveMaterials)
+  const dowelRows = groupDowelsFromRecords(records, effectiveMaterials)
   const dowelSubtotal = dowelRows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
   const hardwareSubtotal =
     hardware.reduce((sum, item) => sum + item.qty * item.unitCost, 0) +
     derivedHardware.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
-  const edgeLines = groupEdgeBand(parts, effectiveMaterials, components)
+  const edgeLines = groupEdgeBandFromRecords(records, effectiveMaterials)
   const edgeSubtotal = edgeLines.reduce((sum, l) => sum + (l.cost ?? 0), 0)
   const grandTotal = boardSubtotal + dowelSubtotal + hardwareSubtotal + edgeSubtotal
 
