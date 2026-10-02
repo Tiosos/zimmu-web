@@ -47,11 +47,11 @@ describe('construction rule and catalogue update flow', () => {
 
   it('keeps custom cabinets and detached parts intact', () => {
     const original = scene({ ...cabinet(), catalogue: undefined })
-    const detached = { ...original.parts[0], id: 'detached', componentId: undefined, label: 'Manual part' }
-    original.parts.push(detached)
+    const detached = { ...original.parts[0], driven: false, label: 'Manual part' }
+    original.parts[0] = detached
     const result = previewProjectRules(original, rules())
     expect(first(result.candidate).params).toEqual(first(original).params)
-    expect(result.candidate.parts.find((p) => p.id === 'detached')).toEqual(detached)
+    expect(result.candidate.parts.find((p) => p.id === detached.id)).toEqual(detached)
     expect(result.changes).toEqual([])
   })
 
@@ -86,6 +86,17 @@ describe('construction rule and catalogue update flow', () => {
     expect(previewProjectRules(empty, { ...rules(), project: { unsupported: 1 } as never }).errors.join()).toMatch(/supported/)
     expect(previewProjectRules(scene(), { ...rules(), project: { carcaseMaterial: 'missing' } }).errors.length).toBeGreaterThan(0)
     expect(previewProjectRules(scene(), { ...rules(), project: { edgeMaterial: '18mm Ply' } }).errors.join()).toMatch(/edge-band/)
+  })
+
+  it('validates against retained per-part thickness overrides', () => {
+    const original = scene()
+    original.parts = original.parts.map((p) => p.kind === 'board' && p.role === 'left-side'
+      ? { ...p, overrides: { thickness: 400 } } : p)
+    const resolved = applyPipeline(original)
+    const v2 = { ...definition, catalogueVersion: 2, params: { ...definition.params, width: 400 } }
+    const result = previewCatalogueUpdate(resolved, 'cabinet', 2, [...CABINET_CATALOGUE, v2])
+    expect(result.errors.join()).toMatch(/width must exceed/)
+    expect(result.candidate).toBe(resolved)
   })
 
   it('supports explicit no-edge band and rejects stale acceptance', () => {

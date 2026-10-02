@@ -3,7 +3,7 @@ import { companyRuleValues, type CabinetRules } from './constructionRules'
 import { validateCabinetRules } from './fileValidation'
 import type { CarcaseComponent, CarcaseParams, Scene } from './types'
 import { applyPipeline } from './pipeline'
-import { roleThicknessFor } from './resolveThickness'
+import { overridesOf, roleThicknessFor } from './resolveThickness'
 import { validateCarcaseParams } from './carcaseRoles'
 import { carcaseHardware } from './carcaseHardware'
 
@@ -58,7 +58,7 @@ function preview(scene: Scene, rules: CabinetRules | undefined, target?: { cabin
       return component
     }
     const params: CarcaseParams = { ...baseline, section: component.params.section, ...overrides }
-    const errors = validateCarcaseParams(params, roleThicknessFor(params, scene.materials, new Map()))
+    const errors = validateCarcaseParams(params, roleThicknessFor(params, scene.materials, overridesOf(scene.parts, component.id)))
     if (params.edgeMaterial && scene.materials[params.edgeMaterial]?.use !== 'edge') errors.push('edgeMaterial must name edge-band stock')
     result.errors.push(...errors.map((error) => `${component.label}: ${error}`))
     const fields = [...new Set([...Object.keys(params), ...Object.keys(component.params)])]
