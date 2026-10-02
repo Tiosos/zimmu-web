@@ -12,3 +12,5 @@
 
 - Cross-process review found that starter section IDs are generated at module evaluation. Strict reconstructed-content comparison rejected valid server snapshots in the browser. Compare section design independently of validated instance IDs, but retain and hash the exact published content. A regression uses different process IDs, and rejects empty/duplicate IDs/malformed child arrays. Mutation of ID normalization is assertion-killed.
 - The first remote E2E run confirmed package import failed at the snapshot boundary, and also found the existing publishing-window test matched both the new import button and publishing button. Its selector now uses the exact publishing label. Both fixes are included in the next head; fresh CI/E2E results are the acceptance gate.
+
+- The second Chromium run passed all import/place/preview/apply/override checks and the 32 other browser tests. The final undo selector incorrectly expected an exact accessible name without FileMenu's shortcut span. It now matches the intended undo action prefix and checks enabled state with a bounded wait. No runtime change was needed.
