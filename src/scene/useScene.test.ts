@@ -63,6 +63,24 @@ describe('useScene', () => {
     })
   })
 
+  it('pins a placed catalogue cabinet and tracks edits through undo and redo', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const placed = result.current.scene.components.find((c): c is CarcaseComponent => c.kind === 'carcase')!
+    expect(placed.catalogue).toEqual({ id: 'starter.base-600', version: 1, overrides: {} })
+    const originalPartCount = result.current.scene.parts.length
+    act(() => result.current.onUpdateComponent(placed.id, (c) => c.kind === 'carcase'
+      ? { ...c, params: { ...c.params, width: 750 } } : c))
+    const edited = result.current.scene.components.find((c): c is CarcaseComponent => c.kind === 'carcase')!
+    expect(edited.catalogue?.overrides).toEqual({ width: 750 })
+    expect(edited.params.width).toBe(750)
+    expect(result.current.scene.parts.length).toBe(originalPartCount)
+    act(() => result.current.undo())
+    expect((result.current.scene.components.find((c) => c.id === placed.id) as CarcaseComponent).catalogue?.overrides).toEqual({})
+    act(() => result.current.redo())
+    expect((result.current.scene.components.find((c) => c.id === placed.id) as CarcaseComponent).catalogue?.overrides).toEqual({ width: 750 })
+  })
+
   it('does not add a scene undo entry for derived wall positioning', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))

@@ -487,6 +487,20 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
     stringAt(component.label, `${path}.label`)
     vecAt(component.position, `${path}.position`)
     vecAt(component.rotation, `${path}.rotation`)
+    if (component.kind === 'carcase' && component.catalogue !== undefined) {
+      const catalogue = recordAt(component.catalogue, `${path}.catalogue`)
+      if (!stringAt(catalogue.id, `${path}.catalogue.id`).trim())
+        throw new ZimmuFileValidationError(`${path}.catalogue.id`, 'must be non-empty')
+      if (integerAt(catalogue.version, `${path}.catalogue.version`) < 1)
+        throw new ZimmuFileValidationError(`${path}.catalogue.version`, 'must be positive')
+      const overrides = recordAt(catalogue.overrides, `${path}.catalogue.overrides`)
+      for (const key of Object.keys(overrides)) {
+        if (!Object.hasOwn(component.params, key))
+          throw new ZimmuFileValidationError(`${path}.catalogue.overrides.${key}`, 'must name a cabinet parameter')
+        if (JSON.stringify(overrides[key]) !== JSON.stringify(component.params[key as keyof typeof component.params]))
+          throw new ZimmuFileValidationError(`${path}.catalogue.overrides.${key}`, 'must match the saved cabinet parameter')
+      }
+    }
     if (component.parentId !== null && !componentIds.has(component.parentId)) {
       throw new ZimmuFileValidationError(`${path}.parentId`, 'must name a live component or be null')
     }

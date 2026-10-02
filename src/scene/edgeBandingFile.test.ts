@@ -61,8 +61,11 @@ const envelopeFor = (s: Scene) => ({
 const fileText = (s: Scene): string => JSON.stringify(envelopeFor(s))
 
 describe('edge banding in the file', () => {
-  it('is format version 24', () => {
-    expect(FILE_FORMAT_VERSION).toBe(24)
+  it('reads a v24 edge-banded file without changing its edge data', () => {
+    const source = envelopeFor(scene(board({ y0: 'ABS 1mm' })))
+    const loaded = parseFile(JSON.stringify({ ...source, version: 24 }))
+    const part = loaded.scene.parts[0]
+    expect(part.kind === 'board' && part.edgeBanding).toEqual({ y0: 'ABS 1mm' })
   })
 
   it('round-trips explicit edges, an explicit none, and an edge material', () => {
