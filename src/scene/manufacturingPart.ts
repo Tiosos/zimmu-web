@@ -52,6 +52,19 @@ export interface ManufacturingStock {
   sheet: { length: number; width: number } | null
   use: 'edge' | null
 }
+// A half-filled Library sheet has a zero dimension. Non-finite legacy library values must
+// also stay outside raster jobs: they cannot describe allocatable physical sheet stock.
+export function isNestable(def: MaterialDef | ManufacturingStock): boolean {
+  const sheet = def.sheet
+  return (
+    sheet != null &&
+    Number.isFinite(sheet.length) &&
+    Number.isFinite(sheet.width) &&
+    sheet.length > 0 &&
+    sheet.width > 0
+  )
+}
+
 export interface PartProvenance {
   parentId: ComponentId | null
   cabinetId: ComponentId | null

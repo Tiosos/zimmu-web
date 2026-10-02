@@ -127,6 +127,19 @@ describe('shared manufacturing nesting and label facts', () => {
     ).toBe(true)
   })
 
+  it.each([NaN, Infinity, -Infinity, -1, 0])(
+    'rejects malformed library sheet stock (%s) before masking',
+    (value) => {
+      const scene = manufacturingProject()
+      for (const axis of ['length', 'width'] as const) {
+        scene.materials['18mm Ply'].sheet = { length: 2440, width: 1220, [axis]: value }
+        expect(groupNestRecords(recordsOf(scene)).some((g) => g.material === '18mm Ply')).toBe(
+          false,
+        )
+      }
+    },
+  )
+
   it('refreshes labels without invalidating a nest for rates, placement or manual instructions', () => {
     const scene = manufacturingProject()
     const before = signature(scene)

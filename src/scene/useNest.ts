@@ -3,7 +3,7 @@ import { wrap } from 'comlink'
 import type { NestBoard, NestWorkerApi } from '../nest/nest.worker'
 import type { NestResult, SheetSpec } from '../nest/nest'
 import { shapeKey } from './utils'
-import { manufacturingParts, type ManufacturingPart } from './manufacturingPart'
+import { isNestable, manufacturingParts, type ManufacturingPart } from './manufacturingPart'
 import type { Component, MaterialDef, Part } from './types'
 
 export interface NestReport {
@@ -35,7 +35,7 @@ export function groupNestRecords(records: ManufacturingPart[]): Group[] {
   for (const p of records) {
     if (p.kind !== 'board') continue
     const sheet = p.stock.sheet
-    if (!sheet || sheet.length <= 0 || sheet.width <= 0) continue
+    if (!sheet || !isNestable(p.stock)) continue
     let group = groups.get(p.material)
     if (!group) {
       group = {

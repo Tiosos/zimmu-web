@@ -109,6 +109,24 @@ describe('useNest', () => {
     expect(mockNestJob).not.toHaveBeenCalled()
   })
 
+  it.each([NaN, Infinity])(
+    'never creates a worker for non-finite library stock (%s)',
+    async (value) => {
+      renderHook(() =>
+        useNest(
+          [board({ id: 'a' })],
+          { '18mm Ply': { sheet: { length: value, width: 1220 } } },
+          [],
+          14,
+          true,
+        ),
+      )
+      await settle()
+      expect(mockNestJob).not.toHaveBeenCalled()
+      expect(WorkerCtor).not.toHaveBeenCalled()
+    },
+  )
+
   it('groups boards by material, one job each on one worker for the run', async () => {
     renderHook(() =>
       useNest(
