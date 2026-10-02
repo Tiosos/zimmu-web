@@ -144,8 +144,8 @@ agreement.
   only while the panel is open and memoised on the scene and the material library. A helper
   `reconcileScene(scene, materialLibrary)` builds part sheets (with the edge context) and rows with the
   packet's arguments. The library merge is extracted into one small exported helper
-  (`effectiveMaterialsOf`) used by the packet and by `reconcileScene`; BomModal's inline copy is left
-  alone. Each finding can be inspected with the panel's existing `onInspect`, since both outputs come
+  (`effectiveMaterialsOf`) used by the packet, `reconcileScene` and BomModal (BomModal's inline copy was
+  replaced during the branch review). Each finding can be inspected with the panel's existing `onInspect`, since both outputs come
   from one scene.
 - **Unchanged:** the readiness findings model, the readiness PDF and every export's availability.
 
