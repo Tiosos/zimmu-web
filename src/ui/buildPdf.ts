@@ -6,6 +6,7 @@ import type {
   DowelView,
   DimLine,
   PlacedAssemblyView,
+  PlacedWallElevationView,
 } from '../geom/drawing'
 
 const MM_TO_PT = 72 / 25.4
@@ -349,6 +350,96 @@ function renderPdfAssemblyTitleBlock(
   })
 }
 
+function renderPdfElevationView(
+  page: PDFPage,
+  view: PlacedWallElevationView,
+  scale: number,
+  font: PDFFont,
+): void {
+  const { x: px, y: py } = view.placement
+  const H = view.bounds.h
+  const fx = (u: number) => px + u * scale
+  const fy = (v: number) => py + (H - v) * scale
+  const line = (x1: number, y1: number, x2: number, y2: number, dashed: boolean) =>
+    page.drawLine({
+      start: { x: pt(x1), y: yflip(y1) },
+      end: { x: pt(x2), y: yflip(y2) },
+      thickness: pt(dashed ? 0.25 : 0.3),
+      color: dashed ? C_GRAY : C_BLACK,
+      dashArray: dashed ? DASH_PT : undefined,
+    })
+
+  page.drawText(view.wallName, { x: pt(px), y: yflip(py - 2), size: pt(3), font, color: C_GRAY })
+  page.drawLine({
+    start: { x: pt(px), y: yflip(fy(view.floorZ)) },
+    end: { x: pt(fx(view.bounds.w)), y: yflip(fy(view.floorZ)) },
+    thickness: pt(0.5),
+    color: C_BLACK,
+  })
+  for (const span of view.spans) {
+    const dashed = span.kind === 'opening'
+    const [x0, x1, y0, y1] = [fx(span.x0), fx(span.x1), fy(span.z1), fy(span.z0)]
+    line(x0, y0, x1, y0, dashed)
+    line(x1, y0, x1, y1, dashed)
+    line(x1, y1, x0, y1, dashed)
+    line(x0, y1, x0, y0, dashed)
+    const size = pt(2)
+    page.drawText(span.label, {
+      x: pt(fx((span.x0 + span.x1) / 2)) - font.widthOfTextAtSize(span.label, size) / 2,
+      y: yflip(fy((span.z0 + span.z1) / 2)),
+      size,
+      font,
+      color: C_DARK_GRAY,
+    })
+  }
+  for (const d of view.dims) {
+    renderPdfDimLine(page, assemblyDimLine(d, view.bounds, scale), px, py, font)
+  }
+}
+
+function renderPdfElevationTitleBlock(
+  page: PDFPage,
+  sheet: Extract<DrawingSheet, { kind: 'elevation' }>,
+  font: PDFFont,
+  fontBold: PDFFont,
+): void {
+  const tbY = 170
+  const tbX = 15
+  page.drawRectangle({
+    x: pt(tbX),
+    y: PAGE_H_PT - pt(tbY + 25),
+    width: pt(267),
+    height: pt(25),
+    borderColor: C_BLACK,
+    borderWidth: pt(0.3),
+  })
+  const text = (s: string, x: number, y: number, size: number, f: PDFFont, color = C_DARK_GRAY) =>
+    page.drawText(s, { x: pt(x), y: yflip(y), size: pt(size), font: f, color })
+  text(`${sheet.roomName} — ${sheet.wallName}`, tbX + 4, tbY + 8, 7, fontBold, C_BLACK)
+  text('Wall elevation', tbX + 4, tbY + 16, 4, font)
+  if (!sheet.verified) text('Wall length not site-verified', tbX + 4, tbY + 22, 3, font)
+  text(`Scale: ${sheet.scaleLabel}`, tbX + 140, tbY + 8, 4, font)
+  text(`Date: ${sheet.date}`, tbX + 140, tbY + 16, 4, font)
+}
+
+function wrapManufacturingNotes(notes: string[], maxChars = 90): string[] {
+  return notes.flatMap((note) => {
+    const lines: string[] = []
+    let line = ''
+    for (const word of note.split(' ')) {
+      const next = line === '' ? word : `${line} ${word}`
+      if (line !== '' && next.length > maxChars) {
+        lines.push(line)
+        line = word
+      } else {
+        line = next
+      }
+    }
+    if (line !== '') lines.push(line)
+    return lines
+  })
+}
+
 function renderPdfTitleBlock(
   page: PDFPage,
   sheet: Extract<DrawingSheet, { kind: 'part' }>,
@@ -395,6 +486,17 @@ function renderPdfTitleBlock(
     font,
     color: C_DARK_GRAY,
   })
+  if (sheet.shape === 'board') {
+    wrapManufacturingNotes(sheet.manufacturingNotes).forEach((line, i) => {
+      page.drawText(line, {
+        x: pt(tbX + 155),
+        y: yflip(tbY + 4 + i * 2.4),
+        size: pt(2),
+        font,
+        color: C_BLACK,
+      })
+    })
+  }
   page.drawRectangle({
     x: pt(tbX + tbW - 20),
     y: PAGE_H_PT - pt(tbY + 8 + 4),
@@ -517,6 +619,9 @@ export async function buildPdf(sheets: DrawingSheet[]): Promise<Uint8Array> {
         x: pt(text.x) - font.widthOfTextAtSize(text.text, pt(text.size)) / 2,
         y: yflip(text.y), size: pt(text.size), font, color: C_BLACK,
       }))
+    } else if (sheet.kind === 'elevation') {
+      renderPdfElevationView(page, sheet.view, sheet.scale, font)
+      renderPdfElevationTitleBlock(page, sheet, font, fontBold)
     } else if (sheet.kind === 'assembly') {
       sheet.views.forEach((v) => renderPdfAssemblyView(page, v, sheet.scale, font))
       renderPdfAssemblyTitleBlock(page, sheet, font, fontBold)

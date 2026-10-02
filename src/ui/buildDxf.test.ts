@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildDxf } from './buildDxf'
-import { assemblyDimLine, buildDrawingSheets } from '../geom/drawing'
+import { assemblyDimLine, buildDrawingSheets, buildWallElevationSheets } from '../geom/drawing'
+import { kitchenWall, SITE, wallCabinet, wallScene } from '../geom/__fixtures__/wallElevation'
 import type { PlacedAssemblyView } from '../geom/drawing'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
@@ -394,5 +395,100 @@ describe('buildDxf — assembly sheets', () => {
     expect(expected.size).toBeGreaterThan(1)
     const asc = (s: Set<number>) => [...s].sort((a, b) => a - b)
     expect(asc(drawn)).toEqual(asc(expected))
+  })
+})
+
+const dxfSafe = (text: string): string => text.replaceAll('±', '%%p').replaceAll('—', '-')
+
+describe('buildDxf — elevation sheets', () => {
+  const sheet = () => {
+    const f = kitchenWall(SITE)
+    const s = buildWallElevationSheets(
+      { roomName: 'Kitchenette', room: f.room, scene: f.scene, cabinetIds: f.cabinetIds },
+      '2026-09-30',
+    )[0]
+    if (s.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    return s
+  }
+
+  it('carries every dimension label and the title, and goes through the shared tables', () => {
+    const s = sheet()
+    const dxf = buildDxf(s)
+    for (const d of s.view.dims) expect(dxf).toContain(dxfSafe(d.label))
+    expect(dxf).toContain('Kitchenette - Kitchen')
+    expect(dxf).toContain('2\nTABLES')
+  })
+
+  it('draws as many dimension lines as the view has dimensions', () => {
+    const s = sheet()
+    // dxfDimLine emits three DIM-layer lines per dimension: the line and two ticks.
+    const dimLines = buildDxf(s).split('\n8\nDIM\n').length - 1
+    expect(dimLines).toBe(s.view.dims.length * 3)
+  })
+
+  // `entitiesOf` splits on every '\n0\n', which also eats a group VALUE of 0 (a left-justified 72).
+  const textOf = (dxf: string, content: string): string => {
+    const found = dxf
+      .split(/\n0\n(?=[A-Z]+\n)/)
+      .filter((e) => e.startsWith('TEXT\n'))
+      .find((e) => group(e, '1') === content)
+    if (!found) throw new Error(`no TEXT entity reading ${content}`)
+    return found
+  }
+
+  it('left-justifies the title and the warning at the title block, not around it', () => {
+    const dxf = buildDxf({ ...sheet(), verified: false })
+    for (const content of ['Kitchenette - Kitchen', 'Wall length not site-verified']) {
+      const text = textOf(dxf, content)
+      expect(group(text, '72')).toBe('0')
+      expect(group(text, '10')).toBe('19.000')
+    }
+  })
+
+  it('leaves every other sheet centre-justified', () => {
+    const dxf = buildDxf(buildDrawingSheets([], 'Job', [], '2026-09-30')[0])
+    const texts = entitiesOf(dxf, 'TEXT')
+    expect(texts.length).toBeGreaterThan(0)
+    expect(texts.every((e) => group(e, '72') === '1')).toBe(true)
+  })
+
+  it('writes a plus-minus as %%p and an em dash as a hyphen, so an R12 reader does not garble them', () => {
+    const dxf = buildDxf(sheet())
+    expect(dxf).toContain('3983 %%p5 (site)')
+    expect(dxf).not.toMatch(/[±—]/)
+  })
+
+  it('dashes an opening and leaves a cabinet solid', () => {
+    const lines = entitiesOf(buildDxf(sheet()), 'LINE')
+    const dashed = lines.filter((e) => group(e, '6') === 'DASHED')
+    expect(dashed).toHaveLength(4)
+    expect(dashed.every((e) => group(e, '8') === 'HIDDEN')).toBe(true)
+    const outline = lines.filter((e) => group(e, '8') === 'OUTLINE')
+    expect(outline.length).toBeGreaterThan(0)
+    expect(outline.every((e) => group(e, '6') === '')).toBe(true)
+    expect(lines.filter((e) => group(e, '8') === 'CUTS')).toHaveLength(0)
+  })
+
+  it('draws the floor line above the bottom of a cabinet that sinks below it', () => {
+    const f = kitchenWall()
+    const sunk = { ...wallCabinet('sunk', 0), position: { x: 0, y: 0, z: -300 } }
+    const room = {
+      ...f.room,
+      openings: [],
+      placements: [{ cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } }],
+    }
+    const s = buildWallElevationSheets(
+      { roomName: 'R', room, scene: wallScene([sunk]), cabinetIds: new Set(['sunk']) },
+      'd',
+    )[0]
+    if (s.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    const ys = entitiesOf(buildDxf(s), 'LINE')
+      .filter((e) => group(e, '8') === 'OUTLINE')
+      .map((e) => Number(group(e, '20')))
+    const bottom = 210 - (s.view.placement.y + s.view.bounds.h * s.scale)
+    const floor = bottom + s.view.floorZ * s.scale
+    expect(Math.min(...ys)).toBeCloseTo(bottom, 2)
+    expect(ys.some((y) => Math.abs(y - floor) < 1e-2)).toBe(true)
+    expect(floor).toBeGreaterThan(bottom)
   })
 })

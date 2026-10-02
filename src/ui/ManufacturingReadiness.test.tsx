@@ -36,6 +36,20 @@ afterEach(() => {
 })
 
 describe('readiness UI', () => {
+  it('shows whether the drawings and the cutlist agree', () => {
+    render(
+      <ManufacturingReadiness
+        scene={sceneOf()}
+        onClose={vi.fn()}
+        onOpenSheet={vi.fn()}
+      />,
+    )
+    const section = screen
+      .getByText('Production packet drawings and lists agree?')
+      .closest('section') as HTMLElement
+    expect(within(section).getByText(/Passed/)).toBeTruthy()
+  })
+
   it('downloads a packet from the scene and recovers from a failed attempt', async () => {
     const build = vi
       .spyOn(packets, 'buildProductionPacket')

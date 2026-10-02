@@ -20,6 +20,7 @@ import type {
   Component,
   ComponentId,
   DrawerComponent,
+  MaterialDef,
   Part,
   SectionId,
 } from '../scene/types'
@@ -71,6 +72,7 @@ function renderPanel(
   onUpdateComponent = vi.fn(),
   drawers: DrawerComponent[] = drawersFor(component),
   onSetFrame = vi.fn(),
+  onAddMaterial = vi.fn(),
 ) {
   const pick =
     selectedSectionId === undefined
@@ -87,6 +89,7 @@ function renderPanel(
         onUpdate={onUpdate}
         onUpdateComponent={onUpdateComponent}
         onSetFrame={onSetFrame}
+        onAddMaterial={onAddMaterial}
         selectedSectionId={pick}
       />
     </TooltipProvider>,
@@ -211,6 +214,7 @@ describe('CarcasePanel', () => {
           onUpdate={vi.fn()}
           onUpdateComponent={vi.fn()}
           onSetFrame={vi.fn()}
+          onAddMaterial={vi.fn()}
           selectedSectionId={null}
         />
       </TooltipProvider>,
@@ -225,6 +229,7 @@ describe('CarcasePanel', () => {
           onUpdate={vi.fn()}
           onUpdateComponent={vi.fn()}
           onSetFrame={vi.fn()}
+          onAddMaterial={vi.fn()}
           selectedSectionId={null}
         />
       </TooltipProvider>,
@@ -726,5 +731,100 @@ describe('CarcasePanel — face frame', () => {
     renderPanel(doored({ frame: FRAME }))
     await userEvent.click(screen.getByLabelText('Mount'))
     expect(screen.getByRole('option', { name: 'Half overlay' })).toBeTruthy()
+  })
+})
+
+describe('CarcasePanel — edge banding', () => {
+  afterEach(cleanup)
+
+  const ABS = { thickness: 1, use: 'edge' } as const
+  const withEdge = { ...PRESET_MATERIALS, 'ABS 1mm': ABS }
+  const render_ = (
+    c = carcase(),
+    materials: Record<string, MaterialDef> = withEdge,
+    onAddMaterial = vi.fn(),
+  ) => {
+    const onUpdate = renderPanel(
+      c,
+      vi.fn(),
+      materials,
+      undefined,
+      [],
+      vi.fn(),
+      drawersFor(c),
+      vi.fn(),
+      onAddMaterial,
+    )
+    return { onUpdate, onAddMaterial }
+  }
+
+  it('does not offer edge stock as a panel material', async () => {
+    render_()
+    await userEvent.click(screen.getByLabelText('Material'))
+    expect(screen.queryByRole('option', { name: 'ABS 1mm' })).toBeNull()
+  })
+
+  it('sets the cabinet edge material from the Edge band selector, and back to none', async () => {
+    const c = carcase()
+    const { onUpdate } = render_(c)
+    await userEvent.click(screen.getByLabelText('Edge band'))
+    await userEvent.click(screen.getByRole('option', { name: 'ABS 1mm' }))
+    expect(appliedParams(onUpdate, c).edgeMaterial).toBe('ABS 1mm')
+    cleanup()
+    const named = carcase({ edgeMaterial: 'ABS 1mm' })
+    const again = render_(named)
+    await userEvent.click(screen.getByLabelText('Edge band'))
+    await userEvent.click(screen.getByRole('option', { name: 'None' }))
+    expect(appliedParams(again.onUpdate, named).edgeMaterial).toBeUndefined()
+  })
+
+  it.each(['none', 'None', ' FOLLOW ', 'follow'])(
+    'refuses the name %j, which the pickers use for their own choices, and says why',
+    (name) => {
+      render_()
+      fireEvent.change(screen.getByLabelText('Edge band name'), { target: { value: name } })
+      fireEvent.change(screen.getByLabelText('Edge band thickness (mm)'), {
+        target: { value: '2' },
+      })
+      expect((screen.getByRole('button', { name: 'Add edge band' }) as HTMLButtonElement).disabled).toBe(true)
+      expect(screen.getByText(/reserved/i)).toBeTruthy()
+    },
+  )
+
+  it('treats an empty edge material exactly like none', () => {
+    render_(carcase({ edgeMaterial: '' }))
+    expect(screen.getByLabelText('Edge band').textContent).toBe('None')
+    expect(screen.queryByText(/is not in this project/)).toBeNull()
+  })
+
+  it('shows an edge material this project lacks, with a note', () => {
+    render_(carcase({ edgeMaterial: 'Ghost' }))
+    expect(screen.getByText(/“Ghost” is not in this project/)).toBeTruthy()
+  })
+
+  it('adds edge stock from a name and thickness', async () => {
+    const { onAddMaterial } = render_()
+    fireEvent.change(screen.getByLabelText('Edge band name'), { target: { value: 'ABS white' } })
+    fireEvent.change(screen.getByLabelText('Edge band thickness (mm)'), {
+      target: { value: '2' },
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Add edge band' }))
+    expect(onAddMaterial).toHaveBeenCalledWith('ABS white', { thickness: 2, use: 'edge' })
+  })
+
+  it.each([
+    ['an empty name', '', '2'],
+    ['a name already used by any material', '18mm Ply', '2'],
+    ['a zero thickness', 'ABS white', '0'],
+    ['a negative thickness', 'ABS white', '-1'],
+    ['no thickness', 'ABS white', ''],
+  ])('refuses %s', (_label, name, thickness) => {
+    render_()
+    fireEvent.change(screen.getByLabelText('Edge band name'), { target: { value: name } })
+    fireEvent.change(screen.getByLabelText('Edge band thickness (mm)'), {
+      target: { value: thickness },
+    })
+    const button = screen.getByRole('button', { name: 'Add edge band' }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
   })
 })

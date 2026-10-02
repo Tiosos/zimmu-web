@@ -9,6 +9,7 @@ import { regenerateComponents } from './scene/regenerateComponents'
 import { defaultInterior, seedInteriors } from './scene/sectionInterior'
 import * as downloadModule from './ui/download'
 import type { DrawingSheet } from './geom/drawing'
+import { emptyRoomGeometry, type RoomGeometry } from './scene/projectStructure'
 import type { Part, PartId, Selection } from './scene/types'
 
 const mockUndo = vi.fn()
@@ -117,13 +118,15 @@ vi.mock('./ui/DrawingViewer', () => ({
   },
 }))
 
+const roomSpy = vi.hoisted(() => ({ geometry: undefined as RoomGeometry | undefined }))
+
 vi.mock('./scene/useFile', () => ({
   useFile: () => ({
     fileReady: true,
     fileName: null,
     projectName: 'Test',
     project: { id: 'project_test', areas: [{ id: 'area_test', name: 'Area', rooms: [{
-      id: 'room_test', name: 'Room', items: [{ id: 'item_test', name: 'Item', rootComponentIds: ['cmp_1'], rootPartIds: [] }],
+      id: 'room_test', name: 'Room', ...(roomSpy.geometry ? { geometry: roomSpy.geometry } : {}), items: [{ id: 'item_test', name: 'Item', rootComponentIds: ['cmp_1'], rootPartIds: [] }],
     }] }] },
     activeItemId: 'item_test',
     canUndoProject: false,
@@ -589,6 +592,26 @@ describe('the open cabinet', () => {
     // culls nothing, so it carries one entry per part the cabinet holds.
     const front = sheet.views.find((v) => v.label === 'Front')!
     expect(front.parts).toHaveLength(inside.length)
+  })
+
+  it('puts an elevation sheet for each room wall with a site length in the drawings deck', async () => {
+    roomSpy.geometry = {
+      ...emptyRoomGeometry(),
+      walls: [{ id: 'w', name: 'North', start: { x: 0, y: 0 }, end: { x: 3000, y: 0 },
+        measuredLength: { value: 3000, uncertainty: 5, source: 'Laser', recordedAt: '2026-09-30' } }],
+    }
+    try {
+      render(<App />)
+      await act(async () => {})
+      fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
+      fireEvent.click(screen.getByRole('button', { name: '2D Drawings…' }))
+      const elevations = drawingsSpy.sheets.filter((s) => s.kind === 'elevation')
+      expect(elevations).toHaveLength(1)
+      if (elevations[0].kind !== 'elevation') throw new Error('unreachable')
+      expect(elevations[0]).toMatchObject({ roomName: 'Room', wallName: 'North' })
+    } finally {
+      roomSpy.geometry = undefined
+    }
   })
 
   // The tab's own export is the deck's other half, and the file it writes is named after the

@@ -4,7 +4,9 @@ import type { NestWorkerApi } from '../nest/nest.worker'
 import type { NestResult, SheetSpec } from '../nest/nest'
 import { isNestable } from '../ui/buildCsv'
 import { shapeKey } from './utils'
-import type { BoardPart, MaterialDef, Part } from './types'
+import { cutPartOf } from './edgeBanding'
+import { componentsById } from './componentTree'
+import type { BoardPart, Component, MaterialDef, Part } from './types'
 
 export interface NestReport {
   material: string
@@ -20,7 +22,12 @@ interface Group {
   parts: BoardPart[]
 }
 
-function groupByNestableMaterial(parts: Part[], materials: Record<string, MaterialDef>): Group[] {
+export function groupByNestableMaterial(
+  parts: Part[],
+  materials: Record<string, MaterialDef>,
+  components: Component[],
+): Group[] {
+  const byId = componentsById(components)
   const groups = new Map<string, Group>()
   for (const p of parts) {
     if (p.kind !== 'board') continue
@@ -29,8 +36,9 @@ function groupByNestableMaterial(parts: Part[], materials: Record<string, Materi
     // error and not a zero-sheet row: it simply keeps its Boards-tab rows and is absent here.
     if (def === undefined || !isNestable(def)) continue
     const existing = groups.get(p.material)
-    if (existing) existing.parts.push(p)
-    else groups.set(p.material, { material: p.material, def, parts: [p] })
+    if (existing) existing.parts.push(cutPartOf(p, byId, materials))
+    else
+      groups.set(p.material, { material: p.material, def, parts: [cutPartOf(p, byId, materials)] })
   }
   // Sorted so the report order does not depend on which part happened to come first.
   return [...groups.values()].sort((a, b) => a.material.localeCompare(b.material))
@@ -40,7 +48,7 @@ function groupByNestableMaterial(parts: Part[], materials: Record<string, Materi
 // almost every render — `effectiveMaterials` in BomModal is rebuilt each time — so depending on
 // their identity would re-nest on every render, forever. `shapeKey` already encodes exactly what
 // changes a board's shape, which is exactly what `occupancyMask` reads.
-function jobSignature(groups: Group[], clearance: number): string {
+export function jobSignature(groups: Group[], clearance: number): string {
   return JSON.stringify([
     clearance,
     groups.map((g) => [
@@ -56,6 +64,7 @@ function jobSignature(groups: Group[], clearance: number): string {
 export function useNest(
   parts: Part[],
   materials: Record<string, MaterialDef>,
+  components: Component[],
   clearance: number,
   enabled: boolean,
 ): { reports: NestReport[]; pending: boolean } {
@@ -70,7 +79,7 @@ export function useNest(
   // wasted CPU, while the generation guard protects promise continuations already queued to run.
   const runId = useRef(0)
 
-  const groups = enabled ? groupByNestableMaterial(parts, materials) : []
+  const groups = enabled ? groupByNestableMaterial(parts, materials, components) : []
   const signature = enabled ? jobSignature(groups, clearance) : ''
   const fresh = stored.signature === signature
 
@@ -78,7 +87,7 @@ export function useNest(
     if (!enabled || fresh) return
     // Re-derived here rather than captured from render: `signature` is a complete encoding of
     // every input a nest reads, so anything it does not change cannot change the groups either.
-    const pendingGroups = groupByNestableMaterial(parts, materials)
+    const pendingGroups = groupByNestableMaterial(parts, materials, components)
     if (pendingGroups.length === 0) return
 
     const id = ++runId.current

@@ -18,6 +18,13 @@ describe('room geometry', () => {
     expect(roomIssues(room)).toContain('Kitchen wall: drawn length differs from measured length')
   })
 
+  it('treats float noise as agreement with the site length, like the wall elevation does', () => {
+    const noisy = { ...wall, end: { x: 3983.3, y: 0 }, measuredLength: {
+      value: 3983, uncertainty: 0, source: 'Site tape', recordedAt: '2026-09-29',
+    } }
+    expect(roomIssues({ ...emptyRoomGeometry(), walls: [noisy] })).toEqual([])
+  })
+
   it('transforms a two-wall return in the room local frame and reports opening overflow', () => {
     const room = { ...emptyRoomGeometry(), origin: { x: 100, y: 200 }, rotation: 90,
       walls: [wall, { ...wall, id: 'wall-b', start: wall.end, end: { x: 3983, y: 2400 } }],

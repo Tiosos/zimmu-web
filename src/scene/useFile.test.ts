@@ -250,8 +250,8 @@ describe('useFile', () => {
     const { result } = renderHook(() => useFile(makeInput()))
     await waitFor(() => expect(result.current.fileReady).toBe(true))
     await act(async () => { await result.current.saveFile() })
-    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v23.zimmu' }))
-    expect(JSON.parse(write.mock.calls[0][0]).version).toBe(23)
+    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v24.zimmu' }))
+    expect(JSON.parse(write.mock.calls[0][0]).version).toBe(FILE_FORMAT_VERSION)
   })
 
   it('openFile dirty + user cancels: no-op, onFileLoaded not called', async () => {
@@ -2267,7 +2267,7 @@ describe('v20 face frames', () => {
   // constant itself is asserted. This pin replaces the v19 one: the constant is global, so only the
   // newest value can be asserted.
   it('states the current file format version', () => {
-    expect(FILE_FORMAT_VERSION).toBe(23)
+    expect(FILE_FORMAT_VERSION).toBe(24)
   })
 
   // tsc cannot see this: `base.params` is typed loosely, so a parser that forgot the new slot would

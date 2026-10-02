@@ -1,9 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { buildSvg } from './buildSvg'
-import { assemblyDimLine, buildDrawingSheets, MARGIN, TITLE_H } from '../geom/drawing'
+import {
+  assemblyDimLine,
+  buildDrawingSheets,
+  buildWallElevationSheets,
+  MARGIN,
+  TITLE_H,
+} from '../geom/drawing'
+import { kitchenWall, SITE, wallCabinet, wallScene } from '../geom/__fixtures__/wallElevation'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import { cabinet, partsOfBase600 } from '../geom/__fixtures__/cabinetSheet'
+import { cabinet, partsOfBase600, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 import type {
   BoardPart,
   Component,
@@ -76,22 +83,31 @@ describe('buildSvg', () => {
   it('prints manual machining without adding projected geometry', () => {
     const baseline = buildSvg(buildDrawingSheets([makeBoard()], 'Test')[1])
     const withOperation = buildSvg(
-      buildDrawingSheets([makeBoard({ operations: [{
-      kind: 'manual-machining' as const,
-      id: 'op1',
-      label: 'Blum inset adapter 1',
-      hardwareKey: 'hinge-blum-clip-inset-175h5030-21',
-      face: '-Z' as const,
-      at: { x: 100, y: 28, z: 0 },
-      diameter: 3,
-      pitch: 32,
-      count: 2,
-      angle: 12,
-      edgeOffset: 10,
-      template: 'Blum PLATEMATE',
-      instruction:
-        'Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
-    }] })], 'Test')[1],
+      buildDrawingSheets(
+        [
+          makeBoard({
+            operations: [
+              {
+                kind: 'manual-machining' as const,
+                id: 'op1',
+                label: 'Blum inset adapter 1',
+                hardwareKey: 'hinge-blum-clip-inset-175h5030-21',
+                face: '-Z' as const,
+                at: { x: 100, y: 28, z: 0 },
+                diameter: 3,
+                pitch: 32,
+                count: 2,
+                angle: 12,
+                edgeOffset: 10,
+                template: 'Blum PLATEMATE',
+                instruction:
+                  'Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
+              },
+            ],
+          }),
+        ],
+        'Test',
+      )[1],
     )
     expect(withOperation).toContain('175H5030.21')
     expect(withOperation).toContain('12°')
@@ -494,5 +510,104 @@ describe('buildSvg — assembly sheets', () => {
     }
     expect(onLeft).toBeGreaterThan(0)
     expect(onRight).toBeGreaterThan(0)
+  })
+})
+
+describe('buildSvg — elevation sheets', () => {
+  const sheetFor = (measured?: typeof SITE) => {
+    const f = kitchenWall(measured)
+    const sheet = buildWallElevationSheets(
+      { roomName: 'Kitchenette', room: f.room, scene: f.scene, cabinetIds: f.cabinetIds },
+      '2026-09-30',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    return sheet
+  }
+
+  it('draws every dimension label, every span and the title block', () => {
+    const sheet = sheetFor(SITE)
+    const svg = buildSvg(sheet)
+    for (const d of sheet.view.dims) expect(svg).toContain(`>${d.label}</text>`)
+    for (const s of sheet.view.spans) expect(svg).toContain(`data-testid="elevation-${s.id}"`)
+    expect(svg).toContain('Kitchenette — Kitchen')
+    expect(svg).toContain('Scale: 1:20')
+    expect(svg).not.toContain('not site-verified')
+  })
+
+  it('says so on the sheet when the wall length is unverified', () => {
+    const svg = buildSvg(sheetFor(undefined))
+    expect(svg).toContain('Wall length not site-verified')
+    expect(svg).toContain('3983 drawn — unverified')
+  })
+
+  it('draws the floor at the bottom: the cabinet top is above the floor line in the page', () => {
+    const sheet = sheetFor(SITE)
+    const svg = buildSvg(sheet)
+    const { x: px, y: py } = sheet.view.placement
+    const floorY = py + sheet.view.bounds.h * sheet.scale
+    const cabinet = sheet.view.spans.find((s) => s.kind === 'cabinet')!
+    const top = floorY - cabinet.z1 * sheet.scale
+    expect(svg).toContain(
+      `<rect x="${(px + cabinet.x0 * sheet.scale).toFixed(3)}" y="${top.toFixed(3)}"`,
+    )
+    expect(top).toBeLessThan(floorY)
+  })
+
+  it('draws the floor line above the bottom of a cabinet that sinks below it', () => {
+    const f = kitchenWall()
+    const sunk = { ...wallCabinet('sunk', 0), position: { x: 0, y: 0, z: -300 } }
+    const room = {
+      ...f.room,
+      openings: [],
+      placements: [{ cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } }],
+    }
+    const sheet = buildWallElevationSheets(
+      { roomName: 'R', room, scene: wallScene([sunk]), cabinetIds: new Set(['sunk']) },
+      'd',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    const { y: py } = sheet.view.placement
+    const bottom = py + sheet.view.bounds.h * sheet.scale
+    const floor = bottom - sheet.view.floorZ * sheet.scale
+    const svg = buildSvg(sheet)
+    expect(floor).toBeLessThan(bottom)
+    expect(svg).toContain(`y1="${floor.toFixed(3)}" x2=`)
+    expect(svg).toContain(`<rect x="${sheet.view.placement.x.toFixed(3)}" y="${(bottom - sheet.view.spans[0].z1 * sheet.scale).toFixed(3)}"`)
+  })
+
+  it('draws an opening dashed and a cabinet solid', () => {
+    const svg = buildSvg(sheetFor(SITE))
+    const group = (id: string) => svg.split(`data-testid="elevation-${id}"`)[1].split('</g>')[0]
+    expect(group('window')).toContain('stroke-dasharray')
+    expect(group('kitchen')).not.toContain('stroke-dasharray')
+  })
+
+  it('keeps the fixed page size for export and drops it, and the print rule, when embedded', () => {
+    const sheet = sheetFor(SITE)
+    expect(buildSvg(sheet)).toContain('width="297mm" height="210mm"')
+    expect(buildSvg(sheet)).toContain('<style>')
+    const embedded = buildSvg(sheet, { embedded: true })
+    expect(embedded).not.toContain('<style')
+    expect(embedded).not.toContain('297mm')
+    expect(embedded).toContain('viewBox="0 0 297 210"')
+    expect(embedded).toContain('style="width:100%;height:auto"')
+  })
+})
+
+describe('buildSvg — edge note', () => {
+  it('prints the edge line in the part title block', () => {
+    const mats = { ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge' as const } }
+    const banded = { ...cabinet, params: { ...cabinet.params, edgeMaterial: 'ABS 1mm' } }
+    const sheets = buildDrawingSheets(
+      partsOfCarcase(banded.params),
+      'Job',
+      [],
+      '2026-09-30',
+      undefined,
+      [],
+      { materials: mats, byId: new Map<ComponentId, Component>([[banded.id, banded]]) },
+    )
+    const sheet = sheets.find((s) => s.kind === 'part' && s.partLabel === 'Bottom')!
+    expect(buildSvg(sheet)).toMatch(/Edge 1[LS] — ABS 1mm 1 mm/)
   })
 })

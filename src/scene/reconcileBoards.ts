@@ -88,6 +88,9 @@ export function reconcileBoards(
       parentId: owner.id,
       driven: true,
       role: b.role,
+      ...(existing?.kind === 'board' && existing.edgeBanding !== undefined
+        ? { edgeBanding: existing.edgeBanding }
+        : {}),
     }
     return board
   })

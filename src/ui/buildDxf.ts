@@ -7,6 +7,7 @@ import type {
   DimLine,
   DrawCircle,
   PlacedAssemblyView,
+  PlacedWallElevationView,
   Rect2D,
 } from '../geom/drawing'
 
@@ -98,6 +99,12 @@ function dxfRect(layer: string, x: number, y: number, w: number, h: number): str
   )
 }
 
+// AC1009 has no code page and the file is UTF-8, so a reader would show ± and — as mojibake.
+// %%p is R12's own plus-minus escape; the em dash has none.
+function dxfSafe(content: string): string {
+  return content.replaceAll('±', '%%p').replaceAll('—', '-')
+}
+
 // Center-justified TEXT entity.
 function dxfText(layer: string, x: number, y: number, height: number, content: string): string {
   return (
@@ -115,7 +122,7 @@ function dxfText(layer: string, x: number, y: number, height: number, content: s
       '40',
       fmt(height),
       '1',
-      content,
+      dxfSafe(content),
       '72',
       '1',
       '11',
@@ -126,6 +133,20 @@ function dxfText(layer: string, x: number, y: number, height: number, content: s
       '0.000',
     ].join('\n') + '\n'
   )
+}
+
+// Left-justified: group 72 = 0 is the default alignment, so R12 wants no second alignment point.
+function dxfTextLeft(layer: string, x: number, y: number, height: number, content: string): string {
+  return (
+    [
+      '0', 'TEXT',
+      '8', layer,
+      '10', fmt(x), '20', fmt(fy(y)), '30', '0.000',
+      '40', fmt(height),
+      '1', dxfSafe(content),
+      '72', '0',
+    ].join('\n') + '\n'
+  ) // prettier-ignore
 }
 
 const TICK = 1.5
@@ -339,6 +360,49 @@ function dxfAssemblyTitleBlock(sheet: Extract<DrawingSheet, { kind: 'assembly' }
   ].join('')
 }
 
+function dxfElevationView(view: PlacedWallElevationView, scale: number): string {
+  const { x: px, y: py } = view.placement
+  const H = view.bounds.h
+  // Sheet millimetres with y running down, as every dxf* helper takes; the single flip is here.
+  const fx = (u: number) => px + u * scale
+  const fy = (v: number) => py + (H - v) * scale
+  const out: string[] = [
+    dxfText('TEXT', px, py - 2, 3, view.wallName),
+    dxfLine('OUTLINE', px, fy(view.floorZ), fx(view.bounds.w), fy(view.floorZ)),
+  ]
+  for (const span of view.spans) {
+    const x0 = fx(span.x0)
+    const x1 = fx(span.x1)
+    const top = fy(span.z1)
+    const bottom = fy(span.z0)
+    out.push(
+      span.kind === 'opening'
+        ? dxfDashedLine(x0, top, x1, top) +
+            dxfDashedLine(x1, top, x1, bottom) +
+            dxfDashedLine(x1, bottom, x0, bottom) +
+            dxfDashedLine(x0, bottom, x0, top)
+        : dxfRect('OUTLINE', x0, top, x1 - x0, bottom - top),
+      dxfText('TEXT', fx((span.x0 + span.x1) / 2), fy((span.z0 + span.z1) / 2), 2, span.label),
+    )
+  }
+  for (const d of view.dims) out.push(dxfDimLine(assemblyDimLine(d, view.bounds, scale), px, py))
+  return out.join('')
+}
+
+function dxfElevationTitleBlock(sheet: Extract<DrawingSheet, { kind: 'elevation' }>): string {
+  const MARGIN = 15
+  const tbY = SHEET_H - MARGIN - 25
+  const tbX = MARGIN
+  return [
+    dxfRect('TITLE', tbX, tbY, 297 - 2 * MARGIN, 25),
+    dxfTextLeft('TITLE', tbX + 4, tbY + 8, 7, `${sheet.roomName} — ${sheet.wallName}`),
+    dxfText('TEXT', tbX + 4, tbY + 16, 4, 'Wall elevation'),
+    ...(sheet.verified ? [] : [dxfTextLeft('TEXT', tbX + 4, tbY + 22, 3, 'Wall length not site-verified')]),
+    dxfText('TEXT', tbX + 140, tbY + 8, 4, `Scale: ${sheet.scaleLabel}`),
+    dxfText('TEXT', tbX + 140, tbY + 16, 4, `Date: ${sheet.date}`),
+  ].join('')
+}
+
 function dxfCoverSheet(sheet: Extract<DrawingSheet, { kind: 'cover' }>): string {
   const MARGIN = 15
   const cx = MARGIN
@@ -441,6 +505,8 @@ export function buildDxf(sheet: DrawingSheet): string {
       ? dxfDashedLine(line.a.x, line.a.y, line.b.x, line.b.y)
       : dxfLine(line.role === 'shelf' ? 'OUTLINE' : 'DIM', line.a.x, line.a.y, line.b.x, line.b.y)
     ).join('') + sheet.texts.map((text) => dxfText('TEXT', text.x, text.y, text.size, text.text)).join('')
+  } else if (sheet.kind === 'elevation') {
+    entities = dxfElevationView(sheet.view, sheet.scale) + dxfElevationTitleBlock(sheet)
   } else if (sheet.kind === 'assembly') {
     // Entities only, contributed to the composition below — a whole document returned from here
     // would skip dxfTables(), which is where the HIDDEN layer and the DASHED linetype these

@@ -1,4 +1,4 @@
-import type { Grain, ThicknessAxis } from './types'
+import type { BoardPart, Grain, ThicknessAxis } from './types'
 
 export type GrainAxis = 'x' | 'y' | 'z'
 
@@ -63,4 +63,13 @@ export function grainFieldFor(thicknessAxis: ThicknessAxis, grainAxis: GrainAxis
   if (grainAxis === inPlane.width) return 'width'
   // Grain along the thickness is meaningless for a sheet good; the caller has a bad pairing.
   throw new Error(`zimmu: grain axis ${grainAxis} is the thickness axis of this panel`)
+}
+
+// Whether the cutlist reports a board's width as its length. The one rule `finishedDimensions`,
+// the cut size, the edge code and the part sheet all read, so they cannot disagree about which
+// edge is long. A free-grain board reports its longer side as the length.
+export function isSwapped({ length, width, grain }: BoardPart): boolean {
+  if (grain === 'length') return false
+  if (grain === 'width') return true
+  return width > length
 }

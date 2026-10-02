@@ -2,16 +2,20 @@ import { describe, it, expect } from 'vitest'
 import {
   assemblyDimLine,
   buildDrawingSheets,
+  buildWallElevationSheet,
+  buildWallElevationSheets,
   MARGIN,
   SHEET_FONT,
   STANDARD_SCALES,
   TITLE_H,
 } from './drawing'
-import type { DrawingSheet } from './drawing'
+import type { DrawingSheet, EdgeContext } from './drawing'
 import type { AssemblyDim } from './assembly'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
-import { cabinet, partsOfBase600 } from './__fixtures__/cabinetSheet'
+import { cabinet, partsOfBase600, partsOfCarcase } from './__fixtures__/cabinetSheet'
+import { kitchenWall, SITE, wallCabinet, wallScene } from './__fixtures__/wallElevation'
+import { sheetFilename } from '../ui/sheetFilename'
 import type {
   BoardPart,
   CarcaseParams,
@@ -331,6 +335,19 @@ describe('buildDrawingSheets — dowels', () => {
     const cover = sheets[0]
     if (cover.kind !== 'cover') throw new Error('expected cover')
     expect(cover.rows[0]).toMatchObject({ dimensions: '⌀20×100', cutCount: 0 })
+  })
+
+  it('records its part id, its dimensions and its cut count', () => {
+    const sheet = dowelSheet(
+      [
+        { kind: 'end', id: 'c1', label: 'Trim', end: '+Z', offset: 10, angle: 0, azimuth: 0 },
+        { kind: 'notch', id: 'c2', label: 'Notch', position: 50, width: 20, depth: 5, azimuth: 0 },
+      ],
+      { id: 'dw1' },
+    )
+    expect(sheet.partId).toBe('dw1')
+    expect(sheet.dowel).toEqual({ diameter: 20, length: 100 })
+    expect(sheet.cutCount).toBe(2)
   })
 
   it('square end cut shortens the Side outline by offset', () => {
@@ -782,5 +799,310 @@ describe('assemblyDimLine', () => {
     const line = assemblyDimLine(dim({ axis: 'v', start: 0, end: 100 }), bounds, 0.1)
     expect(line.start).toBeCloseTo((720 - 100) * 0.1, 6)
     expect(line.end).toBeCloseTo(720 * 0.1, 6)
+  })
+})
+
+describe('wall elevation sheets', () => {
+  const input = (measured?: typeof SITE) => {
+    const f = kitchenWall(measured ?? SITE)
+    return { roomName: 'Kitchenette', room: f.room, scene: f.scene, cabinetIds: f.cabinetIds }
+  }
+
+  it('builds one sheet per wall with something to show, placed inside its own ring', () => {
+    const sheets = buildWallElevationSheets(input(), '2026-09-30')
+    expect(sheets).toHaveLength(1)
+    const sheet = sheets[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    expect(sheet).toMatchObject({
+      roomName: 'Kitchenette',
+      wallName: 'Kitchen',
+      scaleLabel: '1:20',
+    })
+    expect(sheet.view.placement).toEqual({ x: MARGIN + sheet.ring, y: MARGIN })
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(
+      297 - 2 * MARGIN - 2 * sheet.ring + 1e-9,
+    )
+  })
+
+  it('sizes the ring from the vertical labels, not the long horizontal provenance label', () => {
+    const sheet = buildWallElevationSheets(input({ ...SITE, value: 3950 }), 'd')[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    const widestVertical = Math.max(
+      ...sheet.view.dims.filter((d) => d.axis === 'v').map((d) => d.label.length),
+    )
+    expect(sheet.ring).toBeCloseTo(SHEET_FONT * (1.8 + 0.4 + 0.3 + 0.65 * widestVertical))
+    expect(sheet.ring).toBeLessThan(20)
+  })
+
+  it('reserves a third ring, in ems, only when a third ring is drawn, and still fits the page', () => {
+    const base = wallCabinet('base', 0)
+    const wall = { ...wallCabinet('wall', 700), position: { x: 700, y: 0, z: 1400 } }
+    const tall = wallCabinet('tall', 1400, { height: 2100 })
+    const f = kitchenWall()
+    const room = {
+      ...f.room,
+      openings: [],
+      placements: [base, wall, tall].map((c) => ({
+        cabinetId: c.id,
+        wallId: 'long',
+        offset: c.position.x,
+        setback: 0,
+        manualOffset: { x: 0, y: 0 },
+      })),
+    }
+    const sheet = buildWallElevationSheets(
+      { roomName: 'R', room, scene: wallScene([base, wall, tall]), cabinetIds: new Set(['base', 'wall', 'tall']) },
+      'd',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    const widest = Math.max(...sheet.view.dims.filter((d) => d.axis === 'v').map((d) => d.label.length))
+    expect(sheet.ring).toBeCloseTo(SHEET_FONT * (3.1 + 0.4 + 0.3 + 0.65 * widest))
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(297 - 2 * MARGIN - 2 * sheet.ring + 1e-9)
+    expect(sheet.view.bounds.h * sheet.scale).toBeLessThanOrEqual(210 - 2 * MARGIN - TITLE_H - sheet.ring + 1e-9)
+  })
+
+  it('drops to 1:50 for a wall too long for 1:20', () => {
+    const f = kitchenWall()
+    const room = { ...f.room, walls: [{ ...f.room.walls[0], end: { x: 6000, y: 0 } }] }
+    const sheet = buildWallElevationSheets(
+      { roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds },
+      'd',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    expect(sheet.scaleLabel).toBe('1:50')
+  })
+
+  it('falls to 1:500 for a 60 m wall and still fits the page', () => {
+    const f = kitchenWall()
+    const room = { ...f.room, walls: [{ ...f.room.walls[0], end: { x: 60000, y: 0 } }] }
+    const sheet = buildWallElevationSheets(
+      { roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds },
+      'd',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    expect(sheet.scaleLabel).toBe('1:500')
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(297 - 2 * MARGIN - 2 * sheet.ring + 1e-9)
+  })
+
+  it('is limited by height on a short, very tall wall', () => {
+    const f = kitchenWall()
+    const room = {
+      ...f.room,
+      walls: [{ ...f.room.walls[0], end: { x: 1000, y: 0 } }],
+      placements: [],
+      openings: [
+        { id: 'shaft', wallId: 'long', kind: 'door' as const, offset: 0, width: 800, sill: 0, height: 6000 },
+      ],
+    }
+    const sheet = buildWallElevationSheets(
+      { roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds },
+      'd',
+    )[0]
+    if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
+    expect(sheet.scaleLabel).toBe('1:50')
+    expect(sheet.view.bounds.h * sheet.scale).toBeLessThanOrEqual(210 - 2 * MARGIN - TITLE_H - sheet.ring + 1e-9)
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThan((297 - 2 * MARGIN - 2 * sheet.ring) / 5)
+  })
+
+  it('skips a zero-length wall and a wall with neither a span nor a site length', () => {
+    const f = kitchenWall()
+    const room = {
+      ...f.room,
+      walls: [
+        { id: 'zero', name: 'Zero', start: { x: 0, y: 0 }, end: { x: 0, y: 0 } },
+        { id: 'bare', name: 'Bare', start: { x: 0, y: 0 }, end: { x: 0, y: 2000 } },
+      ],
+    }
+    expect(
+      buildWallElevationSheets(
+        { roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds },
+        'd',
+      ),
+    ).toEqual([])
+  })
+
+  it('keeps an empty wall that has a site length', () => {
+    const f = kitchenWall(SITE)
+    const room = { ...f.room, openings: [], placements: [] }
+    expect(
+      buildWallElevationSheet(
+        { roomName: 'R', room, scene: f.scene, cabinetIds: f.cabinetIds },
+        room.walls[0],
+        'd',
+      ),
+    ).not.toBeNull()
+  })
+
+  it('puts elevation sheets after the cover and before the assembly sheets', () => {
+    const sheets = buildDrawingSheets([], 'Job', [], '2026-09-30', undefined, [input()])
+    expect(sheets.map((s) => s.kind)).toEqual(['cover', 'elevation'])
+  })
+
+  it('orders a deck with a cabinet as cover, elevations, assembly, installation, then parts', () => {
+    const byId = new Map<ComponentId, Component>([[cabinet.id, cabinet]])
+    const sheets = buildDrawingSheets(
+      partsOfBase600(),
+      'Job',
+      [{ cabinet, parts: partsOfBase600(), byId, materials: PRESET_MATERIALS }],
+      '2026-09-30',
+      undefined,
+      [input()],
+    )
+    const kinds = sheets.map((s) => s.kind)
+    const runs = kinds.filter((k, i) => i === 0 || k !== kinds[i - 1])
+    expect(runs.slice(0, 3)).toEqual(['cover', 'elevation', 'assembly'])
+    expect(runs.at(-1)).toBe('part')
+    expect(runs.filter((k) => k === 'part')).toHaveLength(1)
+    expect(runs.filter((k) => k === 'elevation')).toHaveLength(1)
+    expect(runs.filter((k) => k === 'assembly')).toHaveLength(1)
+    expect(runs.slice(3, -1).every((k) => k === 'installation')).toBe(true)
+  })
+
+  it('names the file after the room and wall', () => {
+    const sheet = buildWallElevationSheets(input(), 'd')[0]
+    expect(sheetFilename(sheet, 'Job', 'svg')).toBe('job-kitchenette-kitchen-elevation.svg')
+  })
+})
+
+describe('part sheet edge note', () => {
+  const mats = { ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge' as const } }
+  const banded = { ...cabinet, params: { ...cabinet.params, edgeMaterial: 'ABS 1mm' } }
+  const parts = partsOfCarcase(banded.params)
+  const byId = new Map<ComponentId, Component>([[banded.id, banded]])
+  const noteLines = (sheets: DrawingSheet[], label: string): string[] => {
+    const sheet = sheets.find((s) => s.kind === 'part' && s.partLabel === label)
+    if (!sheet || sheet.kind !== 'part' || sheet.shape !== 'board')
+      throw new Error('expected a board sheet')
+    return sheet.manufacturingNotes
+  }
+
+  it('adds one edge line to a banded board sheet', () => {
+    const sheets = buildDrawingSheets(parts, 'Job', [], '2026-09-30', undefined, [], {
+      materials: mats,
+      byId,
+    })
+    expect(noteLines(sheets, 'Bottom').some((n) => /^Edge 1[LS] — ABS 1mm 1 mm$/.test(n))).toBe(
+      true,
+    )
+  })
+
+  it('adds nothing when the cabinet has no edge material', () => {
+    const sheets = buildDrawingSheets(
+      partsOfCarcase(cabinet.params),
+      'Job',
+      [],
+      '2026-09-30',
+      undefined,
+      [],
+      {
+        materials: mats,
+        byId: new Map([[cabinet.id, cabinet]]),
+      },
+    )
+    expect(noteLines(sheets, 'Bottom').some((n) => n.startsWith('Edge'))).toBe(false)
+  })
+
+  it('leaves sheets alone when no edge context is given', () => {
+    const sheets = buildDrawingSheets(parts, 'Job')
+    expect(noteLines(sheets, 'Bottom').some((n) => n.startsWith('Edge'))).toBe(false)
+  })
+})
+
+describe('part sheets record what they print', () => {
+  const mats = { ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge' as const } }
+  const banded = { ...cabinet, params: { ...cabinet.params, edgeMaterial: 'ABS 1mm' } }
+  const parts = partsOfCarcase(banded.params)
+  const byId = new Map<ComponentId, Component>([[banded.id, banded]])
+  const deck = (ctx?: EdgeContext) =>
+    buildDrawingSheets(parts, 'Job', [], '2026-10-01', undefined, [], ctx)
+  const boardSheet = (sheets: DrawingSheet[], id: string) => {
+    const s = sheets.find((x) => x.kind === 'part' && x.shape === 'board' && x.partId === id)
+    if (!s || s.kind !== 'part' || s.shape !== 'board') throw new Error(`no board sheet for ${id}`)
+    return s
+  }
+
+  it('carries the part id and the dimensions its views are drawn from', () => {
+    const sheets = deck()
+    for (const p of parts) {
+      if (p.kind !== 'board') continue
+      expect(boardSheet(sheets, p.id).board).toEqual({
+        length: p.length,
+        width: p.width,
+        thickness: p.thickness,
+      })
+    }
+  })
+
+  it('counts the cuts it draws', () => {
+    const withCuts = makeBoard({
+      cuts: [
+        {
+          kind: 'box',
+          id: 'c1',
+          label: 'Dado',
+          face: '+Z',
+          position: { x: 10, y: 0, z: 0 },
+          size: { x: 5, y: 20, z: 6 },
+        },
+        {
+          kind: 'hole-array',
+          id: 'h1',
+          label: 'Pins',
+          face: '+Z',
+          axis: 'U',
+          start: { x: 20, y: 20, z: 0 },
+          pitch: 32,
+          count: 3,
+          diameter: 5,
+          depth: 10,
+        },
+      ],
+    })
+    const sheet = buildDrawingSheets([withCuts], 'Job').find((s) => s.kind === 'part')!
+    if (sheet.kind !== 'part') throw new Error('expected a part sheet')
+    expect(sheet.cutCount).toBe(2)
+  })
+
+  it('carries a structured edge only when it was built with an edge context', () => {
+    const ctx: EdgeContext = { materials: mats, byId }
+    const bottom = parts.find((p) => p.kind === 'board' && p.role === 'bottom')!
+    const edge = boardSheet(deck(ctx), bottom.id).edge
+    expect(edge?.materials).toEqual(['ABS 1mm'])
+    expect(edge?.code).toMatch(/^1[LS]$/)
+    expect(boardSheet(deck(), bottom.id).edge).toBeUndefined()
+  })
+
+  it('lists the edge materials sorted, whatever order the edges are visited in', () => {
+    const bottom = parts.find((p) => p.kind === 'board' && p.role === 'bottom')!
+    if (bottom.kind !== 'board') throw new Error('expected a board')
+    const two = { ...bottom, edgeBanding: { x0: 'ABS 2mm', y0: 'ABS 1mm' } }
+    const ctx: EdgeContext = {
+      materials: { ...mats, 'ABS 2mm': { thickness: 2, use: 'edge' as const } },
+      byId,
+    }
+    const sheets = buildDrawingSheets([two], 'Job', [], '2026-10-01', undefined, [], ctx)
+    expect(boardSheet(sheets, two.id).edge?.materials).toEqual(['ABS 1mm', 'ABS 2mm'])
+  })
+
+  it('carries an empty edge, not an absent one, for an unbanded board built with a context', () => {
+    const back = parts.find((p) => p.kind === 'board' && p.role === 'back')!
+    expect(boardSheet(deck({ materials: mats, byId }), back.id).edge).toEqual({
+      code: '',
+      materials: [],
+    })
+  })
+
+  it('prints the edge note from the same structured value', () => {
+    const bottom = parts.find((p) => p.kind === 'board' && p.role === 'bottom')!
+    const sheet = boardSheet(deck({ materials: mats, byId }), bottom.id)
+    expect(sheet.manufacturingNotes).toContain(`Edge ${sheet.edge!.code} — ABS 1mm 1 mm`)
+  })
+
+  it('identifies a dowel sheet and its drawn dimensions', () => {
+    const dowel = makeDowel({ id: 'd1', diameter: 8, length: 40 })
+    const sheet = buildDrawingSheets([dowel], 'Job').find((s) => s.kind === 'part')!
+    if (sheet.kind !== 'part' || sheet.shape !== 'dowel') throw new Error('expected a dowel sheet')
+    expect(sheet.partId).toBe('d1')
+    expect(sheet.dowel).toEqual({ diameter: 8, length: 40 })
   })
 })

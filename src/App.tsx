@@ -29,12 +29,13 @@ import { DrawingViewer } from './ui/DrawingViewer'
 import { ManufacturingReadiness } from './ui/ManufacturingReadiness'
 import { ProjectPanel } from './ui/ProjectPanel'
 import { wallPlacementPose } from './scene/roomGeometry'
+import { roomComponentIds } from './scene/projectStructure'
 import { buildShelfInstallationSheets } from './geom/shelfInstallation'
+import { effectiveMaterialsOf } from './scene/effectiveMaterials'
 import type {
   CameraState,
   CarcaseComponent,
   ComponentId,
-  MaterialDef,
   PartId,
   SectionId,
   Selection,
@@ -278,15 +279,12 @@ function App() {
   // someone is actually looking at.
   const [sheetsTabOpen, setSheetsTabOpen] = useState(false)
   const nestMaterials = useMemo(() => {
-    const merged: Record<string, MaterialDef> = {}
-    for (const name of new Set([...Object.keys(library), ...Object.keys(scene.materials)])) {
-      merged[name] = { ...library[name], ...scene.materials[name] }
-    }
-    return merged
+    return effectiveMaterialsOf(library, scene.materials)
   }, [library, scene.materials])
   const { reports: nestReports, pending: nestPending } = useNest(
     scene.parts,
     nestMaterials,
+    scene.components,
     clearance,
     sheetsTabOpen,
   )
@@ -427,9 +425,31 @@ function App() {
           byId: componentMap,
         }
       })
-    setDrawingSheets(buildDrawingSheets(visibleParts, projectName, cabinets))
+    const rooms = project.areas
+      .flatMap((area) => area.rooms)
+      .flatMap((room) =>
+        room.geometry === undefined
+          ? []
+          : [
+              {
+                roomName: room.name,
+                room: room.geometry,
+                scene,
+                cabinetIds: roomComponentIds(
+                  room.items.flatMap((item) => item.rootComponentIds),
+                  scene,
+                ),
+              },
+            ],
+      )
+    setDrawingSheets(
+      buildDrawingSheets(visibleParts, projectName, cabinets, undefined, undefined, rooms, {
+        materials: scene.materials,
+        byId: componentMap,
+      }),
+    )
     setDrawingsOpen(true)
-  }, [visibleParts, projectName, scene.components, scene.parts, scene.materials, componentMap])
+  }, [visibleParts, projectName, project, scene, componentMap])
 
   const handleExportStl = useCallback(() => {
     downloadBlob(
@@ -616,10 +636,21 @@ function App() {
         mainView={mainView}
         onMainViewChange={setMainView}
       />
-      {projectPanelOpen && <ProjectPanel project={project} scene={scene} onChange={setProject}
-        activeItemId={activeItemId} onSelectItem={setActiveItemId}
-        canUndo={canUndoProject} canRedo={canRedoProject} onUndo={undoProject} onRedo={redoProject}
-        onClose={() => setProjectPanelOpen(false)} />}
+      {projectPanelOpen && (
+        <ProjectPanel
+          project={project}
+          scene={scene}
+          projectName={projectName}
+          onChange={setProject}
+          activeItemId={activeItemId}
+          onSelectItem={setActiveItemId}
+          canUndo={canUndoProject}
+          canRedo={canRedoProject}
+          onUndo={undoProject}
+          onRedo={redoProject}
+          onClose={() => setProjectPanelOpen(false)}
+        />
+      )}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Hidden, never unmounted. `viewport.tsx` builds its renderer, camera, controls and every
             mesh in a mount-once effect, so rendering the editor *instead of* it would tear all of
@@ -753,6 +784,7 @@ function App() {
           onDetachPart={onDetachPart}
           onUpdateComponent={onUpdateComponent}
           onSetFrame={onSetFrame}
+          onAddMaterial={onUpdateMaterial}
           onRemove={onRemove}
           onDuplicate={onDuplicate}
           onUpdate={onUpdate}

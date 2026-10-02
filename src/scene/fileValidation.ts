@@ -1,4 +1,5 @@
 import type { MaterialDef, Part, Scene, Vec3, ZimmuFile } from './types'
+import { EDGE_KEYS } from './edgeBanding'
 import { frontForSection, roomComponentIds, type ProjectStructure } from './projectStructure'
 
 export class ZimmuFileValidationError extends Error {
@@ -75,6 +76,9 @@ function validateMaterial(value: unknown, path: string): MaterialDef {
   optionalFiniteNumber(material.thickness, `${path}.thickness`)
   if (material.hasGrain !== undefined && typeof material.hasGrain !== 'boolean') {
     throw new ZimmuFileValidationError(`${path}.hasGrain`, 'must be a boolean')
+  }
+  if (material.use !== undefined && material.use !== 'edge') {
+    throw new ZimmuFileValidationError(`${path}.use`, 'must be "edge"')
   }
   if (material.sheet !== undefined) {
     const sheet = recordAt(material.sheet, `${path}.sheet`)
@@ -431,6 +435,25 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
     throw new ZimmuFileValidationError('file.project', 'must assign every root component and part to one item')
 }
 
+function validateEdgeFacts(scene: Scene): void {
+  const isEdge = (name: string): boolean => scene.materials[name]?.use === 'edge'
+  scene.parts.forEach((part, index) => {
+    if (part.kind !== 'board' || part.edgeBanding === undefined) return
+    const path = `file.scene.parts[${index}].edgeBanding`
+    for (const [key, value] of Object.entries(recordAt(part.edgeBanding, path))) {
+      if (!EDGE_KEYS.some((k) => k === key)) {
+        throw new ZimmuFileValidationError(`${path}.${key}`, 'is not an edge (x0, x1, y0 or y1)')
+      }
+      if (value !== null && (typeof value !== 'string' || !isEdge(value))) {
+        throw new ZimmuFileValidationError(
+          `${path}.${key}`,
+          'must be null or the name of an edge-band material',
+        )
+      }
+    }
+  })
+}
+
 /** Final assertion for the current model after all migrations/defaults/repairs have run. */
 export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   integerAt(file.version, 'file.version')
@@ -454,6 +477,7 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
 
   file.scene.parts.forEach(validateCurrentPart)
   assertUniqueIds(file.scene.parts, 'file.scene.parts')
+  validateEdgeFacts(file.scene)
   assertUniqueIds(file.scene.components, 'file.scene.components')
 
   const componentIds = new Set(file.scene.components.map((component) => component.id))
@@ -465,6 +489,10 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
     vecAt(component.rotation, `${path}.rotation`)
     if (component.parentId !== null && !componentIds.has(component.parentId)) {
       throw new ZimmuFileValidationError(`${path}.parentId`, 'must name a live component or be null')
+    }
+    if (component.kind === 'carcase') {
+      const edgeMaterial = (component.params as { edgeMaterial?: unknown } | undefined)?.edgeMaterial
+      if (edgeMaterial !== undefined) stringAt(edgeMaterial, `${path}.params.edgeMaterial`)
     }
     // An anchor's target is the same kind of reference parentId is, over a different graph.
     // resolvePlacement detaches a dangling one at runtime, but a file that names a component it does

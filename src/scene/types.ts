@@ -129,6 +129,14 @@ export interface ManualMachiningOperation {
   sourceComponentId?: string
 }
 
+// The four edges of a board in its own axes: x runs the length, y the width. `x0` is the edge at
+// x = 0 (it runs along the width), `y1` the edge at y = width (it runs along the length).
+export type EdgeKey = 'x0' | 'x1' | 'y0' | 'y1'
+
+// Explicit decisions only. A string names an edge material, `null` is an explicit "no band", an
+// absent key follows the cabinet's rule on a generated board and means no band on a manual one.
+export type EdgeDecisions = Partial<Record<EdgeKey, string | null>>
+
 export interface BoardPart {
   kind: 'board'
   id: PartId
@@ -145,6 +153,7 @@ export interface BoardPart {
   cuts: CutDef[]
   // Optional for file compatibility: pre-Stage-4 boards carry none.
   operations?: ManualMachiningOperation[]
+  edgeBanding?: EdgeDecisions
   visible: boolean
   parentId: ComponentId | null
   driven: boolean
@@ -188,6 +197,9 @@ export interface MaterialDef {
   // carcase or back slot must have one; `validateCarcaseParams` rejects it otherwise, because a
   // silent zero would collapse every panel derived from it.
   thickness?: number
+  // Marks edge-band stock. Its `thickness` is the band's and its `costPerM` the tape rate. Such a
+  // material is never a panel slot and never nested: it has no `sheet`.
+  use?: 'edge'
 }
 
 // What a shop knows about a catalogue item that the cabinet cannot: who sells it, under what
@@ -236,6 +248,9 @@ export interface CarcaseParams {
   // slots are told apart, and a material stored on the parameter bag would be a second mechanism.
   // Every cabinet carries it, framed or not, exactly as every cabinet carries `frontMaterial`.
   frameMaterial: string
+  // Absent (or empty) means no automatic banding — the same rule `frame === undefined` follows. A
+  // named material is an edge material; `edgesOf` applies the role rule with it.
+  edgeMaterial?: string
   hasTop: boolean
   backMode: 'captured' | 'applied' | 'none'
   baseMode: 'toe-kick' | 'ladder' | 'legs' | 'none'

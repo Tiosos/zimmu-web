@@ -4,7 +4,16 @@ import { componentsById, descendantIds } from '../scene/componentTree'
 import { carcaseHardware } from '../scene/carcaseHardware'
 import { createReadinessSnapshot } from '../scene/readinessSnapshot'
 import { buildDrawingSheets } from '../geom/drawing'
-import { buildCsv, buildDowelCsv, buildHardwareCsv } from './buildCsv'
+import {
+  buildCsvFromRows,
+  buildDowelCsvFromRows,
+  buildHardwareCsv,
+  groupDowels,
+  groupEdgeBand,
+  groupParts,
+} from './buildCsv'
+import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
+import { reconcileOutputs } from './outputReconciliation'
 import { groupHardware } from './groupHardware'
 import { buildPdf } from './buildPdf'
 import { buildReadinessPdf, readinessPdfFilename } from './buildReadinessPdf'
@@ -58,6 +67,13 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
         byId,
       }
     })
+  // Match BomModal's field-level merge: scene rates override library rates, while missing rates
+  // (such as a dowel's costPerM) remain available from the library.
+  const effectiveMaterials = effectiveMaterialsOf(
+    captured.materialLibrary,
+    captured.scene.materials,
+  )
+
   const withInstallation = new Set(
     snapshot.cabinets
       .filter((c) => c.shelves.some((s) => s.installationReference !== null))
@@ -69,7 +85,12 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
     cabinets,
     capturedAt.toISOString().slice(0, 10),
     withInstallation,
+    [],
+    { materials: effectiveMaterials, byId },
   )
+  const boardRows = groupParts(captured.scene.parts, effectiveMaterials, captured.scene.components)
+  const dowelRows = groupDowels(captured.scene.parts, effectiveMaterials)
+  const reconciliation = reconcileOutputs(sheets, boardRows, dowelRows)
   const references = new Set(
     sheets.filter((s) => s.kind === 'installation').map((s) => `${s.cabinetId}/${s.shelfRole}`),
   )
@@ -78,25 +99,17 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       if (shelf.installationReference && !references.has(shelf.installationReference))
         throw new Error(`Installation sheet missing for ${shelf.installationReference}`)
 
-  // Match BomModal's field-level merge: scene rates override library rates, while missing rates
-  // (such as a dowel's costPerM) remain available from the library.
-  const effectiveMaterials: Record<string, MaterialDef> = {}
-  for (const name of new Set([
-    ...Object.keys(captured.materialLibrary),
-    ...Object.keys(captured.scene.materials),
-  ]))
-    effectiveMaterials[name] = {
-      ...captured.materialLibrary[name],
-      ...captured.scene.materials[name],
-    }
-
   const files: Record<string, Uint8Array> = {
     'readiness/report.pdf': await buildReadinessPdf(snapshot),
     'drawings/shop-drawings.pdf': await buildPdf(sheets),
+    'readiness/reconciliation.json': strToU8(JSON.stringify(reconciliation, null, 2) + '\n'),
     'lists/boards.csv': strToU8(
-      buildCsv(captured.scene.parts, effectiveMaterials, captured.scene.components),
+      buildCsvFromRows(
+        boardRows,
+        groupEdgeBand(captured.scene.parts, effectiveMaterials, captured.scene.components),
+      ),
     ),
-    'lists/dowels.csv': strToU8(buildDowelCsv(captured.scene.parts, effectiveMaterials)),
+    'lists/dowels.csv': strToU8(buildDowelCsvFromRows(dowelRows)),
     'lists/hardware.csv': strToU8(
       buildHardwareCsv(
         captured.scene.hardware,
@@ -126,8 +139,15 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       drawingSheets: sheets.length,
       installationSheets: references.size,
     },
+    reconciliation: {
+      status: reconciliation.status,
+      compared: reconciliation.compared,
+      totalFindings: reconciliation.totalFindings,
+      truncated: reconciliation.truncated,
+      unassessed: reconciliation.unassessed,
+    },
     scope:
-      'All cabinets and parts, including hidden items. Readiness is advisory; skipped checks remain marked unknown. Drawing PDF, lists and prices come from the same captured scene and pricing libraries.',
+      'All cabinets and parts, including hidden items. Readiness is advisory; skipped checks remain marked unknown. Drawing PDF, lists and prices come from the same captured scene and pricing libraries. Drawings and lists are reconciled from the same built outputs; the result is advisory and does not block any export.',
     note: 'Snapshot hash identifies captured source data, not a saved project revision. Drawing PDF uses DIA for the diameter symbol and [U+codepoint] for characters unsupported by its standard font. Verify physical dimensions and machining before production.',
     files: entries,
   }

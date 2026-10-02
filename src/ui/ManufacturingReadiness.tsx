@@ -14,6 +14,8 @@ import { ShelfInsertionPreview } from './ShelfInsertionPreview'
 import { createReadinessSnapshot } from '../scene/readinessSnapshot'
 import { buildReadinessPdf, readinessPdfFilename } from './buildReadinessPdf'
 import { downloadBlob } from './download'
+import { ReconciliationSection } from './ReconciliationSection'
+import { reconcileScene } from './outputReconciliation'
 import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
 
 const statusText: Record<ShelfReadinessRow['status'], string> = {
@@ -24,6 +26,8 @@ const statusText: Record<ShelfReadinessRow['status'], string> = {
   unassessed: 'Unable to assess',
 }
 
+const NO_LIBRARY: Record<string, MaterialDef> = {}
+
 export function ManufacturingReadiness({
   scene,
   onClose,
@@ -31,7 +35,7 @@ export function ManufacturingReadiness({
   onInspect,
   projectName = 'Project',
   hardwareLibrary = {},
-  materialLibrary = {},
+  materialLibrary = NO_LIBRARY,
 }: {
   scene: Scene
   onClose: () => void
@@ -82,6 +86,10 @@ export function ManufacturingReadiness({
   }
   const report = useMemo(() => buildShelfReadiness(scene), [scene])
   const production = useMemo(() => buildProductionReadiness(scene), [scene])
+  const reconciliation = useMemo(
+    () => reconcileScene(scene, materialLibrary),
+    [scene, materialLibrary],
+  )
   const sum = (field: 'requested' | 'generated' | 'missing' | 'angled' | 'unverified') => {
     let total = 0
     for (const entry of report) {
@@ -192,6 +200,7 @@ export function ManufacturingReadiness({
           </p>
         )}
       </section>
+      <ReconciliationSection result={reconciliation} onInspect={onInspect} />
       <h3 className="font-medium mb-2">Shelf access</h3>
       <p role="status" className="text-sm border rounded p-3 mb-4">
         {sum('requested')} requested · {sum('generated')} generated · {sum('missing')} missing ·{' '}

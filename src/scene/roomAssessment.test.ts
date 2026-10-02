@@ -70,6 +70,8 @@ describe('room assessment', () => {
     const spans = wallElevation(room, room.walls[0], scene([c]), new Set([c.id]))
     expect(spans.find((span) => span.id === 'window')).toMatchObject({ x0: 800, x1: 2000, z0: 900, z1: 2000 })
     expect(spans.find((span) => span.id === 'kitchen')?.x1).toBeCloseTo(c.params.width)
+    expect(spans.find((span) => span.id === 'window')?.kind).toBe('opening')
+    expect(spans.find((span) => span.id === 'kitchen')?.kind).toBe('cabinet')
     expect(wallElevation(room, room.walls[1], scene([c]), new Set([c.id]))).toEqual([])
   })
 

@@ -8,6 +8,7 @@ import { CARCASE_PRESETS, PRESET_MATERIALS } from '../scene/carcasePresets'
 import { carcaseBoxes } from '../scene/carcaseRoles'
 import { roleThicknessFor } from '../scene/resolveThickness'
 import { legacyToSection } from '../scene/migrateSections'
+import { cutPartOf } from '../scene/edgeBanding'
 
 function board(over: Partial<BoardPart> = {}): BoardPart {
   return {
@@ -427,3 +428,13 @@ describe('occupancyMask — properties over every role a carcase can emit', () =
 })
 
 export { board, boxCut }
+
+describe('occupancyMask of a banded part', () => {
+  it('masks a banded part at its cut size, smaller than the finished one', () => {
+    const part = board({ length: 564, width: 520, edgeBanding: { y0: 'ABS 1mm' } })
+    const materials = { 'ABS 1mm': { thickness: 1, use: 'edge' as const } }
+    const cut = cutPartOf(part, new Map(), materials)
+    expect(maskArea(occupancyMask(cut, 0))).toBeLessThan(maskArea(occupancyMask(part, 0)))
+    expect(occupancyMask(cut, 0).h).toBe(519)
+  })
+})

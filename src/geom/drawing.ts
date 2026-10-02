@@ -11,7 +11,12 @@ import type {
   MaterialDef,
   MitreCut,
   Part,
+  Scene,
 } from '../scene/types'
+import type { RoomGeometry, WallSegment } from '../scene/projectStructure'
+import { wallLength } from '../scene/roomGeometry'
+import { edgeCode, edgesOf, EDGE_KEYS } from '../scene/edgeBanding'
+import { isSwapped } from '../scene/grain'
 import { faceAxes } from '../scene/snapMath'
 import { mitreFaceOutline } from './mitre'
 import { buildShelfInstallationSheets, type InstallationSheet } from './shelfInstallation'
@@ -24,6 +29,7 @@ import {
   type AssemblyDim,
   type AssemblyView,
 } from './assembly'
+import { buildWallElevation, type WallElevationView } from './wallElevation'
 
 export interface Point2D {
   x: number
@@ -102,12 +108,23 @@ export interface CoverRow {
   cutCount: number
 }
 
+// What a board sheet's edge note is formatted from. Present only when the sheet was built with an
+// edge context: absent means "not carried", never "unbanded".
+export interface SheetEdge {
+  code: string
+  materials: string[]
+}
+
 interface PartSheetCommon {
+  partId: string
   partLabel: string
   material: string
   color: string
   date: string
   scaleLabel: string
+  // Counted from the entries the builder emits rather than read from the part, so a builder that
+  // mishandles a cut kind disagrees with the cutlist.
+  cutCount: number
 }
 
 export interface PlacedAssemblyView extends AssemblyView {
@@ -127,12 +144,25 @@ export interface CabinetSheetInput {
   byId: Map<ComponentId, Component>
 }
 
+export interface PlacedWallElevationView extends WallElevationView {
+  placement: Point2D
+}
+
+export interface RoomElevationInput {
+  roomName: string
+  room: RoomGeometry
+  scene: Scene
+  cabinetIds: ReadonlySet<string>
+}
+
 export type DrawingSheet =
   | InstallationSheet
   | { kind: 'cover'; projectName: string; date: string; rows: CoverRow[] }
   | (PartSheetCommon & {
       kind: 'part'
       shape: 'board'
+      board: { length: number; width: number; thickness: number }
+      edge?: SheetEdge
       // Shop/template instructions that are deliberately not projected as geometry.
       manufacturingNotes: string[]
       views: [DrawingView, DrawingView, DrawingView]
@@ -140,6 +170,7 @@ export type DrawingSheet =
   | (PartSheetCommon & {
       kind: 'part'
       shape: 'dowel'
+      dowel: { diameter: number; length: number }
       views: [DowelView, DowelView]
     })
   | {
@@ -154,6 +185,18 @@ export type DrawingSheet =
       // drift. It does not scale with the drawing — the sheet font is a fixed page size.
       ring: number
       views: [PlacedAssemblyView, PlacedAssemblyView, PlacedAssemblyView]
+    }
+  | {
+      kind: 'elevation'
+      roomName: string
+      wallName: string
+      date: string
+      scaleLabel: string
+      scale: number
+      // Sheet millimetres, like the assembly sheet's: measured once here and read by every renderer.
+      ring: number
+      verified: boolean
+      view: PlacedWallElevationView
     }
 
 const SHEET_H = 210
@@ -363,7 +406,32 @@ function manufacturingNotesOf(p: BoardPart): string[] {
   })
 }
 
-function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
+export interface EdgeContext {
+  materials: Record<string, MaterialDef>
+  byId: Map<ComponentId, Component>
+}
+
+function sheetEdgeOf(p: BoardPart, ctx: EdgeContext): SheetEdge {
+  const edges = edgesOf(p, ctx.byId, ctx.materials)
+  return {
+    code: edgeCode(edges, isSwapped(p)),
+    materials: [
+      ...new Set(EDGE_KEYS.map((k) => edges[k]).filter((m): m is string => m !== null)),
+    ].sort(),
+  }
+}
+
+// Not geometry, so it rides the notes the title block already prints. Formatted from the structured
+// edge the sheet carries, so the printed line and the reconciled fact are one value.
+function edgeNoteOf(edge: SheetEdge, ctx: EdgeContext): string[] {
+  if (edge.code === '') return []
+  const label = edge.materials
+    .map((n) => `${n} ${ctx.materials[n]?.thickness ?? '?'} mm`)
+    .join(', ')
+  return [`Edge ${edge.code} — ${label}`]
+}
+
+function buildBoardSheet(p: BoardPart, date: string, edgeCtx?: EdgeContext): DrawingSheet {
   const { length: L, width: W, thickness: T } = p
   const scale = selectScale(L, W, T)
   const board = { length: L, width: W, thickness: T }
@@ -408,14 +476,22 @@ function buildBoardSheet(p: BoardPart, date: string): DrawingSheet {
     placement: { x: ox, y: oy + faceData.boardRect.h + GAP },
   }
 
+  const edge = edgeCtx ? sheetEdgeOf(p, edgeCtx) : undefined
   return {
     kind: 'part',
     shape: 'board',
+    partId: p.id,
     partLabel: p.label,
     material: p.material,
     color: p.color,
     date,
-    manufacturingNotes: manufacturingNotesOf(p),
+    board,
+    cutCount: boxCuts.length + mitres.length + holeArrays.length,
+    ...(edge ? { edge } : {}),
+    manufacturingNotes: [
+      ...manufacturingNotesOf(p),
+      ...(edge && edgeCtx ? edgeNoteOf(edge, edgeCtx) : []),
+    ],
     views: [faceView, edgeView, endView],
     scaleLabel: toScaleLabel(scale),
   }
@@ -431,10 +507,13 @@ function buildDowelSheet(p: CylinderPart, date: string): DrawingSheet {
   return {
     kind: 'part',
     shape: 'dowel',
+    partId: p.id,
     partLabel: p.label,
     material: p.material,
     color: p.color,
     date,
+    dowel: { diameter: p.diameter, length: p.length },
+    cutCount: p.cuts.length,
     views: buildDowelViews(p, scale),
     scaleLabel: toScaleLabel(scale),
   }
@@ -536,12 +615,59 @@ function buildAssemblySheet(input: CabinetSheetInput, date: string): DrawingShee
   }
 }
 
+// STANDARD_SCALES stops at 1:20, which a 4.9 m wall already overflows. Only elevation sheets need
+// the smaller ones, so board and assembly sheets keep the scales they always had.
+const ELEVATION_SCALES = [...STANDARD_SCALES, 0.02, 0.01, 0.005, 0.002]
+
+// Only the vertical labels set the side rings' width. The long horizontal provenance label lies
+// along ring 2 and needs height, not width, so sizing from it would reserve ~50 mm a side for nothing.
+function elevationRing(view: WallElevationView): number {
+  const vertical = view.dims.filter((d) => d.axis === 'v')
+  const widest = Math.max(...vertical.map((d) => d.label.length), 1)
+  const outer = vertical.some((d) => d.ring === 3) ? RING_EM[3] : RING_EM[2]
+  return SHEET_FONT * (outer + TICK_EM + TEXT_GAP_EM + CHAR_EM * widest)
+}
+
+function selectElevationScale(w: number, h: number, ring: number): number {
+  const raw = Math.min((PAGE_W - 2 * ring) / w, (PAGE_H - ring) / h)
+  return ELEVATION_SCALES.find((s) => s <= raw) ?? ELEVATION_SCALES[ELEVATION_SCALES.length - 1]
+}
+
+export function buildWallElevationSheet(
+  input: RoomElevationInput,
+  wall: WallSegment,
+  date: string,
+): Extract<DrawingSheet, { kind: 'elevation' }> | null {
+  if (wallLength(wall) === 0) return null
+  const view = buildWallElevation(input.room, wall, input.scene, input.cabinetIds)
+  if (view.spans.length === 0 && !wall.measuredLength) return null
+  const ring = elevationRing(view)
+  const scale = selectElevationScale(view.bounds.w, view.bounds.h, ring)
+  return {
+    kind: 'elevation',
+    roomName: input.roomName,
+    wallName: wall.name,
+    date,
+    scale,
+    scaleLabel: toScaleLabel(scale),
+    ring,
+    verified: view.length.verified,
+    view: { ...view, placement: { x: MARGIN + ring, y: MARGIN } },
+  }
+}
+
+export function buildWallElevationSheets(input: RoomElevationInput, date: string): DrawingSheet[] {
+  return input.room.walls.flatMap((wall) => buildWallElevationSheet(input, wall, date) ?? [])
+}
+
 export function buildDrawingSheets(
   parts: Part[],
   projectName: string,
   cabinets: CabinetSheetInput[] = [],
   date = new Date().toISOString().slice(0, 10),
   installationCabinetIds?: ReadonlySet<string>,
+  rooms: RoomElevationInput[] = [],
+  edgeContext?: EdgeContext,
 ): DrawingSheet[] {
   const coverRows: CoverRow[] = parts.map((p, i) => ({
     index: i + 1,
@@ -555,7 +681,7 @@ export function buildDrawingSheets(
   const cover: DrawingSheet = { kind: 'cover', projectName, date, rows: coverRows }
 
   const partSheets: DrawingSheet[] = parts.map((p) =>
-    p.kind === 'board' ? buildBoardSheet(p, date) : buildDowelSheet(p, date),
+    p.kind === 'board' ? buildBoardSheet(p, date, edgeContext) : buildDowelSheet(p, date),
   )
 
   const assemblySheets = cabinets.map((c) => buildAssemblySheet(c, date))
@@ -563,7 +689,8 @@ export function buildDrawingSheets(
   const installationSheets = cabinets
     .filter((c) => !installationCabinetIds || installationCabinetIds.has(c.cabinet.id))
     .flatMap((c) => buildShelfInstallationSheets(c, date))
-  return [cover, ...assemblySheets, ...installationSheets, ...partSheets]
+  const elevationSheets = rooms.flatMap((r) => buildWallElevationSheets(r, date))
+  return [cover, ...elevationSheets, ...assemblySheets, ...installationSheets, ...partSheets]
 }
 
 // Side view: horizontal = axial z (0..L), vertical = diameter with the centerline at mid-height.

@@ -11,13 +11,13 @@ describe('room assessment panel', () => {
   it('requires an explicit datum, source and uncertainty before recording a signed level', () => {
     const onChange = vi.fn()
     const scene = { parts: [], materials: {}, hardware: [], joints: [], components: [] }
-    const { rerender } = render(<RoomAssessmentPanel room={emptyRoomGeometry()} scene={scene}
+    const { rerender } = render(<RoomAssessmentPanel roomName="Kitchenette" projectName="Job" room={emptyRoomGeometry()} scene={scene}
       cabinetIds={new Set()} onChange={onChange} />)
     const record = screen.getByRole('button', { name: 'Record level' }) as HTMLButtonElement
     expect(record.disabled).toBe(true)
     fireEvent.change(screen.getByLabelText('Level datum'), { target: { value: 'Project ±0' } })
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ datum: 'Project ±0' }))
-    rerender(<RoomAssessmentPanel room={{ ...emptyRoomGeometry(), datum: 'Project ±0' }} scene={scene}
+    rerender(<RoomAssessmentPanel roomName="Kitchenette" projectName="Job" room={{ ...emptyRoomGeometry(), datum: 'Project ±0' }} scene={scene}
       cabinetIds={new Set()} onChange={onChange} />)
     fireEvent.change(screen.getByLabelText('Level point name'), { target: { value: 'Corner' } })
     fireEvent.change(screen.getByLabelText('Elevation mm'), { target: { value: '-12' } })
@@ -39,12 +39,35 @@ describe('room assessment panel', () => {
       siteLevels: [{ id: 'level', name: 'Corner', at: { x: 0, y: 0 },
         elevation: { value: -12, uncertainty: 2, source: 'Site laser', recordedAt: '2026-09-29' } }],
     }
-    render(<RoomAssessmentPanel room={room} scene={{ parts: [], materials: {}, hardware: [], joints: [], components: [] }}
+    render(<RoomAssessmentPanel roomName="Kitchenette" projectName="Job" room={room} scene={{ parts: [], materials: {}, hardware: [], joints: [], components: [] }}
       cabinetIds={new Set()} onChange={vi.fn()} />)
     expect(screen.getByRole('img', { name: 'Elevation of Kitchen' })).toBeTruthy()
     expect(screen.getByTestId('elevation-window')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Export Kitchen elevation SVG' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Export Kitchen elevation DXF' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Elevation of Kitchen' }).innerHTML).toContain('3983 drawn — unverified')
     expect(screen.getByText(/Corner: -12 ±2 mm/)).toBeTruthy()
     expect((screen.getByLabelText('Level datum') as HTMLInputElement).disabled).toBe(true)
+  })
+
+  it('says a zero-length wall has no elevation, rather than claiming nothing is recorded', () => {
+    const room = { ...emptyRoomGeometry(), walls: [{ id: 'wall', name: 'Collapsed',
+      start: { x: 0, y: 0 }, end: { x: 0, y: 0 },
+      measuredLength: { value: 3983, uncertainty: 5, source: 'Laser', recordedAt: '2026-09-30' } }] }
+    render(<RoomAssessmentPanel roomName="Kitchenette" projectName="Job" room={room}
+      scene={{ parts: [], materials: {}, hardware: [], joints: [], components: [] }}
+      cabinetIds={new Set()} onChange={vi.fn()} />)
+    expect(screen.getByText('This wall has zero length, so no elevation can be drawn.')).toBeTruthy()
+    expect(screen.queryByText(/no site length recorded/)).toBeNull()
+  })
+
+  it('still says nothing is placed on a wall with length but no spans and no site length', () => {
+    const room = { ...emptyRoomGeometry(), walls: [{ id: 'wall', name: 'Bare',
+      start: { x: 0, y: 0 }, end: { x: 2000, y: 0 } }] }
+    render(<RoomAssessmentPanel roomName="Kitchenette" projectName="Job" room={room}
+      scene={{ parts: [], materials: {}, hardware: [], joints: [], components: [] }}
+      cabinetIds={new Set()} onChange={vi.fn()} />)
+    expect(screen.getByText('Nothing placed on this wall and no site length recorded.')).toBeTruthy()
   })
 
   it('offers an assessment for an independent physical face-frame opening', () => {
@@ -57,7 +80,7 @@ describe('room assessment panel', () => {
       } } },
     }
     const onChange = vi.fn()
-    render(<RoomAssessmentPanel room={emptyRoomGeometry()}
+    render(<RoomAssessmentPanel roomName="Kitchenette" projectName="Job" room={emptyRoomGeometry()}
       scene={{ parts: [], materials: PRESET_MATERIALS, hardware: [], joints: [], components: [cabinet] }}
       cabinetIds={new Set([cabinet.id])} onChange={onChange} />)
     fireEvent.change(screen.getByLabelText('Projection for Framed physical-door'), { target: { value: '600' } })

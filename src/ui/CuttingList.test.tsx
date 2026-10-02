@@ -29,7 +29,7 @@ function makePart(overrides: Partial<BoardPart> = {}): BoardPart {
 describe('buildCsv', () => {
   it('returns only the header when parts array is empty', () => {
     expect(buildCsv([])).toBe(
-      'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Grain,Cuts,Cost/unit,Total',
+      'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Grain,Cuts,Cost/unit,Total,Finished length (mm),Finished width (mm),Edges,Edge material',
     )
   })
 
@@ -43,7 +43,7 @@ describe('buildCsv', () => {
 
   it('formats a data row with correct field values', () => {
     const csv = buildCsv([makePart({ length: 600, width: 300, thickness: 18 })])
-    expect(csv.split('\n')[1]).toBe(',1,Left Side,,#8b6914,600,300,18,free,0,,')
+    expect(csv.split('\n')[1]).toBe(',1,Left Side,,#8b6914,600,300,18,free,0,,,600,300,,')
   })
 
   it('includes the cut count', () => {
@@ -66,7 +66,7 @@ describe('buildCsv', () => {
       },
     ]
     const csv = buildCsv([makePart({ cuts })])
-    expect(csv.split('\n')[1]).toBe(',1,Left Side,,#8b6914,600,300,18,free,2,,')
+    expect(csv.split('\n')[1]).toBe(',1,Left Side,,#8b6914,600,300,18,free,2,,,600,300,,')
   })
 
   it('wraps labels in double quotes when they contain a comma', () => {
@@ -318,7 +318,7 @@ describe('CuttingList', () => {
     expect(writeText).toHaveBeenCalledOnce()
     const csvArg = writeText.mock.calls[0][0] as string
     expect(csvArg.split('\n')[0]).toBe(
-      'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Grain,Cuts,Cost/unit,Total',
+      'Cabinet,Qty,Labels,Material,Color,Length (mm),Width (mm),Thickness (mm),Grain,Cuts,Cost/unit,Total,Finished length (mm),Finished width (mm),Edges,Edge material',
     )
     expect(csvArg).toContain(',1,Left Side,,#8b6914,600,300,18,free,0,,')
   })

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { unzipSync, strFromU8, strToU8 } from 'fflate'
-import { PDFDocument } from 'pdf-lib'
+import { PDFArray, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib'
 import { cabinet } from '../geom/__fixtures__/cabinetSheet'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import type { CarcaseComponent, Scene } from '../scene/types'
-import { buildCsv } from './buildCsv'
+import { buildCsv, buildDowelCsv } from './buildCsv'
+import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
+import { reconcileScene } from './outputReconciliation'
 import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
 
 const sceneOf = (): Scene =>
@@ -42,6 +44,7 @@ describe('production handoff packet', () => {
       'lists/dowels.csv',
       'lists/hardware.csv',
       'manifest.json',
+      'readiness/reconciliation.json',
       'readiness/report.pdf',
     ])
     const manifest = JSON.parse(strFromU8(zip['manifest.json']))
@@ -148,5 +151,145 @@ describe('production handoff packet', () => {
     ).toBeGreaterThan(0)
     expect(strFromU8(zip['lists/dowels.csv'])).toContain('木棉 Dowel')
     expect(productionPacketFilename('../A:B/Workshop')).not.toMatch(/[/:]/)
+  })
+
+  it('prints the edge line on part sheets of a banded cabinet', async () => {
+    const banded = sceneOf()
+    const scene: Scene = regenerateComponents({
+      ...banded,
+      materials: { ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge' } },
+      components: banded.components.map((c) =>
+        c.kind === 'carcase' ? { ...c, params: { ...c.params, edgeMaterial: 'ABS 1mm' } } : c,
+      ),
+    })
+    const zip = unzipSync(
+      await buildProductionPacket({
+        scene,
+        projectName: 'Workshop A',
+        hardwareLibrary: {},
+        materialLibrary: {},
+        capturedAt,
+      }),
+    )
+    const doc = await PDFDocument.load(zip['drawings/shop-drawings.pdf'])
+    const hexOf = (text: string) =>
+      [...text].map((ch) => ch.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+    let found = false
+    for (let i = 0; i < doc.getPageCount(); i++) {
+      const contents = doc.getPage(i).node.get(PDFName.of('Contents'))
+      if (!(contents instanceof PDFArray)) continue
+      const stream = doc.context.lookup(contents.get(0))
+      if (!(stream instanceof PDFRawStream)) continue
+      const content = await new Response(
+        new Blob([new Uint8Array(stream.contents)])
+          .stream()
+          .pipeThrough(new DecompressionStream('deflate')),
+      ).text()
+      if (content.toLowerCase().includes(hexOf('Edge 1'))) found = true
+    }
+    expect(found).toBe(true)
+  })
+})
+
+describe('reconciliation in the packet', () => {
+  const packetOf = async (scene: Scene) =>
+    unzipSync(
+      await buildProductionPacket({
+        scene,
+        projectName: 'Workshop A',
+        hardwareLibrary: {},
+        materialLibrary: {},
+        capturedAt,
+      }),
+    )
+
+  it('records the result in the manifest and writes it as a hashed file', async () => {
+    const files = await packetOf(sceneOf())
+    const manifest = JSON.parse(strFromU8(files['manifest.json']))
+    expect(manifest.reconciliation).toMatchObject({ status: 'passed' })
+    expect(manifest.reconciliation.compared).toBeGreaterThan(0)
+    expect(manifest.reconciliation.unassessed.length).toBeGreaterThan(0)
+    expect(manifest.files.map((f: { path: string }) => f.path)).toContain(
+      'readiness/reconciliation.json',
+    )
+    const raw = strFromU8(files['readiness/reconciliation.json'])
+    expect(raw.endsWith('}\n')).toBe(true)
+    expect(raw).toContain('\n  "status"')
+    expect(JSON.parse(raw).status).toBe(manifest.reconciliation.status)
+    expect(manifest.scope).toContain('advisory and does not block any export')
+  })
+
+  it('records in the manifest whether the written findings were capped', async () => {
+    const clean = JSON.parse(strFromU8((await packetOf(sceneOf()))['manifest.json']))
+    expect(clean.reconciliation.truncated).toBe(false)
+
+    const base = sceneOf()
+    const twins = Array.from({ length: 101 }, (_, i) => ({ ...base.parts[0], id: `twin${i}` }))
+    const capped = await packetOf({ ...base, parts: [...base.parts, ...twins, ...twins] })
+    const manifest = JSON.parse(strFromU8(capped['manifest.json']))
+    const written = JSON.parse(strFromU8(capped['readiness/reconciliation.json']))
+    expect(written.truncated).toBe(true)
+    expect(manifest.reconciliation.truncated).toBe(true)
+  })
+
+  it('writes the same CSV text the part-based serialisers produce', async () => {
+    const scene = sceneOf()
+    const files = await packetOf(scene)
+    const merged = effectiveMaterialsOf({}, scene.materials)
+    expect(strFromU8(files['lists/boards.csv'])).toBe(
+      buildCsv(scene.parts, merged, scene.components),
+    )
+    expect(strFromU8(files['lists/dowels.csv'])).toBe(buildDowelCsv(scene.parts, merged))
+  })
+
+  it('still builds every export when the check fails', async () => {
+    const base = sceneOf()
+    const dup: Scene = { ...base, parts: [...base.parts, structuredClone(base.parts[0])] }
+    const files = await packetOf(dup)
+    expect(JSON.parse(strFromU8(files['manifest.json'])).reconciliation.status).toBe('failed')
+    for (const path of [
+      'readiness/report.pdf',
+      'drawings/shop-drawings.pdf',
+      'lists/boards.csv',
+      'lists/dowels.csv',
+      'lists/hardware.csv',
+    ])
+      expect(files[path].byteLength).toBeGreaterThan(0)
+  })
+
+  it('reconciles the rows it wrote, including a banded cabinet whose edges only its own rows carry', async () => {
+    const base = sceneOf()
+    const materials = { ...PRESET_MATERIALS, 'ABS 1mm': { thickness: 1, use: 'edge' as const } }
+    const scene: Scene = regenerateComponents({
+      ...base,
+      materials,
+      components: base.components.map((c) =>
+        c.kind === 'carcase' ? { ...c, params: { ...c.params, edgeMaterial: 'ABS 1mm' } } : c,
+      ),
+    })
+    const files = await packetOf(scene)
+    expect(JSON.parse(strFromU8(files['readiness/reconciliation.json']))).toMatchObject({
+      status: 'passed',
+    })
+    expect(strFromU8(files['lists/boards.csv'])).toContain('ABS 1mm')
+  })
+
+  it('gives the packet and the panel helper the same verdict for one scene', async () => {
+    const scene = sceneOf()
+    const files = await packetOf(scene)
+    const packet = JSON.parse(strFromU8(files['readiness/reconciliation.json']))
+    const panel = reconcileScene(scene, {})
+    const shape = (r: {
+      status: string
+      compared: number
+      totalFindings: number
+      findings: { kind: string; field?: string; partId: string }[]
+    }) => ({
+      status: r.status,
+      compared: r.compared,
+      totalFindings: r.totalFindings,
+      findings: r.findings.map((f) => [f.kind, f.field, f.partId]),
+    })
+    expect(shape(packet)).toEqual(shape(panel))
   })
 })

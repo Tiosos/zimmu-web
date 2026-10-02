@@ -27,13 +27,20 @@ export function wallPlacementPose(room: RoomGeometry, placement: WallPlacement):
   return { position: roomPoint(local, room), rotation: room.rotation + Math.atan2(tangent.y, tangent.x) * 180 / Math.PI }
 }
 
+// A drawn length from hypot is a float, so an uncertainty of 0 would call 3983.0000001 a disagreement.
+export const MIN_LENGTH_TOLERANCE_MM = 0.5
+
+export function lengthVerified(drawn: number, measured: { value: number; uncertainty: number }): boolean {
+  return Math.abs(drawn - measured.value) <= Math.max(measured.uncertainty, MIN_LENGTH_TOLERANCE_MM)
+}
+
 export function roomIssues(room: RoomGeometry): string[] {
   const issues: string[] = []
   for (const wall of room.walls) {
     const length = wallLength(wall)
     if (length === 0) { issues.push(`${wall.name}: wall must have length`); continue }
     if (!wall.measuredLength) issues.push(`${wall.name}: site length not verified`)
-    else if (Math.abs(length - wall.measuredLength.value) > wall.measuredLength.uncertainty)
+    else if (!lengthVerified(length, wall.measuredLength))
       issues.push(`${wall.name}: drawn length differs from measured length`)
     for (const opening of room.openings.filter((o) => o.wallId === wall.id)) {
       if (opening.offset + opening.width > length)

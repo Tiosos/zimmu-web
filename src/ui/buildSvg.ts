@@ -6,6 +6,7 @@ import type {
   DimLine,
   DrawCircle,
   PlacedAssemblyView,
+  PlacedWallElevationView,
   Rect2D,
 } from '../geom/drawing'
 
@@ -506,8 +507,72 @@ function renderCoverSheet(sheet: Extract<DrawingSheet, { kind: 'cover' }>): stri
   return out.join('')
 }
 
-export function buildSvg(sheet: DrawingSheet): string {
-  const printStyle = `<style>@media print{svg{width:100%;height:auto;page-break-after:always;}}</style>`
+function renderElevationView(view: PlacedWallElevationView, scale: number): string {
+  const out: string[] = []
+  const { x: px, y: py } = view.placement
+  const H = view.bounds.h
+  // Wall z runs up and SVG y runs down; the flip is written once, here.
+  const fx = (u: number) => px + u * scale
+  const fy = (v: number) => py + (H - v) * scale
+
+  out.push(
+    svgText(px, py - 2, view.wallName, { 'font-size': '3', fill: '#888', 'font-family': 'sans-serif' }),
+    svgLine(px, fy(view.floorZ), fx(view.bounds.w), fy(view.floorZ), { stroke: '#000', 'stroke-width': '0.5' }),
+  )
+
+  for (const span of view.spans) {
+    const opening = span.kind === 'opening'
+    out.push(
+      `<g data-testid="${escapeXml(`elevation-${span.id}`)}">`,
+      svgRect(fx(span.x0), fy(span.z1), (span.x1 - span.x0) * scale, (span.z1 - span.z0) * scale, {
+        fill: 'none',
+        stroke: opening ? '#888' : '#000',
+        'stroke-width': opening ? '0.25' : '0.3',
+        ...(opening ? DASH : {}),
+      }),
+      svgText(fx((span.x0 + span.x1) / 2), fy((span.z0 + span.z1) / 2), span.label, {
+        'font-size': '2',
+        fill: '#444',
+        'font-family': 'sans-serif',
+        'text-anchor': 'middle',
+      }),
+      '</g>',
+    )
+  }
+
+  for (const d of view.dims) {
+    out.push(renderDimLine(assemblyDimLine(d, view.bounds, scale), px, py))
+  }
+  return out.join('')
+}
+
+function renderElevationTitleBlock(sheet: Extract<DrawingSheet, { kind: 'elevation' }>): string {
+  const tbY = SHEET_H - MARGIN - TITLE_H
+  const tbX = MARGIN
+  const style = { 'font-size': '4', fill: '#444', 'font-family': 'sans-serif' }
+  return [
+    svgRect(tbX, tbY, 297 - 2 * MARGIN, TITLE_H, { stroke: '#000', fill: 'none', 'stroke-width': '0.3' }),
+    svgText(tbX + 4, tbY + 8, `${sheet.roomName} — ${sheet.wallName}`, {
+      'font-size': '7',
+      'font-weight': 'bold',
+      fill: '#000',
+      'font-family': 'sans-serif',
+    }),
+    svgText(tbX + 4, tbY + 16, 'Wall elevation', style),
+    ...(sheet.verified
+      ? []
+      : [svgText(tbX + 4, tbY + 22, 'Wall length not site-verified', { ...style, 'font-size': '3' })]),
+    svgText(tbX + 140, tbY + 8, `Scale: ${sheet.scaleLabel}`, style),
+    svgText(tbX + 140, tbY + 16, `Date: ${sheet.date}`, style),
+  ].join('')
+}
+
+export function buildSvg(sheet: DrawingSheet, options: { embedded?: boolean } = {}): string {
+  const embedded = options.embedded === true
+  // Inline SVG style is document-global, so an embedded preview must not carry the print rule.
+  const printStyle = embedded
+    ? ''
+    : `<style>@media print{svg{width:100%;height:auto;page-break-after:always;}}</style>`
 
   let body: string
   if (sheet.kind === 'cover') {
@@ -520,6 +585,8 @@ export function buildSvg(sheet: DrawingSheet): string {
     })).join('') + sheet.texts.map((text) => svgText(text.x, text.y, text.text, {
       'font-size': text.size, 'text-anchor': 'middle', 'font-family': 'sans-serif', fill: '#111',
     })).join('')
+  } else if (sheet.kind === 'elevation') {
+    body = renderElevationView(sheet.view, sheet.scale) + renderElevationTitleBlock(sheet)
   } else if (sheet.kind === 'assembly') {
     body =
       sheet.views.map((v) => renderAssemblyView(v, sheet.scale)).join('') +
@@ -532,8 +599,10 @@ export function buildSvg(sheet: DrawingSheet): string {
 
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" width="297mm" height="210mm">`,
-    printStyle,
+    embedded
+      ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" style="width:100%;height:auto">`
+      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" width="297mm" height="210mm">`,
+    ...(printStyle === '' ? [] : [printStyle]),
     body,
     `</svg>`,
   ].join('\n')
