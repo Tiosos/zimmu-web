@@ -525,3 +525,9 @@ Every spec or implementation plan must be accompanied by a living implementation
 ## License
 
 UNLICENSED for v0.1 prototype. MPL 2.0 is planned at v0.5.
+
+## Company catalogue service
+
+`server/catalogue` is a separate Node >=22.13 API, built with `pnpm build:catalogue` and started with `pnpm start:catalogue`. Browser code must not import Node authentication/storage modules. Server tests use the Vitest node environment and signed RSA tokens. Typechecking includes `tsconfig.catalogue.json`; CI builds the server as well as CAD.
+
+Microsoft Entra v2 delegated API tokens are verified by `jose` against the configured tenant, audience and scope. App roles determine all write authority; never accept a caller-supplied identity/role or a local role dropdown. Product publication requires a different authorised designer; master rules are IT-controlled. Exact draft revisions and publication base versions prevent stale commands. Published versions and audit entries are append-only SQL snapshots, committed in the same transaction as the draft transition. Do not replace these with browser-only storage. See `docs/company-catalogue-api.md` for setup and scope limits.

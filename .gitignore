@@ -31,3 +31,11 @@ test-results
 playwright-report
 /blob-report
 /playwright/.cache
+
+# Company catalogue service runtime
+dist-catalogue
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.env
+.env.*
