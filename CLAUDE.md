@@ -163,6 +163,8 @@ src/
 │   ├── useAddCut.ts     Click-a-face-to-add-joinery-cut interaction state machine
 │   ├── useInteractionMode.ts  Coordinator composing the six gesture hooks into one activeMode + normalized viewport bundle
 │   ├── useMaterialLibrary.ts  Loads/persists material cost rates via idb.ts library store
+│   ├── effectiveMaterials.ts  effectiveMaterialsOf(library, scene.materials) + withoutUse — the library merge the
+│   │                    packet, reconcileScene, BomModal and App's nest materials all call
 │   ├── componentTree.ts  Pure tree helpers (index, ancestor walk, descendant collection,
 │   │                    cycle guard, orphan promotion) — no React, no THREE
 │   ├── anchor.ts        rotatedBounds + translatedBounds + anchoredPosition — where an anchored
@@ -297,8 +299,6 @@ src/
 │   │                    Rows carry members ({id, label, cuts}) and edgeMaterialList;
 │   │                    buildCsvFromRows / buildDowelCsvFromRows serialise already-grouped rows so
 │   │                    the packet groups once
-│   ├── effectiveMaterials.ts  effectiveMaterialsOf(library, scene.materials) — the library merge the
-│   │                    packet, reconcileScene, BomModal and App's nest materials all call
 │   ├── outputReconciliation.ts  reconcileOutputs(sheets, boardRows, dowelRows) → ReconResult: matches
 │   │                    part sheets to cutlist members by part id and compares label, material, colour,
 │   │                    size, cut count and edges, plus each row's printed qty/labels/cuts against its

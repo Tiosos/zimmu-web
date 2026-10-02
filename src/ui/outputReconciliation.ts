@@ -2,7 +2,7 @@ import { buildDrawingSheets, type DrawingSheet, type SheetEdge } from '../geom/d
 import { componentsById } from '../scene/componentTree'
 import type { MaterialDef, Scene } from '../scene/types'
 import { groupDowels, groupParts, type DowelRow, type GroupedRow } from './buildCsv'
-import { effectiveMaterialsOf } from './effectiveMaterials'
+import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
 
 export type FindingKind =
   | 'missing-from-drawings'

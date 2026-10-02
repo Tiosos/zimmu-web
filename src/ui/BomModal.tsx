@@ -22,7 +22,7 @@ import {
   type EdgeBandLine,
 } from './buildCsv'
 import { downloadBlob } from './download'
-import { effectiveMaterialsOf } from './effectiveMaterials'
+import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
 import { SheetsTab } from './SheetsTab'
 import type { NestReport } from '../scene/useNest'
 import { Button } from '@/components/ui/button'

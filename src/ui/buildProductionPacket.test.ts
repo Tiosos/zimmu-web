@@ -6,7 +6,7 @@ import { PRESET_MATERIALS } from '../scene/carcasePresets'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import type { CarcaseComponent, Scene } from '../scene/types'
 import { buildCsv, buildDowelCsv } from './buildCsv'
-import { effectiveMaterialsOf } from './effectiveMaterials'
+import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
 import { reconcileScene } from './outputReconciliation'
 import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
 

@@ -12,7 +12,7 @@ import {
   groupEdgeBand,
   groupParts,
 } from './buildCsv'
-import { effectiveMaterialsOf } from './effectiveMaterials'
+import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
 import { reconcileOutputs } from './outputReconciliation'
 import { groupHardware } from './groupHardware'
 import { buildPdf } from './buildPdf'

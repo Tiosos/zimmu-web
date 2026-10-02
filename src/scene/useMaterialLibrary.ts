@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { MaterialDef } from './types'
-import { withoutUse } from '../ui/effectiveMaterials'
+import { withoutUse } from './effectiveMaterials'
 import {
   readLibrary,
   writeLibraryEntry,

@@ -31,7 +31,7 @@ import { ProjectPanel } from './ui/ProjectPanel'
 import { wallPlacementPose } from './scene/roomGeometry'
 import { roomComponentIds } from './scene/projectStructure'
 import { buildShelfInstallationSheets } from './geom/shelfInstallation'
-import { effectiveMaterialsOf } from './ui/effectiveMaterials'
+import { effectiveMaterialsOf } from './scene/effectiveMaterials'
 import type {
   CameraState,
   CarcaseComponent,

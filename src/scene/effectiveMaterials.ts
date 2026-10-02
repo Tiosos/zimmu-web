@@ -1,4 +1,4 @@
-import type { MaterialDef } from '../scene/types'
+import type { MaterialDef } from './types'
 
 // Scene rates override library rates field by field, while rates only the library has (such as a
 // dowel's costPerM) stay available. `use` is taken from the scene alone, so a library entry never
