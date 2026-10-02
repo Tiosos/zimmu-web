@@ -24,14 +24,11 @@ import type {
 } from './types'
 import { shapeKey } from './utils'
 import { faceAxes, localNormalToFaceString } from './snapMath'
-import { resolvePlacement } from './resolvePlacement'
-import { reconcileJoints } from './reconcileJoints'
 import { isJointOwned } from './cutOwnership'
-import { regenerateComponents } from './regenerateComponents'
-import { regenerateDrawers } from './regenerateDrawers'
-import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
-import { reconcileCatalogue } from './catalogue'
+import { catalogueBaseline, catalogueDefinition } from './catalogue'
+import { applyPipeline } from './pipeline'
+import { acceptedRulePreview, type RulePreview } from './ruleFlow'
 import { freshSectionIds } from './sectionTree'
 import { componentsById, descendantIds, wouldCycle } from './componentTree'
 import { jointInvolves } from './jointInvolves'
@@ -59,29 +56,7 @@ interface HistoryEntry {
 
 const MAX_HISTORY = 50
 
-// The one place a scene mutation becomes geometry. Five stages, and the order is fixed because
-// the dependencies run one way. The face frame leads the generators: it reads nothing any of them
-// emit — its inputs are the section tree, the cabinet's front rectangle, the frame parameters and
-// the materials. Drawers follow for the same reason: a drawer reads nothing a carcase emits — its
-// inputs are the section tree, its own parameters and the materials — while the carcase's slide
-// machining is a figure about the box that fills the opening, so a pass run the other way round
-// would machine the cabinet against a box it had not built yet. Carcases then emit their parts and
-// component-owned cuts, and reconcileJoints derives joint cuts and seats from scene.joints last:
-// reversed, joints would be derived against parts that do not exist yet.
-// Placement leads, and it has to. regenerateDrawers and regenerateComponents genuinely do not read a
-// component's position — they write part positions *local* to the component — but reconcileJoints
-// does, transitively: deriveJoint resolves each part's world matrix through its ancestors
-// (`resolveWorldMatrix(housed, byId)` in geom/dado.ts), so a joint derived before its cabinet has
-// moved is derived against the wrong world placement. Running placement last leaves the pass
-// non-idempotent — the second call re-derives joint cuts the first got wrong — which is how this was
-// caught. A grep for `.position` does not show it; the dependency is through the matrix.
-export function applyPipeline(scene: Scene): Scene {
-  const catalogued = { ...scene, components: scene.components.map((component) =>
-    component.kind === 'carcase' ? reconcileCatalogue(component) : component) }
-  return reconcileJoints(
-    regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(catalogued)))),
-  )
-}
+export { applyPipeline } from './pipeline'
 
 // Lazy singleton — not instantiated at module load so vi.stubGlobal('Worker') works in tests
 let _occt: ReturnType<typeof wrap<OcctWorkerApi>> | null = null
@@ -127,6 +102,7 @@ function makeDefaultBoard(): BoardPart {
 }
 
 export interface UseSceneResult {
+  onApplyRulePreview: (preview: RulePreview) => boolean
   scene: Scene
   geometries: Map<PartId, THREE.BufferGeometry>
   errors: Map<PartId, string>
@@ -362,6 +338,13 @@ export function useScene(): UseSceneResult {
     },
     [push],
   )
+
+  const onApplyRulePreview = useCallback((preview: RulePreview): boolean => {
+    const next = acceptedRulePreview(sceneRef.current, preview)
+    if (!next) return false
+    commitReconciled(() => next, 'Apply cabinet rules')
+    return true
+  }, [commitReconciled])
 
   const undo = useCallback(() => {
     const entry = pastRef.current.at(-1)
@@ -1259,6 +1242,9 @@ export function useScene(): UseSceneResult {
 
   const onAddCarcase = useCallback(
     (preset: CarcasePreset) => {
+      const definition = preset.catalogueId && preset.catalogueVersion
+        ? catalogueDefinition(preset.catalogueId, preset.catalogueVersion) : undefined
+      const params = definition ? catalogueBaseline(definition, sceneRef.current.cabinetRules) ?? preset.params : preset.params
       const component: CarcaseComponent = {
         kind: 'carcase',
         id: `cmp_${crypto.randomUUID()}`,
@@ -1273,7 +1259,7 @@ export function useScene(): UseSceneResult {
         // carry those ids, so two Base 600s name the same openings and the same
         // `front-{sectionId}-0` boards. Every consumer then needs a cabinet id beside the section id
         // to tell them apart, and the ones that forget are silently wrong rather than broken.
-        params: { ...preset.params, section: freshSectionIds(preset.params.section) },
+        params: { ...params, section: freshSectionIds(params.section) },
         ...(preset.catalogueId && preset.catalogueVersion ? {
           catalogue: { id: preset.catalogueId, version: preset.catalogueVersion, overrides: {} },
         } : {}),
@@ -1461,6 +1447,7 @@ export function useScene(): UseSceneResult {
   }, [])
 
   return {
+    onApplyRulePreview,
     scene,
     geometries,
     errors,

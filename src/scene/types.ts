@@ -2,6 +2,7 @@ import type { Section, SectionId } from './sectionTree'
 import type { PartOverrides } from './resolveThickness'
 import type { DrawerParams } from './drawerBox'
 import type { ProjectStructure } from './projectStructure'
+import type { CabinetRules } from './constructionRules'
 
 export type { Section, SectionId, SectionSize, SectionContent, DivisionKind } from './sectionTree'
 export type { DrawerParams, RunnerFamily } from './drawerBox'
@@ -511,6 +512,7 @@ export interface Scene {
   hardware: HardwareItem[]
   joints: Joint[]
   components: Component[]
+  cabinetRules?: CabinetRules
 }
 
 export interface FaceHit {

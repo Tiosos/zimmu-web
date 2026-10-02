@@ -54,6 +54,9 @@ import { jointInvolves } from './jointInvolves'
 import { changeJointKind } from './changeJointKind'
 import { FILE_FORMAT_VERSION, parseFile } from './useFile'
 
+import { previewProjectRules } from './ruleFlow'
+import { DEFAULT_CABINET_RULES } from './constructionRules'
+
 describe('useScene', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -61,6 +64,25 @@ describe('useScene', () => {
       positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
       normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
     })
+  })
+
+  it('accepts project rules in one undo step and uses them for new cabinets', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const original = result.current.scene
+    const preview = previewProjectRules(original, { ...DEFAULT_CABINET_RULES, project: { frontReveal: 5 } })
+    expect(preview.errors).toEqual([])
+    act(() => { expect(result.current.onApplyRulePreview(preview)).toBe(true) })
+    expect(result.current.undoLabel).toBe('Apply cabinet rules')
+    expect((result.current.scene.components.find((c) => c.kind === 'carcase') as CarcaseComponent).params.frontReveal).toBe(5)
+    act(() => result.current.undo())
+    expect(result.current.scene).toEqual(original)
+    act(() => result.current.redo())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[1]))
+    const cabinets = result.current.scene.components.filter((c): c is CarcaseComponent => c.kind === 'carcase')
+    expect(cabinets.map((c) => c.params.frontReveal)).toEqual([5, 5])
+    expect(cabinets.map((c) => c.catalogue?.overrides)).toEqual([{}, {}])
+    act(() => { expect(result.current.onApplyRulePreview(preview)).toBe(false) })
   })
 
   it('pins a placed catalogue cabinet and tracks edits through undo and redo', () => {
