@@ -36,9 +36,16 @@ export function catalogueOverrides(cabinet: CarcaseComponent): Partial<CarcasePa
 }
 
 export function reconcileCatalogue(cabinet: CarcaseComponent): CarcaseComponent {
-  if (!cabinet.catalogue || !catalogueDefinition(cabinet.catalogue.id, cabinet.catalogue.version)) return cabinet
-  const overrides = catalogueOverrides(cabinet)
-  if (comparable(overrides) === comparable(cabinet.catalogue.overrides)) return cabinet
+  if (!cabinet.catalogue) return cabinet
+  const definition = catalogueDefinition(cabinet.catalogue.id, cabinet.catalogue.version)
+  // Without a baseline, retain the recorded override keys and refresh their saved values.
+  // The unresolved version prevents claiming provenance for other parameters.
+  const overrides = definition ? catalogueOverrides(cabinet) : Object.fromEntries(
+    Object.keys(cabinet.catalogue.overrides).filter((key) => Object.hasOwn(cabinet.params, key))
+      .map((key) => [key, cabinet.params[key as keyof CarcaseParams]]),
+  )
+  // Instance IDs must survive in the persisted override even when its design is unchanged.
+  if (JSON.stringify(overrides) === JSON.stringify(cabinet.catalogue.overrides)) return cabinet
   return { ...cabinet, catalogue: { ...cabinet.catalogue, overrides } }
 }
 

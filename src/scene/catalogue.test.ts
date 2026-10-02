@@ -71,6 +71,24 @@ describe('cabinet catalogue', () => {
     expect((parsed.scene.components[0] as CarcaseComponent).catalogue).toBeUndefined()
   })
 
+  it('refreshes an unresolved override after an edit so it can reopen', () => {
+    const original = cabinet()
+    const edited = reconcileCatalogue({ ...original, params: { ...original.params, width: 800 },
+      catalogue: { id: 'unavailable', version: 7, overrides: { width: 700 } } })
+    expect(edited.catalogue?.overrides).toEqual({ width: 800 })
+    expect(parseFile(JSON.stringify(envelope(edited))).scene.components[0]).toMatchObject({ params: { width: 800 } })
+  })
+
+  it('refreshes instance IDs inside an otherwise unchanged section override', () => {
+    const original = cabinet()
+    const section = { ...original.params.section, front: { kind: 'door' as const, leaves: 2 as const, hinge: 'left' as const } }
+    const overridden = reconcileCatalogue({ ...original, params: { ...original.params, section } })
+    const nextSection = freshSectionIds(section)
+    const updated = reconcileCatalogue({ ...overridden, params: { ...overridden.params, section: nextSection } })
+    expect(updated.catalogue?.overrides.section).toEqual(nextSection)
+    expect(() => parseFile(JSON.stringify(envelope(updated)))).not.toThrow()
+  })
+
   it('rejects malformed catalogue references and unknown override fields', () => {
     expect(() => validateCurrentFile(envelope({ ...cabinet(), catalogue: {
       id: '', version: 1, overrides: {},
