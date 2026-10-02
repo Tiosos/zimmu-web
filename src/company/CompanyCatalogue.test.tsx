@@ -87,7 +87,7 @@ function harness(principal = reviewer, draft = initial) {
   return { session, transport, api, onClose, user: userEvent.setup() }
 }
 async function connect(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'Sign in with Microsoft' }))
+  await user.click(screen.getByRole('button', { name: 'Sign in with Keycloak' }))
   await screen.findByRole('button', { name: /Cabinet.*company.base/ })
 }
 async function select(user: ReturnType<typeof userEvent.setup>) {
@@ -112,6 +112,31 @@ describe('company publishing UI', () => {
     render(<CompanyCatalogue session={null} onClose={() => {}} />)
     expect(screen.getByText(/Company sign-in is not configured/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Sign in/ })).toBeNull()
+  })
+  it('loads server-verified callback data without signing in twice', async () => {
+    const session = { signIn: vi.fn(), token: vi.fn(), signOut: vi.fn() }
+    render(
+      <CompanyCatalogue
+        session={session}
+        initialData={{ actor: reviewer, drafts: [initial], versions: [rules] }}
+        onClose={() => {}}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Sign in with Keycloak' })).toBeNull()
+    expect(screen.getByRole('button', { name: /Cabinet.*company.base/ })).toBeTruthy()
+    expect(session.signIn).not.toHaveBeenCalled()
+  })
+  it('displays a callback error with an explicit reconnect action', () => {
+    const session = { signIn: vi.fn(), token: vi.fn(), signOut: vi.fn() }
+    render(
+      <CompanyCatalogue
+        session={session}
+        initialError="Company sign-in could not complete."
+        onClose={() => {}}
+      />,
+    )
+    expect(screen.getByRole('alert').textContent).toContain('Company sign-in could not complete.')
+    expect(screen.getByRole('button', { name: 'Sign in with Keycloak' })).toBeTruthy()
   })
   it('requires a different designer and hides author publication controls', async () => {
     const { user } = harness(author)
@@ -223,7 +248,7 @@ describe('company publishing UI', () => {
     await select(user)
     session.token.mockRejectedValueOnce(new SignInRequired())
     await user.click(screen.getByRole('button', { name: 'Reload catalogue' }))
-    await screen.findByRole('button', { name: 'Sign in with Microsoft' })
+    await screen.findByRole('button', { name: 'Sign in with Keycloak' })
     expect(screen.queryByText(/Saved digest/)).toBeNull()
     expect(screen.queryByRole('button', { name: /Cabinet.*company.base/ })).toBeNull()
     expect(session.signOut).toHaveBeenCalled()
@@ -236,7 +261,7 @@ describe('company publishing UI', () => {
       new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401 }),
     )
     await user.click(screen.getByRole('button', { name: 'Reload catalogue' }))
-    await screen.findByRole('button', { name: 'Sign in with Microsoft' })
+    await screen.findByRole('button', { name: 'Sign in with Keycloak' })
     expect(screen.queryByText(/Saved digest/)).toBeNull()
     expect(screen.queryByRole('button', { name: /Cabinet.*company.base/ })).toBeNull()
   })
@@ -258,15 +283,13 @@ describe('company publishing UI', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(
-      (screen.getByRole('button', { name: 'Sign in with Microsoft' }) as HTMLButtonElement)
-        .disabled,
+      (screen.getByRole('button', { name: 'Sign in with Keycloak' }) as HTMLButtonElement).disabled,
     ).toBe(true)
     await act(async () => {
       finish()
     })
     expect(
-      (screen.getByRole('button', { name: 'Sign in with Microsoft' }) as HTMLButtonElement)
-        .disabled,
+      (screen.getByRole('button', { name: 'Sign in with Keycloak' }) as HTMLButtonElement).disabled,
     ).toBe(false)
   })
   it('ignores a late publication response after sign-out', async () => {
@@ -288,7 +311,7 @@ describe('company publishing UI', () => {
       finish(new Response(JSON.stringify({ ...initial, state: 'published' })))
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
-    await screen.findByRole('button', { name: 'Sign in with Microsoft' })
+    await screen.findByRole('button', { name: 'Sign in with Keycloak' })
     await waitFor(() => expect(screen.queryByText(/Company version published/)).toBeNull())
     expect(screen.queryByText(/Saved digest/)).toBeNull()
   })

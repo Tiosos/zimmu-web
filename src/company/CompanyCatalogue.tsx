@@ -14,6 +14,7 @@ import {
   type Action,
   type Audit,
   type Content,
+  type CompanyData,
   type Draft,
   type Kind,
   type Principal,
@@ -30,24 +31,28 @@ export function CompanyCatalogue({
   onClose,
   session: suppliedSession,
   api: suppliedApi,
+  initialData,
+  initialError = '',
 }: {
   onClose: () => void
   session?: CompanySession | null
   api?: CompanyApi
+  initialData?: CompanyData
+  initialError?: string
 }) {
   const [session] = useState(() =>
     suppliedSession === undefined ? configuredSession() : suppliedSession,
   )
   const [api] = useState(() => suppliedApi ?? (session ? new CompanyApi(session) : null))
-  const [actor, setActor] = useState<Principal | null>(null)
-  const [drafts, setDrafts] = useState<Draft[]>([])
-  const [versions, setVersions] = useState<Published[]>([])
+  const [actor, setActor] = useState<Principal | null>(initialData?.actor ?? null)
+  const [drafts, setDrafts] = useState<Draft[]>(initialData?.drafts ?? [])
+  const [versions, setVersions] = useState<Published[]>(initialData?.versions ?? [])
   const [editor, setEditor] = useState<Editor | null>(null)
   const [audit, setAudit] = useState<Audit[]>([])
   const [history, setHistory] = useState<Published | null>(null)
   const [busy, setBusy] = useState(false)
   const [locked, setLocked] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(initialError)
   const [message, setMessage] = useState('')
   const [note, setNote] = useState('')
   const [confirmation, setConfirmation] = useState<Draft | null>(null)
@@ -165,7 +170,7 @@ export function CompanyCatalogue({
     } catch {
       if (generation.current === requestGeneration)
         setError(
-          'Local sign-out completed. Microsoft sign-out could not finish; close its window if it remains open.',
+          'Local sign-out completed. Keycloak sign-out could not finish. Close this catalogue window and try again.',
         )
     } finally {
       if (generation.current === requestGeneration) {
@@ -258,7 +263,7 @@ export function CompanyCatalogue({
               })
             }}
           >
-            Sign in with Microsoft
+            Sign in with Keycloak
           </Button>
         ) : (
           <>

@@ -12,3 +12,13 @@
 - Final local validation: typecheck, lint, 145 test files (2,624 passed / 10 skipped; 27 new focused tests), CAD build, catalogue server build and diff check passed. New Playwright coverage checks unconfigured entry/close and the independent bridge; live authentication remains a deployment acceptance step.
 - Final setup review clarified the separate site-origin reply URL required by popup logout (besides the company-auth.html sign-in callback). Microsoft requires a registered post-logout reply URL to close the popup; see the setup guide.
 - First GitHub E2E run passed 31 of 32 cases; the callback case expected the original HTML title but MSAL sets `Microsoft Authentication`. Inspected the installed SDK bridge source and corrected the assertion. The case now also verifies malformed response query cleanup and the friendly callback error without mounting CAD. No production authentication change was needed.
+
+## Keycloak replacement — current implementation
+
+- User chose B: Keycloak. Earlier Entra/MSAL notes above describe the superseded implementation and its historical validation only.
+- Keycloak JS 26.2.4 replaces MSAL. The lockfile preserves existing unrelated versions and changes only provider dependencies; frozen installation succeeds.
+- File menu opens an independent catalogue page with noopener/noreferrer. The supported code/PKCE redirect changes only that window; callback initializes before React and verified API data initializes the editor. Tokens stay in SDK memory inside that window.
+- No automatic SSO iframe, custom OAuth adapter, browser secret, cross-window token message or Entra fallback. Refresh/expiry, explicit login/logout and generation guards are covered with mocked SDK tests; these do not claim a live realm sign-in.
+- Integrated branch gates: typecheck, lint, 147 unit-test files (2,651 passed / 10 skipped), CAD build, catalogue build and diff check passed. Focused company tests include callback-before-React ordering, failed/unauthenticated callback isolation, server-verified initial data and unconfigured response cleanup.
+- Twenty-four guard mutations across API/browser failed with assertions and restored originals byte-for-byte (16 API / 8 browser). Earlier historical Entra test counts above are superseded. Local browser installation remains unavailable; GitHub E2E is the browser gate. No live realm login is claimed.
+- #77 is the API replacement of merged #75. #76 is stacked on its branch; merge API first when later authorised. Neither is merged/deployed by this work.

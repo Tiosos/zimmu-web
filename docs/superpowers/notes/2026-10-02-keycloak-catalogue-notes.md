@@ -1,0 +1,9 @@
+# Keycloak catalogue migration notes
+
+- User selected Keycloak (option B). API work starts from main 03f5077; #76 UI remains isolated until the API follow-up is published. Prior Entra specs/notes remain historical records.
+- Canonical company/staff UUIDs and Principal DTO stay stable. Keycloak sub is only an external lookup key in an IT-owned, issuer/company-bound file; email or token attributes never link identities. Keeping the old staff ID is necessary to prevent a migrated author becoming their own apparent second reviewer.
+- The dedicated catalogue window uses Keycloak's standard redirect/PKCE flow rather than implementing a custom OAuth popup adapter or redirecting unsaved CAD. Tokens do not cross windows.
+- Focused signed-token/identity/config/HTTP tests pass. Migration fixture confirms the new external subject resolves to the pre-migration author and still cannot self-approve their submitted draft. Identity file reads are bounded and startup validates bindings before creating/opening the database.
+- Sixteen API and six browser guard mutations failed with assertions; originals restored byte-for-byte. The issued-at fixture initially also failed the expiry-order guard, and the late-refresh fixture initially had no token after clearing; both fixtures were corrected so each intended guard fails independently.
+- IT setup now documents exact audience/scope/API-client roles, public SPA PKCE, disabled alternative grants, exact callback/logout origins and stable staff binding migration. No live Keycloak realm/deployment is provided or claimed.
+- Final API gates: typecheck, lint, 143 unit-test files (2,615 passed / 10 skipped), catalogue build, CAD build and whitespace diff check passed. Browser guard validation runs in the separate UI worktree; GitHub verification follows publication.

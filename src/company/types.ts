@@ -79,3 +79,9 @@ export function editableContent(kind: Kind, content: Content): Content {
     overrides: product.overrides,
   })
 }
+
+export interface CompanyData {
+  actor: Principal
+  drafts: Draft[]
+  versions: Published[]
+}

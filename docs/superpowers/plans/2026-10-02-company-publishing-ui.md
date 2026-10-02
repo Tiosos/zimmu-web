@@ -1,12 +1,10 @@
-# Company publishing UI implementation plan
+# Company publishing UI implementation plan — Keycloak
 
-Spec: ../specs/2026-10-02-company-publishing-ui-design.md
-Notes: ../notes/2026-10-02-company-publishing-ui-notes.md
+Supersedes the earlier Entra/MSAL selection after the user chose option B.
 
-1. Start from merged main on a feature branch. Read API validation, authorisation and version/revision transitions. Use same-origin routing rather than cross-origin bearer configuration; avoid token paste, local roles and custom OAuth. Add MSAL Browser and preserve unrelated lockfile dependencies.
-2. Implement validated optional public build config, singleton initialized MSAL session with memory cache, explicit account selection, silent-only request tokens and dedicated multi-page popup callback. Document exact SPA redirect URI/consent/scope, secure context and callback headers. Missing/malformed configuration must disable sign-in without affecting CAD.
-3. Add browser contract/client using fixed same-origin endpoints, bearer API token, no credentials/cache/redirect following. Preserve status codes; never retry a write. Unit-test token/HTTP failure/409, role gating and API path safety.
-4. Add accessible modal with focus containment/return, dirty close confirmation, responsive layout. Add verified session header, refresh/sign-out, draft and published lists, rule stock editor/common construction fields and sparse recipe inputs/pinned selectors. Readers have history only; each write button reflects creator/state/role and exact saved revision. Do not import Node modules into browser.
-5. Show saved snapshot and audit with digests/actors/review notes. Edit forms alone cannot publish. Dirty forms block submission; submit creates immutable review snapshot. Separate publication confirmation identifies new version, rule/layout pins, revision and digest. Conflict/uncertain outcome locks commands until deliberate reload. Abort/ignore stale requests on sign-out/unmount/session change. Do not silently reuse new revisions.
-6. Test real API-like UI responses including different designer approvals, notes, conflict reload, failed refresh, sign-out races, fields and preserved pins. Browser test the default unconfigured flow and callback output. Run focused tests green, then mutation-test exact revision, self-approval and stale-response guards with backups/restoration and assertion failure verification.
-7. Run typecheck, lint, full tests, CAD/server builds and diff check. Update living notes/setup/README/architecture. Commit and publish only on feature branch; verify remote tree matches local. Open draft PR against main with exact gates and live-config limitations. Inspect CI/E2E. Do not merge this PR without user instruction.
+1. Publish an API replacement of merged #75 from main, preserving company/staff identities and immutable audit. Stack #76 on that branch; merge API first only when authorised later.
+2. Replace MSAL with Keycloak JS, preserve unrelated lockfile packages and use a real separate catalogue entry. Explicit login redirects the catalogue window only; no custom OAuth adapter or token messaging.
+3. Initialize code/PKCE callback before React, load `/me`/drafts/versions and inject server-verified initial data. Refresh request tokens in memory, fail closed on expiry, clear on logout, reject late sessions.
+4. Keep existing rule/stock/product forms, creator-only commands, different-designer review, saved revision/digest/pin confirmation and reload locks. Update visible sign-in labels and optional configuration errors.
+5. Rewrite browser entry/callback checks, add callback-data and Keycloak session unit tests, deliberately break each new security guard and restore originals byte-for-byte.
+6. Update setup docs, architecture index and living notes. Run frozen installation, full type/lint/unit gates and both builds. Publish drafts and verify GitHub CI/E2E. Live realm acceptance remains IT's deployment prerequisite.

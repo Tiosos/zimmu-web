@@ -1,23 +1,39 @@
-import {
-  PublicClientApplication,
-  BrowserCacheLocation,
-  InteractionRequiredAuthError,
-  type AccountInfo,
-} from '@azure/msal-browser'
+import Keycloak from 'keycloak-js'
 
 export interface CompanyConfig {
-  tenantId: string
+  url: string
+  realm: string
   clientId: string
-  apiClientId: string
 }
-const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export function companyConfig(env: Record<string, unknown>): CompanyConfig | null {
-  const ids = [env.VITE_ENTRA_TENANT_ID, env.VITE_ENTRA_SPA_CLIENT_ID, env.VITE_ENTRA_API_CLIENT_ID]
-  if (!ids.every((id) => typeof id === 'string' && guid.test(id))) return null
-  return {
-    tenantId: String(ids[0]).toLowerCase(),
-    clientId: String(ids[1]).toLowerCase(),
-    apiClientId: String(ids[2]).toLowerCase(),
+  const url = env.VITE_KEYCLOAK_URL
+  const realm = env.VITE_KEYCLOAK_REALM
+  const clientId = env.VITE_KEYCLOAK_CLIENT_ID
+  if (
+    typeof url !== 'string' ||
+    typeof realm !== 'string' ||
+    typeof clientId !== 'string' ||
+    !/^[a-zA-Z0-9._-]{1,160}$/.test(realm) ||
+    !/^[a-zA-Z0-9._-]{1,160}$/.test(clientId)
+  )
+    return null
+  try {
+    const parsed = new URL(url)
+    if (
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      (parsed.protocol !== 'https:' &&
+        !(
+          parsed.protocol === 'http:' &&
+          ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)
+        ))
+    )
+      return null
+    return { url: parsed.href.replace(/\/$/, ''), realm, clientId }
+  } catch {
+    return null
   }
 }
 export class SignInRequired extends Error {
@@ -30,63 +46,88 @@ export interface CompanySession {
   token(): Promise<string>
   signOut(): Promise<void>
 }
-export function createCompanySession(config: CompanyConfig): CompanySession {
-  const client = new PublicClientApplication({
-    auth: {
-      clientId: config.clientId,
-      authority: `https://login.microsoftonline.com/${config.tenantId}`,
-      redirectUri: new URL(`${import.meta.env.BASE_URL}company-auth.html`, window.location.origin)
-        .href,
-    },
-    cache: { cacheLocation: BrowserCacheLocation.MemoryStorage },
-  })
-  let ready: Promise<void> | undefined
-  const initialize = () => (ready ??= client.initialize())
-  const scopes = [`api://${config.apiClientId}/Catalogue.Access`]
-  let account: AccountInfo | null = null
+export interface PreparedCompanySession extends CompanySession {
+  prepare(): Promise<boolean>
+}
+export function createCompanySession(
+  config: CompanyConfig,
+  navigate: (url: string) => void = (url) => window.location.assign(url),
+): PreparedCompanySession {
+  let client = new Keycloak(config)
+  let ready: Promise<boolean> | undefined
+  let initialized = false
   let generation = 0
+  let signedOut = false
+  const redirectUri = new URL(
+    `${import.meta.env.BASE_URL}company-auth.html`,
+    window.location.origin,
+  ).href
+  const initialize = () =>
+    (ready ??= client
+      .init({
+        pkceMethod: 'S256',
+        flow: 'standard',
+        responseMode: 'fragment',
+        checkLoginIframe: false,
+        redirectUri,
+        scope: 'Catalogue.Access',
+        enableLogging: false,
+      })
+      .then((authenticated) => {
+        initialized = true
+        return authenticated
+      })
+      .catch(() => {
+        initialized = false
+        client.clearToken()
+        client = new Keycloak(config)
+        ready = undefined
+        throw new SignInRequired()
+      }))
   return {
+    async prepare() {
+      const current = generation
+      await initialize()
+      return current === generation && !signedOut && client.authenticated === true
+    },
     async signIn() {
       const current = ++generation
-      account = null
+      signedOut = false
       await initialize()
-      const response = await client.loginPopup({ scopes, prompt: 'select_account' })
       if (current !== generation) throw new SignInRequired()
-      if (!response.account || response.account.tenantId.toLowerCase() !== config.tenantId) {
-        await client.clearCache()
-        throw new SignInRequired()
-      }
-      account = response.account
+      await client.login({ redirectUri, scope: 'Catalogue.Access', prompt: 'login' })
+      if (current !== generation) throw new SignInRequired()
     },
     async token() {
       await initialize()
       const current = generation
-      if (!account) throw new SignInRequired()
+      if (signedOut || !client.authenticated) throw new SignInRequired()
       try {
-        const response = await client.acquireTokenSilent({ scopes, account })
-        if (current !== generation || !response.accessToken) throw new SignInRequired()
-        return response.accessToken
-      } catch (error) {
-        if (error instanceof InteractionRequiredAuthError) throw new SignInRequired()
-        throw error
+        await client.updateToken(30)
+        if (current !== generation || signedOut || !client.token) throw new SignInRequired()
+        return client.token
+      } catch {
+        if (current === generation || signedOut) client.clearToken()
+        throw new SignInRequired()
       }
     },
     async signOut() {
       ++generation
-      const previous = account
-      account = null
-      await initialize()
-      await client.clearCache()
-      if (previous)
-        await client.logoutPopup({
-          account: previous,
-          postLogoutRedirectUri: window.location.origin,
-        })
+      signedOut = true
+      // Preserve the SDK-generated ID-token hint, then erase tokens before navigation.
+      const pending = ready
+      const existingLogout = initialized ? client.createLogoutUrl({ redirectUri }) : undefined
+      client.clearToken()
+      if (pending) await pending.catch(() => false)
+      if (!initialized) return
+      const logout = existingLogout ?? client.createLogoutUrl({ redirectUri })
+      client.clearToken()
+      navigate(logout)
     },
   }
 }
-let session: CompanySession | undefined
-export function configuredSession(): CompanySession | null {
+let session: PreparedCompanySession | undefined
+export function configuredSession(): PreparedCompanySession | null {
   const config = companyConfig(import.meta.env)
   if (!config) return null
   session ??= createCompanySession(config)

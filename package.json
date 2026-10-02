@@ -19,7 +19,6 @@
     "start:catalogue": "node dist-catalogue/server.js"
   },
   "dependencies": {
-    "@azure/msal-browser": "^5.23.0",
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-scroll-area": "^1.2.10",
@@ -32,6 +31,7 @@
     "comlink": "^4.4.2",
     "fflate": "0.8.3",
     "jose": "^6.2.12",
+    "keycloak-js": "^26.2.4",
     "lucide-react": "^1.17.0",
     "opencascade.js": "^1.1.1",
     "pdf-lib": "^1.17.1",

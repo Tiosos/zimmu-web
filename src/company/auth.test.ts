@@ -1,157 +1,219 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-const msal = vi.hoisted(() => ({
-  initialize: vi.fn(),
-  loginPopup: vi.fn(),
-  acquireTokenSilent: vi.fn(),
-  clearCache: vi.fn(),
-  logoutPopup: vi.fn(),
-  config: null as unknown,
+const sdk = vi.hoisted(() => ({
+  init: vi.fn(),
+  login: vi.fn(),
+  updateToken: vi.fn(),
+  createLogoutUrl: vi.fn(),
+  clients: [] as {
+    config: unknown
+    authenticated: boolean
+    token?: string
+    idToken?: string
+    clearToken: ReturnType<typeof vi.fn>
+  }[],
 }))
-vi.mock('@azure/msal-browser', () => ({
-  BrowserCacheLocation: { MemoryStorage: 'memoryStorage' },
-  InteractionRequiredAuthError: class extends Error {},
-  PublicClientApplication: class {
+vi.mock('keycloak-js', () => ({
+  default: class {
+    authenticated = false
+    token: string | undefined
+    idToken: string | undefined
+    config: unknown
     constructor(config: unknown) {
-      msal.config = config
+      this.config = config
+      sdk.clients.push(this)
     }
-    initialize = msal.initialize
-    loginPopup = msal.loginPopup
-    acquireTokenSilent = msal.acquireTokenSilent
-    clearCache = msal.clearCache
-    logoutPopup = msal.logoutPopup
+    init = sdk.init
+    login = sdk.login
+    updateToken = sdk.updateToken
+    createLogoutUrl = sdk.createLogoutUrl
+    clearToken = vi.fn(() => {
+      this.authenticated = false
+      this.token = undefined
+      this.idToken = undefined
+    })
   },
 }))
 import { companyConfig, createCompanySession, SignInRequired } from './auth'
-import { InteractionRequiredAuthError } from '@azure/msal-browser'
-const tenantId = '11111111-1111-1111-1111-111111111111'
-const clientId = '22222222-2222-2222-2222-222222222222'
-const apiClientId = '33333333-3333-3333-3333-333333333333'
-const account = { tenantId, homeAccountId: 'chosen-account' }
+const config = {
+  url: 'https://identity.example.invalid',
+  realm: 'company',
+  clientId: 'zimmu-catalogue-editor',
+}
+const env = {
+  VITE_KEYCLOAK_URL: config.url,
+  VITE_KEYCLOAK_REALM: config.realm,
+  VITE_KEYCLOAK_CLIENT_ID: config.clientId,
+}
+const callback = `${window.location.origin}/company-auth.html`
+const authenticate = () =>
+  Object.assign(sdk.clients.at(-1)!, {
+    authenticated: true,
+    token: 'api-token',
+    idToken: 'id-token',
+  })
 beforeEach(() => {
   vi.resetAllMocks()
-  msal.initialize.mockResolvedValue(undefined)
-  msal.loginPopup.mockResolvedValue({ account })
-  msal.acquireTokenSilent.mockResolvedValue({ accessToken: 'api-token' })
-  msal.clearCache.mockResolvedValue(undefined)
-  msal.logoutPopup.mockResolvedValue(undefined)
+  sdk.clients.length = 0
+  sdk.init.mockResolvedValue(false)
+  sdk.login.mockResolvedValue(undefined)
+  sdk.updateToken.mockResolvedValue(false)
+  sdk.createLogoutUrl.mockReturnValue('https://identity.example.invalid/logout')
 })
-describe('company authentication', () => {
-  it('fails closed for missing and malformed public IDs', () => {
-    expect(companyConfig({})).toBeNull()
+describe('Keycloak company session', () => {
+  it('requires explicit realm/client configuration and rejects unsafe URLs', () => {
+    expect(companyConfig(env)).toEqual(config)
+    for (const url of [
+      'http://identity.example.invalid',
+      'https://user:password@identity.example.invalid',
+      'https://identity.example.invalid?x=1',
+      'https://identity.example.invalid#x',
+      'file:///realm',
+      'not-url',
+    ]) {
+      expect(companyConfig({ ...env, VITE_KEYCLOAK_URL: url })).toBeNull()
+    }
+    for (const field of ['VITE_KEYCLOAK_URL', 'VITE_KEYCLOAK_REALM', 'VITE_KEYCLOAK_CLIENT_ID'])
+      expect(companyConfig({ ...env, [field]: '' })).toBeNull()
+    expect(companyConfig({ ...env, VITE_KEYCLOAK_REALM: '../other' })).toBeNull()
+    expect(companyConfig({ ...env, VITE_KEYCLOAK_CLIENT_ID: 'a b' })).toBeNull()
     expect(
-      companyConfig({
-        VITE_ENTRA_TENANT_ID: tenantId,
-        VITE_ENTRA_SPA_CLIENT_ID: 'common',
-        VITE_ENTRA_API_CLIENT_ID: apiClientId,
-      }),
+      companyConfig({ VITE_ENTRA_TENANT_ID: 'old', VITE_ENTRA_SPA_CLIENT_ID: 'old' }),
     ).toBeNull()
-    expect(
-      companyConfig({
-        VITE_ENTRA_TENANT_ID: tenantId,
-        VITE_ENTRA_SPA_CLIENT_ID: clientId,
-        VITE_ENTRA_API_CLIENT_ID: apiClientId,
-      }),
-    ).toEqual({ tenantId, clientId, apiClientId })
+    expect(companyConfig({ ...env, VITE_KEYCLOAK_URL: 'http://localhost:8080' })).not.toBeNull()
   })
-  it('pins tenant, callback and memory-only cache with no secret', () => {
-    createCompanySession({ tenantId, clientId, apiClientId })
-    expect(msal.config).toMatchObject({
-      auth: {
-        clientId,
-        authority: `https://login.microsoftonline.com/${tenantId}`,
-        redirectUri: `${window.location.origin}/company-auth.html`,
-      },
-      cache: { cacheLocation: 'memoryStorage' },
+  it('initializes before use with code flow, PKCE and explicit callback/scope', async () => {
+    const session = createCompanySession(config)
+    expect(await session.prepare()).toBe(false)
+    expect(sdk.clients[0].config).toEqual(config)
+    expect(sdk.init).toHaveBeenCalledWith({
+      pkceMethod: 'S256',
+      flow: 'standard',
+      responseMode: 'fragment',
+      checkLoginIframe: false,
+      redirectUri: callback,
+      scope: 'Catalogue.Access',
+      enableLogging: false,
+    })
+    await session.signIn()
+    expect(sdk.init).toHaveBeenCalledTimes(1)
+    expect(sdk.login).toHaveBeenCalledWith({
+      redirectUri: callback,
+      scope: 'Catalogue.Access',
+      prompt: 'login',
     })
   })
-  it('waits for initialization and explicitly selects the account', async () => {
-    let ready!: () => void
-    msal.initialize.mockImplementation(
+  it('waits for initialization before login and API token use', async () => {
+    let ready!: (value: boolean) => void
+    sdk.init.mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
+        new Promise<boolean>((resolve) => {
           ready = resolve
         }),
     )
-    const session = createCompanySession({ tenantId, clientId, apiClientId })
+    const session = createCompanySession(config)
     const login = session.signIn()
-    expect(msal.loginPopup).not.toHaveBeenCalled()
-    ready()
+    expect(sdk.login).not.toHaveBeenCalled()
+    authenticate()
+    ready(true)
     await login
-    expect(msal.loginPopup).toHaveBeenCalledWith({
-      scopes: [`api://${apiClientId}/Catalogue.Access`],
-      prompt: 'select_account',
-    })
+    expect(await session.prepare()).toBe(true)
     expect(await session.token()).toBe('api-token')
-    expect(msal.acquireTokenSilent).toHaveBeenCalledWith({
-      scopes: [`api://${apiClientId}/Catalogue.Access`],
-      account,
+    expect(sdk.updateToken).toHaveBeenCalledWith(30)
+  })
+  it('requires sign-in for unauthenticated accounts without automatic navigation', async () => {
+    const session = createCompanySession(config)
+    await expect(session.token()).rejects.toBeInstanceOf(SignInRequired)
+    expect(sdk.updateToken).not.toHaveBeenCalled()
+    expect(sdk.login).not.toHaveBeenCalled()
+  })
+  it('clears expired sessions and asks for explicit reconnect', async () => {
+    const session = createCompanySession(config)
+    await session.prepare()
+    authenticate()
+    sdk.updateToken.mockRejectedValue(new Error('expired'))
+    await expect(session.token()).rejects.toBeInstanceOf(SignInRequired)
+    expect(sdk.clients[0].token).toBeUndefined()
+    expect(sdk.login).not.toHaveBeenCalled()
+  })
+  it('rejects a missing token after refresh', async () => {
+    const session = createCompanySession(config)
+    await session.prepare()
+    authenticate()
+    sdk.clients[0].token = undefined
+    await expect(session.token()).rejects.toBeInstanceOf(SignInRequired)
+  })
+  it('preserves logout hint and clears tokens before remote navigation', async () => {
+    const navigate = vi.fn(() => {
+      expect(sdk.clients[0].token).toBeUndefined()
+      expect(sdk.clients[0].idToken).toBeUndefined()
     })
-  })
-  it('does not pick a cached first account', async () => {
-    const session = createCompanySession({ tenantId, clientId, apiClientId })
+    const session = createCompanySession(config, navigate)
+    await session.prepare()
+    authenticate()
+    sdk.createLogoutUrl.mockImplementation(() => {
+      expect(sdk.clients[0].idToken).toBe('id-token')
+      return 'https://identity.example.invalid/logout'
+    })
+    await session.signOut()
+    expect(navigate).toHaveBeenCalledWith('https://identity.example.invalid/logout')
     await expect(session.token()).rejects.toBeInstanceOf(SignInRequired)
-    expect(msal.acquireTokenSilent).not.toHaveBeenCalled()
   })
-  it('rejects wrong-tenant and missing account results', async () => {
-    for (const wrong of [null, { tenantId: clientId }]) {
-      msal.loginPopup.mockResolvedValue({ account: wrong })
-      const session = createCompanySession({ tenantId, clientId, apiClientId })
-      await expect(session.signIn()).rejects.toBeInstanceOf(SignInRequired)
-      await expect(session.token()).rejects.toBeInstanceOf(SignInRequired)
-    }
-  })
-  it('requires explicit reconnect, never popup fallback during API commands', async () => {
-    const session = createCompanySession({ tenantId, clientId, apiClientId })
-    await session.signIn()
-    msal.acquireTokenSilent.mockRejectedValue(
-      new InteractionRequiredAuthError('interaction_required', 'Login required'),
-    )
-    await expect(session.token()).rejects.toBeInstanceOf(SignInRequired)
-    expect(msal.loginPopup).toHaveBeenCalledTimes(1)
-  })
-  it('clears selected account/cache before remote logout finishes', async () => {
-    const session = createCompanySession({ tenantId, clientId, apiClientId })
-    await session.signIn()
-    let done!: () => void
-    msal.logoutPopup.mockImplementation(
+  it('rejects late refresh and login responses after sign-out', async () => {
+    const session = createCompanySession(config, vi.fn())
+    await session.prepare()
+    authenticate()
+    let refresh!: () => void
+    sdk.updateToken.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
-          done = resolve
-        }),
-    )
-    const logout = session.signOut()
-    await vi.waitFor(() => expect(msal.logoutPopup).toHaveBeenCalled())
-    await expect(session.token()).rejects.toBeInstanceOf(SignInRequired)
-    expect(msal.clearCache).toHaveBeenCalled()
-    done()
-    await logout
-  })
-  it('rejects an in-flight token or login after sign-out', async () => {
-    const session = createCompanySession({ tenantId, clientId, apiClientId })
-    await session.signIn()
-    let token!: (value: unknown) => void
-    msal.acquireTokenSilent.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          token = resolve
+          refresh = resolve
         }),
     )
     const request = session.token()
-    await vi.waitFor(() => expect(token).toBeDefined())
+    await vi.waitFor(() => expect(refresh).toBeDefined())
     await session.signOut()
-    token({ accessToken: 'late' })
+    authenticate() // SDK can finish a pending refresh after local clearing.
+    sdk.clients[0].token = 'late-token'
+    refresh()
     await expect(request).rejects.toBeInstanceOf(SignInRequired)
-    let login!: (value: unknown) => void
-    msal.loginPopup.mockImplementation(
+    expect(sdk.clients[0].token).toBeUndefined()
+    let login!: () => void
+    sdk.login.mockImplementation(
       () =>
-        new Promise((resolve) => {
+        new Promise<void>((resolve) => {
           login = resolve
         }),
     )
     const entering = session.signIn()
     await vi.waitFor(() => expect(login).toBeDefined())
     await session.signOut()
-    login({ account })
+    login()
     await expect(entering).rejects.toBeInstanceOf(SignInRequired)
+  })
+  it('rejects pending callback after sign-out and clears any late tokens', async () => {
+    let ready!: (value: boolean) => void
+    sdk.init.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          ready = resolve
+        }),
+    )
+    const session = createCompanySession(config, vi.fn())
+    const preparing = session.prepare()
+    const logout = session.signOut()
+    authenticate()
+    ready(true)
+    expect(await preparing).toBe(false)
+    await logout
+    expect(sdk.clients[0].token).toBeUndefined()
+    await expect(session.token()).rejects.toBeInstanceOf(SignInRequired)
+  })
+  it('recreates the SDK after failed initialization instead of reusing a broken client', async () => {
+    sdk.init.mockRejectedValueOnce(new Error('invalid callback'))
+    const session = createCompanySession(config)
+    await expect(session.prepare()).rejects.toBeInstanceOf(SignInRequired)
+    expect(sdk.clients).toHaveLength(2)
+    expect(sdk.clients[0].clearToken).toHaveBeenCalled()
+    expect(await session.prepare()).toBe(false)
   })
 })
