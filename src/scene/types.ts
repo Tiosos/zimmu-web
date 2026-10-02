@@ -339,6 +339,11 @@ export interface CarcaseComponent {
   rotationOrder: 'XYZ'
   visible: boolean
   params: CarcaseParams
+  catalogue?: {
+    id: string
+    version: number
+    overrides: Partial<CarcaseParams>
+  }
   anchor?: Anchor
 }
 

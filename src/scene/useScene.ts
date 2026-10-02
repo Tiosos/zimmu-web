@@ -31,6 +31,7 @@ import { regenerateComponents } from './regenerateComponents'
 import { regenerateDrawers } from './regenerateDrawers'
 import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
+import { reconcileCatalogue } from './catalogue'
 import { freshSectionIds } from './sectionTree'
 import { componentsById, descendantIds, wouldCycle } from './componentTree'
 import { jointInvolves } from './jointInvolves'
@@ -75,8 +76,10 @@ const MAX_HISTORY = 50
 // non-idempotent — the second call re-derives joint cuts the first got wrong — which is how this was
 // caught. A grep for `.position` does not show it; the dependency is through the matrix.
 export function applyPipeline(scene: Scene): Scene {
+  const catalogued = { ...scene, components: scene.components.map((component) =>
+    component.kind === 'carcase' ? reconcileCatalogue(component) : component) }
   return reconcileJoints(
-    regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(scene)))),
+    regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(catalogued)))),
   )
 }
 
@@ -1271,6 +1274,9 @@ export function useScene(): UseSceneResult {
         // `front-{sectionId}-0` boards. Every consumer then needs a cabinet id beside the section id
         // to tell them apart, and the ones that forget are silently wrong rather than broken.
         params: { ...preset.params, section: freshSectionIds(preset.params.section) },
+        ...(preset.catalogueId && preset.catalogueVersion ? {
+          catalogue: { id: preset.catalogueId, version: preset.catalogueVersion, overrides: {} },
+        } : {}),
       }
       // One undo entry covers the component and every part the pipeline generates from it.
       commitReconciled(

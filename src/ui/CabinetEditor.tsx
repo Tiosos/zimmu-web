@@ -7,6 +7,7 @@ import { buildDxf } from './buildDxf'
 import { buildSvg } from './buildSvg'
 import { downloadBlob } from './download'
 import { sheetFilename } from './sheetFilename'
+import { catalogueDefinition, catalogueSources } from '../scene/catalogue'
 import type {
   CarcaseComponent,
   Component,
@@ -62,6 +63,8 @@ export function CabinetEditor({
   onSelectPart: (id: PartId) => void
   projectName: string
 }) {
+  const definition = component.catalogue && catalogueDefinition(component.catalogue.id, component.catalogue.version)
+  const sources = catalogueSources(component)
   // The same sheet object the drawings deck would show, built from the same projector this pane
   // reads, so the two export paths cannot produce different files for the same cabinet.
   const exportSheet = (ext: 'svg' | 'dxf') => {
@@ -79,6 +82,20 @@ export function CabinetEditor({
     <div className="flex-1 min-w-0 h-full flex flex-col bg-background">
       <div className="flex items-center border-b border-border px-2 shrink-0">
         <span className="text-xs font-medium text-foreground mr-4 py-2">{component.label}</span>
+        {component.catalogue && (
+          <details className="text-xs text-muted-foreground mr-4 relative">
+            <summary className="cursor-pointer">
+              {definition ? `${definition.name} v${definition.catalogueVersion}` :
+                `Catalogue ${component.catalogue.id} v${component.catalogue.version} unavailable`}
+              {definition && Object.values(sources).includes('item') ? ' · item overrides' : ''}
+            </summary>
+            <div className="absolute z-20 bg-background border border-border rounded p-2 max-h-64 overflow-auto min-w-44 shadow-md">
+              {definition ? Object.entries(sources).map(([key, source]) =>
+                <div key={key}>{key}: {source === 'item' ? 'Item override' : 'Catalogue'}</div>) :
+                'Saved cabinet geometry is preserved; this version cannot be resolved.'}
+            </div>
+          </details>
+        )}
         <div role="tablist" className="flex">
           {TABS.map((t) => (
             <button

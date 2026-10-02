@@ -235,22 +235,22 @@ describe('useFile', () => {
     expect(result.current.isDirty).toBe(true)
   })
 
-  it('suggests a v23 copy when saving a v22 room without assessments', async () => {
+  it('suggests a v25 copy when saving a v24 room without a catalogue', async () => {
     const oldHandle = {
       name: 'kitchen.zimmu', queryPermission: vi.fn().mockResolvedValue('granted'),
       getFile: vi.fn().mockResolvedValue({ text: vi.fn().mockResolvedValue(JSON.stringify({
-        ...FIXTURE, version: 22, project: defaultProject(FIXTURE.scene, 'old'),
+        ...FIXTURE, version: 24, project: defaultProject(FIXTURE.scene, 'old'),
       })) }),
     } as unknown as FileSystemFileHandle
     const write = vi.fn().mockResolvedValue(undefined)
-    const nextHandle = { name: 'kitchen-v23.zimmu', isSameEntry: vi.fn().mockResolvedValue(false),
+    const nextHandle = { name: 'kitchen-v25.zimmu', isSameEntry: vi.fn().mockResolvedValue(false),
       createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }) }
     vi.mocked(idb.readHandle).mockResolvedValue(oldHandle)
     vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(nextHandle))
     const { result } = renderHook(() => useFile(makeInput()))
     await waitFor(() => expect(result.current.fileReady).toBe(true))
     await act(async () => { await result.current.saveFile() })
-    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v24.zimmu' }))
+    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v25.zimmu' }))
     expect(JSON.parse(write.mock.calls[0][0]).version).toBe(FILE_FORMAT_VERSION)
   })
 
@@ -2267,7 +2267,7 @@ describe('v20 face frames', () => {
   // constant itself is asserted. This pin replaces the v19 one: the constant is global, so only the
   // newest value can be asserted.
   it('states the current file format version', () => {
-    expect(FILE_FORMAT_VERSION).toBe(24)
+    expect(FILE_FORMAT_VERSION).toBe(25)
   })
 
   // tsc cannot see this: `base.params` is typed loosely, so a parser that forgot the new slot would

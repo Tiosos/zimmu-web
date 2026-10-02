@@ -6,6 +6,9 @@ import type { CarcaseParams, FaceFrameParams, MaterialDef } from './types'
 export interface CarcasePreset {
   name: string
   params: CarcaseParams
+  catalogueId?: string
+  catalogueVersion?: number
+  category?: 'base' | 'wall' | 'tall'
 }
 
 // Exported because the file parser needs them: a pre-v14 carcase names one material and states its
@@ -90,6 +93,9 @@ const doored = (root: Section, front: FrontSpec = DOOR): Section => ({ ...root, 
 export const CARCASE_PRESETS: CarcasePreset[] = [
   {
     name: 'Base 600',
+    catalogueId: 'starter.base-600',
+    catalogueVersion: 1,
+    category: 'base',
     params: {
       ...COMMON,
       width: 600,
@@ -107,6 +113,9 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
   },
   {
     name: 'Wall 600',
+    catalogueId: 'starter.wall-600',
+    catalogueVersion: 1,
+    category: 'wall',
     params: {
       ...COMMON,
       width: 600,
@@ -121,6 +130,9 @@ export const CARCASE_PRESETS: CarcasePreset[] = [
   },
   {
     name: 'Tall 600',
+    catalogueId: 'starter.tall-600',
+    catalogueVersion: 1,
+    category: 'tall',
     params: {
       ...COMMON,
       width: 600,
