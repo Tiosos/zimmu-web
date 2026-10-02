@@ -67,3 +67,16 @@ Mutation 9 survived because every existing "differ" case also changed the cut si
 - Commits 64f6c04 and 631b909 carry unrelated Prettier reformatting hunks in `App.tsx` and `buildPdf.ts`, left as is.
 - Edge banding appears in the Boards tab and its CSV only.
 - The CLAUDE.md file-format line had stopped at v21 while the code was at 23; fixed with this stage (v22 room geometry, v23 site levels and elevations, v24 edge banding).
+
+## Review findings and open decisions (2026-10-01)
+
+Facts recorded after review; no design decision is made here.
+
+- A banded framed cabinet bands edges the face frame covers, because `edgeRuleOf` states its rule per role and ignores whether the cabinet wears a frame.
+- Detaching a board drops its rule-derived banding. Only the user's explicit `edgeBanding` decisions survive on a detached board, so the cutlist cut size for that board changes at the moment it is detached.
+- The "Add edge band" action in `CarcasePanel` calls `onAddMaterial`, which is `onUpdateMaterial` in `useScene`, and that pushes an undo entry labelled `Set <name> cost`. Still wrong at the time of this entry; not fixed, because the same callback also serves genuine cost edits and a correct label needs to tell a new material from an existing one, which wants its own test.
+- `cutPartOf` shifts a part's through-cuts but not its hole arrays, so the nest mask of a banded part keeps its bores at the finished-size positions.
+- Board cost is computed from the cut area, not the finished area.
+- The part-sheet manufacturing note wrap (about 8 lines or 90 characters) can still reach the colour swatch, in all three renderers.
+- The cutlist grouping key includes the edge pattern per edge, so boards of the same cut size and code banded in different stock are split into separate rows. This can over-split relative to what is sawn.
+- The unrelated Prettier hunks in `App.tsx`, `buildPdf.ts` and `mask.test.ts` mentioned under Known limitations were reverted to the base text on 2026-10-02.

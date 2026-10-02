@@ -99,3 +99,10 @@ Known and not fixed:
 - Same-named walls in one room share an export filename.
 - The production packet's drawings never include wall elevations (it passes `rooms = []`). Out of
   scope here; the decision is pending with the user.
+
+## Review findings and open decisions (2026-10-01)
+
+Facts recorded after review; no design decision is made here.
+
+- The production packet still omits wall elevations (`rooms = []` is passed); the toolbar drawing deck includes them. The decision is pending with the user.
+- A banded framed cabinet bands edges the face frame covers because `edgeRuleOf` ignores frames; this does not affect the elevation sheets.

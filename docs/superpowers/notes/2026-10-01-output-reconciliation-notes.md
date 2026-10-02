@@ -132,3 +132,12 @@ not be read as verifying them.
 - The panel checks all parts (as the packet does), while the toolbar drawing deck uses visible parts.
 - A row with zero members passes silently. It is unreachable: the grouper only creates a row with a
   member.
+
+## Review findings and open decisions (2026-10-01)
+
+Facts recorded after review; no design decision is made here.
+
+- The production packet's drawing deck omits wall elevations (`rooms = []` is passed), so reconciliation and the packet never see an elevation sheet. The decision is pending with the user.
+- Detaching a board drops its rule-derived banding, so the edge field the reconciliation compares for a detached board is only its explicit decisions.
+- `cutPartOf` does not shift hole arrays; board cost uses cut area; the part-sheet note wrap can reach the colour swatch; the edge-band grouping key can over-split rows. Detail is in the edge-banding notes.
+- Correction: the earlier line saying BomModal keeps its own copy of the library merge is stale. BomModal and App's nest materials now call `effectiveMaterialsOf`, which lives in `src/scene/effectiveMaterials.ts` (moved from `src/ui`).
