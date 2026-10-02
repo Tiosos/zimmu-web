@@ -105,7 +105,7 @@ export function CabinetEditor({
                 `Catalogue ${component.catalogue.id} v${component.catalogue.version} unavailable`}
               {definition && Object.values(sources).includes('item') ? ' · item overrides' : ''}
             </summary>
-            <div className={`z-20 bg-background border border-border rounded p-3 overflow-auto shadow-md ${preview ? 'fixed inset-x-4 top-24 mx-auto max-w-3xl max-h-[70vh]' : 'absolute max-h-64 min-w-44'}`}>
+            <div className={`z-20 bg-background border border-border rounded p-3 overflow-auto shadow-md ${preview ? 'fixed inset-x-4 top-24 mx-auto max-w-3xl max-h-[min(70vh,calc(100dvh-7rem))]' : 'absolute max-h-64 min-w-44'}`}>
               {definition && Object.keys(sources).length ? Object.entries(sources).map(([key, source]) =>
                 <div key={key}>{RULE_LABELS[key as RuleKey] ?? key}: {{ item: 'Item override', catalogue: 'Catalogue', company: 'Company', project: 'Project' }[source]}</div>) :
                 'Saved cabinet geometry is preserved; the catalogue or company rule version cannot be resolved.'}

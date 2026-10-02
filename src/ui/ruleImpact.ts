@@ -22,6 +22,9 @@ export interface ImpactPricing {
 export interface PartFacts {
   label: string
   kind: Part['kind']
+  localDimensions: number[]
+  color: string
+  stock: string
   finished: number[]
   cut: number[]
   material: string
@@ -110,19 +113,34 @@ function operationDetails(operation: object): string {
     )
     .join('; ')
 }
-function partFacts(scene: Scene): Map<string, PartFacts> {
+function partFacts(scene: Scene, pricing: ImpactPricing): Map<string, PartFacts> {
   const byId = componentsById(scene.components)
+  const materials = effectiveMaterialsOf(pricing.library ?? {}, scene.materials)
   return new Map(
     scene.parts.map((p) => {
       const world = decomposeMatrix(resolveWorldMatrix(p, byId))
-      const edges = p.kind === 'board' ? edgesOf(p, byId, scene.materials) : undefined
+      const edges = p.kind === 'board' ? edgesOf(p, byId, materials) : undefined
       const finished = p.kind === 'board' ? finishedDimensions(p) : undefined
-      const cut = p.kind === 'board' ? cutDimensions(p, edges!, scene.materials) : undefined
+      const cut = p.kind === 'board' ? cutDimensions(p, edges!, materials) : undefined
       return [
         p.id,
         {
           label: p.label,
           kind: p.kind,
+          localDimensions:
+            p.kind === 'board' ? [p.length, p.width, p.thickness] : [p.length, p.diameter],
+          color: p.color,
+          stock: canonicalContent({
+            thickness: materials[p.material]?.thickness ?? null,
+            hasGrain: materials[p.material]?.hasGrain ?? true,
+            sheet: materials[p.material]?.sheet
+              ? {
+                  length: materials[p.material].sheet!.length,
+                  width: materials[p.material].sheet!.width,
+                }
+              : null,
+            use: materials[p.material]?.use ?? null,
+          }),
           finished: finished
             ? [finished.length, finished.width, finished.thickness]
             : [p.length, p.kind === 'cylinder' ? p.diameter : 0],
@@ -152,6 +170,9 @@ function partFacts(scene: Scene): Map<string, PartFacts> {
 }
 const fields: [keyof PartFacts, string][] = [
   ['kind', 'part type'],
+  ['localDimensions', 'part-local size'],
+  ['color', 'colour'],
+  ['stock', 'stock properties'],
   ['finished', 'finished size'],
   ['cut', 'cut size'],
   ['material', 'material'],
@@ -185,6 +206,8 @@ function production(scene: Scene, pricing: ImpactPricing) {
   function material(kind: string, name: string, unit: string, quantity: number | null) {
     const key = JSON.stringify([kind, name])
     const previous = totals.has(key) ? totals.get(key)!.quantity : 0
+    if (previous !== null && quantity !== null && !valid(previous + quantity))
+      issues.add(`${kind} ${name}: quantity exceeds numeric range or is invalid`)
     totals.set(key, {
       key,
       name: `${kind}: ${name || '(unspecified material)'}`,
@@ -231,7 +254,7 @@ function production(scene: Scene, pricing: ImpactPricing) {
       `${h.cabinetLabel} / ${h.name}`,
       h.totalCost,
       valid(h.unitCost),
-      'missing or invalid hardware rate',
+      valid(h.qty) ? 'missing or invalid hardware rate' : 'invalid hardware quantity',
     )
   for (const h of scene.hardware)
     priced(
@@ -246,14 +269,14 @@ function production(scene: Scene, pricing: ImpactPricing) {
       key: JSON.stringify(['derived', h.componentId, h.key]),
       name: `${h.cabinetLabel} / ${h.name} (${h.key})`,
       unit: h.unit,
-      quantity: h.qty,
+      quantity: valid(h.qty) ? h.qty : null,
     }))
     .concat(
       scene.hardware.map((h) => ({
-        key: JSON.stringify(['manual', h.id]),
+        key: JSON.stringify(['manual', h.id, h.unit]),
         name: `Manual: ${h.name}`,
         unit: h.unit,
-        quantity: h.qty,
+        quantity: valid(h.qty) ? h.qty : null,
       })),
     )
   return { materials: [...totals.values()], hardware: hardwareQuantities, cost }
@@ -266,8 +289,8 @@ export function buildRuleImpact(
   if (preview.errors.length) return undefined
   // RulePreview.source is the captured scene signature, never a newer live scene.
   const source = JSON.parse(preview.source) as Scene
-  const before = partFacts(source)
-  const after = partFacts(preview.candidate)
+  const before = partFacts(source, pricing)
+  const after = partFacts(preview.candidate, pricing)
   const parts = [...new Set([...before.keys(), ...after.keys()])]
     .sort()
     .flatMap((id): PartImpact[] => {

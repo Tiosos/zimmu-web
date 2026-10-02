@@ -13,3 +13,9 @@ Both catalogue-version and project-rule previews receive the current material/ha
 
 ## Acceptance
 Test a real pinned company update, project rules, added/removed and unchanged parts, placement-only changes, equal-count machining changes, manual instructions, edge deductions, namespaced stocks, hardware changes, zero/missing/invalid rates, incomplete costs, immutable source/candidate and current library repricing. UI tests check visible detail, blocked/invalid preview, both library plumbing paths and no implicit application. Extend browser import/update/undo scenario to assert impact before acceptance. Mutation-test new omission/price/completeness guards and restore exact bytes. Full typecheck/lint/tests, both builds and CI/E2E gate publication.
+
+## PR #79 deep-review corrections
+
+Cross-check part facts with BOM grain ordering, part-local machining/edge axes, nesting stock definitions and whole-project placement. Preserve local dimensions alongside BOM dimensions so transposing a free-grain board cannot disappear from the comparison. Show physical stock properties (thickness, sheet size, stock grain constraint and edge use) separately from prices; include colour as the BOM does. Label direct cabinet/part-record counts explicitly so indirectly moved neighbours do not contradict the manufacturing summary. Invalid or overflowing material quantities must make the estimate incomplete even at an explicit zero rate. Invalid manual quantities are unavailable; unit changes remain separate quantity lines rather than subtracting incompatible units.
+
+The floating review height is also bounded by the space below its top offset, not only a viewport percentage. Chromium checks a 390 × 240 viewport as well as desktop, including access to explicit Apply after expanding details.

@@ -11,7 +11,7 @@ export function RulePreviewDetails({ preview, library, hardwareLibrary }: { prev
   return <div className="text-xs space-y-1" aria-live="polite">
     {preview.errors.map((error, index) => <p key={index} className="text-destructive">{error}</p>)}
     {!preview.errors.length && <>
-      <p>{preview.changes.length} cabinets affected; {preview.partsChanged} parts changed.</p>
+      <p>{preview.changes.length} cabinets with parameter or version changes; {preview.partsChanged} part records changed directly. Manufacturing and indirect assembly changes are listed below.</p>
       <p>Hardware quantities or selection: {preview.hardwareChanged ? 'changed' : 'unchanged'}. Review priced BOM before production.</p>
       <RuleImpactDetails preview={preview} library={library} hardwareLibrary={hardwareLibrary} />
       {preview.changes.map((change) => <p key={change.cabinetId}>{change.label}: {change.fields.map((key) =>

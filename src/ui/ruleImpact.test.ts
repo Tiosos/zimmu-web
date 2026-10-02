@@ -78,7 +78,7 @@ function companyScene(): Scene {
 }
 describe('manufacturing impact comparison', () => {
   it('reports no changes for identical scenes and ignores object field order', () => {
-    const source = { ...empty(), parts: [board()] }
+    const source: Scene = { ...empty(), parts: [board()] }
     const next = structuredClone(source)
     next.parts[0].position = { z: 0, y: 0, x: 0 }
     const result = buildRuleImpact(comparison(source, next))!
@@ -394,4 +394,134 @@ describe('manufacturing impact comparison', () => {
     expect(result.afterCost.total).toBeNull()
     expect(result.afterCost.known).toBe(5)
   })
+})
+
+describe('deep review production contracts', () => {
+  it('detects transposed free-grain geometry even when the cutting-list size is identical', () => {
+    const source = { ...empty(), parts: [{ ...board(), grain: 'free' as const }] }
+    const next = structuredClone(source)
+    next.parts[0].length = 500
+    next.parts[0].width = 1000
+    const result = buildRuleImpact(comparison(source, next))!
+    expect(result.parts).toHaveLength(1)
+    expect(result.parts[0].fields).toContain('part-local size')
+    expect(result.parts[0].before?.finished).toEqual(result.parts[0].after?.finished)
+    expect(result.parts[0].before?.localDimensions).toEqual([1000, 500, 18])
+    expect(result.parts[0].after?.localDimensions).toEqual([500, 1000, 18])
+  })
+  it('compares stock constraints used by nesting and colour used by the BOM', () => {
+    const source: Scene = { ...empty(), parts: [board()] }
+    const next = structuredClone(source)
+    next.parts[0].color = 'blue'
+    next.materials.Ply = { thickness: 18, hasGrain: false, sheet: { length: 2400, width: 1200 } }
+    const result = buildRuleImpact(comparison(source, next))!
+    expect(result.parts[0].fields).toEqual(expect.arrayContaining(['stock properties', 'colour']))
+    expect(result.parts[0].after?.stock).toContain('2400')
+    const onlyPrices = {
+      ...source,
+      materials: { Ply: { thickness: 18, costPerM2: 10, hasGrain: true } },
+    }
+    expect(buildRuleImpact(comparison(source, onlyPrices))!.parts).toEqual([])
+  })
+  it('merges physical library stock fields with saved fields for comparison', () => {
+    const source: Scene = { ...empty(), parts: [board()] }
+    const next = structuredClone(source)
+    next.parts[0].material = 'Other'
+    const result = buildRuleImpact(comparison(source, next), {
+      library: {
+        Ply: { thickness: 99, hasGrain: false, sheet: { length: 2400, width: 1200 } },
+        Other: { thickness: 18, hasGrain: true },
+      },
+    })!
+    expect(JSON.parse(result.parts[0].before!.stock)).toEqual({
+      thickness: 18,
+      hasGrain: false,
+      sheet: { length: 2400, width: 1200 },
+      use: null,
+    })
+    expect(result.parts[0].fields).toContain('stock properties')
+  })
+  it('does not report a complete free estimate when round-stock quantity overflows', () => {
+    const next = empty()
+    next.parts = ['one', 'two'].map((id) => ({
+      ...board(id),
+      kind: 'cylinder' as const,
+      length: 1e308,
+      diameter: 8,
+      cuts: [],
+    }))
+    const result = buildRuleImpact(comparison(empty(), next), {
+      library: { Ply: { costPerM: 0 } },
+    })!
+    expect(result.materials[0].after).toBeNull()
+    expect(result.afterCost.known).toBe(0)
+    expect(result.afterCost.total).toBeNull()
+    expect(result.afterCost.issues.some((s) => s.includes('quantity exceeds numeric range'))).toBe(
+      true,
+    )
+    expect(result.costDelta).toBeNull()
+  })
+  it('does not subtract manual hardware quantities expressed in different units', () => {
+    const source = empty()
+    source.hardware = [
+      {
+        id: 'manual',
+        name: 'Bracket',
+        qty: 2,
+        unitCost: 0,
+        unit: 'pcs',
+        supplier: '',
+        partNumber: '',
+        notes: '',
+        linkedPartIds: [],
+        linkedComponentIds: [],
+      },
+    ]
+    const next = structuredClone(source)
+    next.hardware[0].unit = 'boxes'
+    const result = buildRuleImpact(comparison(source, next))!
+    expect(result.hardware).toHaveLength(2)
+    expect(result.hardware).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ unit: 'pcs', before: 2, after: 0 }),
+        expect.objectContaining({ unit: 'boxes', before: 0, after: 2 }),
+      ]),
+    )
+    next.hardware[0].qty = -2
+    expect(buildRuleImpact(comparison(empty(), next))!.hardware[0].after).toBeNull()
+  })
+})
+
+it('marks overflowed derived hardware quantities unavailable with the actual reason', () => {
+  const next = empty()
+  next.parts = ['one', 'two'].map((id) => ({
+    ...board(id),
+    cuts: [
+      {
+        kind: 'hole-array' as const,
+        id: `${id}_clearance`,
+        label: 'Screws',
+        sourceJointId: 'joint',
+        face: '+X' as const,
+        axis: 'U' as const,
+        start: { x: 0, y: 0, z: 0 },
+        pitch: 32,
+        count: 1e308,
+        diameter: 5,
+        depth: 10,
+      },
+    ],
+  }))
+  const result = buildRuleImpact(comparison(empty(), next), {
+    library: { Ply: { costPerM2: 0 } },
+    hardwareLibrary: Object.fromEntries(
+      Object.keys(hardwareLibrary).map((key) => [
+        key,
+        { unitCost: 0, supplier: '', partNumber: '' },
+      ]),
+    ),
+  })!
+  expect(result.hardware[0].after).toBeNull()
+  expect(result.afterCost.total).toBeNull()
+  expect(result.afterCost.issues).toEqual([expect.stringContaining('invalid hardware quantity')])
 })

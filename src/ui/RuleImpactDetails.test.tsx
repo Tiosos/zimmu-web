@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { RuleImpactDetails } from './RuleImpactDetails'
-import { CabinetRulesPanel } from './CabinetRulesPanel'
+import { CabinetRulesPanel, RulePreviewDetails } from './CabinetRulesPanel'
 import { ProjectPanel } from './ProjectPanel'
 import { CabinetEditor } from './CabinetEditor'
 import { DEFAULT_CABINET_RULES } from '../scene/constructionRules'
@@ -151,4 +151,21 @@ it('catalogue preview uses current libraries and leaves the cabinet on its saved
   fireEvent.click(screen.getByRole('button', { name: 'Close impact review' }))
   expect(screen.queryByRole('region', { name: 'Update manufacturing impact' })).toBeNull()
   expect(onApplyRulePreview).not.toHaveBeenCalled()
+})
+
+it('distinguishes BOM-oriented dimensions from local grain/edge axes and direct record counts', () => {
+  const preview = previewProjectRules(scene, {
+    ...DEFAULT_CABINET_RULES,
+    project: { frontReveal: 5 },
+  })
+  render(<RulePreviewDetails preview={preview} />)
+  expect(screen.getByText(/cabinets with parameter or version changes/)).toBeTruthy()
+  const region = screen.getByRole('region', { name: 'Update manufacturing impact' })
+  expect(
+    within(region).getAllByText(/Finished:.*BOM length × width × thickness/).length,
+  ).toBeGreaterThan(0)
+  expect(within(region).getAllByText(/^Part-local size/).length).toBeGreaterThan(0)
+  expect(within(region).getAllByText(/^Part-local grain:/).length).toBeGreaterThan(0)
+  expect(within(region).getAllByText(/^Edges \(part-local axes\):/).length).toBeGreaterThan(0)
+  expect(within(region).getAllByText(/^Stock properties:/).length).toBeGreaterThan(0)
 })

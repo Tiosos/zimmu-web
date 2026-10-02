@@ -12,3 +12,9 @@ Notes: ../notes/2026-10-03-catalogue-impact-notes.md
 7. Publish exact validated tree via GitHub on a feature branch, open draft PR and inspect CI/E2E on its exact head. Repair any failures and repeat applicable gates. Deliver reviewable draft; no merge or production deployment in this task.
 
 Alternatives: cryptographic package signing deferred pending IT trust/key-lifecycle design; live CAD distribution deferred pending token isolation design; section/frame authoring deferred as a larger product/schema capability. Cost estimates based only on scene rates rejected because BOM also uses local libraries. Comparing cut counts rejected because drilling specifications can change at equal count. Copying generator/pricing logic rejected; use existing production derivations. Auto-apply and guessed rates rejected.
+
+## PR #79 deep-review corrections
+
+Cross-check part facts with BOM grain ordering, part-local machining/edge axes, nesting stock definitions and whole-project placement. Preserve local dimensions alongside BOM dimensions so transposing a free-grain board cannot disappear from the comparison. Show physical stock properties (thickness, sheet size, stock grain constraint and edge use) separately from prices; include colour as the BOM does. Label direct cabinet/part-record counts explicitly so indirectly moved neighbours do not contradict the manufacturing summary. Invalid or overflowing material quantities must make the estimate incomplete even at an explicit zero rate. Invalid manual quantities are unavailable; unit changes remain separate quantity lines rather than subtracting incompatible units.
+
+The floating review height is also bounded by the space below its top offset, not only a viewport percentage. Chromium checks a 390 × 240 viewport as well as desktop, including access to explicit Apply after expanding details.

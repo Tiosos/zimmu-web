@@ -61,6 +61,12 @@ function Quantities({ label, rows }: { label: string; rows: QuantityImpact[] }) 
 }
 function Facts({ value }: { value?: PartFacts }) {
   if (!value) return <p>Absent</p>
+  const stock = JSON.parse(value.stock) as {
+    thickness: number | null
+    hasGrain: boolean
+    sheet: { length: number; width: number } | null
+    use: string | null
+  }
   const dimensions = (dims: number[]) => `${dims.map(quantity).join(' × ')} mm`
   return (
     <div className="space-y-1 break-all">
@@ -69,15 +75,33 @@ function Facts({ value }: { value?: PartFacts }) {
       </p>
       <p>
         Finished: {dimensions(value.finished)}
-        {value.kind === 'cylinder' && ' (length × diameter)'}
+        {value.kind === 'cylinder' ? ' (length × diameter)' : ' (BOM length × width × thickness)'}
       </p>
-      <p>Cut: {dimensions(value.cut)}</p>
+      <p>
+        Cut: {dimensions(value.cut)}
+        {value.kind === 'board' && ' (BOM length × width × thickness)'}
+      </p>
+      <p>
+        Part-local size: {dimensions(value.localDimensions)}
+        {value.kind === 'board' ? ' (X length × Y width × Z thickness)' : ' (length × diameter)'}
+      </p>
+      <p>Colour: {value.color}</p>
       <p>Material: {value.material || 'Unspecified'}</p>
+      <p>
+        Stock properties: thickness{' '}
+        {stock.thickness === null ? 'unspecified' : `${quantity(stock.thickness)} mm`}; grain{' '}
+        {stock.hasGrain ? 'constrained' : 'unconstrained'}; sheet{' '}
+        {stock.sheet ? dimensions([stock.sheet.length, stock.sheet.width]) : 'not specified'}; use{' '}
+        {stock.use ?? 'standard stock'}.
+      </p>
       {value.kind === 'board' && (
         <>
-          <p>Grain: {value.grain}</p>
           <p>
-            Edges:{' '}
+            Part-local grain: {value.grain}. BOM grain: {value.grain === 'free' ? 'free' : 'length'}
+            .
+          </p>
+          <p>
+            Edges (part-local axes):{' '}
             {Object.entries(JSON.parse(value.edges) as Record<string, string | null>)
               .map(([edge, stock]) => `${edge}: ${stock ?? 'bare'}`)
               .join('; ')}
@@ -85,7 +109,7 @@ function Facts({ value }: { value?: PartFacts }) {
         </>
       )}
       {value.problem && <p className="text-destructive">{value.problem}</p>}
-      <p>Machining: {value.machiningDetails.length} definitions</p>
+      <p>Machining: {value.machiningDetails.length} definitions (part-local axes)</p>
       <ul className="list-disc pl-4">
         {value.machiningDetails.map((line, i) => (
           <li key={i}>{line}</li>
