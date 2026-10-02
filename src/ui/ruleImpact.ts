@@ -195,16 +195,18 @@ function production(scene: Scene, pricing: ImpactPricing) {
           : previous + quantity,
     })
   }
-  function priced(name: string, cost: number | null, usable = true) {
-    if (!usable || !valid(cost) || !valid(known + cost)) issues.add(name)
+  function priced(name: string, cost: number | null, usable: boolean, reason: string) {
+    if (!usable || !valid(cost)) issues.add(`${name}: ${reason}`)
+    else if (!valid(known + cost)) issues.add(`${name}: cost subtotal exceeds numeric range`)
     else known += cost
   }
   for (const b of boards) {
     material('Board', b.material, 'm²', b.problem ? null : (b.qty * b.length * b.width) / 1_000_000)
     priced(
-      `Board ${b.material || '(unspecified)'}: ${b.problem ?? 'missing or invalid area rate'}`,
+      `Board ${b.material || '(unspecified)'}`,
       b.totalCost,
       !b.problem && valid(materials[b.material]?.costPerM2),
+      b.problem ?? 'missing or invalid area rate',
     )
   }
   for (const d of dowels) {
@@ -212,26 +214,31 @@ function production(scene: Scene, pricing: ImpactPricing) {
       Number.isFinite(d.length) && d.length > 0 && Number.isFinite(d.diameter) && d.diameter > 0
     material('Round stock', d.material, 'm', usable ? (d.qty * d.length) / 1000 : null)
     priced(
-      `Round stock ${d.material || '(unspecified)'}: missing or invalid length rate`,
+      `Round stock ${d.material || '(unspecified)'}`,
       d.totalCost,
       usable && valid(materials[d.material]?.costPerM),
+      usable
+        ? 'missing or invalid length rate'
+        : 'invalid length/diameter (must be positive finite mm)',
     )
   }
   for (const e of edges) {
     material('Edge band', e.material, 'm', e.metres)
-    priced(`Edge band ${e.material}: missing or invalid length rate`, e.cost, valid(e.costPerM))
+    priced(`Edge band ${e.material}`, e.cost, valid(e.costPerM), 'missing or invalid length rate')
   }
   for (const h of hardware)
     priced(
-      `${h.cabinetLabel} / ${h.name}: missing or invalid hardware rate`,
+      `${h.cabinetLabel} / ${h.name}`,
       h.totalCost,
       valid(h.unitCost),
+      'missing or invalid hardware rate',
     )
   for (const h of scene.hardware)
     priced(
-      `Manual hardware ${h.name}: invalid quantity or rate`,
+      `Manual hardware ${h.name}`,
       h.qty * h.unitCost,
       valid(h.qty) && valid(h.unitCost),
+      'invalid quantity or rate',
     )
   const cost: ImpactCost = { known, total: issues.size ? null : known, issues: [...issues].sort() }
   const hardwareQuantities = hardware

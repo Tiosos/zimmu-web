@@ -315,6 +315,7 @@ describe('manufacturing impact comparison', () => {
     expect(result.materials[0].after).toBeNull()
     expect(result.afterCost.total).toBeNull()
     expect(result.afterCost.issues).toHaveLength(1)
+    expect(result.afterCost.issues[0]).toContain('invalid length/diameter')
   })
   it('reports generated hardware selection and machining changes without changing the scenes', () => {
     const d = CABINET_CATALOGUE[0]
@@ -352,6 +353,7 @@ describe('manufacturing impact comparison', () => {
     })
     const library = Object.fromEntries(source.parts.map((p) => [p.material, { costPerM2: 1e308 }]))
     const result = buildRuleImpact(comparison(source, source), { library })!
+    expect(result.beforeCost.issues.some((s) => s.includes('numeric range'))).toBe(true)
     expect(result.beforeCost.known).toBe(1e308)
     expect(result.beforeCost.total).toBeNull()
   })
