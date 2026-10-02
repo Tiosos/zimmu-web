@@ -1,0 +1,11 @@
+# Catalogue import notes
+
+- 2026-10-02: User authorised the recommended export/import PR. Packages are project-local and include dependencies. Offline records are not cryptographic proof of company approval. Publication and production release remain distinct.
+- Company products use their exact published rule pin; project scalar overrides and item overrides remain supported. Adopting a new master version occurs through a newly published product version in this increment.
+
+- Shared deterministic rule/product validation moved to `src/company/catalogueContent.ts`; server facade maps errors to API 400 responses. Real SQLite publications pass browser content/hash validation. No new dependency or server write endpoint.
+- Stock names qualify the exact rule version. Reimport retains project prices/sheet fields when physical stock agrees; edited thickness/grain/use conflicts require an explicit project decision and are never silently overwritten. Reimport preserves company ordering and does not add undo history for identical data.
+- Imported product definitions always use their publication's own rule pin. Changing a project specification uses existing preview flow; changing master rules requires a new published product version. Unknown company presets cannot be placed after undo/load removes their installation.
+- Async file reads are generation-guarded; selection/busy/error state is tied to its captured scene, so a new project cannot receive a late package. Export checks session generation both after API reload and after digest verification. Tests control late completion at these boundaries.
+- Validation: 151 test files; 2,685 passed and 10 skipped. Typecheck, lint, API/CAD builds and diff checks pass. 26 deliberate guard mutations failed with AssertionError and originals were restored byte-for-byte. Includes real server publication→package validation, authenticated export, dirty source boundaries, import UI, placement, overrides, version preview/apply, undo/redo, actual v27 save/reopen and legacy compatibility.
+- Browser acceptance test is added for import/place/version update/undo. The local workspace has no Chromium executable, so browser execution is delegated to the repository E2E workflow; live Keycloak sign-in remains IT acceptance.

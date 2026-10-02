@@ -26,7 +26,7 @@ import type { Section } from './sectionTree'
 import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 import { defaultProject, reconcileProject, type ProjectStructure } from './projectStructure'
 
-export const FILE_FORMAT_VERSION = 26
+export const FILE_FORMAT_VERSION = 27
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -144,6 +144,7 @@ export function parseFile(text: string): ZimmuFile {
     ...((raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {}),
   }
   const scene: Scene = {
+    ...(raw.scene.companyCatalogues !== undefined ? { companyCatalogues: raw.scene.companyCatalogues } : {}),
     ...(raw.scene.cabinetRules !== undefined ? { cabinetRules: raw.scene.cabinetRules } : {}),
     parts: parts.map((p) =>
       p.kind === 'board'

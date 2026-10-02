@@ -24,7 +24,7 @@ import { reconcileCatalogue } from './catalogue'
 // caught. A grep for `.position` does not show it; the dependency is through the matrix.
 export function applyPipeline(scene: Scene): Scene {
   const catalogued = { ...scene, components: scene.components.map((component) =>
-    component.kind === 'carcase' ? reconcileCatalogue(component, scene.cabinetRules) : component) }
+    component.kind === 'carcase' ? reconcileCatalogue(component, scene.cabinetRules, scene.companyCatalogues) : component) }
   return reconcileJoints(
     regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(catalogued)))),
   )

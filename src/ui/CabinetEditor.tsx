@@ -12,7 +12,7 @@ import { buildDxf } from './buildDxf'
 import { buildSvg } from './buildSvg'
 import { downloadBlob } from './download'
 import { sheetFilename } from './sheetFilename'
-import { CABINET_CATALOGUE, catalogueDefinition, catalogueSources } from '../scene/catalogue'
+import { catalogueDefinitions, catalogueDefinition, catalogueSources } from '../scene/catalogue'
 import type {
   CarcaseComponent,
   Component,
@@ -73,8 +73,8 @@ export function CabinetEditor({
   scene?: Scene
   onApplyRulePreview?: (preview: RulePreview) => boolean
 }) {
-  const definition = component.catalogue && catalogueDefinition(component.catalogue.id, component.catalogue.version)
-  const sources = catalogueSources(component, scene?.cabinetRules)
+  const definition = component.catalogue && catalogueDefinition(component.catalogue.id, component.catalogue.version, scene?.companyCatalogues)
+  const sources = catalogueSources(component, scene?.cabinetRules, scene?.companyCatalogues)
   const [version, setVersion] = useState(component.catalogue?.version ?? 1)
   const [preview, setPreview] = useState<RulePreview | null>(null)
   const [updateError, setUpdateError] = useState('')
@@ -107,12 +107,13 @@ export function CabinetEditor({
                 <div key={key}>{RULE_LABELS[key as RuleKey] ?? key}: {{ item: 'Item override', catalogue: 'Catalogue', company: 'Company', project: 'Project' }[source]}</div>) :
                 'Saved cabinet geometry is preserved; the catalogue or company rule version cannot be resolved.'}
               {scene && onApplyRulePreview && <div className="space-y-2 mt-2 border-t pt-2">
+                {definition?.companyLabel && <p>Pinned company rules: {definition.companyLabel}</p>}
                 <label>Installed version <select aria-label="Catalogue update version" value={version}
                   onChange={(event) => { setVersion(Number(event.target.value)); setPreview(null); setUpdateError('') }}>
-                  {CABINET_CATALOGUE.filter((entry) => entry.catalogueId === component.catalogue?.id).map((entry) =>
+                  {catalogueDefinitions(scene?.companyCatalogues).filter((entry) => entry.catalogueId === component.catalogue?.id).map((entry) =>
                     <option key={entry.catalogueVersion} value={entry.catalogueVersion}>v{entry.catalogueVersion}</option>)}
                 </select></label>
-                <p>Starter examples. Preview before accepting an installed version.</p>
+                <p>{definition?.companyLabel ? 'Company publication records' : 'Starter examples'}. Preview before accepting an installed version.</p>
                 <Button size="sm" variant="outline" onClick={() => { setPreview(previewCatalogueUpdate(scene, component.id, version)); setUpdateError('') }}>Preview catalogue update</Button>
                 {preview && <><RulePreviewDetails preview={preview} />
                   <Button size="sm" disabled={preview.errors.length > 0} onClick={() => {

@@ -1,4 +1,4 @@
-import { CABINET_CATALOGUE, catalogueBaseline, catalogueOverrides, type CatalogueDefinition } from './catalogue'
+import { catalogueDefinitions, catalogueBaseline, catalogueOverrides, type CatalogueDefinition } from './catalogue'
 import { companyRuleValues, type CabinetRules } from './constructionRules'
 import { validateCabinetRules } from './fileValidation'
 import type { CarcaseComponent, CarcaseParams, Scene } from './types'
@@ -20,7 +20,7 @@ const equalDesign = (a: unknown, b: unknown) => JSON.stringify(a, (key, value: u
   === JSON.stringify(b, (key, value: unknown) => key === 'id' ? undefined : value)
 
 function preview(scene: Scene, rules: CabinetRules | undefined, target?: { cabinetId: string; id: string; version: number },
-  definitions: CatalogueDefinition[] = CABINET_CATALOGUE): RulePreview {
+  definitions: CatalogueDefinition[] = catalogueDefinitions(scene.companyCatalogues)): RulePreview {
   const result: RulePreview = { source: JSON.stringify(scene), candidate: scene, errors: [], changes: [], partsChanged: 0, hardwareChanged: false }
   try {
     if (rules) validateCabinetRules(rules)
@@ -51,7 +51,7 @@ function preview(scene: Scene, rules: CabinetRules | undefined, target?: { cabin
       result.errors.push(`${component.label}: company rule version is unavailable.`)
       return component
     }
-    const overrides = catalogueOverrides(component, scene.cabinetRules)
+    const overrides = catalogueOverrides(component, scene.cabinetRules, scene.companyCatalogues)
     if ((!Object.hasOwn(overrides, 'section') && !equalDesign(component.params.section, baseline.section)) ||
         (!Object.hasOwn(overrides, 'frame') && !equalDesign(component.params.frame, baseline.frame))) {
       result.errors.push(`${component.label}: section/frame layout changes require manual reconciliation.`)
@@ -78,7 +78,7 @@ function preview(scene: Scene, rules: CabinetRules | undefined, target?: { cabin
 
 export const previewProjectRules = (scene: Scene, rules: CabinetRules): RulePreview => preview(scene, rules)
 export const previewCatalogueUpdate = (scene: Scene, cabinetId: string, version: number,
-  definitions: CatalogueDefinition[] = CABINET_CATALOGUE): RulePreview => {
+  definitions: CatalogueDefinition[] = catalogueDefinitions(scene.companyCatalogues)): RulePreview => {
   const cabinet = scene.components.find((c) => c.id === cabinetId)
   return preview(scene, scene.cabinetRules, { cabinetId, id: cabinet?.kind === 'carcase' ? cabinet.catalogue?.id ?? '' : '', version }, definitions)
 }
