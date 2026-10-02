@@ -22,3 +22,5 @@
 - Integrated branch gates: typecheck, lint, 147 unit-test files (2,651 passed / 10 skipped), CAD build, catalogue build and diff check passed. Focused company tests include callback-before-React ordering, failed/unauthenticated callback isolation, server-verified initial data and unconfigured response cleanup.
 - Twenty-four guard mutations across API/browser failed with assertions and restored originals byte-for-byte (16 API / 8 browser). Earlier historical Entra test counts above are superseded. Local browser installation remains unavailable; GitHub E2E is the browser gate. No live realm login is claimed.
 - #77 is the API replacement of merged #75. #76 is stacked on its branch; merge API first when later authorised. Neither is merged/deployed by this work.
+
+- First Keycloak GitHub CI passed; E2E passed 31/32. Escape closed the scripted catalogue window before Chromium acknowledged Playwright's key command, producing Target page closed despite the intended close. The test now installs the close listener before Escape, permits only that completed-close race and still requires the close event and surviving CAD. Fresh checks follow this correction.
