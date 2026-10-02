@@ -35,7 +35,7 @@ Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 ### File I/O
 - Save / Save As / Open / New via File System Access API (Chrome/Edge)
 - Graceful degradation message + disabled menus on Firefox/Safari
-- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 26`), with stable project/area/room/item IDs, room geometry, site/clearance assessments, edge banding and optional pinned cabinet catalogue references
+- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 27`), with stable project/area/room/item IDs, room geometry, site/clearance assessments, edge banding and optional pinned cabinet catalogue references
 - Auto-reopen last file on startup (IndexedDB handle persistence)
 - Dirty tracking (`isDirty`, tab title `•` indicator)
 
@@ -132,7 +132,7 @@ pnpm typecheck && pnpm lint && pnpm test
 ## File format
 
 Projects are saved as `.zimmu` files — flat JSON, UTF-8, floats rounded to
-6 decimal places. `FILE_FORMAT_VERSION = 26`. The v21 envelope adds a `project` hierarchy around
+6 decimal places. `FILE_FORMAT_VERSION = 27`. The v21 envelope adds a `project` hierarchy around
 the existing `scene`; v22 adds optional room geometry and wall placements; v23 adds signed site
 levels, explicit front projection assumptions and optional room-door swings; v24 adds edge banding;
 v25 adds optional pinned cabinet catalogue references and item overrides. v26 adds pinned starter construction rules and sparse project rules. Project rules and installed catalogue updates require preview and acceptance; item edits are preserved. Older files load with editable defaults. Their first save uses Save As to preserve
@@ -204,7 +204,7 @@ MPL 2.0 planned at v0.5 per the [strategic plan](joinery_3d_software_plan.md) §
 
 A separate Node service verifies Keycloak realm API access tokens and resolves them through an IT-managed map to stable company/staff identities. IT manages master rule versions; authorised senior designers maintain product drafts, with a different designer approving publication. Versions and audit transitions are immutable and stored transactionally in SQLite. See [setup and HTTP contract](docs/company-catalogue-api.md).
 
-`pnpm build:catalogue` builds the API; `pnpm start:catalogue` requires realm/client configuration, an IT-managed identity bindings file and an absolute durable database path. Live realm setup remains pending. Signed-in catalogue readers can export published versions and their rule dependencies for CAD. Use **File → Import company catalogue…**, review the records and confirm the company source, then install into the current project. Imported products appear in **+ Cabinet**; their snapshots and exact pins are stored in v27 `.zimmu` files for offline use. Import never updates existing cabinets. Select an installed newer version in the cabinet editor, preview its effects and explicitly apply it; project and item overrides remain intact. Package SHA-256 hashes check content consistency, but offline files cannot authenticate their sender or approval records. Obtain packages through your company’s trusted channel. This API does not change a saved cabinet or approve production release.
+`pnpm build:catalogue` builds the API; `pnpm start:catalogue` requires realm/client configuration, an IT-managed identity bindings file and an absolute durable database path. Live realm setup remains pending. Signed-in catalogue readers can export published versions and their rule dependencies for CAD. Use **File → Import company catalogue…**, review the records and confirm the company source, then install into the current project. Imported products appear in **+ Cabinet**; their snapshots and exact pins are stored in v27 `.zimmu` files for offline use. Import never updates existing cabinets. Select an installed newer version in the cabinet editor, inspect before/after parts, drilling/manual instructions, material/hardware quantities and priced cost coverage, then explicitly apply it; project and item overrides remain intact. Package SHA-256 hashes check content consistency, but offline files cannot authenticate their sender or approval records. Obtain packages through your company’s trusted channel. This API does not change a saved cabinet or approve production release.
 
 ### Company catalogue publishing
 

@@ -1,0 +1,23 @@
+# Catalogue update impact review
+
+## Outcome
+Before accepting catalogue or project-rule updates, show the changes to manufactured parts, machining and manual instructions, material quantities, derived hardware and estimated purchased-material/hardware costs. Reuse the current production derivations rather than introducing another cabinet generator. Preserve the existing preview, acceptance, source-scene staleness guard and undo contract. No file format change or publishing/authentication change.
+
+## Comparison contract
+Compare the source captured by RulePreview.source against its pipeline-produced candidate, by stable part IDs. Show added/removed parts and changes to finished/cut dimensions, material, grain, edge treatment, machining, manual instructions and assembly placement. Compare exact machining definitions, not only cut counts: equal counts can hide a changed depth/diameter/face. Use existing finishedDimensions/cutDimensions/edgesOf. Keep detailed before/after part facts available in expandable sections.
+
+Compare board cut area, round-stock length and band length by material and stock category; retain distinct version-qualified stocks even when display names are related. Show before/after derived hardware quantities by stable cabinet ID and hardware key. Cost both entire project snapshots on the same current library rates, merged field-by-field with each snapshot's scene rates using effectiveMaterialsOf, and use groupParts/groupDowels/groupEdgeBand/groupHardware. Include explicit manual hardware costs as the BOM does. Only show a total delta when both sides are fully priced and usable; otherwise show known subtotals and missing/invalid stock or hardware rates and cut-size problems. Zero is an explicit price. No guessed rates for new company stock. Estimates exclude labour, waste, nesting/sheet purchasing, markup and tax; they do not change workflow selling price or production release.
+
+## UI
+Both catalogue-version and project-rule previews receive the current material/hardware libraries from App. Rate changes recalculate both sides on a common current basis, without changing the candidate geometry. Present compact summary and expandable tables with stable IDs, explicit units, before/after quantities and readable machining/manual details. Invalid previews show errors only. The preview compares the whole candidate project, including indirect geometry changes outside the selected cabinet. Existing application-level acceptance remains the only scene mutation.
+
+## Acceptance
+Test a real pinned company update, project rules, added/removed and unchanged parts, placement-only changes, equal-count machining changes, manual instructions, edge deductions, namespaced stocks, hardware changes, zero/missing/invalid rates, incomplete costs, immutable source/candidate and current library repricing. UI tests check visible detail, blocked/invalid preview, both library plumbing paths and no implicit application. Extend browser import/update/undo scenario to assert impact before acceptance. Mutation-test new omission/price/completeness guards and restore exact bytes. Full typecheck/lint/tests, both builds and CI/E2E gate publication.
+
+## PR #79 deep-review corrections
+
+Cross-check part facts with BOM grain ordering, part-local machining/edge axes, nesting stock definitions and whole-project placement. Preserve local dimensions alongside BOM dimensions so transposing a free-grain board cannot disappear from the comparison. Show physical stock properties (thickness, sheet size, stock grain constraint and edge use) separately from prices; include colour as the BOM does. Label direct cabinet/part-record counts explicitly so indirectly moved neighbours do not contradict the manufacturing summary. Invalid or overflowing material quantities must make the estimate incomplete even at an explicit zero rate. Invalid manual quantities are unavailable; unit changes remain separate quantity lines rather than subtracting incompatible units.
+
+The floating review height is also bounded by the space below its top offset, not only a viewport percentage. Chromium checks a 390 × 240 viewport as well as desktop, including access to explicit Apply after expanding details.
+
+Exact operation comparison includes ownership references. Show the source joint and owning assembly in readable details, so an ownership-only change does not produce indistinguishable before/after rows. Regression tests cover each owner independently.

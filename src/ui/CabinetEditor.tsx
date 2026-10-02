@@ -1,3 +1,4 @@
+import type { ImpactPricing } from './ruleImpact'
 import { useState } from 'react'
 import { previewCatalogueUpdate, type RulePreview } from '../scene/ruleFlow'
 import { RulePreviewDetails } from './CabinetRulesPanel'
@@ -57,6 +58,8 @@ export function CabinetEditor({
   projectName,
   scene,
   onApplyRulePreview,
+  library,
+  hardwareLibrary,
 }: {
   component: CarcaseComponent
   materials: Record<string, MaterialDef>
@@ -72,7 +75,7 @@ export function CabinetEditor({
   projectName: string
   scene?: Scene
   onApplyRulePreview?: (preview: RulePreview) => boolean
-}) {
+} & ImpactPricing) {
   const definition = component.catalogue && catalogueDefinition(component.catalogue.id, component.catalogue.version, scene?.companyCatalogues)
   const sources = catalogueSources(component, scene?.cabinetRules, scene?.companyCatalogues)
   const [version, setVersion] = useState(component.catalogue?.version ?? 1)
@@ -102,7 +105,7 @@ export function CabinetEditor({
                 `Catalogue ${component.catalogue.id} v${component.catalogue.version} unavailable`}
               {definition && Object.values(sources).includes('item') ? ' · item overrides' : ''}
             </summary>
-            <div className="absolute z-20 bg-background border border-border rounded p-2 max-h-64 overflow-auto min-w-44 shadow-md">
+            <div className={`z-20 bg-background border border-border rounded p-3 overflow-auto shadow-md ${preview ? 'fixed inset-x-4 top-24 mx-auto max-w-3xl max-h-[min(70vh,calc(100dvh-7rem))]' : 'absolute max-h-64 min-w-44'}`}>
               {definition && Object.keys(sources).length ? Object.entries(sources).map(([key, source]) =>
                 <div key={key}>{RULE_LABELS[key as RuleKey] ?? key}: {{ item: 'Item override', catalogue: 'Catalogue', company: 'Company', project: 'Project' }[source]}</div>) :
                 'Saved cabinet geometry is preserved; the catalogue or company rule version cannot be resolved.'}
@@ -115,7 +118,7 @@ export function CabinetEditor({
                 </select></label>
                 <p>{definition?.companyLabel ? 'Company publication records' : 'Starter examples'}. Preview before accepting an installed version.</p>
                 <Button size="sm" variant="outline" onClick={() => { setPreview(previewCatalogueUpdate(scene, component.id, version)); setUpdateError('') }}>Preview catalogue update</Button>
-                {preview && <><RulePreviewDetails preview={preview} />
+                {preview && <><Button size="sm" variant="outline" onClick={() => { setPreview(null); setUpdateError('') }}>Close impact review</Button><RulePreviewDetails preview={preview} library={library} hardwareLibrary={hardwareLibrary} />
                   <Button size="sm" disabled={preview.errors.length > 0} onClick={() => {
                     if (onApplyRulePreview(preview)) { setPreview(null); setUpdateError('') }
                     else setUpdateError('The design changed after preview. Preview again before applying.')

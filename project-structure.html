@@ -826,6 +826,10 @@
 │   ├── RoomAssessmentPanel.tsx
 │   ├── RoomGeometryPanel.test.tsx
 │   ├── RoomGeometryPanel.tsx
+│   ├── ruleImpact.test.ts
+│   ├── ruleImpact.ts
+│   ├── RuleImpactDetails.test.tsx
+│   ├── RuleImpactDetails.tsx
 │   ├── ruleLabels.ts
 │   ├── SceneSuggestionsPanel.test.tsx
 │   ├── SceneSuggestionsPanel.tsx
@@ -1497,7 +1501,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->144<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->146<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1638,7 +1642,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-02-catalogue-rule-flow-notes.md
     │   ├── 2026-10-02-company-publishing-ui-notes.md
     │   ├── 2026-10-02-entra-catalogue-publishing-notes.md
-    │   └── 2026-10-02-keycloak-catalogue-notes.md
+    │   ├── 2026-10-02-keycloak-catalogue-notes.md
+    │   └── 2026-10-03-catalogue-impact-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1701,7 +1706,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-02-catalogue-rule-flow.md
     │   ├── 2026-10-02-company-publishing-ui.md
     │   ├── 2026-10-02-entra-catalogue-publishing.md
-    │   └── 2026-10-02-keycloak-catalogue.md
+    │   ├── 2026-10-02-keycloak-catalogue.md
+    │   └── 2026-10-03-catalogue-impact.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1756,7 +1762,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-02-catalogue-rule-flow-design.md
         ├── 2026-10-02-company-publishing-ui-design.md
         ├── 2026-10-02-entra-catalogue-publishing-design.md
-        └── 2026-10-02-keycloak-catalogue-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-10-02-keycloak-catalogue-design.md
+        └── 2026-10-03-catalogue-impact-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
@@ -1801,5 +1808,6 @@ import { useScene } from './useScene'</code></pre>
   </main>
 </div>
 <section><h2>Published company catalogues in CAD</h2><p>The dedicated company window exports authenticated published snapshots without tokens. CAD validates content and dependencies, asks for a trusted source confirmation and installs into scene.companyCatalogues. Company/rule/version-qualified stock avoids material collisions. v27 project files retain installed definitions for offline use. Import and reopening preserve cabinet parameters and parts; the cabinet editor previews an installed product update before explicit acceptance. Offline hashes do not authenticate approval records or release production.</p></section>
+<p>Catalogue and project-rule impact previews use the captured source and pipeline candidate, stable part IDs and composed world transforms. UI-side ruleImpact reuses existing BOM, edge and hardware derivations with current libraries, and RuleImpactDetails exposes exact operations, quantity changes and explicit price coverage before acceptance.</p>
 </body>
 </html>

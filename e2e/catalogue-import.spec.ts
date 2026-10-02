@@ -50,6 +50,48 @@ test('imports company versions and updates a placed cabinet only after preview a
   await page.getByLabel('Catalogue update version').selectOption('2')
   await page.getByRole('button', { name: 'Preview catalogue update' }).click()
   await expect(page.getByRole('button', { name: 'Apply catalogue update' })).toBeEnabled()
+  const impact = page.getByRole('region', { name: 'Update manufacturing impact' })
+  await expect(impact).toBeVisible()
+  const bounds = await impact.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect(bounds!.width).toBeGreaterThan(500)
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width)
+  await expect(impact.getByText(/Total cost change unavailable/)).toBeVisible()
+  await impact
+    .locator('summary')
+    .filter({ hasText: /^Material quantities:/ })
+    .click()
+  await expect(
+    impact.getByRole('table', { name: 'Material quantities before and after' }),
+  ).toBeVisible()
+  await expect(impact.getByRole('cell', { name: 'm²', exact: true }).first()).toBeVisible()
+  await impact
+    .locator('summary')
+    .filter({ hasText: /^Part and operation changes/ })
+    .click()
+  await expect(impact.getByText(/: changed —/).first()).toBeVisible()
+  await impact
+    .locator('summary')
+    .filter({ hasText: /: changed —/ })
+    .first()
+    .click()
+  await expect(impact.getByText(/^Part ID:/).first()).toBeVisible()
+  await expect(impact.getByText(/^Machining:/).first()).toBeVisible()
+  await expect(impact.getByText(/^Part-local size:/).first()).toBeVisible()
+  await expect(impact.getByText(/^Stock properties:/).first()).toBeVisible()
+  const desktopViewport = page.viewportSize()!
+  await page.setViewportSize({ width: 390, height: 240 })
+  const panel = page.locator('div.fixed').filter({
+    has: page.getByRole('button', { name: 'Close impact review' }),
+  })
+  const compactBounds = await panel.boundingBox()
+  expect(compactBounds).not.toBeNull()
+  expect(compactBounds!.x).toBeGreaterThanOrEqual(0)
+  expect(compactBounds!.x + compactBounds!.width).toBeLessThanOrEqual(390)
+  expect(compactBounds!.y + compactBounds!.height).toBeLessThanOrEqual(240)
+  await expect(page.getByRole('button', { name: 'Apply catalogue update' })).toBeVisible()
+  await page.setViewportSize(desktopViewport)
   await expect(page.locator('summary').filter({ hasText: /^Company base v1/ })).toBeVisible()
   await page.getByRole('button', { name: 'Apply catalogue update' }).click()
   await expect(page.locator('summary').filter({ hasText: /^Company base v2/ })).toBeVisible()
