@@ -132,3 +132,14 @@ Dirty edits block submission; publication confirms the saved revision, digest, n
 4. Remove a binding and verify immediate API denial. Test stale revisions in two sessions, immutable history/audit over restart and no automatic CAD changes.
 
 No realm credentials or service deployment are supplied. Live Keycloak acceptance is an IT deployment prerequisite and is not claimed by the local or GitHub test suites.
+
+
+## Export and CAD import
+
+A signed-in reader can select **Export published catalogue for CAD** in the dedicated company window. Export reloads `/me` and `/versions`; only immutable publications and their exact rule dependencies are included. Drafts, API tokens and refresh tokens are excluded. The JSON package uses `format: "zimmu-company-catalogue"`, `schemaVersion: 1`, canonical company UUID and full publication snapshots. Limits: 2 MiB/200 versions per package, 500 versions across installed project companies. Exceeding a limit fails without downloading a partial package.
+
+In CAD choose **File → Import company catalogue…**, inspect the company, versions and approval records, confirm the trusted company source, and install. This adds project-local definitions and namespaced stock in one undo step, without changing saved cabinets or parts. Stock names include company, rule ID and rule version; existing stock is never overwritten. Reimport is idempotent; conflicting immutable records or physical stock definitions fail atomically. Matching project costing/sheet fields are retained. No cross-window token or browser-global catalogue registry is used.
+
+Imported products use their own published rule pin, with project scalar overrides followed by item overrides. Publish a newer product pinned to a newer rule, import it and use **Preview catalogue update → Apply catalogue update** in the cabinet editor. Layout changes still require manual reconciliation. Opening a v27 project uses saved parameters/parts and restores installed snapshots; it never adopts the latest definition. Older project files do not gain company definitions at load and save to a new current-format copy.
+
+Offline SHA-256 checks are content-consistency checks, not signatures: someone able to replace the package can also replace its hashes and claimed approval records. Obtain packages through an IT-controlled company channel. The import acknowledgement is a source/trust decision, not company sign-in, authority to publish or production release. Signed offline packages and live authenticated CAD distribution need a separate key/authentication design. Live Keycloak acceptance remains an IT deployment task.

@@ -1,3 +1,4 @@
+import { installedDefinitions } from '../scene/catalogue'
 import { useMemo } from 'react'
 import type {
   CutDef,
@@ -340,7 +341,8 @@ export function Sidebar({
           <Select
             value=""
             onValueChange={(name) => {
-              const preset = CARCASE_PRESETS.find((p) => p.name === name)
+              const preset = [...CARCASE_PRESETS, ...installedDefinitions(scene.companyCatalogues)].find((p) =>
+                (p.catalogueId ? `${p.catalogueId}:v${p.catalogueVersion}` : p.name) === name)
               if (preset) onAddCarcase(preset)
             }}
           >
@@ -351,9 +353,9 @@ export function Sidebar({
               + Cabinet
             </SelectTrigger>
             <SelectContent>
-              {CARCASE_PRESETS.map((p) => (
-                <SelectItem key={p.name} value={p.name}>
-                  {p.name}
+              {[...CARCASE_PRESETS, ...installedDefinitions(scene.companyCatalogues)].map((p) => (
+                <SelectItem key={p.catalogueId ? `${p.catalogueId}:v${p.catalogueVersion}` : p.name} value={p.catalogueId ? `${p.catalogueId}:v${p.catalogueVersion}` : p.name}>
+                  {p.name}{p.catalogueId?.startsWith('company:') ? ` · ${p.catalogueId.split(':')[1]} · v${p.catalogueVersion}` : ''}
                 </SelectItem>
               ))}
             </SelectContent>

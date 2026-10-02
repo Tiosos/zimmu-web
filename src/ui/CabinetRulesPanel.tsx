@@ -33,7 +33,7 @@ export function CabinetRulesPanel({ scene, onApply }: { scene: Scene; onApply: (
   }
   return <section className="border border-border rounded p-3 space-y-2" aria-label="Cabinet project rules">
     <h3 className="text-sm font-medium">Cabinet project rules</h3>
-    <p className="text-xs text-muted-foreground">Company rules: {draft.companyId} v{draft.companyVersion} (starter example). Company → catalogue → project → item. Changes require preview and acceptance.</p>
+    <p className="text-xs text-muted-foreground">Company rules: {draft.companyId} v{draft.companyVersion} (starter example). Imported company products retain their own published rule pins. Company → catalogue → project → item. Changes require preview and acceptance.</p>
     {RULE_KEYS.map((key) => <label key={key} className="flex gap-2 items-center text-xs">
       <span className="w-32">{RULE_LABELS[key]}</span>
       {key === 'frontReveal' ? <input aria-label={`Project ${RULE_LABELS[key]}`} type="number" min="0" step="0.1"

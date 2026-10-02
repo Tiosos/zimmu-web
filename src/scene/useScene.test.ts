@@ -1,3 +1,5 @@
+import { packageFixture } from './__fixtures__/companyCatalogue'
+import { installedDefinitions } from './catalogue'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import type {
@@ -3003,5 +3005,50 @@ describe('applyPipeline placement stage', () => {
   it('stays idempotent with placement in the chain', () => {
     const once = applyPipeline(twoCabinets())
     expect(applyPipeline(once)).toEqual(once)
+  })
+})
+
+
+describe('project-local catalogue installation', () => {
+  it('imports without regenerating geometry, places pinned products and supports undo/redo', () => {
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const before = result.current.scene
+    act(() => { expect(result.current.onInstallCatalogue(packageFixture(), before)).toBe(true) })
+    expect(result.current.scene.parts).toBe(before.parts)
+    expect(result.current.scene.components).toBe(before.components)
+    const installed = result.current.scene
+    expect(installedDefinitions(installed.companyCatalogues)).toHaveLength(1)
+    const heldPreset = installedDefinitions(installed.companyCatalogues)[0]
+    act(() => result.current.undo())
+    expect(result.current.scene).toBe(before)
+    expect(installedDefinitions(result.current.scene.companyCatalogues)).toHaveLength(0)
+    act(() => result.current.onAddCarcase(heldPreset))
+    expect(result.current.scene).toBe(before)
+    act(() => result.current.redo())
+    expect(result.current.scene).toBe(installed)
+    act(() => result.current.onAddCarcase(installedDefinitions(installed.companyCatalogues)[0]))
+    const added = result.current.scene.components.at(-1) as CarcaseComponent
+    expect(added.params.width).toBe(610)
+    expect(added.params.carcaseMaterial).toContain('company:')
+    expect(added.catalogue?.version).toBe(1)
+    expect(result.current.scene.parts.some((p) => p.parentId === added.id)).toBe(true)
+    expect(result.current.scene.companyCatalogues).toEqual(installed.companyCatalogues)
+    act(() => result.current.onAddCarcase(installedDefinitions(installed.companyCatalogues)[0]))
+    const second = result.current.scene.components.at(-1) as CarcaseComponent
+    expect(second.params.section.id).not.toBe(added.params.section.id)
+  })
+  it('refuses a late import into a changed scene and rejects conflicts atomically', () => {
+    const { result } = renderHook(() => useScene())
+    const original = result.current.scene
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const changed = result.current.scene
+    act(() => { expect(result.current.onInstallCatalogue(packageFixture(), original)).toBe(false) })
+    expect(result.current.scene).toBe(changed)
+    act(() => { result.current.onInstallCatalogue(packageFixture(), changed) })
+    const imported = result.current.scene
+    const bad = packageFixture(); bad.versions[0].publishedAt = '2026-10-03T12:00:00Z'
+    expect(() => result.current.onInstallCatalogue(bad, imported)).toThrow(/immutable version/)
+    expect(result.current.scene).toBe(imported)
   })
 })

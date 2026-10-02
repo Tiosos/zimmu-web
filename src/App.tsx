@@ -1,3 +1,4 @@
+import { CatalogueImport } from './ui/CatalogueImport'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
@@ -44,6 +45,7 @@ import type {
 const supported = 'showOpenFilePicker' in window
 
 function App() {
+  const [importCatalogue, setImportCatalogue] = useState(false)
   const {
     scene,
     replaceScene,
@@ -57,6 +59,7 @@ function App() {
     onAdd,
     onAddComponent,
     onAddCarcase,
+    onInstallCatalogue,
     onApplyRulePreview,
     parameterFor,
     onDetachPart,
@@ -601,6 +604,7 @@ function App() {
         overflow: 'hidden',
       }}
     >
+      {importCatalogue && <CatalogueImport scene={scene} onInstall={onInstallCatalogue} onClose={() => setImportCatalogue(false)} />}
       <FileMenu
         fileName={fileName}
         projectName={projectName}
@@ -627,6 +631,7 @@ function App() {
           void saveAsFile()
         }}
         onProjectNameChange={setProjectName}
+        onImportCatalogue={() => setImportCatalogue(true)}
         onCompanyCatalogue={() =>
           window.open(
             new URL(`${import.meta.env.BASE_URL}company-auth.html`, window.location.origin).href,

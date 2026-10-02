@@ -1,3 +1,5 @@
+import { parseCataloguePackage } from '../scene/cataloguePackage'
+import { downloadBlob } from '../ui/download'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { configuredSession, SignInRequired, type CompanySession } from './auth'
@@ -300,6 +302,52 @@ export function CompanyCatalogue({
                 }}
               >
                 Reload catalogue
+              </Button>
+              <Button
+                variant="outline"
+                disabled={disabled || !versions.length}
+                onClick={() => {
+                  void run(async (current) => {
+                    if (!api) return
+                    const verified = await api.me()
+                    const published = await api.versions()
+                    if (!current()) return
+                    if (verified.tenantId !== actor.tenantId)
+                      throw new CompanyApiError(
+                        400,
+                        'Company identity changed. Reload before exporting.',
+                      )
+                    const text = JSON.stringify(
+                      {
+                        format: 'zimmu-company-catalogue',
+                        schemaVersion: 1,
+                        companyId: verified.tenantId,
+                        versions: published,
+                      },
+                      null,
+                      2,
+                    )
+                    try {
+                      await parseCataloguePackage(text)
+                    } catch (failure) {
+                      throw new CompanyApiError(
+                        400,
+                        failure instanceof Error ? failure.message : 'Invalid catalogue package.',
+                      )
+                    }
+                    if (!current()) return
+                    downloadBlob(
+                      text,
+                      `company-catalogue-${verified.tenantId}.json`,
+                      'application/json',
+                    )
+                    setMessage(
+                      'Published catalogue exported for CAD. Import the package in your CAD project.',
+                    )
+                  })
+                }}
+              >
+                Export published catalogue for CAD
               </Button>
               <Button
                 variant="outline"

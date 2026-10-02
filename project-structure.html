@@ -519,6 +519,8 @@
 │   ├── api.ts
 │   ├── auth.test.ts
 │   ├── auth.ts
+│   ├── catalogueContent.ts
+│   ├── catalogueExport.test.tsx
 │   ├── CompanyCatalogue.test.tsx
 │   ├── CompanyCatalogue.tsx
 │   ├── ContentForm.tsx
@@ -590,6 +592,7 @@
 │   └── viewport.tsx
 ├── scene/
 │   ├── __fixtures__/
+│   │   ├── companyCatalogue.ts
 │   │   ├── resolve.ts
 │   │   └── sweep.ts
 │   ├── adjacentFronts.test.ts
@@ -618,6 +621,8 @@
 │   ├── carcaseWorldBounds.ts
 │   ├── catalogue.test.ts
 │   ├── catalogue.ts
+│   ├── cataloguePackage.test.ts
+│   ├── cataloguePackage.ts
 │   ├── changeJointKind.test.ts
 │   ├── changeJointKind.ts
 │   ├── componentTree.test.ts
@@ -777,6 +782,8 @@
 │   ├── CabinetRulesPanel.tsx
 │   ├── CarcasePanel.test.tsx
 │   ├── CarcasePanel.tsx
+│   ├── CatalogueImport.test.tsx
+│   ├── CatalogueImport.tsx
 │   ├── CuttingList.test.tsx
 │   ├── CuttingList.tsx
 │   ├── DimInput.tsx
@@ -1490,7 +1497,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->141<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->144<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1627,6 +1634,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-30-edge-banding-notes.md
     │   ├── 2026-09-30-wall-elevations-notes.md
     │   ├── 2026-10-01-output-reconciliation-notes.md
+    │   ├── 2026-10-02-catalogue-import-notes.md
     │   ├── 2026-10-02-catalogue-rule-flow-notes.md
     │   ├── 2026-10-02-company-publishing-ui-notes.md
     │   ├── 2026-10-02-entra-catalogue-publishing-notes.md
@@ -1689,6 +1697,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-09-30-edge-banding.md
     │   ├── 2026-09-30-wall-elevations.md
     │   ├── 2026-10-01-output-reconciliation.md
+    │   ├── 2026-10-02-catalogue-import.md
     │   ├── 2026-10-02-catalogue-rule-flow.md
     │   ├── 2026-10-02-company-publishing-ui.md
     │   ├── 2026-10-02-entra-catalogue-publishing.md
@@ -1743,6 +1752,7 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-09-30-edge-banding-design.md
         ├── 2026-09-30-wall-elevations-design.md
         ├── 2026-10-01-output-reconciliation-design.md
+        ├── 2026-10-02-catalogue-import-design.md
         ├── 2026-10-02-catalogue-rule-flow-design.md
         ├── 2026-10-02-company-publishing-ui-design.md
         ├── 2026-10-02-entra-catalogue-publishing-design.md
@@ -1790,5 +1800,6 @@ import { useScene } from './useScene'</code></pre>
 
   </main>
 </div>
+<section><h2>Published company catalogues in CAD</h2><p>The dedicated company window exports authenticated published snapshots without tokens. CAD validates content and dependencies, asks for a trusted source confirmation and installs into scene.companyCatalogues. Company/rule/version-qualified stock avoids material collisions. v27 project files retain installed definitions for offline use. Import and reopening preserve cabinet parameters and parts; the cabinet editor previews an installed product update before explicit acceptance. Offline hashes do not authenticate approval records or release production.</p></section>
 </body>
 </html>

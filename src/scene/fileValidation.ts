@@ -1,3 +1,4 @@
+import { validateInstalledCatalogues } from './cataloguePackage'
 import type { MaterialDef, Part, Scene, Vec3, ZimmuFile } from './types'
 import { EDGE_KEYS } from './edgeBanding'
 import { frontForSection, roomComponentIds, type ProjectStructure } from './projectStructure'
@@ -189,6 +190,7 @@ export function validateLegacyFileInput(value: unknown): ZimmuFile {
   vecAt(camera.target, 'file.camera.target')
 
   const scene = recordAt(root.scene, 'file.scene')
+  if (scene.companyCatalogues !== undefined) validateInstalledCatalogues(scene.companyCatalogues)
   const parts = (scene.parts === undefined ? [] : arrayAt(scene.parts, 'file.scene.parts'))
     .map((part, index) => validateLegacyPart(part, `file.scene.parts[${index}]`))
     .filter((part): part is Part => part !== null)
@@ -485,6 +487,7 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   if (file.units !== 'mm') throw new ZimmuFileValidationError('file.units', 'must be "mm"')
   vecAt(file.camera.position, 'file.camera.position')
   vecAt(file.camera.target, 'file.camera.target')
+  if (file.scene.companyCatalogues !== undefined) validateInstalledCatalogues(file.scene.companyCatalogues)
   if (file.scene.cabinetRules !== undefined) validateCabinetRules(file.scene.cabinetRules)
 
   if (!Array.isArray(file.scene.parts)) {

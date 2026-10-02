@@ -12,6 +12,7 @@ export interface FileMenuProps {
   onSave: () => void
   onSaveAs: () => void
   onProjectNameChange: (name: string) => void
+  onImportCatalogue?: () => void
   onCompanyCatalogue?: () => void
   onProjectStructure?: () => void
   onCuttingList: () => void
@@ -42,6 +43,7 @@ export function FileMenu({
   onSave,
   onSaveAs,
   onProjectNameChange,
+  onImportCatalogue,
   onCompanyCatalogue,
   onProjectStructure,
   onCuttingList,
@@ -144,6 +146,7 @@ export function FileMenu({
             <Separator className="my-1" />
             {menuItem('Save', '⌘S', onSave, isSaveDisabled)}
             {menuItem('Save As…', '⌘⇧S', onSaveAs, !supported)}
+            {onImportCatalogue && menuItem('Import company catalogue…', '', onImportCatalogue, false)}
             {onCompanyCatalogue && menuItem('Company catalogue…', '', onCompanyCatalogue, false)}
             {onProjectStructure && menuItem('Project structure…', '', onProjectStructure, false)}
             <Separator className="my-1" />

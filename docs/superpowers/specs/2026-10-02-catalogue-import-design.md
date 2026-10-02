@@ -1,0 +1,18 @@
+# Stage 3: published catalogue import into CAD
+
+## Outcome and boundary
+Export the authenticated company's published versions from the dedicated publishing window as a versioned JSON package. Import through File → Import company catalogue in CAD, review company/version/approval records, then explicitly install into this project. No token passes between windows. Packages are offline data: SHA-256 detects mismatched content, not a forged author or signature. Require the user to confirm the package came from their company; never describe offline records as verified authentication or production release.
+
+## Contract
+Format `zimmu-company-catalogue`, schemaVersion 1, companyId (canonical UUID), versions (published rule/product snapshots). Preserve the exact immutable API content hashes, author, approver, draft and timestamp. All products must include their exact rule dependency; no draft export. Bound packages to 2 MiB and 200 versions, installed projects to 500 versions. Reject unknown schema/fields, unsafe IDs, duplicate keys, missing dependencies, invalid approval identities, malformed stock/recipes, inconsistent resolved params and content hashes before import. Compare section layout structure while validating unique non-empty section IDs; server and browser allocate these IDs independently. Verify SHA-256 against the exact untouched published snapshot, including its original IDs. Export reloads authenticated /me and /versions, and checks session generation before download.
+
+## Project-local resolution
+Optional scene.companyCatalogues carries all installed snapshots in v27 files. Older files remain unchanged. No global mutable catalogue registry or IndexedDB dependency. Qualify product IDs by company; qualify material names by company/rule/version. Import adds definitions and unused stock only, preserves every existing component/part/override and does not run the geometry pipeline. Existing identical versions are idempotent; conflicting immutable versions or stock definitions are rejected atomically. No replace/remove feature.
+
+Imported recipes inherit their own pinned company rule version, then layout/recipe, project overrides, item overrides. Project scalar overrides remain common to all products. Independent global rule switching is deferred; publish a new product pinned to a new rule and adopt via product preview. New cabinets resolve only installed exact references. Company stock may subsequently be edited as project stock, just as existing material definitions; publication evidence remains an immutable snapshot.
+
+## UI and update
+Keep starter/custom cabinet options. Add installed company products with company/version labels and stable qualified IDs. Cabinet detail resolves provenance and lists installed versions from this scene. Reuse existing preview/apply with exact old/new definition baselines, preserving item overrides, section instance IDs, project specifications and geometry until acceptance. Stale previews cannot apply. New project/load/undo must change the available list with the scene.
+
+## Verification
+Exercise authenticated export without drafts or tokens; invalid packages and digests; independent approver requirement; missing dependencies; cross-company IDs; same-version conflict; namespaced stock conflict; idempotent installation; no geometry changes on install/reopen; placement through useScene; update with different pinned stocks/rules preserving item/project overrides; stale apply; UI cancel/late read; v26 compatibility and v27 save/reopen. Mutation-test new rejection guards with backups and assertion failures, restore byte-for-byte. Run typecheck/lint/full tests and both builds, browser scenario where available.

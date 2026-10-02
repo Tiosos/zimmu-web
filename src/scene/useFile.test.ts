@@ -1,3 +1,5 @@
+import { packageFixture } from './__fixtures__/companyCatalogue'
+import { installCataloguePackage } from './cataloguePackage'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 
@@ -163,6 +165,23 @@ describe('useFile', () => {
     expect(result.current.isDirty).toBe(false)
   })
 
+  it('saves installed immutable snapshots and restores them independently of company sign-in', async () => {
+    const scene = installCataloguePackage(FIXTURE.scene, packageFixture())
+    const write = vi.fn().mockResolvedValue(undefined)
+    const handle = { name: 'catalogue-project.zimmu', createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }) }
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(handle))
+    const { result } = renderHook(() => useFile(makeInput({ scene })))
+    await waitFor(() => expect(result.current.fileReady).toBe(true))
+    await act(async () => { await result.current.saveFile() })
+    expect(result.current.fileError).toBeNull()
+    const text = write.mock.calls[0][0] as string
+    expect(JSON.parse(text).version).toBe(27)
+    const reopened = parseFile(text)
+    expect(reopened.scene.companyCatalogues).toEqual(scene.companyCatalogues)
+    expect(reopened.scene.parts).toEqual(scene.parts)
+    expect(text).not.toContain('token')
+  })
+
   it('saveFile with existing handle: no picker, writes directly', async () => {
     const mockWritable = {
       write: vi.fn().mockResolvedValue(undefined),
@@ -235,7 +254,7 @@ describe('useFile', () => {
     expect(result.current.isDirty).toBe(true)
   })
 
-  it.each([24, 25])('suggests a v26 copy when saving a v%s room without rules', async (version) => {
+  it.each([24, 25])('suggests a v27 copy when saving a v%s room without rules', async (version) => {
     const oldHandle = {
       name: 'kitchen.zimmu', queryPermission: vi.fn().mockResolvedValue('granted'),
       getFile: vi.fn().mockResolvedValue({ text: vi.fn().mockResolvedValue(JSON.stringify({
@@ -243,14 +262,14 @@ describe('useFile', () => {
       })) }),
     } as unknown as FileSystemFileHandle
     const write = vi.fn().mockResolvedValue(undefined)
-    const nextHandle = { name: 'kitchen-v26.zimmu', isSameEntry: vi.fn().mockResolvedValue(false),
+    const nextHandle = { name: 'kitchen-v27.zimmu', isSameEntry: vi.fn().mockResolvedValue(false),
       createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }) }
     vi.mocked(idb.readHandle).mockResolvedValue(oldHandle)
     vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(nextHandle))
     const { result } = renderHook(() => useFile(makeInput()))
     await waitFor(() => expect(result.current.fileReady).toBe(true))
     await act(async () => { await result.current.saveFile() })
-    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v26.zimmu' }))
+    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v27.zimmu' }))
     expect(JSON.parse(write.mock.calls[0][0]).version).toBe(FILE_FORMAT_VERSION)
   })
 
@@ -2267,7 +2286,7 @@ describe('v20 face frames', () => {
   // constant itself is asserted. This pin replaces the v19 one: the constant is global, so only the
   // newest value can be asserted.
   it('states the current file format version', () => {
-    expect(FILE_FORMAT_VERSION).toBe(26)
+    expect(FILE_FORMAT_VERSION).toBe(27)
   })
 
   // tsc cannot see this: `base.params` is typed loosely, so a parser that forgot the new slot would

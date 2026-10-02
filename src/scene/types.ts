@@ -1,3 +1,4 @@
+import type { CataloguePackage } from './cataloguePackage'
 import type { Section, SectionId } from './sectionTree'
 import type { PartOverrides } from './resolveThickness'
 import type { DrawerParams } from './drawerBox'
@@ -512,6 +513,7 @@ export interface Scene {
   hardware: HardwareItem[]
   joints: Joint[]
   components: Component[]
+  companyCatalogues?: CataloguePackage[]
   cabinetRules?: CabinetRules
 }
 

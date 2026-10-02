@@ -1,3 +1,4 @@
+import { installCataloguePackage, type CataloguePackage } from './cataloguePackage'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
 import { wrap } from 'comlink'
@@ -102,6 +103,7 @@ function makeDefaultBoard(): BoardPart {
 }
 
 export interface UseSceneResult {
+  onInstallCatalogue: (pkg: CataloguePackage, source: Scene) => boolean
   onApplyRulePreview: (preview: RulePreview) => boolean
   scene: Scene
   geometries: Map<PartId, THREE.BufferGeometry>
@@ -338,6 +340,17 @@ export function useScene(): UseSceneResult {
     },
     [push],
   )
+
+  const onInstallCatalogue = useCallback((pkg: CataloguePackage, source: Scene): boolean => {
+    const before = sceneRef.current
+    if (before !== source) return false
+    const after = installCataloguePackage(before, pkg)
+    if (after !== before) {
+      setScene(after)
+      push({ label: 'Import company catalogue', undo: () => setScene(before), redo: () => setScene(after) })
+    }
+    return true
+  }, [push])
 
   const onApplyRulePreview = useCallback((preview: RulePreview): boolean => {
     const next = acceptedRulePreview(sceneRef.current, preview)
@@ -1243,7 +1256,8 @@ export function useScene(): UseSceneResult {
   const onAddCarcase = useCallback(
     (preset: CarcasePreset) => {
       const definition = preset.catalogueId && preset.catalogueVersion
-        ? catalogueDefinition(preset.catalogueId, preset.catalogueVersion) : undefined
+        ? catalogueDefinition(preset.catalogueId, preset.catalogueVersion, sceneRef.current.companyCatalogues) : undefined
+      if (preset.catalogueId?.startsWith('company:') && !definition) return
       const params = definition ? catalogueBaseline(definition, sceneRef.current.cabinetRules) ?? preset.params : preset.params
       const component: CarcaseComponent = {
         kind: 'carcase',
@@ -1447,6 +1461,7 @@ export function useScene(): UseSceneResult {
   }, [])
 
   return {
+    onInstallCatalogue,
     onApplyRulePreview,
     scene,
     geometries,

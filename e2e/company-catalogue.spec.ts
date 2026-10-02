@@ -5,7 +5,7 @@ test('catalogue opens separately and preserves the CAD application', async ({ pa
   await expect(page.getByRole('button', { name: 'File ▾', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'File ▾', exact: true }).click()
   const opened = context.waitForEvent('page')
-  await page.getByRole('button', { name: 'Company catalogue…' }).click()
+  await page.getByRole('button', { name: 'Company catalogue…', exact: true }).click()
   const catalogue = await opened
   await expect(catalogue).toHaveTitle('Company catalogue — Zimmu')
   const dialog = catalogue.getByRole('dialog', { name: 'Company catalogue' })
