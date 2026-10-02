@@ -11,6 +11,7 @@ test('project rules require acceptance and retain cabinet overrides', async ({ p
   // Wait for the debounced item edit before opening the project specification.
   await page.getByText('Base 600 v1 · item overrides', { exact: true }).click()
   await expect(page.getByText('width: Item override', { exact: true })).toBeVisible()
+  await page.getByText('Base 600 v1 · item overrides', { exact: true }).click()
   await page.getByRole('button', { name: 'File ▾', exact: true }).click()
   await page.getByRole('button', { name: 'Project structure…', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Project structure' })
