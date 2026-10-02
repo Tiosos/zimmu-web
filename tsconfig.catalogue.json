@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.catalogue.tsbuildinfo",
+    "target": "es2023", "lib": ["ES2023", "DOM"], "module": "esnext",
+    "types": ["node"], "skipLibCheck": true, "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true, "verbatimModuleSyntax": true,
+    "noEmit": true, "strict": true, "noUnusedLocals": true, "noUnusedParameters": true,
+    "erasableSyntaxOnly": true, "noFallthroughCasesInSwitch": true
+  },
+  "include": ["server", "vite.catalogue.config.ts"]
+}

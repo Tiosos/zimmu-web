@@ -7,7 +7,7 @@ import prettierConfig from 'eslint-config-prettier'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'dist-catalogue']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -25,7 +25,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['e2e/**/*.ts', 'playwright.config.ts'],
+    files: ['e2e/**/*.ts', 'playwright.config.ts', 'server/**/*.ts', 'vite.catalogue.config.ts'],
     languageOptions: {
       globals: globals.node,
     },
