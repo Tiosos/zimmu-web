@@ -25,6 +25,7 @@ import { downloadBlob } from './download'
 import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
 import { manufacturingParts } from '../scene/manufacturingPart'
 import { SheetsTab } from './SheetsTab'
+import { manufacturingLabels } from '../scene/manufacturingLabels'
 import type { NestReport } from '../scene/useNest'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -406,6 +407,7 @@ export function BomModal({
   const effectiveMaterials = effectiveMaterialsOf(library, materials)
 
   const records = manufacturingParts(parts, effectiveMaterials, components)
+  const labels = manufacturingLabels(records)
   const rows = groupPartsFromRecords(records, effectiveMaterials)
   const boardSubtotal = rows.reduce((sum, r) => sum + (r.totalCost ?? 0), 0)
   const dowelRows = groupDowelsFromRecords(records, effectiveMaterials)
@@ -540,7 +542,8 @@ export function BomModal({
               reports={nestReports}
               pending={nestPending}
               materials={effectiveMaterials}
-              labelOf={(id) => parts.find((p) => p.id === id)?.label ?? id}
+              labelOf={(id) => labels.get(id)?.text ?? id}
+              labelDetails={labels}
             />
           ) : tab === 'hardware' ? (
             <HardwareTab

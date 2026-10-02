@@ -1,6 +1,10 @@
-import type { Part } from './types'
+import type { BoardPart, CylinderPart } from './types'
 
-export function shapeKey(part: Part): string {
+export function shapeKey<
+  T extends
+    | Pick<BoardPart, 'kind' | 'length' | 'width' | 'thickness' | 'cuts'>
+    | Pick<CylinderPart, 'kind' | 'diameter' | 'length' | 'cuts'>,
+>(part: T): string {
   if (part.kind === 'board') {
     const cutKey = part.cuts
       .slice()

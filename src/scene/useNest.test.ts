@@ -160,6 +160,64 @@ describe('useNest', () => {
     expect(mockNestJob).not.toHaveBeenCalled()
   })
 
+  it('sends only physical cut geometry and excludes invalid boards with their reasons', async () => {
+    const invalid = board({ id: 'bad', length: 1, edgeBanding: { x0: 'Tape' } })
+    const valid = board({ id: 'good', grain: 'width', edgeBanding: { x0: 'Tape' } })
+    const { result } = renderHook(() =>
+      useNest(
+        [invalid, valid],
+        { '18mm Ply': PLY, Tape: { thickness: 2, use: 'edge' } },
+        [],
+        14,
+        true,
+      ),
+    )
+    await settle()
+    expect(mockNestJob).toHaveBeenCalledTimes(1)
+    expect(mockNestJob.mock.calls[0][0].parts).toEqual([
+      {
+        kind: 'board',
+        id: 'good',
+        length: 598,
+        width: 300,
+        thickness: 18,
+        grain: 'width',
+        cuts: [],
+      },
+    ])
+    expect(result.current.reports[0].excluded).toEqual([
+      { id: 'bad', problem: 'cut size is zero or negative' },
+    ])
+  })
+
+  it('reports an entirely invalid group without starting a mask worker', async () => {
+    const p = board({ id: 'bad', length: 1, edgeBanding: { x0: 'Tape' } })
+    const { result } = renderHook(() =>
+      useNest([p], { '18mm Ply': PLY, Tape: { thickness: 2, use: 'edge' } }, [], 14, true),
+    )
+    await settle()
+    expect(mockNestJob).not.toHaveBeenCalled()
+    expect(WorkerCtor).not.toHaveBeenCalled()
+    expect(result.current.pending).toBe(false)
+    expect(result.current.reports[0].excluded).toEqual([
+      { id: 'bad', problem: 'cut size is zero or negative' },
+    ])
+  })
+
+  it('does not rerun a settled nest for a renamed or moved part or a price change', async () => {
+    const p = board({ id: 'a' })
+    const { rerender } = renderHook(
+      ({ part, rate }) =>
+        useNest([part], { '18mm Ply': { ...PLY, costPerM2: rate } }, [], 14, true),
+      { initialProps: { part: p, rate: 1 } },
+    )
+    await settle()
+    expect(mockNestJob).toHaveBeenCalledTimes(1)
+    rerender({ part: { ...p, label: 'New label', position: { x: 100, y: 0, z: 0 } }, rate: 999 })
+    await settle()
+    expect(mockNestJob).toHaveBeenCalledTimes(1)
+  })
+
   // A nest takes seconds, so two runs overlapping is the normal case rather than an edge one. A
   // stale result landing last would show a nest for a scene the user has already changed.
   it('does not let a superseded run overwrite a newer one', async () => {
@@ -283,10 +341,10 @@ describe('nesting at the cut size', () => {
     expect(after).not.toBe(before)
   })
 
-  it('passes a part with a cut-size problem through finished', () => {
+  it('excludes a part with a cut-size problem instead of nesting its finished size', () => {
     const tiny = { ...nestable(bottom), length: 1, edgeBanding: { x0: 'ABS 1mm' } }
     const groups = groupByNestableMaterial([tiny], withSheet, [banded])
-    expect(groups[0].parts[0].length).toBe(1)
-    expect(groups[0].parts[0]).toBe(tiny)
+    expect(groups[0].parts).toEqual([])
+    expect(groups[0].excluded).toEqual([{ id: tiny.id, problem: 'cut size is zero or negative' }])
   })
 })

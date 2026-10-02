@@ -100,3 +100,20 @@ describe('SheetsTab', () => {
     expect(within(row).getByText('—')).toBeTruthy()
   })
 })
+
+it('shows invalid cut reasons separately from parts too large for stock', () => {
+  renderTab({
+    reports: [
+      report({
+        excluded: [{ id: 'bad', problem: 'cut size is zero or negative' }],
+        result: { ...report().result, unplaced: ['big'] },
+      }),
+    ],
+  })
+  expect(
+    screen.getByText(
+      /Invalid cut size, not nested: Part bad \(bad\): cut size is zero or negative/,
+    ),
+  ).toBeTruthy()
+  expect(screen.getByText(/Too big for this stock, so not nested: Part big/)).toBeTruthy()
+})

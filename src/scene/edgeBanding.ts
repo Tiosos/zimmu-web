@@ -156,8 +156,28 @@ export function bandedEdgeLengths(
   return [...totals].map(([material, mm]) => ({ material, mm }))
 }
 
-// The part as the saw cuts it: smaller by the banded edges, with through-cuts moved to the new
-// origin. The nest masks this, so sheet yield matches what is cut. A problem leaves the part alone.
+// Detached board-local cut geometry. Machining consumers keep the original coordinates;
+// only the nesting footprint moves box cuts by the removed x0/y0 edge stock.
+export function nestingGeometryOf(
+  part: BoardPart,
+  edges: BoardEdges,
+  materials: Record<string, MaterialDef>,
+  size: CutSize = cutSizeOf(part, edges, materials),
+): Pick<BoardPart, 'length' | 'width' | 'thickness' | 'cuts'> {
+  const changed = !size.problem && (size.length !== part.length || size.width !== part.width)
+  const dx = changed ? (thicknessOfEdge(edges.x0, materials) ?? 0) : 0
+  const dy = changed ? (thicknessOfEdge(edges.y0, materials) ?? 0) : 0
+  const cuts = structuredClone(part.cuts)
+  for (const cut of cuts) {
+    if (cut.kind === 'box') {
+      cut.position.x -= dx
+      cut.position.y -= dy
+    }
+  }
+  return { length: size.length, width: size.width, thickness: size.thickness, cuts }
+}
+
+// Compatibility scene-part wrapper: invalid or unchanged sizes retain the original part.
 export function cutPartOf(
   part: BoardPart,
   byId: Map<ComponentId, Component>,
@@ -167,16 +187,5 @@ export function cutPartOf(
   const size = cutSizeOf(part, edges, materials)
   if (size.problem !== undefined) return part
   if (size.length === part.length && size.width === part.width) return part
-  const dx = thicknessOfEdge(edges.x0, materials) ?? 0
-  const dy = thicknessOfEdge(edges.y0, materials) ?? 0
-  return {
-    ...part,
-    length: size.length,
-    width: size.width,
-    cuts: part.cuts.map((cut) =>
-      cut.kind === 'box'
-        ? { ...cut, position: { ...cut.position, x: cut.position.x - dx, y: cut.position.y - dy } }
-        : cut,
-    ),
-  }
+  return { ...part, ...nestingGeometryOf(part, edges, materials, size) }
 }
