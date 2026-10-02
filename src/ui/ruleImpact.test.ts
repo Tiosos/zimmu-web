@@ -525,3 +525,31 @@ it('marks overflowed derived hardware quantities unavailable with the actual rea
   expect(result.afterCost.total).toBeNull()
   expect(result.afterCost.issues).toEqual([expect.stringContaining('invalid hardware quantity')])
 })
+
+it('explains ownership-only machining changes instead of showing identical details', () => {
+  for (const [owner, label] of [
+    ['sourceJointId', 'Source joint'],
+    ['sourceComponentId', 'Owning assembly'],
+  ] as const) {
+    const cut: HoleArrayCut = {
+      kind: 'hole-array',
+      id: 'row',
+      label: 'Drilling',
+      face: '+X',
+      axis: 'U',
+      start: { x: 0, y: 0, z: 0 },
+      pitch: 32,
+      count: 2,
+      diameter: 5,
+      depth: 10,
+      [owner]: 'before-owner',
+    }
+    const source = { ...empty(), parts: [{ ...board(), cuts: [cut] }] }
+    const next = structuredClone(source)
+    next.parts[0].cuts[0][owner] = 'after-owner'
+    const part = buildRuleImpact(comparison(source, next))!.parts[0]
+    expect(part.fields).toEqual(['machining'])
+    expect(part.before!.machiningDetails[0]).toContain(`${label}: before-owner`)
+    expect(part.after!.machiningDetails[0]).toContain(`${label}: after-owner`)
+  }
+})

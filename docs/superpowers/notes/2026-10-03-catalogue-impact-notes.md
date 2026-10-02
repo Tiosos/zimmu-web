@@ -21,3 +21,7 @@ The floating review height is also bounded by the space below its top offset, no
 - Deep review: regression tests reproduced five omissions before fixes. Cross-checked BOM/CSV, stock rotation/nesting, drawing and production-packet inputs, saved v27 catalogue pins, explicit adoption/staleness/undo and browser/server boundaries. Twenty-three deliberate comparison/quantity/pricing mutations failed by AssertionError; the source was restored byte-for-byte. No new product or trust decision was required. Chromium additionally exercises the short-viewport panel and local-axis/stock labels.
 
 - Final local review gates: 153 files, 2,715 tests passed / 10 skipped; typecheck, lint, CAD build, catalogue API build and diff checks passed before publication.
+
+Exact operation comparison includes ownership references. Show the source joint and owning assembly in readable details, so an ownership-only change does not produce indistinguishable before/after rows. Regression tests cover each owner independently.
+
+- Traceability follow-up gates: 2,716 tests passed / 10 skipped across 153 files; typecheck, lint, CAD build and diff checks passed. All 25 final mutations failed by AssertionError and restored exact bytes. Catalogue API sources are unchanged from the successful API build.

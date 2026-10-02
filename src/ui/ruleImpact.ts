@@ -97,10 +97,11 @@ const operationLabels: Record<string, string> = {
   template: 'Template',
   instruction: 'Instruction',
   pairedCutId: 'Paired operation',
+  sourceJointId: 'Source joint',
+  sourceComponentId: 'Owning assembly',
 }
 function operationDetails(operation: object): string {
   return Object.entries(operation)
-    .filter(([key]) => key !== 'sourceJointId' && key !== 'sourceComponentId')
     .map(
       ([key, value]: [string, unknown]) =>
         `${operationLabels[key] ?? key}: ${
