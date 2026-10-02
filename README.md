@@ -202,6 +202,6 @@ MPL 2.0 planned at v0.5 per the [strategic plan](joinery_3d_software_plan.md) §
 
 ## Company catalogue publishing API
 
-A separate Node service verifies single-tenant Microsoft Entra API access tokens. IT manages master rule versions; authorised senior designers maintain product drafts, with a different designer approving publication. Versions and audit transitions are immutable and stored transactionally in SQLite. See [setup and HTTP contract](docs/company-catalogue-api.md).
+A separate Node service verifies Keycloak realm API access tokens and resolves them through an IT-managed map to stable company/staff identities. IT manages master rule versions; authorised senior designers maintain product drafts, with a different designer approving publication. Versions and audit transitions are immutable and stored transactionally in SQLite. See [setup and HTTP contract](docs/company-catalogue-api.md).
 
-`pnpm build:catalogue` builds the API; `pnpm start:catalogue` requires tenant/API IDs and an absolute durable database path. Live app registration, the MSAL editor and company-definition distribution into CAD remain pending. This API does not change a saved cabinet or approve production release.
+`pnpm build:catalogue` builds the API; `pnpm start:catalogue` requires realm/client configuration, an IT-managed identity bindings file and an absolute durable database path. Live realm setup, the publishing editor follow-up and company-definition distribution into CAD remain pending. This API does not change a saved cabinet or approve production release.
