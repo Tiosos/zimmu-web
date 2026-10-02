@@ -44,6 +44,38 @@ export function remapRuleMaterials<T extends Record<string, unknown>>(
     ]),
   ) as T
 }
+// Server and browser presets allocate section identities independently. Compare layout,
+// while keeping the exact published IDs in the content that SHA-256 verifies.
+export function canonicalProductDesign(raw: unknown): string {
+  const value = object(raw)
+  const params = object(value.params)
+  const seen = new Set<string>()
+  function sectionDesign(rawSection: unknown): Record<string, unknown> {
+    const section = object(rawSection)
+    if (
+      typeof section.id !== 'string' ||
+      !section.id.trim() ||
+      section.id.length > 80 ||
+      seen.has(section.id)
+    )
+      throw new Error('Published section IDs must be non-empty unique strings.')
+    seen.add(section.id)
+    const content = object(section.content)
+    const design = { ...section }
+    delete design.id
+    if (content.kind === 'split') {
+      if (!Array.isArray(content.children))
+        throw new Error('Published section children must be an array.')
+      design.content = { ...content, children: content.children.map(sectionDesign) }
+    }
+    return design
+  }
+  return canonicalContent({
+    ...value,
+    params: { ...params, section: sectionDesign(params.section) },
+  })
+}
+
 const versionKey = (v: Published) => `${v.kind}:${v.definitionId}:${v.version}`
 
 /** Synchronous structural/semantic boundary, also used before saved-file migration. */
@@ -124,7 +156,7 @@ export function validateCataloguePackage(raw: unknown, maxVersions = 200): Catal
       },
       (id, version) => rules.get(`${id}:${version}`),
     )
-    if (canonicalContent(content) !== canonicalContent(v.content))
+    if (canonicalProductDesign(content) !== canonicalProductDesign(v.content))
       throw new Error('Published product snapshot does not match its pinned rules/layout.')
   }
   return pkg

@@ -1,9 +1,11 @@
 /// <reference types="node" />
-import { webcrypto } from 'node:crypto'
+import { createHash, webcrypto } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { packageFixture, companyId } from './__fixtures__/companyCatalogue'
 import {
   MAX_CATALOGUE_BYTES,
+  canonicalContent,
+  canonicalProductDesign,
   installCataloguePackage,
   parseCataloguePackage,
   validateCataloguePackage,
@@ -62,6 +64,49 @@ describe('published company catalogue package', () => {
     expect(checked).toEqual(pkg)
     expect(checked).not.toBe(pkg)
     expect(JSON.stringify(checked)).not.toContain('token')
+  })
+  it('accepts published section IDs from another process and retains the exact hashed snapshot', async () => {
+    const pkg = packageFixture()
+    const product = pkg.versions[1].content as { params: CarcaseParams }
+    product.params.section = { ...product.params.section, id: 'sec_other-process' }
+    pkg.versions[1].hash = createHash('sha256').update(canonicalContent(product)).digest('hex')
+    await expect(parseCataloguePackage(JSON.stringify(pkg))).resolves.toEqual(pkg)
+    const checked = await parseCataloguePackage(JSON.stringify(pkg))
+    expect((checked.versions[1].content as { params: CarcaseParams }).params.section.id).toBe(
+      'sec_other-process',
+    )
+    expect(checked.versions[1].hash).toBe(pkg.versions[1].hash)
+    const bad = structuredClone(pkg)
+    ;(bad.versions[1].content as { params: CarcaseParams }).params.section.id = ''
+    expect(() => validateCataloguePackage(bad)).toThrow(/section IDs/)
+    expect(pkg.versions[1].hash).not.toBe(packageFixture().versions[1].hash)
+  })
+  it('compares only section identity differences and rejects duplicate IDs or malformed child containers', () => {
+    const leaf = { id: 'leaf', size: { kind: 'equal' }, content: { kind: 'leaf' } }
+    const value = {
+      params: {
+        section: {
+          id: 'root',
+          size: { kind: 'equal' },
+          content: { kind: 'split', children: [leaf, { ...leaf, id: 'other' }] },
+        },
+      },
+    }
+    const different = structuredClone(value)
+    different.params.section.content.children[0].id = 'separate-process'
+    expect(canonicalProductDesign(different)).toBe(canonicalProductDesign(value))
+    different.params.section.content.children[1].id = 'separate-process'
+    expect(() => canonicalProductDesign(different)).toThrow(/unique/)
+    expect(() =>
+      canonicalProductDesign({
+        params: {
+          section: { ...value.params.section, content: { kind: 'split', children: null } },
+        },
+      }),
+    ).toThrow(/array/)
+    expect(canonicalProductDesign({ ...value, rule: { id: 'rule-a' } })).not.toBe(
+      canonicalProductDesign({ ...value, rule: { id: 'rule-b' } }),
+    )
   })
   it.each([
     [
