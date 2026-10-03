@@ -7,6 +7,7 @@ import { regenerateComponents } from '../scene/regenerateComponents'
 import type { CarcaseComponent, Scene } from '../scene/types'
 import { buildCsv, buildDowelCsv } from './buildCsv'
 import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
+import { createReadinessSnapshot } from '../scene/readinessSnapshot'
 import { reconcileScene } from './outputReconciliation'
 import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
 
@@ -25,6 +26,35 @@ const hash = async (bytes: Uint8Array) =>
   ).join('')
 
 describe('production handoff packet', () => {
+  it('captures physical library stock and advisory findings from the same revision', async () => {
+    const scene = structuredClone(sceneOf())
+    const part = scene.parts[0]
+    const definition = scene.materials[part.material]
+    const name = 'Library stock'
+    part.material = name
+    const materialLibrary = { [name]: { ...definition, thickness: 90 } }
+    const expected = createReadinessSnapshot(
+      scene,
+      'Captured',
+      capturedAt,
+      materialLibrary,
+    ).manufacturing
+    expect(expected.findings.some((f) => f.code === 'thickness-mismatch')).toBe(true)
+    const pending = buildProductionPacket({
+      scene,
+      projectName: 'Captured',
+      capturedAt,
+      hardwareLibrary: {},
+      materialLibrary,
+    })
+    materialLibrary[name].thickness = 18
+    scene.parts.length = 0
+    const files = unzipSync(await pending)
+    expect(JSON.parse(strFromU8(files['readiness/manufacturing.json']))).toEqual(expected)
+    const manifest = JSON.parse(strFromU8(files['manifest.json']))
+    expect(manifest.counts.manufacturingFindings).toBe(expected.findings.length)
+  })
+
   it('contains a matching manifest, full drawing deck, installation reference and all lists', async () => {
     const scene = sceneOf()
     const before = JSON.stringify(scene)
@@ -44,10 +74,17 @@ describe('production handoff packet', () => {
       'lists/dowels.csv',
       'lists/hardware.csv',
       'manifest.json',
+      'readiness/manufacturing.json',
       'readiness/reconciliation.json',
       'readiness/report.pdf',
     ])
     const manifest = JSON.parse(strFromU8(zip['manifest.json']))
+    const manufacturing = JSON.parse(strFromU8(zip['readiness/manufacturing.json']))
+    expect(manufacturing).toEqual(
+      createReadinessSnapshot(scene, 'Workshop A', capturedAt).manufacturing,
+    )
+    expect(manifest.counts.manufacturingFindings).toBe(manufacturing.findings.length)
+    expect(manifest.manufacturing.checkedParts).toBe(scene.parts.length)
     expect(manifest.projectName).toBe('Workshop A')
     expect(manifest.capturedAt).toBe('2026-09-29T01:00:00.000Z')
     expect(manifest.sourceSha256).toBe(

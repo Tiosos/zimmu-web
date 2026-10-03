@@ -1,13 +1,6 @@
 import { applyMatrixToPoint, composeWorldMatrix } from '../geom/transform'
 import { nearestCarcase } from './nearestCarcase'
-import type {
-  BoardPart,
-  Component,
-  ComponentId,
-  EdgeKey,
-  MaterialDef,
-  Vec3,
-} from './types'
+import type { BoardPart, Component, ComponentId, EdgeKey, MaterialDef, Vec3 } from './types'
 
 export const EDGE_KEYS: readonly EdgeKey[] = ['x0', 'x1', 'y0', 'y1']
 
@@ -71,11 +64,30 @@ export function edgesOf(
   byId: Map<ComponentId, Component>,
   materials: Record<string, MaterialDef>,
 ): BoardEdges {
+  return boardEdgesOf(part, byId, materials)
+}
+
+// Requested rules retain unresolved stock for advisory checks without changing effective banding.
+export function requestedEdgesOf(part: BoardPart, byId: Map<ComponentId, Component>): BoardEdges {
+  return boardEdgesOf(part, byId)
+}
+
+function boardEdgesOf(
+  part: BoardPart,
+  byId: Map<ComponentId, Component>,
+  materials?: Record<string, MaterialDef>,
+): BoardEdges {
   if (part.cuts.some((c) => c.kind === 'mitre')) return { ...NONE }
   const edges: BoardEdges = { ...NONE }
-  const named = part.driven && part.role !== undefined ? nearestCarcase(part, byId)?.params.edgeMaterial : undefined
+  const named =
+    part.driven && part.role !== undefined
+      ? nearestCarcase(part, byId)?.params.edgeMaterial
+      : undefined
   // A name the scene cannot resolve to edge stock is a note in the cabinet panel, not banding.
-  const material = named !== undefined && materials[named]?.use === 'edge' ? named : undefined
+  const material =
+    named !== undefined && (materials === undefined || materials[named]?.use === 'edge')
+      ? named
+      : undefined
   if (material && part.role !== undefined) {
     const rule = edgeRuleOf(part.role)
     const keys = rule === 'all' ? EDGE_KEYS : rule.map((d) => edgeFacing(part.rotation, d))
@@ -96,7 +108,10 @@ export interface CutSize {
   problem?: string
 }
 
-function thicknessOfEdge(name: string | null, materials: Record<string, MaterialDef>): number | null {
+function thicknessOfEdge(
+  name: string | null,
+  materials: Record<string, MaterialDef>,
+): number | null {
   if (name === null) return 0
   return materials[name]?.thickness ?? null
 }

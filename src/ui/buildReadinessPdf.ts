@@ -137,6 +137,20 @@ export async function buildReadinessPdf(snapshot: ReadinessSnapshot): Promise<Ui
   line(
     'Installation references identify separate installation sheets by cabinet ID and shelf role. They are not embedded in this report PDF. In a production packet, find them in the shop drawings PDF; otherwise open Manufacturing readiness in the matching design and select Installation sheet for that shelf.',
   )
+  line('Manufacturing record checks', true)
+  line(
+    `${report.manufacturing.checkedParts} parts checked; ${report.manufacturing.findings.length} findings.`,
+  )
+  line(`Not assessed: ${report.manufacturing.unassessed.join(', ')}.`)
+  if (!report.manufacturing.findings.length) line('No issues found by these checks.')
+  for (const f of report.manufacturing.findings) {
+    line(`${f.reference} | ${f.code}`, true)
+    line(f.message)
+    for (const t of f.targets)
+      line(
+        `part: ${t.label} [${t.id}]; cabinet: ${t.cabinetId ?? 'none'}; assembly: ${t.parentId ?? 'none'}`,
+      )
+  }
   const finding = (f: ReadinessSnapshot['production']['findings'][number]) => {
     line(
       `${f.reference} | ${f.kind === 'unassessed' ? 'NOT ASSESSED' : f.kind.toUpperCase()}`,

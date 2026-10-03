@@ -8,6 +8,9 @@ import type {
   Scene,
   Selection,
 } from '../scene/types'
+import { manufacturingParts } from '../scene/manufacturingPart'
+import { manufacturingChecks } from '../scene/manufacturingChecks'
+import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
 import { buildShelfReadiness, type ShelfReadinessRow } from '../scene/shelfReadiness'
 import { buildProductionReadiness } from '../scene/productionReadiness'
 import { ShelfInsertionPreview } from './ShelfInsertionPreview'
@@ -54,7 +57,7 @@ export function ManufacturingReadiness({
     setExporting(true)
     setExportError(null)
     try {
-      const snapshot = createReadinessSnapshot(scene, projectName)
+      const snapshot = createReadinessSnapshot(scene, projectName, new Date(), materialLibrary)
       const bytes = await buildReadinessPdf(snapshot)
       downloadBlob(bytes as BlobPart, readinessPdfFilename(snapshot.projectName), 'application/pdf')
     } catch (error) {
@@ -86,6 +89,17 @@ export function ManufacturingReadiness({
   }
   const report = useMemo(() => buildShelfReadiness(scene), [scene])
   const production = useMemo(() => buildProductionReadiness(scene), [scene])
+  const manufacturing = useMemo(
+    () =>
+      manufacturingChecks(
+        manufacturingParts(
+          scene.parts,
+          effectiveMaterialsOf(materialLibrary, scene.materials),
+          scene.components,
+        ),
+      ),
+    [scene, materialLibrary],
+  )
   const reconciliation = useMemo(
     () => reconcileScene(scene, materialLibrary),
     [scene, materialLibrary],
@@ -152,8 +166,8 @@ export function ManufacturingReadiness({
       </p>
       <p className="text-xs text-muted-foreground mb-4">
         Production packet (ZIP): readiness PDF, shop drawings with available installation sheets,
-        board/dowel/hardware CSVs, and a snapshot manifest. Includes hidden items. It is advisory
-        and does not save a project revision.
+        board/dowel/hardware CSVs, manufacturing checks JSON, and a snapshot manifest. Includes
+        hidden items. It is advisory and does not save a project revision.
       </p>
       <section aria-label="Production checks" className="border rounded p-3 mb-4">
         <h3 className="font-medium">Production checks</h3>
@@ -198,6 +212,45 @@ export function ManufacturingReadiness({
             Showing the first 200 findings. Resolve these and reopen the report to review the
             remaining findings.
           </p>
+        )}
+      </section>
+      <section aria-label="Manufacturing record checks" className="border rounded p-3 mb-4">
+        <h3 className="font-medium">Manufacturing record checks</h3>
+        <p className="text-sm">
+          {manufacturing.checkedParts} parts checked · {manufacturing.findings.length} findings
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Not assessed: {manufacturing.unassessed.join(', ')}.
+        </p>
+        {manufacturing.findings.length === 0 && <p>No issues found by these checks.</p>}
+        {manufacturing.findings.slice(0, 200).map((finding) => (
+          <div key={finding.reference} className="border-t py-2 text-sm">
+            <p>
+              <strong>
+                {finding.reference} · {finding.code}:
+              </strong>{' '}
+              {finding.message}
+            </p>
+            {finding.targets.map((target) =>
+              onInspect ? (
+                <Button
+                  key={target.id}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onInspect({ kind: 'part', id: target.id })}
+                >
+                  Inspect {target.label || target.id}
+                </Button>
+              ) : (
+                <p key={target.id}>
+                  {target.label} [{target.id}]
+                </p>
+              ),
+            )}
+          </div>
+        ))}
+        {manufacturing.findings.length > 200 && (
+          <p>Showing the first 200 findings. PDF and production packet include all findings.</p>
         )}
       </section>
       <ReconciliationSection result={reconciliation} onInspect={onInspect} />

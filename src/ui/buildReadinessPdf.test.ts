@@ -40,6 +40,26 @@ async function contents(bytes: Uint8Array) {
 }
 
 describe('readiness PDF', () => {
+  it('exports all manufacturing findings and captures their targets before awaiting', async () => {
+    const snapshot = createReadinessSnapshot(sceneOf(), 'Manufacturing', date)
+    snapshot.manufacturing.findings = Array.from({ length: 205 }, (_, i) => ({
+      reference: `M${i + 1}`,
+      code: 'stock-unresolved',
+      message: `Unresolved stock ${i}`,
+      targets: [
+        { id: `manufacturing-part-${i}`, label: 'Panel', cabinetId: 'owner', parentId: 'nested' },
+      ],
+    }))
+    const pending = buildReadinessPdf(snapshot)
+    snapshot.manufacturing.findings.length = 0
+    const { doc, text } = await contents(await pending)
+    expect(doc.getPageCount()).toBeGreaterThan(5)
+    expect(text).toContain('M205 | stock-unresolved')
+    expect(text).toContain('manufacturing-part-204')
+    expect(text).toContain('Machine operation compatibility')
+    expect(text).toContain('cabinet: owner')
+  })
+
   it('captures one scene and retains IDs, unknown checks and separate installation references', async () => {
     const scene = sceneOf()
     const before = JSON.stringify(scene)
@@ -61,7 +81,7 @@ describe('readiness PDF', () => {
     snapshot.production.findings = Array.from({ length: 205 }, (_, i) => ({
       reference: `F${i + 1}`,
       kind: 'unassessed',
-      message: `Check ${i + 1}: ` + 'Long description '.repeat(12),
+      message: `Check ${i + 1}: ` + 'Long description '.repeat(30),
       cabinetIds: [],
       targets: [{ label: 'LongLabel'.repeat(30), selection: { kind: 'part', id: `p${i}` } }],
     }))
