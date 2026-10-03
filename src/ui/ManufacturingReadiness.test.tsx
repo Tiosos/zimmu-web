@@ -37,6 +37,69 @@ afterEach(() => {
 })
 
 describe('readiness UI', () => {
+  it('caps machining display but captures all findings in the exported PDF snapshot', async () => {
+    const scene = structuredClone(sceneOf()),
+      p = scene.parts.find((p) => p.kind === 'board')!
+    if (p.kind !== 'board') throw new Error('board')
+    p.cuts = Array.from({ length: 205 }, (_, i) => ({
+      kind: 'hole-array' as const,
+      id: `outside-${i}`,
+      label: `Outside ${i}`,
+      face: '+Z' as const,
+      axis: 'U' as const,
+      start: { x: 1, y: 20, z: p.thickness },
+      pitch: 0,
+      count: 1,
+      diameter: 5,
+      depth: 12,
+    }))
+    scene.parts = [p]
+    scene.components = []
+    const build = vi.spyOn(pdf, 'buildReadinessPdf').mockResolvedValue(new Uint8Array([37, 80]))
+    vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+    render(<ManufacturingReadiness scene={scene} onClose={vi.fn()} onOpenSheet={vi.fn()} />)
+    const section = screen.getByRole('region', { name: 'Drilling and manual machining' })
+    expect(within(section).getAllByText(/footprint crosses/)).toHaveLength(200)
+    expect(within(section).getByText(/Showing the first 200 machining/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Export readiness PDF' }))
+    await waitFor(() => expect(build).toHaveBeenCalledOnce())
+    expect(build.mock.calls[0][0].machining.findings).toHaveLength(205)
+    expect(build.mock.calls[0][0].machining.findings.at(-1)?.operation.id).toBe('outside-204')
+  })
+
+  it('inspects drilling findings and updates after the board geometry is corrected', () => {
+    const scene = structuredClone(sceneOf()),
+      p = scene.parts.find((p) => p.kind === 'board')!
+    if (p.kind !== 'board') throw new Error('board')
+    p.cuts = [
+      {
+        kind: 'hole-array',
+        id: 'bad-row',
+        label: 'Bad row',
+        face: '+Z',
+        axis: 'U',
+        start: { x: 1, y: 20, z: p.thickness },
+        pitch: 32,
+        count: 1,
+        diameter: 5,
+        depth: 12,
+      },
+    ]
+    const inspect = vi.fn(),
+      props = { scene, onClose: vi.fn(), onOpenSheet: vi.fn(), onInspect: inspect }
+    const view = render(<ManufacturingReadiness {...props} />)
+    const section = screen.getByRole('region', { name: 'Drilling and manual machining' })
+    expect(within(section).getByText(/footprint crosses/)).toBeTruthy()
+    fireEvent.click(within(section).getByRole('button', { name: `Inspect ${p.label}` }))
+    expect(inspect).toHaveBeenCalledWith({ kind: 'part', id: p.id })
+    const corrected = structuredClone(scene)
+    const board = corrected.parts.find((x) => x.id === p.id)!
+    board.cuts = []
+    view.rerender(<ManufacturingReadiness {...props} scene={corrected} />)
+    expect(within(section).queryByText(/footprint crosses/)).toBeNull()
+    expect(within(section).getByText(/Other machining checks remain unassessed/)).toBeTruthy()
+  })
+
   it('caps the dialog display and exports every finding with the same effective stock', async () => {
     const scene = structuredClone(sceneOf())
     const template = scene.parts.find((p) => p.kind === 'board')!

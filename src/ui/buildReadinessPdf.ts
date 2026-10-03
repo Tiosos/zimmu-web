@@ -141,7 +141,9 @@ export async function buildReadinessPdf(snapshot: ReadinessSnapshot): Promise<Ui
   line(
     `${report.manufacturing.checkedParts} parts checked; ${report.manufacturing.findings.length} findings.`,
   )
-  line(`Not assessed: ${report.manufacturing.unassessed.join(', ')}.`)
+  line(
+    `Outside the stock and label checks: ${report.manufacturing.unassessed.join(', ')}. See the separate drilling report for its coverage.`,
+  )
   if (!report.manufacturing.findings.length) line('No issues found by these checks.')
   for (const f of report.manufacturing.findings) {
     line(`${f.reference} | ${f.code}`, true)
@@ -150,6 +152,31 @@ export async function buildReadinessPdf(snapshot: ReadinessSnapshot): Promise<Ui
       line(
         `part: ${t.label} [${t.id}]; cabinet: ${t.cabinetId ?? 'none'}; assembly: ${t.parentId ?? 'none'}`,
       )
+  }
+  line('Drilling and manual machining', true)
+  line(
+    `${report.machining.boardHoleArrays} board hole arrays; ${report.machining.roundBores} round bores; ${report.machining.manualOperations} manual instructions; ${report.machining.findings.length} findings.`,
+  )
+  line(report.machining.scope)
+  line(`Not assessed: ${report.machining.unassessed.join('; ')}.`)
+  if (!report.machining.findings.length)
+    line('No issues found by the board envelope checks. Other machining checks remain unassessed.')
+  for (const f of report.machining.findings) {
+    line(`${f.reference} | ${f.code}`, true)
+    line(f.message)
+    line(`part: ${f.part.label} [${f.part.id}]; cabinet: ${f.part.cabinetId ?? 'none'}`)
+    line(`operation: ${f.operation.label} [${f.operation.id}] (${f.operation.kind})`)
+    if (f.operation.sourceJointId) line(`Source joint: ${f.operation.sourceJointId}`)
+    if (f.operation.sourceComponentId) line(`Source component: ${f.operation.sourceComponentId}`)
+    if (f.instruction) {
+      const op = f.instruction
+      line(
+        `Manual setup: face ${op.face}; at (${op.at.x}, ${op.at.y}, ${op.at.z}) mm; diameter ${op.diameter} mm; pitch ${op.pitch} mm; count ${op.count}; angle ${op.angle} degrees; edge offset ${op.edgeOffset} mm.`,
+      )
+      line(`Hardware reference: ${op.hardwareKey}`)
+      line(`Template: ${f.instruction.template}`)
+      line(`Instruction: ${f.instruction.instruction}`)
+    }
   }
   const finding = (f: ReadinessSnapshot['production']['findings'][number]) => {
     line(

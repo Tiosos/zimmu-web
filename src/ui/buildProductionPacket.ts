@@ -107,6 +107,7 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
   const files: Record<string, Uint8Array> = {
     'readiness/report.pdf': await buildReadinessPdf(snapshot),
     'drawings/shop-drawings.pdf': await buildPdf(sheets),
+    'readiness/machining.json': strToU8(JSON.stringify(snapshot.machining, null, 2) + '\n'),
     'readiness/manufacturing.json': strToU8(JSON.stringify(snapshot.manufacturing, null, 2) + '\n'),
     'readiness/reconciliation.json': strToU8(JSON.stringify(reconciliation, null, 2) + '\n'),
     'lists/boards.csv': strToU8(
@@ -142,9 +143,17 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       cabinets: snapshot.cabinets.length,
       parts: captured.scene.parts.length,
       findings: snapshot.production.findings.length,
+      machiningFindings: snapshot.machining.findings.length,
       manufacturingFindings: snapshot.manufacturing.findings.length,
       drawingSheets: sheets.length,
       installationSheets: references.size,
+    },
+    machining: {
+      boardHoleArrays: snapshot.machining.boardHoleArrays,
+      roundBores: snapshot.machining.roundBores,
+      manualOperations: snapshot.machining.manualOperations,
+      scope: snapshot.machining.scope,
+      unassessed: snapshot.machining.unassessed,
     },
     manufacturing: {
       checkedParts: snapshot.manufacturing.checkedParts,

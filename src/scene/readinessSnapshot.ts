@@ -1,6 +1,7 @@
 import type { MaterialDef, Scene } from './types'
 import { buildProductionReadiness } from './productionReadiness'
 import { manufacturingParts } from './manufacturingPart'
+import { manufacturingMachining } from './manufacturingMachining'
 import { manufacturingChecks } from './manufacturingChecks'
 import { effectiveMaterialsOf } from './effectiveMaterials'
 import { buildShelfReadiness } from './shelfReadiness'
@@ -13,6 +14,11 @@ export function createReadinessSnapshot(
 ) {
   // Capture before any asynchronous PDF work: later edits cannot mix revisions in one report.
   const captured = structuredClone(scene)
+  const records = manufacturingParts(
+    captured.parts,
+    effectiveMaterialsOf(structuredClone(materialLibrary), captured.materials),
+    captured.components,
+  )
   const production = buildProductionReadiness(captured)
   const shelves = buildShelfReadiness(captured)
   const owner = (kind: 'part' | 'component', id: string): string | null => {
@@ -33,13 +39,8 @@ export function createReadinessSnapshot(
   return {
     projectName,
     capturedAt: date.toISOString(),
-    manufacturing: manufacturingChecks(
-      manufacturingParts(
-        captured.parts,
-        effectiveMaterialsOf(structuredClone(materialLibrary), captured.materials),
-        captured.components,
-      ),
-    ),
+    manufacturing: manufacturingChecks(records),
+    machining: manufacturingMachining(records),
     production: {
       ...production,
       findings: production.findings.map((f, i) => ({
