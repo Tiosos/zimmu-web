@@ -4,6 +4,7 @@ import { ManufacturingReadiness } from './ManufacturingReadiness'
 import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 import { DEFAULT_FRAME, PRESET_MATERIALS } from '../scene/carcasePresets'
 import type { Scene } from '../scene/types'
+import { createReadinessSnapshot } from '../scene/readinessSnapshot'
 import * as pdf from './buildReadinessPdf'
 import * as downloads from './download'
 import * as packets from './buildProductionPacket'
@@ -36,6 +37,47 @@ afterEach(() => {
 })
 
 describe('readiness UI', () => {
+  it('caps the dialog display and exports every finding with the same effective stock', async () => {
+    const scene = structuredClone(sceneOf())
+    const template = scene.parts.find((p) => p.kind === 'board')!
+    scene.parts = Array.from({ length: 205 }, (_, i) => ({
+      ...structuredClone(template),
+      id: `review-part-${i}`,
+      label: '',
+      parentId: null,
+      driven: false,
+      material: 'Library panel',
+      edgeBanding: undefined,
+      cuts: [],
+      overrides: undefined,
+    }))
+    scene.components = []
+    const materialLibrary = {
+      'Library panel': { thickness: template.kind === 'board' ? template.thickness : 18 },
+    }
+    const build = vi.spyOn(pdf, 'buildReadinessPdf').mockResolvedValue(new Uint8Array([37, 80]))
+    vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+    render(
+      <ManufacturingReadiness
+        scene={scene}
+        materialLibrary={materialLibrary}
+        onClose={vi.fn()}
+        onOpenSheet={vi.fn()}
+      />,
+    )
+    const section = screen.getByRole('region', { name: 'Manufacturing record checks' })
+    expect(within(section).getAllByText(/label-empty:/)).toHaveLength(200)
+    expect(within(section).getByText(/Showing the first 200/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Export readiness PDF' }))
+    await waitFor(() => expect(build).toHaveBeenCalledOnce())
+    const exported = build.mock.calls[0][0].manufacturing
+    expect(exported).toEqual(
+      createReadinessSnapshot(scene, 'Project', new Date(), materialLibrary).manufacturing,
+    )
+    expect(exported.findings).toHaveLength(205)
+    expect(exported.findings.at(-1)?.targets[0].id).toBe('review-part-204')
+  })
+
   it('shows advisory record issues, inspects stable IDs and updates with the material library', () => {
     const scene = structuredClone(sceneOf())
     const part = scene.parts[0]

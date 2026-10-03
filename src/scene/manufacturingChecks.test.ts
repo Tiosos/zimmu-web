@@ -18,6 +18,19 @@ const boardOf = (scene: ReturnType<typeof sceneOf>) => scene.parts[0] as BoardPa
 const codes = (scene: ReturnType<typeof sceneOf>) => reportOf(scene).findings.map((f) => f.code)
 
 describe('shared record manufacturing checks', () => {
+  it.each(['toString', 'constructor', '__proto__'])(
+    'does not resolve inherited material names: %s',
+    (name) => {
+      const scene = sceneOf()
+      const round = scene.parts.find((p) => p.kind === 'cylinder')!
+      round.material = name
+      scene.parts = [round]
+      expect(reportOf(scene).findings.map((f) => f.code)).toEqual(['stock-unresolved'])
+      const snapshot = createReadinessSnapshot(scene, 'Inherited name')
+      expect(snapshot.manufacturing.findings.map((f) => f.code)).toEqual(['stock-unresolved'])
+    },
+  )
+
   it('allows resolved solid and round stock, excludes prices and placement, and checks hidden parts', () => {
     const scene = sceneOf()
     expect(reportOf(scene).findings).toEqual([])
@@ -64,7 +77,7 @@ describe('shared record manufacturing checks', () => {
       )
     },
   )
-  it('retains requested unresolved cabinet edges and respects explicit bare overrides ', () => {
+  it('retains requested unresolved cabinet edges and respects explicit bare overrides', () => {
     const scene = manufacturingProject()
     const cabinet = scene.components[0] as CarcaseComponent
     cabinet.params.edgeMaterial = 'Missing tape'
@@ -88,6 +101,17 @@ describe('shared record manufacturing checks', () => {
     )[0] as ManufacturingBoard
     expect(r.requestedEdgeStock).toEqual([])
   })
+  it('resolves explicitly defined prototype-like stock and edge names after library merging', () => {
+    const scene = sceneOf()
+    const board = boardOf(scene)
+    board.material = '__proto__'
+    board.edgeBanding = { x0: 'toString' }
+    scene.materials = JSON.parse(
+      '{"__proto__":{"thickness":18},"toString":{"thickness":2,"use":"edge"},"Oak":{"costPerM":5}}',
+    )
+    expect(createReadinessSnapshot(scene, 'Explicit names').manufacturing.findings).toEqual([])
+  })
+
   it('rejects unknown, wrong-use and invalid edge stock, preserving failed cut sizes', () => {
     const scene = sceneOf()
     delete scene.materials.Tape

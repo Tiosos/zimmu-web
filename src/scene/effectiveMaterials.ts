@@ -14,9 +14,15 @@ export function effectiveMaterialsOf(
   library: Record<string, MaterialDef>,
   scene: Record<string, MaterialDef>,
 ): Record<string, MaterialDef> {
-  const merged: Record<string, MaterialDef> = {}
-  for (const name of new Set([...Object.keys(library), ...Object.keys(scene)])) {
-    merged[name] = { ...(name in library ? withoutUse(library[name]) : {}), ...scene[name] }
-  }
-  return merged
+  // Define names as own data properties, including "__proto__". Assignment to a plain object
+  // would instead change its prototype and lose that material from subsequent own-key merges.
+  return Object.fromEntries(
+    [...new Set([...Object.keys(library), ...Object.keys(scene)])].map((name) => [
+      name,
+      {
+        ...(Object.hasOwn(library, name) ? withoutUse(library[name]) : {}),
+        ...(Object.hasOwn(scene, name) ? scene[name] : {}),
+      },
+    ]),
+  )
 }

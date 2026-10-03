@@ -93,7 +93,7 @@ export function manufacturingChecks(records: ManufacturingPart[]) {
     if (group.length > 1)
       add(
         'label-duplicate',
-        `Label "${group[0].label.trim()}" is repeated within one cabinet or assembly. Part IDs remain authoritative.`,
+        `Label "${group[0].label.trim()}" is repeated in the same cabinet, assembly or loose-part group. Part IDs remain authoritative.`,
         group,
       )
   return {

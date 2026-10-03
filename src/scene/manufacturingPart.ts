@@ -122,7 +122,9 @@ function stockOf(material?: MaterialDef): ManufacturingStock {
 }
 export function manufacturingPart(p: Part, context: ManufacturingContext): ManufacturingPart {
   const cabinet = nearestCarcase(p, context.byId)
-  const material = context.materials[p.material]
+  const material = Object.hasOwn(context.materials, p.material)
+    ? context.materials[p.material]
+    : undefined
   const base: RecordBase = {
     id: p.id,
     label: p.label,
@@ -179,7 +181,12 @@ export function manufacturingPart(p: Part, context: ManufacturingContext): Manuf
       ),
     ]
       .sort()
-      .map((name) => ({ material: name, stock: stockOf(context.materials[name]) })),
+      .map((name) => ({
+        material: name,
+        stock: stockOf(
+          Object.hasOwn(context.materials, name) ? context.materials[name] : undefined,
+        ),
+      })),
     edgeBand: bandedEdgeLengths(p, edges),
     cuts: structuredClone(p.cuts),
   }
