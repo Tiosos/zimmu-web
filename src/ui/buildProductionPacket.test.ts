@@ -7,6 +7,8 @@ import { regenerateComponents } from '../scene/regenerateComponents'
 import type { CarcaseComponent, Scene } from '../scene/types'
 import { buildCsv, buildDowelCsv } from './buildCsv'
 import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
+import { manufacturingProject } from '../scene/__fixtures__/manufacturingProject'
+import type { BoardPart } from '../scene/types'
 import { createReadinessSnapshot } from '../scene/readinessSnapshot'
 import { reconcileScene } from './outputReconciliation'
 import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
@@ -26,6 +28,36 @@ const hash = async (bytes: Uint8Array) =>
   ).join('')
 
 describe('production handoff packet', () => {
+  it('freezes manual machining setup and hashes the full advisory report', async () => {
+    const scene = manufacturingProject()
+    const expected = createReadinessSnapshot(scene, 'Manual', capturedAt).machining
+    const pending = buildProductionPacket({
+      scene,
+      projectName: 'Manual',
+      capturedAt,
+      hardwareLibrary: {},
+      materialLibrary: {},
+    })
+    const p = scene.parts.find((p) => p.id === 'manual-board') as BoardPart
+    p.operations![0].instruction = 'Later edit'
+    p.cuts = []
+    const files = unzipSync(await pending)
+    const report = JSON.parse(strFromU8(files['readiness/machining.json']))
+    expect(report).toEqual(expected)
+    expect(
+      report.findings.find(
+        (f: { instruction?: { id: string } }) => f.instruction?.id === 'manual-instruction',
+      ).instruction.instruction,
+    ).toBe('Confirm jig setup before machining')
+    const manifest = JSON.parse(strFromU8(files['manifest.json']))
+    const entry = manifest.files.find(
+      (f: { path: string }) => f.path === 'readiness/machining.json',
+    )
+    expect(entry.sha256).toBe(await hash(files[entry.path]))
+    expect(manifest.machining.manualOperations).toBe(expected.manualOperations)
+    expect(manifest.counts.machiningFindings).toBe(report.findings.length)
+  })
+
   it('captures physical library stock and advisory findings from the same revision', async () => {
     const scene = structuredClone(sceneOf())
     const part = scene.parts[0]
@@ -74,11 +106,15 @@ describe('production handoff packet', () => {
       'lists/dowels.csv',
       'lists/hardware.csv',
       'manifest.json',
+      'readiness/machining.json',
       'readiness/manufacturing.json',
       'readiness/reconciliation.json',
       'readiness/report.pdf',
     ])
     const manifest = JSON.parse(strFromU8(zip['manifest.json']))
+    const machining = JSON.parse(strFromU8(zip['readiness/machining.json']))
+    expect(machining).toEqual(createReadinessSnapshot(scene, 'Workshop A', capturedAt).machining)
+    expect(manifest.counts.machiningFindings).toBe(machining.findings.length)
     const manufacturing = JSON.parse(strFromU8(zip['readiness/manufacturing.json']))
     expect(manufacturing).toEqual(
       createReadinessSnapshot(scene, 'Workshop A', capturedAt).manufacturing,

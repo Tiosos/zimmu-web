@@ -5,6 +5,7 @@ import { cabinet } from '../geom/__fixtures__/cabinetSheet'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
 import { regenerateComponents } from '../scene/regenerateComponents'
 import { buildReadinessPdf, readinessPdfFilename } from './buildReadinessPdf'
+import { manufacturingProject } from '../scene/__fixtures__/manufacturingProject'
 import type { Scene } from '../scene/types'
 
 const sceneOf = (): Scene =>
@@ -40,6 +41,45 @@ async function contents(bytes: Uint8Array) {
 }
 
 describe('readiness PDF', () => {
+  it('captures full manual setup text and parameters without turning instructions into geometry', async () => {
+    const scene = manufacturingProject()
+    const snapshot = createReadinessSnapshot(scene, 'Manual setup', date)
+    const pending = buildReadinessPdf(snapshot)
+    const f = snapshot.machining.findings.find((f) => f.instruction?.id === 'manual-instruction')!
+    f.instruction!.instruction = 'Later text'
+    const { text } = await contents(await pending)
+    expect(text).toContain('manual-instruction')
+    expect(text).toContain('Confirm jig setup before machining')
+    expect(text).toContain('Synthetic jig')
+    expect(text).toContain('Manual setup: face +Z; at (20, 30, 18) mm')
+    expect(text).toContain('hinge-overlay')
+    expect(text).not.toContain('Later text')
+  })
+
+  it('exports every drilling finding and captures operation IDs and manual text before awaiting', async () => {
+    const snapshot = createReadinessSnapshot(sceneOf(), 'Drilling', date)
+    snapshot.machining.findings = Array.from({ length: 205 }, (_, i) => ({
+      reference: `D${i + 1}`,
+      code: 'drilling-bounds',
+      message: 'Hole footprint crosses board',
+      part: { id: `drill-part-${i}`, label: 'Panel', cabinetId: 'cab' },
+      operation: {
+        id: `drill-op-${i}`,
+        label: 'Hole row',
+        kind: 'hole-array',
+        sourceJointId: 'joint-source',
+      },
+    }))
+    const pending = buildReadinessPdf(snapshot)
+    snapshot.machining.findings = []
+    const { doc, text } = await contents(await pending)
+    expect(doc.getPageCount()).toBeGreaterThan(5)
+    expect(text).toContain('D205 | drilling-bounds')
+    expect(text).toContain('drill-op-204')
+    expect(text).toContain('Source joint: joint-source')
+    expect(text).toContain('Machine operation compatibility')
+  })
+
   it('exports all manufacturing findings and captures their targets before awaiting', async () => {
     const snapshot = createReadinessSnapshot(sceneOf(), 'Manufacturing', date)
     snapshot.manufacturing.findings = Array.from({ length: 205 }, (_, i) => ({

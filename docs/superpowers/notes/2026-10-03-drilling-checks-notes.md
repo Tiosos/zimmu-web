@@ -1,0 +1,7 @@
+# Drilling checks notes
+
+Base: merged PR #82, main 43f6e64. Scope is finished rectangular board drilling envelope and manual instruction review. Signed pitches and through holes follow the existing geometry kernel. No machine profile or machine-ready state is invented.
+
+Implementation derives stock and machining reports from the same shared records. Drilling inventory counts are separate from findings; invalid board dimensions and each round bore retain explicit unassessed findings. Manual setup retains the captured face/reference point, diameter, pitch, count, angle, edge offset, hardware key, template and instruction; these never enter solid cuts. Five deliberate mutations (finite values, hole radius, last-row endpoint, row axis and manual detachment) each fail assertions. Original source bytes restored before the full suite and builds.
+
+Local validation: 158 test files passed, 2,806 tests passed and 10 existing skips. Typecheck, lint, production build, catalogue build, E2E typecheck and diff whitespace checks passed before publication. Coverage includes all six faces/U/V against the kernel, through/reversed/single rows, finite/enum/count/radius/endpoint bounds, generated shelf and screw drilling, hidden/grain/banding/placement independence, save/reopen, manual detachment, live correction, 200-row UI limits, complete PDFs and captured packet report hashes. Existing stock, CSV, nesting, drawing and label regressions remain green.

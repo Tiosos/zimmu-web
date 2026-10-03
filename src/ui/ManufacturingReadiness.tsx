@@ -9,6 +9,7 @@ import type {
   Selection,
 } from '../scene/types'
 import { manufacturingParts } from '../scene/manufacturingPart'
+import { manufacturingMachining } from '../scene/manufacturingMachining'
 import { manufacturingChecks } from '../scene/manufacturingChecks'
 import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
 import { buildShelfReadiness, type ShelfReadinessRow } from '../scene/shelfReadiness'
@@ -89,17 +90,17 @@ export function ManufacturingReadiness({
   }
   const report = useMemo(() => buildShelfReadiness(scene), [scene])
   const production = useMemo(() => buildProductionReadiness(scene), [scene])
-  const manufacturing = useMemo(
+  const records = useMemo(
     () =>
-      manufacturingChecks(
-        manufacturingParts(
-          scene.parts,
-          effectiveMaterialsOf(materialLibrary, scene.materials),
-          scene.components,
-        ),
+      manufacturingParts(
+        scene.parts,
+        effectiveMaterialsOf(materialLibrary, scene.materials),
+        scene.components,
       ),
     [scene, materialLibrary],
   )
+  const manufacturing = useMemo(() => manufacturingChecks(records), [records])
+  const machining = useMemo(() => manufacturingMachining(records), [records])
   const reconciliation = useMemo(
     () => reconcileScene(scene, materialLibrary),
     [scene, materialLibrary],
@@ -166,8 +167,8 @@ export function ManufacturingReadiness({
       </p>
       <p className="text-xs text-muted-foreground mb-4">
         Production packet (ZIP): readiness PDF, shop drawings with available installation sheets,
-        board/dowel/hardware CSVs, manufacturing checks JSON, and a snapshot manifest. Includes
-        hidden items. It is advisory and does not save a project revision.
+        board/dowel/hardware CSVs, manufacturing and machining checks JSON, and a snapshot manifest.
+        Includes hidden items. It is advisory and does not save a project revision.
       </p>
       <section aria-label="Production checks" className="border rounded p-3 mb-4">
         <h3 className="font-medium">Production checks</h3>
@@ -220,7 +221,8 @@ export function ManufacturingReadiness({
           {manufacturing.checkedParts} parts checked · {manufacturing.findings.length} findings
         </p>
         <p className="text-xs text-muted-foreground">
-          Not assessed: {manufacturing.unassessed.join(', ')}.
+          Outside the stock and label checks: {manufacturing.unassessed.join(', ')}. See the
+          separate drilling report for its coverage.
         </p>
         {manufacturing.findings.length === 0 && <p>No issues found by these checks.</p>}
         {manufacturing.findings.slice(0, 200).map((finding) => (
@@ -251,6 +253,65 @@ export function ManufacturingReadiness({
         ))}
         {manufacturing.findings.length > 200 && (
           <p>Showing the first 200 findings. PDF and production packet include all findings.</p>
+        )}
+      </section>
+      <section aria-label="Drilling and manual machining" className="border rounded p-3 mb-4">
+        <h3 className="font-medium">Drilling and manual machining</h3>
+        <p className="text-sm">
+          {machining.boardHoleArrays} board hole arrays · {machining.roundBores} round bores ·{' '}
+          {machining.manualOperations} manual instructions · {machining.findings.length} findings
+        </p>
+        <p className="text-xs text-muted-foreground">{machining.scope}</p>
+        <p className="text-xs text-muted-foreground">
+          Not assessed: {machining.unassessed.join('; ')}.
+        </p>
+        {machining.findings.length === 0 && (
+          <p>
+            No issues found by the board envelope checks. Other machining checks remain unassessed.
+          </p>
+        )}
+        {machining.findings.slice(0, 200).map((f) => (
+          <div key={f.reference} className="border-t py-2 text-sm">
+            <p>
+              <strong>
+                {f.reference} · {f.operation.label}:
+              </strong>{' '}
+              {f.message}
+            </p>
+            {f.instruction && (
+              <p>
+                Manual setup: face {f.instruction.face}; at ({f.instruction.at.x},{' '}
+                {f.instruction.at.y}, {f.instruction.at.z}) mm; diameter {f.instruction.diameter}{' '}
+                mm; pitch {f.instruction.pitch} mm; count {f.instruction.count}; angle{' '}
+                {f.instruction.angle}°; edge offset {f.instruction.edgeOffset} mm. Hardware:{' '}
+                {f.instruction.hardwareKey}.
+              </p>
+            )}
+            {f.instruction && (
+              <p>
+                Template: {f.instruction.template}. Instruction: {f.instruction.instruction}
+              </p>
+            )}
+            {onInspect ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onInspect({ kind: 'part', id: f.part.id })}
+              >
+                Inspect {f.part.label || f.part.id}
+              </Button>
+            ) : (
+              <p>
+                {f.part.label} [{f.part.id}]
+              </p>
+            )}
+          </div>
+        ))}
+        {machining.findings.length > 200 && (
+          <p>
+            Showing the first 200 machining findings. PDF and production packet include all
+            findings.
+          </p>
         )}
       </section>
       <ReconciliationSection result={reconciliation} onInspect={onInspect} />
