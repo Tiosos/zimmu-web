@@ -168,6 +168,7 @@ describe('physical manufacturing records', () => {
     expect(manufacturingParts(next.parts, next.materials, next.components)).toEqual(before)
     const stock = record(scene).stock
     expect(stock).toEqual({
+      resolved: true,
       thickness: 18,
       hasGrain: true,
       sheet: { length: 2440, width: 1220 },
@@ -176,7 +177,13 @@ describe('physical manufacturing records', () => {
     stock.sheet!.width = 999
     expect(scene.materials['18mm Ply'].sheet!.width).toBe(1220)
     delete scene.materials['18mm Ply']
-    expect(record(scene).stock).toEqual({ thickness: null, hasGrain: true, sheet: null, use: null })
+    expect(record(scene).stock).toEqual({
+      resolved: false,
+      thickness: null,
+      hasGrain: true,
+      sheet: null,
+      use: null,
+    })
     scene.materials['18mm Ply'] = { hasGrain: false }
     expect(record(scene).stock.hasGrain).toBe(false)
   })

@@ -20,6 +20,7 @@ import {
   nestingGeometryOf,
   edgeCode,
   edgesOf,
+  requestedEdgesOf,
   type BoardEdges,
 } from './edgeBanding'
 
@@ -47,6 +48,7 @@ export function cutDimensions(
   return c.problem ? { ...dims, problem: c.problem } : dims
 }
 export interface ManufacturingStock {
+  resolved: boolean
   thickness: number | null
   hasGrain: boolean
   sheet: { length: number; width: number } | null
@@ -94,6 +96,7 @@ export interface ManufacturingBoard extends RecordBase {
   edges: BoardEdges
   edgeCode: string
   edgeMaterials: string[]
+  requestedEdgeStock: { material: string; stock: ManufacturingStock }[]
   edgeBand: { material: string; mm: number }[]
   cuts: CutDef[]
 }
@@ -108,6 +111,15 @@ export interface ManufacturingContext {
   byId: Map<ComponentId, Component>
   materials: Record<string, MaterialDef>
 }
+function stockOf(material?: MaterialDef): ManufacturingStock {
+  return {
+    resolved: material !== undefined,
+    thickness: material?.thickness ?? null,
+    hasGrain: material?.hasGrain ?? true,
+    sheet: material?.sheet ? { length: material.sheet.length, width: material.sheet.width } : null,
+    use: material?.use ?? null,
+  }
+}
 export function manufacturingPart(p: Part, context: ManufacturingContext): ManufacturingPart {
   const cabinet = nearestCarcase(p, context.byId)
   const material = context.materials[p.material]
@@ -116,14 +128,7 @@ export function manufacturingPart(p: Part, context: ManufacturingContext): Manuf
     label: p.label,
     material: p.material,
     color: p.color,
-    stock: {
-      thickness: material?.thickness ?? null,
-      hasGrain: material?.hasGrain ?? true,
-      sheet: material?.sheet
-        ? { length: material.sheet.length, width: material.sheet.width }
-        : null,
-      use: material?.use ?? null,
-    },
+    stock: stockOf(material),
     provenance: {
       parentId: p.parentId,
       cabinetId: cabinet?.id ?? null,
@@ -146,6 +151,7 @@ export function manufacturingPart(p: Part, context: ManufacturingContext): Manuf
       cuts: structuredClone(p.cuts),
     }
   const edges = edgesOf(p, context.byId, context.materials)
+  const requestedEdges = requestedEdgesOf(p, context.byId)
   const localCut = cutSizeOf(p, edges, context.materials)
   const cut = isSwapped(p)
     ? { ...localCut, length: localCut.width, width: localCut.length }
@@ -167,6 +173,13 @@ export function manufacturingPart(p: Part, context: ManufacturingContext): Manuf
         EDGE_KEYS.map((key) => edges[key]).filter((name): name is string => name !== null),
       ),
     ].sort(),
+    requestedEdgeStock: [
+      ...new Set(
+        EDGE_KEYS.map((key) => requestedEdges[key]).filter((name): name is string => name !== null),
+      ),
+    ]
+      .sort()
+      .map((name) => ({ material: name, stock: stockOf(context.materials[name]) })),
     edgeBand: bandedEdgeLengths(p, edges),
     cuts: structuredClone(p.cuts),
   }

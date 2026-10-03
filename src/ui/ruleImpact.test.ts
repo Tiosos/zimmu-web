@@ -436,6 +436,7 @@ describe('deep review production contracts', () => {
       },
     })!
     expect(JSON.parse(result.parts[0].before!.stock)).toEqual({
+      resolved: true,
       thickness: 18,
       hasGrain: false,
       sheet: { length: 2400, width: 1200 },

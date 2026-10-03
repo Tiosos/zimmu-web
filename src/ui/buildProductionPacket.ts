@@ -52,7 +52,12 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
     materialLibrary: input.materialLibrary,
   })
   const capturedAt = new Date(input.capturedAt ?? new Date())
-  const snapshot = createReadinessSnapshot(captured.scene, captured.projectName, capturedAt)
+  const snapshot = createReadinessSnapshot(
+    captured.scene,
+    captured.projectName,
+    capturedAt,
+    captured.materialLibrary,
+  )
   const byId = componentsById(captured.scene.components)
   const cabinets = captured.scene.components
     .filter((c): c is CarcaseComponent => c.kind === 'carcase')
@@ -102,6 +107,7 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
   const files: Record<string, Uint8Array> = {
     'readiness/report.pdf': await buildReadinessPdf(snapshot),
     'drawings/shop-drawings.pdf': await buildPdf(sheets),
+    'readiness/manufacturing.json': strToU8(JSON.stringify(snapshot.manufacturing, null, 2) + '\n'),
     'readiness/reconciliation.json': strToU8(JSON.stringify(reconciliation, null, 2) + '\n'),
     'lists/boards.csv': strToU8(
       buildCsvFromRows(
@@ -136,8 +142,13 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       cabinets: snapshot.cabinets.length,
       parts: captured.scene.parts.length,
       findings: snapshot.production.findings.length,
+      manufacturingFindings: snapshot.manufacturing.findings.length,
       drawingSheets: sheets.length,
       installationSheets: references.size,
+    },
+    manufacturing: {
+      checkedParts: snapshot.manufacturing.checkedParts,
+      unassessed: snapshot.manufacturing.unassessed,
     },
     reconciliation: {
       status: reconciliation.status,

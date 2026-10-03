@@ -36,14 +36,34 @@ afterEach(() => {
 })
 
 describe('readiness UI', () => {
-  it('shows whether the drawings and the cutlist agree', () => {
-    render(
+  it('shows advisory record issues, inspects stable IDs and updates with the material library', () => {
+    const scene = structuredClone(sceneOf())
+    const part = scene.parts[0]
+    part.material = 'Library board'
+    const inspect = vi.fn()
+    const props = { scene, onClose: vi.fn(), onOpenSheet: vi.fn(), onInspect: inspect }
+    const view = render(<ManufacturingReadiness {...props} />)
+    const section = screen.getByRole('region', { name: 'Manufacturing record checks' })
+    expect(within(section).getByText(/Material "Library board" is unresolved/)).toBeTruthy()
+    fireEvent.click(within(section).getAllByRole('button', { name: `Inspect ${part.label}` })[0])
+    expect(inspect).toHaveBeenCalledWith({ kind: 'part', id: part.id })
+    expect(
+      screen.getByRole('button', { name: 'Export readiness PDF' }).hasAttribute('disabled'),
+    ).toBe(false)
+    view.rerender(
       <ManufacturingReadiness
-        scene={sceneOf()}
-        onClose={vi.fn()}
-        onOpenSheet={vi.fn()}
+        {...props}
+        materialLibrary={{
+          'Library board': { thickness: part.kind === 'board' ? part.thickness : 18 },
+        }}
       />,
     )
+    expect(within(section).queryByText(/Material "Library board" is unresolved/)).toBeNull()
+    expect(within(section).getByText(/Machine operation compatibility/)).toBeTruthy()
+  })
+
+  it('shows whether the drawings and the cutlist agree', () => {
+    render(<ManufacturingReadiness scene={sceneOf()} onClose={vi.fn()} onOpenSheet={vi.fn()} />)
     const section = screen
       .getByText('Production packet drawings and lists agree?')
       .closest('section') as HTMLElement

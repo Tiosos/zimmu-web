@@ -1,8 +1,16 @@
-import type { Scene } from './types'
+import type { MaterialDef, Scene } from './types'
 import { buildProductionReadiness } from './productionReadiness'
+import { manufacturingParts } from './manufacturingPart'
+import { manufacturingChecks } from './manufacturingChecks'
+import { effectiveMaterialsOf } from './effectiveMaterials'
 import { buildShelfReadiness } from './shelfReadiness'
 
-export function createReadinessSnapshot(scene: Scene, projectName: string, date = new Date()) {
+export function createReadinessSnapshot(
+  scene: Scene,
+  projectName: string,
+  date = new Date(),
+  materialLibrary: Record<string, MaterialDef> = {},
+) {
   // Capture before any asynchronous PDF work: later edits cannot mix revisions in one report.
   const captured = structuredClone(scene)
   const production = buildProductionReadiness(captured)
@@ -25,6 +33,13 @@ export function createReadinessSnapshot(scene: Scene, projectName: string, date 
   return {
     projectName,
     capturedAt: date.toISOString(),
+    manufacturing: manufacturingChecks(
+      manufacturingParts(
+        captured.parts,
+        effectiveMaterialsOf(structuredClone(materialLibrary), captured.materials),
+        captured.components,
+      ),
+    ),
     production: {
       ...production,
       findings: production.findings.map((f, i) => ({
