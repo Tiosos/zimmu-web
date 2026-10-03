@@ -2,13 +2,12 @@ import type { Component, HardwareItem, MaterialDef, Part } from '../scene/types'
 import { EDGE_KEYS } from '../scene/edgeBanding'
 import { manufacturingParts, type ManufacturingPart } from '../scene/manufacturingPart'
 import type { HardwareRow } from './groupHardware'
-export { finishedDimensions, cutDimensions, type CutDims } from '../scene/manufacturingPart'
-
-// A sheet created by typing one dimension into the library carries 0 for the other. Zero is
-// absent, not a zero-sized sheet: a material is nestable only once both dimensions are real.
-export function isNestable(def: MaterialDef): boolean {
-  return def.sheet !== undefined && def.sheet.length > 0 && def.sheet.width > 0
-}
+export {
+  finishedDimensions,
+  cutDimensions,
+  isNestable,
+  type CutDims,
+} from '../scene/manufacturingPart'
 
 export interface GroupedRow {
   key: string

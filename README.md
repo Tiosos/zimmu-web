@@ -40,7 +40,7 @@ Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 - Dirty tracking (`isDirty`, tab title `•` indicator)
 
 ### Bill of Materials
-- BOM and catalogue-update previews share transient manufacturing records: stable part/cabinet provenance, local and BOM dimensions, grain/edges, geometric cuts and separate manual instructions. Prices remain separate; existing CSV schemas and saved-file format are preserved.
+- BOM, catalogue-update previews, sheet nesting and sheet part labels share transient manufacturing records: stable part/cabinet provenance, local and BOM dimensions, grain/edges, geometric cuts and separate manual instructions. Nesting uses board-local cut footprints, excludes invalid cut sizes with reasons, and retains part IDs. Sheet label details carry cabinet/part references and shared sizes. Prices remain separate; existing CSV schemas and saved-file format are preserved.
 - Three-tab BOM modal (`Ctrl+Shift+E`): **Boards**, **Hardware**, **Library**
 - Boards tab: grouped cutting list with per-material cost popover; CSV copy + download
 - Hardware tab: add/edit/delete hardware items (name, qty, unit, supplier, part#, cost, notes); items link to board parts via checkbox

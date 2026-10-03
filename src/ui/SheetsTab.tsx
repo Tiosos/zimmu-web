@@ -1,3 +1,4 @@
+import type { ManufacturingLabel } from '../scene/manufacturingLabels'
 import type { NestReport } from '../scene/useNest'
 import type { MaterialDef } from '../scene/types'
 import { buildSheetSvg } from './buildSheetSvg'
@@ -7,6 +8,7 @@ interface SheetsTabProps {
   pending: boolean
   materials: Record<string, MaterialDef>
   labelOf: (id: string) => string
+  labelDetails?: Map<string, ManufacturingLabel>
 }
 
 interface Cost {
@@ -31,7 +33,7 @@ function placedArea(report: NestReport): number {
   return report.result.sheets.flat().reduce((sum, p) => sum + p.w * p.h, 0)
 }
 
-export function SheetsTab({ reports, pending, materials, labelOf }: SheetsTabProps) {
+export function SheetsTab({ reports, pending, materials, labelOf, labelDetails }: SheetsTabProps) {
   if (pending) {
     return (
       <p className="text-xs text-muted-foreground py-4 text-center">
@@ -92,6 +94,12 @@ export function SheetsTab({ reports, pending, materials, labelOf }: SheetsTabPro
               </span>
             </div>
 
+            {r.excluded && r.excluded.length > 0 && (
+              <p role="alert" className="mt-2 text-xs text-amber-200">
+                Invalid cut size, not nested:{' '}
+                {r.excluded.map((p) => `${labelOf(p.id)} (${p.id}): ${p.problem}`).join('; ')}
+              </p>
+            )}
             {r.result.unplaced.length > 0 && (
               <p
                 role="alert"
@@ -112,7 +120,7 @@ export function SheetsTab({ reports, pending, materials, labelOf }: SheetsTabPro
                   <div
                     className="text-foreground"
                     dangerouslySetInnerHTML={{
-                      __html: buildSheetSvg(r.sheet, placements, labelOf),
+                      __html: buildSheetSvg(r.sheet, placements, labelOf, 600, labelDetails),
                     }}
                   />
                 </div>

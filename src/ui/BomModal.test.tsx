@@ -550,3 +550,28 @@ describe('BomModal — the Library tab lists hardware too', () => {
     ).toBeDefined()
   })
 })
+
+it('builds sheet label facts from current manufacturing records and refreshes them without new placements', () => {
+  const p = { ...parts[0], parentId: cabinet.id }
+  const nestReports = [
+    {
+      material: 'Plywood',
+      sheet: { length: 2440, width: 1220 },
+      result: {
+        sheets: [[{ id: p.id, sheet: 0, rotation: 0 as const, x: 0, y: 0, w: 600, h: 300 }]],
+        utilisation: [0.1],
+        unplaced: [],
+      },
+    },
+  ]
+  const props = { ...baseProps, parts: [p], components: [cabinet], nestReports }
+  const { container, rerender } = render(<BomModal {...props} />)
+  fireEvent.click(screen.getByRole('tab', { name: /sheets/i }))
+  expect(container.querySelector('rect[data-part]')?.getAttribute('data-cabinet')).toBe(cabinet.id)
+  expect(container.querySelector('rect[data-part] title')?.textContent).toContain(
+    'Finished 600 × 300 × 18 mm; Cut 600 × 300 × 18 mm',
+  )
+  rerender(<BomModal {...props} parts={[{ ...p, label: 'Renamed shelf' }]} />)
+  expect(container.querySelector('rect[data-part] title')?.textContent).toContain('Renamed shelf')
+  expect(container.querySelector('svg text')?.textContent).toBe('Renamed shelf')
+})

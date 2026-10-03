@@ -48,7 +48,11 @@ describe('buildSheetSvg', () => {
         VIEWPORT,
       ),
     )
-    expect(partRects(root).map((r) => r.id).sort()).toEqual(['a', 'b', 'c'])
+    expect(
+      partRects(root)
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual(['a', 'b', 'c'])
   })
 
   it('draws every part inside the sheet outline', () => {
@@ -92,7 +96,12 @@ describe('buildSheetSvg', () => {
 
   it('labels every placement', () => {
     const root = parse(
-      buildSheetSvg(SHEET, [place({ id: 'a' }), place({ id: 'b', x: 700 })], (id) => `Part ${id}`, VIEWPORT),
+      buildSheetSvg(
+        SHEET,
+        [place({ id: 'a' }), place({ id: 'b', x: 700 })],
+        (id) => `Part ${id}`,
+        VIEWPORT,
+      ),
     )
     const texts = [...root.querySelectorAll('text')].map((t) => t.textContent)
     expect(texts).toContain('Part a')
@@ -101,7 +110,12 @@ describe('buildSheetSvg', () => {
 
   it('omits a label too big for its part rather than letting it overflow', () => {
     const root = parse(
-      buildSheetSvg(SHEET, [place({ id: 'tiny', w: 20, h: 20 })], () => 'A very long label', VIEWPORT),
+      buildSheetSvg(
+        SHEET,
+        [place({ id: 'tiny', w: 20, h: 20 })],
+        () => 'A very long label',
+        VIEWPORT,
+      ),
     )
     expect(root.querySelectorAll('text')).toHaveLength(0)
   })
@@ -116,5 +130,57 @@ describe('buildSheetSvg', () => {
     const root = parse(buildSheetSvg(SHEET, [], () => '', VIEWPORT))
     expect(partRects(root)).toEqual([])
     expect(sheetRect(root).w).toBeCloseTo(VIEWPORT, 6)
+  })
+})
+
+describe('manufacturing sheet label traceability', () => {
+  it('escapes cabinet identity and details even when visible text cannot fit', () => {
+    const id = 'part"<&'
+    const owner = 'cabinet"<&'
+    const detail = '<script>bad & text</script>; Finished 720 × 560 × 18 mm'
+    const labels = new Map([[id, { id, cabinetId: owner, text: 'Side', detail }]])
+    const root = parse(
+      buildSheetSvg(
+        SHEET,
+        [place({ id, w: 20, h: 20 })],
+        () => 'A very long label',
+        VIEWPORT,
+        labels,
+      ),
+    )
+    const rect = root.querySelector('rect[data-part]')!
+    expect(rect.getAttribute('data-part')).toBe(id)
+    expect(rect.getAttribute('data-cabinet')).toBe(owner)
+    expect(rect.querySelector('title')?.textContent).toBe(detail)
+    expect(root.querySelector('script')).toBeNull()
+    expect(root.querySelector('text')).toBeNull()
+  })
+  it('keeps duplicate visible labels attached to distinct cabinet and part IDs', () => {
+    const labels = new Map(
+      ['a', 'b'].map((id) => [
+        id,
+        { id, cabinetId: `cabinet-${id}`, text: 'Side', detail: `Part ID ${id}` },
+      ]),
+    )
+    const root = parse(
+      buildSheetSvg(
+        SHEET,
+        [place({ id: 'a' }), place({ id: 'b', x: 700 })],
+        () => 'Side',
+        VIEWPORT,
+        labels,
+      ),
+    )
+    expect(
+      [...root.querySelectorAll('rect[data-part]')].map((r) => [
+        r.getAttribute('data-part'),
+        r.getAttribute('data-cabinet'),
+        r.querySelector('title')?.textContent,
+      ]),
+    ).toEqual([
+      ['a', 'cabinet-a', 'Part ID a'],
+      ['b', 'cabinet-b', 'Part ID b'],
+    ])
+    expect([...root.querySelectorAll('text')].map((t) => t.textContent)).toEqual(['Side', 'Side'])
   })
 })

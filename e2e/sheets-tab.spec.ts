@@ -65,6 +65,25 @@ test('the Sheets tab nests a real cabinet through the nest worker', async ({ pag
   const svgs = panel.locator('svg[role="img"]')
   await expect(svgs).toHaveCount(1)
   await expect(svgs.first().locator('[data-part]')).toHaveCount(7)
+  await expect(svgs.first().locator('[data-part][data-cabinet] title')).toHaveCount(7)
+  const labelFacts = await svgs
+    .first()
+    .locator('[data-part]')
+    .evaluateAll((rects) =>
+      rects.map((r) => ({
+        id: r.getAttribute('data-part'),
+        cabinet: r.getAttribute('data-cabinet'),
+        detail: r.querySelector('title')?.textContent ?? '',
+      })),
+    )
+  expect(new Set(labelFacts.map((f) => f.cabinet)).size).toBe(1)
+  for (const fact of labelFacts) {
+    expect(fact.cabinet).toBeTruthy()
+    expect(fact.detail).toContain(`Cabinet ID ${fact.cabinet}`)
+    expect(fact.detail).toContain(`Part ID ${fact.id}`)
+    expect(fact.detail).toContain('Finished ')
+    expect(fact.detail).toContain('; Cut ')
+  }
 
   const drawn: SheetSvg = await svgs.first().evaluate((el) => {
     const num = (r: Element, a: string) => parseFloat(r.getAttribute(a) ?? 'NaN')
@@ -108,7 +127,7 @@ test('the Sheets tab nests a real cabinet through the nest worker', async ({ pag
   }
 
   // `labelOf` reaches the drawing: the rects carry part ids, so a label on the sheet can only have
-  // come from the scene.
+  // come from the current manufacturing record.
   expect(drawn.labels.sort()).toEqual([
     'Adj Shelf 1',
     'Bottom',

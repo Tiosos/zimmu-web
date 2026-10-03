@@ -4,8 +4,13 @@ import { nestSheets } from './nest'
 import type { NestResult, SheetSpec } from './nest'
 import type { BoardPart } from '../scene/types'
 
+export type NestBoard = Pick<
+  BoardPart,
+  'kind' | 'id' | 'length' | 'width' | 'thickness' | 'grain' | 'cuts'
+>
+
 export interface NestJob {
-  parts: BoardPart[] // one material's boards
+  parts: NestBoard[] // one material's boards
   clearance: number
   sheet: SheetSpec
   hasGrain: boolean
@@ -14,7 +19,7 @@ export interface NestJob {
 // The job carries parts, not masks. Masking costs ~6 ms a board and a dilated mask for a 2100 mm
 // panel is over a megabyte, so masking on the main thread and posting the results would leave the
 // cost on the very thread this worker exists to protect, and transfer megabytes to save nothing.
-// `BoardPart` is plain serialisable data, so both steps happen here.
+// The physical board footprint is plain serialisable data, so both steps happen here.
 //
 // Nothing needs `transfer()`: the OCCT worker uses it because it returns large typed arrays, and a
 // `NestResult` is a handful of small objects.

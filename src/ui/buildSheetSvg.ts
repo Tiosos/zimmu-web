@@ -1,3 +1,4 @@
+import type { ManufacturingLabel } from '../scene/manufacturingLabels'
 import type { Placement, SheetSpec } from '../nest/nest'
 
 // Roughly how wide a character is at a given font size, for deciding whether a label fits its part.
@@ -22,6 +23,7 @@ export function buildSheetSvg(
   placements: Placement[],
   labelOf: (id: string) => string,
   viewportWidth = 600,
+  labelDetails?: Map<string, ManufacturingLabel>,
 ): string {
   const scale = viewportWidth / sheet.length
   const w = sheet.length * scale
@@ -40,7 +42,10 @@ export function buildSheetSvg(
         ? `<text x="${(px + pw / 2).toFixed(2)}" y="${(py + ph / 2 + LABEL_SIZE / 3).toFixed(2)}" text-anchor="middle" font-size="${LABEL_SIZE}" fill="currentColor" opacity="0.75">${escapeXml(label)}</text>`
         : ''
 
-      return `<rect data-part="${escapeXml(p.id)}" x="${px.toFixed(2)}" y="${py.toFixed(2)}" width="${pw.toFixed(2)}" height="${ph.toFixed(2)}" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-opacity="0.55" stroke-width="0.75" />${text}`
+      const details = labelDetails?.get(p.id)
+      const owner = details?.cabinetId ? ` data-cabinet="${escapeXml(details.cabinetId)}"` : ''
+      const title = details ? `<title>${escapeXml(details.detail)}</title>` : ''
+      return `<rect${owner} data-part="${escapeXml(p.id)}" x="${px.toFixed(2)}" y="${py.toFixed(2)}" width="${pw.toFixed(2)}" height="${ph.toFixed(2)}" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-opacity="0.55" stroke-width="0.75">${title}</rect>${text}`
     })
     .join('')
 

@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { wrap } from 'comlink'
-import type { NestWorkerApi } from '../nest/nest.worker'
+import type { NestBoard, NestWorkerApi } from '../nest/nest.worker'
 import type { NestResult, SheetSpec } from '../nest/nest'
-import { isNestable } from '../ui/buildCsv'
 import { shapeKey } from './utils'
-import { cutPartOf } from './edgeBanding'
-import { componentsById } from './componentTree'
-import type { BoardPart, Component, MaterialDef, Part } from './types'
+import { isNestable, manufacturingParts, type ManufacturingPart } from './manufacturingPart'
+import type { Component, MaterialDef, Part } from './types'
 
 export interface NestReport {
   material: string
   sheet: SheetSpec
   result: NestResult
+  excluded?: { id: string; problem: string }[]
 }
 
 const DEBOUNCE_MS = 400
@@ -19,7 +18,8 @@ const DEBOUNCE_MS = 400
 interface Group {
   material: string
   def: MaterialDef
-  parts: BoardPart[]
+  parts: NestBoard[]
+  excluded: { id: string; problem: string }[]
 }
 
 export function groupByNestableMaterial(
@@ -27,20 +27,28 @@ export function groupByNestableMaterial(
   materials: Record<string, MaterialDef>,
   components: Component[],
 ): Group[] {
-  const byId = componentsById(components)
+  return groupNestRecords(manufacturingParts(parts, materials, components))
+}
+
+export function groupNestRecords(records: ManufacturingPart[]): Group[] {
   const groups = new Map<string, Group>()
-  for (const p of parts) {
+  for (const p of records) {
     if (p.kind !== 'board') continue
-    const def = materials[p.material]
-    // A material with no sheet is not nested — dowels, hardware, stock bought to length. Not an
-    // error and not a zero-sheet row: it simply keeps its Boards-tab rows and is absent here.
-    if (def === undefined || !isNestable(def)) continue
-    const existing = groups.get(p.material)
-    if (existing) existing.parts.push(cutPartOf(p, byId, materials))
-    else
-      groups.set(p.material, { material: p.material, def, parts: [cutPartOf(p, byId, materials)] })
+    const sheet = p.stock.sheet
+    if (!sheet || !isNestable(p.stock)) continue
+    let group = groups.get(p.material)
+    if (!group) {
+      group = {
+        material: p.material,
+        def: { sheet, hasGrain: p.stock.hasGrain },
+        parts: [],
+        excluded: [],
+      }
+      groups.set(p.material, group)
+    }
+    if (p.cut.problem) group.excluded.push({ id: p.id, problem: p.cut.problem })
+    else group.parts.push({ kind: 'board', id: p.id, grain: p.grain, ...p.nesting })
   }
-  // Sorted so the report order does not depend on which part happened to come first.
   return [...groups.values()].sort((a, b) => a.material.localeCompare(b.material))
 }
 
@@ -57,6 +65,7 @@ export function jobSignature(groups: Group[], clearance: number): string {
       g.def.sheet?.width,
       g.def.hasGrain ?? true,
       g.parts.map((p) => `${p.id}|${shapeKey(p)}|${p.grain}`),
+      g.excluded,
     ]),
   ])
 }
@@ -104,21 +113,25 @@ export function useNest(
       // because the worker cannot service that message until the current call returns. Give each
       // active signature its own disposable worker instead: cleanup can terminate obsolete work
       // immediately and the next signature starts on a fresh event loop.
-      worker = new Worker(new URL('../nest/nest.worker.ts', import.meta.url), { type: 'module' })
-      const nester = wrap<NestWorkerApi>(worker)
+      if (pendingGroups.some((g) => g.parts.length > 0))
+        worker = new Worker(new URL('../nest/nest.worker.ts', import.meta.url), { type: 'module' })
+      const nester = worker ? wrap<NestWorkerApi>(worker) : null
 
       void Promise.all(
         pendingGroups.map(async (g) => ({
           material: g.material,
           sheet: g.def.sheet!,
-          result: await nester.nestJob({
-            parts: g.parts,
-            clearance,
-            sheet: g.def.sheet!,
-            // Absent means the stock has grain: the safe default, and the one the Library
-            // checkbox shows.
-            hasGrain: g.def.hasGrain ?? true,
-          }),
+          excluded: g.excluded,
+          result: g.parts.length
+            ? await nester!.nestJob({
+                parts: g.parts,
+                clearance,
+                sheet: g.def.sheet!,
+                // Absent means the stock has grain: the safe default, and the one the Library
+                // checkbox shows.
+                hasGrain: g.def.hasGrain ?? true,
+              })
+            : { sheets: [], utilisation: [], unplaced: [] },
         })),
       )
         .then((reports) => {

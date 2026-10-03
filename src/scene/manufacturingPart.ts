@@ -17,6 +17,7 @@ import {
   EDGE_KEYS,
   bandedEdgeLengths,
   cutSizeOf,
+  nestingGeometryOf,
   edgeCode,
   edgesOf,
   type BoardEdges,
@@ -51,6 +52,19 @@ export interface ManufacturingStock {
   sheet: { length: number; width: number } | null
   use: 'edge' | null
 }
+// A half-filled Library sheet has a zero dimension. Non-finite legacy library values must
+// also stay outside raster jobs: they cannot describe allocatable physical sheet stock.
+export function isNestable(def: MaterialDef | ManufacturingStock): boolean {
+  const sheet = def.sheet
+  return (
+    sheet != null &&
+    Number.isFinite(sheet.length) &&
+    Number.isFinite(sheet.width) &&
+    sheet.length > 0 &&
+    sheet.width > 0
+  )
+}
+
 export interface PartProvenance {
   parentId: ComponentId | null
   cabinetId: ComponentId | null
@@ -71,6 +85,7 @@ interface RecordBase {
 }
 export interface ManufacturingBoard extends RecordBase {
   kind: 'board'
+  nesting: Pick<BoardPart, 'length' | 'width' | 'thickness' | 'cuts'>
   local: CutDims
   finished: CutDims
   cut: CutDims & { problem?: string }
@@ -131,12 +146,17 @@ export function manufacturingPart(p: Part, context: ManufacturingContext): Manuf
       cuts: structuredClone(p.cuts),
     }
   const edges = edgesOf(p, context.byId, context.materials)
+  const localCut = cutSizeOf(p, edges, context.materials)
+  const cut = isSwapped(p)
+    ? { ...localCut, length: localCut.width, width: localCut.length }
+    : { ...localCut }
   return {
     ...base,
     kind: 'board',
     local: { length: p.length, width: p.width, thickness: p.thickness },
     finished: finishedDimensions(p),
-    cut: cutDimensions(p, edges, context.materials),
+    cut,
+    nesting: nestingGeometryOf(p, edges, context.materials, localCut),
     grain: p.grain,
     // After BOM dimension ordering, any constrained grain runs along the reported length.
     bomGrain: p.grain === 'free' ? 'free' : 'length',

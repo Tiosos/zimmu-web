@@ -75,7 +75,10 @@ function dilate(src: Mask, r: number): Mask {
   return { w, h, bits, pad: r }
 }
 
-export function occupancyMask(part: BoardPart, clearance: number): Mask {
+export function occupancyMask<T extends Pick<BoardPart, 'length' | 'width' | 'thickness' | 'cuts'>>(
+  part: T,
+  clearance: number,
+): Mask {
   // Outward, so a 599.5 mm panel never nests as 599 and comes back short.
   const w = Math.ceil(part.length)
   const h = Math.ceil(part.width)
