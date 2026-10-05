@@ -137,6 +137,20 @@ export async function buildReadinessPdf(snapshot: ReadinessSnapshot): Promise<Ui
   line(
     'Installation references identify separate installation sheets by cabinet ID and shelf role. They are not embedded in this report PDF. In a production packet, find them in the shop drawings PDF; otherwise open Manufacturing readiness in the matching design and select Installation sheet for that shelf.',
   )
+  line('Machining schedule / drawing reconciliation', true)
+  const machining = report.machiningReconciliation
+  line(
+    `${machining.status}; ${machining.compared} operations compared; ${machining.totalFindings} findings.`,
+  )
+  line(`Not assessed: ${machining.unassessed.join(', ')}.`)
+  for (const f of machining.findings) {
+    line(`${f.reference} | ${f.kind} | ${f.field}`, true)
+    line(
+      `Part ${f.partId}; operation ${f.operationId}; source component ${f.sourceComponentId ?? 'none'}; source joint ${f.sourceJointId ?? 'none'}`,
+    )
+    line(`${f.schedule.location}: ${JSON.stringify(f.schedule.value)}`)
+    line(`${f.drawing.location}: ${JSON.stringify(f.drawing.value)}`)
+  }
   line('Manufacturing record checks', true)
   line(
     `${report.manufacturing.checkedParts} parts checked; ${report.manufacturing.findings.length} findings.`,

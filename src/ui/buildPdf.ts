@@ -486,8 +486,11 @@ function renderPdfTitleBlock(
     font,
     color: C_DARK_GRAY,
   })
-  if (sheet.shape === 'board') {
-    wrapManufacturingNotes(sheet.manufacturingNotes).forEach((line, i) => {
+  {
+    wrapManufacturingNotes([
+      ...(sheet.shape === 'board' ? sheet.manufacturingNotes : []),
+      ...(sheet.machiningNotes ?? []).map((note) => note.text),
+    ]).forEach((line, i) => {
       page.drawText(line, {
         x: pt(tbX + 155),
         y: yflip(tbY + 4 + i * 2.4),

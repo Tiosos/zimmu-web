@@ -1,3 +1,4 @@
+import { drillingCallout } from './drillingCallout'
 import type {
   BoardPart,
   BoxCut,
@@ -51,11 +52,14 @@ export interface DimLine {
 }
 
 export interface CutLabel {
+  operationId?: string
   rect: Rect2D
   text: string
 }
 
 export interface DrawCircle {
+  operationId?: string
+  holeIndex?: number
   cx: number
   cy: number
   r: number
@@ -116,6 +120,8 @@ export interface SheetEdge {
 }
 
 interface PartSheetCommon {
+  machiningNotes?: { operationId: string; text: string }[]
+  manualNoteReferences?: { operationIds: string[]; noteIndex: number }[]
   partId: string
   partLabel: string
   material: string
@@ -261,7 +267,14 @@ function projectHoleArray(
   return Array.from({ length: h.count }, (_, i) => {
     const u = h.start[uAxis] + stepU * i
     const v = h.start[vAxis] + stepV * i
-    return { cx: u * scale, cy: flipV ? (boardH - v) * scale : v * scale, r, dashed }
+    return {
+      operationId: h.id,
+      holeIndex: i,
+      cx: u * scale,
+      cy: flipV ? (boardH - v) * scale : v * scale,
+      r,
+      dashed,
+    }
   })
 }
 
@@ -305,6 +318,7 @@ function buildView(
       const midX = ((longU + shortU) / 2) * scale
       const midY = projectV(vMax / 2)
       noteLabels.push({
+        operationId: m.id,
         rect: { x: midX, y: midY, w: 0, h: 0 },
         text: `${m.angle}°`,
       })
@@ -320,6 +334,7 @@ function buildView(
   const cutRects: Rect2D[] = viewCuts.map((c) => projectCut(c, uAxis, vAxis, boardH, scale, flipV))
 
   const cutLabels: CutLabel[] = viewCuts.map((c, i) => ({
+    operationId: c.id,
     rect: cutRects[i],
     text: `${c.size[uAxis]}×${c.size[vAxis]}mm`,
   }))
@@ -379,7 +394,7 @@ function buildView(
   }
 }
 
-function manufacturingNotesOf(p: BoardPart): string[] {
+function manufacturingNoteGroups(p: BoardPart) {
   const groups = new Map<string, NonNullable<BoardPart['operations']>>()
   for (const op of p.operations ?? []) {
     // Geometry-independent identity. Position is deliberately excluded so repeated instances of
@@ -399,10 +414,14 @@ function manufacturingNotesOf(p: BoardPart): string[] {
     groups.set(key, own)
   }
 
-  return [...groups.values()].map((ops) => {
+  return [...groups.values()].map((ops, noteIndex) => {
     const first = ops[0]
     const positions = ops.map((op) => Math.round(op.at.x * 10) / 10).join(', ')
-    return `${first.template} — ${ops.length} position${ops.length === 1 ? '' : 's'} at ${positions} mm: ${first.instruction}`
+    return {
+      operationIds: ops.map((op) => op.id),
+      noteIndex,
+      text: `${first.template} — ${ops.length} position${ops.length === 1 ? '' : 's'} at ${positions} mm: ${first.instruction}`,
+    }
   })
 }
 
@@ -486,10 +505,15 @@ function buildBoardSheet(p: BoardPart, date: string, edgeCtx?: EdgeContext): Dra
     color: p.color,
     date,
     board,
+    manualNoteReferences: manufacturingNoteGroups(p).map(({ operationIds, noteIndex }) => ({
+      operationIds,
+      noteIndex,
+    })),
+    machiningNotes: holeArrays.map((op) => ({ operationId: op.id, text: drillingCallout(op) })),
     cutCount: boxCuts.length + mitres.length + holeArrays.length,
     ...(edge ? { edge } : {}),
     manufacturingNotes: [
-      ...manufacturingNotesOf(p),
+      ...manufacturingNoteGroups(p).map((group) => group.text),
       ...(edge && edgeCtx ? edgeNoteOf(edge, edgeCtx) : []),
     ],
     views: [faceView, edgeView, endView],
@@ -513,6 +537,9 @@ function buildDowelSheet(p: CylinderPart, date: string): DrawingSheet {
     color: p.color,
     date,
     dowel: { diameter: p.diameter, length: p.length },
+    machiningNotes: p.cuts
+      .filter((op) => op.kind === 'bore-axial' || op.kind === 'bore-transverse')
+      .map((op) => ({ operationId: op.id, text: drillingCallout(op) })),
     cutCount: p.cuts.length,
     views: buildDowelViews(p, scale),
     scaleLabel: toScaleLabel(scale),
@@ -814,6 +841,7 @@ function applyEndCut(
   }
   const midZ = cut.end === '+Z' ? L - cut.offset - drop / 2 : cut.offset + drop / 2
   noteLabels.push({
+    operationId: cut.id,
     rect: { x: midZ * scale, y: (D / 2) * scale, w: 0, h: 0 },
     text: cut.angle > 0 ? `${cut.angle}°` : `${cut.offset}mm`,
   })
@@ -837,7 +865,11 @@ function applyNotch(
   const x = (cut.position - cut.width / 2) * scale
   const rect: Rect2D = { x, y: 0, w: cut.width * scale, h: cut.depth * scale }
   sideRects.push({ rect, dashed: false })
-  sideCutLabels.push({ rect, text: `${cut.width}×${cut.depth} az${cut.azimuth}°` })
+  sideCutLabels.push({
+    operationId: cut.id,
+    rect,
+    text: `${cut.width}×${cut.depth} az${cut.azimuth}°`,
+  })
   if (x > 0.5) {
     sideDims.push({
       axis: 'h',
@@ -894,6 +926,7 @@ function applyAxialBore(
     sideSegments.push({ x1: xInner, y1: yTop, x2: xInner, y2: yBot, dashed: true })
   }
   sideCutLabels.push({
+    operationId: cut.id,
     rect: { x: (xCap + xInner) / 2, y: R * scale, w: 0, h: 0 },
     text: `⌀${cut.diameter} ${cut.depth >= L ? 'through' : cut.depth}`,
   })
@@ -921,6 +954,7 @@ function applyTransverseBore(
   sideSegments.push({ x1: xL, y1: 0, x2: xL, y2: D * scale, dashed: true })
   sideSegments.push({ x1: xR, y1: 0, x2: xR, y2: D * scale, dashed: true })
   sideCutLabels.push({
+    operationId: cut.id,
     rect: { x: cut.position * scale, y: R * scale, w: 0, h: 0 },
     text: `⌀${cut.diameter} az${cut.azimuth}°`,
   })

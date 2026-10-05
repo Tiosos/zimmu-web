@@ -316,15 +316,16 @@ function renderTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): strin
       fill: '#444',
       'font-family': 'sans-serif',
     }),
-    ...(sheet.shape === 'board'
-      ? wrapManufacturingNotes(sheet.manufacturingNotes).map((line, i) =>
-          svgText(tbX + 155, tbY + 4 + i * 2.4, line, {
-            'font-size': '2',
-            fill: '#000',
-            'font-family': 'sans-serif',
-          }),
-        )
-      : []),
+    ...wrapManufacturingNotes([
+      ...(sheet.shape === 'board' ? sheet.manufacturingNotes : []),
+      ...(sheet.machiningNotes ?? []).map((note) => note.text),
+    ]).map((line, i) =>
+      svgText(tbX + 155, tbY + 4 + i * 2.4, line, {
+        'font-size': '2',
+        fill: '#000',
+        'font-family': 'sans-serif',
+      }),
+    ),
     svgRect(tbX + tbW - 20, tbY + 8, 6, 4, {
       fill: sheet.color,
       stroke: '#333',

@@ -1,3 +1,4 @@
+import { reconcileMachining } from './machiningReconciliation'
 import { strToU8, zip } from 'fflate'
 import type { Scene, HardwareLibraryEntry, CarcaseComponent, MaterialDef } from '../scene/types'
 import { componentsById, descendantIds } from '../scene/componentTree'
@@ -102,6 +103,7 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
     [],
     { materials: effectiveMaterials, byId },
   )
+  snapshot.machiningReconciliation = reconcileMachining(sheets, machining)
   const boardRows = groupPartsFromRecords(records, effectiveMaterials)
   const dowelRows = groupDowelsFromRecords(records, effectiveMaterials)
   const reconciliation = reconcileOutputs(sheets, boardRows, dowelRows)
@@ -114,6 +116,9 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
         throw new Error(`Installation sheet missing for ${shelf.installationReference}`)
 
   const files: Record<string, Uint8Array> = {
+    'readiness/machining-reconciliation.json': strToU8(
+      JSON.stringify(snapshot.machiningReconciliation, null, 2) + '\n',
+    ),
     'machining/schedule.json': strToU8(machiningScheduleJson(machining)),
     'lists/machining.csv': strToU8(buildMachiningCsv(machining)),
     'readiness/report.pdf': await buildReadinessPdf(snapshot),
@@ -164,6 +169,12 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       angleUnits: machining.angleUnits,
       coordinateFrame: machining.coordinateFrame,
       unassessed: machining.unassessed,
+    },
+    machiningReconciliation: {
+      status: snapshot.machiningReconciliation.status,
+      compared: snapshot.machiningReconciliation.compared,
+      totalFindings: snapshot.machiningReconciliation.totalFindings,
+      unassessed: snapshot.machiningReconciliation.unassessed,
     },
     reconciliation: {
       status: reconciliation.status,

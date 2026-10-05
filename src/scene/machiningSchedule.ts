@@ -105,7 +105,6 @@ export function buildMachiningSchedule(records: ManufacturingPart[]) {
       'Interactions between cuts',
       'Manual machining geometry',
       'Machine compatibility and tool access',
-      'Machining schedule/drawing reconciliation',
     ],
     counts: {
       parts: records.length,

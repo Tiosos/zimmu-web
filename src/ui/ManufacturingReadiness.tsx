@@ -1,3 +1,4 @@
+import { reconcileMachiningScene } from './machiningReconciliation'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
@@ -102,6 +103,10 @@ export function ManufacturingReadiness({
   )
   const reconciliation = useMemo(
     () => reconcileScene(scene, materialLibrary),
+    [scene, materialLibrary],
+  )
+  const machining = useMemo(
+    () => reconcileMachiningScene(scene, materialLibrary),
     [scene, materialLibrary],
   )
   const sum = (field: 'requested' | 'generated' | 'missing' | 'angled' | 'unverified') => {
@@ -260,6 +265,39 @@ export function ManufacturingReadiness({
         ))}
         {manufacturing.findings.length > 200 && (
           <p>Showing the first 200 findings. PDF and production packet include all findings.</p>
+        )}
+      </section>
+      <section aria-label="Machining schedule reconciliation">
+        <h3>Machining schedule / drawing reconciliation</h3>
+        <p>
+          {machining.status} · {machining.compared} operations compared · {machining.totalFindings}{' '}
+          findings
+        </p>
+        <p>Not assessed: {machining.unassessed.join(', ')}.</p>
+        {machining.findings.slice(0, 200).map((f) => (
+          <div key={f.reference}>
+            <p>
+              {f.reference} · {f.kind} · {f.field}
+            </p>
+            <p>
+              Part {f.partId}; operation {f.operationId}; source component{' '}
+              {f.sourceComponentId ?? 'none'}; source joint {f.sourceJointId ?? 'none'}
+            </p>
+            <p>
+              {f.schedule.location}: {JSON.stringify(f.schedule.value)}
+            </p>
+            <p>
+              {f.drawing.location}: {JSON.stringify(f.drawing.value)}
+            </p>
+            {onInspect && (
+              <Button onClick={() => onInspect({ kind: 'part', id: f.partId })}>
+                Inspect part
+              </Button>
+            )}
+          </div>
+        ))}
+        {machining.findings.length > 200 && (
+          <p>Showing 200 findings. Exports include all findings.</p>
         )}
       </section>
       <ReconciliationSection result={reconciliation} onInspect={onInspect} />
