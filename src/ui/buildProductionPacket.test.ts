@@ -10,6 +10,10 @@ import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
 import { createReadinessSnapshot } from '../scene/readinessSnapshot'
 import { reconcileScene } from './outputReconciliation'
 import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
+import { machiningProject } from '../scene/__fixtures__/machiningProject'
+import { manufacturingParts } from '../scene/manufacturingPart'
+import { buildMachiningSchedule } from '../scene/machiningSchedule'
+import { buildMachiningCsv } from './buildMachiningCsv'
 
 const sceneOf = (): Scene =>
   regenerateComponents({
@@ -26,6 +30,40 @@ const hash = async (bytes: Uint8Array) =>
   ).join('')
 
 describe('production handoff packet', () => {
+  it('captures complete machining schedules before asynchronous work and hashes both formats', async () => {
+    const scene = machiningProject()
+    const expected = buildMachiningSchedule(
+      manufacturingParts(scene.parts, scene.materials, scene.components),
+    )
+    const pending = buildProductionPacket({
+      scene,
+      projectName: 'Machining',
+      capturedAt,
+      materialLibrary: {},
+      hardwareLibrary: {},
+    })
+    const part = scene.parts.find((p) => p.kind === 'board')!
+    if (part.kind !== 'board') throw new Error('Expected board')
+    part.cuts.length = 0
+    part.operations![0].instruction = 'Later instruction'
+    part.label = 'Later panel'
+    const files = unzipSync(await pending)
+    expect(JSON.parse(strFromU8(files['machining/schedule.json']))).toEqual(expected)
+    expect(strFromU8(files['lists/machining.csv'])).toBe(buildMachiningCsv(expected))
+    const manifest = JSON.parse(strFromU8(files['manifest.json']))
+    expect(manifest.machining).toMatchObject({
+      ...expected.counts,
+      units: 'mm',
+      coordinateFrame: 'part-local',
+      unassessed: expected.unassessed,
+    })
+    for (const path of ['machining/schedule.json', 'lists/machining.csv']) {
+      const entry = manifest.files.find((e: { path: string }) => e.path === path)
+      expect(entry.sha256).toBe(await hash(files[path]))
+      expect(entry.bytes).toBe(files[path].byteLength)
+    }
+    expect(strFromU8(files['lists/machining.csv'])).not.toContain('Later instruction')
+  })
   it('hashes complete drilling findings with part/cut ownership and preserves valid through holes', async () => {
     const scene = structuredClone(sceneOf())
     const part = scene.parts.find((p) => p.kind === 'board')!
@@ -138,6 +176,8 @@ describe('production handoff packet', () => {
       'lists/boards.csv',
       'lists/dowels.csv',
       'lists/hardware.csv',
+      'lists/machining.csv',
+      'machining/schedule.json',
       'manifest.json',
       'readiness/manufacturing.json',
       'readiness/reconciliation.json',

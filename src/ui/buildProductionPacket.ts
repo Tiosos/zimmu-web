@@ -8,15 +8,18 @@ import {
   buildCsvFromRows,
   buildDowelCsvFromRows,
   buildHardwareCsv,
-  groupDowels,
-  groupEdgeBand,
-  groupParts,
+  groupDowelsFromRecords,
+  groupEdgeBandFromRecords,
+  groupPartsFromRecords,
 } from './buildCsv'
 import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
 import { reconcileOutputs } from './outputReconciliation'
 import { groupHardware } from './groupHardware'
 import { buildPdf } from './buildPdf'
 import { buildReadinessPdf, readinessPdfFilename } from './buildReadinessPdf'
+import { manufacturingParts } from '../scene/manufacturingPart'
+import { buildMachiningSchedule, machiningScheduleJson } from '../scene/machiningSchedule'
+import { buildMachiningCsv } from './buildMachiningCsv'
 
 export interface ProductionPacketInput {
   scene: Scene
@@ -78,6 +81,12 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
     captured.materialLibrary,
     captured.scene.materials,
   )
+  const records = manufacturingParts(
+    captured.scene.parts,
+    effectiveMaterials,
+    captured.scene.components,
+  )
+  const machining = buildMachiningSchedule(records)
 
   const withInstallation = new Set(
     snapshot.cabinets
@@ -93,8 +102,8 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
     [],
     { materials: effectiveMaterials, byId },
   )
-  const boardRows = groupParts(captured.scene.parts, effectiveMaterials, captured.scene.components)
-  const dowelRows = groupDowels(captured.scene.parts, effectiveMaterials)
+  const boardRows = groupPartsFromRecords(records, effectiveMaterials)
+  const dowelRows = groupDowelsFromRecords(records, effectiveMaterials)
   const reconciliation = reconcileOutputs(sheets, boardRows, dowelRows)
   const references = new Set(
     sheets.filter((s) => s.kind === 'installation').map((s) => `${s.cabinetId}/${s.shelfRole}`),
@@ -105,15 +114,14 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
         throw new Error(`Installation sheet missing for ${shelf.installationReference}`)
 
   const files: Record<string, Uint8Array> = {
+    'machining/schedule.json': strToU8(machiningScheduleJson(machining)),
+    'lists/machining.csv': strToU8(buildMachiningCsv(machining)),
     'readiness/report.pdf': await buildReadinessPdf(snapshot),
     'drawings/shop-drawings.pdf': await buildPdf(sheets),
     'readiness/manufacturing.json': strToU8(JSON.stringify(snapshot.manufacturing, null, 2) + '\n'),
     'readiness/reconciliation.json': strToU8(JSON.stringify(reconciliation, null, 2) + '\n'),
     'lists/boards.csv': strToU8(
-      buildCsvFromRows(
-        boardRows,
-        groupEdgeBand(captured.scene.parts, effectiveMaterials, captured.scene.components),
-      ),
+      buildCsvFromRows(boardRows, groupEdgeBandFromRecords(records, effectiveMaterials)),
     ),
     'lists/dowels.csv': strToU8(buildDowelCsvFromRows(dowelRows)),
     'lists/hardware.csv': strToU8(
@@ -149,6 +157,13 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
     manufacturing: {
       checkedParts: snapshot.manufacturing.checkedParts,
       unassessed: snapshot.manufacturing.unassessed,
+    },
+    machining: {
+      ...machining.counts,
+      units: machining.units,
+      angleUnits: machining.angleUnits,
+      coordinateFrame: machining.coordinateFrame,
+      unassessed: machining.unassessed,
     },
     reconciliation: {
       status: reconciliation.status,

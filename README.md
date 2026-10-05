@@ -49,6 +49,7 @@ Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 - Library tab: persistent material cost rates (per-m² pricing) stored in IndexedDB; survives across files and sessions
 
 ### Exports
+- **Machining schedule** — production packets include CSV and JSON with one entry per geometric cut/drilling row or manual instruction, part-local dimensions, part/cut IDs and cabinet/component/joint provenance. Valid drilling records distinguish blind and through depths; invalid drilling stays unassessed. Manual instructions remain separate from modeled geometry. Both files are hashed in the packet manifest. See [schedule contract and limits](docs/machining-schedule.md).
 - **STL** — binary, world-space, visible parts only
 - **STEP** — XCAF named solids via OCCT worker; falls back to unnamed `STEPControl_Writer`
 - **2D shop drawings** — Face / Edge / End orthographic projections per part with dimensions and cut labels
