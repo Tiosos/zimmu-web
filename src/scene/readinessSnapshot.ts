@@ -1,3 +1,4 @@
+import { reconcileMachiningScene } from '../ui/machiningReconciliation'
 import type { MaterialDef, Scene } from './types'
 import { buildProductionReadiness } from './productionReadiness'
 import { manufacturingParts } from './manufacturingPart'
@@ -32,6 +33,7 @@ export function createReadinessSnapshot(
   }
   return {
     projectName,
+    machiningReconciliation: reconcileMachiningScene(captured, materialLibrary),
     capturedAt: date.toISOString(),
     manufacturing: manufacturingChecks(
       manufacturingParts(

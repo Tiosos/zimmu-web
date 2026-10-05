@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import * as drawing from '../geom/drawing'
+import { describe, expect, it, vi } from 'vitest'
 import { unzipSync, strFromU8, strToU8 } from 'fflate'
 import { PDFArray, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib'
 import { cabinet } from '../geom/__fixtures__/cabinetSheet'
@@ -51,6 +52,16 @@ describe('production handoff packet', () => {
     expect(JSON.parse(strFromU8(files['machining/schedule.json']))).toEqual(expected)
     expect(strFromU8(files['lists/machining.csv'])).toBe(buildMachiningCsv(expected))
     const manifest = JSON.parse(strFromU8(files['manifest.json']))
+    expect(JSON.parse(strFromU8(files['readiness/machining-reconciliation.json']))).toMatchObject({
+      status: 'passed',
+      compared: 8,
+      findings: [],
+    })
+    expect(manifest.machiningReconciliation).toMatchObject({
+      status: 'passed',
+      compared: 8,
+      totalFindings: 0,
+    })
     expect(manifest.machining).toMatchObject({
       ...expected.counts,
       units: 'mm',
@@ -179,6 +190,7 @@ describe('production handoff packet', () => {
       'lists/machining.csv',
       'machining/schedule.json',
       'manifest.json',
+      'readiness/machining-reconciliation.json',
       'readiness/manufacturing.json',
       'readiness/reconciliation.json',
       'readiness/report.pdf',
@@ -344,6 +356,58 @@ describe('reconciliation in the packet', () => {
         capturedAt,
       }),
     )
+
+  it('exports machining mismatches with actual drawing pages, hashes and readiness PDF references', async () => {
+    const original = drawing.buildDrawingSheets
+    let expectedPage = 0
+    const spy = vi.spyOn(drawing, 'buildDrawingSheets').mockImplementation((...args) => {
+      const sheets = original(...args)
+      const index = sheets.findIndex(
+        (sheet) => sheet.kind === 'part' && sheet.partId === 'manual-board',
+      )
+      const board = sheets[index]
+      if (board?.kind === 'part' && board.shape === 'board') {
+        board.views[0].circles[0].r += 1
+        expectedPage = index + 1
+      }
+      return sheets
+    })
+    try {
+      const files = await packetOf(machiningProject())
+      const result = JSON.parse(strFromU8(files['readiness/machining-reconciliation.json']))
+      expect(result.status).toBe('failed')
+      expect(result.findings[0].drawing.location).toContain(`PDF page ${expectedPage}`)
+      expect(expectedPage).toBeGreaterThan(2)
+      expect(result.findings[0].sourceJointId).toBe('screw-owner')
+      const manifest = JSON.parse(strFromU8(files['manifest.json']))
+      const entry = manifest.files.find(
+        (f: { path: string }) => f.path === 'readiness/machining-reconciliation.json',
+      )
+      expect(entry.sha256).toBe(await hash(files[entry.path]))
+      expect(manifest.machiningReconciliation.totalFindings).toBe(result.findings.length)
+      const doc = await PDFDocument.load(files['readiness/report.pdf'])
+      const hex = [...result.findings[0].reference]
+        .map((ch) => ch.charCodeAt(0).toString(16).padStart(2, '0'))
+        .join('')
+      let found = false
+      for (const page of doc.getPages()) {
+        const contents = page.node.get(PDFName.of('Contents'))
+        if (!(contents instanceof PDFArray)) continue
+        const stream = doc.context.lookup(contents.get(0))
+        if (!(stream instanceof PDFRawStream)) continue
+        const content = await new Response(
+          new Blob([new Uint8Array(stream.contents)])
+            .stream()
+            .pipeThrough(new DecompressionStream('deflate')),
+        ).text()
+        if (content.toLowerCase().includes(hex)) found = true
+      }
+      expect(found).toBe(true)
+      expect(files['drawings/shop-drawings.pdf'].length).toBeGreaterThan(0)
+    } finally {
+      spy.mockRestore()
+    }
+  })
 
   it('records the result in the manifest and writes it as a hashed file', async () => {
     const files = await packetOf(sceneOf())
