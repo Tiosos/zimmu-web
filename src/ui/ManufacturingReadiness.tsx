@@ -166,8 +166,9 @@ export function ManufacturingReadiness({
       </p>
       <p className="text-xs text-muted-foreground mb-4">
         Production packet (ZIP): readiness PDF, shop drawings with available installation sheets,
-        board/dowel/hardware CSVs, manufacturing checks JSON, and a snapshot manifest. Includes
-        hidden items. It is advisory and does not save a project revision.
+        board/dowel/hardware CSVs, machining schedule CSV/JSON, manufacturing checks JSON, and a
+        snapshot manifest. Includes hidden items. It is advisory and does not save a project
+        revision.
       </p>
       <section aria-label="Production checks" className="border rounded p-3 mb-4">
         <h3 className="font-medium">Production checks</h3>

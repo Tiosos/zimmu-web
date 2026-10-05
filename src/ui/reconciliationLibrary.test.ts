@@ -17,6 +17,11 @@ vi.mock('./buildCsv', async (importOriginal) => {
       built.rows.push(rows)
       return rows
     },
+    groupPartsFromRecords: (...args: Parameters<typeof original.groupPartsFromRecords>) => {
+      const rows = original.groupPartsFromRecords(...args)
+      built.rows.push(rows)
+      return rows
+    },
   }
 })
 
