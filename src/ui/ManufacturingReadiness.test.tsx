@@ -37,6 +37,51 @@ afterEach(() => {
 })
 
 describe('readiness UI', () => {
+  it('shows drilling cut ownership, inspects the part and exports the same captured findings', async () => {
+    const scene = structuredClone(sceneOf())
+    const part = scene.parts.find((p) => p.kind === 'board')!
+    if (part.kind !== 'board') throw new Error('Expected board')
+    part.cuts = [
+      {
+        kind: 'hole-array',
+        id: 'drill-ui',
+        label: 'Screw clearance',
+        face: '+Z',
+        axis: 'U',
+        start: { x: 1, y: 30, z: part.thickness },
+        pitch: 0,
+        count: 1,
+        diameter: 5,
+        depth: part.thickness * 2,
+        sourceJointId: 'joint-ui',
+      },
+    ]
+    const inspect = vi.fn()
+    const build = vi.spyOn(pdf, 'buildReadinessPdf').mockResolvedValue(new Uint8Array([37, 80]))
+    vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+    render(
+      <ManufacturingReadiness
+        scene={scene}
+        onClose={vi.fn()}
+        onOpenSheet={vi.fn()}
+        onInspect={inspect}
+      />,
+    )
+    const section = screen.getByRole('region', { name: 'Manufacturing record checks' })
+    expect(within(section).getByText(/drilling-bounds:/)).toBeTruthy()
+    const finding = within(section)
+      .getByText(/Cut drill-ui.*Joint joint-ui/)
+      .closest('div')!
+    fireEvent.click(within(finding).getByRole('button', { name: `Inspect ${part.label}` }))
+    expect(inspect).toHaveBeenCalledWith({ kind: 'part', id: part.id })
+    fireEvent.click(screen.getByRole('button', { name: 'Export readiness PDF' }))
+    await waitFor(() => expect(build).toHaveBeenCalledOnce())
+    expect(
+      build.mock.calls[0][0].manufacturing.findings.find((f) => f.code === 'drilling-bounds')
+        ?.operation,
+    ).toMatchObject({ id: 'drill-ui', sourceJointId: 'joint-ui' })
+  })
+
   it('caps the dialog display and exports every finding with the same effective stock', async () => {
     const scene = structuredClone(sceneOf())
     const template = scene.parts.find((p) => p.kind === 'board')!

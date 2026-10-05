@@ -146,6 +146,10 @@ export async function buildReadinessPdf(snapshot: ReadinessSnapshot): Promise<Ui
   for (const f of report.manufacturing.findings) {
     line(`${f.reference} | ${f.code}`, true)
     line(f.message)
+    if (f.operation)
+      line(
+        `cut: ${f.operation.label} [${f.operation.id}]; kind: ${f.operation.kind}; source component: ${f.operation.sourceComponentId ?? 'none'}; source joint: ${f.operation.sourceJointId ?? 'none'}`,
+      )
     for (const t of f.targets)
       line(
         `part: ${t.label} [${t.id}]; cabinet: ${t.cabinetId ?? 'none'}; assembly: ${t.parentId ?? 'none'}`,

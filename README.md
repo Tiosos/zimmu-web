@@ -40,7 +40,7 @@ Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 - Dirty tracking (`isDirty`, tab title `•` indicator)
 
 ### Bill of Materials
-- Manufacturing readiness adds advisory shared-record checks for unresolved stock, invalid sheet/part/cut dimensions, thickness and edge stock, and duplicate labels within a cabinet or assembly. The PDF and production packet retain all findings; packet checks JSON is hashed in its manifest. Drilling and machine compatibility remain unassessed.
+- Manufacturing readiness adds advisory shared-record checks for unresolved stock, invalid sheet/part/cut dimensions, thickness and edge stock, duplicate labels, and drilling sizes, rows and nominal-stock boundaries. Finite through-hole depths remain valid. Drilling findings retain part/cut IDs and component/joint ownership in the dialog, PDF and packet checks JSON, which is hashed in the manifest. Intersections with other cuts, manual machining geometry and machine compatibility remain unassessed.
 - BOM, catalogue-update previews, sheet nesting and sheet part labels share transient manufacturing records: stable part/cabinet provenance, local and BOM dimensions, grain/edges, geometric cuts and separate manual instructions. Nesting uses board-local cut footprints, excludes invalid cut sizes with reasons, and retains part IDs. Sheet label details carry cabinet/part references and shared sizes. Prices remain separate; existing CSV schemas and saved-file format are preserved.
 - Three-tab BOM modal (`Ctrl+Shift+E`): **Boards**, **Hardware**, **Library**
 - Boards tab: grouped cutting list with per-material cost popover; CSV copy + download

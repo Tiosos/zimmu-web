@@ -231,6 +231,14 @@ export function ManufacturingReadiness({
               </strong>{' '}
               {finding.message}
             </p>
+            {finding.operation && (
+              <p className="text-xs text-muted-foreground">
+                Cut {finding.operation.id} · {finding.operation.kind}
+                {finding.operation.sourceComponentId &&
+                  ` · Component ${finding.operation.sourceComponentId}`}
+                {finding.operation.sourceJointId && ` · Joint ${finding.operation.sourceJointId}`}
+              </p>
+            )}
             {finding.targets.map((target) =>
               onInspect ? (
                 <Button

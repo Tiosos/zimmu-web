@@ -26,6 +26,71 @@ const hash = async (bytes: Uint8Array) =>
   ).join('')
 
 describe('production handoff packet', () => {
+  it('hashes complete drilling findings with part/cut ownership and preserves valid through holes', async () => {
+    const scene = structuredClone(sceneOf())
+    const part = scene.parts.find((p) => p.kind === 'board')!
+    if (part.kind !== 'board') throw new Error('Expected board')
+    part.cuts = [
+      {
+        kind: 'hole-array',
+        id: 'valid-through',
+        label: 'Clearance',
+        face: '+Z',
+        axis: 'U',
+        start: { x: 20, y: 30, z: part.thickness },
+        pitch: 0,
+        count: 1,
+        diameter: 5,
+        depth: part.thickness * 2,
+        sourceJointId: 'screw-owner',
+      },
+      {
+        kind: 'hole-array',
+        id: 'invalid-opening',
+        label: 'Outside',
+        face: '+Z',
+        axis: 'U',
+        start: { x: 1, y: 30, z: part.thickness },
+        pitch: 0,
+        count: 1,
+        diameter: 5,
+        depth: part.thickness,
+        sourceComponentId: 'component-owner',
+      },
+    ]
+    const expected = createReadinessSnapshot(scene, 'Drilling', capturedAt).manufacturing
+    const pending = buildProductionPacket({
+      scene,
+      projectName: 'Drilling',
+      capturedAt,
+      hardwareLibrary: {},
+      materialLibrary: {},
+    })
+    part.cuts[1].id = 'later-cut'
+    part.cuts.length = 0
+    const files = unzipSync(await pending)
+    const report = JSON.parse(strFromU8(files['readiness/manufacturing.json']))
+    expect(report).toEqual(expected)
+    const drilling = report.findings.filter((f: { code: string }) => f.code.startsWith('drilling-'))
+    expect(drilling).toHaveLength(1)
+    expect(drilling[0]).toMatchObject({
+      code: 'drilling-bounds',
+      targets: [{ id: part.id, cabinetId: cabinet.id, parentId: cabinet.id }],
+      operation: {
+        id: 'invalid-opening',
+        kind: 'hole-array',
+        sourceComponentId: 'component-owner',
+        sourceJointId: null,
+      },
+    })
+    const manifest = JSON.parse(strFromU8(files['manifest.json']))
+    expect(manifest.counts.manufacturingFindings).toBe(report.findings.length)
+    const entry = manifest.files.find(
+      (f: { path: string }) => f.path === 'readiness/manufacturing.json',
+    )
+    expect(entry.sha256).toBe(await hash(files[entry.path]))
+  })
+
   it('captures physical library stock and advisory findings from the same revision', async () => {
     const scene = structuredClone(sceneOf())
     const part = scene.parts[0]
