@@ -1,7 +1,13 @@
 import type { ManufacturingPart } from './manufacturingPart'
 import { isNestable } from './manufacturingPart'
+import {
+  drillingChecks,
+  type DrillingCheckCode,
+  type ManufacturingOperationReference,
+} from './drillingChecks'
 
 export type ManufacturingCheckCode =
+  | DrillingCheckCode
   | 'stock-unresolved'
   | 'stock-thickness'
   | 'stock-use'
@@ -16,6 +22,7 @@ export interface ManufacturingFinding {
   reference: string
   code: ManufacturingCheckCode
   message: string
+  operation?: ManufacturingOperationReference
   targets: { id: string; label: string; cabinetId: string | null; parentId: string | null }[]
 }
 const positive = (n: number | null | undefined): n is number =>
@@ -24,11 +31,17 @@ const positive = (n: number | null | undefined): n is number =>
 // Physical checks use only captured records. Rates, visibility and world placement are irrelevant.
 export function manufacturingChecks(records: ManufacturingPart[]) {
   const findings: ManufacturingFinding[] = []
-  const add = (code: ManufacturingCheckCode, message: string, parts: ManufacturingPart[]) => {
+  const add = (
+    code: ManufacturingCheckCode,
+    message: string,
+    parts: ManufacturingPart[],
+    operation?: ManufacturingOperationReference,
+  ) => {
     findings.push({
       reference: `M${findings.length + 1}`,
       code,
       message,
+      ...(operation ? { operation } : {}),
       targets: parts.map((p) => ({
         id: p.id,
         label: p.label,
@@ -39,6 +52,7 @@ export function manufacturingChecks(records: ManufacturingPart[]) {
   }
   const labels = new Map<string, ManufacturingPart[]>()
   for (const p of records) {
+    for (const issue of drillingChecks(p)) add(issue.code, issue.message, [p], issue.operation)
     const label = p.label.trim()
     if (!label) add('label-empty', 'Part label is empty; use the part ID to identify it.', [p])
     else {
@@ -101,7 +115,8 @@ export function manufacturingChecks(records: ManufacturingPart[]) {
     checkedParts: records.length,
     findings,
     unassessed: [
-      'Drilling geometry',
+      'Drilling intersections with other cuts',
+      'Manual machining geometry',
       'Machine operation compatibility',
       'Hardware suitability',
       'Physical installation',

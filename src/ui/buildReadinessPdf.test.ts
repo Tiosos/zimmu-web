@@ -40,6 +40,37 @@ async function contents(bytes: Uint8Array) {
 }
 
 describe('readiness PDF', () => {
+  it('prints captured drilling cut and source ownership alongside the stable part target', async () => {
+    const scene = sceneOf()
+    const part = scene.parts.find((p) => p.kind === 'board')!
+    if (part.kind !== 'board') throw new Error('Expected board')
+    part.cuts = [
+      {
+        kind: 'hole-array',
+        id: 'drill-pdf',
+        label: 'Pins',
+        face: '+Z',
+        axis: 'U',
+        start: { x: 1, y: 30, z: part.thickness },
+        pitch: 0,
+        count: 1,
+        diameter: 5,
+        depth: part.thickness,
+        sourceComponentId: 'source-pdf',
+      },
+    ]
+    const snapshot = createReadinessSnapshot(scene, 'Drilling', date)
+    const pending = buildReadinessPdf(snapshot)
+    snapshot.manufacturing.findings.find((f) => f.operation)!.operation!.id = 'later-id'
+    const { text } = await contents(await pending)
+    expect(text).toContain('drilling-bounds')
+    expect(text).toContain('cut: Pins [drill-pdf]')
+    expect(text).toContain('source component: source-pdf')
+    expect(text).toContain(part.id)
+    expect(text).not.toContain('later-id')
+    expect(text).toContain('Drilling intersections with other cuts')
+  })
+
   it('exports all manufacturing findings and captures their targets before awaiting', async () => {
     const snapshot = createReadinessSnapshot(sceneOf(), 'Manufacturing', date)
     snapshot.manufacturing.findings = Array.from({ length: 205 }, (_, i) => ({
