@@ -1,7 +1,9 @@
+import { fitReferenceLabel, referencedCutLabel, referencedShopNotes } from '../geom/drawingReferences'
 import { CHAR_EM } from '../geom/assembly'
 import { assemblyDimLine } from '../geom/drawing'
 import type {
   DrawingSheet,
+  CutLabel,
   DrawingView,
   DowelView,
   DimLine,
@@ -212,12 +214,10 @@ function dxfView(view: DrawingView): string {
     const cl = cutLabels[i]
     if (cl) {
       out.push(
-        dxfText(
-          'TEXT',
+        dxfReferencedText(
           px + cl.rect.x + cl.rect.w / 2,
           py + cl.rect.y + cl.rect.h / 2,
-          2.5,
-          cl.text,
+          cl,
         ),
       )
     }
@@ -226,7 +226,7 @@ function dxfView(view: DrawingView): string {
   out.push(dxfCircles(circles, px, py))
 
   noteLabels.forEach((nl) =>
-    out.push(dxfText('TEXT', px + nl.rect.x, py + nl.rect.y, 2.5, nl.text)),
+    out.push(dxfReferencedText(px + nl.rect.x, py + nl.rect.y, nl)),
   )
 
   boardDims.forEach((d: DimLine) => out.push(dxfDimLine(d, px, py)))
@@ -261,11 +261,11 @@ function dxfDowelView(view: DowelView): string {
 
   cutLabels.forEach((cl) =>
     out.push(
-      dxfText('TEXT', px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, 2.5, cl.text),
+      dxfReferencedText(px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, cl),
     ),
   )
   noteLabels.forEach((nl) =>
-    out.push(dxfText('TEXT', px + nl.rect.x, py + nl.rect.y, 2.5, nl.text)),
+    out.push(dxfReferencedText(px + nl.rect.x, py + nl.rect.y, nl)),
   )
 
   dims.forEach((d) => out.push(dxfDimLine(d, px, py)))
@@ -335,12 +335,10 @@ function dxfTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): string {
     dxfRect('TITLE', tbX, tbY, tbW, 25),
     dxfText('TITLE', tbX + 4, tbY + 8, 7, sheet.partLabel),
     dxfText('TEXT', tbX + 4, tbY + 16, 4, sheet.material || '—'),
+    dxfTextLeft('TEXT', tbX + 4, tbY + 22, 2.5, `Part ID: ${sheet.partId}`),
     dxfText('TEXT', tbX + 100, tbY + 8, 4, `Scale: ${sheet.scaleLabel}`),
     dxfText('TEXT', tbX + 100, tbY + 16, 4, `Date: ${sheet.date}`),
-    ...wrapManufacturingNotes([
-      ...(sheet.shape === 'board' ? sheet.manufacturingNotes : []),
-      ...(sheet.machiningNotes ?? []).map((note) => note.text),
-    ]).map((line, i) => dxfText('TEXT', tbX + 155, tbY + 4 + i * 2.4, 2, line)),
+    ...wrapManufacturingNotes(referencedShopNotes(sheet)).map((line, i) => dxfText('TEXT', tbX + 155, tbY + 4 + i * 2.4, 2, line)),
   ].join('')
 }
 
@@ -520,4 +518,11 @@ export function buildDxf(sheet: DrawingSheet): string {
   }
 
   return header + dxfTables() + '0\nSECTION\n2\nENTITIES\n' + entities + '0\nENDSEC\n' + '0\nEOF'
+}
+
+function dxfReferencedText(x: number, y: number, label: CutLabel): string {
+  const text = referencedCutLabel(label)
+  if (!label.operationId) return dxfText('TEXT', x, y, 2.5, text)
+  const layout = fitReferenceLabel(x, text.length * 2.5 * 0.75)
+  return dxfText('TEXT', layout.centerX, y, layout.fontSize, text)
 }

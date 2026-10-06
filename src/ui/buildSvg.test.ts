@@ -145,7 +145,7 @@ describe('buildSvg', () => {
       .map((node) => node.textContent ?? '')
     expect(lines.length).toBeGreaterThan(1)
     expect(lines.every((line) => line.length <= 90)).toBe(true)
-    expect(lines.join(' ')).toBe(sheet.manufacturingNotes[0])
+    expect(lines.join(' ')).toBe(`Manual instruction [${sheet.manualNoteReferences![0].operationIds.join(', ')}]: ${sheet.manufacturingNotes[0]}`)
   })
 
   it('dim text contains the length label', () => {

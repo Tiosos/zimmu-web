@@ -1,3 +1,4 @@
+import { fitReferenceLabel, referencedCutLabel, referencedShopNotes } from '../geom/drawingReferences'
 import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from 'pdf-lib'
 import { assemblyDimLine } from '../geom/drawing'
 import type {
@@ -148,9 +149,11 @@ function renderPdfView(page: PDFPage, view: DrawingView, font: PDFFont): void {
     if (cl) {
       const cx = px + cl.rect.x + cl.rect.w / 2
       const cy = py + cl.rect.y + cl.rect.h / 2
-      const fs = pt(2.5)
-      page.drawText(cl.text, {
-        x: pt(cx) - font.widthOfTextAtSize(cl.text, fs) / 2,
+      const text = referencedCutLabel(cl)
+      const layout = cl.operationId ? fitReferenceLabel(cx, font.widthOfTextAtSize(text, pt(2.5)) / pt(1)) : { centerX: cx, fontSize: 2.5 }
+      const fs = pt(layout.fontSize)
+      page.drawText(text, {
+        x: pt(layout.centerX) - font.widthOfTextAtSize(text, fs) / 2,
         y: yflip(cy) + font.heightAtSize(fs) / 2,
         size: fs,
         font,
@@ -159,6 +162,11 @@ function renderPdfView(page: PDFPage, view: DrawingView, font: PDFFont): void {
     }
   })
 
+  view.noteLabels.forEach((label) => {
+    const text = referencedCutLabel(label)
+    const layout = fitReferenceLabel(px + label.rect.x, font.widthOfTextAtSize(text, pt(2.5)) / pt(1))
+    page.drawText(text, { x: pt(layout.centerX) - font.widthOfTextAtSize(text, pt(layout.fontSize)) / 2, y: yflip(py + label.rect.y), size: pt(layout.fontSize), font, color: C_DARK_GRAY })
+  })
   boardDims.forEach((d) => renderPdfDimLine(page, d, px, py, font))
   cutPosDims.forEach((d) => renderPdfDimLine(page, d, px, py, font))
 }
@@ -216,10 +224,11 @@ function renderPdfDowelView(page: PDFPage, view: DowelView, font: PDFFont): void
     })
   })
 
-  const drawCenteredLabel = (text: string, cx: number, cy: number) => {
-    const fs = pt(2.5)
+  const drawCenteredLabel = (text: string, cx: number, cy: number, referenced = false) => {
+    const layout = referenced ? fitReferenceLabel(cx, font.widthOfTextAtSize(text, pt(2.5)) / pt(1)) : { centerX: cx, fontSize: 2.5 }
+    const fs = pt(layout.fontSize)
     page.drawText(text, {
-      x: pt(cx) - font.widthOfTextAtSize(text, fs) / 2,
+      x: pt(layout.centerX) - font.widthOfTextAtSize(text, fs) / 2,
       y: yflip(cy) + font.heightAtSize(fs) / 2,
       size: fs,
       font,
@@ -227,9 +236,9 @@ function renderPdfDowelView(page: PDFPage, view: DowelView, font: PDFFont): void
     })
   }
   cutLabels.forEach((cl) =>
-    drawCenteredLabel(cl.text, px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2),
+    drawCenteredLabel(referencedCutLabel(cl), px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, !!cl.operationId),
   )
-  noteLabels.forEach((nl) => drawCenteredLabel(nl.text, px + nl.rect.x, py + nl.rect.y))
+  noteLabels.forEach((nl) => drawCenteredLabel(referencedCutLabel(nl), px + nl.rect.x, py + nl.rect.y, !!nl.operationId))
 
   dims.forEach((d) => renderPdfDimLine(page, d, px, py, font))
 }
@@ -472,6 +481,7 @@ function renderPdfTitleBlock(
     font,
     color: C_DARK_GRAY,
   })
+  page.drawText(`Part ID: ${sheet.partId}`, { x: pt(tbX + 4), y: yflip(tbY + 22), size: pt(2.5), font, color: C_DARK_GRAY })
   page.drawText(`Scale: ${sheet.scaleLabel}`, {
     x: pt(tbX + 100),
     y: yflip(tbY + 8),
@@ -487,10 +497,7 @@ function renderPdfTitleBlock(
     color: C_DARK_GRAY,
   })
   {
-    wrapManufacturingNotes([
-      ...(sheet.shape === 'board' ? sheet.manufacturingNotes : []),
-      ...(sheet.machiningNotes ?? []).map((note) => note.text),
-    ]).forEach((line, i) => {
+    wrapManufacturingNotes(referencedShopNotes(sheet)).forEach((line, i) => {
       page.drawText(line, {
         x: pt(tbX + 155),
         y: yflip(tbY + 4 + i * 2.4),

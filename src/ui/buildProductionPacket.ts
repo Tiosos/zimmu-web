@@ -1,3 +1,5 @@
+import { buildDrawingIndex, buildDrawingIndexCsv } from './buildDrawingIndex'
+import { buildProductionReview } from '../scene/productionReview'
 import { reconcileMachining } from './machiningReconciliation'
 import { strToU8, zip } from 'fflate'
 import type { Scene, HardwareLibraryEntry, CarcaseComponent, MaterialDef } from '../scene/types'
@@ -103,7 +105,9 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
     [],
     { materials: effectiveMaterials, byId },
   )
+  const drawingIndex = buildDrawingIndex(sheets, machining)
   snapshot.machiningReconciliation = reconcileMachining(sheets, machining)
+  snapshot.reviewSummary = buildProductionReview(snapshot)
   const boardRows = groupPartsFromRecords(records, effectiveMaterials)
   const dowelRows = groupDowelsFromRecords(records, effectiveMaterials)
   const reconciliation = reconcileOutputs(sheets, boardRows, dowelRows)
@@ -116,6 +120,9 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
         throw new Error(`Installation sheet missing for ${shelf.installationReference}`)
 
   const files: Record<string, Uint8Array> = {
+    'machining/drawing-index.json': strToU8(JSON.stringify(drawingIndex, null, 2) + '\n'),
+    'machining/drawing-index.csv': strToU8(buildDrawingIndexCsv(drawingIndex)),
+    'readiness/review.json': strToU8(JSON.stringify(snapshot.reviewSummary, null, 2) + '\n'),
     'readiness/machining-reconciliation.json': strToU8(
       JSON.stringify(snapshot.machiningReconciliation, null, 2) + '\n',
     ),
@@ -159,6 +166,14 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       drawingSheets: sheets.length,
       installationSheets: references.size,
     },
+    drawingReferences: {
+      schemaVersion: drawingIndex.schemaVersion,
+      ...drawingIndex.counts,
+      jsonPath: 'machining/drawing-index.json',
+      csvPath: 'machining/drawing-index.csv',
+      scope: drawingIndex.scope,
+    },
+    reviewSummary: snapshot.reviewSummary,
     manufacturing: {
       checkedParts: snapshot.manufacturing.checkedParts,
       unassessed: snapshot.manufacturing.unassessed,

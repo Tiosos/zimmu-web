@@ -40,6 +40,21 @@ async function contents(bytes: Uint8Array) {
 }
 
 describe('readiness PDF', () => {
+  it('prints the shared review counts, category labels and source locations', async () => {
+    const snapshot = createReadinessSnapshot(sceneOf(), 'Review', date)
+    const expected = snapshot.reviewSummary
+    const { text } = await contents(await buildReadinessPdf(snapshot))
+    expect(text).toContain('Production packet review summary')
+    expect(text).toContain(
+      `${expected.counts.needsCorrection} need correction; ${expected.counts.advisory} advisory;`,
+    )
+    expect(text).toContain('Needs correction')
+    expect(text).toContain('Advisory findings')
+    expect(text).toContain('Unassessed checks')
+    expect(text).toContain('readiness/manufacturing.json unassessed[0]')
+    expect(text.replace(/\s+/g, ' ')).toContain('not fabrication approval')
+  })
+
   it('prints captured drilling cut and source ownership alongside the stable part target', async () => {
     const scene = sceneOf()
     const part = scene.parts.find((p) => p.kind === 'board')!
