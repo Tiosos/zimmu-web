@@ -1,3 +1,4 @@
+import { REVIEW_STATUS_LABELS } from '../scene/productionReview'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import type { ReadinessSnapshot } from '../scene/readinessSnapshot'
 
@@ -112,6 +113,35 @@ export async function buildReadinessPdf(snapshot: ReadinessSnapshot): Promise<Ui
   line(
     'Scope: cabinet parameters, material thickness, generated parts, joinery and shelf access. Hardware suitability, machining accuracy and physical installation require separate review. Recorded joints do not certify geometry. This document does not update after design changes.',
   )
+  line('Production packet review summary', true)
+  const review = report.reviewSummary
+  line(
+    `${REVIEW_STATUS_LABELS[review.status]}: ${review.counts.needsCorrection} need correction; ${review.counts.advisory} advisory; ${review.counts.unassessed} unassessed.`,
+  )
+  line(review.scope)
+  line(review.classification)
+  for (const category of ['needs-correction', 'advisory', 'unassessed'] as const) {
+    line(
+      category === 'needs-correction'
+        ? 'Needs correction'
+        : category === 'advisory'
+          ? 'Advisory findings'
+          : 'Unassessed checks',
+      true,
+    )
+    for (const item of review.items.filter((item) => item.category === category)) {
+      line(
+        `${item.reference} | ${item.source} | ${item.sourceReferences.length ? item.sourceReferences.join(', ') : item.code}`,
+      )
+      line(item.message)
+      for (const target of item.targets) line(`${target.kind}: ${target.label} [${target.id}]`)
+      if (item.operationId)
+        line(
+          `Operation ${item.operationId}; source component ${item.sourceComponentId ?? 'none'}; source joint ${item.sourceJointId ?? 'none'}`,
+        )
+      item.locations.forEach((location) => line(location))
+    }
+  }
   line('Project summary', true)
   line(
     `${report.cabinets.length} cabinets; ${report.production.findings.length} production findings; ${count(report.production.intentionalContacts)} intentional contacts. Joinery scan: ${report.production.joineryComplete ? 'complete' : 'incomplete'}.`,

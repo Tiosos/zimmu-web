@@ -1,6 +1,8 @@
+import { fitReferenceLabel, referencedCutLabel, referencedShopNotes } from '../geom/drawingReferences'
 import { assemblyDimLine } from '../geom/drawing'
 import type {
   DrawingSheet,
+  CutLabel,
   DrawingView,
   DowelView,
   DimLine,
@@ -188,7 +190,7 @@ function renderView(view: DrawingView): string {
     const cl = cutLabels[i]
     if (cl) {
       out.push(
-        svgText(px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, cl.text, {
+        svgReferencedText(cl, px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, {
           'font-size': '2.5',
           fill: '#333',
           'text-anchor': 'middle',
@@ -203,7 +205,7 @@ function renderView(view: DrawingView): string {
 
   noteLabels.forEach((nl) =>
     out.push(
-      svgText(px + nl.rect.x, py + nl.rect.y, nl.text, {
+      svgReferencedText(nl, px + nl.rect.x, py + nl.rect.y, {
         'font-size': '2.5',
         fill: '#0a6',
         'text-anchor': 'middle',
@@ -261,7 +263,7 @@ function renderDowelView(view: DowelView): string {
 
   cutLabels.forEach((cl) =>
     out.push(
-      svgText(px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, cl.text, {
+      svgReferencedText(cl, px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, {
         'font-size': '2.5',
         fill: '#333',
         'text-anchor': 'middle',
@@ -273,7 +275,7 @@ function renderDowelView(view: DowelView): string {
 
   noteLabels.forEach((nl) =>
     out.push(
-      svgText(px + nl.rect.x, py + nl.rect.y, nl.text, {
+      svgReferencedText(nl, px + nl.rect.x, py + nl.rect.y, {
         'font-size': '2.5',
         fill: '#0a6',
         'text-anchor': 'middle',
@@ -306,6 +308,7 @@ function renderTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): strin
       fill: '#444',
       'font-family': 'sans-serif',
     }),
+    svgText(tbX + 4, tbY + 22, `Part ID: ${sheet.partId}`, { 'font-size': '2.5', fill: '#444', 'font-family': 'sans-serif' }),
     svgText(tbX + 100, tbY + 8, `Scale: ${sheet.scaleLabel}`, {
       'font-size': '4',
       fill: '#444',
@@ -316,10 +319,7 @@ function renderTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): strin
       fill: '#444',
       'font-family': 'sans-serif',
     }),
-    ...wrapManufacturingNotes([
-      ...(sheet.shape === 'board' ? sheet.manufacturingNotes : []),
-      ...(sheet.machiningNotes ?? []).map((note) => note.text),
-    ]).map((line, i) =>
+    ...wrapManufacturingNotes(referencedShopNotes(sheet)).map((line, i) =>
       svgText(tbX + 155, tbY + 4 + i * 2.4, line, {
         'font-size': '2',
         fill: '#000',
@@ -607,4 +607,11 @@ export function buildSvg(sheet: DrawingSheet, options: { embedded?: boolean } = 
     body,
     `</svg>`,
   ].join('\n')
+}
+
+function svgReferencedText(label: CutLabel, x: number, y: number, attrs: Record<string, string | number>): string {
+  const text = referencedCutLabel(label)
+  if (!label.operationId) return svgText(x, y, text, attrs)
+  const layout = fitReferenceLabel(x, text.length * 2.5 * 0.75)
+  return svgText(layout.centerX, y, text, { ...attrs, 'font-size': layout.fontSize })
 }

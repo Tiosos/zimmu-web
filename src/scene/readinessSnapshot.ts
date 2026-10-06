@@ -1,3 +1,4 @@
+import { buildProductionReview } from './productionReview'
 import { reconcileMachiningScene } from '../ui/machiningReconciliation'
 import type { MaterialDef, Scene } from './types'
 import { buildProductionReadiness } from './productionReadiness'
@@ -31,7 +32,7 @@ export function createReadinessSnapshot(
     }
     return null
   }
-  return {
+  const snapshot = {
     projectName,
     machiningReconciliation: reconcileMachiningScene(captured, materialLibrary),
     capturedAt: date.toISOString(),
@@ -67,6 +68,7 @@ export function createReadinessSnapshot(
       issues: entry.issues,
       shelves: entry.shelves.map((s) => ({
         role: s.role,
+        partId: s.partId ?? null,
         label: s.label,
         generated: s.generated,
         status: s.status,
@@ -74,6 +76,7 @@ export function createReadinessSnapshot(
       })),
     })),
   }
+  return { ...snapshot, reviewSummary: buildProductionReview(snapshot) }
 }
 
 export type ReadinessSnapshot = ReturnType<typeof createReadinessSnapshot>

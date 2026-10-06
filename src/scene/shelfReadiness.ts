@@ -6,6 +6,7 @@ import { validateCarcaseParams } from './carcaseValidation'
 import { productionLimitIssue } from './readinessLimits'
 
 export interface ShelfReadinessRow {
+  partId?: string | null
   role: string
   label: string
   generated: boolean
@@ -114,6 +115,7 @@ export function buildShelfReadiness(scene: Scene): CabinetShelfReadiness[] {
         const part = parts.find((p) => p.role === role)
         return {
           role,
+          partId: part?.id ?? null,
           label: part?.label ?? `Requested shelf ${i + 1}`,
           generated: part !== undefined,
           access: result,

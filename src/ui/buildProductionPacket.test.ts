@@ -62,13 +62,36 @@ describe('production handoff packet', () => {
       compared: 8,
       totalFindings: 0,
     })
+    expect(JSON.parse(strFromU8(files['readiness/review.json']))).toEqual(manifest.reviewSummary)
+    expect(manifest.reviewSummary.counts.unassessed).toBeGreaterThan(0)
+    const drawingIndex = JSON.parse(strFromU8(files['machining/drawing-index.json']))
+    expect(drawingIndex.counts).toMatchObject({
+      operations: 8,
+      referenced: 8,
+      missing: 0,
+      ambiguous: 0,
+    })
+    expect(manifest.drawingReferences).toMatchObject(drawingIndex.counts)
+    expect(
+      drawingIndex.entries.find((entry: { operationId: string }) => entry.operationId === 'row'),
+    ).toMatchObject({ sourceJointId: 'screw-owner', schedule: { csvRecord: 4, entryIndex: 2 } })
+    expect(
+      drawingIndex.entries.every((entry: { drawing: { locations: { page: number }[] } }) =>
+        entry.drawing.locations.every((location) => location.page > 2),
+      ),
+    ).toBe(true)
     expect(manifest.machining).toMatchObject({
       ...expected.counts,
       units: 'mm',
       coordinateFrame: 'part-local',
       unassessed: expected.unassessed,
     })
-    for (const path of ['machining/schedule.json', 'lists/machining.csv']) {
+    for (const path of [
+      'machining/schedule.json',
+      'lists/machining.csv',
+      'machining/drawing-index.json',
+      'machining/drawing-index.csv',
+    ]) {
       const entry = manifest.files.find((e: { path: string }) => e.path === path)
       expect(entry.sha256).toBe(await hash(files[path]))
       expect(entry.bytes).toBe(files[path].byteLength)
@@ -188,12 +211,15 @@ describe('production handoff packet', () => {
       'lists/dowels.csv',
       'lists/hardware.csv',
       'lists/machining.csv',
+      'machining/drawing-index.csv',
+      'machining/drawing-index.json',
       'machining/schedule.json',
       'manifest.json',
       'readiness/machining-reconciliation.json',
       'readiness/manufacturing.json',
       'readiness/reconciliation.json',
       'readiness/report.pdf',
+      'readiness/review.json',
     ])
     const manifest = JSON.parse(strFromU8(zip['manifest.json']))
     const manufacturing = JSON.parse(strFromU8(zip['readiness/manufacturing.json']))
@@ -379,6 +405,18 @@ describe('reconciliation in the packet', () => {
       expect(result.findings[0].drawing.location).toContain(`PDF page ${expectedPage}`)
       expect(expectedPage).toBeGreaterThan(2)
       expect(result.findings[0].sourceJointId).toBe('screw-owner')
+      const review = JSON.parse(strFromU8(files['readiness/review.json']))
+      const machiningItem = review.items.find(
+        (item: { source: string; operationId: string | null }) =>
+          item.source === 'machining' && item.operationId === 'row',
+      )
+      expect(machiningItem).toMatchObject({
+        category: 'needs-correction',
+        operationId: 'row',
+        sourceJointId: 'screw-owner',
+      })
+      expect(machiningItem.locations).toContain(result.findings[0].drawing.location)
+      expect(review.counts.needsCorrection).toBeGreaterThan(0)
       const manifest = JSON.parse(strFromU8(files['manifest.json']))
       const entry = manifest.files.find(
         (f: { path: string }) => f.path === 'readiness/machining-reconciliation.json',

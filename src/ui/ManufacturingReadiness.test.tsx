@@ -37,6 +37,36 @@ afterEach(() => {
 })
 
 describe('readiness UI', () => {
+  it('shows the shared review counts, inspects targets and exports the same review model', async () => {
+    const scene = structuredClone(sceneOf())
+    const part = scene.parts.find((p) => p.kind === 'board')!
+    part.material = 'Unresolved review stock'
+    const inspect = vi.fn()
+    const build = vi.spyOn(pdf, 'buildReadinessPdf').mockResolvedValue(new Uint8Array([37, 80]))
+    vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+    render(
+      <ManufacturingReadiness
+        scene={scene}
+        onClose={vi.fn()}
+        onOpenSheet={vi.fn()}
+        onInspect={inspect}
+      />,
+    )
+    const expected = createReadinessSnapshot(scene, 'Project').reviewSummary
+    const section = screen.getByRole('region', { name: 'Production packet review summary' })
+    expect(
+      within(section).getByText(new RegExp(`${expected.counts.needsCorrection} need correction`)),
+    ).toBeTruthy()
+    expect(
+      within(section).getByText(`Unassessed checks (${expected.counts.unassessed})`),
+    ).toBeTruthy()
+    fireEvent.click(within(section).getAllByRole('button', { name: `Inspect ${part.label}` })[0])
+    expect(inspect).toHaveBeenCalledWith({ kind: 'part', id: part.id })
+    fireEvent.click(screen.getByRole('button', { name: 'Export readiness PDF' }))
+    await waitFor(() => expect(build).toHaveBeenCalledOnce())
+    expect(build.mock.calls[0][0].reviewSummary).toEqual(expected)
+  })
+
   it('shows drilling cut ownership, inspects the part and exports the same captured findings', async () => {
     const scene = structuredClone(sceneOf())
     const part = scene.parts.find((p) => p.kind === 'board')!
@@ -272,7 +302,7 @@ describe('readiness UI', () => {
     expect(screen.getByRole('status').textContent).toContain('1000000000000 requested')
     expect(screen.getByRole('status').textContent).toContain('unknown missing')
     expect(screen.getByRole('status').textContent).toContain('unknown without a verified route')
-    expect(screen.getByText(/exceeds the report limit/)).toBeTruthy()
+    expect(screen.getAllByText(/exceeds the report limit/).length).toBeGreaterThan(0)
     expect(screen.queryByText('No adjustable shelves requested.')).toBeNull()
     expect(screen.queryByRole('table')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Installation sheet' })).toBeNull()
