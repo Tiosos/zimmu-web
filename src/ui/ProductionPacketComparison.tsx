@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { compareProductionPackets, type PacketRevisionReport } from './compareProductionPackets'
 import { MAX_PACKET_BYTES } from './verifyProductionPacket'
 import { downloadBlob } from './download'
+import { comparisonReportFilename } from './productionPacketReportFilename'
 import { ProductionPacketRevisionReview } from './ProductionPacketRevisionReview'
 
 export function ProductionPacketComparison({ onClose }: { onClose: () => void }) {
@@ -153,7 +154,7 @@ export function ProductionPacketComparison({ onClose }: { onClose: () => void })
               onClick={() =>
                 downloadBlob(
                   JSON.stringify(report, null, 2) + '\n',
-                  'production-packet-comparison.json',
+                  comparisonReportFilename(report),
                   'application/json',
                 )
               }

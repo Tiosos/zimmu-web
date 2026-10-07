@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { comparisonFixture } from './__fixtures__/packetRevisionComparison'
-import { revisionReviewFilename } from './revisionReviewFilename'
+import { comparisonReportFilename, revisionReviewFilename } from './productionPacketReportFilename'
 
 it('identifies the later project and ordered archives with matching JSON and HTML stems', () => {
   const report = comparisonFixture()
@@ -36,4 +36,17 @@ it('bounds complete UTF-8 filenames without splitting Unicode code points', () =
     `production-packet-revision-review-${'𐐨'.repeat(40)}-aaaaaaaaaaaa-to-bbbbbbbbbbbb.json`,
   )
   expect(new TextEncoder().encode(filename).length).toBeLessThan(255)
+})
+
+it('identifies comparison JSON with the same ordered pair and supports blocked reports', () => {
+  const report = comparisonFixture()
+  expect(comparisonReportFilename(report)).toBe(
+    'production-packet-comparison-project-aaaaaaaaaaaa-to-bbbbbbbbbbbb.json',
+  )
+  report.status = 'blocked'
+  report.after.projectName = null
+  report.before.sha256 = null
+  expect(comparisonReportFilename(report)).toBe(
+    'production-packet-comparison-project-unavailable-to-bbbbbbbbbbbb.json',
+  )
 })

@@ -10,7 +10,7 @@ import {
 } from './packetRevisionReview'
 import { downloadBlob } from './download'
 import { buildRevisionReviewHtml } from './buildRevisionReviewHtml'
-import { revisionReviewFilename } from './revisionReviewFilename'
+import { revisionReviewFilename } from './productionPacketReportFilename'
 
 const displayValue = (value: unknown) =>
   typeof value === 'string' ? value : (JSON.stringify(value, null, 2) ?? 'Not recorded')
@@ -26,6 +26,7 @@ export function ProductionPacketRevisionReview({
   const [selected, setSelected] = useState(report.changes[0]?.reference ?? '')
   const [pendingOnly, setPendingOnly] = useState(false)
   const [search, setSearch] = useState('')
+  const [classification, setClassification] = useState<'all' | 'manufacturing' | 'metadata'>('all')
   const [error, setError] = useState<string | null>(null)
   const edited = useRef(false)
   const markEdited = (value: boolean) => {
@@ -49,11 +50,13 @@ export function ProductionPacketRevisionReview({
   const query = normalizeSearch(search.trim())
   const visibleChanges = report.changes.filter(
     (item) =>
+      (classification === 'all' || item.classification === classification) &&
       (!pendingOnly || !progress.get(item.reference)!.acknowledged) &&
       [item.label, item.partId, item.operationId ?? '', item.reference].some((text) =>
         normalizeSearch(text).includes(query),
       ),
   )
+  const filtered = Boolean(query) || classification !== 'all'
   const activeReference =
     visibleChanges.find((item) => item.reference === selected)?.reference ??
     visibleChanges[0]?.reference ??
@@ -137,6 +140,22 @@ export function ProductionPacketRevisionReview({
         Show pending items only
       </label>
       <label className="block">
+        Change classification
+        <select
+          aria-label="Change classification"
+          className="mt-1 block border bg-background p-1"
+          value={classification}
+          onChange={(event) => {
+            setSelected(activeReference)
+            setClassification(event.target.value as typeof classification)
+          }}
+        >
+          <option value="all">All classifications</option>
+          <option value="manufacturing">Manufacturing</option>
+          <option value="metadata">Metadata</option>
+        </select>
+      </label>
+      <label className="block">
         Find a change
         <input
           type="search"
@@ -150,15 +169,21 @@ export function ProductionPacketRevisionReview({
         />
       </label>
       <p>
-        Search by label, part ID, operation ID or stable reference. Search affects change selection
-        only; downloads include every item.
+        Search by label, part ID, operation ID or stable reference. Classification and search affect
+        change selection only; downloads include every item.
       </p>
-      {query && (
+      {filtered && (
         <p>
           {visibleChanges.length} of {report.changes.length} changes match the current filters.
         </p>
       )}
-      {query && visibleChanges.length === 0 && (
+      {classification !== 'all' && visibleChanges.length === 0 && (
+        <p>
+          No changes match the current classification and filters. Clear or adjust the filters to
+          continue.
+        </p>
+      )}
+      {classification === 'all' && query && visibleChanges.length === 0 && (
         <p>
           No changes match this search{pendingOnly ? ' and pending filter' : ''}. Clear or adjust
           the filters to continue.
@@ -170,7 +195,7 @@ export function ProductionPacketRevisionReview({
           moves to another pending change.
         </p>
       )}
-      {pendingOnly && !query && visibleChanges.length === 0 && (
+      {pendingOnly && !query && classification === 'all' && visibleChanges.length === 0 && (
         <p>No pending changes. Clear the filter to edit acknowledged changes.</p>
       )}
       {entry && change && (
