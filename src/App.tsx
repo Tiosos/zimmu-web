@@ -28,6 +28,8 @@ import { buildDrawingSheets } from './geom/drawing'
 import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
 import { ManufacturingReadiness } from './ui/ManufacturingReadiness'
+import { ProductionPacketVerifier } from './ui/ProductionPacketVerifier'
+import { ProductionPacketComparison } from './ui/ProductionPacketComparison'
 import { ProjectPanel } from './ui/ProjectPanel'
 import { wallPlacementPose } from './scene/roomGeometry'
 import { roomComponentIds } from './scene/projectStructure'
@@ -343,6 +345,8 @@ function App() {
   const closeCuttingList = useCallback(() => setCuttingListOpen(false), [])
   const [drawingsOpen, setDrawingsOpen] = useState(false)
   const [readinessOpen, setReadinessOpen] = useState(false)
+  const [packetVerificationOpen, setPacketVerificationOpen] = useState(false)
+  const [packetComparisonOpen, setPacketComparisonOpen] = useState(false)
   const [projectPanelOpen, setProjectPanelOpen] = useState(false)
   const [drawingSheets, setDrawingSheets] = useState<DrawingSheet[]>([])
 
@@ -645,6 +649,8 @@ function App() {
         onExportStep={handleExportStep}
         onOpenDrawings={handleOpenDrawings}
         onReadiness={() => setReadinessOpen(true)}
+        onVerifyPacket={() => setPacketVerificationOpen(true)}
+        onComparePackets={() => setPacketComparisonOpen(true)}
         canExport={canExport}
         mainView={mainView}
         onMainViewChange={setMainView}
@@ -868,6 +874,12 @@ function App() {
         sheets={drawingSheets}
         projectName={projectName}
       />
+      {packetComparisonOpen && (
+        <ProductionPacketComparison onClose={() => setPacketComparisonOpen(false)} />
+      )}
+      {packetVerificationOpen && (
+        <ProductionPacketVerifier onClose={() => setPacketVerificationOpen(false)} />
+      )}
       {readinessOpen && (
         <ManufacturingReadiness
           scene={scene}

@@ -1,3 +1,4 @@
+import { buildPacketPartInventory, packetInventoryJson } from './packetPartInventory'
 import { buildDrawingIndex, buildDrawingIndexCsv } from './buildDrawingIndex'
 import { buildProductionReview } from '../scene/productionReview'
 import { reconcileMachining } from './machiningReconciliation'
@@ -120,6 +121,7 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
         throw new Error(`Installation sheet missing for ${shelf.installationReference}`)
 
   const files: Record<string, Uint8Array> = {
+    'machining/parts.json': strToU8(packetInventoryJson(buildPacketPartInventory(records))),
     'machining/drawing-index.json': strToU8(JSON.stringify(drawingIndex, null, 2) + '\n'),
     'machining/drawing-index.csv': strToU8(buildDrawingIndexCsv(drawingIndex)),
     'readiness/review.json': strToU8(JSON.stringify(snapshot.reviewSummary, null, 2) + '\n'),
@@ -166,6 +168,7 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       drawingSheets: sheets.length,
       installationSheets: references.size,
     },
+    partInventory: { schemaVersion: 1, jsonPath: 'machining/parts.json', parts: records.length },
     drawingReferences: {
       schemaVersion: drawingIndex.schemaVersion,
       ...drawingIndex.counts,

@@ -20,6 +20,8 @@ export interface FileMenuProps {
   onExportStep: () => void
   onOpenDrawings: () => void
   onReadiness: () => void
+  onVerifyPacket?: () => void
+  onComparePackets?: () => void
   canExport: boolean
   mainView: 'model' | 'plan'
   onMainViewChange: (v: 'model' | 'plan') => void
@@ -51,6 +53,8 @@ export function FileMenu({
   onExportStep,
   onOpenDrawings,
   onReadiness,
+  onVerifyPacket,
+  onComparePackets,
   canExport,
   mainView,
   onMainViewChange,
@@ -152,6 +156,8 @@ export function FileMenu({
             <Separator className="my-1" />
             {menuItem('Cutting List…', '⌘⇧E', onCuttingList, false)}
             {menuItem('Manufacturing readiness…', '', onReadiness, false)}
+            {onVerifyPacket && menuItem('Verify production packet…', '', onVerifyPacket, false)}
+            {onComparePackets && menuItem('Compare production packets…', '', onComparePackets, false)}
             <Separator className="my-1" />
             {menuItem('Export STL…', '', onExportStl, !canExport)}
             {menuItem('Export STEP…', '', onExportStep, !canExport)}
