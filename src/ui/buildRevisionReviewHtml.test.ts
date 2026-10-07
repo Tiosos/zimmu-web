@@ -145,3 +145,36 @@ it('resolves all internal links once, including empty groups and conditional met
     )
   }
 })
+
+it('prints manufacturing and metadata finding progress with zero rows and unchanged partial scope', () => {
+  const report = comparisonFixture()
+  report.changes.push({
+    ...report.changes[0],
+    reference: 'PC:metadata',
+    classification: 'metadata',
+  })
+  const review = createRevisionReview(report)
+  review.changes[1].acknowledged = true
+  const rows = (record: typeof review) => {
+    const doc = parse(buildRevisionReviewHtml(record))
+    const table = [...doc.querySelectorAll('table')].find(
+      (item) =>
+        item.querySelector('caption')?.textContent === 'Detected change progress by classification',
+    )!
+    return [...table.querySelectorAll('tbody tr')].map((row) =>
+      [...row.children].map((cell) => cell.textContent),
+    )
+  }
+  expect(rows(review)).toEqual([
+    ['Manufacturing', '0', '1', '1'],
+    ['Metadata', '1', '0', '1'],
+  ])
+  const empty = createRevisionReview({ ...report, status: 'partial', changes: [] })
+  expect(rows(empty)).toEqual([
+    ['Manufacturing', '0', '0', '0'],
+    ['Metadata', '0', '0', '0'],
+  ])
+  expect(parse(buildRevisionReviewHtml(empty)).body.textContent).toContain(
+    'Partial — missing fields were not assumed unchanged',
+  )
+})

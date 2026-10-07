@@ -44,6 +44,9 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await dialog.getByRole('button', { name: 'Download comparison report' }).click()
   const download = await downloading
   const report = JSON.parse(await readFile(await download.path(), 'utf8'))
+  expect(download.suggestedFilename()).toBe(
+    `production-packet-comparison-untitled-${report.before.sha256.slice(0, 12)}-to-${report.after.sha256.slice(0, 12)}.json`,
+  )
   expect(report.counts.manufacturing).toBe(1)
   expect(report.changes[0].before.locations).toContain('machining/parts.json')
   expect(
@@ -88,6 +91,15 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(dialog.getByLabel('Show pending items only')).not.toBeChecked()
   await expect(dialog.getByRole('button', { name: 'Clear navigation filters' })).toBeDisabled()
   await dialog.getByLabel('Acknowledge selected change').check()
+  const classificationProgress = dialog.getByRole('table', {
+    name: 'Detected change progress by classification',
+  })
+  await expect(
+    classificationProgress.getByRole('row').filter({ hasText: 'Manufacturing' }).getByRole('cell'),
+  ).toHaveText(['1', '0', '1'])
+  await expect(
+    classificationProgress.getByRole('row').filter({ hasText: 'Metadata' }).getByRole('cell'),
+  ).toHaveText(['0', '0', '0'])
   await dialog.getByLabel('Change note', { exact: true }).fill('Revised length checked')
   page.once('dialog', (confirmation) => void confirmation.dismiss())
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
@@ -163,6 +175,13 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   expect(printableDownload.suggestedFilename()).toBe(`${reviewStem}.html`)
   const summaryPage = await context.newPage()
   await summaryPage.setContent(html)
+  await expect(
+    summaryPage
+      .getByRole('table', { name: 'Detected change progress by classification' })
+      .getByRole('row')
+      .filter({ hasText: 'Manufacturing' })
+      .getByRole('cell'),
+  ).toHaveText(['1', '0', '1'])
   const contents = summaryPage.getByRole('navigation', { name: 'Review contents' })
   await contents.getByRole('link', { name: 'Comparison limitations', exact: true }).click()
   await expect(summaryPage.locator('#limitations')).toBeInViewport()
