@@ -126,6 +126,17 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   expect(printableDownload.suggestedFilename()).toBe('production-packet-revision-review.html')
   const summaryPage = await context.newPage()
   await summaryPage.setContent(html)
+  const contents = summaryPage.getByRole('navigation', { name: 'Review contents' })
+  await contents.getByRole('link', { name: 'Comparison limitations', exact: true }).click()
+  await expect(summaryPage.locator('#limitations')).toBeInViewport()
+  await summaryPage.locator('#limitations').getByRole('link', { name: 'Back to contents' }).click()
+  await expect(contents).toBeInViewport()
+  await summaryPage.emulateMedia({ media: 'print' })
+  await expect(contents).toBeHidden()
+  await expect(
+    summaryPage.getByRole('heading', { name: 'Comparison limitations', exact: true }),
+  ).toBeVisible()
+  await summaryPage.emulateMedia({ media: 'screen' })
   await expect(
     summaryPage.getByRole('heading', { name: 'Production packet revision review', exact: true }),
   ).toBeVisible()

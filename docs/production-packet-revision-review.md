@@ -23,3 +23,5 @@ When a review file is loading, a newer import or any edit to review progress can
 Use **Show pending items only** to hide acknowledged changes, outputs and limitations. When a change is acknowledged, selection moves to another pending change. Clear the filter to see and edit earlier acknowledgments and notes. The filter affects only the dialog: counts, JSON records and printable summaries always retain every item.
 
 **Find a change** searches detected changes by label, part ID, operation ID or stable reference. Matching ignores case and surrounding whitespace and treats punctuation literally. It works together with the pending-only filter and reports the number of visible matches. Clear or adjust search when no changes match. Search affects only change selection; acknowledgment counts, output/limitation checklists and both exports remain complete. Search is not stored in the JSON record.
+
+The printable HTML includes a **Contents** navigation list and **Back to contents** links for long review groups. Links stay within the saved file and work offline. Navigation is hidden when printing or saving a PDF; all review content remains included.
