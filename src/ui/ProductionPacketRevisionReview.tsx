@@ -66,6 +66,7 @@ export function ProductionPacketRevisionReview({
   const change = visibleChanges.find((item) => item.reference === activeReference)
   const coverage = revisionReviewCoverage(report)
   const acknowledged = review.changes.filter((item) => item.acknowledged).length
+  const classificationProgress = revisionReviewClassificationProgress(review)
   return (
     <section
       aria-label="Local revision review"
@@ -86,7 +87,7 @@ export function ProductionPacketRevisionReview({
           </tr>
         </thead>
         <tbody>
-          {revisionReviewClassificationProgress(review).map((item) => (
+          {classificationProgress.map((item) => (
             <tr key={item.classification}>
               <th scope="row">
                 {item.classification === 'manufacturing' ? 'Manufacturing' : 'Metadata'}
@@ -98,6 +99,24 @@ export function ProductionPacketRevisionReview({
           ))}
         </tbody>
       </table>
+      <div className="flex flex-wrap gap-2">
+        {classificationProgress.map((item) => (
+          <Button
+            key={item.classification}
+            variant="outline"
+            size="sm"
+            disabled={item.pending === 0}
+            onClick={() => {
+              setSelected(activeReference)
+              setClassification(item.classification)
+              setPendingOnly(true)
+              setSearch('')
+            }}
+          >
+            Review pending {item.classification} changes
+          </Button>
+        ))}
+      </div>
       <p>
         Counts cover all detected changes, regardless of navigation filters. Packet metadata changes
         are outside this breakdown.

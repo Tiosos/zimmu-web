@@ -1,0 +1,5 @@
+# Pending classification shortcuts notes
+
+- 2026-10-08: Independent follow-up to #98 while the checkpoint-status PR #99 runs CI. Place buttons below the progress table to keep its count columns and printed counterpart aligned. Reuse the global counts helper for zero-pending guards; filtering never creates a review checkpoint.
+- Focused tests: 24 passed. Mixed classes, acknowledged findings, empty classes, search-hidden selection and complete exports are covered. Removing each class/pending/search setting, zero-pending guard and visible-selection preservation produced predicted AssertionErrors; restored from a byte-verified backup.
+- Full validation: 172 unit files passed; 2,927 tests passed, 10 existing skips. Typecheck, lint, catalogue build, CAD build and real Chromium comparison/export test passed. Browser checks navigate directly to pending manufacturing findings and verify the empty metadata shortcut is disabled. Approved #95–#98 now share main's identical integrated baseline; branch fast-forwarded to main without changing the validated source tree.

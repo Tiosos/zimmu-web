@@ -90,6 +90,13 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(dialog.getByLabel('Change classification')).toHaveValue('all')
   await expect(dialog.getByLabel('Show pending items only')).not.toBeChecked()
   await expect(dialog.getByRole('button', { name: 'Clear navigation filters' })).toBeDisabled()
+  await dialog.getByRole('button', { name: 'Review pending manufacturing changes' }).click()
+  await expect(dialog.getByLabel('Change classification')).toHaveValue('manufacturing')
+  await expect(dialog.getByLabel('Show pending items only')).toBeChecked()
+  await expect(
+    dialog.getByRole('button', { name: 'Review pending metadata changes' }),
+  ).toBeDisabled()
+  await dialog.getByRole('button', { name: 'Clear navigation filters' }).click()
   await dialog.getByLabel('Acknowledge selected change').check()
   const classificationProgress = dialog.getByRole('table', {
     name: 'Detected change progress by classification',
