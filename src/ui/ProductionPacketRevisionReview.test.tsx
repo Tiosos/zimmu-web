@@ -308,3 +308,66 @@ it('finds changes by identity and Unicode label while retaining complete exports
   expect(screen.getByText(/No changes match this search\./)).toBeTruthy()
   expect(screen.getByLabelText('Output note: drawings/shop-drawings.pdf')).toBeTruthy()
 })
+
+it('steps through filtered changes with boundaries while retaining notes and complete progress', () => {
+  const report = comparisonFixture()
+  report.changes = ['Match first', 'Excluded', 'Match middle', 'Match last'].map(
+    (label, index) => ({
+      ...report.changes[0],
+      reference: `PC:${index}`,
+      label,
+    }),
+  )
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} />)
+  const previous = () =>
+    screen.getByRole('button', { name: 'Previous change' }) as HTMLButtonElement
+  const next = () => screen.getByRole('button', { name: 'Next change' }) as HTMLButtonElement
+  const selected = () => (screen.getByLabelText('Change to review') as HTMLSelectElement).value
+  const search = (value: string) =>
+    fireEvent.change(screen.getByLabelText('Find a change'), { target: { value } })
+  search('Match')
+  expect(previous().disabled).toBe(true)
+  expect(next().disabled).toBe(false)
+  expect(screen.getByText('Change 1 of 3 matching changes')).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'First note' } })
+  fireEvent.click(next())
+  expect(selected()).toBe('PC:2')
+  expect(screen.getByText('Change 2 of 3 matching changes')).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Middle note' } })
+  fireEvent.click(next())
+  expect(selected()).toBe('PC:3')
+  expect(next().disabled).toBe(true)
+  fireEvent.click(previous())
+  expect(selected()).toBe('PC:2')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Middle note')
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(selected()).toBe('PC:0')
+  expect(screen.getByText('Change 1 of 2 matching changes')).toBeTruthy()
+  fireEvent.click(next())
+  expect(selected()).toBe('PC:3')
+  expect(next().disabled).toBe(true)
+  fireEvent.click(previous())
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('First note')
+  search('last')
+  expect(previous().disabled).toBe(true)
+  expect(next().disabled).toBe(true)
+  search('missing')
+  expect(screen.queryByRole('button', { name: 'Next change' })).toBeNull()
+  search('')
+  fireEvent.change(screen.getByLabelText('Change to review'), { target: { value: 'PC:1' } })
+  fireEvent.click(next())
+  expect(selected()).toBe('PC:3')
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.changes).toHaveLength(4)
+  expect(saved.changes.map((item: { acknowledged: boolean }) => item.acknowledged)).toEqual([
+    false,
+    false,
+    true,
+    false,
+  ])
+  expect(saved.changes[0].note).toBe('First note')
+  expect(saved.changes[2].note).toBe('Middle note')
+})

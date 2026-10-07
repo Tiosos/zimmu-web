@@ -41,6 +41,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
     visibleChanges.find((item) => item.reference === selected)?.reference ??
     visibleChanges[0]?.reference ??
     ''
+  const activeIndex = visibleChanges.findIndex((item) => item.reference === activeReference)
   const entry = progress.get(activeReference)
   const change = visibleChanges.find((item) => item.reference === activeReference)
   const coverage = revisionReviewCoverage(report)
@@ -145,6 +146,25 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
               ))}
             </select>
           </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={activeIndex === 0}
+              onClick={() => setSelected(visibleChanges[activeIndex - 1].reference)}
+            >
+              Previous change
+            </Button>
+            <span>
+              Change {activeIndex + 1} of {visibleChanges.length} matching changes
+            </span>
+            <Button
+              variant="outline"
+              disabled={activeIndex === visibleChanges.length - 1}
+              onClick={() => setSelected(visibleChanges[activeIndex + 1].reference)}
+            >
+              Next change
+            </Button>
+          </div>
           <p className="break-all">
             Earlier: {change.before?.locations.join(' · ') ?? 'Absent'}
             <br />
