@@ -22,6 +22,9 @@ it('downloads progress and resumes the exact comparison; rejects stale records w
   fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Length verified' } })
   fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
   const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(download.mock.calls[0][1]).toBe(
+    'production-packet-revision-review-project-aaaaaaaaaaaa-to-bbbbbbbbbbbb.json',
+  )
   expect(saved.changes[0]).toEqual({
     reference: 'PC:part',
     acknowledged: true,
@@ -131,7 +134,9 @@ it('downloads a printable snapshot with current notes and pending coverage', () 
     target: { value: 'Print this review' },
   })
   fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
-  expect(download.mock.calls[0][1]).toBe('production-packet-revision-review.html')
+  expect(download.mock.calls[0][1]).toBe(
+    'production-packet-revision-review-project-aaaaaaaaaaaa-to-bbbbbbbbbbbb.html',
+  )
   expect(download.mock.calls[0][2]).toBe('text/html;charset=utf-8')
   expect(download.mock.calls[0][0]).toContain('Print this review')
   expect(download.mock.calls[0][0]).toContain('Pending — modified part: Board')

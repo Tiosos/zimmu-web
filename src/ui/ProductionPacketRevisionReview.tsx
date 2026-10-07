@@ -9,6 +9,7 @@ import {
 } from './packetRevisionReview'
 import { downloadBlob } from './download'
 import { buildRevisionReviewHtml } from './buildRevisionReviewHtml'
+import { revisionReviewFilename } from './revisionReviewFilename'
 
 export function ProductionPacketRevisionReview({
   report,
@@ -290,7 +291,7 @@ export function ProductionPacketRevisionReview({
         onClick={() => {
           downloadBlob(
             JSON.stringify({ ...review, savedAt: new Date().toISOString() }, null, 2) + '\n',
-            'production-packet-revision-review.json',
+            revisionReviewFilename(report, 'json'),
             'application/json',
           )
           markEdited(false)
@@ -303,7 +304,7 @@ export function ProductionPacketRevisionReview({
         onClick={() =>
           downloadBlob(
             buildRevisionReviewHtml({ ...review, savedAt: new Date().toISOString() }),
-            'production-packet-revision-review.html',
+            revisionReviewFilename(report, 'html'),
             'text/html;charset=utf-8',
           )
         }
