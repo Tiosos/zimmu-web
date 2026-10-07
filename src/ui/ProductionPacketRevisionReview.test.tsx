@@ -616,3 +616,98 @@ it('retains an in-flight resume when classification is changed', async () => {
     'Imported change note',
   )
 })
+
+it('clears combined empty filters without changing progress, notes, exports or edited status', () => {
+  const report = comparisonFixture()
+  report.changes.push({
+    ...report.changes[0],
+    reference: 'PC:metadata',
+    classification: 'metadata',
+    label: 'Renamed',
+  })
+  const edited = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  const clear = screen.getByRole('button', { name: 'Clear navigation filters' })
+  expect((clear as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Keep this note' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  edited.mockClear()
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+  expect(screen.queryByLabelText('Change to review')).toBeNull()
+  fireEvent.click(clear)
+  expect((screen.getByLabelText('Find a change') as HTMLInputElement).value).toBe('')
+  expect((screen.getByLabelText('Change classification') as HTMLSelectElement).value).toBe('all')
+  expect((screen.getByLabelText('Show pending items only') as HTMLInputElement).checked).toBe(false)
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:part')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Keep this note')
+  expect((screen.getByLabelText('Acknowledge selected change') as HTMLInputElement).checked).toBe(
+    true,
+  )
+  expect((clear as HTMLButtonElement).disabled).toBe(true)
+  expect(edited).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.changes).toHaveLength(2)
+  expect(saved.changes[0]).toEqual({
+    reference: 'PC:part',
+    note: 'Keep this note',
+    acknowledged: true,
+  })
+})
+
+it('enables clearing each individual filter, including whitespace, and preserves the visible selection', () => {
+  const report = comparisonFixture()
+  report.changes.push({ ...report.changes[0], reference: 'PC:second', label: 'Second' })
+  render(<ProductionPacketRevisionReview report={report} />)
+  const clear = screen.getByRole('button', {
+    name: 'Clear navigation filters',
+  }) as HTMLButtonElement
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'Second' } })
+  fireEvent.click(clear)
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:second')
+  for (const apply of [
+    () => fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: '  ' } }),
+    () =>
+      fireEvent.change(screen.getByLabelText('Change classification'), {
+        target: { value: 'manufacturing' },
+      }),
+    () => fireEvent.click(screen.getByLabelText('Show pending items only')),
+  ]) {
+    apply()
+    expect(clear.disabled).toBe(false)
+    fireEvent.click(clear)
+    expect(clear.disabled).toBe(true)
+    expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:second')
+  }
+})
+
+it('allows a pending resume to complete after clearing navigation', async () => {
+  const report = comparisonFixture(),
+    saved = createRevisionReview(report)
+  saved.changes[0].acknowledged = true
+  saved.notes = 'Resumed review'
+  let finish!: (text: string) => void
+  const file = new File(['slow'], 'review.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.click(screen.getByRole('button', { name: 'Clear navigation filters' }))
+  await act(async () => finish(JSON.stringify(saved)))
+  expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe(
+    'Resumed review',
+  )
+  expect((screen.getByLabelText('Acknowledge selected change') as HTMLInputElement).checked).toBe(
+    true,
+  )
+})
