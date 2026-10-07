@@ -49,7 +49,7 @@ it('prints independent pending counts, notes, hashes, provenance, fields and bot
   expect(text).toContain('not production approval')
   expect(doc.querySelector('style')!.textContent).toContain('@media print')
 })
-it('escapes adversarial text in every content group and never adds active content or links', () => {
+it('escapes adversarial text in every content group and never adds active content or external links', () => {
   const payload = '<img src=x onerror="alert(1)"><script>alert(2)</script>&\'"',
     report = comparisonFixture()
   report.changes[0].label = payload
@@ -67,8 +67,12 @@ it('escapes adversarial text in every content group and never adds active conten
   review.outputs[0].note = payload
   review.limitations[0].note = payload
   const doc = parse(buildRevisionReviewHtml(review))
-  expect(doc.querySelectorAll('script,img,svg,iframe,a,link,form').length).toBe(0)
+  expect(doc.querySelectorAll('script,img,svg,iframe,link,form').length).toBe(0)
   expect(doc.body.textContent).toContain(payload)
+  for (const link of doc.querySelectorAll('a')) {
+    expect(link.getAttribute('href')).toMatch(/^#[a-z]+$/)
+    expect(doc.querySelectorAll(link.getAttribute('href')!).length).toBe(1)
+  }
   expect(
     doc.querySelector('meta[http-equiv="Content-Security-Policy"]')!.getAttribute('content'),
   ).toContain("default-src 'none'")
@@ -117,4 +121,27 @@ it('retains manual operation identity, definitions on additions and rejects inco
     expect(text).toContain(expected)
   review.outputs = []
   expect(() => buildRevisionReviewHtml(review)).toThrow(/output references/)
+})
+
+it('resolves all internal links once, including empty groups and conditional metadata', () => {
+  for (const metadata of [[], ['projectName']]) {
+    const report = comparisonFixture()
+    report.packetMetadataChanges = metadata
+    report.changes = []
+    report.otherChangedFiles = []
+    report.limitations = []
+    const doc = parse(buildRevisionReviewHtml(createRevisionReview(report)))
+    expect(doc.querySelector('nav')!.getAttribute('aria-label')).toBe('Review contents')
+    expect(doc.querySelectorAll('nav a').length).toBe(metadata.length ? 6 : 5)
+    expect(doc.querySelectorAll('a[href="#contents"]').length).toBe(3)
+    for (const link of doc.querySelectorAll('a')) {
+      const href = link.getAttribute('href')!
+      expect(href).toMatch(/^#[a-z]+$/)
+      expect(doc.querySelectorAll(href).length).toBe(1)
+    }
+    expect(doc.querySelectorAll('#metadata').length).toBe(metadata.length ? 1 : 0)
+    expect(doc.querySelector('style')!.textContent).toContain(
+      '@media print{.navigation{display:none}',
+    )
+  }
 })
