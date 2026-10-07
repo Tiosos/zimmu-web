@@ -522,3 +522,97 @@ it('shows removed definitions on the earlier side and marks the later revision a
     ),
   ).toBeTruthy()
 })
+
+it('composes classification, search and pending views without losing notes or export coverage', () => {
+  const report = comparisonFixture()
+  report.changes = ['manufacturing', 'metadata', 'manufacturing'].map((classification, index) => ({
+    ...report.changes[0],
+    reference: `PC:${index}`,
+    label: `Match ${index}`,
+    classification: classification as 'manufacturing' | 'metadata',
+  }))
+  report.changes[1].fields = [
+    { field: 'label', classification: 'metadata', before: 'Old label', after: 'Match 1' },
+  ]
+  report.changes[2].fields = [
+    ...report.changes[2].fields,
+    { field: 'label', classification: 'metadata', before: 'Old shop label', after: 'Match 2' },
+  ]
+  report.counts = { added: 0, removed: 0, modified: 3, manufacturing: 2, metadata: 1 }
+  const changed = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={changed} />)
+  const filter = (value: string) =>
+    fireEvent.change(screen.getByLabelText('Change classification'), { target: { value } })
+  const selected = () => (screen.getByLabelText('Change to review') as HTMLSelectElement).value
+  filter('manufacturing')
+  expect(screen.queryByText('2 of 3 changes match the current filters.')).toBeTruthy()
+  expect(selected()).toBe('PC:0')
+  fireEvent.click(screen.getByRole('button', { name: 'Next change' }))
+  expect(selected()).toBe('PC:2')
+  expect(screen.getByRole('rowheader', { name: 'label (metadata)' })).toBeTruthy()
+  expect(changed).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Shop note' } })
+  filter('metadata')
+  expect(selected()).toBe('PC:1')
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Label note' } })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  expect(screen.queryByText(/No changes match the current classification and filters/)).toBeTruthy()
+  expect(screen.queryByText(/No pending changes/)).toBeNull()
+  expect(screen.getByText('1 of 3 detected changes acknowledged.')).toBeTruthy()
+  filter('manufacturing')
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'Match 2' } })
+  expect(selected()).toBe('PC:2')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Shop note')
+  filter('metadata')
+  expect(screen.queryByLabelText('Change to review')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.changes).toHaveLength(3)
+  expect(saved.changes[1]).toMatchObject({ acknowledged: true, note: 'Label note' })
+  expect(saved.changes[2].note).toBe('Shop note')
+  expect('classification' in saved).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  expect(download.mock.calls[1][0]).toContain('Shop note')
+  expect(download.mock.calls[1][0]).toContain('Label note')
+  filter('all')
+  expect(selected()).toBe('PC:2')
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: '' } })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  filter('metadata')
+  expect(selected()).toBe('PC:1')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Label note')
+})
+
+it('retains an in-flight resume when classification is changed', async () => {
+  const report = comparisonFixture(),
+    record = createRevisionReview(report)
+  record.notes = 'Resumed after filtering'
+  record.changes[0].note = 'Imported change note'
+  let finish!: (text: string) => void
+  const file = new File(['record'], 'record.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  await act(async () => {
+    finish(JSON.stringify(record))
+  })
+  expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe(
+    'Resumed after filtering',
+  )
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'manufacturing' },
+  })
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe(
+    'Imported change note',
+  )
+})
