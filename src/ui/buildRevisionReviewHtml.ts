@@ -1,6 +1,7 @@
 import {
   importRevisionReview,
   revisionReviewCoverage,
+  revisionReviewClassificationProgress,
   type ReviewAcknowledgment,
   type RevisionReviewRecord,
 } from './packetRevisionReview'
@@ -72,6 +73,15 @@ ${report.packetMetadataChanges.length ? '<li><a href="#metadata">Packet metadata
 <li><a href="#changes">Detected changes</a></li><li><a href="#outputs">Other changed outputs</a></li><li><a href="#limitations">Comparison limitations</a></li>
 </ul></nav>
 <h2 id="progress">Review progress</h2><table><thead><tr><th>Group</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${count('Detected changes', review.changes)}${count('Other changed outputs', review.outputs)}${count('Comparison limitations', review.limitations)}</tbody></table>
+<table><caption>Detected change progress by classification</caption><thead><tr><th>Classification</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${revisionReviewClassificationProgress(
+    review,
+  )
+    .map(
+      (item) =>
+        `<tr><th scope="row">${item.classification === 'manufacturing' ? 'Manufacturing' : 'Metadata'}</th><td>${item.acknowledged}</td><td>${item.pending}</td><td>${item.total}</td></tr>`,
+    )
+    .join('')}</tbody></table>
+<p>Counts cover all detected changes, regardless of navigation filters. Packet metadata changes are outside this breakdown.</p>
 <p>Counts describe recorded items only. Zero pending items does not establish production readiness. Pending items appear first in each group.</p>
 <h2 id="notes">Overall review notes</h2>${note(review.notes)}
 ${report.packetMetadataChanges.length ? `<h2 id="metadata">Packet metadata changes</h2><ul>${report.packetMetadataChanges.map((field) => `<li>${escape(field)}</li>`).join('')}</ul>` : ''}

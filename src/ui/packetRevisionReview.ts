@@ -31,6 +31,24 @@ export interface RevisionReviewRecord {
   limitations: ReviewAcknowledgment[]
 }
 
+export function revisionReviewClassificationProgress(review: RevisionReviewRecord) {
+  const acknowledged = new Set(
+    review.changes.filter((item) => item.acknowledged).map((item) => item.reference),
+  )
+  return (['manufacturing', 'metadata'] as const).map((classification) => {
+    const changes = review.comparison.changes.filter(
+      (change) => change.classification === classification,
+    )
+    const checked = changes.filter((change) => acknowledged.has(change.reference)).length
+    return {
+      classification,
+      acknowledged: checked,
+      pending: changes.length - checked,
+      total: changes.length,
+    }
+  })
+}
+
 export function createRevisionReview(comparison: PacketRevisionReport): RevisionReviewRecord {
   if (comparison.status === 'blocked' || !comparison.before.sha256 || !comparison.after.sha256)
     throw new Error('A verified comparison with both packet hashes is required.')

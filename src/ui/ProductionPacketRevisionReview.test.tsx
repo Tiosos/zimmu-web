@@ -523,6 +523,51 @@ it('shows removed definitions on the earlier side and marks the later revision a
   ).toBeTruthy()
 })
 
+it('keeps classification progress global while searching and hiding acknowledged changes', () => {
+  const report = comparisonFixture()
+  report.changes.push({
+    ...report.changes[0],
+    reference: 'PC:metadata',
+    label: 'Renamed board',
+    classification: 'metadata',
+  })
+  render(<ProductionPacketRevisionReview report={report} />)
+  const rows = () =>
+    [
+      ...within(
+        screen.getByRole('table', { name: 'Detected change progress by classification' }),
+      ).getAllByRole('row'),
+    ]
+      .slice(1)
+      .map((row) => [...row.children].map((cell) => cell.textContent))
+  expect(rows()).toEqual([
+    ['Manufacturing', '0', '1', '1'],
+    ['Metadata', '0', '1', '1'],
+  ])
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+  expect(rows()).toEqual([
+    ['Manufacturing', '1', '0', '1'],
+    ['Metadata', '0', '1', '1'],
+  ])
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  const doc = new DOMParser().parseFromString(download.mock.calls[0][0] as string, 'text/html')
+  const table = [...doc.querySelectorAll('table')].find(
+    (item) =>
+      item.querySelector('caption')?.textContent === 'Detected change progress by classification',
+  )!
+  expect(
+    [...table.querySelectorAll('tbody tr')].map((row) =>
+      [...row.children].map((cell) => cell.textContent),
+    ),
+  ).toEqual(rows())
+})
+
 it('composes classification, search and pending views without losing notes or export coverage', () => {
   const report = comparisonFixture()
   report.changes = ['manufacturing', 'metadata', 'manufacturing'].map((classification, index) => ({

@@ -5,6 +5,7 @@ import {
   createRevisionReview,
   importRevisionReview,
   revisionReviewCoverage,
+  revisionReviewClassificationProgress,
   type RevisionReviewRecord,
 } from './packetRevisionReview'
 import { downloadBlob } from './download'
@@ -73,6 +74,33 @@ export function ProductionPacketRevisionReview({
       <h3 className="font-semibold">Local revision review</h3>
       <p>
         {acknowledged} of {review.changes.length} detected changes acknowledged.
+      </p>
+      <table className="w-full text-left">
+        <caption>Detected change progress by classification</caption>
+        <thead>
+          <tr>
+            <th scope="col">Classification</th>
+            <th scope="col">Acknowledged</th>
+            <th scope="col">Pending</th>
+            <th scope="col">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {revisionReviewClassificationProgress(review).map((item) => (
+            <tr key={item.classification}>
+              <th scope="row">
+                {item.classification === 'manufacturing' ? 'Manufacturing' : 'Metadata'}
+              </th>
+              <td>{item.acknowledged}</td>
+              <td>{item.pending}</td>
+              <td>{item.total}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p>
+        Counts cover all detected changes, regardless of navigation filters. Packet metadata changes
+        are outside this breakdown.
       </p>
       <p>
         Self-reported review only; this is not production approval. Acknowledgments do not expand
