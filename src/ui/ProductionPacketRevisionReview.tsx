@@ -168,6 +168,19 @@ export function ProductionPacketRevisionReview({
           }}
         />
       </label>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={!search && classification === 'all' && !pendingOnly}
+        onClick={() => {
+          setSelected(activeReference)
+          setSearch('')
+          setClassification('all')
+          setPendingOnly(false)
+        }}
+      >
+        Clear navigation filters
+      </Button>
       <p>
         Search by label, part ID, operation ID or stable reference. Classification and search affect
         change selection only; downloads include every item.

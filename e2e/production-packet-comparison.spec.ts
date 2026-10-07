@@ -83,7 +83,13 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     }),
   ).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Next change' })).toHaveCount(0)
-  await dialog.getByLabel('Find a change').fill('')
+  await dialog.getByLabel('Change classification').selectOption('metadata')
+  await dialog.getByLabel('Show pending items only').check()
+  await dialog.getByRole('button', { name: 'Clear navigation filters' }).click()
+  await expect(dialog.getByLabel('Find a change')).toHaveValue('')
+  await expect(dialog.getByLabel('Change classification')).toHaveValue('all')
+  await expect(dialog.getByLabel('Show pending items only')).not.toBeChecked()
+  await expect(dialog.getByRole('button', { name: 'Clear navigation filters' })).toBeDisabled()
   await dialog.getByLabel('Acknowledge selected change').check()
   const classificationProgress = dialog.getByRole('table', {
     name: 'Detected change progress by classification',
