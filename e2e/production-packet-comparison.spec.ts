@@ -99,6 +99,9 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   const reviewDownloading = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Download revision review' }).click()
   const reviewDownload = await reviewDownloading
+  expect(report.after.projectName).toBe('Untitled')
+  const reviewStem = `production-packet-revision-review-untitled-${report.before.sha256.slice(0, 12)}-to-${report.after.sha256.slice(0, 12)}`
+  expect(reviewDownload.suggestedFilename()).toBe(`${reviewStem}.json`)
   const reviewBytes = await readFile(await reviewDownload.path())
   const review = JSON.parse(reviewBytes.toString())
   expect(review.comparison.before.sha256).toBe(report.before.sha256)
@@ -136,7 +139,7 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await dialog.getByRole('button', { name: 'Download printable review' }).click()
   const printableDownload = await printableDownloading
   const html = await readFile(await printableDownload.path(), 'utf8')
-  expect(printableDownload.suggestedFilename()).toBe('production-packet-revision-review.html')
+  expect(printableDownload.suggestedFilename()).toBe(`${reviewStem}.html`)
   const summaryPage = await context.newPage()
   await summaryPage.setContent(html)
   const contents = summaryPage.getByRole('navigation', { name: 'Review contents' })
