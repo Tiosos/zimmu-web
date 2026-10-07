@@ -68,6 +68,15 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await dialog.getByLabel('Find a change').fill('')
   await dialog.getByLabel('Acknowledge selected change').check()
   await dialog.getByLabel('Change note', { exact: true }).fill('Revised length checked')
+  page.once('dialog', (confirmation) => void confirmation.dismiss())
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(dialog).toBeVisible()
+  page.once('dialog', (confirmation) => void confirmation.dismiss())
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByLabel('Change note', { exact: true })).toHaveValue(
+    'Revised length checked',
+  )
   const outputPath = report.otherChangedFiles[0]
   expect(outputPath).toBeTruthy()
   await dialog

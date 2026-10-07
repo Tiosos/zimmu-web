@@ -6,6 +6,7 @@ import * as downloads from './download'
 import { MAX_PACKET_BYTES } from './verifyProductionPacket'
 
 beforeEach(() => {
+  vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
   vi.spyOn(HTMLDialogElement.prototype, 'showModal').mockImplementation(function (
     this: HTMLDialogElement,
   ) {
@@ -16,6 +17,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 const integrity = {
   schemaVersion: 1 as const,
@@ -129,4 +131,56 @@ describe('packet comparison UI', () => {
     await screen.findByText('Partial revision comparison')
     expect(screen.getByText(/Missing part fields were not assumed unchanged/)).toBeTruthy()
   })
+})
+
+it('preserves edited reviews when Close, Escape, packet replacement or re-comparison is canceled', async () => {
+  const compare = vi.spyOn(comparisons, 'compareProductionPackets').mockResolvedValue(report)
+  vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  const confirm = vi.mocked(window.confirm).mockReturnValue(false),
+    close = vi.fn()
+  render(<ProductionPacketComparison onClose={close} />)
+  choose('Earlier packet', new Uint8Array([1]))
+  choose('Later packet', new Uint8Array([2]))
+  fireEvent.click(screen.getByRole('button', { name: 'Compare revisions' }))
+  await screen.findByText('Revision comparison complete')
+  expect(confirm).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('Review notes'), { target: { value: 'Keep review' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  const cancel = new Event('cancel', { bubbles: true, cancelable: true })
+  fireEvent(screen.getByRole('dialog'), cancel)
+  expect(cancel.defaultPrevented).toBe(true)
+  expect(close).not.toHaveBeenCalled()
+  choose('Later packet', new Uint8Array([9]))
+  fireEvent.click(screen.getByRole('button', { name: 'Compare revisions' }))
+  expect(compare).toHaveBeenCalledTimes(1)
+  expect(confirm).toHaveBeenCalledTimes(4)
+  expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe('Keep review')
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  expect(close).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Compare revisions' }))
+  await screen.findByText('Revision comparison complete')
+  expect(compare).toHaveBeenLastCalledWith(new Uint8Array([1]), new Uint8Array([2]))
+  expect(confirm).toHaveBeenCalledTimes(5)
+  fireEvent.change(screen.getByLabelText('Review notes'), { target: { value: 'New edit' } })
+  confirm.mockReturnValue(true)
+  choose('Earlier packet', new Uint8Array([3]))
+  expect(screen.queryByLabelText('Review notes')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Compare revisions' }))
+  await screen.findByText('Revision comparison complete')
+  expect(compare).toHaveBeenLastCalledWith(new Uint8Array([3]), new Uint8Array([2]))
+  fireEvent.change(screen.getByLabelText('Reviewer (self-reported)'), {
+    target: { value: 'Reviewer' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Compare revisions' }))
+  await screen.findByText('Revision comparison complete')
+  expect((screen.getByLabelText('Reviewer (self-reported)') as HTMLInputElement).value).toBe('')
+  fireEvent.change(screen.getByLabelText('Review notes'), {
+    target: { value: 'Close edited review' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  expect(close).toHaveBeenCalledTimes(1)
+  fireEvent(screen.getByRole('dialog'), new Event('cancel', { bubbles: true, cancelable: true }))
+  expect(close).toHaveBeenCalledTimes(2)
 })

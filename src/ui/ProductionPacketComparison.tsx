@@ -9,6 +9,15 @@ import { ProductionPacketRevisionReview } from './ProductionPacketRevisionReview
 export function ProductionPacketComparison({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null),
     alive = useRef(false)
+  const edited = useRef(false)
+  const canDiscard = () =>
+    !edited.current ||
+    window.confirm(
+      'Discard edits since your last JSON download or resume? Download revision review JSON first to keep them.',
+    )
+  const close = () => {
+    if (canDiscard()) onClose()
+  }
   const heading = useId()
   const [before, setBefore] = useState<File | null>(null),
     [after, setAfter] = useState<File | null>(null)
@@ -25,7 +34,8 @@ export function ProductionPacketComparison({ onClose }: { onClose: () => void })
     }
   }, [])
   const compare = async () => {
-    if (!before || !after || busy) return
+    if (!before || !after || busy || !canDiscard()) return
+    edited.current = false
     setBusy(true)
     setReport(null)
     setError(null)
@@ -48,14 +58,17 @@ export function ProductionPacketComparison({ onClose }: { onClose: () => void })
     <dialog
       ref={dialog}
       aria-labelledby={heading}
-      onCancel={onClose}
+      onCancel={(event) => {
+        event.preventDefault()
+        close()
+      }}
       className="fixed inset-0 m-auto max-h-[85vh] w-[min(1000px,94vw)] overflow-auto rounded-lg border border-border bg-background p-6 text-foreground shadow-xl backdrop:bg-black/50"
     >
       <div className="mb-4 flex items-center justify-between gap-4">
         <h2 id={heading} className="text-lg font-semibold">
           Compare production packets
         </h2>
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={close}>
           Close
         </Button>
       </div>
@@ -75,14 +88,23 @@ export function ProductionPacketComparison({ onClose }: { onClose: () => void })
             <input
               className="mt-2 block"
               type="file"
+              aria-label={label}
               accept=".zip,application/zip"
               disabled={busy}
               onChange={(event) => {
+                if (!canDiscard()) {
+                  event.target.value = ''
+                  return
+                }
+                edited.current = false
                 setFile(event.target.files?.[0] ?? null)
                 setReport(null)
                 setError(null)
               }}
             />
+            <span className="mt-1 block text-xs">
+              Selected: {(label === 'Earlier packet' ? before : after)?.name ?? 'None'}
+            </span>
           </label>
         ))}
       </div>
@@ -139,7 +161,12 @@ export function ProductionPacketComparison({ onClose }: { onClose: () => void })
               Download comparison report
             </Button>
             {report.status !== 'blocked' && report.before.sha256 && report.after.sha256 && (
-              <ProductionPacketRevisionReview report={report} />
+              <ProductionPacketRevisionReview
+                report={report}
+                onEditedChange={(value) => {
+                  edited.current = value
+                }}
+              />
             )}
             {report.status === 'blocked' && (
               <ul className="space-y-2">

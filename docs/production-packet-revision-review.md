@@ -27,3 +27,5 @@ Use **Show pending items only** to hide acknowledged changes, outputs and limita
 Use **Previous change** and **Next change** to step through the current search and pending-filter matches in comparison order. The position indicator counts those matches. Controls stop at the first and last match and do not acknowledge changes; existing notes and complete exports are retained.
 
 The printable HTML includes a **Contents** navigation list and **Back to contents** links for long review groups. Links stay within the saved file and work offline. Navigation is hidden when printing or saving a PDF; all review content remains included.
+
+After editing a review, Close, Escape, packet replacement, re-comparison and resuming another record ask before discarding edits. Cancel keeps the current review and packet selections. Download revision review JSON first to keep progress. A JSON download initiation or successful resume resets this warning; printable HTML and view filters do not. This tracks edits since that checkpoint, not whether a file was saved to disk. Reloading or terminating the browser can still discard local progress.
