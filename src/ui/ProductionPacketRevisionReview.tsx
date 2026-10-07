@@ -14,6 +14,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
   const [review, setReview] = useState(() => createRevisionReview(report))
   const [selected, setSelected] = useState(report.changes[0]?.reference ?? '')
   const [pendingOnly, setPendingOnly] = useState(false)
+  const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const resumeVersion = useRef(0)
   useEffect(
@@ -27,8 +28,14 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
     setReview(next)
   }
   const progress = new Map(review.changes.map((item) => [item.reference, item]))
+  const normalizeSearch = (text: string) => text.normalize('NFC').toLowerCase()
+  const query = normalizeSearch(search.trim())
   const visibleChanges = report.changes.filter(
-    (item) => !pendingOnly || !progress.get(item.reference)!.acknowledged,
+    (item) =>
+      (!pendingOnly || !progress.get(item.reference)!.acknowledged) &&
+      [item.label, item.partId, item.operationId ?? '', item.reference].some((text) =>
+        normalizeSearch(text).includes(query),
+      ),
   )
   const activeReference =
     visibleChanges.find((item) => item.reference === selected)?.reference ??
@@ -84,13 +91,41 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
         />{' '}
         Show pending items only
       </label>
+      <label className="block">
+        Find a change
+        <input
+          type="search"
+          aria-label="Find a change"
+          className="mt-1 block w-full border bg-background p-1"
+          value={search}
+          onChange={(event) => {
+            setSelected(activeReference)
+            setSearch(event.target.value)
+          }}
+        />
+      </label>
+      <p>
+        Search by label, part ID, operation ID or stable reference. Search affects change selection
+        only; downloads include every item.
+      </p>
+      {query && (
+        <p>
+          {visibleChanges.length} of {report.changes.length} changes match the current filters.
+        </p>
+      )}
+      {query && visibleChanges.length === 0 && (
+        <p>
+          No changes match this search{pendingOnly ? ' and pending filter' : ''}. Clear or adjust
+          the filters to continue.
+        </p>
+      )}
       {pendingOnly && (
         <p>
           Filtering changes only this view. Downloads include every item. Acknowledging a change
           moves to another pending change.
         </p>
       )}
-      {pendingOnly && visibleChanges.length === 0 && (
+      {pendingOnly && !query && visibleChanges.length === 0 && (
         <p>No pending changes. Clear the filter to edit acknowledged changes.</p>
       )}
       {entry && change && (
@@ -98,6 +133,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
           <label className="block">
             Change to review
             <select
+              aria-label="Change to review"
               className="mt-1 block max-w-full border bg-background p-1"
               value={activeReference}
               onChange={(event) => setSelected(event.target.value)}
