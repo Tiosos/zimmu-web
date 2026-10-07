@@ -102,6 +102,12 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
       exact: true,
     }),
   ).toBeVisible()
+  await dialog.getByLabel('Show pending items only').check()
+  await expect(
+    dialog.getByText('No pending changes. Clear the filter to edit acknowledged changes.', {
+      exact: true,
+    }),
+  ).toBeVisible()
   const printableDownloading = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Download printable review' }).click()
   const printableDownload = await printableDownloading
@@ -120,6 +126,10 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   ).toBe(true)
   expect((await summaryPage.pdf()).subarray(0, 4).toString()).toBe('%PDF')
   await summaryPage.close()
+  await dialog.getByLabel('Show pending items only').uncheck()
+  await expect(dialog.getByLabel('Change note', { exact: true })).toHaveValue(
+    'Revised length checked',
+  )
   review.comparison.after.sha256 = 'wrong'
   await dialog.getByLabel('Resume revision review').setInputFiles({
     name: 'stale.json',

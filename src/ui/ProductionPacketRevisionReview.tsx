@@ -13,6 +13,7 @@ import { buildRevisionReviewHtml } from './buildRevisionReviewHtml'
 export function ProductionPacketRevisionReview({ report }: { report: PacketRevisionReport }) {
   const [review, setReview] = useState(() => createRevisionReview(report))
   const [selected, setSelected] = useState(report.changes[0]?.reference ?? '')
+  const [pendingOnly, setPendingOnly] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const resumeVersion = useRef(0)
   useEffect(
@@ -25,8 +26,16 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
     resumeVersion.current += 1
     setReview(next)
   }
-  const entry = review.changes.find((item) => item.reference === selected)
-  const change = report.changes.find((item) => item.reference === selected)
+  const progress = new Map(review.changes.map((item) => [item.reference, item]))
+  const visibleChanges = report.changes.filter(
+    (item) => !pendingOnly || !progress.get(item.reference)!.acknowledged,
+  )
+  const activeReference =
+    visibleChanges.find((item) => item.reference === selected)?.reference ??
+    visibleChanges[0]?.reference ??
+    ''
+  const entry = progress.get(activeReference)
+  const change = visibleChanges.find((item) => item.reference === activeReference)
   const coverage = revisionReviewCoverage(report)
   const acknowledged = review.changes.filter((item) => item.acknowledged).length
   return (
@@ -67,16 +76,33 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
           onChange={(event) => updateReview({ ...review, notes: event.target.value })}
         />
       </label>
+      <label className="block">
+        <input
+          type="checkbox"
+          checked={pendingOnly}
+          onChange={(event) => setPendingOnly(event.target.checked)}
+        />{' '}
+        Show pending items only
+      </label>
+      {pendingOnly && (
+        <p>
+          Filtering changes only this view. Downloads include every item. Acknowledging a change
+          moves to another pending change.
+        </p>
+      )}
+      {pendingOnly && visibleChanges.length === 0 && (
+        <p>No pending changes. Clear the filter to edit acknowledged changes.</p>
+      )}
       {entry && change && (
         <>
           <label className="block">
             Change to review
             <select
               className="mt-1 block max-w-full border bg-background p-1"
-              value={selected}
+              value={activeReference}
               onChange={(event) => setSelected(event.target.value)}
             >
-              {report.changes.map((item) => (
+              {visibleChanges.map((item) => (
                 <option key={item.reference} value={item.reference}>
                   {item.change} {item.entity}: {item.label} · {item.reference}
                 </option>
@@ -100,7 +126,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
                 updateReview({
                   ...review,
                   changes: review.changes.map((item) =>
-                    item.reference === selected
+                    item.reference === activeReference
                       ? { ...item, acknowledged: event.target.checked }
                       : item,
                   ),
@@ -119,7 +145,9 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
                 updateReview({
                   ...review,
                   changes: review.changes.map((item) =>
-                    item.reference === selected ? { ...item, note: event.target.value } : item,
+                    item.reference === activeReference
+                      ? { ...item, note: event.target.value }
+                      : item,
                   ),
                 })
               }
@@ -147,40 +175,45 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
             </p>
           )}
           <ul className="space-y-3">
-            {coverage[group].map((target, index) => {
-              const item = review[group][index]
-              const update = (values: Partial<typeof item>) =>
-                updateReview({
-                  ...review,
-                  [group]: review[group].map((entry) =>
-                    entry.reference === target.reference ? { ...entry, ...values } : entry,
-                  ),
-                })
-              const label = group === 'outputs' ? 'output' : 'limitation'
-              return (
-                <li key={target.reference} className="break-all">
-                  <label>
-                    <input
-                      type="checkbox"
-                      aria-label={`Acknowledge ${label}: ${target.label}`}
-                      checked={item.acknowledged}
-                      onChange={(event) => update({ acknowledged: event.target.checked })}
-                    />{' '}
-                    {target.label}
-                  </label>
-                  <p className="text-xs text-muted-foreground">{target.reference}</p>
-                  <label className="block">
-                    {group === 'outputs' ? 'Output note' : 'Limitation note'}
-                    <textarea
-                      aria-label={`${group === 'outputs' ? 'Output' : 'Limitation'} note: ${target.label}`}
-                      className="mt-1 block w-full border bg-background p-1"
-                      value={item.note}
-                      onChange={(event) => update({ note: event.target.value })}
-                    />
-                  </label>
-                </li>
-              )
-            })}
+            {pendingOnly && review[group].every((item) => item.acknowledged) && (
+              <li>No pending items in this group. Clear the filter to edit acknowledged items.</li>
+            )}
+            {coverage[group]
+              .map((target, index) => ({ target, item: review[group][index] }))
+              .filter(({ item }) => !pendingOnly || !item.acknowledged)
+              .map(({ target, item }) => {
+                const update = (values: Partial<typeof item>) =>
+                  updateReview({
+                    ...review,
+                    [group]: review[group].map((entry) =>
+                      entry.reference === target.reference ? { ...entry, ...values } : entry,
+                    ),
+                  })
+                const label = group === 'outputs' ? 'output' : 'limitation'
+                return (
+                  <li key={target.reference} className="break-all">
+                    <label>
+                      <input
+                        type="checkbox"
+                        aria-label={`Acknowledge ${label}: ${target.label}`}
+                        checked={item.acknowledged}
+                        onChange={(event) => update({ acknowledged: event.target.checked })}
+                      />{' '}
+                      {target.label}
+                    </label>
+                    <p className="text-xs text-muted-foreground">{target.reference}</p>
+                    <label className="block">
+                      {group === 'outputs' ? 'Output note' : 'Limitation note'}
+                      <textarea
+                        aria-label={`${group === 'outputs' ? 'Output' : 'Limitation'} note: ${target.label}`}
+                        className="mt-1 block w-full border bg-background p-1"
+                        value={item.note}
+                        onChange={(event) => update({ note: event.target.value })}
+                      />
+                    </label>
+                  </li>
+                )
+              })}
           </ul>
         </details>
       ))}
