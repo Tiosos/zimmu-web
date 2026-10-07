@@ -55,12 +55,16 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(
     dialog.getByText('1 of 1 changes match the current filters.', { exact: true }),
   ).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Previous change' })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: 'Next change' })).toBeDisabled()
+  await expect(dialog.getByText('Change 1 of 1 matching changes')).toBeVisible()
   await dialog.getByLabel('Find a change').fill('missing-part-id')
   await expect(
     dialog.getByText('No changes match this search. Clear or adjust the filters to continue.', {
       exact: true,
     }),
   ).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Next change' })).toHaveCount(0)
   await dialog.getByLabel('Find a change').fill('')
   await dialog.getByLabel('Acknowledge selected change').check()
   await dialog.getByLabel('Change note', { exact: true }).fill('Revised length checked')
