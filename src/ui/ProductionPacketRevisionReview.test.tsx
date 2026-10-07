@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { comparisonFixture } from './__fixtures__/packetRevisionComparison'
 import { ProductionPacketRevisionReview } from './ProductionPacketRevisionReview'
@@ -6,9 +6,13 @@ import { createRevisionReview } from './packetRevisionReview'
 import * as downloads from './download'
 import * as reviewRecords from './packetRevisionReview'
 
+beforeEach(() => {
+  vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
+})
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 it('downloads progress and resumes the exact comparison; rejects stale records without losing progress', async () => {
   const report = comparisonFixture(),
@@ -370,4 +374,58 @@ it('steps through filtered changes with boundaries while retaining notes and com
   ])
   expect(saved.changes[0].note).toBe('First note')
   expect(saved.changes[2].note).toBe('Middle note')
+})
+
+it('tracks edits separately from view actions and HTML, and protects resume until JSON is downloaded', async () => {
+  const report = comparisonFixture(),
+    changed = vi.fn()
+  vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  const confirm = vi.mocked(window.confirm).mockReturnValue(false)
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={changed} />)
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'Board' } })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(changed).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('Review notes'), { target: { value: 'Keep this' } })
+  expect(changed).toHaveBeenLastCalledWith(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  expect(changed).toHaveBeenLastCalledWith(true)
+  const record = createRevisionReview(report)
+  record.notes = 'Imported'
+  const file = new File(['review'], 'resume.json'),
+    read = vi.fn().mockResolvedValue(JSON.stringify(record))
+  Object.defineProperty(file, 'text', { value: read })
+  const resume = () =>
+    fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  resume()
+  expect(confirm).toHaveBeenCalledTimes(1)
+  expect(read).not.toHaveBeenCalled()
+  expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe('Keep this')
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  expect(changed).toHaveBeenLastCalledWith(false)
+  resume()
+  await waitFor(() =>
+    expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe('Imported'),
+  )
+  expect(confirm).toHaveBeenCalledTimes(1)
+  expect(changed).toHaveBeenLastCalledWith(false)
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  expect(changed).toHaveBeenLastCalledWith(true)
+})
+
+it('retains edited status after an accepted but invalid resume', async () => {
+  const changed = vi.fn()
+  render(<ProductionPacketRevisionReview report={comparisonFixture()} onEditedChange={changed} />)
+  fireEvent.change(screen.getByLabelText('Reviewer (self-reported)'), {
+    target: { value: 'Keep reviewer' },
+  })
+  const file = new File(['invalid'], 'invalid.json')
+  Object.defineProperty(file, 'text', { value: async () => '{}' })
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  await screen.findByRole('alert')
+  expect(window.confirm).toHaveBeenCalledTimes(1)
+  expect(changed).toHaveBeenLastCalledWith(true)
+  expect((screen.getByLabelText('Reviewer (self-reported)') as HTMLInputElement).value).toBe(
+    'Keep reviewer',
+  )
 })

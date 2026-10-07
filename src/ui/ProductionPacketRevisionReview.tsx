@@ -10,12 +10,23 @@ import {
 import { downloadBlob } from './download'
 import { buildRevisionReviewHtml } from './buildRevisionReviewHtml'
 
-export function ProductionPacketRevisionReview({ report }: { report: PacketRevisionReport }) {
+export function ProductionPacketRevisionReview({
+  report,
+  onEditedChange,
+}: {
+  report: PacketRevisionReport
+  onEditedChange?: (edited: boolean) => void
+}) {
   const [review, setReview] = useState(() => createRevisionReview(report))
   const [selected, setSelected] = useState(report.changes[0]?.reference ?? '')
   const [pendingOnly, setPendingOnly] = useState(false)
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const edited = useRef(false)
+  const markEdited = (value: boolean) => {
+    edited.current = value
+    onEditedChange?.(value)
+  }
   const resumeVersion = useRef(0)
   useEffect(
     () => () => {
@@ -25,6 +36,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
   )
   const updateReview = (next: RevisionReviewRecord) => {
     resumeVersion.current += 1
+    markEdited(true)
     setReview(next)
   }
   const progress = new Map(review.changes.map((item) => [item.reference, item]))
@@ -275,13 +287,14 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
       ))}
       <Button
         variant="outline"
-        onClick={() =>
+        onClick={() => {
           downloadBlob(
             JSON.stringify({ ...review, savedAt: new Date().toISOString() }, null, 2) + '\n',
             'production-packet-revision-review.json',
             'application/json',
           )
-        }
+          markEdited(false)
+        }}
       >
         Download revision review
       </Button>
@@ -307,6 +320,13 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
             const file = event.target.files?.[0]
             event.target.value = ''
             if (!file) return
+            if (
+              edited.current &&
+              !window.confirm(
+                'Discard edits since your last JSON download or resume? Download revision review JSON first to keep them.',
+              )
+            )
+              return
             setError(null)
             try {
               if (file.size > 16 * 1024 * 1024)
@@ -314,6 +334,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
               const text = await file.text()
               if (version !== resumeVersion.current) return
               setReview(importRevisionReview(JSON.parse(text), report))
+              markEdited(false)
             } catch (cause) {
               if (version === resumeVersion.current)
                 setError(
