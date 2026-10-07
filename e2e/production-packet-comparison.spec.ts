@@ -4,6 +4,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 
 test('compares downloaded revisions locally, reports geometry changes and blocks altered content', async ({
   page,
+  context,
 }) => {
   await page.goto('/')
   await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({ timeout: 120_000 })
@@ -101,6 +102,24 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
       exact: true,
     }),
   ).toBeVisible()
+  const printableDownloading = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Download printable review' }).click()
+  const printableDownload = await printableDownloading
+  const html = await readFile(await printableDownload.path(), 'utf8')
+  expect(printableDownload.suggestedFilename()).toBe('production-packet-revision-review.html')
+  const summaryPage = await context.newPage()
+  await summaryPage.setContent(html)
+  await expect(
+    summaryPage.getByRole('heading', { name: 'Production packet revision review', exact: true }),
+  ).toBeVisible()
+  await expect(summaryPage.getByText(report.before.sha256, { exact: true })).toBeVisible()
+  await expect(summaryPage.getByText('Revised length checked', { exact: true })).toBeVisible()
+  await summaryPage.emulateMedia({ media: 'print' })
+  expect(
+    await summaryPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true)
+  expect((await summaryPage.pdf()).subarray(0, 4).toString()).toBe('%PDF')
+  await summaryPage.close()
   review.comparison.after.sha256 = 'wrong'
   await dialog.getByLabel('Resume revision review').setInputFiles({
     name: 'stale.json',

@@ -15,3 +15,7 @@ Version-1 drafts can still be resumed for the exact same comparison. Existing ch
 Acknowledgment counts describe the items in each group. Partial comparisons remain partial even when every detected change is acknowledged. Other changed outputs are not semantically compared and still require review. Blocked comparisons cannot create review records. Zero detected changes does not establish production readiness.
 
 This is a local, editable, unsigned record. Reviewer names are self-reported; neither identity nor acknowledgments are authenticated. It is not formal production approval. Archives that are repacked have different hashes and require a new review. Future comparison-rule changes may also prevent resuming an old comparison. Resume inputs are limited to 16 MiB.
+
+**Download printable review** saves a standalone HTML snapshot with independent acknowledged/pending counts, pending items first, review notes, ordered packet hashes, all changes, provenance and earlier/later output locations. Open it in a browser and use Print to print or save a PDF. All items are included, even beyond the dialog preview. Partial coverage and other limitations remain explicit. HTML text is escaped and the report uses no scripts or external resources. Keep the JSON record to resume editing; the HTML snapshot is for reading and sharing.
+
+When a review file is loading, a newer import or any edit to review progress cancels its pending result. Slow file reads and late errors cannot overwrite newer progress. Closing the dialog also invalidates pending reads.

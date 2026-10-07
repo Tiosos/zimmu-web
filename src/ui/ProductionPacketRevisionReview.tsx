@@ -1,17 +1,30 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { PacketRevisionReport } from './compareProductionPackets'
 import {
   createRevisionReview,
   importRevisionReview,
   revisionReviewCoverage,
+  type RevisionReviewRecord,
 } from './packetRevisionReview'
 import { downloadBlob } from './download'
+import { buildRevisionReviewHtml } from './buildRevisionReviewHtml'
 
 export function ProductionPacketRevisionReview({ report }: { report: PacketRevisionReport }) {
   const [review, setReview] = useState(() => createRevisionReview(report))
   const [selected, setSelected] = useState(report.changes[0]?.reference ?? '')
   const [error, setError] = useState<string | null>(null)
+  const resumeVersion = useRef(0)
+  useEffect(
+    () => () => {
+      resumeVersion.current += 1
+    },
+    [],
+  )
+  const updateReview = (next: RevisionReviewRecord) => {
+    resumeVersion.current += 1
+    setReview(next)
+  }
   const entry = review.changes.find((item) => item.reference === selected)
   const change = report.changes.find((item) => item.reference === selected)
   const coverage = revisionReviewCoverage(report)
@@ -26,8 +39,8 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
         {acknowledged} of {review.changes.length} detected changes acknowledged.
       </p>
       <p>
-        Self-reported review only; this is not production approval. Other changed outputs and
-        comparison limitations still need review.
+        Self-reported review only; this is not production approval. Acknowledgments do not expand
+        the comparison scope or resolve its limitations.
       </p>
       {report.status === 'partial' && (
         <p>Coverage is partial, even when all detected changes are acknowledged.</p>
@@ -42,7 +55,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
         <input
           className="ml-2 border bg-background p-1"
           value={review.reviewer}
-          onChange={(event) => setReview({ ...review, reviewer: event.target.value })}
+          onChange={(event) => updateReview({ ...review, reviewer: event.target.value })}
         />
       </label>
       <label className="block">
@@ -51,7 +64,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
           className="mt-1 block w-full border bg-background p-1"
           aria-label="Review notes"
           value={review.notes}
-          onChange={(event) => setReview({ ...review, notes: event.target.value })}
+          onChange={(event) => updateReview({ ...review, notes: event.target.value })}
         />
       </label>
       {entry && change && (
@@ -84,7 +97,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
               type="checkbox"
               checked={entry.acknowledged}
               onChange={(event) =>
-                setReview({
+                updateReview({
                   ...review,
                   changes: review.changes.map((item) =>
                     item.reference === selected
@@ -103,7 +116,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
               aria-label="Change note"
               value={entry.note}
               onChange={(event) =>
-                setReview({
+                updateReview({
                   ...review,
                   changes: review.changes.map((item) =>
                     item.reference === selected ? { ...item, note: event.target.value } : item,
@@ -137,7 +150,7 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
             {coverage[group].map((target, index) => {
               const item = review[group][index]
               const update = (values: Partial<typeof item>) =>
-                setReview({
+                updateReview({
                   ...review,
                   [group]: review[group].map((entry) =>
                     entry.reference === target.reference ? { ...entry, ...values } : entry,
@@ -183,12 +196,25 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
       >
         Download revision review
       </Button>
+      <Button
+        variant="outline"
+        onClick={() =>
+          downloadBlob(
+            buildRevisionReviewHtml({ ...review, savedAt: new Date().toISOString() }),
+            'production-packet-revision-review.html',
+            'text/html;charset=utf-8',
+          )
+        }
+      >
+        Download printable review
+      </Button>
       <label className="block">
         Resume revision review
         <input
           type="file"
           accept=".json,application/json"
           onChange={async (event) => {
+            const version = ++resumeVersion.current
             const file = event.target.files?.[0]
             event.target.value = ''
             if (!file) return
@@ -196,9 +222,14 @@ export function ProductionPacketRevisionReview({ report }: { report: PacketRevis
             try {
               if (file.size > 16 * 1024 * 1024)
                 throw new Error('Review records must be 16 MiB or smaller.')
-              setReview(importRevisionReview(JSON.parse(await file.text()), report))
+              const text = await file.text()
+              if (version !== resumeVersion.current) return
+              setReview(importRevisionReview(JSON.parse(text), report))
             } catch (cause) {
-              setError(cause instanceof Error ? cause.message : 'Could not read the review record.')
+              if (version === resumeVersion.current)
+                setError(
+                  cause instanceof Error ? cause.message : 'Could not read the review record.',
+                )
             }
           }}
         />

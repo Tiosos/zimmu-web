@@ -1,9 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { comparisonFixture } from './__fixtures__/packetRevisionComparison'
 import { ProductionPacketRevisionReview } from './ProductionPacketRevisionReview'
 import { createRevisionReview } from './packetRevisionReview'
 import * as downloads from './download'
+import * as reviewRecords from './packetRevisionReview'
 
 afterEach(() => {
   cleanup()
@@ -117,4 +118,110 @@ it('saves and resumes independent output and limitation progress without changin
     (screen.getByLabelText('Output note: drawings/shop-drawings.pdf') as HTMLTextAreaElement).value,
   ).toBe('Sheets inspected')
   expect(screen.getByText(/Coverage is partial/)).toBeTruthy()
+})
+
+it('downloads a printable snapshot with current notes and pending coverage', () => {
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={comparisonFixture()} />)
+  fireEvent.change(screen.getByLabelText('Review notes'), {
+    target: { value: 'Print this review' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  expect(download.mock.calls[0][1]).toBe('production-packet-revision-review.html')
+  expect(download.mock.calls[0][2]).toBe('text/html;charset=utf-8')
+  expect(download.mock.calls[0][0]).toContain('Print this review')
+  expect(download.mock.calls[0][0]).toContain('Pending — modified part: Board')
+})
+
+it('keeps the newer import when an earlier slow read finishes last', async () => {
+  const report = comparisonFixture(),
+    old = createRevisionReview(report),
+    newer = createRevisionReview(report)
+  old.notes = 'Old import'
+  newer.notes = 'New import'
+  let finish!: (text: string) => void
+  const slow = new File(['slow'], 'slow.json')
+  Object.defineProperty(slow, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  const fast = new File(['fast'], 'fast.json')
+  Object.defineProperty(fast, 'text', { value: async () => JSON.stringify(newer) })
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [slow] } })
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [fast] } })
+  await waitFor(() =>
+    expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe('New import'),
+  )
+  await act(async () => finish(JSON.stringify(old)))
+  expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe('New import')
+})
+
+it('preserves edits made during file loading and ignores late errors from superseded imports', async () => {
+  const report = comparisonFixture(),
+    imported = createRevisionReview(report)
+  imported.notes = 'Imported notes'
+  let finish!: (text: string) => void
+  const slow = new File(['slow'], 'slow.json')
+  Object.defineProperty(slow, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [slow] } })
+  fireEvent.change(screen.getByLabelText('Review notes'), { target: { value: 'New local edit' } })
+  await act(async () => finish(JSON.stringify(imported)))
+  expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe(
+    'New local edit',
+  )
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [slow] } })
+  fireEvent.click(screen.getByLabelText('Acknowledge output: drawings/shop-drawings.pdf'))
+  await act(async () => finish('invalid JSON'))
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(
+    (screen.getByLabelText('Acknowledge output: drawings/shop-drawings.pdf') as HTMLInputElement)
+      .checked,
+  ).toBe(true)
+})
+
+it('does not validate a file that finishes after the review unmounts', async () => {
+  let finish!: (text: string) => void
+  const file = new File(['slow'], 'slow.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  const validate = vi.spyOn(reviewRecords, 'importRevisionReview')
+  const view = render(<ProductionPacketRevisionReview report={comparisonFixture()} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  view.unmount()
+  await act(async () => finish(JSON.stringify(createRevisionReview(comparisonFixture()))))
+  expect(validate).not.toHaveBeenCalled()
+})
+
+it('ignores late file-read failures after a newer local action', async () => {
+  let fail!: (error: Error) => void
+  const file = new File(['slow'], 'slow.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((_, reject) => {
+        fail = reject
+      }),
+  })
+  render(<ProductionPacketRevisionReview report={comparisonFixture()} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.change(screen.getByLabelText('Reviewer (self-reported)'), {
+    target: { value: 'New reviewer' },
+  })
+  await act(async () => fail(new Error('Old read failure')))
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect((screen.getByLabelText('Reviewer (self-reported)') as HTMLInputElement).value).toBe(
+    'New reviewer',
+  )
 })
