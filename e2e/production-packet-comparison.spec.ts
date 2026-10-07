@@ -44,6 +44,9 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await dialog.getByRole('button', { name: 'Download comparison report' }).click()
   const download = await downloading
   const report = JSON.parse(await readFile(await download.path(), 'utf8'))
+  expect(download.suggestedFilename()).toBe(
+    `production-packet-comparison-untitled-${report.before.sha256.slice(0, 12)}-to-${report.after.sha256.slice(0, 12)}.json`,
+  )
   expect(report.counts.manufacturing).toBe(1)
   expect(report.changes[0].before.locations).toContain('machining/parts.json')
   expect(

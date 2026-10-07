@@ -9,7 +9,7 @@ import {
 } from './packetRevisionReview'
 import { downloadBlob } from './download'
 import { buildRevisionReviewHtml } from './buildRevisionReviewHtml'
-import { revisionReviewFilename } from './revisionReviewFilename'
+import { revisionReviewFilename } from './productionPacketReportFilename'
 
 const displayValue = (value: unknown) =>
   typeof value === 'string' ? value : (JSON.stringify(value, null, 2) ?? 'Not recorded')
