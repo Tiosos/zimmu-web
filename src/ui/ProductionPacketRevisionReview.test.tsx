@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { comparisonFixture } from './__fixtures__/packetRevisionComparison'
 import { ProductionPacketRevisionReview } from './ProductionPacketRevisionReview'
 import { createRevisionReview } from './packetRevisionReview'
@@ -428,4 +428,92 @@ it('retains edited status after an accepted but invalid resume', async () => {
   expect((screen.getByLabelText('Reviewer (self-reported)') as HTMLInputElement).value).toBe(
     'Keep reviewer',
   )
+})
+
+it('shows selected identities and ordered field values as safe readable content', () => {
+  const report = comparisonFixture()
+  report.changes[0].fields = [
+    { field: 'length', classification: 'manufacturing', before: 600, after: 720 },
+    {
+      field: 'label',
+      classification: 'metadata',
+      before: '',
+      after: '<img src=x onerror=alert(1)>',
+    },
+    { field: 'optional', classification: 'metadata', before: undefined, after: null },
+    { field: 'enabled', classification: 'metadata', before: false, after: true },
+    {
+      field: 'dimensions',
+      classification: 'manufacturing',
+      before: { length: 600 },
+      after: [720, 0],
+    },
+  ]
+  report.changes.push({
+    ...report.changes[0],
+    reference: 'PC:manual',
+    entity: 'operation',
+    operationId: 'manual-id',
+    label: 'Manual drilling',
+    change: 'added',
+    fields: [],
+    before: null,
+    after: {
+      locations: ['later.pdf#page=4'],
+      provenance: { jointId: 'joint' },
+      definition: { kind: 'manual', instruction: 'Drill on site' },
+    },
+  })
+  const { container } = render(<ProductionPacketRevisionReview report={report} />)
+  const table = screen.getByRole('table', { name: 'Selected change fields' })
+  expect(
+    within(table)
+      .getAllByRole('columnheader')
+      .map((node) => node.textContent),
+  ).toEqual(['Field / classification', 'Earlier', 'Later'])
+  expect(
+    within(table)
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) =>
+        within(row)
+          .getAllByRole('cell')
+          .map((cell) => cell.textContent),
+      ),
+  ).toEqual([
+    ['600', '720'],
+    ['', '<img src=x onerror=alert(1)>'],
+    ['Not recorded', 'null'],
+    ['false', 'true'],
+    ['{\n  "length": 600\n}', '[\n  720,\n  0\n]'],
+  ])
+  expect(container.querySelectorAll('img,script').length).toBe(0)
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Retain note' } })
+  fireEvent.change(screen.getByLabelText('Change to review'), { target: { value: 'PC:manual' } })
+  expect(screen.queryByRole('table', { name: 'Selected change fields' })).toBeNull()
+  expect(screen.getByText(/Part: part · Operation: manual-id/)).toBeTruthy()
+  expect(
+    within(screen.getByRole('group', { name: 'Earlier definition' })).queryByText(
+      'Absent in this revision.',
+    ),
+  ).toBeTruthy()
+  expect(
+    within(screen.getByRole('group', { name: 'Later definition' })).queryByText(/Drill on site/),
+  ).toBeTruthy()
+  fireEvent.change(screen.getByLabelText('Change to review'), { target: { value: 'PC:part' } })
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Retain note')
+})
+
+it('shows removed definitions on the earlier side and marks the later revision absent', () => {
+  const report = comparisonFixture()
+  report.changes[0] = { ...report.changes[0], change: 'removed', fields: [], after: null }
+  render(<ProductionPacketRevisionReview report={report} />)
+  expect(
+    within(screen.getByRole('group', { name: 'Earlier definition' })).queryByText(/600/),
+  ).toBeTruthy()
+  expect(
+    within(screen.getByRole('group', { name: 'Later definition' })).getByText(
+      'Absent in this revision.',
+    ),
+  ).toBeTruthy()
 })
