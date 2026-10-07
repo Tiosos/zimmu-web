@@ -77,6 +77,9 @@ describe('packet comparison UI', () => {
     expect(screen.getByText('PC:stable')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Download comparison report' }))
     expect(JSON.parse(download.mock.calls[0][0] as string)).toEqual(report)
+    expect(download.mock.calls[0][1]).toBe(
+      'production-packet-comparison-p-unavailable-to-unavailable.json',
+    )
     choose('Later packet', new Uint8Array([3]))
     expect(screen.queryByText('Revision comparison complete')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Download revision review' })).toBeNull()
