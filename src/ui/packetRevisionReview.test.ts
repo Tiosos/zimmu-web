@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { comparisonFixture } from './__fixtures__/packetRevisionComparison'
-import { createRevisionReview, importRevisionReview } from './packetRevisionReview'
+import {
+  createRevisionReview,
+  importRevisionReview,
+  revisionReviewClassificationProgress,
+} from './packetRevisionReview'
 
 describe('local revision review binding', () => {
   it('round-trips acknowledgments, notes, hashes, provenance, locations and limitations', () => {
@@ -106,4 +110,41 @@ it('rejects invalid, duplicate, missing and unknown coverage references in both 
   const altered = structuredClone(review)
   altered.comparison.otherChangedFiles.push('unexpected.pdf')
   expect(() => importRevisionReview(altered, report)).toThrow(/does not match/)
+})
+
+it('counts whole classifications by stable reference, including zero groups and mixed fields', () => {
+  const report = comparisonFixture()
+  report.changes[0].fields.push({
+    field: 'name',
+    classification: 'metadata',
+    before: 'A',
+    after: 'B',
+  })
+  report.changes.push({
+    ...report.changes[0],
+    reference: 'PC:metadata',
+    classification: 'metadata',
+  })
+  report.changes.push({ ...report.changes[0], reference: 'PC:pending' })
+  report.counts.manufacturing = 99
+  const review = createRevisionReview(report)
+  review.changes[0].acknowledged = true
+  review.changes.reverse()
+  expect(revisionReviewClassificationProgress(review)).toEqual([
+    { classification: 'manufacturing', acknowledged: 1, pending: 1, total: 2 },
+    { classification: 'metadata', acknowledged: 0, pending: 1, total: 1 },
+  ])
+  review.changes.find((item) => item.reference === 'PC:metadata')!.acknowledged = true
+  expect(revisionReviewClassificationProgress(review)[1]).toEqual({
+    classification: 'metadata',
+    acknowledged: 1,
+    pending: 0,
+    total: 1,
+  })
+  expect(
+    revisionReviewClassificationProgress(createRevisionReview({ ...report, changes: [] })),
+  ).toEqual([
+    { classification: 'manufacturing', acknowledged: 0, pending: 0, total: 0 },
+    { classification: 'metadata', acknowledged: 0, pending: 0, total: 0 },
+  ])
 })

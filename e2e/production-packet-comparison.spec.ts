@@ -72,6 +72,15 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(dialog.getByRole('button', { name: 'Next change' })).toHaveCount(0)
   await dialog.getByLabel('Find a change').fill('')
   await dialog.getByLabel('Acknowledge selected change').check()
+  const classificationProgress = dialog.getByRole('table', {
+    name: 'Detected change progress by classification',
+  })
+  await expect(
+    classificationProgress.getByRole('row').filter({ hasText: 'Manufacturing' }).getByRole('cell'),
+  ).toHaveText(['1', '0', '1'])
+  await expect(
+    classificationProgress.getByRole('row').filter({ hasText: 'Metadata' }).getByRole('cell'),
+  ).toHaveText(['0', '0', '0'])
   await dialog.getByLabel('Change note', { exact: true }).fill('Revised length checked')
   page.once('dialog', (confirmation) => void confirmation.dismiss())
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
@@ -147,6 +156,13 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   expect(printableDownload.suggestedFilename()).toBe(`${reviewStem}.html`)
   const summaryPage = await context.newPage()
   await summaryPage.setContent(html)
+  await expect(
+    summaryPage
+      .getByRole('table', { name: 'Detected change progress by classification' })
+      .getByRole('row')
+      .filter({ hasText: 'Manufacturing' })
+      .getByRole('cell'),
+  ).toHaveText(['1', '0', '1'])
   const contents = summaryPage.getByRole('navigation', { name: 'Review contents' })
   await contents.getByRole('link', { name: 'Comparison limitations', exact: true }).click()
   await expect(summaryPage.locator('#limitations')).toBeInViewport()
