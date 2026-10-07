@@ -51,6 +51,11 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
       location.includes('shop-drawings.pdf#page='),
     ),
   ).toBe(true)
+  const fields = dialog.getByRole('table', { name: 'Selected change fields' })
+  await expect(fields).toBeVisible()
+  const dimensions = fields.getByRole('row').filter({ hasText: 'dimensions (manufacturing)' })
+  await expect(dimensions.getByRole('cell').nth(0)).toContainText('200')
+  await expect(dimensions.getByRole('cell').nth(1)).toContainText('720')
   await dialog.getByLabel('Find a change').fill(report.changes[0].partId.toUpperCase())
   await expect(
     dialog.getByText('1 of 1 changes match the current filters.', { exact: true }),

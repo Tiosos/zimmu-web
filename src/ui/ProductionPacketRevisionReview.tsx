@@ -11,6 +11,9 @@ import { downloadBlob } from './download'
 import { buildRevisionReviewHtml } from './buildRevisionReviewHtml'
 import { revisionReviewFilename } from './revisionReviewFilename'
 
+const displayValue = (value: unknown) =>
+  typeof value === 'string' ? value : (JSON.stringify(value, null, 2) ?? 'Not recorded')
+
 export function ProductionPacketRevisionReview({
   report,
   onEditedChange,
@@ -178,6 +181,67 @@ export function ProductionPacketRevisionReview({
               Next change
             </Button>
           </div>
+          <p className="break-all">
+            {change.change} {change.entity}: {change.label} ({change.classification})
+            <br />
+            Part: {change.partId}
+            {change.operationId && ` · Operation: ${change.operationId}`}
+            <br />
+            Reference: {change.reference}
+          </p>
+          {change.fields.length > 0 ? (
+            <table className="w-full table-fixed border-collapse text-xs">
+              <caption className="text-left font-semibold">Selected change fields</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Field / classification</th>
+                  <th scope="col">Earlier</th>
+                  <th scope="col">Later</th>
+                </tr>
+              </thead>
+              <tbody>
+                {change.fields.map((field) => (
+                  <tr key={field.field}>
+                    <th
+                      scope="row"
+                      className="border border-border p-2 text-left align-top break-all"
+                    >
+                      {field.field} ({field.classification})
+                    </th>
+                    <td className="border border-border p-2 align-top">
+                      <pre className="whitespace-pre-wrap break-all">
+                        {displayValue(field.before)}
+                      </pre>
+                    </td>
+                    <td className="border border-border p-2 align-top">
+                      <pre className="whitespace-pre-wrap break-all">
+                        {displayValue(field.after)}
+                      </pre>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(['before', 'after'] as const).map((side) => (
+                <div
+                  key={side}
+                  role="group"
+                  aria-label={`${side === 'before' ? 'Earlier' : 'Later'} definition`}
+                >
+                  <h4 className="font-semibold">
+                    {side === 'before' ? 'Earlier' : 'Later'} definition
+                  </h4>
+                  <pre className="whitespace-pre-wrap break-all text-xs">
+                    {change[side]
+                      ? displayValue(change[side].definition)
+                      : 'Absent in this revision.'}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          )}
           <p className="break-all">
             Earlier: {change.before?.locations.join(' · ') ?? 'Absent'}
             <br />
