@@ -257,3 +257,54 @@ it('filters pending work, moves to another change, and restores acknowledged not
   expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('First checked')
   expect(screen.getByLabelText('Output note: drawings/shop-drawings.pdf')).toBeTruthy()
 })
+
+it('finds changes by identity and Unicode label while retaining complete exports and notes', () => {
+  const report = comparisonFixture()
+  report.changes.push({
+    ...report.changes[0],
+    reference: 'PC:["operation","panel","bore[2]"]',
+    entity: 'operation',
+    partId: 'Panel-B',
+    operationId: 'bore[2]',
+    label: 'Cafe\u0301 drilling',
+  })
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} />)
+  const search = (text: string) =>
+    fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: text } })
+  for (const text of ['  CAFÉ ', 'panel-b', 'bore[2]', 'PC:["operation"']) {
+    search(text)
+    expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
+      report.changes[1].reference,
+    )
+    expect(screen.getByText('1 of 2 changes match the current filters.')).toBeTruthy()
+  }
+  search('')
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
+    report.changes[1].reference,
+  )
+  search('Panel-B')
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Bore checked' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(screen.getByText(/No changes match this search and pending filter/)).toBeTruthy()
+  expect(screen.queryByLabelText('Change to review')).toBeNull()
+  expect(screen.getByText('1 of 2 detected changes acknowledged.')).toBeTruthy()
+  expect(screen.getByLabelText('Acknowledge output: drawings/shop-drawings.pdf')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.changes).toHaveLength(2)
+  expect(saved.changes[1].note).toBe('Bore checked')
+  expect('search' in saved).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  expect(download.mock.calls[1][0]).toContain('Bore checked')
+  expect(download.mock.calls[1][0]).toContain('Board')
+  search('   ')
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:part')
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  search('Panel-B')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Bore checked')
+  search('does-not-exist')
+  expect(screen.getByText(/No changes match this search\./)).toBeTruthy()
+  expect(screen.getByLabelText('Output note: drawings/shop-drawings.pdf')).toBeTruthy()
+})

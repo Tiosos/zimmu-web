@@ -21,3 +21,5 @@ This is a local, editable, unsigned record. Reviewer names are self-reported; ne
 When a review file is loading, a newer import or any edit to review progress cancels its pending result. Slow file reads and late errors cannot overwrite newer progress. Closing the dialog also invalidates pending reads.
 
 Use **Show pending items only** to hide acknowledged changes, outputs and limitations. When a change is acknowledged, selection moves to another pending change. Clear the filter to see and edit earlier acknowledgments and notes. The filter affects only the dialog: counts, JSON records and printable summaries always retain every item.
+
+**Find a change** searches detected changes by label, part ID, operation ID or stable reference. Matching ignores case and surrounding whitespace and treats punctuation literally. It works together with the pending-only filter and reports the number of visible matches. Clear or adjust search when no changes match. Search affects only change selection; acknowledgment counts, output/limitation checklists and both exports remain complete. Search is not stored in the JSON record.

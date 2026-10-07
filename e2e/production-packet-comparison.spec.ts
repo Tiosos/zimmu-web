@@ -51,6 +51,17 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
       location.includes('shop-drawings.pdf#page='),
     ),
   ).toBe(true)
+  await dialog.getByLabel('Find a change').fill(report.changes[0].partId.toUpperCase())
+  await expect(
+    dialog.getByText('1 of 1 changes match the current filters.', { exact: true }),
+  ).toBeVisible()
+  await dialog.getByLabel('Find a change').fill('missing-part-id')
+  await expect(
+    dialog.getByText('No changes match this search. Clear or adjust the filters to continue.', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await dialog.getByLabel('Find a change').fill('')
   await dialog.getByLabel('Acknowledge selected change').check()
   await dialog.getByLabel('Change note', { exact: true }).fill('Revised length checked')
   const outputPath = report.otherChangedFiles[0]
