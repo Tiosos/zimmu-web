@@ -101,6 +101,7 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     classificationProgress.getByRole('row').filter({ hasText: 'Metadata' }).getByRole('cell'),
   ).toHaveText(['0', '0', '0'])
   await dialog.getByLabel('Change note', { exact: true }).fill('Revised length checked')
+  await expect(dialog.getByRole('status')).toHaveText('Review edits awaiting a JSON checkpoint.')
   page.once('dialog', (confirmation) => void confirmation.dismiss())
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(dialog).toBeVisible()
@@ -132,6 +133,7 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   const reviewDownloading = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Download revision review' }).click()
   const reviewDownload = await reviewDownloading
+  await expect(dialog.getByRole('status')).toHaveText('No new review edits.')
   expect(report.after.projectName).toBe('Untitled')
   const reviewStem = `production-packet-revision-review-untitled-${report.before.sha256.slice(0, 12)}-to-${report.after.sha256.slice(0, 12)}`
   expect(reviewDownload.suggestedFilename()).toBe(`${reviewStem}.json`)
@@ -148,6 +150,7 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     .getByLabel('Resume revision review')
     .setInputFiles({ name: 'review.json', mimeType: 'application/json', buffer: reviewBytes })
   await expect(dialog.getByText('1 of 1 detected changes acknowledged.')).toBeVisible()
+  await expect(dialog.getByRole('status')).toHaveText('No new review edits.')
   await expect(dialog.getByLabel('Change note', { exact: true })).toHaveValue(
     'Revised length checked',
   )

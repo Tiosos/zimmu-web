@@ -756,3 +756,62 @@ it('allows a pending resume to complete after clearing navigation', async () => 
     true,
   )
 })
+
+it('shows pending checkpoint edits for every review group, retaining them through HTML and navigation', () => {
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={comparisonFixture()} />)
+  const status = () => screen.getByRole('status').textContent
+  expect(status()).toBe('No new review edits.')
+  for (const edit of [
+    () =>
+      fireEvent.change(screen.getByLabelText('Reviewer (self-reported)'), {
+        target: { value: 'Workshop' },
+      }),
+    () => fireEvent.change(screen.getByLabelText('Review notes'), { target: { value: 'Overall' } }),
+    () => fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Geometry' } }),
+    () => fireEvent.click(screen.getByLabelText('Acknowledge selected change')),
+    () =>
+      fireEvent.change(screen.getByLabelText('Output note: drawings/shop-drawings.pdf'), {
+        target: { value: 'Output' },
+      }),
+    () => fireEvent.click(screen.getByLabelText('Acknowledge output: drawings/shop-drawings.pdf')),
+    () =>
+      fireEvent.change(screen.getByLabelText('Limitation note: Unsigned packets'), {
+        target: { value: 'Limit' },
+      }),
+    () => fireEvent.click(screen.getByLabelText('Acknowledge limitation: Unsigned packets')),
+  ]) {
+    edit()
+    expect(status()).toBe('Review edits awaiting a JSON checkpoint.')
+    fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+    fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Clear navigation filters' }))
+    expect(status()).toBe('Review edits awaiting a JSON checkpoint.')
+    fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+    expect(status()).toBe('No new review edits.')
+  }
+  expect(download).toHaveBeenCalledTimes(16)
+})
+
+it('retains checkpoint edits on rejected resume and clears them on validated resume', async () => {
+  const report = comparisonFixture()
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Review notes'), { target: { value: 'Keep edits' } })
+  const resume = (record: unknown) => {
+    const file = new File(['record'], 'review.json')
+    Object.defineProperty(file, 'text', { value: async () => JSON.stringify(record) })
+    fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  }
+  resume({ invalid: true })
+  await screen.findByRole('alert')
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  const record = createRevisionReview(report)
+  record.notes = 'Resumed checkpoint'
+  resume(record)
+  await waitFor(() =>
+    expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe(
+      'Resumed checkpoint',
+    ),
+  )
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+})
