@@ -213,6 +213,7 @@ describe('production handoff packet', () => {
       'lists/machining.csv',
       'machining/drawing-index.csv',
       'machining/drawing-index.json',
+      'machining/parts.json',
       'machining/schedule.json',
       'manifest.json',
       'readiness/machining-reconciliation.json',

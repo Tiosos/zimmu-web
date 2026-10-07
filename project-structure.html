@@ -550,6 +550,8 @@
 │   ├── dowelCut.ts
 │   ├── drawing.test.ts
 │   ├── drawing.ts
+│   ├── drawingReferences.ts
+│   ├── drillingCallout.ts
 │   ├── fingerjoint.test.ts
 │   ├── fingerjoint.ts
 │   ├── halflap.test.ts
@@ -593,6 +595,7 @@
 ├── scene/
 │   ├── __fixtures__/
 │   │   ├── companyCatalogue.ts
+│   │   ├── machiningProject.ts
 │   │   ├── manufacturingCsv.json
 │   │   ├── manufacturingNest.json
 │   │   ├── manufacturingProject.ts
@@ -640,6 +643,8 @@
 │   ├── dragAnchor.ts
 │   ├── drawerBox.test.ts
 │   ├── drawerBox.ts
+│   ├── drillingChecks.test.ts
+│   ├── drillingChecks.ts
 │   ├── edgeBanding.test.ts
 │   ├── edgeBanding.ts
 │   ├── edgeBandingFile.test.ts
@@ -674,6 +679,8 @@
 │   ├── jointChecklist.ts
 │   ├── jointInvolves.test.ts
 │   ├── jointInvolves.ts
+│   ├── machiningSchedule.test.ts
+│   ├── machiningSchedule.ts
 │   ├── manufacturingChecks.test.ts
 │   ├── manufacturingChecks.ts
 │   ├── manufacturingLabels.ts
@@ -694,6 +701,8 @@
 │   ├── pipeline.ts
 │   ├── productionReadiness.test.ts
 │   ├── productionReadiness.ts
+│   ├── productionReview.test.ts
+│   ├── productionReview.ts
 │   ├── projectStructure.test.ts
 │   ├── projectStructure.ts
 │   ├── readinessLimits.ts
@@ -767,18 +776,26 @@
 │   ├── utils.test.ts
 │   └── utils.ts
 ├── ui/
+│   ├── __fixtures__/
+│   │   └── packetRevisionComparison.ts
 │   ├── BomModal.test.tsx
 │   ├── BomModal.tsx
 │   ├── buildCsv.test.ts
 │   ├── buildCsv.ts
+│   ├── buildDrawingIndex.test.ts
+│   ├── buildDrawingIndex.ts
 │   ├── buildDxf.test.ts
 │   ├── buildDxf.ts
+│   ├── buildMachiningCsv.test.ts
+│   ├── buildMachiningCsv.ts
 │   ├── buildPdf.test.ts
 │   ├── buildPdf.ts
 │   ├── buildProductionPacket.test.ts
 │   ├── buildProductionPacket.ts
 │   ├── buildReadinessPdf.test.ts
 │   ├── buildReadinessPdf.ts
+│   ├── buildRevisionReviewHtml.test.ts
+│   ├── buildRevisionReviewHtml.ts
 │   ├── buildSheetSvg.test.ts
 │   ├── buildSheetSvg.ts
 │   ├── buildSvg.test.ts
@@ -793,6 +810,8 @@
 │   ├── CarcasePanel.tsx
 │   ├── CatalogueImport.test.tsx
 │   ├── CatalogueImport.tsx
+│   ├── compareProductionPackets.test.ts
+│   ├── compareProductionPackets.ts
 │   ├── CuttingList.test.tsx
 │   ├── CuttingList.tsx
 │   ├── DimInput.tsx
@@ -802,6 +821,7 @@
 │   ├── DowelList.tsx
 │   ├── download.test.ts
 │   ├── download.ts
+│   ├── drawingReferences.test.ts
 │   ├── DrawingViewer.test.tsx
 │   ├── DrawingViewer.tsx
 │   ├── EditPanel.test.tsx
@@ -816,16 +836,28 @@
 │   ├── HardwareTab.tsx
 │   ├── JointsPanel.test.tsx
 │   ├── JointsPanel.tsx
+│   ├── machiningReconciliation.test.ts
+│   ├── machiningReconciliation.ts
 │   ├── manufacturingParity.test.ts
 │   ├── ManufacturingReadiness.test.tsx
 │   ├── ManufacturingReadiness.tsx
 │   ├── NumberField.tsx
 │   ├── outputReconciliation.test.ts
 │   ├── outputReconciliation.ts
+│   ├── packetPartInventory.ts
+│   ├── packetRevisionReview.test.ts
+│   ├── packetRevisionReview.ts
 │   ├── PlacementPanel.test.tsx
 │   ├── PlacementPanel.tsx
 │   ├── PlanView.test.tsx
 │   ├── PlanView.tsx
+│   ├── ProductionPacketComparison.test.tsx
+│   ├── ProductionPacketComparison.tsx
+│   ├── ProductionPacketRevisionReview.test.tsx
+│   ├── ProductionPacketRevisionReview.tsx
+│   ├── ProductionPacketVerifier.test.tsx
+│   ├── ProductionPacketVerifier.tsx
+│   ├── ProductionReviewSection.tsx
 │   ├── ProjectPanel.test.tsx
 │   ├── ProjectPanel.tsx
 │   ├── reconciliationLibrary.test.ts
@@ -860,7 +892,9 @@
 │   ├── SuggestionsPanel.tsx
 │   ├── useDebouncedCallback.test.ts
 │   ├── useDebouncedCallback.test.tsx
-│   └── useDebouncedCallback.ts
+│   ├── useDebouncedCallback.ts
+│   ├── verifyProductionPacket.test.ts
+│   └── verifyProductionPacket.ts
 └── vite-env.d.ts<!-- /AUTOGEN:src-tree --></code></pre>
 
       <h3>src/geom/ — Geometry kernel</h3>
@@ -1511,7 +1545,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->150<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->164<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1593,7 +1627,13 @@ import { useScene } from './useScene'</code></pre>
       <h2>Docs directory</h2>
       <pre><code><!-- AUTOGEN:docs-tree -->docs/
 ├── company-catalogue-api.md
+├── drawing-references.md
 ├── keyboard-shortcuts.md
+├── machining-schedule.md
+├── production-packet-comparison.md
+├── production-packet-integrity.md
+├── production-packet-revision-review.md
+├── production-review.md
 └── superpowers/
     ├── fixtures/
     │   └── 2026-09-29-kitchenette-reference.json
@@ -1656,7 +1696,13 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-03-catalogue-impact-notes.md
     │   ├── 2026-10-03-manufacturing-checks-notes.md
     │   ├── 2026-10-03-manufacturing-nesting-labels-notes.md
-    │   └── 2026-10-03-manufacturing-record-notes.md
+    │   ├── 2026-10-03-manufacturing-record-notes.md
+    │   ├── 2026-10-06-production-packet-comparison-notes.md
+    │   ├── 2026-10-06-production-packet-integrity-notes.md
+    │   ├── 2026-10-06-production-packet-revision-review-notes.md
+    │   ├── 2026-10-07-pending-review-view-notes.md
+    │   ├── 2026-10-07-printable-revision-review-notes.md
+    │   └── 2026-10-07-revision-review-coverage-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1782,7 +1828,13 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-03-catalogue-impact-design.md
         ├── 2026-10-03-manufacturing-checks-design.md
         ├── 2026-10-03-manufacturing-nesting-labels-design.md
-        └── 2026-10-03-manufacturing-record-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-10-03-manufacturing-record-design.md
+        ├── 2026-10-06-production-packet-comparison-design.md
+        ├── 2026-10-06-production-packet-integrity-design.md
+        ├── 2026-10-06-production-packet-revision-review-design.md
+        ├── 2026-10-07-pending-review-view-design.md
+        ├── 2026-10-07-printable-revision-review-design.md
+        └── 2026-10-07-revision-review-coverage-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
