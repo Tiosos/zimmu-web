@@ -356,7 +356,9 @@ it('links independent coverage pending counts to the first unfinished recorded i
   review.limitations.reverse()
   const doc = parse(buildRevisionReviewHtml(review))
   const links = [...doc.querySelectorAll('a[aria-label^="Review pending "]')].filter(
-    (link) => !link.getAttribute('aria-label')!.includes('for part'),
+    (link) =>
+      !link.getAttribute('aria-label')!.includes('for part') &&
+      link.getAttribute('aria-label') !== 'Review pending detected changes',
   )
   expect(links.map((link) => link.getAttribute('href'))).toEqual([
     '#outputs-finding-1',
@@ -477,4 +479,45 @@ it('keeps return navigation for acknowledged findings and zero rows for empty co
       ),
     ).toEqual(['0', '0', '0'])
   }
+})
+
+it('links overall pending changes in comparison order and retains part-return navigation', () => {
+  const report = perPartComparisonFixture()
+  const review = createRevisionReview(report)
+  review.changes[0].acknowledged = true
+  review.changes.reverse()
+  const doc = parse(buildRevisionReviewHtml(review))
+  const row = doc.querySelector('#progress-changes')!
+  const link = row.querySelector('a')!
+  expect(link.getAttribute('aria-label')).toBe('Review pending detected changes')
+  expect(link.textContent).toBe(String(report.changes.length - 1))
+  expect(link.getAttribute('href')).toBe('#finding-1')
+  const targets = doc.querySelectorAll(link.getAttribute('href')!)
+  expect(targets.length).toBe(1)
+  expect(targets[0].querySelector('h3')!.textContent).toContain('Pending')
+  const back = targets[0].querySelector('a')!
+  expect(back.textContent).toBe('Back to part summary')
+  expect(doc.querySelectorAll(back.getAttribute('href')!).length).toBe(1)
+  expect(doc.querySelectorAll('#changes article').length).toBe(report.changes.length)
+})
+
+it('keeps completed and empty detected-change pending counts plain', () => {
+  const review = createRevisionReview(comparisonFixture())
+  review.changes.forEach((item) => {
+    item.acknowledged = true
+  })
+  const complete = parse(buildRevisionReviewHtml(review))
+  expect(complete.querySelector('#progress-changes a')).toBeNull()
+  expect(complete.querySelector('#progress-changes')!.querySelectorAll('td')[1].textContent).toBe(
+    '0',
+  )
+  const empty = parse(
+    buildRevisionReviewHtml(createRevisionReview({ ...comparisonFixture(), changes: [] })),
+  )
+  expect(empty.querySelector('#progress-changes a')).toBeNull()
+  expect(
+    [...empty.querySelector('#progress-changes')!.querySelectorAll('td')].map(
+      (cell) => cell.textContent,
+    ),
+  ).toEqual(['0', '0', '0'])
 })

@@ -155,6 +155,11 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     .getByRole('link', { name: 'Back to review progress', exact: true })
     .click()
   await expect(pendingSummary.locator('#progress-limitations')).toBeInViewport()
+  await pendingSummary
+    .getByRole('link', { name: 'Review pending detected changes', exact: true })
+    .click()
+  await expect(pendingSummary.locator('#finding-0')).toBeInViewport()
+  await expect(pendingSummary.locator('#finding-0 h3')).toContainText('Pending')
   await pendingSummary.close()
   await dialog.getByLabel('Acknowledge selected change').click()
   await expect(partPendingShortcut).toBeDisabled()

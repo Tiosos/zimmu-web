@@ -67,12 +67,12 @@ export function buildRevisionReviewHtml(input: RevisionReviewRecord): string {
   const count = (
     label: string,
     entries: ReviewAcknowledgment[],
-    group?: 'outputs' | 'limitations',
+    group: 'changes' | 'outputs' | 'limitations',
   ) => {
     const acknowledged = entries.filter((entry) => entry.acknowledged).length
     const pending = entries.find((entry) => !entry.acknowledged)
     const pendingCount = entries.length - acknowledged
-    return `<tr id="progress-${group ?? 'changes'}"><th scope="row">${label}</th><td>${acknowledged}</td><td>${group && pending ? `<a href="#${coverageIds[group].get(pending.reference)}" aria-label="Review pending ${escape(label.toLowerCase())}">${pendingCount}</a>` : pendingCount}</td><td>${entries.length}</td></tr>`
+    return `<tr id="progress-${group}"><th scope="row">${label}</th><td>${acknowledged}</td><td>${pending ? `<a href="#${(group === 'changes' ? findingIds : coverageIds[group]).get(pending.reference)}" aria-label="Review pending ${escape(label.toLowerCase())}">${pendingCount}</a>` : pendingCount}</td><td>${entries.length}</td></tr>`
   }
   const coverageSection = (
     group: 'outputs' | 'limitations',
@@ -106,7 +106,7 @@ body{font:14px/1.5 system-ui,sans-serif;color:#18212b;max-width:1000px;margin:32
 ${report.packetMetadataChanges.length ? '<li><a href="#metadata">Packet metadata changes</a></li>' : ''}
 <li><a href="#changes">Detected changes</a></li><li><a href="#outputs">Other changed outputs</a></li><li><a href="#limitations">Comparison limitations</a></li>
 </ul></nav>
-<h2 id="progress">Review progress</h2><table><thead><tr><th>Group</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${count('Detected changes', review.changes)}${count('Other changed outputs', review.outputs, 'outputs')}${count('Comparison limitations', review.limitations, 'limitations')}</tbody></table>
+<h2 id="progress">Review progress</h2><table><thead><tr><th>Group</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${count('Detected changes', review.changes, 'changes')}${count('Other changed outputs', review.outputs, 'outputs')}${count('Comparison limitations', review.limitations, 'limitations')}</tbody></table>
 <table><caption>Detected change progress by classification</caption><thead><tr><th>Classification</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${revisionReviewClassificationProgress(
     review,
   )
