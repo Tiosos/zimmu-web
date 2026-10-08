@@ -141,10 +141,20 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(pendingSummary.locator('#outputs-finding-0')).toBeInViewport()
   await expect(pendingSummary.locator('#outputs-finding-0 h3')).toContainText('Pending')
   await pendingSummary
+    .locator('#outputs-finding-0')
+    .getByRole('link', { name: 'Back to review progress', exact: true })
+    .click()
+  await expect(pendingSummary.locator('#progress-outputs')).toBeInViewport()
+  await pendingSummary
     .getByRole('link', { name: 'Review pending comparison limitations', exact: true })
     .click()
   await expect(pendingSummary.locator('#limitations-finding-0')).toBeInViewport()
   await expect(pendingSummary.locator('#limitations-finding-0 h3')).toContainText('Pending')
+  await pendingSummary
+    .locator('#limitations-finding-0')
+    .getByRole('link', { name: 'Back to review progress', exact: true })
+    .click()
+  await expect(pendingSummary.locator('#progress-limitations')).toBeInViewport()
   await pendingSummary.close()
   await dialog.getByLabel('Acknowledge selected change').click()
   await expect(partPendingShortcut).toBeDisabled()
@@ -279,6 +289,13 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(contents).toBeInViewport()
   await summaryPage.emulateMedia({ media: 'print' })
   await expect(contents).toBeHidden()
+  for (const group of ['outputs', 'limitations']) {
+    await expect(
+      summaryPage
+        .locator(`#${group}-finding-0`)
+        .getByRole('link', { name: 'Back to review progress', exact: true }),
+    ).toBeHidden()
+  }
   await expect(
     summaryPage
       .locator('#finding-0')
