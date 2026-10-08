@@ -104,7 +104,17 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(dialog.getByLabel('Change to review').locator('option')).toHaveCount(1)
   await dialog.getByRole('button', { name: 'Clear navigation filters' }).click()
   await expect(dialog.getByRole('button', { name: 'Show all parts' })).toHaveCount(0)
-  await dialog.getByLabel('Acknowledge selected change').check()
+  const partPendingShortcut = dialog.getByRole('button', {
+    name: `Review pending changes for part ${report.changes[0].partId}`,
+    exact: true,
+  })
+  await partPendingShortcut.click()
+  await expect(dialog.getByLabel('Show pending items only')).toBeChecked()
+  await expect(dialog.getByRole('button', { name: 'Show all parts' })).toBeVisible()
+  await dialog.getByLabel('Acknowledge selected change').click()
+  await expect(partPendingShortcut).toBeDisabled()
+  await expect(dialog.getByText(/No changes match this part and the current filters/)).toBeVisible()
+  await dialog.getByRole('button', { name: 'Clear navigation filters' }).click()
   const classificationProgress = dialog.getByRole('table', {
     name: 'Detected change progress by classification',
   })

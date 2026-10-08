@@ -1028,3 +1028,105 @@ it('preserves a pending import while focusing a part and leaves the focus active
   ).toEqual(['PC:manual', 'PC:part'])
   expect(screen.getByRole('status').textContent).toBe('No new review edits.')
 })
+
+it('opens the first pending finding for an exact part and keeps other work and exports complete', () => {
+  const report = perPartComparisonFixture()
+  report.changes.push({ ...report.changes[1], reference: 'PC:part-more' })
+  const edited = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Keep manual note' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.change(screen.getByLabelText('Change to review'), { target: { value: 'PC:part-more' } })
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+  edited.mockClear()
+  const shortcut = screen.getByRole('button', {
+    name: 'Review pending changes for part part',
+  }) as HTMLButtonElement
+  expect(shortcut.textContent).toBe('2')
+  expect(shortcut.disabled).toBe(false)
+  fireEvent.click(shortcut)
+  expect((screen.getByLabelText('Find a change') as HTMLInputElement).value).toBe('')
+  expect((screen.getByLabelText('Change classification') as HTMLSelectElement).value).toBe('all')
+  expect((screen.getByLabelText('Show pending items only') as HTMLInputElement).checked).toBe(true)
+  let selection = screen.getByLabelText('Change to review') as HTMLSelectElement
+  expect([...selection.options].map((option) => option.value)).toEqual(['PC:part', 'PC:part-more'])
+  expect(selection.value).toBe('PC:part')
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  expect(edited).not.toHaveBeenCalled()
+  fireEvent.change(selection, { target: { value: 'PC:part-more' } })
+  fireEvent.click(shortcut)
+  expect(selection.value).toBe('PC:part')
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  expect(selection.value).toBe('PC:part-more')
+  expect(shortcut.textContent).toBe('1')
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  expect(shortcut.textContent).toBe('0')
+  expect(shortcut.disabled).toBe(true)
+  expect(screen.queryByText(/No changes match this part and the current filters/)).not.toBeNull()
+  expect(screen.queryByText(/No pending changes\./)).toBeNull()
+  expect(
+    (
+      screen.getByRole('button', {
+        name: 'Review pending changes for part other-part',
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.changes).toHaveLength(5)
+  expect(saved.changes[0]).toMatchObject({ acknowledged: true, note: 'Keep manual note' })
+  expect(
+    saved.changes.filter((item: { acknowledged: boolean }) => !item.acknowledged),
+  ).toHaveLength(2)
+  expect('partFilter' in saved).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Show all parts' }))
+  selection = screen.getByLabelText('Change to review') as HTMLSelectElement
+  expect([...selection.options].map((option) => option.value)).toEqual([
+    'PC:other-part',
+    'PC:operation-only',
+  ])
+  fireEvent.click(screen.getByRole('button', { name: 'Clear navigation filters' }))
+  expect(selection.options.length).toBe(5)
+  fireEvent.change(selection, { target: { value: 'PC:manual' } })
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe(
+    'Keep manual note',
+  )
+})
+
+it('keeps a pending resume alive during a per-part pending shortcut and updates its disabled count', async () => {
+  const report = perPartComparisonFixture(),
+    record = createRevisionReview(report)
+  record.changes[3].acknowledged = true
+  record.changes[3].note = 'Resumed operation note'
+  let finish!: (text: string) => void
+  const file = new File(['slow'], 'review.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  const shortcut = screen.getByRole('button', {
+    name: 'Review pending changes for part operation-only',
+  }) as HTMLButtonElement
+  fireEvent.click(shortcut)
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
+    'PC:operation-only',
+  )
+  await act(async () => finish(JSON.stringify(record)))
+  expect(shortcut.disabled).toBe(true)
+  expect(shortcut.textContent).toBe('0')
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  expect(screen.queryByText(/No changes match this part and the current filters/)).not.toBeNull()
+  expect(screen.queryByLabelText('Change to review')).toBeNull()
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe(
+    'Resumed operation note',
+  )
+})
