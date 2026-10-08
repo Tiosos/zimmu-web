@@ -1,0 +1,7 @@
+# Pending changed-output navigation notes
+
+- 2026-10-09: User approved merging #106/#107 after checks and continuing with pending-output navigation. #106 merged; #107 integration checks run on f643de86917f8a4e7c7882e379470b03906395de. Prepare shortcut while waiting, then publish against main after #107 merges.
+- Shortcut enables pending-only, opens the output checklist and focuses its first unchecked checkbox with fixed group selectors. It preserves unrelated view settings and review state; no raw paths enter selectors. Unit coverage verifies acknowledged-first/multiple outputs, correct group/focus, repeated navigation, notes/full exports, empty/completed disablement and pending resume.
+- Five mutations failed by assertions: disablement, pending-only, exact group selection, checklist opening and first-unfinished selection. Backed up source, confirmed replacements and restored byte-identical originals.
+- Typecheck/lint passed. Full units: 172 files, 2,948 passed, 10 existing skips. Catalogue build passed. Browser flow uses click for acknowledgments that leave a pending-only list, then clears pending-only before editing acknowledged notes.
+- Application build passed with its existing chunk-size warning. Chromium packet flow passed (11.7s), including first-pending output focus/viewport and complete exports. #107 integration checks all passed and it merged into main at 61ed6660b260da1885c93e9de1affe7e34a31b01 with prior approval. This feature's diff against main contains only the pending-output change.

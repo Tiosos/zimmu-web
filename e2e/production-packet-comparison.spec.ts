@@ -171,12 +171,11 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   )
   const outputPath = report.otherChangedFiles[0]
   expect(outputPath).toBeTruthy()
-  await dialog
-    .getByText(`Other changed outputs: 0 of ${report.otherChangedFiles.length} acknowledged`, {
-      exact: true,
-    })
-    .click()
-  await dialog.getByLabel(`Acknowledge output: ${outputPath}`, { exact: true }).check()
+  await dialog.getByRole('button', { name: 'Review pending changed outputs', exact: true }).click()
+  await expect(dialog.getByLabel(`Acknowledge output: ${outputPath}`)).toBeFocused()
+  await expect(dialog.getByLabel(`Acknowledge output: ${outputPath}`)).toBeInViewport()
+  await dialog.getByLabel(`Acknowledge output: ${outputPath}`, { exact: true }).click()
+  await dialog.getByLabel('Show pending items only').uncheck()
   await dialog
     .getByLabel(`Output note: ${outputPath}`, { exact: true })
     .fill('Changed output inspected')
