@@ -38,6 +38,14 @@ export function buildRevisionReviewHtml(input: RevisionReviewRecord): string {
   const coverage = revisionReviewCoverage(report)
   const partProgress = revisionReviewPartProgress(review)
   const changes = new Map(report.changes.map((change) => [change.reference, change]))
+  const findingIds = new Map(
+    report.changes.map((change, index) => [change.reference, `finding-${index}`]),
+  )
+  const partTargets = new Map<string, string>()
+  for (const change of report.changes) {
+    if (!partTargets.has(change.partId))
+      partTargets.set(change.partId, findingIds.get(change.reference)!)
+  }
   const count = (label: string, entries: ReviewAcknowledgment[]) => {
     const acknowledged = entries.filter((entry) => entry.acknowledged).length
     return `<tr><th scope="row">${label}</th><td>${acknowledged}</td><td>${entries.length - acknowledged}</td><td>${entries.length}</td></tr>`
@@ -83,7 +91,7 @@ ${report.packetMetadataChanges.length ? '<li><a href="#metadata">Packet metadata
         `<tr><th scope="row">${item.classification === 'manufacturing' ? 'Manufacturing' : 'Metadata'}</th><td>${item.acknowledged}</td><td>${item.pending}</td><td>${item.total}</td></tr>`,
     )
     .join('')}</tbody></table>
-<table><caption>Detected change progress by part</caption><thead><tr><th>Part</th><th>Part findings</th><th>Operation findings</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${partProgress.map((part) => `<tr><th scope="row">${part.label !== null ? `${escape(part.label)}<br>` : ''}${escape(part.partId)}</th><td>${part.partFindings}</td><td>${part.operationFindings}</td><td>${part.acknowledged}</td><td>${part.pending}</td><td>${part.total}</td></tr>`).join('')}</tbody></table>
+<table><caption>Detected change progress by part</caption><thead><tr><th>Part</th><th>Part findings</th><th>Operation findings</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${partProgress.map((part) => `<tr><th scope="row"><a href="#${partTargets.get(part.partId)}">${part.label !== null ? `${escape(part.label)}<br>` : ''}${escape(part.partId)}</a></th><td>${part.partFindings}</td><td>${part.operationFindings}</td><td>${part.acknowledged}</td><td>${part.pending}</td><td>${part.total}</td></tr>`).join('')}</tbody></table>
 ${partProgress.length === 0 ? '<p>No detected part or operation findings to summarize.</p>' : ''}
 <p>Only parts with recorded findings are listed. Finding counts do not count machining operations or establish production readiness.</p>
 <p>Counts cover all detected changes, regardless of navigation filters. Packet metadata changes are outside this breakdown.</p>
@@ -94,7 +102,7 @@ ${report.packetMetadataChanges.length ? `<h2 id="metadata">Packet metadata chang
     pendingFirst(review.changes)
       .map((item) => {
         const change = changes.get(item.reference)!
-        return `<article><h3>${status(item)} — ${escape(change.change)} ${escape(change.entity)}: ${escape(change.label)}</h3><p>${escape(change.classification)} · Part: ${escape(change.partId)}${change.operationId ? ` · Operation: ${escape(change.operationId)}` : ''}</p><p class="reference">${escape(item.reference)}</p>${note(item.note)}
+        return `<article id="${findingIds.get(item.reference)}"><h3>${status(item)} — ${escape(change.change)} ${escape(change.entity)}: ${escape(change.label)}</h3><p>${escape(change.classification)} · Part: ${escape(change.partId)}${change.operationId ? ` · Operation: ${escape(change.operationId)}` : ''}</p><p class="reference">${escape(item.reference)}</p>${note(item.note)}
 <h4>Earlier output locations</h4>${locations(change.before)}<h4>Later output locations</h4>${locations(change.after)}
 ${change.fields.length ? `<table><thead><tr><th>Field / classification</th><th>Earlier</th><th>Later</th></tr></thead><tbody>${change.fields.map((field) => `<tr><th scope="row">${escape(field.field)} (${escape(field.classification)})</th><td><pre>${value(field.before)}</pre></td><td><pre>${value(field.after)}</pre></td></tr>`).join('')}</tbody></table>` : `<h4>Earlier definition</h4><pre>${value(change.before?.definition ?? 'Absent')}</pre><h4>Later definition</h4><pre>${value(change.after?.definition ?? 'Absent')}</pre>`}</article>`
       })
