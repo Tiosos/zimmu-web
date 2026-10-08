@@ -63,3 +63,5 @@ Enable **Show pending parts first** to put parts with unfinished findings ahead 
 In printable HTML, nonzero pending counts for **Other changed outputs** and **Comparison limitations** link to their first unfinished recorded item. Completed and empty counts stay plain text. These fixed internal links work offline and preserve separate group counts, complete sections and scope warnings. Changed outputs still require archive inspection; acknowledging limitations does not resolve them.
 
 Each output and limitation finding in printable HTML includes **Back to review progress**, returning to its own group’s progress row. This includes acknowledged findings and works offline. Return links are hidden when printing; counts, notes and findings remain included.
+
+The overall **Detected changes** pending count in printable HTML links to the first unfinished recorded change in comparison order. Completed and empty counts remain plain text. The finding retains its **Back to part summary** link, and all detected changes remain included.
