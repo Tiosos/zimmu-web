@@ -1,0 +1,5 @@
+# Printable finding return links
+
+Add Back to part summary to every detected part/operation finding in standalone printable review HTML. Each link targets that exact stable part's summary row, including operation-only groups, duplicate labels and acknowledged findings. Use fixed part-summary-N anchors derived from the summary order; never use raw IDs as fragments. Existing forward links, pending ordering, complete records and numeric counts remain intact.
+
+Return links use the existing navigation class and disappear when printing. No scripts, network resources or review-schema changes. Verify round trips across overlapping/hostile IDs, repeated findings, reordered progress and mixed acknowledgment status. Keep every internal target unique and present; zero findings create no return links. Mutation-check targets and print-navigation classification from backups. Run required typecheck/lint/full unit suite, builds and Chromium offline round-trip/print checks before PR publication; monitor exact-head CI and post-merge main.

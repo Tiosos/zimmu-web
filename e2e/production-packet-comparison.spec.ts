@@ -124,6 +124,11 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     .click()
   await expect(pendingSummary.locator('#finding-0')).toBeInViewport()
   await expect(pendingSummary.locator('#finding-0 h3')).toContainText('Pending')
+  await pendingSummary
+    .locator('#finding-0')
+    .getByRole('link', { name: 'Back to part summary', exact: true })
+    .click()
+  await expect(pendingSummary.locator('#part-summary-0')).toBeInViewport()
   await pendingSummary.close()
   await dialog.getByLabel('Acknowledge selected change').click()
   await expect(partPendingShortcut).toBeDisabled()
@@ -254,6 +259,11 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(contents).toBeInViewport()
   await summaryPage.emulateMedia({ media: 'print' })
   await expect(contents).toBeHidden()
+  await expect(
+    summaryPage
+      .locator('#finding-0')
+      .getByRole('link', { name: 'Back to part summary', exact: true }),
+  ).toBeHidden()
   await expect(
     summaryPage.getByRole('heading', { name: 'Comparison limitations', exact: true }),
   ).toBeVisible()

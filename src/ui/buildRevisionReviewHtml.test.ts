@@ -73,7 +73,7 @@ it('escapes adversarial text in every content group and never adds active conten
   expect(doc.querySelectorAll('script,img,svg,iframe,link,form').length).toBe(0)
   expect(doc.body.textContent).toContain(payload)
   for (const link of doc.querySelectorAll('a')) {
-    expect(link.getAttribute('href')).toMatch(/^#(?:[a-z]+|finding-\d+)$/)
+    expect(link.getAttribute('href')).toMatch(/^#(?:[a-z]+|finding-\d+|part-summary-\d+)$/)
     expect(doc.querySelectorAll(link.getAttribute('href')!).length).toBe(1)
   }
   expect(
@@ -139,7 +139,7 @@ it('resolves all internal links once, including empty groups and conditional met
     expect(doc.querySelectorAll('a[href="#contents"]').length).toBe(3)
     for (const link of doc.querySelectorAll('a')) {
       const href = link.getAttribute('href')!
-      expect(href).toMatch(/^#(?:[a-z]+|finding-\d+)$/)
+      expect(href).toMatch(/^#(?:[a-z]+|finding-\d+|part-summary-\d+)$/)
       expect(doc.querySelectorAll(href).length).toBe(1)
     }
     expect(doc.querySelectorAll('#metadata').length).toBe(metadata.length ? 1 : 0)
@@ -278,4 +278,40 @@ it('links pending counts to each exact part first unfinished finding in comparis
   )!
   expect(completedTable.querySelectorAll('td a').length).toBe(0)
   expect(completedTable.querySelectorAll('th a').length).toBe(3)
+})
+
+it('returns every finding to its exact unique summary row with print-hidden navigation', () => {
+  const report = perPartComparisonFixture()
+  report.changes[0].partId = '<unsafe>"#part'
+  report.changes[1].partId = '<unsafe>"#part'
+  report.changes[2].partId = 'other<unsafe>"#part'
+  report.changes.push({ ...report.changes[1], reference: 'PC:part-more' })
+  const review = createRevisionReview(report)
+  review.changes[0].acknowledged = true
+  review.changes.reverse()
+  const doc = parse(buildRevisionReviewHtml(review))
+  const expected = [
+    'part-summary-0',
+    'part-summary-0',
+    'part-summary-1',
+    'part-summary-2',
+    'part-summary-0',
+  ]
+  expect(doc.querySelectorAll('a[href^="#part-summary-"]').length).toBe(5)
+  report.changes.forEach((change, index) => {
+    const article = doc.querySelector(`#finding-${index}`)!
+    const link = article.querySelector('a')!
+    expect(link.textContent).toBe('Back to part summary')
+    expect(link.getAttribute('href')).toBe(`#${expected[index]}`)
+    expect(link.parentElement!.classList.contains('navigation')).toBe(true)
+    const rows = doc.querySelectorAll(link.getAttribute('href')!)
+    expect(rows.length).toBe(1)
+    expect(rows[0].tagName).toBe('TR')
+    expect(rows[0].querySelector('th')!.textContent).toContain(change.partId)
+    const forward = rows[0].querySelector('th a')!
+    expect(doc.querySelector(forward.getAttribute('href')!)!.textContent).toContain(change.partId)
+  })
+  expect(doc.querySelectorAll('img,script,[onerror]').length).toBe(0)
+  const empty = parse(buildRevisionReviewHtml(createRevisionReview({ ...report, changes: [] })))
+  expect(empty.querySelectorAll('a[href^="#part-summary-"]').length).toBe(0)
 })
