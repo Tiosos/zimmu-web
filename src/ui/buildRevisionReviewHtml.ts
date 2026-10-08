@@ -72,7 +72,7 @@ export function buildRevisionReviewHtml(input: RevisionReviewRecord): string {
     const acknowledged = entries.filter((entry) => entry.acknowledged).length
     const pending = entries.find((entry) => !entry.acknowledged)
     const pendingCount = entries.length - acknowledged
-    return `<tr><th scope="row">${label}</th><td>${acknowledged}</td><td>${group && pending ? `<a href="#${coverageIds[group].get(pending.reference)}" aria-label="Review pending ${escape(label.toLowerCase())}">${pendingCount}</a>` : pendingCount}</td><td>${entries.length}</td></tr>`
+    return `<tr id="progress-${group ?? 'changes'}"><th scope="row">${label}</th><td>${acknowledged}</td><td>${group && pending ? `<a href="#${coverageIds[group].get(pending.reference)}" aria-label="Review pending ${escape(label.toLowerCase())}">${pendingCount}</a>` : pendingCount}</td><td>${entries.length}</td></tr>`
   }
   const coverageSection = (
     group: 'outputs' | 'limitations',
@@ -84,7 +84,7 @@ export function buildRevisionReviewHtml(input: RevisionReviewRecord): string {
       pendingFirst(review[group])
         .map(
           (item) =>
-            `<article id="${coverageIds[group].get(item.reference)}"><h3>${status(item)} — ${escape(labels.get(item.reference))}</h3><p class="reference">${escape(item.reference)}</p>${note(item.note)}</article>`,
+            `<article id="${coverageIds[group].get(item.reference)}"><h3>${status(item)} — ${escape(labels.get(item.reference))}</h3><p class="reference">${escape(item.reference)}</p>${note(item.note)}<p class="navigation"><a href="#progress-${group}">Back to review progress</a></p></article>`,
         )
         .join('') || '<p>No items in this group.</p>'
     }<p class="navigation"><a href="#contents">Back to contents</a></p></section>`

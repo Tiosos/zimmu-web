@@ -74,7 +74,7 @@ it('escapes adversarial text in every content group and never adds active conten
   expect(doc.body.textContent).toContain(payload)
   for (const link of doc.querySelectorAll('a')) {
     expect(link.getAttribute('href')).toMatch(
-      /^#(?:[a-z]+|finding-\d+|part-summary-\d+|(?:outputs|limitations)-finding-\d+)$/,
+      /^#(?:[a-z]+|finding-\d+|part-summary-\d+|progress-(?:changes|outputs|limitations)|(?:outputs|limitations)-finding-\d+)$/,
     )
     expect(doc.querySelectorAll(link.getAttribute('href')!).length).toBe(1)
   }
@@ -142,7 +142,7 @@ it('resolves all internal links once, including empty groups and conditional met
     for (const link of doc.querySelectorAll('a')) {
       const href = link.getAttribute('href')!
       expect(href).toMatch(
-        /^#(?:[a-z]+|finding-\d+|part-summary-\d+|(?:outputs|limitations)-finding-\d+)$/,
+        /^#(?:[a-z]+|finding-\d+|part-summary-\d+|progress-(?:changes|outputs|limitations)|(?:outputs|limitations)-finding-\d+)$/,
       )
       expect(doc.querySelectorAll(href).length).toBe(1)
     }
@@ -404,4 +404,77 @@ it('keeps complete and empty coverage counts plain while detected-change counts 
   expect(
     empty.querySelectorAll('a[href^="#outputs-finding-"],a[href^="#limitations-finding-"]').length,
   ).toBe(0)
+})
+
+it('returns every coverage finding to its exact unique progress row without changing counts', () => {
+  const report = comparisonFixture()
+  report.otherChangedFiles = ['first.pdf', '<unsafe>"#output.pdf', 'third.pdf']
+  report.limitations = ['Read first', '<unsafe>"#statement', 'Read last']
+  const review = createRevisionReview(report)
+  review.outputs[0].acknowledged = true
+  review.limitations[0].acknowledged = true
+  review.outputs.reverse()
+  review.limitations.reverse()
+  review.outputs[0].note = 'Output note retained'
+  const doc = parse(buildRevisionReviewHtml(review))
+  expect(doc.querySelectorAll('#progress-changes').length).toBe(1)
+  for (const group of ['outputs', 'limitations']) {
+    const row = doc.querySelector(`#progress-${group}`)!
+    expect(row.tagName).toBe('TR')
+    expect([...row.querySelectorAll('td')].map((cell) => cell.textContent)).toEqual(['1', '2', '3'])
+    const articles = doc.querySelectorAll(`#${group} article`)
+    expect(articles.length).toBe(3)
+    for (const article of articles) {
+      const links = article.querySelectorAll('a')
+      expect(links.length).toBe(1)
+      const link = links[0]
+      expect(link.textContent).toBe('Back to review progress')
+      expect(link.getAttribute('href')).toBe(`#progress-${group}`)
+      expect(doc.querySelectorAll(link.getAttribute('href')!).length).toBe(1)
+      expect(doc.querySelector(link.getAttribute('href')!)).toBe(row)
+      expect(link.parentElement!.classList.contains('navigation')).toBe(true)
+    }
+    const forward = row.querySelector('a')!
+    expect(
+      doc.querySelector(forward.getAttribute('href')!)!.querySelector('a')!.getAttribute('href'),
+    ).toBe(`#progress-${group}`)
+  }
+  expect(doc.body.textContent).toContain('Output note retained')
+  expect(doc.querySelectorAll('img,script,[onerror]').length).toBe(0)
+  expect(doc.querySelector('style')!.textContent).toContain(
+    '@media print{.navigation{display:none}',
+  )
+})
+
+it('keeps return navigation for acknowledged findings and zero rows for empty coverage groups', () => {
+  const report = comparisonFixture()
+  const review = createRevisionReview(report)
+  review.outputs.forEach((item) => {
+    item.acknowledged = true
+  })
+  review.limitations.forEach((item) => {
+    item.acknowledged = true
+  })
+  const complete = parse(buildRevisionReviewHtml(review))
+  for (const group of ['outputs', 'limitations']) {
+    expect(complete.querySelectorAll(`#${group} article a[href="#progress-${group}"]`).length).toBe(
+      review[group as 'outputs' | 'limitations'].length,
+    )
+    expect(
+      complete.querySelector(`#progress-${group}`)!.querySelectorAll('td')[1].textContent,
+    ).toBe('0')
+  }
+  const empty = parse(
+    buildRevisionReviewHtml(
+      createRevisionReview({ ...report, otherChangedFiles: [], limitations: [] }),
+    ),
+  )
+  for (const group of ['outputs', 'limitations']) {
+    expect(empty.querySelectorAll(`#${group} article a`).length).toBe(0)
+    expect(
+      [...empty.querySelector(`#progress-${group}`)!.querySelectorAll('td')].map(
+        (cell) => cell.textContent,
+      ),
+    ).toEqual(['0', '0', '0'])
+  }
 })
