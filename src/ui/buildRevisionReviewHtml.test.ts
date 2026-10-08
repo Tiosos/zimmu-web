@@ -315,3 +315,28 @@ it('returns every finding to its exact unique summary row with print-hidden navi
   const empty = parse(buildRevisionReviewHtml(createRevisionReview({ ...report, changes: [] })))
   expect(empty.querySelectorAll('a[href^="#part-summary-"]').length).toBe(0)
 })
+
+it('prints pending part summaries first and keeps forward and return links consistent', () => {
+  const review = createRevisionReview(perPartComparisonFixture())
+  review.changes[0].acknowledged = true
+  review.changes[1].acknowledged = true
+  const doc = parse(buildRevisionReviewHtml(review))
+  const table = [...doc.querySelectorAll('table')].find(
+    (item) => item.querySelector('caption')?.textContent === 'Detected change progress by part',
+  )!
+  const rows = [...table.querySelectorAll('tbody tr')]
+  expect(rows.map((row) => row.children[0].textContent)).toEqual([
+    'Boardother-part',
+    'operation-only',
+    'Boardpart',
+  ])
+  for (const row of rows) {
+    for (const forward of row.querySelectorAll('a')) {
+      const article = doc.querySelector(forward.getAttribute('href')!)!
+      const back = article.querySelector('a')!
+      expect(doc.querySelectorAll(back.getAttribute('href')!).length).toBe(1)
+      expect(doc.querySelector(back.getAttribute('href')!)).toBe(row)
+    }
+  }
+  expect(doc.querySelectorAll('#changes article').length).toBe(4)
+})

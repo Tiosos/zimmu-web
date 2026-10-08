@@ -1116,6 +1116,7 @@ it('keeps a pending resume alive during a per-part pending shortcut and updates 
     name: 'Review pending changes for part operation-only',
   }) as HTMLButtonElement
   fireEvent.click(shortcut)
+  fireEvent.click(screen.getByLabelText('Show pending parts first'))
   expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
     'PC:operation-only',
   )
@@ -1129,4 +1130,40 @@ it('keeps a pending resume alive during a per-part pending shortcut and updates 
   expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe(
     'Resumed operation note',
   )
+})
+
+it('optionally puts pending parts first without editing progress, changing selection or truncating exports', () => {
+  const report = perPartComparisonFixture(),
+    edited = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Retained note' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.change(screen.getByLabelText('Change to review'), { target: { value: 'PC:part' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  const rows = () =>
+    within(screen.getByRole('table', { name: 'Detected change progress by part' }))
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => row.children[0].textContent)
+  expect(rows()).toEqual(['Boardpart', 'Boardother-part', 'operation-only'])
+  edited.mockClear()
+  fireEvent.click(screen.getByLabelText('Show pending parts first'))
+  expect(rows()).toEqual(['Boardother-part', 'operation-only', 'Boardpart'])
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:part')
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  expect(edited).not.toHaveBeenCalled()
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Review pending changes for part other-part' }),
+  )
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  expect(rows()).toEqual(['operation-only', 'Boardpart', 'Boardother-part'])
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.changes).toHaveLength(4)
+  expect(saved.changes[0].note).toBe('Retained note')
+  expect('pendingPartsFirst' in saved).toBe(false)
+  fireEvent.click(screen.getByLabelText('Show pending parts first'))
+  expect(rows()).toEqual(['Boardpart', 'Boardother-part', 'operation-only'])
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
 })

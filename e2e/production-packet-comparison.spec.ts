@@ -104,6 +104,8 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(dialog.getByLabel('Change to review').locator('option')).toHaveCount(1)
   await dialog.getByRole('button', { name: 'Clear navigation filters' }).click()
   await expect(dialog.getByRole('button', { name: 'Show all parts' })).toHaveCount(0)
+  await dialog.getByLabel('Show pending parts first').check()
+  await expect(dialog.getByLabel('Show pending parts first')).toBeChecked()
   const partPendingShortcut = dialog.getByRole('button', {
     name: `Review pending changes for part ${report.changes[0].partId}`,
     exact: true,
