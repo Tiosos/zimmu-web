@@ -1117,6 +1117,9 @@ it('keeps a pending resume alive during a per-part pending shortcut and updates 
   }) as HTMLButtonElement
   fireEvent.click(shortcut)
   fireEvent.click(screen.getByLabelText('Show pending parts first'))
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), {
+    target: { value: 'operation-only' },
+  })
   expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
     'PC:operation-only',
   )
@@ -1150,6 +1153,9 @@ it('optionally puts pending parts first without editing progress, changing selec
   edited.mockClear()
   fireEvent.click(screen.getByLabelText('Show pending parts first'))
   expect(rows()).toEqual(['Boardother-part', 'operation-only', 'Boardpart'])
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), { target: { value: 'board' } })
+  expect(rows()).toEqual(['Boardother-part', 'Boardpart'])
+  fireEvent.click(screen.getByRole('button', { name: 'Clear part search' }))
   expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:part')
   expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
   expect(edited).not.toHaveBeenCalled()
@@ -1166,4 +1172,65 @@ it('optionally puts pending parts first without editing progress, changing selec
   fireEvent.click(screen.getByLabelText('Show pending parts first'))
   expect(rows()).toEqual(['Boardpart', 'Boardother-part', 'operation-only'])
   expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+})
+
+it('searches summary labels and exact literal normalized IDs while retaining selection and complete exports', () => {
+  const report = perPartComparisonFixture(),
+    edited = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  report.changes[0].partId = 'Café.[x]'
+  report.changes[1].partId = 'Café.[x]'
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.change(screen.getByLabelText('Change note'), {
+    target: { value: 'Keep selected note' },
+  })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  edited.mockClear()
+  const rows = () =>
+    within(screen.getByRole('table', { name: 'Detected change progress by part' }))
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => row.children[0].textContent)
+  const search = screen.getByLabelText('Find a part in summary')
+  fireEvent.change(search, { target: { value: '  CAFE\u0301.[X]  ' } })
+  expect(rows()).toEqual(['BoardCafé.[x]'])
+  expect(screen.queryByText('1 of 3 parts match this summary search.')).not.toBeNull()
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:manual')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe(
+    'Keep selected note',
+  )
+  expect(edited).not.toHaveBeenCalled()
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  fireEvent.change(search, { target: { value: 'board' } })
+  expect(rows()).toEqual(['BoardCafé.[x]', 'Boardother-part'])
+  fireEvent.change(search, { target: { value: 'operation-only' } })
+  expect(rows()).toEqual(['operation-only'])
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  const doc = new DOMParser().parseFromString(download.mock.calls[0][0] as string, 'text/html')
+  const table = [...doc.querySelectorAll('table')].find(
+    (item) => item.querySelector('caption')?.textContent === 'Detected change progress by part',
+  )!
+  expect(table.querySelectorAll('tbody tr').length).toBe(3)
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[1][0] as string)
+  expect(saved.changes).toHaveLength(4)
+  expect(saved.changes[0].note).toBe('Keep selected note')
+  expect('partSearch' in saved).toBe(false)
+  fireEvent.change(search, { target: { value: 'Geometric drilling' } })
+  expect(rows()).toEqual([])
+  expect(screen.queryByText(/No parts match this summary search/)).not.toBeNull()
+  expect(screen.queryByText('No detected part or operation findings to summarize.')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Clear part search' }))
+  expect(rows()).toEqual(['BoardCafé.[x]', 'Boardother-part', 'operation-only'])
+  expect(
+    (screen.getByRole('button', { name: 'Clear part search' }) as HTMLButtonElement).disabled,
+  ).toBe(true)
+  expect(screen.queryByText(/No parts match this summary search/)).toBeNull()
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+})
+
+it('keeps empty source feedback separate from summary search feedback', () => {
+  render(<ProductionPacketRevisionReview report={{ ...comparisonFixture(), changes: [] }} />)
+  expect(screen.queryByText('No detected part or operation findings to summarize.')).not.toBeNull()
+  expect(screen.queryByText(/No parts match this summary search/)).toBeNull()
 })
