@@ -73,7 +73,7 @@ it('escapes adversarial text in every content group and never adds active conten
   expect(doc.querySelectorAll('script,img,svg,iframe,link,form').length).toBe(0)
   expect(doc.body.textContent).toContain(payload)
   for (const link of doc.querySelectorAll('a')) {
-    expect(link.getAttribute('href')).toMatch(/^#[a-z]+$/)
+    expect(link.getAttribute('href')).toMatch(/^#(?:[a-z]+|finding-\d+)$/)
     expect(doc.querySelectorAll(link.getAttribute('href')!).length).toBe(1)
   }
   expect(
@@ -139,7 +139,7 @@ it('resolves all internal links once, including empty groups and conditional met
     expect(doc.querySelectorAll('a[href="#contents"]').length).toBe(3)
     for (const link of doc.querySelectorAll('a')) {
       const href = link.getAttribute('href')!
-      expect(href).toMatch(/^#[a-z]+$/)
+      expect(href).toMatch(/^#(?:[a-z]+|finding-\d+)$/)
       expect(doc.querySelectorAll(href).length).toBe(1)
     }
     expect(doc.querySelectorAll('#metadata').length).toBe(metadata.length ? 1 : 0)
@@ -211,4 +211,28 @@ it('prints complete per-part progress and escapes labels and IDs without assigni
   )
   expect(empty.body.textContent).toContain('No detected part or operation findings to summarize.')
   expect(empty.body.textContent).toContain('Partial — missing fields were not assumed unchanged')
+})
+
+it('links each part to its first recorded finding with fixed safe anchors despite pending-first rendering', () => {
+  const report = perPartComparisonFixture()
+  report.changes[0].partId = '<unsafe>#part'
+  report.changes[1].partId = '<unsafe>#part'
+  const review = createRevisionReview(report)
+  review.changes[0].acknowledged = true
+  const doc = parse(buildRevisionReviewHtml(review))
+  const table = [...doc.querySelectorAll('table')].find(
+    (item) => item.querySelector('caption')?.textContent === 'Detected change progress by part',
+  )!
+  const links = [...table.querySelectorAll('a')]
+  expect(links.map((link) => link.getAttribute('href'))).toEqual([
+    '#finding-0',
+    '#finding-2',
+    '#finding-3',
+  ])
+  expect(links[0].textContent).toContain('<unsafe>#part')
+  expect(doc.querySelector('#finding-0')!.textContent).toContain('PC:manual')
+  expect(doc.querySelector('#finding-2')!.textContent).toContain('PC:other-part')
+  expect(doc.querySelector('#finding-3')!.textContent).toContain('PC:operation-only')
+  expect(doc.querySelector('section:first-of-type article')!.id).toBe('finding-1')
+  for (const link of links) expect(doc.querySelectorAll(link.getAttribute('href')!).length).toBe(1)
 })

@@ -1,0 +1,7 @@
+# Part-specific review navigation notes
+
+- 2026-10-08: #101 merged with all four checks passing. Exact part focus avoids matching other-part when selecting part. Keep null as all-parts state; no serialized filter state. Printable targets use fixed ordinal IDs and point to the first recorded finding, even after pending-first rendering.
+- Navigation implemented in the dialog and printable report, including exact IDs, explicit reset paths, scoped empty feedback and pending-import preservation. Added unit and browser coverage plus user documentation.
+- Fourteen deliberate mutations were killed by assertion failures: exact matching, setting focus, classification/pending/search resets, first-finding selection, Show all/Clear/global-shortcut resets, clear-button enablement, scoped/classification/global-pending feedback and first printable target. Sources restored from byte-preserving backups after every mutation.
+- Typecheck and lint passed after removing an unsupported Testing Library test option (accessible-name matching remains exact by default). Full unit suite: 172 files, 2,937 passed, 10 existing skips. Catalogue build passed. Post-merge main CI and E2E passed for e5d8045fbc36eee1489585153fa6b453f6d9de5f.
+- Application build passed with its existing chunk-size warning. Chromium production-packet comparison/export flow passed, including exact part focus and offline printable target navigation. Regenerated structure trees; no release version/date changes.

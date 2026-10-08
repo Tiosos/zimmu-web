@@ -97,6 +97,13 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     dialog.getByRole('button', { name: 'Review pending metadata changes' }),
   ).toBeDisabled()
   await dialog.getByRole('button', { name: 'Clear navigation filters' }).click()
+  await dialog
+    .getByRole('button', { name: `Review part ${report.changes[0].partId}`, exact: true })
+    .click()
+  await expect(dialog.getByRole('button', { name: 'Show all parts' })).toBeVisible()
+  await expect(dialog.getByLabel('Change to review').locator('option')).toHaveCount(1)
+  await dialog.getByRole('button', { name: 'Clear navigation filters' }).click()
+  await expect(dialog.getByRole('button', { name: 'Show all parts' })).toHaveCount(0)
   await dialog.getByLabel('Acknowledge selected change').check()
   const classificationProgress = dialog.getByRole('table', {
     name: 'Detected change progress by classification',
@@ -208,6 +215,11 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
       .filter({ hasText: 'Manufacturing' })
       .getByRole('cell'),
   ).toHaveText(['1', '0', '1'])
+  await summaryPage
+    .getByRole('table', { name: 'Detected change progress by part' })
+    .getByRole('link')
+    .click()
+  await expect(summaryPage.locator('#finding-0')).toBeInViewport()
   const contents = summaryPage.getByRole('navigation', { name: 'Review contents' })
   await contents.getByRole('link', { name: 'Comparison limitations', exact: true }).click()
   await expect(summaryPage.locator('#limitations')).toBeInViewport()

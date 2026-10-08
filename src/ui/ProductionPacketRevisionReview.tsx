@@ -27,6 +27,7 @@ export function ProductionPacketRevisionReview({
   const [selected, setSelected] = useState(report.changes[0]?.reference ?? '')
   const [pendingOnly, setPendingOnly] = useState(false)
   const [search, setSearch] = useState('')
+  const [partFilter, setPartFilter] = useState<string | null>(null)
   const [classification, setClassification] = useState<'all' | 'manufacturing' | 'metadata'>('all')
   const [error, setError] = useState<string | null>(null)
   const [hasCheckpointEdits, setHasCheckpointEdits] = useState(false)
@@ -53,13 +54,14 @@ export function ProductionPacketRevisionReview({
   const query = normalizeSearch(search.trim())
   const visibleChanges = report.changes.filter(
     (item) =>
+      (partFilter === null || item.partId === partFilter) &&
       (classification === 'all' || item.classification === classification) &&
       (!pendingOnly || !progress.get(item.reference)!.acknowledged) &&
       [item.label, item.partId, item.operationId ?? '', item.reference].some((text) =>
         normalizeSearch(text).includes(query),
       ),
   )
-  const filtered = Boolean(query) || classification !== 'all'
+  const filtered = Boolean(query) || classification !== 'all' || partFilter !== null
   const activeReference =
     visibleChanges.find((item) => item.reference === selected)?.reference ??
     visibleChanges[0]?.reference ??
@@ -119,6 +121,7 @@ export function ProductionPacketRevisionReview({
             disabled={item.pending === 0}
             onClick={() => {
               setSelected(activeReference)
+              setPartFilter(null)
               setClassification(item.classification)
               setPendingOnly(true)
               setSearch('')
@@ -144,13 +147,28 @@ export function ProductionPacketRevisionReview({
           {partProgress.map((part) => (
             <tr key={part.partId}>
               <th scope="row" className="break-all">
+                <button
+                  type="button"
+                  className="text-left underline"
+                  aria-label={`Review part ${part.partId}`}
+                  onClick={() => {
+                    setPartFilter(part.partId)
+                    setSelected(
+                      report.changes.find((item) => item.partId === part.partId)!.reference,
+                    )
+                    setClassification('all')
+                    setPendingOnly(false)
+                    setSearch('')
+                  }}
+                >
+                  {part.label ?? part.partId}
+                </button>
                 {part.label !== null && (
                   <>
-                    {part.label}
                     <br />
+                    {part.partId}
                   </>
                 )}
-                {part.partId}
               </th>
               <td>{part.partFindings}</td>
               <td>{part.operationFindings}</td>
@@ -182,6 +200,21 @@ export function ProductionPacketRevisionReview({
         <br />
         Later SHA-256: {report.after.sha256}
       </p>
+      {partFilter !== null && (
+        <p className="break-all">
+          Reviewing part: {partFilter}{' '}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSelected(activeReference)
+              setPartFilter(null)
+            }}
+          >
+            Show all parts
+          </Button>
+        </p>
+      )}
       <label className="block">
         Reviewer (self-reported)
         <input
@@ -239,10 +272,11 @@ export function ProductionPacketRevisionReview({
       <Button
         variant="outline"
         size="sm"
-        disabled={!search && classification === 'all' && !pendingOnly}
+        disabled={!search && classification === 'all' && !pendingOnly && partFilter === null}
         onClick={() => {
           setSelected(activeReference)
           setSearch('')
+          setPartFilter(null)
           setClassification('all')
           setPendingOnly(false)
         }}
@@ -258,13 +292,19 @@ export function ProductionPacketRevisionReview({
           {visibleChanges.length} of {report.changes.length} changes match the current filters.
         </p>
       )}
-      {classification !== 'all' && visibleChanges.length === 0 && (
+      {partFilter !== null && visibleChanges.length === 0 && (
+        <p>
+          No changes match this part and the current filters. Adjust or clear the filters to
+          continue.
+        </p>
+      )}
+      {partFilter === null && classification !== 'all' && visibleChanges.length === 0 && (
         <p>
           No changes match the current classification and filters. Clear or adjust the filters to
           continue.
         </p>
       )}
-      {classification === 'all' && query && visibleChanges.length === 0 && (
+      {partFilter === null && classification === 'all' && query && visibleChanges.length === 0 && (
         <p>
           No changes match this search{pendingOnly ? ' and pending filter' : ''}. Clear or adjust
           the filters to continue.
@@ -276,9 +316,13 @@ export function ProductionPacketRevisionReview({
           moves to another pending change.
         </p>
       )}
-      {pendingOnly && !query && classification === 'all' && visibleChanges.length === 0 && (
-        <p>No pending changes. Clear the filter to edit acknowledged changes.</p>
-      )}
+      {partFilter === null &&
+        pendingOnly &&
+        !query &&
+        classification === 'all' &&
+        visibleChanges.length === 0 && (
+          <p>No pending changes. Clear the filter to edit acknowledged changes.</p>
+        )}
       {entry && change && (
         <>
           <label className="block">

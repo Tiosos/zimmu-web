@@ -927,3 +927,104 @@ it('shows a scoped empty per-part summary without removing partial coverage warn
   expect(screen.getByText(/Only parts with recorded findings are listed/)).toBeTruthy()
   expect(screen.getByText(/Coverage is partial/)).toBeTruthy()
 })
+
+it('focuses exact part IDs, clears conflicting filters and retains edits and complete exports', () => {
+  const report = perPartComparisonFixture()
+  report.changes[2].partId = 'all'
+  report.changes.push({ ...report.changes[2], reference: 'PC:overlap', partId: 'other-part' })
+  const edited = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.change(screen.getByLabelText('Change note'), {
+    target: { value: 'Retain manual note' },
+  })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+  edited.mockClear()
+  fireEvent.click(screen.getByRole('button', { name: 'Review part part' }))
+  expect((screen.getByLabelText('Change classification') as HTMLSelectElement).value).toBe('all')
+  expect((screen.getByLabelText('Find a change') as HTMLInputElement).value).toBe('')
+  const selection = screen.getByLabelText('Change to review') as HTMLSelectElement
+  expect([...selection.options].map((option) => option.value)).toEqual(['PC:manual', 'PC:part'])
+  expect(selection.value).toBe('PC:manual')
+  expect((screen.getByLabelText('Change classification') as HTMLSelectElement).value).toBe('all')
+  expect((screen.getByLabelText('Show pending items only') as HTMLInputElement).checked).toBe(false)
+  expect((screen.getByLabelText('Find a change') as HTMLInputElement).value).toBe('')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe(
+    'Retain manual note',
+  )
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  expect(edited).not.toHaveBeenCalled()
+  expect(
+    (screen.getByRole('button', { name: 'Clear navigation filters' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false)
+  fireEvent.change(selection, { target: { value: 'PC:part' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Review part part' }))
+  expect(selection.value).toBe('PC:manual')
+  fireEvent.click(screen.getByRole('button', { name: 'Show all parts' }))
+  expect(selection.options.length).toBe(5)
+  expect(selection.value).toBe('PC:manual')
+  fireEvent.click(screen.getByRole('button', { name: 'Review part all' }))
+  expect([...selection.options].map((option) => option.value)).toEqual(['PC:other-part'])
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.changes).toHaveLength(5)
+  expect(saved.changes[0].note).toBe('Retain manual note')
+  expect('partFilter' in saved).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Clear navigation filters' }))
+  expect(selection.options.length).toBe(5)
+  expect(screen.queryByRole('button', { name: 'Show all parts' })).toBeNull()
+})
+
+it('uses scoped empty feedback and resets part focus for global pending shortcuts', () => {
+  const report = perPartComparisonFixture()
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Review part operation-only' }))
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(screen.queryByText(/No changes match this part and the current filters/)).not.toBeNull()
+  expect(screen.queryByText(/No pending changes\./)).toBeNull()
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  expect(screen.queryByText(/No changes match the current classification and filters/)).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending manufacturing changes' }))
+  expect(screen.queryByRole('button', { name: 'Show all parts' })).toBeNull()
+  expect(
+    [...(screen.getByLabelText('Change to review') as HTMLSelectElement).options].map(
+      (option) => option.value,
+    ),
+  ).toEqual(['PC:manual', 'PC:part'])
+})
+
+it('preserves a pending import while focusing a part and leaves the focus active after resume', async () => {
+  const report = perPartComparisonFixture(),
+    record = createRevisionReview(report)
+  record.notes = 'Resumed part review'
+  let finish!: (text: string) => void
+  const file = new File(['slow'], 'review.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.click(screen.getByRole('button', { name: 'Review part part' }))
+  await act(async () => finish(JSON.stringify(record)))
+  expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe(
+    'Resumed part review',
+  )
+  expect(
+    [...(screen.getByLabelText('Change to review') as HTMLSelectElement).options].map(
+      (option) => option.value,
+    ),
+  ).toEqual(['PC:manual', 'PC:part'])
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+})
