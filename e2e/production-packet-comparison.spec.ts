@@ -106,6 +106,10 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(dialog.getByRole('button', { name: 'Show all parts' })).toHaveCount(0)
   await dialog.getByLabel('Show pending parts first').check()
   await expect(dialog.getByLabel('Show pending parts first')).toBeChecked()
+  await dialog.getByLabel('Find a part in summary').fill('missing-part')
+  await expect(dialog.getByText(/No parts match this summary search/)).toBeVisible()
+  await dialog.getByRole('button', { name: 'Clear part search', exact: true }).click()
+  await expect(dialog.getByLabel('Find a part in summary')).toHaveValue('')
   const partPendingShortcut = dialog.getByRole('button', {
     name: `Review pending changes for part ${report.changes[0].partId}`,
     exact: true,

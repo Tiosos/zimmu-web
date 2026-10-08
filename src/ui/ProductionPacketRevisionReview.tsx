@@ -29,6 +29,7 @@ export function ProductionPacketRevisionReview({
   const [search, setSearch] = useState('')
   const [partFilter, setPartFilter] = useState<string | null>(null)
   const [pendingPartsFirst, setPendingPartsFirst] = useState(false)
+  const [partSearch, setPartSearch] = useState('')
   const [classification, setClassification] = useState<'all' | 'manufacturing' | 'metadata'>('all')
   const [error, setError] = useState<string | null>(null)
   const [hasCheckpointEdits, setHasCheckpointEdits] = useState(false)
@@ -74,6 +75,10 @@ export function ProductionPacketRevisionReview({
   const acknowledged = review.changes.filter((item) => item.acknowledged).length
   const classificationProgress = revisionReviewClassificationProgress(review)
   const partProgress = revisionReviewPartProgress(review, pendingPartsFirst)
+  const partQuery = normalizeSearch(partSearch.trim())
+  const visibleParts = partProgress.filter((part) =>
+    [part.partId, part.label ?? ''].some((text) => normalizeSearch(text).includes(partQuery)),
+  )
   return (
     <section
       aria-label="Local revision review"
@@ -140,6 +145,22 @@ export function ProductionPacketRevisionReview({
         />{' '}
         Show pending parts first
       </label>
+      <label className="block">
+        Find a part in summary
+        <input value={partSearch} onChange={(event) => setPartSearch(event.target.value)} />
+      </label>
+      <Button variant="outline" size="sm" disabled={!partSearch} onClick={() => setPartSearch('')}>
+        Clear part search
+      </Button>
+      {partQuery && (
+        <p>
+          {visibleParts.length} of {partProgress.length} parts match this summary search.
+        </p>
+      )}
+      {partQuery && visibleParts.length === 0 && (
+        <p>No parts match this summary search. Adjust or clear the part search to continue.</p>
+      )}
+      <p>Part search changes this summary only. Downloads include every part.</p>
       <table className="w-full text-left">
         <caption>Detected change progress by part</caption>
         <thead>
@@ -153,7 +174,7 @@ export function ProductionPacketRevisionReview({
           </tr>
         </thead>
         <tbody>
-          {partProgress.map((part) => (
+          {visibleParts.map((part) => (
             <tr key={part.partId}>
               <th scope="row" className="break-all">
                 <button
