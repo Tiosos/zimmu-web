@@ -28,6 +28,7 @@ export function ProductionPacketRevisionReview({
   const [pendingOnly, setPendingOnly] = useState(false)
   const [search, setSearch] = useState('')
   const [partFilter, setPartFilter] = useState<string | null>(null)
+  const [pendingPartsFirst, setPendingPartsFirst] = useState(false)
   const [classification, setClassification] = useState<'all' | 'manufacturing' | 'metadata'>('all')
   const [error, setError] = useState<string | null>(null)
   const [hasCheckpointEdits, setHasCheckpointEdits] = useState(false)
@@ -72,7 +73,7 @@ export function ProductionPacketRevisionReview({
   const coverage = revisionReviewCoverage(report)
   const acknowledged = review.changes.filter((item) => item.acknowledged).length
   const classificationProgress = revisionReviewClassificationProgress(review)
-  const partProgress = revisionReviewPartProgress(review)
+  const partProgress = revisionReviewPartProgress(review, pendingPartsFirst)
   return (
     <section
       aria-label="Local revision review"
@@ -131,6 +132,14 @@ export function ProductionPacketRevisionReview({
           </Button>
         ))}
       </div>
+      <label className="block">
+        <input
+          type="checkbox"
+          checked={pendingPartsFirst}
+          onChange={(event) => setPendingPartsFirst(event.target.checked)}
+        />{' '}
+        Show pending parts first
+      </label>
       <table className="w-full text-left">
         <caption>Detected change progress by part</caption>
         <thead>

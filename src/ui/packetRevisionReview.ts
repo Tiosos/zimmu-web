@@ -59,7 +59,10 @@ export interface PartReviewProgress {
   total: number
 }
 
-export function revisionReviewPartProgress(review: RevisionReviewRecord): PartReviewProgress[] {
+export function revisionReviewPartProgress(
+  review: RevisionReviewRecord,
+  pendingFirst = false,
+): PartReviewProgress[] {
   const acknowledged = new Set(
     review.changes.filter((item) => item.acknowledged).map((item) => item.reference),
   )
@@ -83,7 +86,10 @@ export function revisionReviewPartProgress(review: RevisionReviewRecord): PartRe
     else part.pending += 1
     parts.set(change.partId, part)
   }
-  return [...parts.values()]
+  const result = [...parts.values()]
+  return pendingFirst
+    ? result.sort((a, b) => Number(a.pending === 0) - Number(b.pending === 0))
+    : result
 }
 
 export function createRevisionReview(comparison: PacketRevisionReport): RevisionReviewRecord {

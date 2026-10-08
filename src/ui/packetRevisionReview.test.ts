@@ -192,3 +192,26 @@ it('groups part and manual/geometric operation findings by stable part ID and ac
     revisionReviewPartProgress(createRevisionReview({ ...report, status: 'partial', changes: [] })),
   ).toEqual([])
 })
+
+it('orders pending part groups first with stable comparison-order ties and unchanged progress', () => {
+  const review = createRevisionReview(perPartComparisonFixture())
+  review.changes[0].acknowledged = true
+  review.changes[1].acknowledged = true
+  review.changes.reverse()
+  const original = JSON.stringify(review)
+  const normal = revisionReviewPartProgress(review)
+  const ordered = revisionReviewPartProgress(review, true)
+  expect(normal.map((part) => part.partId)).toEqual(['part', 'other-part', 'operation-only'])
+  expect(ordered).toEqual([normal[1], normal[2], normal[0]])
+  expect(JSON.stringify(review)).toBe(original)
+  review.changes.forEach((item) => {
+    item.acknowledged = true
+  })
+  expect(revisionReviewPartProgress(review, true)).toEqual(revisionReviewPartProgress(review))
+  expect(
+    revisionReviewPartProgress(
+      createRevisionReview({ ...perPartComparisonFixture(), changes: [] }),
+      true,
+    ),
+  ).toEqual([])
+})
