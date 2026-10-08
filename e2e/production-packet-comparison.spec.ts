@@ -69,14 +69,16 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(dimensions.getByRole('cell').nth(0)).toContainText('200')
   await expect(dimensions.getByRole('cell').nth(1)).toContainText('720')
   await dialog.getByLabel('Change classification').selectOption('all')
-  await dialog.getByLabel('Find a change').fill(report.changes[0].partId.toUpperCase())
+  await dialog
+    .getByLabel('Find a change', { exact: true })
+    .fill(report.changes[0].partId.toUpperCase())
   await expect(
     dialog.getByText('1 of 1 changes match the current filters.', { exact: true }),
   ).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Previous change' })).toBeDisabled()
   await expect(dialog.getByRole('button', { name: 'Next change' })).toBeDisabled()
   await expect(dialog.getByText('Change 1 of 1 matching changes')).toBeVisible()
-  await dialog.getByLabel('Find a change').fill('missing-part-id')
+  await dialog.getByLabel('Find a change', { exact: true }).fill('missing-part-id')
   await expect(
     dialog.getByText('No changes match this search. Clear or adjust the filters to continue.', {
       exact: true,
@@ -86,7 +88,7 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await dialog.getByLabel('Change classification').selectOption('metadata')
   await dialog.getByLabel('Show pending items only').check()
   await dialog.getByRole('button', { name: 'Clear navigation filters' }).click()
-  await expect(dialog.getByLabel('Find a change')).toHaveValue('')
+  await expect(dialog.getByLabel('Find a change', { exact: true })).toHaveValue('')
   await expect(dialog.getByLabel('Change classification')).toHaveValue('all')
   await expect(dialog.getByLabel('Show pending items only')).not.toBeChecked()
   await expect(dialog.getByRole('button', { name: 'Clear navigation filters' })).toBeDisabled()
@@ -194,9 +196,20 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(dialog.getByLabel('Change note', { exact: true })).toHaveValue(
     'Revised length checked',
   )
+  await dialog.locator('details[data-review-group="outputs"] summary').click()
+  await dialog.locator('details[data-review-group="limitations"] summary').click()
+  await dialog.getByLabel('Find a changed output').fill('no-match')
+  await dialog.getByLabel('Find a comparison limitation').fill('no-match')
+  await expect(
+    dialog
+      .locator('details[data-review-group="outputs"]')
+      .getByText(/No items match this group search/),
+  ).toBeVisible()
   const outputPath = report.otherChangedFiles[0]
   expect(outputPath).toBeTruthy()
   await dialog.getByRole('button', { name: 'Review pending changed outputs', exact: true }).click()
+  await expect(dialog.getByLabel('Find a changed output')).toHaveValue('')
+  await expect(dialog.getByLabel('Find a comparison limitation')).toHaveValue('no-match')
   await expect(dialog.getByLabel(`Acknowledge output: ${outputPath}`)).toBeFocused()
   await expect(dialog.getByLabel(`Acknowledge output: ${outputPath}`)).toBeInViewport()
   await dialog.getByLabel(`Acknowledge output: ${outputPath}`, { exact: true }).click()
@@ -207,6 +220,7 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await dialog
     .getByRole('button', { name: 'Review pending comparison limitations', exact: true })
     .click()
+  await expect(dialog.getByLabel('Find a comparison limitation')).toHaveValue('')
   await expect(
     dialog.getByLabel(`Acknowledge limitation: ${report.limitations[0]}`, { exact: true }),
   ).toBeFocused()
