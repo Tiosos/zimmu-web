@@ -223,7 +223,7 @@ it('links each part to its first recorded finding with fixed safe anchors despit
   const table = [...doc.querySelectorAll('table')].find(
     (item) => item.querySelector('caption')?.textContent === 'Detected change progress by part',
   )!
-  const links = [...table.querySelectorAll('a')]
+  const links = [...table.querySelectorAll('th a')]
   expect(links.map((link) => link.getAttribute('href'))).toEqual([
     '#finding-0',
     '#finding-2',
@@ -235,4 +235,47 @@ it('links each part to its first recorded finding with fixed safe anchors despit
   expect(doc.querySelector('#finding-3')!.textContent).toContain('PC:operation-only')
   expect(doc.querySelector('section:first-of-type article')!.id).toBe('finding-1')
   for (const link of links) expect(doc.querySelectorAll(link.getAttribute('href')!).length).toBe(1)
+})
+
+it('links pending counts to each exact part first unfinished finding in comparison order', () => {
+  const report = perPartComparisonFixture()
+  report.changes[0].partId = '<unsafe>"#part'
+  report.changes[1].partId = '<unsafe>"#part'
+  report.changes[2].partId = 'other<unsafe>"#part'
+  report.changes.push({ ...report.changes[1], reference: 'PC:part-more' })
+  const review = createRevisionReview(report)
+  review.changes[0].acknowledged = true
+  review.changes[3].acknowledged = true
+  review.changes.reverse()
+  const doc = parse(buildRevisionReviewHtml(review))
+  const table = [...doc.querySelectorAll('table')].find(
+    (item) => item.querySelector('caption')?.textContent === 'Detected change progress by part',
+  )!
+  const rows = [...table.querySelectorAll('tbody tr')]
+  const links = [...table.querySelectorAll('td a')]
+  expect(links.map((link) => link.getAttribute('href'))).toEqual(['#finding-1', '#finding-2'])
+  expect(links.map((link) => link.textContent)).toEqual(['2', '1'])
+  expect(links.map((link) => link.getAttribute('aria-label'))).toEqual([
+    'Review pending changes for part <unsafe>"#part',
+    'Review pending changes for part other<unsafe>"#part',
+  ])
+  expect(rows[0].querySelector('th a')!.getAttribute('href')).toBe('#finding-0')
+  expect(rows[2].children[4].textContent).toBe('0')
+  expect(rows[2].children[4].querySelector('a')).toBeNull()
+  for (const link of links) {
+    const targets = doc.querySelectorAll(link.getAttribute('href')!)
+    expect(targets.length).toBe(1)
+    expect(targets[0].querySelector('h3')!.textContent).toContain('Pending')
+  }
+  expect(doc.querySelector('#finding-1')!.textContent).toContain('PC:part')
+  expect(doc.querySelector('#finding-2')!.textContent).toContain('PC:other-part')
+  expect(doc.querySelectorAll('img,script,[onerror]').length).toBe(0)
+  expect(doc.querySelectorAll('section:first-of-type article').length).toBe(5)
+  for (const item of review.changes) item.acknowledged = true
+  const completed = parse(buildRevisionReviewHtml(review))
+  const completedTable = [...completed.querySelectorAll('table')].find(
+    (item) => item.querySelector('caption')?.textContent === 'Detected change progress by part',
+  )!
+  expect(completedTable.querySelectorAll('td a').length).toBe(0)
+  expect(completedTable.querySelectorAll('th a').length).toBe(3)
 })
