@@ -1,0 +1,5 @@
+# Pending comparison-limitation navigation
+
+Extend the existing pending-output shortcut with Review pending comparison limitations. Share the checklist-navigation implementation across the two existing coverage groups: enable pending-only, open the exact group and focus its first unfinished checkbox. Disable each action independently for a completed or empty group. Group selectors use fixed group names, never user text.
+
+Preserve unrelated view settings, notes, checkpoints, pending resumes and complete exports. Navigation does not acknowledge items, resolve limitations, expand comparison coverage or imply production approval. Existing group instructions remain visible. Test acknowledged-first/multiple limitations, independent disablement, correct group/focus, retained notes/filters/checkpoints, empty groups, pending resume and full records. Preserve existing output tests and add Chromium limitation focus/viewport coverage. Mutation-check shared guards/targets/labels; restore source backups. Run full checks/builds/browser before PR and exact-head CI monitoring; monitor post-merge #108 main.

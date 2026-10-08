@@ -1321,3 +1321,104 @@ it('disables pending-output navigation for an empty group and retains slow resum
     (screen.getByLabelText('Output note: drawings/shop-drawings.pdf') as HTMLTextAreaElement).value,
   ).toBe('Resumed output note')
 })
+
+it('navigates independently to the first unread limitation while preserving review state and scope warnings', () => {
+  const report = perPartComparisonFixture(),
+    edited = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  report.limitations.push('Partial drawing coverage', 'Manual archive inspection')
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.change(screen.getByLabelText('Limitation note: Unsigned packets'), {
+    target: { value: 'Keep limitation note' },
+  })
+  fireEvent.click(screen.getByLabelText('Acknowledge limitation: Unsigned packets'))
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), { target: { value: 'part' } })
+  edited.mockClear()
+  const details = screen
+    .getByText('Comparison limitations: 1 of 3 acknowledged')
+    .closest('details')!
+  expect(details.open).toBe(false)
+  const shortcut = screen.getByRole('button', {
+    name: 'Review pending comparison limitations',
+  }) as HTMLButtonElement
+  expect(shortcut.disabled).toBe(false)
+  fireEvent.click(shortcut)
+  expect(details.open).toBe(true)
+  expect(document.activeElement).toBe(
+    screen.getByLabelText('Acknowledge limitation: Partial drawing coverage'),
+  )
+  expect((screen.getByLabelText('Show pending items only') as HTMLInputElement).checked).toBe(true)
+  expect((screen.getByLabelText('Change classification') as HTMLSelectElement).value).toBe(
+    'metadata',
+  )
+  expect((screen.getByLabelText('Find a change') as HTMLInputElement).value).toBe('missing')
+  expect((screen.getByLabelText('Find a part in summary') as HTMLInputElement).value).toBe('part')
+  expect(screen.getByText(/Other changed outputs:/).closest('details')!.open).toBe(false)
+  expect(screen.getByText(/it does not resolve it or expand comparison coverage/)).toBeTruthy()
+  expect(edited).not.toHaveBeenCalled()
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  fireEvent.click(screen.getByLabelText('Acknowledge limitation: Partial drawing coverage'))
+  fireEvent.click(shortcut)
+  expect(document.activeElement).toBe(
+    screen.getByLabelText('Acknowledge limitation: Manual archive inspection'),
+  )
+  fireEvent.click(screen.getByLabelText('Acknowledge limitation: Manual archive inspection'))
+  expect(shortcut.disabled).toBe(true)
+  expect(
+    (screen.getByRole('button', { name: 'Review pending changed outputs' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.limitations).toHaveLength(3)
+  expect(saved.limitations[0].note).toBe('Keep limitation note')
+  expect(saved.limitations.every((item: { acknowledged: boolean }) => item.acknowledged)).toBe(true)
+  expect(saved.outputs[0].acknowledged).toBe(false)
+  expect(saved.changes).toHaveLength(4)
+})
+
+it('disables empty limitation navigation and preserves a pending resume while opening limitations', async () => {
+  const empty = render(
+    <ProductionPacketRevisionReview report={{ ...comparisonFixture(), limitations: [] }} />,
+  )
+  expect(
+    (
+      screen.getByRole('button', {
+        name: 'Review pending comparison limitations',
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true)
+  empty.unmount()
+  const report = comparisonFixture(),
+    record = createRevisionReview(report)
+  record.limitations[0].acknowledged = true
+  record.limitations[0].note = 'Resumed limitation note'
+  let finish!: (text: string) => void
+  const file = new File(['slow'], 'review.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending comparison limitations' }))
+  await act(async () => finish(JSON.stringify(record)))
+  expect(
+    (
+      screen.getByRole('button', {
+        name: 'Review pending comparison limitations',
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true)
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(
+    (screen.getByLabelText('Limitation note: Unsigned packets') as HTMLTextAreaElement).value,
+  ).toBe('Resumed limitation note')
+})
