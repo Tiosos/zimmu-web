@@ -28,9 +28,11 @@ export function ProductionPacketRevisionReview({
   const [search, setSearch] = useState('')
   const [classification, setClassification] = useState<'all' | 'manufacturing' | 'metadata'>('all')
   const [error, setError] = useState<string | null>(null)
+  const [hasCheckpointEdits, setHasCheckpointEdits] = useState(false)
   const edited = useRef(false)
   const markEdited = (value: boolean) => {
     edited.current = value
+    setHasCheckpointEdits(value)
     onEditedChange?.(value)
   }
   const resumeVersion = useRef(0)
@@ -72,6 +74,13 @@ export function ProductionPacketRevisionReview({
       className="my-4 space-y-3 rounded border border-border p-3 text-sm"
     >
       <h3 className="font-semibold">Local revision review</h3>
+      <p role="status">
+        {hasCheckpointEdits ? 'Review edits awaiting a JSON checkpoint.' : 'No new review edits.'}
+      </p>
+      <p>
+        Keep the downloaded review JSON file to resume editing. Downloading printable HTML does not
+        clear this indicator; starting a download does not confirm the file was saved.
+      </p>
       <p>
         {acknowledged} of {review.changes.length} detected changes acknowledged.
       </p>
