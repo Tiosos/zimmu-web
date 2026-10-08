@@ -2,6 +2,7 @@ import {
   importRevisionReview,
   revisionReviewCoverage,
   revisionReviewClassificationProgress,
+  revisionReviewPartProgress,
   type ReviewAcknowledgment,
   type RevisionReviewRecord,
 } from './packetRevisionReview'
@@ -35,6 +36,7 @@ export function buildRevisionReviewHtml(input: RevisionReviewRecord): string {
   const review = importRevisionReview(input, input.comparison),
     report = review.comparison
   const coverage = revisionReviewCoverage(report)
+  const partProgress = revisionReviewPartProgress(review)
   const changes = new Map(report.changes.map((change) => [change.reference, change]))
   const count = (label: string, entries: ReviewAcknowledgment[]) => {
     const acknowledged = entries.filter((entry) => entry.acknowledged).length
@@ -81,6 +83,9 @@ ${report.packetMetadataChanges.length ? '<li><a href="#metadata">Packet metadata
         `<tr><th scope="row">${item.classification === 'manufacturing' ? 'Manufacturing' : 'Metadata'}</th><td>${item.acknowledged}</td><td>${item.pending}</td><td>${item.total}</td></tr>`,
     )
     .join('')}</tbody></table>
+<table><caption>Detected change progress by part</caption><thead><tr><th>Part</th><th>Part findings</th><th>Operation findings</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${partProgress.map((part) => `<tr><th scope="row">${part.label !== null ? `${escape(part.label)}<br>` : ''}${escape(part.partId)}</th><td>${part.partFindings}</td><td>${part.operationFindings}</td><td>${part.acknowledged}</td><td>${part.pending}</td><td>${part.total}</td></tr>`).join('')}</tbody></table>
+${partProgress.length === 0 ? '<p>No detected part or operation findings to summarize.</p>' : ''}
+<p>Only parts with recorded findings are listed. Finding counts do not count machining operations or establish production readiness.</p>
 <p>Counts cover all detected changes, regardless of navigation filters. Packet metadata changes are outside this breakdown.</p>
 <p>Counts describe recorded items only. Zero pending items does not establish production readiness. Pending items appear first in each group.</p>
 <h2 id="notes">Overall review notes</h2>${note(review.notes)}

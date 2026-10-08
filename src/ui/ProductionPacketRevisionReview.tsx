@@ -6,6 +6,7 @@ import {
   importRevisionReview,
   revisionReviewCoverage,
   revisionReviewClassificationProgress,
+  revisionReviewPartProgress,
   type RevisionReviewRecord,
 } from './packetRevisionReview'
 import { downloadBlob } from './download'
@@ -69,6 +70,7 @@ export function ProductionPacketRevisionReview({
   const coverage = revisionReviewCoverage(report)
   const acknowledged = review.changes.filter((item) => item.acknowledged).length
   const classificationProgress = revisionReviewClassificationProgress(review)
+  const partProgress = revisionReviewPartProgress(review)
   return (
     <section
       aria-label="Local revision review"
@@ -126,6 +128,44 @@ export function ProductionPacketRevisionReview({
           </Button>
         ))}
       </div>
+      <table className="w-full text-left">
+        <caption>Detected change progress by part</caption>
+        <thead>
+          <tr>
+            <th scope="col">Part</th>
+            <th scope="col">Part findings</th>
+            <th scope="col">Operation findings</th>
+            <th scope="col">Acknowledged</th>
+            <th scope="col">Pending</th>
+            <th scope="col">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {partProgress.map((part) => (
+            <tr key={part.partId}>
+              <th scope="row" className="break-all">
+                {part.label !== null && (
+                  <>
+                    {part.label}
+                    <br />
+                  </>
+                )}
+                {part.partId}
+              </th>
+              <td>{part.partFindings}</td>
+              <td>{part.operationFindings}</td>
+              <td>{part.acknowledged}</td>
+              <td>{part.pending}</td>
+              <td>{part.total}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {partProgress.length === 0 && <p>No detected part or operation findings to summarize.</p>}
+      <p>
+        Only parts with recorded findings are listed. Finding counts do not count machining
+        operations or establish production readiness.
+      </p>
       <p>
         Counts cover all detected changes, regardless of navigation filters. Packet metadata changes
         are outside this breakdown.

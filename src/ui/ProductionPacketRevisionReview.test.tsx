@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { comparisonFixture } from './__fixtures__/packetRevisionComparison'
+import {
+  comparisonFixture,
+  perPartComparisonFixture,
+} from './__fixtures__/packetRevisionComparison'
 import { ProductionPacketRevisionReview } from './ProductionPacketRevisionReview'
 import { createRevisionReview } from './packetRevisionReview'
 import * as downloads from './download'
@@ -878,4 +881,49 @@ it('retains checkpoint edits on rejected resume and clears them on validated res
     ),
   )
   expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+})
+
+it('keeps per-part summary totals complete through classification/search/pending filters and exports', () => {
+  const report = perPartComparisonFixture(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+  const rows = () =>
+    within(screen.getByRole('table', { name: 'Detected change progress by part' }))
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => [...row.children].map((cell) => cell.textContent))
+  expect(rows()).toEqual([
+    ['Boardpart', '1', '1', '1', '1', '2'],
+    ['Boardother-part', '1', '0', '0', '1', '1'],
+    ['operation-only', '0', '1', '0', '1', '1'],
+  ])
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  const doc = new DOMParser().parseFromString(download.mock.calls[0][0] as string, 'text/html')
+  const table = [...doc.querySelectorAll('table')].find(
+    (item) => item.querySelector('caption')?.textContent === 'Detected change progress by part',
+  )!
+  expect(
+    [...table.querySelectorAll('tbody tr')].map((row) =>
+      [...row.children].map((cell) => cell.textContent),
+    ),
+  ).toEqual(rows())
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  expect(JSON.parse(download.mock.calls[1][0] as string).changes).toHaveLength(4)
+})
+
+it('shows a scoped empty per-part summary without removing partial coverage warnings', () => {
+  render(
+    <ProductionPacketRevisionReview
+      report={{ ...comparisonFixture(), status: 'partial', changes: [] }}
+    />,
+  )
+  expect(screen.queryByText('No detected part or operation findings to summarize.')).toBeTruthy()
+  expect(screen.getByText(/Only parts with recorded findings are listed/)).toBeTruthy()
+  expect(screen.getByText(/Coverage is partial/)).toBeTruthy()
 })

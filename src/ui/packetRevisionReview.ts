@@ -49,6 +49,43 @@ export function revisionReviewClassificationProgress(review: RevisionReviewRecor
   })
 }
 
+export interface PartReviewProgress {
+  partId: string
+  label: string | null
+  partFindings: number
+  operationFindings: number
+  acknowledged: number
+  pending: number
+  total: number
+}
+
+export function revisionReviewPartProgress(review: RevisionReviewRecord): PartReviewProgress[] {
+  const acknowledged = new Set(
+    review.changes.filter((item) => item.acknowledged).map((item) => item.reference),
+  )
+  const parts = new Map<string, PartReviewProgress>()
+  for (const change of review.comparison.changes) {
+    const part = parts.get(change.partId) ?? {
+      partId: change.partId,
+      label: null,
+      partFindings: 0,
+      operationFindings: 0,
+      acknowledged: 0,
+      pending: 0,
+      total: 0,
+    }
+    if (change.entity === 'part') {
+      part.partFindings += 1
+      part.label = change.label
+    } else part.operationFindings += 1
+    part.total += 1
+    if (acknowledged.has(change.reference)) part.acknowledged += 1
+    else part.pending += 1
+    parts.set(change.partId, part)
+  }
+  return [...parts.values()]
+}
+
 export function createRevisionReview(comparison: PacketRevisionReport): RevisionReviewRecord {
   if (comparison.status === 'blocked' || !comparison.before.sha256 || !comparison.after.sha256)
     throw new Error('A verified comparison with both packet hashes is required.')

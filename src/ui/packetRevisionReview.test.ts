@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { comparisonFixture } from './__fixtures__/packetRevisionComparison'
+import {
+  comparisonFixture,
+  perPartComparisonFixture,
+} from './__fixtures__/packetRevisionComparison'
 import {
   createRevisionReview,
   importRevisionReview,
   revisionReviewClassificationProgress,
+  revisionReviewPartProgress,
 } from './packetRevisionReview'
 
 describe('local revision review binding', () => {
@@ -147,4 +151,44 @@ it('counts whole classifications by stable reference, including zero groups and 
     { classification: 'manufacturing', acknowledged: 0, pending: 0, total: 0 },
     { classification: 'metadata', acknowledged: 0, pending: 0, total: 0 },
   ])
+})
+
+it('groups part and manual/geometric operation findings by stable part ID and acknowledgment references', () => {
+  const report = perPartComparisonFixture(),
+    review = createRevisionReview(report)
+  review.changes[0].acknowledged = true
+  review.changes[2].acknowledged = true
+  review.changes.reverse()
+  expect(revisionReviewPartProgress(review)).toEqual([
+    {
+      partId: 'part',
+      label: 'Board',
+      partFindings: 1,
+      operationFindings: 1,
+      acknowledged: 1,
+      pending: 1,
+      total: 2,
+    },
+    {
+      partId: 'other-part',
+      label: 'Board',
+      partFindings: 1,
+      operationFindings: 0,
+      acknowledged: 1,
+      pending: 0,
+      total: 1,
+    },
+    {
+      partId: 'operation-only',
+      label: null,
+      partFindings: 0,
+      operationFindings: 1,
+      acknowledged: 0,
+      pending: 1,
+      total: 1,
+    },
+  ])
+  expect(
+    revisionReviewPartProgress(createRevisionReview({ ...report, status: 'partial', changes: [] })),
+  ).toEqual([])
 })

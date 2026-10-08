@@ -1,5 +1,8 @@
 import { expect, it } from 'vitest'
-import { comparisonFixture } from './__fixtures__/packetRevisionComparison'
+import {
+  comparisonFixture,
+  perPartComparisonFixture,
+} from './__fixtures__/packetRevisionComparison'
 import { createRevisionReview } from './packetRevisionReview'
 import { buildRevisionReviewHtml } from './buildRevisionReviewHtml'
 import type { PacketRevisionReport } from './compareProductionPackets'
@@ -177,4 +180,35 @@ it('prints manufacturing and metadata finding progress with zero rows and unchan
   expect(parse(buildRevisionReviewHtml(empty)).body.textContent).toContain(
     'Partial — missing fields were not assumed unchanged',
   )
+})
+
+it('prints complete per-part progress and escapes labels and IDs without assigning operation labels to parts', () => {
+  const report = perPartComparisonFixture(),
+    review = createRevisionReview(report)
+  review.changes[0].acknowledged = true
+  const doc = parse(buildRevisionReviewHtml(review))
+  const table = [...doc.querySelectorAll('table')].find(
+    (item) => item.querySelector('caption')?.textContent === 'Detected change progress by part',
+  )!
+  expect(
+    [...table.querySelectorAll('tbody tr')].map((row) =>
+      [...row.children].map((cell) => cell.textContent),
+    ),
+  ).toEqual([
+    ['Boardpart', '1', '1', '1', '1', '2'],
+    ['Boardother-part', '1', '0', '0', '1', '1'],
+    ['operation-only', '0', '1', '0', '1', '1'],
+  ])
+  const payload = '<img src=x onerror=alert(1)>'
+  report.changes[0].partId = payload
+  report.changes[1].partId = payload
+  report.changes[1].label = payload
+  const hostile = parse(buildRevisionReviewHtml(createRevisionReview(report)))
+  expect(hostile.querySelectorAll('img,script').length).toBe(0)
+  expect(hostile.body.textContent).toContain(payload)
+  const empty = parse(
+    buildRevisionReviewHtml(createRevisionReview({ ...report, status: 'partial', changes: [] })),
+  )
+  expect(empty.body.textContent).toContain('No detected part or operation findings to summarize.')
+  expect(empty.body.textContent).toContain('Partial — missing fields were not assumed unchanged')
 })

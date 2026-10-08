@@ -1,0 +1,7 @@
+# Per-part revision review summary notes
+
+- 2026-10-08: #99 is merged; #100's integration passed 2,929 tests/typecheck/lint and is pushed for updated-head CI. This branch starts from that integrated head. Summaries describe recorded findings only, not all project parts or production readiness. A manual instruction finding is counted as an operation finding without claiming geometric drilling.
+- Shared Map-based counts preserve first appearance and associate acknowledgments by stable reference. A part finding supplies a label even when an operation finding appears first; operation-only groups do not adopt operation names as board labels. Identical board labels remain separate through exact part IDs.
+- Focused validation passed 44 tests. Seven mutations (group accumulation, entity classification, acknowledgment association, and each UI/HTML label and empty-state rule) produced expected AssertionErrors before restoration. Empty-state assertions use queryByText so a missing notice fails the assertion directly rather than throwing a lookup error. Every source restored from a byte-verified backup.
+- Full validation: 172 unit files passed; 2,933 tests passed, 10 existing skips. Typecheck, lint, catalogue and CAD builds and real Chromium comparison/export test passed. The browser verifies the stable part ID and matching acknowledged counts in both dialog and downloaded HTML.
+- #99/#100 are merged. The branch fast-forwarded onto main's identical integrated baseline without changing the validated source tree.
