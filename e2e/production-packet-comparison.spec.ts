@@ -107,6 +107,15 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(
     classificationProgress.getByRole('row').filter({ hasText: 'Metadata' }).getByRole('cell'),
   ).toHaveText(['0', '0', '0'])
+  const perPartProgress = dialog.getByRole('table', { name: 'Detected change progress by part' })
+  await expect(perPartProgress.getByRole('row').nth(1)).toContainText(report.changes[0].partId)
+  await expect(perPartProgress.getByRole('row').nth(1).getByRole('cell')).toHaveText([
+    '1',
+    '0',
+    '1',
+    '0',
+    '1',
+  ])
   await dialog.getByLabel('Change note', { exact: true }).fill('Revised length checked')
   await expect(dialog.getByRole('status')).toHaveText('Review edits awaiting a JSON checkpoint.')
   page.once('dialog', (confirmation) => void confirmation.dismiss())
@@ -185,6 +194,13 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   expect(printableDownload.suggestedFilename()).toBe(`${reviewStem}.html`)
   const summaryPage = await context.newPage()
   await summaryPage.setContent(html)
+  await expect(
+    summaryPage
+      .getByRole('table', { name: 'Detected change progress by part' })
+      .getByRole('row')
+      .nth(1)
+      .getByRole('cell'),
+  ).toHaveText(['1', '0', '1', '0', '1'])
   await expect(
     summaryPage
       .getByRole('table', { name: 'Detected change progress by classification' })

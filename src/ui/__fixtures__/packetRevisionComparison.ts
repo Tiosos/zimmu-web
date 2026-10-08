@@ -48,3 +48,31 @@ export function comparisonFixture(): PacketRevisionReport {
     ],
   }
 }
+
+export function perPartComparisonFixture(): PacketRevisionReport {
+  const report = comparisonFixture(),
+    part = report.changes[0]
+  report.changes = [
+    {
+      ...part,
+      reference: 'PC:manual',
+      entity: 'operation',
+      operationId: 'manual',
+      label: 'Drill on site',
+      fields: [],
+      before: null,
+      after: { ...part.after!, definition: { kind: 'manual', instruction: 'Drill on site' } },
+    },
+    part,
+    { ...part, reference: 'PC:other-part', partId: 'other-part', classification: 'metadata' },
+    {
+      ...part,
+      reference: 'PC:operation-only',
+      entity: 'operation',
+      partId: 'operation-only',
+      operationId: 'geometric',
+      label: 'Geometric drilling',
+    },
+  ]
+  return report
+}
