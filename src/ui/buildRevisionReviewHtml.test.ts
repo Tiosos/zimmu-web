@@ -73,7 +73,9 @@ it('escapes adversarial text in every content group and never adds active conten
   expect(doc.querySelectorAll('script,img,svg,iframe,link,form').length).toBe(0)
   expect(doc.body.textContent).toContain(payload)
   for (const link of doc.querySelectorAll('a')) {
-    expect(link.getAttribute('href')).toMatch(/^#(?:[a-z]+|finding-\d+|part-summary-\d+)$/)
+    expect(link.getAttribute('href')).toMatch(
+      /^#(?:[a-z]+|finding-\d+|part-summary-\d+|(?:outputs|limitations)-finding-\d+)$/,
+    )
     expect(doc.querySelectorAll(link.getAttribute('href')!).length).toBe(1)
   }
   expect(
@@ -139,7 +141,9 @@ it('resolves all internal links once, including empty groups and conditional met
     expect(doc.querySelectorAll('a[href="#contents"]').length).toBe(3)
     for (const link of doc.querySelectorAll('a')) {
       const href = link.getAttribute('href')!
-      expect(href).toMatch(/^#(?:[a-z]+|finding-\d+|part-summary-\d+)$/)
+      expect(href).toMatch(
+        /^#(?:[a-z]+|finding-\d+|part-summary-\d+|(?:outputs|limitations)-finding-\d+)$/,
+      )
       expect(doc.querySelectorAll(href).length).toBe(1)
     }
     expect(doc.querySelectorAll('#metadata').length).toBe(metadata.length ? 1 : 0)
@@ -339,4 +343,65 @@ it('prints pending part summaries first and keeps forward and return links consi
     }
   }
   expect(doc.querySelectorAll('#changes article').length).toBe(4)
+})
+
+it('links independent coverage pending counts to the first unfinished recorded item with safe anchors', () => {
+  const report = comparisonFixture()
+  report.otherChangedFiles = ['first.pdf', '<img src=x onerror=alert(1)>.pdf', 'third.pdf']
+  report.limitations = ['Read first', '<unsafe>"#statement', 'Read last']
+  const review = createRevisionReview(report)
+  review.outputs[0].acknowledged = true
+  review.limitations[0].acknowledged = true
+  review.outputs.reverse()
+  review.limitations.reverse()
+  const doc = parse(buildRevisionReviewHtml(review))
+  const links = [...doc.querySelectorAll('a[aria-label^="Review pending "]')].filter(
+    (link) => !link.getAttribute('aria-label')!.includes('for part'),
+  )
+  expect(links.map((link) => link.getAttribute('href'))).toEqual([
+    '#outputs-finding-1',
+    '#limitations-finding-1',
+  ])
+  expect(links.map((link) => link.textContent)).toEqual(['2', '2'])
+  expect(links.map((link) => link.getAttribute('aria-label'))).toEqual([
+    'Review pending other changed outputs',
+    'Review pending comparison limitations',
+  ])
+  for (const link of links) {
+    const targets = doc.querySelectorAll(link.getAttribute('href')!)
+    expect(targets.length).toBe(1)
+    expect(targets[0].querySelector('h3')!.textContent).toContain('Pending')
+  }
+  expect(doc.querySelector('#outputs-finding-1')!.textContent).toContain(
+    report.otherChangedFiles[1],
+  )
+  expect(doc.querySelector('#limitations-finding-1')!.textContent).toContain(report.limitations[1])
+  expect(doc.querySelectorAll('#outputs article').length).toBe(3)
+  expect(doc.querySelectorAll('#limitations article').length).toBe(3)
+  expect(doc.querySelectorAll('img,script,[onerror]').length).toBe(0)
+  expect(doc.body.textContent).toContain('This is not production approval.')
+})
+
+it('keeps complete and empty coverage counts plain while detected-change counts stay separate', () => {
+  const report = comparisonFixture(),
+    review = createRevisionReview(report)
+  review.outputs.forEach((item) => {
+    item.acknowledged = true
+  })
+  review.limitations.forEach((item) => {
+    item.acknowledged = true
+  })
+  const complete = parse(buildRevisionReviewHtml(review))
+  expect(
+    complete.querySelectorAll('a[href^="#outputs-finding-"],a[href^="#limitations-finding-"]')
+      .length,
+  ).toBe(0)
+  const empty = parse(
+    buildRevisionReviewHtml(
+      createRevisionReview({ ...report, otherChangedFiles: [], limitations: [] }),
+    ),
+  )
+  expect(
+    empty.querySelectorAll('a[href^="#outputs-finding-"],a[href^="#limitations-finding-"]').length,
+  ).toBe(0)
 })

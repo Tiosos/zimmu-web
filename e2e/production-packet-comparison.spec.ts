@@ -135,6 +135,16 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     .getByRole('link', { name: 'Back to part summary', exact: true })
     .click()
   await expect(pendingSummary.locator('#part-summary-0')).toBeInViewport()
+  await pendingSummary
+    .getByRole('link', { name: 'Review pending other changed outputs', exact: true })
+    .click()
+  await expect(pendingSummary.locator('#outputs-finding-0')).toBeInViewport()
+  await expect(pendingSummary.locator('#outputs-finding-0 h3')).toContainText('Pending')
+  await pendingSummary
+    .getByRole('link', { name: 'Review pending comparison limitations', exact: true })
+    .click()
+  await expect(pendingSummary.locator('#limitations-finding-0')).toBeInViewport()
+  await expect(pendingSummary.locator('#limitations-finding-0 h3')).toContainText('Pending')
   await pendingSummary.close()
   await dialog.getByLabel('Acknowledge selected change').click()
   await expect(partPendingShortcut).toBeDisabled()

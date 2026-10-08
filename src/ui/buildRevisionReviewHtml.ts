@@ -53,9 +53,26 @@ export function buildRevisionReviewHtml(input: RevisionReviewRecord): string {
     if (!pendingTargets.has(change.partId) && !progress.get(change.reference)!.acknowledged)
       pendingTargets.set(change.partId, findingIds.get(change.reference)!)
   }
-  const count = (label: string, entries: ReviewAcknowledgment[]) => {
+  const coverageIds = {
+    outputs: new Map(
+      coverage.outputs.map((target, index) => [target.reference, `outputs-finding-${index}`]),
+    ),
+    limitations: new Map(
+      coverage.limitations.map((target, index) => [
+        target.reference,
+        `limitations-finding-${index}`,
+      ]),
+    ),
+  }
+  const count = (
+    label: string,
+    entries: ReviewAcknowledgment[],
+    group?: 'outputs' | 'limitations',
+  ) => {
     const acknowledged = entries.filter((entry) => entry.acknowledged).length
-    return `<tr><th scope="row">${label}</th><td>${acknowledged}</td><td>${entries.length - acknowledged}</td><td>${entries.length}</td></tr>`
+    const pending = entries.find((entry) => !entry.acknowledged)
+    const pendingCount = entries.length - acknowledged
+    return `<tr><th scope="row">${label}</th><td>${acknowledged}</td><td>${group && pending ? `<a href="#${coverageIds[group].get(pending.reference)}" aria-label="Review pending ${escape(label.toLowerCase())}">${pendingCount}</a>` : pendingCount}</td><td>${entries.length}</td></tr>`
   }
   const coverageSection = (
     group: 'outputs' | 'limitations',
@@ -67,7 +84,7 @@ export function buildRevisionReviewHtml(input: RevisionReviewRecord): string {
       pendingFirst(review[group])
         .map(
           (item) =>
-            `<article><h3>${status(item)} — ${escape(labels.get(item.reference))}</h3><p class="reference">${escape(item.reference)}</p>${note(item.note)}</article>`,
+            `<article id="${coverageIds[group].get(item.reference)}"><h3>${status(item)} — ${escape(labels.get(item.reference))}</h3><p class="reference">${escape(item.reference)}</p>${note(item.note)}</article>`,
         )
         .join('') || '<p>No items in this group.</p>'
     }<p class="navigation"><a href="#contents">Back to contents</a></p></section>`
@@ -89,7 +106,7 @@ body{font:14px/1.5 system-ui,sans-serif;color:#18212b;max-width:1000px;margin:32
 ${report.packetMetadataChanges.length ? '<li><a href="#metadata">Packet metadata changes</a></li>' : ''}
 <li><a href="#changes">Detected changes</a></li><li><a href="#outputs">Other changed outputs</a></li><li><a href="#limitations">Comparison limitations</a></li>
 </ul></nav>
-<h2 id="progress">Review progress</h2><table><thead><tr><th>Group</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${count('Detected changes', review.changes)}${count('Other changed outputs', review.outputs)}${count('Comparison limitations', review.limitations)}</tbody></table>
+<h2 id="progress">Review progress</h2><table><thead><tr><th>Group</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${count('Detected changes', review.changes)}${count('Other changed outputs', review.outputs, 'outputs')}${count('Comparison limitations', review.limitations, 'limitations')}</tbody></table>
 <table><caption>Detected change progress by classification</caption><thead><tr><th>Classification</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${revisionReviewClassificationProgress(
     review,
   )
