@@ -111,6 +111,20 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await partPendingShortcut.click()
   await expect(dialog.getByLabel('Show pending items only')).toBeChecked()
   await expect(dialog.getByRole('button', { name: 'Show all parts' })).toBeVisible()
+  const pendingPrintableDownloading = page.waitForEvent('download')
+  await dialog.getByRole('button', { name: 'Download printable review' }).click()
+  const pendingPrintableDownload = await pendingPrintableDownloading
+  const pendingSummary = await context.newPage()
+  await pendingSummary.setContent(await readFile(await pendingPrintableDownload.path(), 'utf8'))
+  await pendingSummary
+    .getByRole('link', {
+      name: `Review pending changes for part ${report.changes[0].partId}`,
+      exact: true,
+    })
+    .click()
+  await expect(pendingSummary.locator('#finding-0')).toBeInViewport()
+  await expect(pendingSummary.locator('#finding-0 h3')).toContainText('Pending')
+  await pendingSummary.close()
   await dialog.getByLabel('Acknowledge selected change').click()
   await expect(partPendingShortcut).toBeDisabled()
   await expect(dialog.getByText(/No changes match this part and the current filters/)).toBeVisible()
@@ -230,6 +244,9 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     .getByRole('link')
     .click()
   await expect(summaryPage.locator('#finding-0')).toBeInViewport()
+  await expect(
+    summaryPage.getByRole('link', { name: /^Review pending changes for part / }),
+  ).toHaveCount(0)
   const contents = summaryPage.getByRole('navigation', { name: 'Review contents' })
   await contents.getByRole('link', { name: 'Comparison limitations', exact: true }).click()
   await expect(summaryPage.locator('#limitations')).toBeInViewport()

@@ -42,9 +42,13 @@ export function buildRevisionReviewHtml(input: RevisionReviewRecord): string {
     report.changes.map((change, index) => [change.reference, `finding-${index}`]),
   )
   const partTargets = new Map<string, string>()
+  const pendingTargets = new Map<string, string>()
+  const progress = new Map(review.changes.map((item) => [item.reference, item]))
   for (const change of report.changes) {
     if (!partTargets.has(change.partId))
       partTargets.set(change.partId, findingIds.get(change.reference)!)
+    if (!pendingTargets.has(change.partId) && !progress.get(change.reference)!.acknowledged)
+      pendingTargets.set(change.partId, findingIds.get(change.reference)!)
   }
   const count = (label: string, entries: ReviewAcknowledgment[]) => {
     const acknowledged = entries.filter((entry) => entry.acknowledged).length
@@ -91,7 +95,7 @@ ${report.packetMetadataChanges.length ? '<li><a href="#metadata">Packet metadata
         `<tr><th scope="row">${item.classification === 'manufacturing' ? 'Manufacturing' : 'Metadata'}</th><td>${item.acknowledged}</td><td>${item.pending}</td><td>${item.total}</td></tr>`,
     )
     .join('')}</tbody></table>
-<table><caption>Detected change progress by part</caption><thead><tr><th>Part</th><th>Part findings</th><th>Operation findings</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${partProgress.map((part) => `<tr><th scope="row"><a href="#${partTargets.get(part.partId)}">${part.label !== null ? `${escape(part.label)}<br>` : ''}${escape(part.partId)}</a></th><td>${part.partFindings}</td><td>${part.operationFindings}</td><td>${part.acknowledged}</td><td>${part.pending}</td><td>${part.total}</td></tr>`).join('')}</tbody></table>
+<table><caption>Detected change progress by part</caption><thead><tr><th>Part</th><th>Part findings</th><th>Operation findings</th><th>Acknowledged</th><th>Pending</th><th>Total</th></tr></thead><tbody>${partProgress.map((part) => `<tr><th scope="row"><a href="#${partTargets.get(part.partId)}">${part.label !== null ? `${escape(part.label)}<br>` : ''}${escape(part.partId)}</a></th><td>${part.partFindings}</td><td>${part.operationFindings}</td><td>${part.acknowledged}</td><td>${part.pending === 0 ? part.pending : `<a href="#${pendingTargets.get(part.partId)}" aria-label="Review pending changes for part ${escape(part.partId)}">${part.pending}</a>`}</td><td>${part.total}</td></tr>`).join('')}</tbody></table>
 ${partProgress.length === 0 ? '<p>No detected part or operation findings to summarize.</p>' : ''}
 <p>Only parts with recorded findings are listed. Finding counts do not count machining operations or establish production readiness.</p>
 <p>Counts cover all detected changes, regardless of navigation filters. Packet metadata changes are outside this breakdown.</p>

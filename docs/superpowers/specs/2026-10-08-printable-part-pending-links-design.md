@@ -1,0 +1,5 @@
+# Printable per-part pending links
+
+Mirror the dialog's per-part pending shortcut in standalone printable HTML: each nonzero pending count links to that exact part's first unacknowledged finding in comparison order. A zero count stays plain text. Existing part-name links continue to reach the first recorded finding, even if acknowledged. Preserve numeric table layout, complete findings, counts, packet identity, notes and print output.
+
+Compute targets from validated review acknowledgments and recorded comparison order, retaining fixed finding-N IDs rather than raw part IDs. Escape accessible link labels. Links stay internal, work offline, and require no scripts, network resources or schema change. Verify multiple pending findings, acknowledged-first ordering, overlapping IDs, operation-only/fully-acknowledged parts, hostile IDs, reordered saved progress and unchanged numeric summaries. Mutate each target guard and rendering condition, inspect assertion failures, restore source backups. Run typecheck, lint, full units, builds and a real Chromium export/link test before publishing. Monitor exact-head CI and post-merge #103 main.
