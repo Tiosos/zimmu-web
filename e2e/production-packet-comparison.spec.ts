@@ -180,13 +180,18 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     .getByLabel(`Output note: ${outputPath}`, { exact: true })
     .fill('Changed output inspected')
   await dialog
-    .getByText(`Comparison limitations: 0 of ${report.limitations.length} acknowledged`, {
-      exact: true,
-    })
+    .getByRole('button', { name: 'Review pending comparison limitations', exact: true })
     .click()
+  await expect(
+    dialog.getByLabel(`Acknowledge limitation: ${report.limitations[0]}`, { exact: true }),
+  ).toBeFocused()
+  await expect(
+    dialog.getByLabel(`Acknowledge limitation: ${report.limitations[0]}`, { exact: true }),
+  ).toBeInViewport()
   await dialog
     .getByLabel(`Acknowledge limitation: ${report.limitations[0]}`, { exact: true })
-    .check()
+    .click()
+  await dialog.getByLabel('Show pending items only').uncheck()
   const reviewDownloading = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Download revision review' }).click()
   const reviewDownload = await reviewDownloading

@@ -97,21 +97,28 @@ export function ProductionPacketRevisionReview({
       <p>
         {acknowledged} of {review.changes.length} detected changes acknowledged.
       </p>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={review.outputs.every((item) => item.acknowledged)}
-        onClick={() => {
-          setPendingOnly(true)
-          const outputs = sectionElement.current!.querySelector<HTMLDetailsElement>(
-            'details[data-review-group="outputs"]',
-          )!
-          outputs.open = true
-          outputs.querySelector<HTMLInputElement>('input[type="checkbox"]:not(:checked)')!.focus()
-        }}
-      >
-        Review pending changed outputs
-      </Button>
+      {(['outputs', 'limitations'] as const).map((group) => (
+        <Button
+          key={group}
+          variant="outline"
+          size="sm"
+          disabled={review[group].every((item) => item.acknowledged)}
+          onClick={() => {
+            setPendingOnly(true)
+            const checklist = sectionElement.current!.querySelector<HTMLDetailsElement>(
+              `details[data-review-group="${group}"]`,
+            )!
+            checklist.open = true
+            checklist
+              .querySelector<HTMLInputElement>('input[type="checkbox"]:not(:checked)')!
+              .focus()
+          }}
+        >
+          {group === 'outputs'
+            ? 'Review pending changed outputs'
+            : 'Review pending comparison limitations'}
+        </Button>
+      ))}
       <table className="w-full text-left">
         <caption>Detected change progress by classification</caption>
         <thead>
