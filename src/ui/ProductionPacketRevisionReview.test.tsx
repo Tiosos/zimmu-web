@@ -757,6 +757,70 @@ it('allows a pending resume to complete after clearing navigation', async () => 
   )
 })
 
+it('navigates to global pending classifications while preserving review contents and exports', () => {
+  const report = comparisonFixture()
+  report.changes.push({ ...report.changes[0], reference: 'PC:second', label: 'Second board' })
+  report.changes.push({
+    ...report.changes[0],
+    reference: 'PC:metadata',
+    label: 'Renamed',
+    classification: 'metadata',
+  })
+  const edited = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  const manufacturing = screen.getByRole('button', {
+    name: 'Review pending manufacturing changes',
+  }) as HTMLButtonElement
+  const metadata = screen.getByRole('button', {
+    name: 'Review pending metadata changes',
+  }) as HTMLButtonElement
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Preserved' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+  edited.mockClear()
+  fireEvent.click(manufacturing)
+  expect((screen.getByLabelText('Find a change') as HTMLInputElement).value).toBe('')
+  expect((screen.getByLabelText('Change classification') as HTMLSelectElement).value).toBe(
+    'manufacturing',
+  )
+  expect((screen.getByLabelText('Show pending items only') as HTMLInputElement).checked).toBe(true)
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:second')
+  expect(manufacturing.disabled).toBe(false)
+  expect(edited).not.toHaveBeenCalled()
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  expect(manufacturing.disabled).toBe(true)
+  expect(metadata.disabled).toBe(false)
+  fireEvent.click(metadata)
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:metadata')
+  expect((screen.getByLabelText('Change classification') as HTMLSelectElement).value).toBe(
+    'metadata',
+  )
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  expect(metadata.disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Clear navigation filters' }))
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Preserved')
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.changes).toHaveLength(3)
+  expect(saved.changes.every((item: { acknowledged: boolean }) => item.acknowledged)).toBe(true)
+  expect(saved.changes[0].note).toBe('Preserved')
+})
+
+it('disables empty classification shortcuts and keeps an eligible pending selection', () => {
+  const report = comparisonFixture()
+  report.changes.push({ ...report.changes[0], reference: 'PC:second', label: 'Second' })
+  render(<ProductionPacketRevisionReview report={report} />)
+  expect(
+    (screen.getByRole('button', { name: 'Review pending metadata changes' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'Second' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending manufacturing changes' }))
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:second')
+})
+
 it('shows pending checkpoint edits for every review group, retaining them through HTML and navigation', () => {
   const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
   render(<ProductionPacketRevisionReview report={comparisonFixture()} />)
