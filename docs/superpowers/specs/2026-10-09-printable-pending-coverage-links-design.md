@@ -1,0 +1,5 @@
+# Printable pending coverage links
+
+Extend the printable review's independent progress table so nonzero pending counts for Other changed outputs and Comparison limitations link to the first unfinished item in recorded coverage order. Keep detected-change counts unchanged and zero/empty counts plain text. Fixed outputs-finding-N and limitations-finding-N anchors avoid raw paths or limitation text in fragments. Preserve complete records, pending-first sections, numeric counts, scope warnings, existing contents and part navigation; no scripts, network resources or schema changes.
+
+Compute anchors from coverage references and use validated acknowledgments to choose targets, including reordered saved progress. Verify acknowledged-first/multiple items, both exact groups, hostile paths/statements, unique internal targets, zero/empty groups and complete counts/items. Mutation-check group/acknowledgment/render guards and anchor mapping, restoring byte-identical backups. Run typecheck/lint/full units/builds and Chromium offline link checks before a stacked PR on #109; monitor exact-head CI and post-merge #108 main.
