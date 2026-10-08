@@ -173,7 +173,23 @@ export function ProductionPacketRevisionReview({
               <td>{part.partFindings}</td>
               <td>{part.operationFindings}</td>
               <td>{part.acknowledged}</td>
-              <td>{part.pending}</td>
+              <td>
+                <button
+                  type="button"
+                  className="underline disabled:no-underline"
+                  aria-label={`Review pending changes for part ${part.partId}`}
+                  disabled={part.pending === 0}
+                  onClick={() => {
+                    setPartFilter(part.partId)
+                    setSelected('')
+                    setClassification('all')
+                    setPendingOnly(true)
+                    setSearch('')
+                  }}
+                >
+                  {part.pending}
+                </button>
+              </td>
               <td>{part.total}</td>
             </tr>
           ))}
