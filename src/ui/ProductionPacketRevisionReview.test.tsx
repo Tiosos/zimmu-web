@@ -1234,3 +1234,90 @@ it('keeps empty source feedback separate from summary search feedback', () => {
   expect(screen.queryByText('No detected part or operation findings to summarize.')).not.toBeNull()
   expect(screen.queryByText(/No parts match this summary search/)).toBeNull()
 })
+
+it('opens changed outputs and focuses the first unfinished output without editing progress', () => {
+  const report = perPartComparisonFixture(),
+    edited = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  report.otherChangedFiles.push('drawings/second.pdf', 'readiness/third.json')
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.change(screen.getByLabelText('Output note: drawings/shop-drawings.pdf'), {
+    target: { value: 'Preserved output note' },
+  })
+  fireEvent.click(screen.getByLabelText('Acknowledge output: drawings/shop-drawings.pdf'))
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), { target: { value: 'part' } })
+  edited.mockClear()
+  const details = screen.getByText('Other changed outputs: 1 of 3 acknowledged').closest('details')!
+  expect(details.open).toBe(false)
+  const shortcut = screen.getByRole('button', {
+    name: 'Review pending changed outputs',
+  }) as HTMLButtonElement
+  expect(shortcut.disabled).toBe(false)
+  fireEvent.click(shortcut)
+  expect(details.open).toBe(true)
+  expect(document.activeElement).toBe(
+    screen.getByLabelText('Acknowledge output: drawings/second.pdf'),
+  )
+  expect((screen.getByLabelText('Show pending items only') as HTMLInputElement).checked).toBe(true)
+  expect((screen.getByLabelText('Change classification') as HTMLSelectElement).value).toBe(
+    'metadata',
+  )
+  expect((screen.getByLabelText('Find a change') as HTMLInputElement).value).toBe('missing')
+  expect((screen.getByLabelText('Find a part in summary') as HTMLInputElement).value).toBe('part')
+  expect(screen.getByText(/Comparison limitations:/).closest('details')!.open).toBe(false)
+  expect(edited).not.toHaveBeenCalled()
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  fireEvent.click(screen.getByLabelText('Acknowledge output: drawings/second.pdf'))
+  fireEvent.click(shortcut)
+  expect(document.activeElement).toBe(
+    screen.getByLabelText('Acknowledge output: readiness/third.json'),
+  )
+  fireEvent.click(screen.getByLabelText('Acknowledge output: readiness/third.json'))
+  expect(shortcut.disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.outputs).toHaveLength(3)
+  expect(saved.outputs[0].note).toBe('Preserved output note')
+  expect(saved.outputs.every((item: { acknowledged: boolean }) => item.acknowledged)).toBe(true)
+  expect(saved.changes).toHaveLength(4)
+})
+
+it('disables pending-output navigation for an empty group and retains slow resumes while navigating', async () => {
+  const empty = render(
+    <ProductionPacketRevisionReview report={{ ...comparisonFixture(), otherChangedFiles: [] }} />,
+  )
+  expect(
+    (screen.getByRole('button', { name: 'Review pending changed outputs' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+  empty.unmount()
+  const report = comparisonFixture(),
+    record = createRevisionReview(report)
+  record.outputs[0].acknowledged = true
+  record.outputs[0].note = 'Resumed output note'
+  let finish!: (text: string) => void
+  const file = new File(['slow'], 'review.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending changed outputs' }))
+  await act(async () => finish(JSON.stringify(record)))
+  expect(
+    (screen.getByRole('button', { name: 'Review pending changed outputs' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(
+    (screen.getByLabelText('Output note: drawings/shop-drawings.pdf') as HTMLTextAreaElement).value,
+  ).toBe('Resumed output note')
+})

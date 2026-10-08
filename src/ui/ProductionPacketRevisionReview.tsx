@@ -39,6 +39,7 @@ export function ProductionPacketRevisionReview({
     setHasCheckpointEdits(value)
     onEditedChange?.(value)
   }
+  const sectionElement = useRef<HTMLElement>(null)
   const resumeVersion = useRef(0)
   useEffect(
     () => () => {
@@ -81,6 +82,7 @@ export function ProductionPacketRevisionReview({
   )
   return (
     <section
+      ref={sectionElement}
       aria-label="Local revision review"
       className="my-4 space-y-3 rounded border border-border p-3 text-sm"
     >
@@ -95,6 +97,21 @@ export function ProductionPacketRevisionReview({
       <p>
         {acknowledged} of {review.changes.length} detected changes acknowledged.
       </p>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={review.outputs.every((item) => item.acknowledged)}
+        onClick={() => {
+          setPendingOnly(true)
+          const outputs = sectionElement.current!.querySelector<HTMLDetailsElement>(
+            'details[data-review-group="outputs"]',
+          )!
+          outputs.open = true
+          outputs.querySelector<HTMLInputElement>('input[type="checkbox"]:not(:checked)')!.focus()
+        }}
+      >
+        Review pending changed outputs
+      </Button>
       <table className="w-full text-left">
         <caption>Detected change progress by classification</caption>
         <thead>
@@ -513,7 +530,7 @@ export function ProductionPacketRevisionReview({
         </>
       )}
       {(['outputs', 'limitations'] as const).map((group) => (
-        <details key={group}>
+        <details key={group} data-review-group={group}>
           <summary>
             {group === 'outputs' ? 'Other changed outputs' : 'Comparison limitations'}:{' '}
             {review[group].filter((item) => item.acknowledged).length} of {review[group].length}{' '}
