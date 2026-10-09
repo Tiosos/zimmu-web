@@ -1591,3 +1591,126 @@ it('shows independent complete pending totals through acknowledgment, search and
     screen.queryByText('Comparison limitations: 0 of 0 acknowledged; 0 pending'),
   ).not.toBeNull()
 })
+
+it('orders coverage checklists independently with stable subgroups and keeps notes and downloads bound to references', () => {
+  const report = comparisonFixture(),
+    edited = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  report.otherChangedFiles = ['first.pdf', 'second.pdf', 'third.pdf', 'fourth.pdf']
+  report.limitations = ['Read first', 'Read second', 'Read third']
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  const labels = (group: 'output' | 'limitation') =>
+    screen
+      .queryAllByLabelText(new RegExp(`^Acknowledge ${group}:`))
+      .map((input) => input.getAttribute('aria-label')!.replace(`Acknowledge ${group}: `, ''))
+  fireEvent.click(screen.getByLabelText('Acknowledge output: first.pdf'))
+  fireEvent.click(screen.getByLabelText('Acknowledge output: third.pdf'))
+  fireEvent.click(screen.getByLabelText('Acknowledge limitation: Read first'))
+  fireEvent.change(screen.getByLabelText('Output note: first.pdf'), {
+    target: { value: 'First note' },
+  })
+  expect(labels('output')).toEqual(report.otherChangedFiles)
+  edited.mockClear()
+  fireEvent.click(screen.getByLabelText('Show pending outputs first'))
+  expect(labels('output')).toEqual(['second.pdf', 'fourth.pdf', 'first.pdf', 'third.pdf'])
+  expect(labels('limitation')).toEqual(report.limitations)
+  fireEvent.click(screen.getByLabelText('Show pending limitations first'))
+  expect(labels('limitation')).toEqual(['Read second', 'Read third', 'Read first'])
+  expect(labels('output')).toEqual(['second.pdf', 'fourth.pdf', 'first.pdf', 'third.pdf'])
+  expect(edited).not.toHaveBeenCalled()
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  fireEvent.change(screen.getByLabelText('Output note: second.pdf'), {
+    target: { value: 'Second note' },
+  })
+  fireEvent.click(screen.getByLabelText('Acknowledge output: second.pdf'))
+  expect(labels('output')).toEqual(['fourth.pdf', 'first.pdf', 'second.pdf', 'third.pdf'])
+  expect((screen.getByLabelText('Output note: first.pdf') as HTMLTextAreaElement).value).toBe(
+    'First note',
+  )
+  expect((screen.getByLabelText('Output note: second.pdf') as HTMLTextAreaElement).value).toBe(
+    'Second note',
+  )
+  fireEvent.click(screen.getByLabelText('Acknowledge output: first.pdf'))
+  expect(labels('output')).toEqual(['first.pdf', 'fourth.pdf', 'second.pdf', 'third.pdf'])
+  fireEvent.change(screen.getByLabelText('Find a changed output'), { target: { value: '.pdf' } })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(labels('output')).toEqual(['first.pdf', 'fourth.pdf'])
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.click(screen.getByLabelText('Show pending outputs first'))
+  expect(labels('output')).toEqual(report.otherChangedFiles)
+  expect(labels('limitation')).toEqual(['Read second', 'Read third', 'Read first'])
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'no-match' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  const original = createRevisionReview(report)
+  expect(saved.outputs.map((item: { reference: string }) => item.reference)).toEqual(
+    original.outputs.map((item) => item.reference),
+  )
+  expect(saved.limitations.map((item: { reference: string }) => item.reference)).toEqual(
+    original.limitations.map((item) => item.reference),
+  )
+  expect(saved.outputs.map((item: { note: string }) => item.note)).toEqual([
+    'First note',
+    'Second note',
+    '',
+    '',
+  ])
+  expect(saved).not.toHaveProperty('coveragePendingFirst')
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  expect(download.mock.calls[1][0]).toContain('fourth.pdf')
+  expect(download.mock.calls[1][0]).toContain('Second note')
+})
+
+it('keeps pending-first view preferences through slow resumes and supports empty groups', async () => {
+  const report = comparisonFixture()
+  report.otherChangedFiles = ['first.pdf', 'second.pdf']
+  report.limitations = ['Read first', 'Read second']
+  const record = createRevisionReview(report)
+  record.outputs[0].acknowledged = true
+  record.limitations[0].acknowledged = true
+  record.outputs[0].note = 'Resumed note'
+  let finish!: (text: string) => void
+  const file = new File(['slow'], 'review.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  const view = render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.click(screen.getByLabelText('Show pending outputs first'))
+  fireEvent.click(screen.getByLabelText('Show pending limitations first'))
+  await act(async () => finish(JSON.stringify(record)))
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  expect(
+    screen
+      .queryAllByLabelText(/^Acknowledge output:/)
+      .map((input) => input.getAttribute('aria-label')),
+  ).toEqual(['Acknowledge output: second.pdf', 'Acknowledge output: first.pdf'])
+  expect(
+    screen
+      .queryAllByLabelText(/^Acknowledge limitation:/)
+      .map((input) => input.getAttribute('aria-label')),
+  ).toEqual(['Acknowledge limitation: Read second', 'Acknowledge limitation: Read first'])
+  expect((screen.getByLabelText('Output note: first.pdf') as HTMLTextAreaElement).value).toBe(
+    'Resumed note',
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending changed outputs' }))
+  expect(document.activeElement).toBe(screen.getByLabelText('Acknowledge output: second.pdf'))
+  expect((screen.getByLabelText('Show pending outputs first') as HTMLInputElement).checked).toBe(
+    true,
+  )
+  view.unmount()
+  render(
+    <ProductionPacketRevisionReview
+      report={{ ...report, otherChangedFiles: [], limitations: [] }}
+    />,
+  )
+  fireEvent.click(screen.getByLabelText('Show pending outputs first'))
+  fireEvent.click(screen.getByLabelText('Show pending limitations first'))
+  expect(screen.queryAllByLabelText(/^Acknowledge (output|limitation):/)).toHaveLength(0)
+  expect(screen.getAllByText('No items in this group.')).toHaveLength(2)
+})

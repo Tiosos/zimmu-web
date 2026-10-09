@@ -29,6 +29,10 @@ export function ProductionPacketRevisionReview({
   const [pendingOnly, setPendingOnly] = useState(false)
   const [search, setSearch] = useState('')
   const [coverageSearch, setCoverageSearch] = useState({ outputs: '', limitations: '' })
+  const [coveragePendingFirst, setCoveragePendingFirst] = useState({
+    outputs: false,
+    limitations: false,
+  })
   const [partFilter, setPartFilter] = useState<string | null>(null)
   const [pendingPartsFirst, setPendingPartsFirst] = useState(false)
   const [partSearch, setPartSearch] = useState('')
@@ -115,7 +119,7 @@ export function ProductionPacketRevisionReview({
             )!
             checklist.open = true
             checklist
-              .querySelector<HTMLInputElement>('input[type="checkbox"]:not(:checked)')!
+              .querySelector<HTMLInputElement>('input[data-review-acknowledgment]:not(:checked)')!
               .focus()
           }}
         >
@@ -552,6 +556,11 @@ export function ProductionPacketRevisionReview({
                 normalizeSearch(text).includes(groupQuery),
               ),
           )
+          .sort((a, b) =>
+            coveragePendingFirst[group]
+              ? Number(a.item.acknowledged) - Number(b.item.acknowledged)
+              : 0,
+          )
         return (
           <details key={group} data-review-group={group}>
             <summary>
@@ -571,6 +580,21 @@ export function ProductionPacketRevisionReview({
                 expand comparison coverage.
               </p>
             )}
+            <label className="block">
+              <input
+                type="checkbox"
+                checked={coveragePendingFirst[group]}
+                onChange={(event) =>
+                  setCoveragePendingFirst((current) => ({
+                    ...current,
+                    [group]: event.target.checked,
+                  }))
+                }
+              />{' '}
+              {group === 'outputs'
+                ? 'Show pending outputs first'
+                : 'Show pending limitations first'}
+            </label>
             <label className="block">
               {group === 'outputs' ? 'Find a changed output' : 'Find a comparison limitation'}
               <input
@@ -628,6 +652,7 @@ export function ProductionPacketRevisionReview({
                     <label>
                       <input
                         type="checkbox"
+                        data-review-acknowledgment
                         aria-label={`Acknowledge ${label}: ${target.label}`}
                         checked={item.acknowledged}
                         onChange={(event) => update({ acknowledged: event.target.checked })}
