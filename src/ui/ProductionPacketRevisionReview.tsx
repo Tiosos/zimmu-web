@@ -12,6 +12,7 @@ import {
 } from './packetRevisionReview'
 import { downloadBlob } from './download'
 import { buildRevisionReviewHtml } from './buildRevisionReviewHtml'
+import { readRevisionReviewView, saveRevisionReviewView } from './revisionReviewViewPreferences'
 import { revisionReviewFilename } from './productionPacketReportFilename'
 
 const displayValue = (value: unknown) =>
@@ -25,18 +26,16 @@ export function ProductionPacketRevisionReview({
   onEditedChange?: (edited: boolean) => void
 }) {
   const [review, setReview] = useState(() => createRevisionReview(report))
-  const [selected, setSelected] = useState(report.changes[0]?.reference ?? '')
-  const [pendingOnly, setPendingOnly] = useState(false)
-  const [search, setSearch] = useState('')
-  const [coverageSearch, setCoverageSearch] = useState({ outputs: '', limitations: '' })
-  const [coveragePendingFirst, setCoveragePendingFirst] = useState({
-    outputs: false,
-    limitations: false,
-  })
-  const [partFilter, setPartFilter] = useState<string | null>(null)
-  const [pendingPartsFirst, setPendingPartsFirst] = useState(false)
-  const [partSearch, setPartSearch] = useState('')
-  const [classification, setClassification] = useState<'all' | 'manufacturing' | 'metadata'>('all')
+  const [remembered] = useState(() => readRevisionReviewView(report))
+  const [selected, setSelected] = useState(remembered.selected)
+  const [pendingOnly, setPendingOnly] = useState(remembered.pendingOnly)
+  const [search, setSearch] = useState(remembered.search)
+  const [coverageSearch, setCoverageSearch] = useState(remembered.coverageSearch)
+  const [coveragePendingFirst, setCoveragePendingFirst] = useState(remembered.coveragePendingFirst)
+  const [partFilter, setPartFilter] = useState<string | null>(remembered.partFilter)
+  const [pendingPartsFirst, setPendingPartsFirst] = useState(remembered.pendingPartsFirst)
+  const [partSearch, setPartSearch] = useState(remembered.partSearch)
+  const [classification, setClassification] = useState(remembered.classification)
   const [error, setError] = useState<string | null>(null)
   const [hasCheckpointEdits, setHasCheckpointEdits] = useState(false)
   const edited = useRef(false)
@@ -75,6 +74,31 @@ export function ProductionPacketRevisionReview({
     visibleChanges.find((item) => item.reference === selected)?.reference ??
     visibleChanges[0]?.reference ??
     ''
+  useEffect(() => {
+    saveRevisionReviewView(report, {
+      selected: activeReference || selected,
+      pendingOnly,
+      search,
+      coverageSearch,
+      coveragePendingFirst,
+      partFilter,
+      pendingPartsFirst,
+      partSearch,
+      classification,
+    })
+  }, [
+    report,
+    activeReference,
+    selected,
+    pendingOnly,
+    search,
+    coverageSearch,
+    coveragePendingFirst,
+    partFilter,
+    pendingPartsFirst,
+    partSearch,
+    classification,
+  ])
   const activeIndex = visibleChanges.findIndex((item) => item.reference === activeReference)
   const entry = progress.get(activeReference)
   const change = visibleChanges.find((item) => item.reference === activeReference)
@@ -110,6 +134,10 @@ export function ProductionPacketRevisionReview({
       >
         Reset review view
       </Button>
+      <p>
+        View settings are remembered in this browser for the ten most recently used packet pairs.
+        Review progress still requires the saved JSON file.
+      </p>
       <p role="status">
         {hasCheckpointEdits ? 'Review edits awaiting a JSON checkpoint.' : 'No new review edits.'}
       </p>

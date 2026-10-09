@@ -163,6 +163,7 @@ export function ProductionPacketComparison({ onClose }: { onClose: () => void })
             </Button>
             {report.status !== 'blocked' && report.before.sha256 && report.after.sha256 && (
               <ProductionPacketRevisionReview
+                key={`${report.before.sha256}:${report.after.sha256}`}
                 report={report}
                 onEditedChange={(value) => {
                   edited.current = value

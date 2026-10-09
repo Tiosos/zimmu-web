@@ -10,6 +10,7 @@ import * as downloads from './download'
 import * as reviewRecords from './packetRevisionReview'
 
 beforeEach(() => {
+  localStorage.clear()
   vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
 })
 afterEach(() => {
@@ -1911,4 +1912,41 @@ it('finds resumed notes without changing the checkpoint or independent queries',
   )
   expect(screen.getByRole('status').textContent).toBe('No new review edits.')
   expect(edited.mock.calls.every(([value]) => value === false)).toBe(true)
+})
+
+it('restores same-pair view preferences without restoring progress, and persists reset defaults', () => {
+  const report = perPartComparisonFixture(),
+    edited = vi.fn()
+  const first = render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Unsaved progress' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.change(screen.getByLabelText('Find a changed output'), { target: { value: 'drawing' } })
+  fireEvent.click(screen.getByLabelText('Show pending outputs first'))
+  fireEvent.click(screen.getByLabelText('Show pending parts first'))
+  first.unmount()
+  const reopened = render(
+    <ProductionPacketRevisionReview report={report} onEditedChange={edited} />,
+  )
+  expect((screen.getByLabelText('Find a changed output') as HTMLInputElement).value).toBe('drawing')
+  expect((screen.getByLabelText('Show pending outputs first') as HTMLInputElement).checked).toBe(
+    true,
+  )
+  expect((screen.getByLabelText('Show pending parts first') as HTMLInputElement).checked).toBe(true)
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
+    report.changes[1].reference,
+  )
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('')
+  expect((screen.getByLabelText('Acknowledge selected change') as HTMLInputElement).checked).toBe(
+    false,
+  )
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  expect(edited).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  reopened.unmount()
+  render(<ProductionPacketRevisionReview report={report} />)
+  expect((screen.getByLabelText('Find a changed output') as HTMLInputElement).value).toBe('')
+  expect((screen.getByLabelText('Show pending outputs first') as HTMLInputElement).checked).toBe(
+    false,
+  )
 })
