@@ -83,3 +83,5 @@ This browser remembers view preferences for the ten most recently used **earlier
 Part-summary search also matches notes on detected part and operation changes. It reads current or resumed review notes, using the same literal normalized search as IDs and labels. Global, output and limitation notes do not match a part.
 
 Matching-note excerpts in part-summary results show the finding reference and context around the search text. They appear only for matching notes and do not shorten the notes saved in review downloads.
+
+Select a matching-note finding reference to open that exact finding. This clears finding filters while retaining the summary query and review progress.
