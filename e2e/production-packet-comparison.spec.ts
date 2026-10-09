@@ -311,6 +311,17 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   expect(
     await page.evaluate(() => localStorage.getItem('zimmu:revision-review-views:v1')),
   ).toBeNull()
+  await dialog.getByRole('button', { name: 'Resume saving review views', exact: true }).click()
+  await expect(
+    dialog.getByText('Saving review view preferences resumed.', { exact: true }),
+  ).toBeVisible()
+  await expect(dialog.getByLabel('Change note', { exact: true })).toHaveValue(
+    'Revised length checked',
+  )
+  expect(
+    await page.evaluate(() => localStorage.getItem('zimmu:revision-review-views:v1')),
+  ).not.toBeNull()
+  await dialog.getByRole('button', { name: 'Forget remembered review views', exact: true }).click()
   await dialog.getByRole('button', { name: 'Compare revisions' }).click()
   await expect(dialog.getByLabel('Find a changed output')).toHaveValue('')
   await expect(dialog.getByLabel('Show pending outputs first')).not.toBeChecked()

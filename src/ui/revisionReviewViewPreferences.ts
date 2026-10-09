@@ -118,10 +118,10 @@ export function readRevisionReviewView(
 export function saveRevisionReviewView(
   report: PacketRevisionReport,
   input: RevisionReviewViewPreferences,
-): void {
+): boolean {
   const identity = pair(report),
     view = viewOf(input)
-  if (!identity || !view) return
+  if (!identity || !view) return false
   try {
     let previous: ReturnType<typeof entries>
     try {
@@ -139,8 +139,10 @@ export function saveRevisionReviewView(
         ].slice(-10),
       }),
     )
+    return true
   } catch {
     /* View preferences are optional; review content stays in memory. */
+    return false
   }
 }
 
