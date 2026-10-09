@@ -130,6 +130,26 @@ export function ProductionPacketRevisionReview({
       normalizeSearch(text).includes(partQuery),
     ),
   )
+  const noteSnippet = (note: string) => {
+    const source = note.normalize('NFC'),
+      match = source.toLowerCase().indexOf(partQuery)
+    let offset = 0,
+      lowerOffset = 0,
+      start = 0,
+      end = 0
+    for (const character of source) {
+      const next = offset + character.length,
+        lowerNext = lowerOffset + character.toLowerCase().length
+      if (lowerOffset <= match && match < lowerNext) start = offset
+      if (lowerOffset < match + partQuery.length && match + partQuery.length <= lowerNext)
+        end = next
+      offset = next
+      lowerOffset = lowerNext
+    }
+    const from = Math.max(0, start - 50),
+      to = Math.min(source.length, end + 80)
+    return `${from ? '…' : ''}${source.slice(from, to)}${to < source.length ? '…' : ''}`
+  }
   return (
     <section
       ref={sectionElement}
@@ -351,6 +371,24 @@ export function ProductionPacketRevisionReview({
                     {part.partId}
                   </>
                 )}
+                {partQuery &&
+                  report.changes
+                    .filter(
+                      (finding) =>
+                        finding.partId === part.partId &&
+                        normalizeSearch(progress.get(finding.reference)?.note ?? '').includes(
+                          partQuery,
+                        ),
+                    )
+                    .map((finding) => (
+                      <p
+                        key={finding.reference}
+                        className="font-normal"
+                        aria-label={`Matching note ${finding.reference}`}
+                      >
+                        {finding.reference}: {noteSnippet(progress.get(finding.reference)!.note)}
+                      </p>
+                    ))}
               </th>
               <td>{part.partFindings}</td>
               <td>{part.operationFindings}</td>

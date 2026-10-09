@@ -1149,7 +1149,11 @@ it('optionally puts pending parts first without editing progress, changing selec
     within(screen.getByRole('table', { name: 'Detected change progress by part' }))
       .getAllByRole('row')
       .slice(1)
-      .map((row) => row.children[0].textContent)
+      .map((row) => {
+        const cell = row.children[0].cloneNode(true) as HTMLElement
+        cell.querySelectorAll('[aria-label^="Matching note "]').forEach((note) => note.remove())
+        return cell.textContent
+      })
   expect(rows()).toEqual(['Boardpart', 'Boardother-part', 'operation-only'])
   edited.mockClear()
   fireEvent.click(screen.getByLabelText('Show pending parts first'))
@@ -1191,7 +1195,11 @@ it('searches summary labels and exact literal normalized IDs while retaining sel
     within(screen.getByRole('table', { name: 'Detected change progress by part' }))
       .getAllByRole('row')
       .slice(1)
-      .map((row) => row.children[0].textContent)
+      .map((row) => {
+        const cell = row.children[0].cloneNode(true) as HTMLElement
+        cell.querySelectorAll('[aria-label^="Matching note "]').forEach((note) => note.remove())
+        return cell.textContent
+      })
   const search = screen.getByLabelText('Find a part in summary')
   fireEvent.change(search, { target: { value: '  CAFE\u0301.[X]  ' } })
   expect(rows()).toEqual(['BoardCafé.[x]'])
@@ -2169,7 +2177,11 @@ it('matches resumed operation and part notes only on their associated summary ro
     within(screen.getByRole('table', { name: 'Detected change progress by part' }))
       .getAllByRole('row')
       .slice(1)
-      .map((row) => row.children[0].textContent)
+      .map((row) => {
+        const cell = row.children[0].cloneNode(true) as HTMLElement
+        cell.querySelectorAll('[aria-label^="Matching note "]').forEach((note) => note.remove())
+        return cell.textContent
+      })
   fireEvent.change(screen.getByLabelText('Find a part in summary'), {
     target: { value: 'Operation-only note' },
   })
@@ -2183,4 +2195,42 @@ it('matches resumed operation and part notes only on their associated summary ro
   })
   expect(rows()).toEqual([])
   expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+})
+
+it('shows matching-note context and finding IDs without changing selection or saved notes', () => {
+  const report = perPartComparisonFixture(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} />)
+  const note = 'x'.repeat(220) + ' İ Café.[Match] <script>literal</script> ' + 'y'.repeat(200)
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: note } })
+  expect(screen.queryByLabelText('Matching note PC:manual')).toBeNull()
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), {
+    target: { value: 'cafe\u0301.[MATCH]' },
+  })
+  const snippet = screen.getByLabelText('Matching note PC:manual')
+  expect(snippet.textContent).toContain('Café.[Match] <script>literal</script>')
+  expect(snippet.textContent).toContain('…')
+  expect(snippet.textContent!.length).toBeLessThan(180)
+  expect(snippet.querySelector('script')).toBeNull()
+  expect(screen.queryByLabelText('Matching note PC:other-part')).toBeNull()
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:manual')
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), { target: { value: 'board' } })
+  expect(screen.queryByLabelText('Matching note PC:manual')).toBeNull()
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), {
+    target: { value: 'i\u0307' },
+  })
+  expect(screen.getByLabelText('Matching note PC:manual').textContent).toContain('İ')
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  expect(JSON.parse(download.mock.calls[0][0] as string).changes[0].note).toBe(note)
+  fireEvent.change(screen.getByLabelText('Change note'), {
+    target: { value: 'Updated without match' },
+  })
+  expect(screen.queryByLabelText('Matching note PC:manual')).toBeNull()
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Board note' } })
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), { target: { value: 'board' } })
+  expect(screen.queryAllByLabelText('Matching note PC:manual')).toHaveLength(1)
+  const otherRow = within(screen.getByRole('table', { name: 'Detected change progress by part' }))
+    .getAllByRole('row')
+    .find((row) => row.textContent?.includes('other-part'))!
+  expect(within(otherRow).queryByLabelText('Matching note PC:manual')).toBeNull()
 })
