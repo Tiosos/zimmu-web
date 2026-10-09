@@ -188,7 +188,7 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await dialog.getByLabel('Change note', { exact: true }).fill('Revised length checked')
   await dialog.getByLabel('Find a part in summary').fill('REVISED LENGTH CHECKED')
   await expect(perPartProgress.getByRole('row')).toHaveCount(2)
-  await expect(perPartProgress.locator('[aria-label^="Matching note "]')).toContainText(
+  await expect(perPartProgress.locator('[aria-label^="Matching note PC:"]')).toContainText(
     'Revised length checked',
   )
   const matchingNote = perPartProgress.getByRole('button', { name: /^Review matching note / })

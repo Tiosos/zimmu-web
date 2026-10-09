@@ -91,3 +91,5 @@ Matching-note jumps scroll to and focus the selected note field, including when 
 After a matching-note jump, **Return to matching search** focuses the originating result. If edits remove that match, it focuses the summary search field instead. Review edits remain intact.
 
 Previous/Next matching-note controls follow the part-summary search results without wrapping. They keep the query, focus each destination note, and leave progress unchanged.
+
+Part-summary searches show total and per-part matching-note counts. Rows matching only a label or ID show zero matching notes; identical note text on different findings counts separately.
