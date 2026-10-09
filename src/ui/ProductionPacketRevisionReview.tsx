@@ -93,6 +93,23 @@ export function ProductionPacketRevisionReview({
       className="my-4 space-y-3 rounded border border-border p-3 text-sm"
     >
       <h3 className="font-semibold">Local revision review</h3>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          setSelected(activeReference || selected)
+          setSearch('')
+          setPartFilter(null)
+          setClassification('all')
+          setPendingOnly(false)
+          setPendingPartsFirst(false)
+          setPartSearch('')
+          setCoverageSearch({ outputs: '', limitations: '' })
+          setCoveragePendingFirst({ outputs: false, limitations: false })
+        }}
+      >
+        Reset review view
+      </Button>
       <p role="status">
         {hasCheckpointEdits ? 'Review edits awaiting a JSON checkpoint.' : 'No new review edits.'}
       </p>
