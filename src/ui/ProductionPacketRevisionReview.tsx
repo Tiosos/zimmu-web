@@ -32,6 +32,7 @@ export function ProductionPacketRevisionReview({
   const [review, setReview] = useState(() => createRevisionReview(report))
   const [rememberViews, setRememberViews] = useState(true)
   const [preferenceMessage, setPreferenceMessage] = useState('')
+  const [viewSaved, setViewSaved] = useState<boolean | null>(null)
   const [remembered] = useState(() => readRevisionReviewView(report))
   const [selected, setSelected] = useState(remembered.selected)
   const [pendingOnly, setPendingOnly] = useState(remembered.pendingOnly)
@@ -82,17 +83,21 @@ export function ProductionPacketRevisionReview({
     ''
   useEffect(() => {
     if (!rememberViews) return
-    saveRevisionReviewView(report, {
-      selected: activeReference || selected,
-      pendingOnly,
-      search,
-      coverageSearch,
-      coveragePendingFirst,
-      partFilter,
-      pendingPartsFirst,
-      partSearch,
-      classification,
-    })
+    // The write result is external storage state; React skips rerenders when it stays unchanged.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setViewSaved(
+      saveRevisionReviewView(report, {
+        selected: activeReference || selected,
+        pendingOnly,
+        search,
+        coverageSearch,
+        coveragePendingFirst,
+        partFilter,
+        pendingPartsFirst,
+        partSearch,
+        classification,
+      }),
+    )
   }, [
     rememberViews,
     report,
@@ -189,9 +194,11 @@ export function ProductionPacketRevisionReview({
         </Button>
       )}
       {preferenceMessage && <p aria-live="polite">{preferenceMessage}</p>}
-      <p>
+      <p aria-live="polite">
         {rememberViews
-          ? 'View settings are remembered in this browser for the ten most recently used packet pairs.'
+          ? viewSaved === false
+            ? 'View preferences could not be saved because browser storage is unavailable. Another view change will retry saving.'
+            : 'View settings are remembered in this browser for the ten most recently used packet pairs.'
           : 'Preference saving is paused. Resume saving or reopen this review to remember future view changes.'}{' '}
         Review progress still requires the saved JSON file.
       </p>
