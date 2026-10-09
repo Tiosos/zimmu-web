@@ -2095,3 +2095,45 @@ it('reports failed automatic view saves and restores remembered status after rec
   expect(screen.queryByText(/View settings are remembered/)).toBeNull()
   laterDenied.mockRestore()
 })
+
+it('retries denied view storage without changing navigation or review progress', () => {
+  const report = comparisonFixture(),
+    edited = vi.fn(),
+    key = 'zimmu:revision-review-views:v1'
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  expect(screen.queryByRole('button', { name: 'Retry saving review views' })).toBeNull()
+  fireEvent.change(screen.getByLabelText('Change note'), {
+    target: { value: 'Keep note on retry' },
+  })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  const denied = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+    throw new Error('denied')
+  })
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'current query' },
+  })
+  edited.mockClear()
+  expect(screen.queryByRole('button', { name: 'Retry saving review views' })).not.toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Retry saving review views' }))
+  expect(screen.queryByText(/View preferences could not be saved/)).not.toBeNull()
+  expect(screen.queryByText(/View settings are remembered/)).toBeNull()
+  denied.mockRestore()
+  fireEvent.click(screen.getByRole('button', { name: 'Retry saving review views' }))
+  expect(screen.queryByRole('button', { name: 'Retry saving review views' })).toBeNull()
+  expect(screen.queryByText(/View settings are remembered/)).not.toBeNull()
+  expect((screen.getByLabelText('Find a changed output') as HTMLInputElement).value).toBe(
+    'current query',
+  )
+  expect(localStorage.getItem(key)).toContain('current query')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe(
+    'Keep note on retry',
+  )
+  expect((screen.getByLabelText('Acknowledge selected change') as HTMLInputElement).checked).toBe(
+    true,
+  )
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  expect(edited).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Forget remembered review views' }))
+  expect(screen.queryByRole('button', { name: 'Retry saving review views' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Resume saving review views' })).not.toBeNull()
+})
