@@ -2271,4 +2271,19 @@ it('opens the exact resumed matching-note finding through conflicting navigation
   expect((screen.getByLabelText('Show pending items only') as HTMLInputElement).checked).toBe(false)
   expect(screen.getByRole('status').textContent).toBe('No new review edits.')
   expect(edited).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Return to matching search' }))
+  expect(document.activeElement).toBe(
+    screen.getByRole('button', { name: 'Review matching note PC:part' }),
+  )
+  expect(screen.queryByRole('button', { name: 'Return to matching search' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Review matching note PC:part' }))
+  fireEvent.change(screen.getByLabelText('Change note'), {
+    target: { value: 'Edited without match' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Return to matching search' }))
+  expect(document.activeElement).toBe(screen.getByLabelText('Find a part in summary'))
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe(
+    'Edited without match',
+  )
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
 })

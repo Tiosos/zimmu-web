@@ -32,6 +32,8 @@ export function ProductionPacketRevisionReview({
   const [review, setReview] = useState(() => createRevisionReview(report))
   const [rememberViews, setRememberViews] = useState(true)
   const [preferenceMessage, setPreferenceMessage] = useState('')
+  const [returnReference, setReturnReference] = useState<string | null>(null)
+  const summarySearchElement = useRef<HTMLInputElement>(null)
   const [viewSaved, setViewSaved] = useState<boolean | null>(null)
   const [remembered] = useState(() => readRevisionReviewView(report))
   const [selected, setSelected] = useState(remembered.selected)
@@ -318,7 +320,11 @@ export function ProductionPacketRevisionReview({
       </label>
       <label className="block">
         Find a part in summary
-        <input value={partSearch} onChange={(event) => setPartSearch(event.target.value)} />
+        <input
+          ref={summarySearchElement}
+          value={partSearch}
+          onChange={(event) => setPartSearch(event.target.value)}
+        />
       </label>
       <p>Search part IDs, labels and notes on their detected changes.</p>
       <Button variant="outline" size="sm" disabled={!partSearch} onClick={() => setPartSearch('')}>
@@ -392,6 +398,7 @@ export function ProductionPacketRevisionReview({
                           aria-label={`Review matching note ${finding.reference}`}
                           onClick={() => {
                             flushSync(() => {
+                              setReturnReference(finding.reference)
                               setPartFilter(finding.partId)
                               setSelected(finding.reference)
                               setClassification('all')
@@ -722,6 +729,25 @@ export function ProductionPacketRevisionReview({
               }
             />
           </label>
+          {returnReference === activeReference && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const target =
+                  [...sectionElement.current!.querySelectorAll<HTMLButtonElement>('button')].find(
+                    (button) =>
+                      button.getAttribute('aria-label') ===
+                      `Review matching note ${returnReference}`,
+                  ) ?? summarySearchElement.current!
+                target.focus({ preventScroll: true })
+                target.scrollIntoView({ block: 'center' })
+                setReturnReference(null)
+              }}
+            >
+              Return to matching search
+            </Button>
+          )}
         </>
       )}
       {(['outputs', 'limitations'] as const).map((group) => {
