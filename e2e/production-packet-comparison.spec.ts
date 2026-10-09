@@ -205,6 +205,9 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
       .locator('details[data-review-group="outputs"]')
       .getByText(/No items match this group search/),
   ).toBeVisible()
+  await expect(dialog.locator('details[data-review-group="outputs"] summary')).toContainText(
+    `${report.otherChangedFiles.length} pending`,
+  )
   const outputPath = report.otherChangedFiles[0]
   expect(outputPath).toBeTruthy()
   await dialog.getByRole('button', { name: 'Review pending changed outputs', exact: true }).click()
@@ -213,6 +216,9 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(dialog.getByLabel(`Acknowledge output: ${outputPath}`)).toBeFocused()
   await expect(dialog.getByLabel(`Acknowledge output: ${outputPath}`)).toBeInViewport()
   await dialog.getByLabel(`Acknowledge output: ${outputPath}`, { exact: true }).click()
+  await expect(dialog.locator('details[data-review-group="outputs"] summary')).toContainText(
+    `${report.otherChangedFiles.length - 1} pending`,
+  )
   await dialog.getByLabel('Show pending items only').uncheck()
   await dialog
     .getByLabel(`Output note: ${outputPath}`, { exact: true })
@@ -257,14 +263,17 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   )
   await expect(
     dialog.getByText(
-      `Other changed outputs: 1 of ${report.otherChangedFiles.length} acknowledged`,
+      `Other changed outputs: 1 of ${report.otherChangedFiles.length} acknowledged; ${report.otherChangedFiles.length - 1} pending`,
       { exact: true },
     ),
   ).toBeVisible()
   await expect(
-    dialog.getByText(`Comparison limitations: 1 of ${report.limitations.length} acknowledged`, {
-      exact: true,
-    }),
+    dialog.getByText(
+      `Comparison limitations: 1 of ${report.limitations.length} acknowledged; ${report.limitations.length - 1} pending`,
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible()
   await dialog.getByLabel('Show pending items only').check()
   await expect(

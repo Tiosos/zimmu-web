@@ -557,7 +557,7 @@ export function ProductionPacketRevisionReview({
             <summary>
               {group === 'outputs' ? 'Other changed outputs' : 'Comparison limitations'}:{' '}
               {review[group].filter((item) => item.acknowledged).length} of {review[group].length}{' '}
-              acknowledged
+              acknowledged; {review[group].filter((item) => !item.acknowledged).length} pending
             </summary>
             {group === 'outputs' && (
               <p>
