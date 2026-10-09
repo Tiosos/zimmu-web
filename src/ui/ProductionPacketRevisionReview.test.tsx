@@ -1202,6 +1202,15 @@ it('searches summary labels and exact literal normalized IDs while retaining sel
   )
   expect(edited).not.toHaveBeenCalled()
   expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  fireEvent.change(search, { target: { value: '  KEEP SELECTED NOTE  ' } })
+  expect(rows()).toEqual(['BoardCafé.[x]'])
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Café.[note]' } })
+  expect(rows()).toEqual([])
+  fireEvent.change(search, { target: { value: 'CAFE\u0301.[NOTE]' } })
+  expect(rows()).toEqual(['BoardCafé.[x]'])
+  fireEvent.change(screen.getByLabelText('Change note'), {
+    target: { value: 'Keep selected note' },
+  })
   fireEvent.change(search, { target: { value: 'board' } })
   expect(rows()).toEqual(['BoardCafé.[x]', 'Boardother-part'])
   fireEvent.change(search, { target: { value: 'operation-only' } })
@@ -2136,4 +2145,42 @@ it('retries denied view storage without changing navigation or review progress',
   fireEvent.click(screen.getByRole('button', { name: 'Forget remembered review views' }))
   expect(screen.queryByRole('button', { name: 'Retry saving review views' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Resume saving review views' })).not.toBeNull()
+})
+
+it('matches resumed operation and part notes only on their associated summary rows', async () => {
+  const report = perPartComparisonFixture(),
+    record = createRevisionReview(report)
+  record.changes[1].note = 'Part-only note'
+  record.changes[3].note = 'Operation-only note'
+  record.notes = 'Unassociated note'
+  record.outputs[0].note = 'Unassociated note'
+  record.limitations[0].note = 'Unassociated note'
+  render(<ProductionPacketRevisionReview report={report} />)
+  const file = new File(['record'], 'review.json')
+  Object.defineProperty(file, 'text', { value: async () => JSON.stringify(record) })
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  await waitFor(() => expect(screen.getByRole('status').textContent).toBe('No new review edits.'))
+  await waitFor(() =>
+    expect((screen.getByLabelText('Review notes') as HTMLTextAreaElement).value).toBe(
+      'Unassociated note',
+    ),
+  )
+  const rows = () =>
+    within(screen.getByRole('table', { name: 'Detected change progress by part' }))
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => row.children[0].textContent)
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), {
+    target: { value: 'Operation-only note' },
+  })
+  expect(rows()).toEqual(['operation-only'])
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), {
+    target: { value: 'Part-only note' },
+  })
+  expect(rows()).toEqual([`Board${report.changes[1].partId}`])
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), {
+    target: { value: 'Unassociated note' },
+  })
+  expect(rows()).toEqual([])
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
 })
