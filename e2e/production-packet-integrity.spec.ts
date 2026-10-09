@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { strToU8, unzipSync, zipSync } from 'fflate'
 
 test('a downloaded production packet verifies locally and altered files fail', async ({ page }) => {
@@ -22,6 +23,17 @@ test('a downloaded production packet verifies locally and altered files fail', a
   await input.setInputFiles({ name: 'packet.zip', mimeType: 'application/zip', buffer: bytes })
   await expect(dialog.getByText('Integrity checks passed', { exact: true })).toBeVisible()
   await expect(dialog.getByText(/14 files and .* operation references checked/)).toBeVisible()
+  const gate = dialog.getByRole('region', { name: 'Production release gate' })
+  await gate.getByLabel('Release context').selectOption('initial')
+  await gate.getByRole('button', { name: 'Assess production release' }).click()
+  await expect(gate.getByRole('button', { name: 'Download release record' })).toBeVisible()
+  const releaseDownloading = page.waitForEvent('download')
+  await gate.getByRole('button', { name: 'Download release record' }).click()
+  const releaseDownload = await releaseDownloading
+  const release = JSON.parse(await readFile(await releaseDownload.path(), 'utf8'))
+  expect(release.packetSha256).toBe(createHash('sha256').update(bytes).digest('hex'))
+  expect(release.formalApproval).toBe('not-recorded')
+  expect(release.revision.mode).toBe('initial')
   const files = unzipSync(bytes)
   files['lists/machining.csv'] = strToU8('Altered machining')
   await input.setInputFiles({

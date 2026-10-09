@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { downloadBlob } from './download'
+import { ProductionReleaseGate } from './ProductionReleaseGate'
 import {
   MAX_PACKET_BYTES,
   verifyProductionPacket,
@@ -14,6 +15,7 @@ export function ProductionPacketVerifier({ onClose }: { onClose: () => void }) {
   const heading = useId()
   const inputId = useId()
   const [busy, setBusy] = useState(false)
+  const [packet, setPacket] = useState<Uint8Array | null>(null)
   const [fileName, setFileName] = useState('')
   const [report, setReport] = useState<PacketIntegrityReport | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -28,13 +30,18 @@ export function ProductionPacketVerifier({ onClose }: { onClose: () => void }) {
   }, [])
   const verify = async (file: File) => {
     setReport(null)
+    setPacket(null)
     setError(null)
     setFileName(file.name)
     setBusy(true)
     try {
       if (file.size > MAX_PACKET_BYTES) throw new Error('Packet exceeds the 64 MiB upload limit.')
-      const result = await verifyProductionPacket(new Uint8Array(await file.arrayBuffer()))
-      if (alive.current) setReport(result)
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      const result = await verifyProductionPacket(bytes)
+      if (alive.current) {
+        setReport(result)
+        setPacket(bytes)
+      }
     } catch (error) {
       if (alive.current)
         setError(error instanceof Error ? error.message : 'The packet could not be read.')
@@ -107,6 +114,7 @@ export function ProductionPacketVerifier({ onClose }: { onClose: () => void }) {
             >
               Download verification report
             </Button>
+            {packet && <ProductionReleaseGate packet={packet} />}
             <ul className="space-y-3">
               {report.findings.slice(0, 200).map((finding) => (
                 <li key={finding.reference} className="rounded border border-border p-3 text-sm">

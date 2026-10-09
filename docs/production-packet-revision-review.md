@@ -93,3 +93,11 @@ After a matching-note jump, **Return to matching search** focuses the originatin
 Previous/Next matching-note controls follow the part-summary search results without wrapping. They keep the query, focus each destination note, and leave progress unchanged.
 
 Part-summary searches show total and per-part matching-note counts. Rows matching only a label or ID show zero matching notes; identical note text on different findings counts separately.
+
+## Production release gate
+
+In **Verify production packet**, use **Assess production release** to combine the exact ZIP's integrity, manufacturing readiness, drawing/machining reconciliation and revision-review evidence. Correction findings block technical release; advisory, skipped and unassessed checks remain review requirements. Acknowledging a revision never corrects a manufacturing blocker.
+
+Revision mode requires the earlier ZIP and saved review JSON. The app recomputes the comparison and rejects stale reviews; changes, other outputs and comparison limitations must all be acknowledged. Choose **Initial release — no predecessor** only when there is no earlier packet.
+
+Download the release record beside the ZIP. It contains the final packet SHA-256, evidence hashes, traceable findings and independent formal-approval status. Changing a packet requires a fresh assessment. The packet manifest includes the shared gate policy; the final-hash assessment remains separate to avoid circular hashing. Technical readiness and locally saved evidence do not grant formal production approval. Packet exports remain available for fixing blockers.
