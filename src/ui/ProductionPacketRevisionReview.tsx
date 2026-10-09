@@ -163,24 +163,26 @@ export function ProductionPacketRevisionReview({
       >
         Forget remembered review views
       </Button>
-      {!rememberViews && (
+      {(!rememberViews || viewSaved === false) && (
         <Button
           variant="outline"
           size="sm"
           onClick={() => {
-            if (
-              saveRevisionReviewView(report, {
-                selected: activeReference || selected,
-                pendingOnly,
-                search,
-                partFilter,
-                pendingPartsFirst,
-                partSearch,
-                classification,
-                coverageSearch,
-                coveragePendingFirst,
-              })
-            ) {
+            const saved = saveRevisionReviewView(report, {
+              selected: activeReference || selected,
+              pendingOnly,
+              search,
+              partFilter,
+              pendingPartsFirst,
+              partSearch,
+              classification,
+              coverageSearch,
+              coveragePendingFirst,
+            })
+            if (rememberViews) {
+              setViewSaved(saved)
+              setPreferenceMessage('')
+            } else if (saved) {
               setRememberViews(true)
               setPreferenceMessage('Saving review view preferences resumed.')
             } else {
@@ -190,14 +192,14 @@ export function ProductionPacketRevisionReview({
             }
           }}
         >
-          Resume saving review views
+          {rememberViews ? 'Retry saving review views' : 'Resume saving review views'}
         </Button>
       )}
       {preferenceMessage && <p aria-live="polite">{preferenceMessage}</p>}
       <p aria-live="polite">
         {rememberViews
           ? viewSaved === false
-            ? 'View preferences could not be saved because browser storage is unavailable. Another view change will retry saving.'
+            ? 'View preferences could not be saved because browser storage is unavailable. Retry saving or change the view to try again.'
             : 'View settings are remembered in this browser for the ten most recently used packet pairs.'
           : 'Preference saving is paused. Resume saving or reopen this review to remember future view changes.'}{' '}
         Review progress still requires the saved JSON file.
