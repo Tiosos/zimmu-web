@@ -2250,9 +2250,7 @@ it('opens the exact resumed matching-note finding through conflicting navigation
     target: { value: 'Target note' },
   })
   await waitFor(() =>
-    expect(
-      screen.queryByRole('button', { name: 'Review matching note PC:part' }),
-    ).not.toBeNull(),
+    expect(screen.queryByRole('button', { name: 'Review matching note PC:part' })).not.toBeNull(),
   )
   fireEvent.change(screen.getByLabelText('Change classification'), {
     target: { value: 'metadata' },
@@ -2260,11 +2258,12 @@ it('opens the exact resumed matching-note finding through conflicting navigation
   fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
   fireEvent.click(screen.getByLabelText('Show pending items only'))
   edited.mockClear()
+  const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {})
   fireEvent.click(screen.getByRole('button', { name: 'Review matching note PC:part' }))
+  expect(document.activeElement).toBe(screen.getByLabelText('Change note'))
+  expect(scroll).toHaveBeenCalledWith({ block: 'center' })
   expect(screen.queryByLabelText('Change to review')).not.toBeNull()
-  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
-    'PC:part',
-  )
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:part')
   expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Target note')
   expect((screen.getByLabelText('Find a part in summary') as HTMLInputElement).value).toBe(
     'Target note',

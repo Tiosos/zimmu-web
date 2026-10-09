@@ -85,3 +85,5 @@ Part-summary search also matches notes on detected part and operation changes. I
 Matching-note excerpts in part-summary results show the finding reference and context around the search text. They appear only for matching notes and do not shorten the notes saved in review downloads.
 
 Select a matching-note finding reference to open that exact finding. This clears finding filters while retaining the summary query and review progress.
+
+Matching-note jumps scroll to and focus the selected note field, including when activated with the keyboard.

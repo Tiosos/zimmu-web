@@ -391,11 +391,19 @@ export function ProductionPacketRevisionReview({
                           className="underline"
                           aria-label={`Review matching note ${finding.reference}`}
                           onClick={() => {
-                            setPartFilter(finding.partId)
-                            setSelected(finding.reference)
-                            setClassification('all')
-                            setPendingOnly(false)
-                            setSearch('')
+                            flushSync(() => {
+                              setPartFilter(finding.partId)
+                              setSelected(finding.reference)
+                              setClassification('all')
+                              setPendingOnly(false)
+                              setSearch('')
+                            })
+                            const noteField =
+                              sectionElement.current!.querySelector<HTMLTextAreaElement>(
+                                'textarea[aria-label="Change note"]',
+                              )!
+                            noteField.focus({ preventScroll: true })
+                            noteField.scrollIntoView({ block: 'center' })
                           }}
                         >
                           {finding.reference}

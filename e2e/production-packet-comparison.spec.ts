@@ -191,6 +191,11 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   await expect(perPartProgress.locator('[aria-label^="Matching note "]')).toContainText(
     'Revised length checked',
   )
+  const matchingNote = perPartProgress.getByRole('button', { name: /^Review matching note / })
+  await matchingNote.focus()
+  await page.keyboard.press('Enter')
+  await expect(dialog.getByLabel('Change note', { exact: true })).toBeFocused()
+  await expect(dialog.getByLabel('Change note', { exact: true })).toBeInViewport()
   await dialog.getByRole('button', { name: 'Clear part search', exact: true }).click()
   await expect(dialog.getByRole('status')).toHaveText('Review edits awaiting a JSON checkpoint.')
   page.once('dialog', (confirmation) => void confirmation.dismiss())
