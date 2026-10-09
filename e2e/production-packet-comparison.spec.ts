@@ -220,6 +220,15 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     `${report.otherChangedFiles.length - 1} pending`,
   )
   await dialog.getByLabel('Show pending items only').uncheck()
+  expect(report.otherChangedFiles.length).toBeGreaterThan(1)
+  await dialog.getByLabel('Show pending outputs first', { exact: true }).check()
+  await expect(
+    dialog.getByRole('checkbox', { name: /^Acknowledge output:/ }).first(),
+  ).toHaveAttribute('aria-label', `Acknowledge output: ${report.otherChangedFiles[1]}`)
+  await dialog.getByLabel('Show pending outputs first', { exact: true }).uncheck()
+  await expect(
+    dialog.getByRole('checkbox', { name: /^Acknowledge output:/ }).first(),
+  ).toHaveAttribute('aria-label', `Acknowledge output: ${outputPath}`)
   await dialog
     .getByLabel(`Output note: ${outputPath}`, { exact: true })
     .fill('Changed output inspected')
