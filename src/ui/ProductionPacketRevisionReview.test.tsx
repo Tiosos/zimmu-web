@@ -2059,3 +2059,39 @@ it('resumes saving the current view without changing review progress and permits
     'later query',
   )
 })
+
+it('reports failed automatic view saves and restores remembered status after recovery', () => {
+  const report = comparisonFixture(),
+    key = 'zimmu:revision-review-views:v1'
+  const denied = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+    throw new Error('denied')
+  })
+  render(<ProductionPacketRevisionReview report={report} />)
+  expect(screen.queryByText(/View preferences could not be saved/)).not.toBeNull()
+  expect(screen.queryByText(/View settings are remembered/)).toBeNull()
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Keep review' } })
+  expect(screen.queryByText(/View preferences could not be saved/)).not.toBeNull()
+  expect(localStorage.getItem(key)).toBeNull()
+  denied.mockRestore()
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'retry query' },
+  })
+  expect(screen.queryByText(/View preferences could not be saved/)).toBeNull()
+  expect(screen.queryByText(/View settings are remembered/)).not.toBeNull()
+  expect(localStorage.getItem(key)).toContain('retry query')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Keep review')
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  fireEvent.click(screen.getByRole('button', { name: 'Forget remembered review views' }))
+  expect(screen.queryByText(/View preferences could not be saved/)).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Resume saving review views' }))
+  const laterDenied = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+    throw new Error('denied')
+  })
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'later denied' },
+  })
+  expect(screen.queryByText(/View preferences could not be saved/)).not.toBeNull()
+  expect(screen.queryByText(/View settings are remembered/)).toBeNull()
+  laterDenied.mockRestore()
+})
