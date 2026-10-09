@@ -158,11 +158,41 @@ export function ProductionPacketRevisionReview({
       >
         Forget remembered review views
       </Button>
+      {!rememberViews && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (
+              saveRevisionReviewView(report, {
+                selected: activeReference || selected,
+                pendingOnly,
+                search,
+                partFilter,
+                pendingPartsFirst,
+                partSearch,
+                classification,
+                coverageSearch,
+                coveragePendingFirst,
+              })
+            ) {
+              setRememberViews(true)
+              setPreferenceMessage('Saving review view preferences resumed.')
+            } else {
+              setPreferenceMessage(
+                'Could not resume saving review views because browser storage is unavailable.',
+              )
+            }
+          }}
+        >
+          Resume saving review views
+        </Button>
+      )}
       {preferenceMessage && <p aria-live="polite">{preferenceMessage}</p>}
       <p>
         {rememberViews
           ? 'View settings are remembered in this browser for the ten most recently used packet pairs.'
-          : 'Preference saving is paused until this review is reopened.'}{' '}
+          : 'Preference saving is paused. Resume saving or reopen this review to remember future view changes.'}{' '}
         Review progress still requires the saved JSON file.
       </p>
       <p role="status">

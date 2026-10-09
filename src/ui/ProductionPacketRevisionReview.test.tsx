@@ -2016,3 +2016,46 @@ it('reports storage-removal failure honestly and preserves slow resumes when for
   expect(localStorage.getItem('zimmu:revision-review-views:v1')).toBeNull()
   view.unmount()
 })
+
+it('resumes saving the current view without changing review progress and permits retry after denial', () => {
+  const report = comparisonFixture(),
+    edited = vi.fn(),
+    key = 'zimmu:revision-review-views:v1'
+  const view = render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  expect(screen.queryByRole('button', { name: 'Resume saving review views' })).toBeNull()
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Keep note' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.click(screen.getByRole('button', { name: 'Forget remembered review views' }))
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'current query' },
+  })
+  edited.mockClear()
+  const denied = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+    throw new Error('denied')
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Resume saving review views' }))
+  expect(screen.queryByText(/Could not resume saving review views/)).not.toBeNull()
+  expect(screen.queryByText(/Preference saving is paused/)).not.toBeNull()
+  expect(screen.queryByText('Saving review view preferences resumed.')).toBeNull()
+  expect(localStorage.getItem(key)).toBeNull()
+  denied.mockRestore()
+  fireEvent.click(screen.getByRole('button', { name: 'Resume saving review views' }))
+  expect(screen.queryByText('Saving review view preferences resumed.')).not.toBeNull()
+  expect(screen.queryByRole('button', { name: 'Resume saving review views' })).toBeNull()
+  expect(localStorage.getItem(key)).toContain('current query')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Keep note')
+  expect((screen.getByLabelText('Acknowledge selected change') as HTMLInputElement).checked).toBe(
+    true,
+  )
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  expect(edited).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'later query' },
+  })
+  expect(localStorage.getItem(key)).toContain('later query')
+  view.unmount()
+  render(<ProductionPacketRevisionReview report={report} />)
+  expect((screen.getByLabelText('Find a changed output') as HTMLInputElement).value).toBe(
+    'later query',
+  )
+})
