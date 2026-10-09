@@ -1422,3 +1422,127 @@ it('disables empty limitation navigation and preserves a pending resume while op
     (screen.getByLabelText('Limitation note: Unsigned packets') as HTMLTextAreaElement).value,
   ).toBe('Resumed limitation note')
 })
+
+it('searches coverage labels and stable references independently with normalized literal queries and complete downloads', () => {
+  const report = comparisonFixture(),
+    edited = vi.fn()
+  report.otherChangedFiles = ['lists/Café[1].csv', 'drawings/second.pdf']
+  report.limitations = ['Unsigned Café[1] packets', 'Inspect geometry']
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.change(screen.getByLabelText('Output note: lists/Café[1].csv'), {
+    target: { value: 'Retained note' },
+  })
+  fireEvent.click(screen.getByLabelText('Acknowledge output: lists/Café[1].csv'))
+  edited.mockClear()
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: ' CAFE\u0301[1] ' },
+  })
+  expect(screen.queryByLabelText('Acknowledge output: lists/Café[1].csv')).not.toBeNull()
+  expect(screen.queryByLabelText('Acknowledge output: drawings/second.pdf')).toBeNull()
+  expect(screen.queryByLabelText('Acknowledge limitation: Inspect geometry')).not.toBeNull()
+  fireEvent.change(screen.getByLabelText('Find a comparison limitation'), {
+    target: { value: ' CAFÉ[1] ' },
+  })
+  expect(screen.queryByLabelText('Acknowledge limitation: Inspect geometry')).toBeNull()
+  expect(screen.getByLabelText('Acknowledge limitation: Unsigned Café[1] packets')).not.toBeNull()
+  fireEvent.change(screen.getByLabelText('Find a changed output'), { target: { value: 'PO:' } })
+  expect(screen.queryAllByLabelText(/^Acknowledge output:/)).toHaveLength(2)
+  fireEvent.change(screen.getByLabelText('Find a comparison limitation'), {
+    target: { value: 'PL:' },
+  })
+  expect(screen.queryAllByLabelText(/^Acknowledge limitation:/)).toHaveLength(2)
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'does-not-exist' },
+  })
+  const outputs = screen.getByText('Other changed outputs: 1 of 2 acknowledged').closest('details')!
+  expect(within(outputs).getByText(/No items match this group search/)).not.toBeNull()
+  expect(within(outputs).getByText(/0 of 2 items shown/)).not.toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Clear output search' }))
+  expect((screen.getByLabelText('Find a comparison limitation') as HTMLInputElement).value).toBe(
+    'PL:',
+  )
+  expect(screen.queryAllByLabelText(/^Acknowledge output:/)).toHaveLength(2)
+  expect(edited).not.toHaveBeenCalled()
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.outputs).toHaveLength(2)
+  expect(saved.limitations).toHaveLength(2)
+  expect(saved.outputs[0].note).toBe('Retained note')
+  expect(saved.outputs[0].acknowledged).toBe(true)
+  expect(saved).not.toHaveProperty('coverageSearch')
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  expect(download.mock.calls[1][0]).toContain('drawings/second.pdf')
+  expect(download.mock.calls[1][0]).toContain('Inspect geometry')
+})
+
+it('combines coverage search with pending-only and clears only the navigated group before focusing', () => {
+  const report = comparisonFixture(),
+    edited = vi.fn()
+  report.otherChangedFiles = ['first.pdf', 'second.pdf']
+  report.limitations = ['Read first', 'Read second']
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.click(screen.getByLabelText('Acknowledge output: first.pdf'))
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(screen.queryByLabelText('Acknowledge output: first.pdf')).toBeNull()
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'first.pdf' },
+  })
+  expect(screen.queryByLabelText('Acknowledge output: second.pdf')).toBeNull()
+  fireEvent.change(screen.getByLabelText('Find a comparison limitation'), {
+    target: { value: 'no-match' },
+  })
+  edited.mockClear()
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending changed outputs' }))
+  expect((screen.getByLabelText('Find a changed output') as HTMLInputElement).value).toBe('')
+  expect((screen.getByLabelText('Find a comparison limitation') as HTMLInputElement).value).toBe(
+    'no-match',
+  )
+  expect(document.activeElement).toBe(screen.getByLabelText('Acknowledge output: second.pdf'))
+  fireEvent.change(screen.getByLabelText('Find a changed output'), { target: { value: 'second' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending comparison limitations' }))
+  expect((screen.getByLabelText('Find a comparison limitation') as HTMLInputElement).value).toBe('')
+  expect((screen.getByLabelText('Find a changed output') as HTMLInputElement).value).toBe('second')
+  expect(document.activeElement).toBe(screen.getByLabelText('Acknowledge limitation: Read first'))
+  expect(edited).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByLabelText('Acknowledge output: second.pdf'))
+  expect(screen.getByText(/No pending items in this group/)).not.toBeNull()
+})
+
+it('preserves slow resumes while changing coverage searches and distinguishes empty groups', async () => {
+  const report = comparisonFixture(),
+    record = createRevisionReview(report)
+  record.outputs[0].note = 'Resumed note'
+  let finish!: (text: string) => void
+  const file = new File(['slow'], 'review.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  const view = render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.change(screen.getByLabelText('Find a changed output'), { target: { value: 'missing' } })
+  fireEvent.change(screen.getByLabelText('Find a comparison limitation'), {
+    target: { value: 'Unsigned' },
+  })
+  await act(async () => finish(JSON.stringify(record)))
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  fireEvent.click(screen.getByRole('button', { name: 'Clear output search' }))
+  expect(
+    (screen.getByLabelText('Output note: drawings/shop-drawings.pdf') as HTMLTextAreaElement).value,
+  ).toBe('Resumed note')
+  view.unmount()
+  render(
+    <ProductionPacketRevisionReview
+      report={{ ...report, otherChangedFiles: [], limitations: [] }}
+    />,
+  )
+  fireEvent.change(screen.getByLabelText('Find a changed output'), { target: { value: 'missing' } })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(screen.getAllByText('No items in this group.')).toHaveLength(2)
+  expect(screen.queryByText(/No items match this group search/)).toBeNull()
+  expect(screen.queryByText(/No pending items in this group/)).toBeNull()
+})

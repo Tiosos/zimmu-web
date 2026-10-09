@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import type { PacketRevisionReport } from './compareProductionPackets'
 import {
@@ -27,6 +28,7 @@ export function ProductionPacketRevisionReview({
   const [selected, setSelected] = useState(report.changes[0]?.reference ?? '')
   const [pendingOnly, setPendingOnly] = useState(false)
   const [search, setSearch] = useState('')
+  const [coverageSearch, setCoverageSearch] = useState({ outputs: '', limitations: '' })
   const [partFilter, setPartFilter] = useState<string | null>(null)
   const [pendingPartsFirst, setPendingPartsFirst] = useState(false)
   const [partSearch, setPartSearch] = useState('')
@@ -104,7 +106,10 @@ export function ProductionPacketRevisionReview({
           size="sm"
           disabled={review[group].every((item) => item.acknowledged)}
           onClick={() => {
-            setPendingOnly(true)
+            flushSync(() => {
+              setPendingOnly(true)
+              setCoverageSearch((current) => ({ ...current, [group]: '' }))
+            })
             const checklist = sectionElement.current!.querySelector<HTMLDetailsElement>(
               `details[data-review-group="${group}"]`,
             )!
@@ -536,33 +541,80 @@ export function ProductionPacketRevisionReview({
           </label>
         </>
       )}
-      {(['outputs', 'limitations'] as const).map((group) => (
-        <details key={group} data-review-group={group}>
-          <summary>
-            {group === 'outputs' ? 'Other changed outputs' : 'Comparison limitations'}:{' '}
-            {review[group].filter((item) => item.acknowledged).length} of {review[group].length}{' '}
-            acknowledged
-          </summary>
-          {group === 'outputs' && (
-            <p>
-              Inspect these paths in the earlier and later packet archives. A path may be present in
-              only one revision. These outputs were not semantically compared.
-            </p>
-          )}
-          {group === 'limitations' && (
-            <p>
-              Acknowledging a limitation records that you read it; it does not resolve it or expand
-              comparison coverage.
-            </p>
-          )}
-          <ul className="space-y-3">
-            {pendingOnly && review[group].every((item) => item.acknowledged) && (
-              <li>No pending items in this group. Clear the filter to edit acknowledged items.</li>
+      {(['outputs', 'limitations'] as const).map((group) => {
+        const groupQuery = normalizeSearch(coverageSearch[group].trim())
+        const visibleItems = coverage[group]
+          .map((target, index) => ({ target, item: review[group][index] }))
+          .filter(
+            ({ target, item }) =>
+              (!pendingOnly || !item.acknowledged) &&
+              [target.label, target.reference].some((text) =>
+                normalizeSearch(text).includes(groupQuery),
+              ),
+          )
+        return (
+          <details key={group} data-review-group={group}>
+            <summary>
+              {group === 'outputs' ? 'Other changed outputs' : 'Comparison limitations'}:{' '}
+              {review[group].filter((item) => item.acknowledged).length} of {review[group].length}{' '}
+              acknowledged
+            </summary>
+            {group === 'outputs' && (
+              <p>
+                Inspect these paths in the earlier and later packet archives. A path may be present
+                in only one revision. These outputs were not semantically compared.
+              </p>
             )}
-            {coverage[group]
-              .map((target, index) => ({ target, item: review[group][index] }))
-              .filter(({ item }) => !pendingOnly || !item.acknowledged)
-              .map(({ target, item }) => {
+            {group === 'limitations' && (
+              <p>
+                Acknowledging a limitation records that you read it; it does not resolve it or
+                expand comparison coverage.
+              </p>
+            )}
+            <label className="block">
+              {group === 'outputs' ? 'Find a changed output' : 'Find a comparison limitation'}
+              <input
+                type="search"
+                aria-label={
+                  group === 'outputs' ? 'Find a changed output' : 'Find a comparison limitation'
+                }
+                className="mt-1 block w-full border bg-background p-1"
+                value={coverageSearch[group]}
+                onChange={(event) =>
+                  setCoverageSearch((current) => ({ ...current, [group]: event.target.value }))
+                }
+              />
+            </label>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!coverageSearch[group]}
+              onClick={() => setCoverageSearch((current) => ({ ...current, [group]: '' }))}
+            >
+              {group === 'outputs' ? 'Clear output search' : 'Clear limitation search'}
+            </Button>
+            <p>
+              {visibleItems.length} of {review[group].length} items shown. Search matches recorded
+              labels and stable references; downloads include every item.
+            </p>
+            <ul className="space-y-3">
+              {review[group].length === 0 && <li>No items in this group.</li>}
+              {review[group].length > 0 &&
+                visibleItems.length === 0 &&
+                (!pendingOnly || review[group].some((item) => !item.acknowledged)) && (
+                  <li>
+                    No items match this group search and current filter. Adjust or clear the search
+                    to continue.
+                  </li>
+                )}
+              {pendingOnly &&
+                review[group].length > 0 &&
+                review[group].every((item) => item.acknowledged) && (
+                  <li>
+                    No pending items in this group. Clear the filter to edit acknowledged items.
+                  </li>
+                )}
+              {visibleItems.map(({ target, item }) => {
                 const update = (values: Partial<typeof item>) =>
                   updateReview({
                     ...review,
@@ -595,9 +647,10 @@ export function ProductionPacketRevisionReview({
                   </li>
                 )
               })}
-          </ul>
-        </details>
-      ))}
+            </ul>
+          </details>
+        )
+      })}
       <Button
         variant="outline"
         onClick={() => {
