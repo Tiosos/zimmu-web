@@ -261,6 +261,12 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     'Revised length checked',
   )
   await expect(dialog.getByRole('status')).toHaveText('Review edits awaiting a JSON checkpoint.')
+  await dialog.getByLabel('Find a changed output').fill('CHANGED OUTPUT INSPECTED')
+  await expect(dialog.getByRole('checkbox', { name: /^Acknowledge output:/ })).toHaveCount(1)
+  await expect(dialog.getByLabel(`Output note: ${outputPath}`, { exact: true })).toHaveValue(
+    'Changed output inspected',
+  )
+  await dialog.getByRole('button', { name: 'Clear output search', exact: true }).click()
   const reviewDownloading = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Download revision review' }).click()
   const reviewDownload = await reviewDownloading

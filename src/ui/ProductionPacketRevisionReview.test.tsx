@@ -1829,3 +1829,86 @@ it('retains a hidden selection and slow pending resumes when resetting and suppo
   expect(screen.queryByLabelText('Change to review')).toBeNull()
   expect(screen.getByRole('status').textContent).toBe('No new review edits.')
 })
+
+it('finds item review notes literally and independently while preserving complete progress and live edits', () => {
+  const report = comparisonFixture(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  report.otherChangedFiles = ['first.pdf', 'second.pdf']
+  report.limitations = ['Read first', 'Read second']
+  render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Output note: first.pdf'), {
+    target: { value: 'Cafe\u0301[1] checked' },
+  })
+  fireEvent.change(screen.getByLabelText('Limitation note: Read second'), {
+    target: { value: '<checked>[2]' },
+  })
+  fireEvent.change(screen.getByLabelText('Review notes'), { target: { value: 'Overall-only' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge output: first.pdf'))
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: ' CAFÉ[1] ' },
+  })
+  expect(
+    screen
+      .queryAllByLabelText(/^Acknowledge output:/)
+      .map((input) => input.getAttribute('aria-label')),
+  ).toEqual(['Acknowledge output: first.pdf'])
+  expect(screen.queryAllByLabelText(/^Acknowledge limitation:/)).toHaveLength(2)
+  fireEvent.change(screen.getByLabelText('Find a comparison limitation'), {
+    target: { value: '<CHECKED>[2]' },
+  })
+  expect(
+    screen
+      .queryAllByLabelText(/^Acknowledge limitation:/)
+      .map((input) => input.getAttribute('aria-label')),
+  ).toEqual(['Acknowledge limitation: Read second'])
+  fireEvent.click(screen.getByLabelText('Show pending outputs first'))
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(screen.queryAllByLabelText(/^Acknowledge output:/)).toHaveLength(0)
+  expect(screen.queryAllByLabelText(/^Acknowledge limitation:/)).toHaveLength(1)
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.change(screen.getByLabelText('Output note: first.pdf'), {
+    target: { value: 'Updated note' },
+  })
+  expect(screen.queryAllByLabelText(/^Acknowledge output:/)).toHaveLength(0)
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: '<checked>[2]' },
+  })
+  expect(screen.queryAllByLabelText(/^Acknowledge output:/)).toHaveLength(0)
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'Overall-only' },
+  })
+  expect(screen.queryAllByLabelText(/^Acknowledge output:/)).toHaveLength(0)
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.outputs).toHaveLength(2)
+  expect(saved.outputs[0].note).toBe('Updated note')
+  expect(saved.outputs[0].acknowledged).toBe(true)
+  expect(saved.limitations[1].note).toBe('<checked>[2]')
+  fireEvent.click(screen.getByRole('button', { name: 'Download printable review' }))
+  expect(download.mock.calls[1][0]).toContain('Updated note')
+  expect(download.mock.calls[1][0]).toContain('&lt;checked&gt;[2]')
+})
+
+it('finds resumed notes without changing the checkpoint or independent queries', async () => {
+  const report = comparisonFixture(),
+    record = createRevisionReview(report),
+    edited = vi.fn()
+  record.outputs[0].note = 'Resumed decision'
+  record.limitations[0].note = 'Unread scope note'
+  const file = new File(['review'], 'review.json')
+  Object.defineProperty(file, 'text', { value: async () => JSON.stringify(record) })
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'resumed decision' },
+  })
+  fireEvent.change(screen.getByLabelText('Find a comparison limitation'), {
+    target: { value: 'scope note' },
+  })
+  expect(screen.queryAllByLabelText(/^Acknowledge (output|limitation):/)).toHaveLength(0)
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  await waitFor(() =>
+    expect(screen.queryAllByLabelText(/^Acknowledge (output|limitation):/)).toHaveLength(2),
+  )
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  expect(edited.mock.calls.every(([value]) => value === false)).toBe(true)
+})

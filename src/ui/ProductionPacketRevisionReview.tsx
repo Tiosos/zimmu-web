@@ -569,7 +569,7 @@ export function ProductionPacketRevisionReview({
           .filter(
             ({ target, item }) =>
               (!pendingOnly || !item.acknowledged) &&
-              [target.label, target.reference].some((text) =>
+              [target.label, target.reference, item.note].some((text) =>
                 normalizeSearch(text).includes(groupQuery),
               ),
           )
@@ -636,7 +636,7 @@ export function ProductionPacketRevisionReview({
             </Button>
             <p>
               {visibleItems.length} of {review[group].length} items shown. Search matches recorded
-              labels and stable references; downloads include every item.
+              labels, stable references and review notes; downloads include every item.
             </p>
             <ul className="space-y-3">
               {review[group].length === 0 && <li>No items in this group.</li>}
