@@ -6,6 +6,7 @@ import * as downloads from './download'
 import { MAX_PACKET_BYTES } from './verifyProductionPacket'
 
 beforeEach(() => {
+  localStorage.clear()
   vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
   vi.spyOn(HTMLDialogElement.prototype, 'showModal').mockImplementation(function (
     this: HTMLDialogElement,

@@ -281,12 +281,23 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   expect(review.schemaVersion).toBe(2)
   expect(review.outputs[0].note).toBe('Changed output inspected')
   expect(review.limitations[0].acknowledged).toBe(true)
+  await dialog.getByLabel('Find a changed output').fill('Changed output inspected')
+  await dialog.getByLabel('Show pending outputs first').check()
   await dialog.getByRole('button', { name: 'Compare revisions' }).click()
   await expect(dialog.getByText('0 of 1 detected changes acknowledged.')).toBeVisible()
+  await expect(dialog.getByLabel('Find a changed output')).toHaveValue('Changed output inspected')
+  await expect(dialog.getByLabel('Show pending outputs first')).toBeChecked()
+  await expect(dialog.getByRole('checkbox', { name: /^Acknowledge output:/ })).toHaveCount(0)
+  await expect(dialog.getByLabel('Change note', { exact: true })).toHaveValue('')
   await dialog
     .getByLabel('Resume revision review')
     .setInputFiles({ name: 'review.json', mimeType: 'application/json', buffer: reviewBytes })
   await expect(dialog.getByText('1 of 1 detected changes acknowledged.')).toBeVisible()
+  await expect(dialog.getByLabel(`Output note: ${outputPath}`, { exact: true })).toHaveValue(
+    'Changed output inspected',
+  )
+  await dialog.locator('details[data-review-group="outputs"] summary').click()
+  await dialog.getByRole('button', { name: 'Clear output search', exact: true }).click()
   await expect(dialog.getByRole('status')).toHaveText('No new review edits.')
   await expect(dialog.getByLabel('Change note', { exact: true })).toHaveValue(
     'Revised length checked',
