@@ -1950,3 +1950,69 @@ it('restores same-pair view preferences without restoring progress, and persists
     false,
   )
 })
+
+it('forgets preferences without changing the working review and pauses later writes until reopening', () => {
+  const report = comparisonFixture(),
+    edited = vi.fn(),
+    key = 'zimmu:revision-review-views:v1'
+  const first = render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Working note' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.change(screen.getByLabelText('Find a changed output'), { target: { value: 'drawing' } })
+  localStorage.setItem('unrelated-setting', 'keep')
+  edited.mockClear()
+  fireEvent.click(screen.getByRole('button', { name: 'Forget remembered review views' }))
+  expect(localStorage.getItem(key)).toBeNull()
+  expect(localStorage.getItem('unrelated-setting')).toBe('keep')
+  expect(screen.queryByText('Remembered review views cleared.')).not.toBeNull()
+  expect(screen.queryByText(/Preference saving is paused/)).not.toBeNull()
+  expect((screen.getByLabelText('Find a changed output') as HTMLInputElement).value).toBe('drawing')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Working note')
+  expect((screen.getByLabelText('Acknowledge selected change') as HTMLInputElement).checked).toBe(
+    true,
+  )
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  expect(edited).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('Find a changed output'), { target: { value: 'missing' } })
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Later note' } })
+  expect(localStorage.getItem(key)).toBeNull()
+  first.unmount()
+  render(<ProductionPacketRevisionReview report={report} />)
+  expect((screen.getByLabelText('Find a changed output') as HTMLInputElement).value).toBe('')
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'new query' },
+  })
+  expect(localStorage.getItem(key)).toContain('new query')
+})
+
+it('reports storage-removal failure honestly and preserves slow resumes when forgetting views', async () => {
+  const report = comparisonFixture(),
+    record = createRevisionReview(report)
+  const view = render(<ProductionPacketRevisionReview report={report} />)
+  const remove = vi.spyOn(localStorage, 'removeItem').mockImplementation(() => {
+    throw new Error('denied')
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Forget remembered review views' }))
+  expect(screen.queryByText(/Could not clear remembered review views/)).not.toBeNull()
+  expect(screen.queryByText('Remembered review views cleared.')).toBeNull()
+  expect(screen.queryByText(/Preference saving is paused/)).toBeNull()
+  remove.mockRestore()
+  record.changes[0].note = 'Resumed after forgetting'
+  let finish!: (text: string) => void
+  const file = new File(['slow'], 'review.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.click(screen.getByRole('button', { name: 'Forget remembered review views' }))
+  await act(async () => finish(JSON.stringify(record)))
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe(
+    'Resumed after forgetting',
+  )
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  expect(localStorage.getItem('zimmu:revision-review-views:v1')).toBeNull()
+  view.unmount()
+})
