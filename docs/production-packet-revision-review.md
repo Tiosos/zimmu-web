@@ -89,3 +89,5 @@ Select a matching-note finding reference to open that exact finding. This clears
 Matching-note jumps scroll to and focus the selected note field, including when activated with the keyboard.
 
 After a matching-note jump, **Return to matching search** focuses the originating result. If edits remove that match, it focuses the summary search field instead. Review edits remain intact.
+
+Previous/Next matching-note controls follow the part-summary search results without wrapping. They keep the query, focus each destination note, and leave progress unchanged.

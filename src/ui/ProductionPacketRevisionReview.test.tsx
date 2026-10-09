@@ -2287,3 +2287,50 @@ it('opens the exact resumed matching-note finding through conflicting navigation
   )
   expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
 })
+
+it('pages matching notes across parts without wrapping or changing progress', async () => {
+  const report = perPartComparisonFixture(),
+    record = createRevisionReview(report),
+    edited = vi.fn()
+  for (const index of [0, 1, 3]) record.changes[index].note = `Match note ${index}`
+  record.changes[1].acknowledged = true
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {})
+  const file = new File(['record'], 'review.json')
+  Object.defineProperty(file, 'text', { value: async () => JSON.stringify(record) })
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), {
+    target: { value: 'Match note' },
+  })
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: 'Review matching note PC:manual' })).not.toBeNull(),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Review matching note PC:manual' }))
+  edited.mockClear()
+  expect(
+    (screen.getByRole('button', { name: 'Previous matching note' }) as HTMLButtonElement).disabled,
+  ).toBe(true)
+  expect(screen.queryByText('Matching note 1 of 3')).not.toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Next matching note' }))
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:part')
+  expect((screen.getByLabelText('Acknowledge selected change') as HTMLInputElement).checked).toBe(
+    true,
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Next matching note' }))
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
+    'PC:operation-only',
+  )
+  expect(screen.queryByText('Matching note 3 of 3')).not.toBeNull()
+  expect(
+    (screen.getByRole('button', { name: 'Next matching note' }) as HTMLButtonElement).disabled,
+  ).toBe(true)
+  expect(document.activeElement).toBe(screen.getByLabelText('Change note'))
+  expect(scroll).toHaveBeenCalledWith({ block: 'center' })
+  fireEvent.click(screen.getByRole('button', { name: 'Previous matching note' }))
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe('PC:part')
+  expect(edited).not.toHaveBeenCalled()
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'No longer matches' } })
+  expect(screen.queryByRole('button', { name: 'Next matching note' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Return to matching search' })).not.toBeNull()
+})
