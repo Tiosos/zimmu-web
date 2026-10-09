@@ -1121,6 +1121,7 @@ it('keeps a pending resume alive during a per-part pending shortcut and updates 
   fireEvent.change(screen.getByLabelText('Find a part in summary'), {
     target: { value: 'operation-only' },
   })
+  expect(screen.queryByLabelText('Change to review')).not.toBeNull()
   expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
     'PC:operation-only',
   )
@@ -2233,4 +2234,42 @@ it('shows matching-note context and finding IDs without changing selection or sa
     .getAllByRole('row')
     .find((row) => row.textContent?.includes('other-part'))!
   expect(within(otherRow).queryByLabelText('Matching note PC:manual')).toBeNull()
+})
+
+it('opens the exact resumed matching-note finding through conflicting navigation filters', async () => {
+  const report = perPartComparisonFixture(),
+    record = createRevisionReview(report),
+    edited = vi.fn()
+  record.changes[1].note = 'Target note'
+  record.changes[1].acknowledged = true
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  const file = new File(['record'], 'review.json')
+  Object.defineProperty(file, 'text', { value: async () => JSON.stringify(record) })
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), {
+    target: { value: 'Target note' },
+  })
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', { name: 'Review matching note PC:part' }),
+    ).not.toBeNull(),
+  )
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  edited.mockClear()
+  fireEvent.click(screen.getByRole('button', { name: 'Review matching note PC:part' }))
+  expect(screen.queryByLabelText('Change to review')).not.toBeNull()
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
+    'PC:part',
+  )
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Target note')
+  expect((screen.getByLabelText('Find a part in summary') as HTMLInputElement).value).toBe(
+    'Target note',
+  )
+  expect((screen.getByLabelText('Show pending items only') as HTMLInputElement).checked).toBe(false)
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  expect(edited).not.toHaveBeenCalled()
 })

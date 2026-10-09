@@ -386,7 +386,21 @@ export function ProductionPacketRevisionReview({
                         className="font-normal"
                         aria-label={`Matching note ${finding.reference}`}
                       >
-                        {finding.reference}: {noteSnippet(progress.get(finding.reference)!.note)}
+                        <button
+                          type="button"
+                          className="underline"
+                          aria-label={`Review matching note ${finding.reference}`}
+                          onClick={() => {
+                            setPartFilter(finding.partId)
+                            setSelected(finding.reference)
+                            setClassification('all')
+                            setPendingOnly(false)
+                            setSearch('')
+                          }}
+                        >
+                          {finding.reference}
+                        </button>
+                        : {noteSnippet(progress.get(finding.reference)!.note)}
                       </p>
                     ))}
               </th>
