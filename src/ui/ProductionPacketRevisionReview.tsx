@@ -365,6 +365,12 @@ export function ProductionPacketRevisionReview({
       {partQuery && visibleParts.length === 0 && (
         <p>No parts match this summary search. Adjust or clear the part search to continue.</p>
       )}
+      {partQuery && (
+        <p>
+          Matching notes: {matchingNotes.length} across{' '}
+          {new Set(matchingNotes.map((finding) => finding.partId)).size} parts.
+        </p>
+      )}
       <p>Part search changes this summary only. Downloads include every part.</p>
       <table className="w-full text-left">
         <caption>Detected change progress by part</caption>
@@ -403,6 +409,15 @@ export function ProductionPacketRevisionReview({
                     <br />
                     {part.partId}
                   </>
+                )}
+                {partQuery && (
+                  <p
+                    className="font-normal"
+                    aria-label={`Matching note count for part ${part.partId}`}
+                  >
+                    Matching notes:{' '}
+                    {matchingNotes.filter((finding) => finding.partId === part.partId).length}
+                  </p>
                 )}
                 {partQuery &&
                   report.changes

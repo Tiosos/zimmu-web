@@ -2334,3 +2334,34 @@ it('pages matching notes across parts without wrapping or changing progress', as
   expect(screen.queryByRole('button', { name: 'Next matching note' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Return to matching search' })).not.toBeNull()
 })
+
+it('counts matching findings per part and updates totals without counting label-only matches', async () => {
+  const report = perPartComparisonFixture(),
+    record = createRevisionReview(report)
+  for (const index of [0, 1, 3]) record.changes[index].note = 'Needle'
+  render(<ProductionPacketRevisionReview report={report} />)
+  expect(screen.queryByText(/Matching notes:/)).toBeNull()
+  const file = new File(['record'], 'review.json')
+  Object.defineProperty(file, 'text', { value: async () => JSON.stringify(record) })
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), { target: { value: 'Needle' } })
+  await waitFor(() =>
+    expect(screen.queryByText('Matching notes: 3 across 2 parts.')).not.toBeNull(),
+  )
+  expect(screen.getByLabelText('Matching note count for part part').textContent).toBe(
+    'Matching notes: 2',
+  )
+  expect(screen.getByLabelText('Matching note count for part operation-only').textContent).toBe(
+    'Matching notes: 1',
+  )
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Different' } })
+  expect(screen.queryByText('Matching notes: 2 across 2 parts.')).not.toBeNull()
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), { target: { value: 'Board' } })
+  expect(screen.queryByText('Matching notes: 0 across 0 parts.')).not.toBeNull()
+  expect(screen.getByLabelText('Matching note count for part part').textContent).toBe(
+    'Matching notes: 0',
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Clear part search' }))
+  expect(screen.queryByText(/Matching notes:/)).toBeNull()
+  expect(screen.queryByLabelText('Matching note count for part part')).toBeNull()
+})
