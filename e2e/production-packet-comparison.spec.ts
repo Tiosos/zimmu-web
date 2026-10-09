@@ -186,6 +186,9 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     '1',
   ])
   await dialog.getByLabel('Change note', { exact: true }).fill('Revised length checked')
+  await dialog.getByLabel('Find a part in summary').fill('REVISED LENGTH CHECKED')
+  await expect(perPartProgress.getByRole('row')).toHaveCount(2)
+  await dialog.getByRole('button', { name: 'Clear part search', exact: true }).click()
   await expect(dialog.getByRole('status')).toHaveText('Review edits awaiting a JSON checkpoint.')
   page.once('dialog', (confirmation) => void confirmation.dismiss())
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()

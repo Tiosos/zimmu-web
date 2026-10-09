@@ -120,8 +120,15 @@ export function ProductionPacketRevisionReview({
   const classificationProgress = revisionReviewClassificationProgress(review)
   const partProgress = revisionReviewPartProgress(review, pendingPartsFirst)
   const partQuery = normalizeSearch(partSearch.trim())
+  const notesByPart = new Map<string, string[]>()
+  for (const finding of report.changes) {
+    const note = progress.get(finding.reference)?.note
+    if (note) notesByPart.set(finding.partId, [...(notesByPart.get(finding.partId) ?? []), note])
+  }
   const visibleParts = partProgress.filter((part) =>
-    [part.partId, part.label ?? ''].some((text) => normalizeSearch(text).includes(partQuery)),
+    [part.partId, part.label ?? '', ...(notesByPart.get(part.partId) ?? [])].some((text) =>
+      normalizeSearch(text).includes(partQuery),
+    ),
   )
   return (
     <section
@@ -293,6 +300,7 @@ export function ProductionPacketRevisionReview({
         Find a part in summary
         <input value={partSearch} onChange={(event) => setPartSearch(event.target.value)} />
       </label>
+      <p>Search part IDs, labels and notes on their detected changes.</p>
       <Button variant="outline" size="sm" disabled={!partSearch} onClick={() => setPartSearch('')}>
         Clear part search
       </Button>
