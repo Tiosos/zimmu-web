@@ -246,6 +246,21 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     .getByLabel(`Acknowledge limitation: ${report.limitations[0]}`, { exact: true })
     .click()
   await dialog.getByLabel('Show pending items only').uncheck()
+  await dialog.getByLabel('Find a changed output').fill('no-match')
+  await dialog.getByLabel('Find a comparison limitation').fill('no-match')
+  await dialog.getByLabel('Show pending outputs first').check()
+  await dialog.getByLabel('Show pending limitations first').check()
+  await dialog.getByLabel('Find a change', { exact: true }).fill('no-match')
+  await dialog.getByRole('button', { name: 'Reset review view', exact: true }).click()
+  for (const label of ['Find a change', 'Find a changed output', 'Find a comparison limitation']) {
+    await expect(dialog.getByLabel(label, { exact: true })).toHaveValue('')
+  }
+  await expect(dialog.getByLabel('Show pending outputs first')).not.toBeChecked()
+  await expect(dialog.getByLabel('Show pending limitations first')).not.toBeChecked()
+  await expect(dialog.getByLabel('Change note', { exact: true })).toHaveValue(
+    'Revised length checked',
+  )
+  await expect(dialog.getByRole('status')).toHaveText('Review edits awaiting a JSON checkpoint.')
   const reviewDownloading = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Download revision review' }).click()
   const reviewDownload = await reviewDownloading

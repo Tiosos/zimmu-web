@@ -1714,3 +1714,118 @@ it('keeps pending-first view preferences through slow resumes and supports empty
   expect(screen.queryAllByLabelText(/^Acknowledge (output|limitation):/)).toHaveLength(0)
   expect(screen.getAllByText('No items in this group.')).toHaveLength(2)
 })
+
+it('resets every review view while preserving the current finding, edits, progress and checkpoint', () => {
+  const report = perPartComparisonFixture(),
+    edited = vi.fn(),
+    download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  report.otherChangedFiles = ['first.pdf', 'second.pdf']
+  report.limitations = ['Read first', 'Read second']
+  render(<ProductionPacketRevisionReview report={report} onEditedChange={edited} />)
+  fireEvent.click(screen.getByLabelText('Acknowledge selected change'))
+  fireEvent.change(screen.getByLabelText('Reviewer (self-reported)'), {
+    target: { value: 'Workshop' },
+  })
+  fireEvent.change(screen.getByLabelText('Review notes'), { target: { value: 'Overall note' } })
+  fireEvent.click(screen.getByLabelText('Acknowledge output: first.pdf'))
+  fireEvent.change(screen.getByLabelText('Output note: first.pdf'), {
+    target: { value: 'Output note' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Review part other-part' }))
+  fireEvent.change(screen.getByLabelText('Change note'), { target: { value: 'Selected note' } })
+  fireEvent.change(screen.getByLabelText('Change classification'), {
+    target: { value: 'metadata' },
+  })
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'other-part' } })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.click(screen.getByLabelText('Show pending parts first'))
+  fireEvent.change(screen.getByLabelText('Find a part in summary'), {
+    target: { value: 'missing' },
+  })
+  for (const label of ['Show pending outputs first', 'Show pending limitations first'])
+    fireEvent.click(screen.getByLabelText(label))
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'missing-output' },
+  })
+  fireEvent.change(screen.getByLabelText('Find a comparison limitation'), {
+    target: { value: 'missing-limitation' },
+  })
+  edited.mockClear()
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  for (const label of [
+    'Find a change',
+    'Find a part in summary',
+    'Find a changed output',
+    'Find a comparison limitation',
+  ])
+    expect((screen.getByLabelText(label) as HTMLInputElement).value).toBe('')
+  for (const label of [
+    'Show pending items only',
+    'Show pending parts first',
+    'Show pending outputs first',
+    'Show pending limitations first',
+  ])
+    expect((screen.getByLabelText(label) as HTMLInputElement).checked).toBe(false)
+  expect((screen.getByLabelText('Change classification') as HTMLSelectElement).value).toBe('all')
+  const selector = screen.getByLabelText('Change to review') as HTMLSelectElement
+  expect(selector.options.length).toBe(4)
+  expect(selector.value).toBe('PC:other-part')
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Selected note')
+  expect((screen.getByLabelText('Output note: first.pdf') as HTMLTextAreaElement).value).toBe(
+    'Output note',
+  )
+  expect((screen.getByLabelText('Acknowledge output: first.pdf') as HTMLInputElement).checked).toBe(
+    true,
+  )
+  expect(
+    screen
+      .queryAllByLabelText(/^Acknowledge output:/)
+      .map((input) => input.getAttribute('aria-label')),
+  ).toEqual(['Acknowledge output: first.pdf', 'Acknowledge output: second.pdf'])
+  expect(screen.getByRole('status').textContent).toBe('Review edits awaiting a JSON checkpoint.')
+  expect(edited).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
+  const saved = JSON.parse(download.mock.calls[0][0] as string)
+  expect(saved.reviewer).toBe('Workshop')
+  expect(saved.notes).toBe('Overall note')
+  expect(saved.changes[0].acknowledged).toBe(true)
+  expect(saved.changes[2].note).toBe('Selected note')
+  expect(saved.outputs[0].note).toBe('Output note')
+})
+
+it('retains a hidden selection and slow pending resumes when resetting and supports empty reviews', async () => {
+  const report = perPartComparisonFixture(),
+    record = createRevisionReview(report)
+  record.changes[1].note = 'Resumed note'
+  let finish!: (text: string) => void
+  const file = new File(['slow'], 'review.json')
+  Object.defineProperty(file, 'text', {
+    value: () =>
+      new Promise<string>((resolve) => {
+        finish = resolve
+      }),
+  })
+  const view = render(<ProductionPacketRevisionReview report={report} />)
+  fireEvent.change(screen.getByLabelText('Change to review'), {
+    target: { value: report.changes[1].reference },
+  })
+  fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
+  fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'no-match' } })
+  expect(screen.queryByLabelText('Change to review')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect((screen.getByLabelText('Change to review') as HTMLSelectElement).value).toBe(
+    report.changes[1].reference,
+  )
+  await act(async () => finish(JSON.stringify(record)))
+  expect((screen.getByLabelText('Change note') as HTMLTextAreaElement).value).toBe('Resumed note')
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+  view.unmount()
+  render(
+    <ProductionPacketRevisionReview
+      report={{ ...report, changes: [], otherChangedFiles: [], limitations: [] }}
+    />,
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect(screen.queryByLabelText('Change to review')).toBeNull()
+  expect(screen.getByRole('status').textContent).toBe('No new review edits.')
+})
