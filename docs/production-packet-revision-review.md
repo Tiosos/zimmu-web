@@ -81,3 +81,5 @@ This browser remembers view preferences for the ten most recently used **earlier
 **Forget remembered review views** clears saved view preferences for all retained packet pairs, leaving the current review and other browser data intact. Preference saving pauses for that open review until it is reopened, so the cleared data is not immediately recreated. **Resume saving review views** saves the current view and resumes future preference writes without changing review progress. If storage rejects that save, saving stays paused and you can retry. Reopening starts with defaults and resumes saving view preferences. If browser storage cannot be cleared, the action reports failure; review editing and exports remain available.
 
 Part-summary search also matches notes on detected part and operation changes. It reads current or resumed review notes, using the same literal normalized search as IDs and labels. Global, output and limitation notes do not match a part.
+
+Matching-note excerpts in part-summary results show the finding reference and context around the search text. They appear only for matching notes and do not shorten the notes saved in review downloads.
