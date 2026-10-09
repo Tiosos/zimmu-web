@@ -132,6 +132,33 @@ export function ProductionPacketRevisionReview({
       normalizeSearch(text).includes(partQuery),
     ),
   )
+  const matchingNotes = partQuery
+    ? visibleParts.flatMap((part) =>
+        report.changes.filter(
+          (finding) =>
+            finding.partId === part.partId &&
+            normalizeSearch(progress.get(finding.reference)?.note ?? '').includes(partQuery),
+        ),
+      )
+    : []
+  const matchingNoteIndex = matchingNotes.findIndex(
+    (finding) => finding.reference === activeReference,
+  )
+  const openMatchingNote = (finding: PacketRevisionReport['changes'][number]) => {
+    flushSync(() => {
+      setReturnReference(finding.reference)
+      setPartFilter(finding.partId)
+      setSelected(finding.reference)
+      setClassification('all')
+      setPendingOnly(false)
+      setSearch('')
+    })
+    const noteField = sectionElement.current!.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Change note"]',
+    )!
+    noteField.focus({ preventScroll: true })
+    noteField.scrollIntoView({ block: 'center' })
+  }
   const noteSnippet = (note: string) => {
     const source = note.normalize('NFC'),
       match = source.toLowerCase().indexOf(partQuery)
@@ -396,22 +423,7 @@ export function ProductionPacketRevisionReview({
                           type="button"
                           className="underline"
                           aria-label={`Review matching note ${finding.reference}`}
-                          onClick={() => {
-                            flushSync(() => {
-                              setReturnReference(finding.reference)
-                              setPartFilter(finding.partId)
-                              setSelected(finding.reference)
-                              setClassification('all')
-                              setPendingOnly(false)
-                              setSearch('')
-                            })
-                            const noteField =
-                              sectionElement.current!.querySelector<HTMLTextAreaElement>(
-                                'textarea[aria-label="Change note"]',
-                              )!
-                            noteField.focus({ preventScroll: true })
-                            noteField.scrollIntoView({ block: 'center' })
-                          }}
+                          onClick={() => openMatchingNote(finding)}
                         >
                           {finding.reference}
                         </button>
@@ -729,6 +741,29 @@ export function ProductionPacketRevisionReview({
               }
             />
           </label>
+          {returnReference === activeReference && matchingNoteIndex >= 0 && (
+            <div>
+              <p>
+                Matching note {matchingNoteIndex + 1} of {matchingNotes.length}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={matchingNoteIndex === 0}
+                onClick={() => openMatchingNote(matchingNotes[matchingNoteIndex - 1])}
+              >
+                Previous matching note
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={matchingNoteIndex === matchingNotes.length - 1}
+                onClick={() => openMatchingNote(matchingNotes[matchingNoteIndex + 1])}
+              >
+                Next matching note
+              </Button>
+            </div>
+          )}
           {returnReference === activeReference && (
             <Button
               variant="outline"
