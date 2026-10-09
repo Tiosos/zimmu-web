@@ -143,3 +143,12 @@ export function saveRevisionReviewView(
     /* View preferences are optional; review content stays in memory. */
   }
 }
+
+export function forgetRevisionReviewViews(): boolean {
+  try {
+    localStorage.removeItem(key)
+    return true
+  } catch {
+    return false
+  }
+}

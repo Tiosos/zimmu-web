@@ -12,7 +12,11 @@ import {
 } from './packetRevisionReview'
 import { downloadBlob } from './download'
 import { buildRevisionReviewHtml } from './buildRevisionReviewHtml'
-import { readRevisionReviewView, saveRevisionReviewView } from './revisionReviewViewPreferences'
+import {
+  readRevisionReviewView,
+  saveRevisionReviewView,
+  forgetRevisionReviewViews,
+} from './revisionReviewViewPreferences'
 import { revisionReviewFilename } from './productionPacketReportFilename'
 
 const displayValue = (value: unknown) =>
@@ -26,6 +30,8 @@ export function ProductionPacketRevisionReview({
   onEditedChange?: (edited: boolean) => void
 }) {
   const [review, setReview] = useState(() => createRevisionReview(report))
+  const [rememberViews, setRememberViews] = useState(true)
+  const [preferenceMessage, setPreferenceMessage] = useState('')
   const [remembered] = useState(() => readRevisionReviewView(report))
   const [selected, setSelected] = useState(remembered.selected)
   const [pendingOnly, setPendingOnly] = useState(remembered.pendingOnly)
@@ -75,6 +81,7 @@ export function ProductionPacketRevisionReview({
     visibleChanges[0]?.reference ??
     ''
   useEffect(() => {
+    if (!rememberViews) return
     saveRevisionReviewView(report, {
       selected: activeReference || selected,
       pendingOnly,
@@ -87,6 +94,7 @@ export function ProductionPacketRevisionReview({
       classification,
     })
   }, [
+    rememberViews,
     report,
     activeReference,
     selected,
@@ -134,8 +142,27 @@ export function ProductionPacketRevisionReview({
       >
         Reset review view
       </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          if (forgetRevisionReviewViews()) {
+            setRememberViews(false)
+            setPreferenceMessage('Remembered review views cleared.')
+          } else {
+            setPreferenceMessage(
+              'Could not clear remembered review views because browser storage is unavailable.',
+            )
+          }
+        }}
+      >
+        Forget remembered review views
+      </Button>
+      {preferenceMessage && <p aria-live="polite">{preferenceMessage}</p>}
       <p>
-        View settings are remembered in this browser for the ten most recently used packet pairs.
+        {rememberViews
+          ? 'View settings are remembered in this browser for the ten most recently used packet pairs.'
+          : 'Preference saving is paused until this review is reopened.'}{' '}
         Review progress still requires the saved JSON file.
       </p>
       <p role="status">

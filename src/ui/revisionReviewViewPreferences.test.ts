@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import { comparisonFixture } from './__fixtures__/packetRevisionComparison'
 import {
+  forgetRevisionReviewViews,
   defaultRevisionReviewView,
   readRevisionReviewView,
   saveRevisionReviewView,
@@ -145,4 +146,23 @@ it('rejects every invalid preference field and oversized or unsupported envelope
     )
     expect(readRevisionReviewView(report)).toEqual(defaults)
   }
+})
+
+it('forgets all stored review views while preserving unrelated browser data and reports denial', () => {
+  const report = comparisonFixture()
+  saveRevisionReviewView(report, { ...defaultRevisionReviewView(report), search: 'first pair' })
+  const other = { ...report, after: { ...report.after, sha256: 'c'.repeat(64) } }
+  saveRevisionReviewView(other, { ...defaultRevisionReviewView(other), search: 'other pair' })
+  localStorage.setItem('unrelated-setting', 'keep')
+  expect(forgetRevisionReviewViews()).toBe(true)
+  expect(localStorage.getItem(key)).toBeNull()
+  expect(localStorage.getItem('unrelated-setting')).toBe('keep')
+  expect(readRevisionReviewView(report)).toEqual(defaultRevisionReviewView(report))
+  expect(readRevisionReviewView(other)).toEqual(defaultRevisionReviewView(other))
+  vi.stubGlobal('localStorage', {
+    removeItem: () => {
+      throw new Error('denied')
+    },
+  })
+  expect(forgetRevisionReviewViews()).toBe(false)
 })

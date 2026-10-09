@@ -298,6 +298,26 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   )
   await dialog.locator('details[data-review-group="outputs"] summary').click()
   await dialog.getByRole('button', { name: 'Clear output search', exact: true }).click()
+  await dialog.getByRole('button', { name: 'Forget remembered review views', exact: true }).click()
+  await expect(dialog.getByText('Remembered review views cleared.', { exact: true })).toBeVisible()
+  await expect(dialog.getByLabel('Change note', { exact: true })).toHaveValue(
+    'Revised length checked',
+  )
+  expect(
+    await page.evaluate(() => localStorage.getItem('zimmu:revision-review-views:v1')),
+  ).toBeNull()
+  await dialog.getByLabel('Find a changed output').fill('paused query')
+  await dialog.getByRole('button', { name: 'Reset review view', exact: true }).click()
+  expect(
+    await page.evaluate(() => localStorage.getItem('zimmu:revision-review-views:v1')),
+  ).toBeNull()
+  await dialog.getByRole('button', { name: 'Compare revisions' }).click()
+  await expect(dialog.getByLabel('Find a changed output')).toHaveValue('')
+  await expect(dialog.getByLabel('Show pending outputs first')).not.toBeChecked()
+  await dialog
+    .getByLabel('Resume revision review')
+    .setInputFiles({ name: 'review.json', mimeType: 'application/json', buffer: reviewBytes })
+
   await expect(dialog.getByRole('status')).toHaveText('No new review edits.')
   await expect(dialog.getByLabel('Change note', { exact: true })).toHaveValue(
     'Revised length checked',
