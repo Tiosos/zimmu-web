@@ -108,8 +108,8 @@ it('saves and resumes independent output and limitation progress without changin
   fireEvent.change(screen.getByLabelText('Limitation note: Unsigned packets'), {
     target: { value: 'External identity check needed' },
   })
-  expect(screen.getByText('Other changed outputs: 1 of 1 acknowledged')).toBeTruthy()
-  expect(screen.getByText('Comparison limitations: 1 of 1 acknowledged')).toBeTruthy()
+  expect(screen.getByText('Other changed outputs: 1 of 1 acknowledged; 0 pending')).toBeTruthy()
+  expect(screen.getByText('Comparison limitations: 1 of 1 acknowledged; 0 pending')).toBeTruthy()
   expect(screen.getByText('0 of 1 detected changes acknowledged.')).toBeTruthy()
   expect(screen.getByText(/Coverage is partial/)).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Download revision review' }))
@@ -122,7 +122,7 @@ it('saves and resumes independent output and limitation progress without changin
   Object.defineProperty(file, 'text', { value: async () => JSON.stringify(saved) })
   fireEvent.change(screen.getByLabelText('Resume revision review'), { target: { files: [file] } })
   await waitFor(() =>
-    expect(screen.getByText('Other changed outputs: 1 of 1 acknowledged')).toBeTruthy(),
+    expect(screen.getByText('Other changed outputs: 1 of 1 acknowledged; 0 pending')).toBeTruthy(),
   )
   expect(
     (screen.getByLabelText('Output note: drawings/shop-drawings.pdf') as HTMLTextAreaElement).value,
@@ -1251,7 +1251,9 @@ it('opens changed outputs and focuses the first unfinished output without editin
   fireEvent.change(screen.getByLabelText('Find a change'), { target: { value: 'missing' } })
   fireEvent.change(screen.getByLabelText('Find a part in summary'), { target: { value: 'part' } })
   edited.mockClear()
-  const details = screen.getByText('Other changed outputs: 1 of 3 acknowledged').closest('details')!
+  const details = screen
+    .getByText('Other changed outputs: 1 of 3 acknowledged; 2 pending')
+    .closest('details')!
   expect(details.open).toBe(false)
   const shortcut = screen.getByRole('button', {
     name: 'Review pending changed outputs',
@@ -1339,7 +1341,7 @@ it('navigates independently to the first unread limitation while preserving revi
   fireEvent.change(screen.getByLabelText('Find a part in summary'), { target: { value: 'part' } })
   edited.mockClear()
   const details = screen
-    .getByText('Comparison limitations: 1 of 3 acknowledged')
+    .getByText('Comparison limitations: 1 of 3 acknowledged; 2 pending')
     .closest('details')!
   expect(details.open).toBe(false)
   const shortcut = screen.getByRole('button', {
@@ -1455,7 +1457,9 @@ it('searches coverage labels and stable references independently with normalized
   fireEvent.change(screen.getByLabelText('Find a changed output'), {
     target: { value: 'does-not-exist' },
   })
-  const outputs = screen.getByText('Other changed outputs: 1 of 2 acknowledged').closest('details')!
+  const outputs = screen
+    .getByText('Other changed outputs: 1 of 2 acknowledged; 1 pending')
+    .closest('details')!
   expect(within(outputs).getByText(/No items match this group search/)).not.toBeNull()
   expect(within(outputs).getByText(/0 of 2 items shown/)).not.toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Clear output search' }))
@@ -1545,4 +1549,45 @@ it('preserves slow resumes while changing coverage searches and distinguishes em
   expect(screen.getAllByText('No items in this group.')).toHaveLength(2)
   expect(screen.queryByText(/No items match this group search/)).toBeNull()
   expect(screen.queryByText(/No pending items in this group/)).toBeNull()
+})
+
+it('shows independent complete pending totals through acknowledgment, search and pending-only filters', () => {
+  const report = comparisonFixture()
+  report.otherChangedFiles = ['first.pdf', 'second.pdf', 'third.pdf']
+  report.limitations = ['Read first', 'Read second']
+  render(<ProductionPacketRevisionReview report={report} />)
+  expect(screen.queryByText('Other changed outputs: 0 of 3 acknowledged; 3 pending')).not.toBeNull()
+  expect(
+    screen.queryByText('Comparison limitations: 0 of 2 acknowledged; 2 pending'),
+  ).not.toBeNull()
+  fireEvent.click(screen.getByLabelText('Acknowledge output: first.pdf'))
+  fireEvent.change(screen.getByLabelText('Find a changed output'), {
+    target: { value: 'no-match' },
+  })
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  expect(screen.queryByText('Other changed outputs: 1 of 3 acknowledged; 2 pending')).not.toBeNull()
+  expect(
+    screen.queryByText('Comparison limitations: 0 of 2 acknowledged; 2 pending'),
+  ).not.toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Clear output search' }))
+  fireEvent.click(screen.getByLabelText('Acknowledge output: second.pdf'))
+  fireEvent.click(screen.getByLabelText('Acknowledge output: third.pdf'))
+  expect(screen.queryByText('Other changed outputs: 3 of 3 acknowledged; 0 pending')).not.toBeNull()
+  fireEvent.click(screen.getByLabelText('Acknowledge limitation: Read first'))
+  expect(
+    screen.queryByText('Comparison limitations: 1 of 2 acknowledged; 1 pending'),
+  ).not.toBeNull()
+  fireEvent.click(screen.getByLabelText('Show pending items only'))
+  fireEvent.click(screen.getByLabelText('Acknowledge output: first.pdf'))
+  expect(screen.queryByText('Other changed outputs: 2 of 3 acknowledged; 1 pending')).not.toBeNull()
+  cleanup()
+  render(
+    <ProductionPacketRevisionReview
+      report={{ ...report, otherChangedFiles: [], limitations: [] }}
+    />,
+  )
+  expect(screen.queryByText('Other changed outputs: 0 of 0 acknowledged; 0 pending')).not.toBeNull()
+  expect(
+    screen.queryByText('Comparison limitations: 0 of 0 acknowledged; 0 pending'),
+  ).not.toBeNull()
 })
