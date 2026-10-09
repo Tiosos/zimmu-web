@@ -1,3 +1,4 @@
+import { PRODUCTION_RELEASE_POLICY } from './productionReleaseGate'
 import { buildPacketPartInventory, packetInventoryJson } from './packetPartInventory'
 import { buildDrawingIndex, buildDrawingIndexCsv } from './buildDrawingIndex'
 import { buildProductionReview } from '../scene/productionReview'
@@ -155,6 +156,7 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
   const source = strToU8(JSON.stringify(captured))
   const manifest = {
     schemaVersion: 1,
+    releaseGate: PRODUCTION_RELEASE_POLICY,
     projectName: captured.projectName,
     capturedAt: snapshot.capturedAt,
     sourceSha256: await digest(source),
