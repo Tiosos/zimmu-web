@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_RELEASE_SOURCE_BYTES,
+  MAX_RELEASES,
   parseReleases,
+  recordRelease,
   releasesForFile,
   sha256Hex,
   verifyReleases,
+  type RecordReleaseInput,
   type UnreadableRelease,
 } from './releases'
-import { makeRelease, readyAssessment } from './__fixtures__/release'
+import { makeRelease, readyAssessment, SOURCE_A } from './__fixtures__/release'
 
 const roundTrip = (value: unknown): unknown => JSON.parse(JSON.stringify(value))
 
@@ -202,5 +205,147 @@ describe('verifyReleases', () => {
       'corrupted',
       'unreadable',
     ])
+  })
+})
+
+const SOURCE_B = SOURCE_A.replace('Kitchen', 'Laundry')
+
+async function inputFor(
+  source: string,
+  overrides: Partial<RecordReleaseInput> = {},
+): Promise<RecordReleaseInput> {
+  return {
+    assessment: readyAssessment('b'.repeat(64)),
+    packetSourceSha256: await sha256Hex(source),
+    liveSource: source,
+    releasedBy: '  Sam  ',
+    releasedAt: new Date('2026-10-14T02:00:00Z'),
+    id: 'new-id',
+    ...overrides,
+  }
+}
+
+describe('recordRelease', () => {
+  it('appends revision 1 with a trimmed name, the exact source and its hash', async () => {
+    const result = await recordRelease([], await inputFor(SOURCE_A))
+    if (!result.ok) throw new Error(result.reason)
+    expect(result.releases).toEqual([result.release])
+    expect(result.release).toEqual({
+      id: 'new-id',
+      revision: 1,
+      releasedBy: 'Sam',
+      identity: 'self-declared',
+      releasedAt: '2026-10-14T02:00:00.000Z',
+      packetSha256: 'b'.repeat(64),
+      sourceSha256: await sha256Hex(SOURCE_A),
+      assessment: readyAssessment('b'.repeat(64)),
+      source: SOURCE_A,
+    })
+  })
+
+  it('numbers the next revision after the highest existing one, gaps included', async () => {
+    const existing = [
+      await makeRelease({ id: 'r4', revision: 4, source: SOURCE_B, packetSha256: 'c'.repeat(64) }),
+      await makeRelease({ id: 'r2', revision: 2, source: SOURCE_B, packetSha256: 'd'.repeat(64) }),
+    ]
+    const before = structuredClone(existing)
+    const result = await recordRelease(existing, await inputFor(SOURCE_A))
+    if (!result.ok) throw new Error(result.reason)
+    expect(result.release.revision).toBe(5)
+    expect(result.releases.slice(0, 2)).toEqual(before)
+    expect(existing).toEqual(before)
+  })
+
+  it.each(['blocked', 'review-required'] as const)('refuses a %s assessment', async (status) => {
+    const input = await inputFor(SOURCE_A)
+    input.assessment = { ...input.assessment, status }
+    expect(await recordRelease([], input)).toEqual({ ok: false, reason: 'not-ready' })
+  })
+
+  it('refuses a manifest digest that is not 64 hex characters', async () => {
+    expect(await recordRelease([], await inputFor(SOURCE_A, { packetSourceSha256: 'abc' }))).toEqual(
+      { ok: false, reason: 'invalid-manifest-hash' },
+    )
+  })
+
+  it('refuses when the live source no longer hashes to the packet manifest', async () => {
+    const input = await inputFor(SOURCE_A, { liveSource: SOURCE_B })
+    expect(await recordRelease([], input)).toEqual({ ok: false, reason: 'source-mismatch' })
+  })
+
+  it('accepts an upper-case manifest digest', async () => {
+    const hash = (await sha256Hex(SOURCE_A)).toUpperCase()
+    const result = await recordRelease([], await inputFor(SOURCE_A, { packetSourceSha256: hash }))
+    expect(result.ok).toBe(true)
+  })
+
+  it.each([
+    ['empty', '   '],
+    ['over 100 characters', 'x'.repeat(101)],
+  ])('refuses a name that is %s', async (_label, releasedBy) => {
+    expect(await recordRelease([], await inputFor(SOURCE_A, { releasedBy }))).toEqual({
+      ok: false,
+      reason: 'invalid-name',
+    })
+  })
+
+  it('accepts a name of exactly 100 characters', async () => {
+    const result = await recordRelease([], await inputFor(SOURCE_A, { releasedBy: 'x'.repeat(100) }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('refuses a source over the size cap before hashing it', async () => {
+    const big = 'x'.repeat(MAX_RELEASE_SOURCE_BYTES + 1)
+    expect(
+      await recordRelease([], await inputFor(big, { packetSourceSha256: 'a'.repeat(64) })),
+    ).toEqual({ ok: false, reason: 'source-too-large' })
+  })
+
+  it('refuses a packet that is already recorded, even when it is not the newest release', async () => {
+    const existing = [
+      await makeRelease({ id: 'r1', revision: 1, packetSha256: 'b'.repeat(64), source: SOURCE_B }),
+      await makeRelease({ id: 'r2', revision: 2, packetSha256: 'e'.repeat(64), source: SOURCE_B }),
+    ]
+    expect(await recordRelease(existing, await inputFor(SOURCE_A))).toEqual({
+      ok: false,
+      reason: 'duplicate-packet',
+    })
+  })
+
+  it('refuses a source identical to the newest release', async () => {
+    const existing = [await makeRelease({ id: 'r1', revision: 1, source: SOURCE_A })]
+    expect(await recordRelease(existing, await inputFor(SOURCE_A))).toEqual({
+      ok: false,
+      reason: 'unchanged',
+    })
+  })
+
+  it('allows A -> B -> A: only the newest release is compared', async () => {
+    const existing = [
+      await makeRelease({ id: 'r1', revision: 1, source: SOURCE_A, packetSha256: 'c'.repeat(64) }),
+      await makeRelease({ id: 'r2', revision: 2, source: SOURCE_B, packetSha256: 'd'.repeat(64) }),
+    ]
+    const result = await recordRelease(existing, await inputFor(SOURCE_A))
+    if (!result.ok) throw new Error(result.reason)
+    expect(result.release.revision).toBe(3)
+  })
+
+  it('refuses a new release once the file already holds the maximum', async () => {
+    const existing = Array.from({ length: MAX_RELEASES }, () => ({
+      unreadable: true as const,
+      raw: null,
+    }))
+    expect(await recordRelease(existing, await inputFor(SOURCE_A))).toEqual({
+      ok: false,
+      reason: 'release-limit',
+    })
+  })
+
+  it('ignores unreadable entries when numbering and comparing', async () => {
+    const existing = [{ unreadable: true as const, raw: { revision: 99 } }]
+    const result = await recordRelease(existing, await inputFor(SOURCE_A))
+    if (!result.ok) throw new Error(result.reason)
+    expect(result.release.revision).toBe(1)
+    expect(result.releases).toHaveLength(2)
   })
 })

@@ -131,3 +131,66 @@ export function verifyReleases(entries: readonly ReleaseEntry[]): Promise<Releas
     }),
   )
 }
+
+export type RecordRefusal =
+  | 'not-ready'
+  | 'invalid-manifest-hash'
+  | 'source-mismatch'
+  | 'invalid-name'
+  | 'duplicate-packet'
+  | 'unchanged'
+  | 'source-too-large'
+  | 'release-limit'
+  | 'stale' // returned by useFile when the list changed while a record was in flight
+
+export interface RecordReleaseInput {
+  assessment: ProductionReleaseRecord
+  packetSourceSha256: string // sourceSha256 from the verified packet manifest
+  liveSource: string // captureProductionSource(...) of the live project
+  releasedBy: string
+  releasedAt?: Date
+  id?: string
+}
+
+export type RecordReleaseResult =
+  | { ok: true; releases: ReleaseEntry[]; release: ProductionRelease }
+  | { ok: false; reason: RecordRefusal }
+
+const refuse = (reason: RecordRefusal): RecordReleaseResult => ({ ok: false, reason })
+
+export async function recordRelease(
+  existing: readonly ReleaseEntry[],
+  input: RecordReleaseInput,
+): Promise<RecordReleaseResult> {
+  const { assessment } = input
+  if (assessment.status !== 'technically-ready') return refuse('not-ready')
+  const packetSource = input.packetSourceSha256.toLowerCase()
+  if (!HEX64.test(packetSource)) return refuse('invalid-manifest-hash')
+  const releasedBy = input.releasedBy.trim()
+  if (releasedBy === '' || releasedBy.length > MAX_RELEASED_BY_LENGTH) return refuse('invalid-name')
+  if (new TextEncoder().encode(input.liveSource).length > MAX_RELEASE_SOURCE_BYTES)
+    return refuse('source-too-large')
+  const sourceSha256 = await sha256Hex(input.liveSource)
+  if (sourceSha256 !== packetSource) return refuse('source-mismatch')
+  const readable = existing.filter(isReadable)
+  if (existing.length >= MAX_RELEASES) return refuse('release-limit')
+  if (readable.some((release) => release.packetSha256 === assessment.packetSha256))
+    return refuse('duplicate-packet')
+  const newest = readable.reduce<ProductionRelease | undefined>(
+    (best, release) => (best === undefined || release.revision > best.revision ? release : best),
+    undefined,
+  )
+  if (newest?.sourceSha256 === sourceSha256) return refuse('unchanged')
+  const release: ProductionRelease = {
+    id: input.id ?? crypto.randomUUID(),
+    revision: (newest?.revision ?? 0) + 1,
+    releasedBy,
+    identity: 'self-declared',
+    releasedAt: new Date(input.releasedAt ?? new Date()).toISOString(),
+    packetSha256: assessment.packetSha256,
+    sourceSha256,
+    assessment,
+    source: input.liveSource,
+  }
+  return { ok: true, releases: [...existing, release], release }
+}
