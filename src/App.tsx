@@ -29,7 +29,7 @@ import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
 import { ManufacturingReadiness } from './ui/ManufacturingReadiness'
 import { ProductionPacketVerifier } from './ui/ProductionPacketVerifier'
-import { captureProductionSource } from './ui/buildProductionPacket'
+import { captureProductionSource, type ProductionPacketInput } from './ui/buildProductionPacket'
 import { ProductionPacketComparison } from './ui/ProductionPacketComparison'
 import { ProjectPanel } from './ui/ProjectPanel'
 import { wallPlacementPose } from './scene/roomGeometry'
@@ -600,6 +600,15 @@ function App() {
     interactionActive,
   ])
 
+  // The exporter and the release recorder must hash identical state, or every real packet reads as
+  // changed since export and recording is silently refused, so both read this one object.
+  const packetInputs: ProductionPacketInput = {
+    scene,
+    projectName,
+    hardwareLibrary,
+    materialLibrary: library,
+  }
+
   if (!fileReady) return null
 
   return (
@@ -887,13 +896,7 @@ function App() {
           recording={
             fileReady
               ? {
-                  captureSource: () =>
-                    captureProductionSource({
-                      scene,
-                      projectName,
-                      hardwareLibrary,
-                      materialLibrary: library,
-                    }),
+                  captureSource: () => captureProductionSource(packetInputs),
                   onRecord: recordRelease,
                   releases,
                   integrity: releaseIntegrity,
@@ -904,10 +907,7 @@ function App() {
       )}
       {readinessOpen && (
         <ManufacturingReadiness
-          scene={scene}
-          projectName={projectName}
-          hardwareLibrary={hardwareLibrary}
-          materialLibrary={library}
+          {...packetInputs}
           onInspect={(selection) => {
             onSelect(selection)
             setReadinessOpen(false)

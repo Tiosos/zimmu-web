@@ -56,6 +56,25 @@ describe('production handoff packet', () => {
     ])
   })
 
+  it('captures the manifest source text with all four inputs populated', async () => {
+    const input = {
+      scene: machiningProject(),
+      projectName: 'Populated',
+      capturedAt,
+      materialLibrary: {
+        Birch: { costPerM2: 42.5, sheet: { length: 2440, width: 1220 }, thickness: 18 },
+      },
+      hardwareLibrary: { hinge: { supplier: 's', partNumber: 'p', unitCost: null } },
+    }
+    const source = captureProductionSource(input)
+    const manifest = JSON.parse(
+      strFromU8(unzipSync(await buildProductionPacket(input))['manifest.json']),
+    )
+    expect(await hash(strToU8(source))).toBe(manifest.sourceSha256)
+    expect(JSON.parse(source).materialLibrary).toEqual(input.materialLibrary)
+    expect(JSON.parse(source).hardwareLibrary).toEqual(input.hardwareLibrary)
+  })
+
   it('reads the manifest source digest only from a verified packet', async () => {
     const input = {
       scene: machiningProject(),
