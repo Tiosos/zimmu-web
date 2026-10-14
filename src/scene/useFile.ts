@@ -484,6 +484,8 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     releasesRef.current = next
     lastSavedReleasesRef.current = next
     setReleases(next)
+    // The previous list's result would otherwise keep every one of its sources alive.
+    setVerified(null)
   }
   const isDirtyRef = useRef(false)
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -755,8 +757,10 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     async (input: RecordReleaseInput): Promise<RecordReleaseResult> => {
       const base = releasesRef.current
       const result = await recordReleaseEntry(base, input)
-      if (!result.ok) return result
+      // Stale first: a refusal computed against a list that has since been replaced describes a
+      // file that is no longer open.
       if (releasesRef.current !== base) return { ok: false, reason: 'stale' }
+      if (!result.ok) return result
       releasesRef.current = result.releases
       setReleases(result.releases)
       isDirtyRef.current = true
