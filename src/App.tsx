@@ -29,6 +29,7 @@ import type { DrawingSheet } from './geom/drawing'
 import { DrawingViewer } from './ui/DrawingViewer'
 import { ManufacturingReadiness } from './ui/ManufacturingReadiness'
 import { ProductionPacketVerifier } from './ui/ProductionPacketVerifier'
+import { captureProductionSource } from './ui/buildProductionPacket'
 import { ProductionPacketComparison } from './ui/ProductionPacketComparison'
 import { ProjectPanel } from './ui/ProjectPanel'
 import { wallPlacementPose } from './scene/roomGeometry'
@@ -369,6 +370,9 @@ function App() {
     setActiveItemId,
     undoProject,
     redoProject,
+    releases,
+    releaseIntegrity,
+    recordRelease,
   } = useFile({
     scene,
     getCameraState: () => cameraStateRef.current,
@@ -878,7 +882,25 @@ function App() {
         <ProductionPacketComparison onClose={() => setPacketComparisonOpen(false)} />
       )}
       {packetVerificationOpen && (
-        <ProductionPacketVerifier onClose={() => setPacketVerificationOpen(false)} />
+        <ProductionPacketVerifier
+          onClose={() => setPacketVerificationOpen(false)}
+          recording={
+            fileReady
+              ? {
+                  captureSource: () =>
+                    captureProductionSource({
+                      scene,
+                      projectName,
+                      hardwareLibrary,
+                      materialLibrary: library,
+                    }),
+                  onRecord: recordRelease,
+                  releases,
+                  integrity: releaseIntegrity,
+                }
+              : undefined
+          }
+        />
       )}
       {readinessOpen && (
         <ManufacturingReadiness

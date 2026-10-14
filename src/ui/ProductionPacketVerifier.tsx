@@ -2,14 +2,27 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { downloadBlob } from './download'
-import { ProductionReleaseGate } from './ProductionReleaseGate'
+import { ProductionReleaseGate, type ReleaseRecording } from './ProductionReleaseGate'
+import { ReleaseList } from './ReleaseList'
+import type { ReleaseEntry, ReleaseIntegrity } from '../scene/releases'
 import {
   MAX_PACKET_BYTES,
   verifyProductionPacket,
   type PacketIntegrityReport,
 } from './verifyProductionPacket'
 
-export function ProductionPacketVerifier({ onClose }: { onClose: () => void }) {
+export interface VerifierRecording extends ReleaseRecording {
+  releases: readonly ReleaseEntry[]
+  integrity: readonly ReleaseIntegrity[] | null
+}
+
+export function ProductionPacketVerifier({
+  onClose,
+  recording,
+}: {
+  onClose: () => void
+  recording?: VerifierRecording
+}) {
   const dialog = useRef<HTMLDialogElement>(null)
   const alive = useRef(false)
   const heading = useId()
@@ -68,6 +81,7 @@ export function ProductionPacketVerifier({ onClose }: { onClose: () => void }) {
         Check a downloaded packet locally for missing or altered files and inconsistent machining or
         drawing references. Your project is unchanged.
       </p>
+      {recording && <ReleaseList releases={recording.releases} integrity={recording.integrity} />}
       <label htmlFor={inputId} className="mb-2 block text-sm font-medium">
         Production packet ZIP
       </label>
@@ -114,7 +128,7 @@ export function ProductionPacketVerifier({ onClose }: { onClose: () => void }) {
             >
               Download verification report
             </Button>
-            {packet && <ProductionReleaseGate packet={packet} />}
+            {packet && <ProductionReleaseGate packet={packet} recording={recording} />}
             <ul className="space-y-3">
               {report.findings.slice(0, 200).map((finding) => (
                 <li key={finding.reference} className="rounded border border-border p-3 text-sm">
