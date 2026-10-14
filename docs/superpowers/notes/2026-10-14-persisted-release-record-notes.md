@@ -8,3 +8,5 @@
 - `source` is stored as a string because 6 dp float rounding on save would otherwise break `sourceSha256`.
 - `releases` sits outside `Scene` and `ProjectStructure` so neither self-containment nor project undo can touch it.
 - Deferred: registration/acknowledgement, withdrawal, open-snapshot-as-copy, verified identity.
+- Max-level review (same day) found nine issues, all verified against the code and folded into the spec: sync `parseFile` vs async hash (verification moved out of parse); integrity wording limited to accidental corruption; malformed entries kept as unreadable instead of failing the file; older-build data loss (future builds save newer files as copy only); dirty tracking by reference and a 16 MiB source cap; file-local revision numbers; explicit refusal cases and A -> B -> A; `source` authoritative over the rounded saved scene; CLAUDE.md needs v27 and v28 history, tree entry and invariants.
+- Deferred: compressing or delta-storing release sources; the size budget is a simple cap for now.
