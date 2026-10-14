@@ -348,4 +348,35 @@ describe('recordRelease', () => {
     expect(result.release.revision).toBe(1)
     expect(result.releases).toHaveLength(2)
   })
+
+  it.each([
+    ['upper-case', 'B'.repeat(64)],
+    ['short', 'abc'],
+  ])('refuses an assessment whose packet digest is %s', async (_label, packetSha256) => {
+    const input = await inputFor(SOURCE_A)
+    input.assessment = { ...input.assessment, packetSha256 }
+    expect(await recordRelease([], input)).toEqual({ ok: false, reason: 'invalid-packet-hash' })
+  })
+
+  it('takes the newest release by highest revision, not by array position', async () => {
+    const existing = [
+      await makeRelease({ id: 'r4', revision: 4, source: SOURCE_A, packetSha256: 'c'.repeat(64) }),
+      await makeRelease({ id: 'r2', revision: 2, source: SOURCE_B, packetSha256: 'd'.repeat(64) }),
+    ]
+    expect(await recordRelease(existing, await inputFor(SOURCE_A))).toEqual({
+      ok: false,
+      reason: 'unchanged',
+    })
+  })
+
+  it('records the last release that fits under the limit', async () => {
+    const existing = Array.from({ length: MAX_RELEASES - 1 }, () => ({
+      unreadable: true as const,
+      raw: null,
+    }))
+    const result = await recordRelease(existing, await inputFor(SOURCE_A))
+    if (!result.ok) throw new Error(result.reason)
+    expect(result.release.revision).toBe(1)
+    expect(result.releases).toHaveLength(MAX_RELEASES)
+  })
 })

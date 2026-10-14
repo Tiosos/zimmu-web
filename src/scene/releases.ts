@@ -135,6 +135,7 @@ export function verifyReleases(entries: readonly ReleaseEntry[]): Promise<Releas
 export type RecordRefusal =
   | 'not-ready'
   | 'invalid-manifest-hash'
+  | 'invalid-packet-hash'
   | 'source-mismatch'
   | 'invalid-name'
   | 'duplicate-packet'
@@ -166,6 +167,7 @@ export async function recordRelease(
   if (assessment.status !== 'technically-ready') return refuse('not-ready')
   const packetSource = input.packetSourceSha256.toLowerCase()
   if (!HEX64.test(packetSource)) return refuse('invalid-manifest-hash')
+  if (!HEX64.test(assessment.packetSha256)) return refuse('invalid-packet-hash')
   const releasedBy = input.releasedBy.trim()
   if (releasedBy === '' || releasedBy.length > MAX_RELEASED_BY_LENGTH) return refuse('invalid-name')
   if (new TextEncoder().encode(input.liveSource).length > MAX_RELEASE_SOURCE_BYTES)
