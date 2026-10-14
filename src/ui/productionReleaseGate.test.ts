@@ -2,7 +2,7 @@ import { beforeAll, afterEach, expect, it, vi } from 'vitest'
 import { strToU8 } from 'fflate'
 import { machiningProject } from '../scene/__fixtures__/machiningProject'
 import { buildProductionPacket } from './buildProductionPacket'
-import { assessProductionRelease } from './productionReleaseGate'
+import { assessProductionRelease, packetSourceSha256 } from './productionReleaseGate'
 import * as integrity from './verifyProductionPacket'
 import { compareProductionPackets } from './compareProductionPackets'
 import { createRevisionReview } from './packetRevisionReview'
@@ -228,4 +228,37 @@ it('blocks an empty production packet even when all reports are clear', async ()
   const record = await assessProductionRelease({ packet, mode: 'initial' })
   expect(record.status).toBe('blocked')
   expect(record.findings.some((f) => f.reference === 'RG:packet-contents')).toBe(true)
+})
+
+const withFiles = (files: Record<string, Uint8Array> | null) =>
+  vi.spyOn(integrity, 'inspectProductionPacket').mockResolvedValue({ integrity: passed, files })
+const manifestWith = (sourceSha256?: unknown) => ({
+  'manifest.json': strToU8(JSON.stringify({ sourceSha256 })),
+})
+const digest = 'ab'.repeat(32)
+
+it('lower-cases an upper-case manifest source digest', async () => {
+  withFiles(manifestWith(digest.toUpperCase()))
+  expect(await packetSourceSha256(packet)).toBe(digest)
+})
+it.each([
+  ['63 characters', digest.slice(1)],
+  ['non-hex', 'g'.repeat(64)],
+  ['a number', 12],
+  ['missing', undefined],
+])('reads no source digest when sourceSha256 is %s', async (_name, value) => {
+  withFiles(manifestWith(value))
+  expect(await packetSourceSha256(packet)).toBeNull()
+})
+it('reads no source digest without a manifest', async () => {
+  withFiles({ 'other.json': strToU8('{}') })
+  expect(await packetSourceSha256(packet)).toBeNull()
+})
+it('reads no source digest from a manifest that is not JSON', async () => {
+  withFiles({ 'manifest.json': strToU8('not json') })
+  expect(await packetSourceSha256(packet)).toBeNull()
+})
+it('reads no source digest when integrity inspection exposed no files', async () => {
+  withFiles(null)
+  expect(await packetSourceSha256(packet)).toBeNull()
 })
