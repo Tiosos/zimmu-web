@@ -169,7 +169,7 @@ export function ProductionReleaseGate({
         Release context{' '}
         <select
           value={mode}
-          disabled={busy}
+          disabled={busy || recordBusy}
           onChange={(event) => {
             reset()
             setMode(event.target.value as 'initial' | 'revision')
@@ -186,7 +186,7 @@ export function ProductionReleaseGate({
             <input
               type="file"
               accept=".zip"
-              disabled={busy}
+              disabled={busy || recordBusy}
               onChange={(event) => {
                 reset()
                 setEarlier(event.target.files?.[0] ?? null)
@@ -198,7 +198,7 @@ export function ProductionReleaseGate({
             <input
               type="file"
               accept=".json"
-              disabled={busy}
+              disabled={busy || recordBusy}
               onChange={(event) => {
                 reset()
                 setReview(event.target.files?.[0] ?? null)
@@ -211,7 +211,7 @@ export function ProductionReleaseGate({
           </p>
         </>
       )}
-      <Button disabled={busy} onClick={() => void assess()}>
+      <Button disabled={busy || recordBusy} onClick={() => void assess()}>
         Assess production release
       </Button>
       <div aria-live="polite">
@@ -272,7 +272,7 @@ export function ProductionReleaseGate({
                 </Button>
               </div>
             )}
-            {recordMessage && <p role="status">{recordMessage}</p>}
+            {recordMessage && <p role={recorded ? 'status' : 'alert'}>{recordMessage}</p>}
             <ul>
               {record.findings.slice(0, 200).map((finding) => (
                 <li key={`${finding.source}:${finding.reference}`} className="my-2 border-t">

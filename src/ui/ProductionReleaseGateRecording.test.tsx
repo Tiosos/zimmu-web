@@ -2,7 +2,7 @@ import { afterEach, beforeAll, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ProductionReleaseGate, type ReleaseRecording } from './ProductionReleaseGate'
 import * as release from './productionReleaseGate'
-import { sha256Hex } from '../scene/releases'
+import { sha256Hex, type RecordRefusal } from '../scene/releases'
 import { readyAssessment, SOURCE_A } from '../scene/__fixtures__/release'
 
 let hash: string
@@ -95,4 +95,109 @@ it('drops the recording controls when the release context changes', async () => 
   await screen.findByRole('button', { name: 'Record release' })
   fireEvent.change(screen.getByLabelText('Release context'), { target: { value: 'revision' } })
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Record release' })).toBeNull())
+})
+
+it('offers recording again when the packet is re-assessed after a successful record', async () => {
+  setup({})
+  fireEvent.change(await screen.findByLabelText('Released by'), { target: { value: 'Sam' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Record release' }))
+  await screen.findByText('Recorded as revision 1.')
+  fireEvent.click(screen.getByRole('button', { name: 'Assess production release' }))
+  expect(await screen.findByRole('button', { name: 'Record release' })).toBeTruthy()
+  expect(screen.getByLabelText('Released by')).toBeTruthy()
+})
+
+// A Record keyed by the union makes the compiler reject a list that misses a refusal.
+const REFUSALS = Object.keys({
+  'not-ready': true,
+  'invalid-manifest-hash': true,
+  'invalid-packet-hash': true,
+  'source-mismatch': true,
+  'invalid-name': true,
+  'duplicate-packet': true,
+  unchanged: true,
+  'source-too-large': true,
+  'release-limit': true,
+  stale: true,
+} satisfies Record<RecordRefusal, true>) as RecordRefusal[]
+
+it.each(REFUSALS)('announces the %s refusal as an alert', async (reason) => {
+  setup({ outcome: { ok: false, reason } })
+  fireEvent.change(await screen.findByLabelText('Released by'), { target: { value: 'Sam' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Record release' }))
+  const alert = await screen.findByRole('alert')
+  expect(alert.textContent?.trim()).toBeTruthy()
+  expect(alert.textContent).not.toContain('undefined')
+  expect(screen.queryByRole('status')).toBeNull()
+})
+
+it('announces a successful record as a status, not an alert', async () => {
+  setup({})
+  fireEvent.change(await screen.findByLabelText('Released by'), { target: { value: 'Sam' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Record release' }))
+  expect((await screen.findByRole('status')).textContent).toBe('Recorded as revision 1.')
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
+it('records the source as it is when Record is clicked, not as it was at assessment', async () => {
+  const later = SOURCE_A.replace('Kitchen', 'Laundry')
+  vi.spyOn(release, 'assessProductionRelease').mockResolvedValue(assessed())
+  vi.spyOn(release, 'packetSourceSha256').mockResolvedValue(hash)
+  const onRecord = vi
+    .fn<ReleaseRecording['onRecord']>()
+    .mockResolvedValue({ ok: false, reason: 'source-mismatch' })
+  const captureSource = vi.fn<() => string>().mockReturnValueOnce(SOURCE_A).mockReturnValue(later)
+  render(
+    <ProductionReleaseGate packet={new Uint8Array([1])} recording={{ captureSource, onRecord }} />,
+  )
+  fireEvent.change(screen.getByLabelText('Release context'), { target: { value: 'initial' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Assess production release' }))
+  fireEvent.change(await screen.findByLabelText('Released by'), { target: { value: 'Sam' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Record release' }))
+  await waitFor(() => expect(onRecord).toHaveBeenCalledTimes(1))
+  expect(onRecord.mock.calls[0][0].liveSource).toBe(later)
+})
+
+it('locks the assessment inputs while a record is in flight', async () => {
+  vi.spyOn(release, 'assessProductionRelease').mockResolvedValue(assessed())
+  vi.spyOn(release, 'packetSourceSha256').mockResolvedValue(hash)
+  let settle!: (result: Awaited<ReturnType<ReleaseRecording['onRecord']>>) => void
+  const onRecord = vi.fn<ReleaseRecording['onRecord']>().mockReturnValue(
+    new Promise((resolve) => {
+      settle = resolve
+    }),
+  )
+  render(
+    <ProductionReleaseGate
+      packet={new Uint8Array([1])}
+      recording={{ captureSource: () => SOURCE_A, onRecord }}
+    />,
+  )
+  const controls = () =>
+    [
+      screen.getByLabelText('Release context'),
+      screen.getByLabelText('Earlier release packet ZIP'),
+      screen.getByLabelText('Saved revision review JSON'),
+      screen.getByRole('button', { name: 'Assess production release' }),
+    ] as (HTMLInputElement | HTMLSelectElement | HTMLButtonElement)[]
+  fireEvent.click(screen.getByRole('button', { name: 'Assess production release' }))
+  fireEvent.change(await screen.findByLabelText('Released by'), { target: { value: 'Sam' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Record release' }))
+  await waitFor(() => expect(onRecord).toHaveBeenCalledTimes(1))
+  expect(controls().map((control) => control.disabled)).toEqual([true, true, true, true])
+  settle({ ok: false, reason: 'stale' })
+  await screen.findByText('The release list changed. Try again.')
+  expect(controls().map((control) => control.disabled)).toEqual([false, false, false, false])
+})
+
+it('does not read the packet source digest when the gate has no recording', async () => {
+  vi.spyOn(release, 'assessProductionRelease').mockResolvedValue(assessed())
+  const digest = vi.spyOn(release, 'packetSourceSha256').mockResolvedValue(hash)
+  render(<ProductionReleaseGate packet={new Uint8Array([1])} />)
+  fireEvent.change(screen.getByLabelText('Release context'), { target: { value: 'initial' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Assess production release' }))
+  await screen.findByText('Technically ready for release')
+  expect(digest).not.toHaveBeenCalled()
+  expect(screen.queryByLabelText('Released by')).toBeNull()
+  expect(screen.queryByRole('alert')).toBeNull()
 })
