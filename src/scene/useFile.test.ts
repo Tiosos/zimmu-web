@@ -20,6 +20,7 @@ import { defaultProject } from './projectStructure'
 import { carcaseBoxes as boxesOf, validateCarcaseParams as validateOf } from './carcaseRoles'
 import { DEFAULT_FRAME_MATERIAL, PRESET_MATERIALS } from './carcasePresets'
 import { roleThicknessFor } from './resolveThickness'
+import { makeRelease } from './__fixtures__/release'
 
 // A pre-v14 file states one thickness per carcase; the v14 migration turns those into material
 // definitions. Every legacy fixture below is 18 mm ply on a 12 mm back, which migrates to exactly
@@ -175,7 +176,7 @@ describe('useFile', () => {
     await act(async () => { await result.current.saveFile() })
     expect(result.current.fileError).toBeNull()
     const text = write.mock.calls[0][0] as string
-    expect(JSON.parse(text).version).toBe(27)
+    expect(JSON.parse(text).version).toBe(FILE_FORMAT_VERSION)
     const reopened = parseFile(text)
     expect(reopened.scene.companyCatalogues).toEqual(scene.companyCatalogues)
     expect(reopened.scene.parts).toEqual(scene.parts)
@@ -254,7 +255,7 @@ describe('useFile', () => {
     expect(result.current.isDirty).toBe(true)
   })
 
-  it.each([24, 25])('suggests a v27 copy when saving a v%s room without rules', async (version) => {
+  it.each([24, 25])('suggests a v28 copy when saving a v%s room without rules', async (version) => {
     const oldHandle = {
       name: 'kitchen.zimmu', queryPermission: vi.fn().mockResolvedValue('granted'),
       getFile: vi.fn().mockResolvedValue({ text: vi.fn().mockResolvedValue(JSON.stringify({
@@ -262,14 +263,14 @@ describe('useFile', () => {
       })) }),
     } as unknown as FileSystemFileHandle
     const write = vi.fn().mockResolvedValue(undefined)
-    const nextHandle = { name: 'kitchen-v27.zimmu', isSameEntry: vi.fn().mockResolvedValue(false),
+    const nextHandle = { name: 'kitchen-v28.zimmu', isSameEntry: vi.fn().mockResolvedValue(false),
       createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }) }
     vi.mocked(idb.readHandle).mockResolvedValue(oldHandle)
     vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(nextHandle))
     const { result } = renderHook(() => useFile(makeInput()))
     await waitFor(() => expect(result.current.fileReady).toBe(true))
     await act(async () => { await result.current.saveFile() })
-    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v27.zimmu' }))
+    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v28.zimmu' }))
     expect(JSON.parse(write.mock.calls[0][0]).version).toBe(FILE_FORMAT_VERSION)
   })
 
@@ -2286,7 +2287,7 @@ describe('v20 face frames', () => {
   // constant itself is asserted. This pin replaces the v19 one: the constant is global, so only the
   // newest value can be asserted.
   it('states the current file format version', () => {
-    expect(FILE_FORMAT_VERSION).toBe(27)
+    expect(FILE_FORMAT_VERSION).toBe(28)
   })
 
   // tsc cannot see this: `base.params` is typed loosely, so a parser that forgot the new slot would
@@ -2334,5 +2335,30 @@ describe('v20 face frames', () => {
     void _omit
     const f = parseFile(fileWith(20, [carcase({ ...PARAMS, frame: FRAME }), undriven]))
     expect(f.scene.components.find((c) => c.id === 'cmp_f')).toMatchObject({ driven: false })
+  })
+})
+
+describe('parseFile releases', () => {
+  const envelope = (releases?: unknown): string =>
+    JSON.stringify({
+      ...FIXTURE,
+      version: FILE_FORMAT_VERSION,
+      project: defaultProject(FIXTURE.scene, 'current'),
+      ...(releases === undefined ? {} : { releases }),
+    })
+
+  it('parses a file without releases and does not invent the field', () => {
+    expect('releases' in parseFile(envelope())).toBe(false)
+  })
+
+  it('keeps recorded releases', async () => {
+    const release = await makeRelease()
+    expect(parseFile(envelope([release])).releases).toEqual([release])
+  })
+
+  it('opens a file whose release entry is damaged and keeps the entry as unreadable', async () => {
+    const good = await makeRelease()
+    const parsed = parseFile(envelope([good, { id: 'broken' }]))
+    expect(parsed.releases).toEqual([good, { unreadable: true, raw: { id: 'broken' } }])
   })
 })

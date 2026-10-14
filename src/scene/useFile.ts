@@ -25,8 +25,9 @@ import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
 import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 import { defaultProject, reconcileProject, type ProjectStructure } from './projectStructure'
+import { parseReleases } from './releases'
 
-export const FILE_FORMAT_VERSION = 27
+export const FILE_FORMAT_VERSION = 28
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -419,10 +420,12 @@ export function parseFile(text: string): ZimmuFile {
   // caller receives a half-valid `ZimmuFile`: malformed input either degrades through an explicit
   // recovery rule above or fails here with a path-aware validation error.
   const repaired = breakComponentCycles(promoteOrphans(scene))
+  const { releases: rawReleases, ...envelope } = raw
   return validateCurrentFile({
-    ...raw,
+    ...envelope,
     scene: repaired,
     project: raw.project === undefined ? defaultProject(repaired, text) : raw.project,
+    ...(rawReleases === undefined ? {} : { releases: parseReleases(rawReleases as unknown) }),
   })
 }
 
