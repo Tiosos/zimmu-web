@@ -124,7 +124,7 @@ change report; unrelated items remain stable.
 2. Freeze the release candidate and hash the exported files. Designer/Draftsperson initiates
    release in Zimmu; the workflow system registers and acknowledges it before Zimmu marks it
    current. Persist revision, releasing identity/time, registration receipt and supersession
-   history. Saving the editable model does not alter the registered snapshot.
+   history. Saving the editable model does not alter the registered snapshot. Slice 1 (2026-10-14, plans/2026-10-14-persisted-release-record.md): a technically-ready release is recorded in the file with a frozen source snapshot and a self-declared releaser; registration, acknowledgement, supersession-on-acknowledgement, withdrawal and open-snapshot-as-copy remain.
 3. Add workflow handoff contract mapping project, Group ID, Item ID, JID and externally assigned
    six-digit cutlist number; one cutlist may group multiple items with shared production/delivery
    progress while installation remains item-specific. Make retry/idempotency, failed-registration
