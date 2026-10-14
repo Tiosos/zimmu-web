@@ -14,7 +14,7 @@
 - Develop on branch `claude/gracious-johnson-vuxgyj`. Never commit to `main`.
 - Commit messages end with the two attribution lines the session requires (`Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` and `Claude-Session: https://claude.ai/code/session_01TnU5R2t1NM2Cdaj4BsNtZh`).
 - Test files that you write or edit are run automatically by a hook; still run the commands shown.
-- Before every commit that touches `.ts/.tsx`: `pnpm typecheck && pnpm lint && pnpm test` (a pre-commit hook also typechecks). Task-level commits may run only the named test file plus `pnpm typecheck`; the full suite runs in Task 8.
+- Before **every** commit run `pnpm typecheck && pnpm lint && pnpm test` and read the result (CLAUDE.md rule; a pre-commit hook also typechecks). The narrower `pnpm vitest run <file>` commands inside each task are for the red/green loop only, never a substitute at commit time.
 - Mutation testing (CLAUDE.md): back the file up with `cp file "$SCRATCHPAD"/name.bak`, never `git checkout` to undo, grep after applying and after restoring, predict which tests fail. Each task that adds a guard lists its mutations.
 
 ---
@@ -99,6 +99,7 @@ Create `src/scene/releases.test.ts`:
 ```ts
 import { describe, expect, it } from 'vitest'
 import {
+  MAX_RELEASE_SOURCE_BYTES,
   parseReleases,
   releasesForFile,
   sha256Hex,
@@ -145,6 +146,36 @@ describe('parseReleases', () => {
   ])('keeps an entry with %s as unreadable, with its raw value', async (_label, patch) => {
     const bad = roundTrip({ ...(await makeRelease()), ...patch })
     expect(parseReleases([bad])).toEqual([{ unreadable: true, raw: bad }])
+  })
+
+  it.each([
+    ['no findings list', { findings: undefined }],
+    ['no limitations list', { limitations: undefined }],
+    ['no revision block', { revision: undefined }],
+    ['an unknown revision mode', { revision: { mode: 'other' } }],
+    ['an approval claim', { formalApproval: 'approved' }],
+  ])('rejects an assessment with %s', async (_label, patch) => {
+    const release = await makeRelease()
+    const bad = roundTrip({ ...release, assessment: { ...release.assessment, ...patch } })
+    expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
+  })
+
+  it('rejects a source over the size cap', async () => {
+    const bad = roundTrip({
+      ...(await makeRelease()),
+      source: 'x'.repeat(MAX_RELEASE_SOURCE_BYTES + 1),
+    })
+    expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
+  })
+
+  it('keeps fields it does not know, so a copy of a newer file loses nothing from an entry', async () => {
+    const release = await makeRelease()
+    const withExtra = roundTrip({
+      ...release,
+      withdrawnAt: '2026-11-01T00:00:00.000Z',
+      assessment: { ...release.assessment, extra: 1 },
+    })
+    expect(parseReleases([withExtra])).toEqual([withExtra])
   })
 
   it('rejects an assessment that is not technically ready', async () => {
@@ -226,6 +257,7 @@ import type { ProductionReleaseRecord } from '../ui/productionReleaseGate'
 
 export const MAX_RELEASE_SOURCE_BYTES = 16 * 1024 * 1024
 export const MAX_RELEASED_BY_LENGTH = 100
+export const MAX_RELEASES = 25 // each entry holds a whole scene; the file must not grow without bound
 
 const HEX64 = /^[a-f0-9]{64}$/
 
@@ -286,10 +318,20 @@ function readRelease(value: unknown): ProductionRelease | null {
     assessment.schemaVersion !== 1 ||
     assessment.kind !== 'production-release-assessment' ||
     assessment.status !== 'technically-ready' ||
-    assessment.packetSha256 !== packetSha256
+    assessment.packetSha256 !== packetSha256 ||
+    assessment.formalApproval !== 'not-recorded' ||
+    !Array.isArray(assessment.findings) ||
+    !Array.isArray(assessment.limitations) ||
+    !isRecord(assessment.revision) ||
+    (assessment.revision.mode !== 'initial' && assessment.revision.mode !== 'revision')
   )
     return null
+  // Chars never exceed bytes, so this never rejects a source the recorder accepted. JSON validity
+  // is not checked: a matching sourceSha256 (verifyReleases) is what ties it to what was captured.
+  if (source.length > MAX_RELEASE_SOURCE_BYTES) return null
+  // Spread first so a field a newer build added survives a save-as-copy; the validated fields win.
   return {
+    ...(value as object),
     id,
     revision,
     releasedBy,
@@ -349,7 +391,9 @@ For each mutation apply, `grep` the change, run `pnpm vitest run src/scene/relea
 3. `=== entry.sourceSha256 ? 'ok' : 'corrupted'` -> `? 'ok' : 'ok'` : expect the verify test fails.
 4. `identity !== 'self-declared'` -> `false` : expect the "verified identity claim" case fails.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Full check, then commit**
+
+Run `pnpm typecheck && pnpm lint && pnpm test` first.
 
 ```bash
 git add src/scene/releases.ts src/scene/releases.test.ts src/scene/__fixtures__/release.ts
@@ -369,7 +413,7 @@ Claude-Session: https://claude.ai/code/session_01TnU5R2t1NM2Cdaj4BsNtZh"
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to the imports of `src/scene/releases.test.ts`: `MAX_RELEASE_SOURCE_BYTES`, `recordRelease`, `type RecordReleaseInput`; and `SOURCE_A` from the fixture. Append:
+Add to the imports of `src/scene/releases.test.ts`: `MAX_RELEASES`, `recordRelease`, `type RecordReleaseInput` (and `SOURCE_A` from the fixture; `MAX_RELEASE_SOURCE_BYTES` is already imported from Task 1). Append:
 
 ```ts
 const SOURCE_B = SOURCE_A.replace('Kitchen', 'Laundry')
@@ -494,6 +538,17 @@ describe('recordRelease', () => {
     expect(result.release.revision).toBe(3)
   })
 
+  it('refuses a new release once the file already holds the maximum', async () => {
+    const existing = Array.from({ length: MAX_RELEASES }, () => ({
+      unreadable: true as const,
+      raw: null,
+    }))
+    expect(await recordRelease(existing, await inputFor(SOURCE_A))).toEqual({
+      ok: false,
+      reason: 'release-limit',
+    })
+  })
+
   it('ignores unreadable entries when numbering and comparing', async () => {
     const existing = [{ unreadable: true as const, raw: { revision: 99 } }]
     const result = await recordRelease(existing, await inputFor(SOURCE_A))
@@ -522,6 +577,7 @@ export type RecordRefusal =
   | 'duplicate-packet'
   | 'unchanged'
   | 'source-too-large'
+  | 'release-limit'
   | 'stale' // returned by useFile when the list changed while a record was in flight
 
 export interface RecordReleaseInput {
@@ -554,6 +610,7 @@ export async function recordRelease(
   const sourceSha256 = await sha256Hex(input.liveSource)
   if (sourceSha256 !== packetSource) return refuse('source-mismatch')
   const readable = existing.filter(isReadable)
+  if (existing.length >= MAX_RELEASES) return refuse('release-limit')
   if (readable.some((release) => release.packetSha256 === assessment.packetSha256))
     return refuse('duplicate-packet')
   const newest = readable.reduce<ProductionRelease | undefined>(
@@ -591,8 +648,11 @@ Back up `releases.ts` first. One mutation at a time, predict, run, restore, grep
 5. `release.packetSha256 === assessment.packetSha256` -> `false` : duplicate-packet test fails.
 6. `newest?.sourceSha256 === sourceSha256` -> `readable.some((r) => r.sourceSha256 === sourceSha256)` : the A -> B -> A test fails (and only it).
 7. `(newest?.revision ?? 0) + 1` -> `readable.length + 1` : the gaps test fails.
+8. `existing.length >= MAX_RELEASES` -> `readable.length >= MAX_RELEASES` : the release-limit test fails (its entries are all unreadable).
 
 - [ ] **Step 6: Commit**
+
+Run `pnpm typecheck && pnpm lint && pnpm test` and confirm all pass before committing.
 
 ```bash
 git add src/scene/releases.ts src/scene/releases.test.ts
@@ -723,6 +783,8 @@ Back up `buildProductionPacket.ts`. Mutate `captureProductionSource` to `JSON.st
 
 - [ ] **Step 6: Commit**
 
+Run `pnpm typecheck && pnpm lint && pnpm test` and confirm all pass before committing.
+
 ```bash
 git add src/ui/buildProductionPacket.ts src/ui/buildProductionPacket.test.ts src/ui/productionReleaseGate.ts
 git commit -m "Expose the packet source capture and manifest source digest
@@ -773,19 +835,6 @@ describe('parseFile releases', () => {
     const good = await makeRelease()
     const parsed = parseFile(envelope([good, { id: 'broken' }]))
     expect(parsed.releases).toEqual([good, { unreadable: true, raw: { id: 'broken' } }])
-  })
-
-  it('keeps a source whose floats a 6 dp rounding would change, and its hash', async () => {
-    const source = JSON.stringify({ scene: { x: 0.1234567891, y: 1 / 3 } })
-    const release = await makeRelease({ source })
-    const text = JSON.stringify(
-      JSON.parse(envelope([release])),
-      (_k, v: unknown) => (typeof v === 'number' ? parseFloat(v.toFixed(6)) : v),
-    )
-    const parsed = parseFile(text).releases!
-    expect(parsed[0]).toMatchObject({ source })
-    expect(await verifyReleases(parsed)).toEqual(['ok'])
-    expect(await sha256Hex(source)).toBe((parsed[0] as { sourceSha256: string }).sourceSha256)
   })
 })
 ```
@@ -838,6 +887,8 @@ Expected: PASS, no type errors. If another test file hard-codes `27` for the for
 Back up `useFile.ts`. Drop the `...(rawReleases ...)` spread: the keeps-releases test fails. Replace `parseReleases(rawReleases as unknown)` with `rawReleases`: the damaged-entry test fails. Restore and grep.
 
 - [ ] **Step 6: Commit**
+
+Run `pnpm typecheck && pnpm lint && pnpm test` and confirm all pass before committing.
 
 ```bash
 git add src/scene/types.ts src/scene/useFile.ts src/scene/useFile.test.ts
@@ -912,6 +963,47 @@ Add imports to `useFile.test.ts`: `readyAssessment`, `SOURCE_A` from `./__fixtur
       const written = JSON.parse(write.mock.calls[1][0] as string)
       expect(written.version).toBe(FILE_FORMAT_VERSION)
       expect(parseFile(write.mock.calls[1][0] as string).releases).toEqual(result.current.releases)
+    })
+
+    it('saves the source byte-for-byte although the serializer rounds numbers to 6 dp', async () => {
+      const write = saveTarget()
+      const source = JSON.stringify({ scene: { x: 0.1234567891, y: 1 / 3 } })
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      await act(async () => {
+        await result.current.recordRelease({
+          assessment: readyAssessment('c'.repeat(64)),
+          packetSourceSha256: await sha256Hex(source),
+          liveSource: source,
+          releasedBy: 'Sam',
+        })
+      })
+      await act(async () => { await result.current.saveFile() })
+      const text = write.mock.calls[0][0] as string
+      expect(JSON.parse(text).releases[0].source).toBe(source)
+      expect(await verifyReleases(parseFile(text).releases!)).toEqual(['ok'])
+    })
+
+    it('does not mark a release recorded during the write as saved', async () => {
+      let finishWrite!: () => void
+      const write = vi.fn().mockImplementation(
+        () => new Promise<void>((resolve) => { finishWrite = resolve }),
+      )
+      const handle = {
+        name: 'slow.zimmu',
+        createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }),
+      }
+      vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(handle))
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      const input = await recordInput('c')
+      let saving!: Promise<void>
+      act(() => { saving = result.current.saveFile() })
+      await waitFor(() => expect(write).toHaveBeenCalled())
+      await act(async () => { await result.current.recordRelease(input) })
+      await act(async () => { finishWrite(); await saving })
+      expect(JSON.parse(write.mock.calls[0][0] as string).releases).toBeUndefined()
+      expect(result.current.isDirty).toBe(true)
     })
 
     it('writes no releases key when none were recorded', async () => {
@@ -1061,6 +1153,9 @@ import {
   const releasesRef = useRef<ReleaseEntry[]>(releases)
   const lastSavedReleasesRef = useRef<ReleaseEntry[]>(releases)
   // Loading replaces the list; it is also the saved baseline, so a freshly opened file is clean.
+  // A plain inner function, exactly like the existing resetProjectHistory, which the same empty-deps
+  // effect and useCallbacks already call without a suppression. If `pnpm lint` still reports a
+  // missing dependency, wrap it in useCallback with [] (it touches only refs and a state setter).
   const applyReleases = (next: ReleaseEntry[]) => {
     releasesRef.current = next
     lastSavedReleasesRef.current = next
@@ -1098,7 +1193,21 @@ and, after the dirty-tracking effect:
       ...(releasesRef.current.length > 0 ? { releases: releasesForFile(releasesRef.current) as ReleaseEntry[] } : {}),
 ```
 
-6. In `saveAsFile` and `saveFile`, next to `lastSavedProjectRef.current = JSON.stringify(projectRef.current)` add `lastSavedReleasesRef.current = releasesRef.current`.
+6. In `saveAsFile` and `saveFile`, snapshot the list at the moment the envelope is serialised, and record **that** as the saved baseline. Directly before `const content = serialize(buildEnvelope())` add `const savedReleases = releasesRef.current`. After the writes succeed, where `lastSavedProjectRef.current = JSON.stringify(projectRef.current)` is set, add:
+
+```ts
+      lastSavedReleasesRef.current = savedReleases
+```
+
+and replace the following `isDirtyRef.current = false` / `setIsDirty(false)` pair with
+
+```ts
+      const stillDirty = releasesRef.current !== savedReleases
+      isDirtyRef.current = stillDirty
+      setIsDirty(stillDirty)
+```
+
+A release recorded while the file was being written is in `releasesRef` but not in the bytes on disk; copying `releasesRef.current` after the awaits would mark it saved and lose it silently.
 
 7. In the startup effect and `openFile`, after `projectNameRef.current = envelope.name` add `applyReleases(envelope.releases ?? [])`, and change `pendingMigrationRef.current = envelope.version < FILE_FORMAT_VERSION` to `envelope.version !== FILE_FORMAT_VERSION` in both places (a newer file may carry fields this build would drop, so it is only ever saved as a copy). In `newFile`, add `applyReleases([])` next to `pendingMigrationRef.current = false`.
 
@@ -1132,9 +1241,13 @@ Back up `useFile.ts`. Predict, run `pnpm vitest run src/scene/useFile.test.ts -t
 2. delete the `releasesRef.current !== lastSavedReleasesRef.current ||` clause: the "dirty then save" test fails at the `isDirty` true assertion, and nothing else.
 3. in `buildEnvelope` replace `releasesForFile(releasesRef.current)` with `releasesRef.current`: the unreadable write-back test fails.
 4. change `envelope.version !== FILE_FORMAT_VERSION` back to `<` in `openFile`/startup: the newer-than-app test fails.
-5. drop `lastSavedReleasesRef.current = releasesRef.current` from `saveFile`: the first test fails at `isDirty false` after the second save.
+5. drop `lastSavedReleasesRef.current = savedReleases` from `saveFile`: the first test fails at `isDirty false` after the second save.
+6. replace `savedReleases` with `releasesRef.current` in the baseline write (the pre-fix behaviour): the mid-write test fails at `isDirty` true.
+7. in `buildEnvelope`, wrap the source in `JSON.parse(source)` before saving (a source that round-trips as an object): the byte-for-byte test fails.
 
 - [ ] **Step 6: Commit**
+
+Run `pnpm typecheck && pnpm lint && pnpm test` and confirm all pass before committing.
 
 ```bash
 git add src/scene/useFile.ts src/scene/useFile.test.ts
@@ -1188,7 +1301,9 @@ it('shows each integrity state, including still checking', async () => {
   const { rerender } = render(
     <ReleaseList releases={[one, { unreadable: true, raw: {} }, two]} integrity={null} />,
   )
+  // An unreadable row is known to be unreadable without waiting for any hash.
   expect(screen.getAllByText('Checking integrity…')).toHaveLength(2)
+  expect(screen.getByText(/Unreadable entry, preserved/)).toBeTruthy()
   rerender(
     <ReleaseList
       releases={[one, { unreadable: true, raw: {} }, two]}
@@ -1197,7 +1312,7 @@ it('shows each integrity state, including still checking', async () => {
   )
   expect(screen.getByText('Integrity check passed')).toBeTruthy()
   expect(screen.getByText(/Integrity check failed/)).toBeTruthy()
-  expect(screen.getByText(/Unreadable entry, kept unchanged/)).toBeTruthy()
+  expect(screen.getByText(/Unreadable entry, preserved/)).toBeTruthy()
 })
 ```
 
@@ -1214,7 +1329,7 @@ import { isReadable, type ReleaseEntry, type ReleaseIntegrity } from '../scene/r
 const INTEGRITY_TEXT: Record<ReleaseIntegrity, string> = {
   ok: 'Integrity check passed',
   corrupted: 'Integrity check failed: the stored snapshot differs from its recorded hash',
-  unreadable: 'Unreadable entry, kept unchanged in the file',
+  unreadable: 'Unreadable entry, preserved in the file as read',
 }
 
 export function ReleaseList({
@@ -1252,7 +1367,13 @@ export function ReleaseList({
                 <p>Snapshot {Math.max(1, Math.round(entry.source.length / 1024))} KiB</p>
               </>
             ) : null}
-            <p>{status === undefined ? 'Checking integrity…' : INTEGRITY_TEXT[status]}</p>
+            <p>
+              {isReadable(entry)
+                ? status === undefined
+                  ? 'Checking integrity…'
+                  : INTEGRITY_TEXT[status]
+                : INTEGRITY_TEXT.unreadable}
+            </p>
           </li>
         ))}
       </ul>
@@ -1271,6 +1392,8 @@ Expected: PASS (3 tests).
 Back up the component. Change `entry.revision === newest` to `true`: the superseded assertion fails. Remove `.reverse()`: the order assertion fails. Restore and grep.
 
 - [ ] **Step 6: Commit**
+
+Run `pnpm typecheck && pnpm lint && pnpm test` and confirm all pass before committing.
 
 ```bash
 git add src/ui/ReleaseList.tsx src/ui/ReleaseList.test.tsx
@@ -1463,6 +1586,7 @@ const REFUSAL_TEXT: Record<RecordRefusal, string> = {
   'duplicate-packet': 'This packet is already recorded as a release.',
   unchanged: 'Nothing has changed since the latest recorded release.',
   'source-too-large': 'The project is too large to record (limit 16 MiB).',
+  'release-limit': 'This file already holds the maximum of 25 recorded releases.',
   stale: 'The release list changed. Try again.',
 }
 ```
@@ -1627,6 +1751,8 @@ Back up `ProductionReleaseGate.tsx`. Predict, run the recording test file, resto
 
 - [ ] **Step 6: Commit**
 
+Run `pnpm typecheck && pnpm lint && pnpm test` and confirm all pass before committing.
+
 ```bash
 git add src/ui src/App.tsx
 git commit -m "Record a technically ready release from the gate dialog
@@ -1649,7 +1775,12 @@ In `e2e/production-packet-integrity.spec.ts`, immediately after the line `expect
 ```ts
   // A packet exported from the unchanged model offers recording exactly when it is technically
   // ready; otherwise recording is not offered at all.
-  const ready = await gate.getByText('Technically ready for release').isVisible()
+  await expect(
+    gate.getByRole('heading', {
+      name: /Release blocked|Release review required|Technically ready for release/,
+    }),
+  ).toBeVisible()
+  const ready = await gate.getByRole('heading', { name: 'Technically ready for release' }).isVisible()
   if (ready) {
     await gate.getByLabel('Released by').fill('E2E Designer')
     await gate.getByRole('button', { name: 'Record release' }).click()
@@ -1687,7 +1818,7 @@ Expected: PASS. Note in the notes file which branch ran (ready or not).
 
 `docs/superpowers/plans/2026-09-29-design-to-manufacturing-architecture.md`, Stage 6 item 2: append the sentence `Slice 1 (2026-10-14, plans/2026-10-14-persisted-release-record.md): a technically-ready release is recorded in the file with a frozen source snapshot and a self-declared releaser; registration, acknowledgement, supersession-on-acknowledgement, withdrawal and open-snapshot-as-copy remain.`
 
-Notes file: append an entry per CLAUDE.md with the e2e result (ready or not-ready branch), the final test counts, any mutation that surprised you, and that `releasesForFile` writes a non-array `releases` value back as a one-element array on first save (stable thereafter).
+Notes file: record that the gate inspects the packet a third time for the manifest digest (accepted: it runs once per deliberate assess click, and reusing the earlier inspection would change `assessProductionRelease`'s API), that unreadable raw entries pass through the 6 dp number replacer on save (hence the UI says "preserved as read", not "unchanged"), and that a save-as-copy of a newer file keeps unknown fields on release entries but not on parts of the file this build does not know. Append an entry per CLAUDE.md with the e2e result (ready or not-ready branch), the final test counts, any mutation that surprised you, and that `releasesForFile` writes a non-array `releases` value back as a one-element array on first save (stable thereafter).
 
 - [ ] **Step 3: Regenerate the structure page**
 

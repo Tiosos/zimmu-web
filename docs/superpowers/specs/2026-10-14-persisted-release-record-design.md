@@ -47,6 +47,7 @@ Size: `source` is the full scene, so the file holds one scene per release. Slice
 3. The name is empty after trimming or over 100 characters.
 4. `packetSha256` is already recorded in any release, or `sourceSha256` equals the **newest** release's (nothing changed since the last release). Only the newest is compared: A -> B -> A is a legitimate new revision, and an empty `releases` array has nothing to collide with.
 5. The captured `source` exceeds 16 MiB.
+6. The file already holds 25 entries (`MAX_RELEASES`; readable or not): each entry is a whole scene, so the file must not grow without bound.
 
 It never mutates an existing entry.
 
@@ -54,8 +55,9 @@ It never mutates an existing entry.
 
 `parseFile` is synchronous and stays so: it validates **structure** only (field types, 64-hex digests, unique `id`/`revision`). Hash checking is async (`crypto.subtle`), so `verifyReleases(releases)` runs after a file loads and its result is held in `useFile` state; the list shows "checking" until it resolves, and a file never waits on it to open.
 
+- A readable entry must carry a complete assessment (findings, limitations, revision block, `formalApproval: 'not-recorded'`) and a source within the size cap; fields this build does not know are kept so a save-as-copy of a newer file loses nothing from an entry. JSON validity of `source` is not checked; the hash ties it to what was captured.
 - A hash mismatch keeps the entry and marks it **corrupted**; nothing is dropped silently.
-- A structurally malformed or duplicate entry does not fail the whole file. It is kept as `{ unreadable: true, raw }`, shown as unreadable, and written back unchanged on save, so one damaged entry neither bricks the project nor destroys the other releases.
+- A structurally malformed or duplicate entry does not fail the whole file. It is kept as `{ unreadable: true, raw }`, shown as unreadable, and preserved as read on save (the serializer's 6 dp number rounding still applies to numbers inside it), so one damaged entry neither bricks the project nor destroys the other releases.
 - The check detects **accidental corruption only**. The digests live in the same editable file as the data they cover, so someone who edits `source` can recompute `sourceSha256`, and `packetSha256`, `assessment` and `releasedBy` are not covered at all. UI wording is "integrity check", never "tamper-proof" or "verified", and the notes say so. Authenticity needs the workflow system's registration receipt (a later slice).
 
 `source` is authoritative. The saved scene is rounded to 6 dp and the frozen `source` is not, so the live scene can never be byte-compared to a release. Reproduction (later) must load from `source`.
@@ -71,7 +73,7 @@ Older builds: a v27 build opening a v28 file drops `releases` on save, because i
 
 ## Tests (written first)
 
-v28 round trip; v27 file loads with no releases; float-heavy source keeps its hash across save/load; corrupted source flagged; malformed and duplicate entries survive a save unchanged and do not block opening; newer-than-app file saves as copy only; dirty tracking reacts to a recorded release but not to a scene edit's cost (reference compare); save after release leaves `source` byte-identical; undo does not remove a release; each refusal rule in `recordRelease`; gate UI states (hidden when blocked or review-required, mismatch message, name required, duplicate). Every guard gets a deliberate mutation per CLAUDE.md. Run typecheck, lint, full suite and the browser packet workflow.
+v28 round trip; v27 file loads with no releases; float-heavy source keeps its hash across save/load; corrupted source flagged; malformed and duplicate entries are preserved by a save and do not block opening; newer-than-app file saves as copy only; dirty tracking reacts to a recorded release but not to a scene edit's cost (reference compare); save after release leaves `source` byte-identical; undo does not remove a release; each refusal rule in `recordRelease`; gate UI states (hidden when blocked or review-required, mismatch message, name required, duplicate). Every guard gets a deliberate mutation per CLAUDE.md. Run typecheck, lint, full suite and the browser packet workflow.
 
 ## Docs
 
