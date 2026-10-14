@@ -25,7 +25,16 @@ import { seedInteriors } from './sectionInterior'
 import type { Section } from './sectionTree'
 import { validateCurrentFile, validateLegacyFileInput } from './fileValidation'
 import { defaultProject, reconcileProject, type ProjectStructure } from './projectStructure'
-import { parseReleases } from './releases'
+import {
+  parseReleases,
+  recordRelease as recordReleaseEntry,
+  releasesForFile,
+  verifyReleases,
+  type RecordReleaseInput,
+  type RecordReleaseResult,
+  type ReleaseEntry,
+  type ReleaseIntegrity,
+} from './releases'
 
 export const FILE_FORMAT_VERSION = 28
 
@@ -56,6 +65,9 @@ export interface UseFileResult {
   setActiveItemId: (id: string) => void
   undoProject: () => void
   redoProject: () => void
+  releases: ReleaseEntry[]
+  releaseIntegrity: ReleaseIntegrity[] | null // null while the hashes are being checked
+  recordRelease: (input: RecordReleaseInput) => Promise<RecordReleaseResult>
 }
 
 function serialize(envelope: ZimmuFile): string {
@@ -460,6 +472,19 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     setProjectHistoryPosition(0)
     setProjectHistorySize(1)
   }
+  const [releases, setReleases] = useState<ReleaseEntry[]>([])
+  const [verified, setVerified] = useState<{
+    releases: ReleaseEntry[]
+    result: ReleaseIntegrity[]
+  } | null>(null)
+  const releasesRef = useRef<ReleaseEntry[]>(releases)
+  const lastSavedReleasesRef = useRef<ReleaseEntry[]>(releases)
+  // Loading replaces the list and is also the saved baseline, so a freshly opened file is clean.
+  const applyReleases = (next: ReleaseEntry[]) => {
+    releasesRef.current = next
+    lastSavedReleasesRef.current = next
+    setReleases(next)
+  }
   const isDirtyRef = useRef(false)
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -481,12 +506,26 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
   useEffect(() => {
     const dirty =
       pendingMigrationRef.current ||
+      releasesRef.current !== lastSavedReleasesRef.current ||
       JSON.stringify(scene) !== lastSavedSceneRef.current ||
       projectNameRef.current !== lastSavedProjectNameRef.current ||
       (lastSavedProjectRef.current !== null && JSON.stringify(project) !== lastSavedProjectRef.current)
     isDirtyRef.current = dirty
     setIsDirty(dirty)
   }, [scene, project])
+
+  useEffect(() => {
+    if (releases.length === 0) return
+    let live = true
+    void verifyReleases(releases).then((result) => {
+      if (live) setVerified({ releases, result })
+    })
+    return () => {
+      live = false
+    }
+  }, [releases])
+  const releaseIntegrity =
+    releases.length === 0 ? [] : verified?.releases === releases ? verified.result : null
 
   useEffect(
     () => () => {
@@ -518,7 +557,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
             lastSavedProjectNameRef.current = envelope.name
             projectRef.current = envelope.project!
             lastSavedProjectRef.current = JSON.stringify(envelope.project)
-            pendingMigrationRef.current = envelope.version < FILE_FORMAT_VERSION
+            pendingMigrationRef.current = envelope.version !== FILE_FORMAT_VERSION
             setProjectState(envelope.project!)
             resetProjectHistory(envelope.project!)
             activeItemIdRef.current = envelope.project!.areas[0].rooms[0].items[0].id
@@ -526,6 +565,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
             createdAtRef.current = envelope.createdAt
             handleRef.current = handle
             projectNameRef.current = envelope.name
+            applyReleases(envelope.releases ?? [])
             setFileName(handle.name)
             setProjectNameState(envelope.name)
             onFileLoadedRef.current(envelope)
@@ -555,6 +595,9 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       camera: getCameraStateRef.current(),
       scene: sceneRef.current,
       project: reconcileProject(projectRef.current, sceneRef.current, activeItemIdRef.current),
+      ...(releasesRef.current.length > 0
+        ? { releases: releasesForFile(releasesRef.current) as ReleaseEntry[] }
+        : {}),
     }
   }
 
@@ -571,6 +614,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
         showError('Choose a different file to preserve the original project')
         return
       }
+      const savedReleases = releasesRef.current
       const content = serialize(buildEnvelope())
       const writable = await handle.createWritable()
       await writable.write(content)
@@ -581,10 +625,13 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       lastSavedSceneRef.current = JSON.stringify(sceneRef.current)
       lastSavedProjectNameRef.current = projectNameRef.current
       lastSavedProjectRef.current = JSON.stringify(projectRef.current)
+      lastSavedReleasesRef.current = savedReleases
       pendingMigrationRef.current = false
-      isDirtyRef.current = false
+      // A release recorded while the file was being written is not in the bytes on disk.
+      const stillDirty = releasesRef.current !== savedReleases
+      isDirtyRef.current = stillDirty
       setFileName(handle.name)
-      setIsDirty(false)
+      setIsDirty(stillDirty)
       setFileError(null)
     } catch (err) {
       if ((err as { name?: string }).name !== 'AbortError') showError('Save failed')
@@ -599,6 +646,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       return
     }
     try {
+      const savedReleases = releasesRef.current
       const content = serialize(buildEnvelope())
       const writable = await handleRef.current.createWritable()
       await writable.write(content)
@@ -607,9 +655,11 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       lastSavedSceneRef.current = JSON.stringify(sceneRef.current)
       lastSavedProjectNameRef.current = projectNameRef.current
       lastSavedProjectRef.current = JSON.stringify(projectRef.current)
+      lastSavedReleasesRef.current = savedReleases
       pendingMigrationRef.current = false
-      isDirtyRef.current = false
-      setIsDirty(false)
+      const stillDirty = releasesRef.current !== savedReleases
+      isDirtyRef.current = stillDirty
+      setIsDirty(stillDirty)
       setFileError(null)
     } catch (err) {
       if ((err as { name?: string }).name !== 'AbortError') showError('Save failed')
@@ -626,7 +676,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       lastSavedProjectNameRef.current = envelope.name
       projectRef.current = envelope.project!
       lastSavedProjectRef.current = JSON.stringify(envelope.project)
-      pendingMigrationRef.current = envelope.version < FILE_FORMAT_VERSION
+      pendingMigrationRef.current = envelope.version !== FILE_FORMAT_VERSION
       setProjectState(envelope.project!)
       resetProjectHistory(envelope.project!)
       activeItemIdRef.current = envelope.project!.areas[0].rooms[0].items[0].id
@@ -634,6 +684,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       createdAtRef.current = envelope.createdAt
       handleRef.current = handle
       projectNameRef.current = envelope.name
+      applyReleases(envelope.releases ?? [])
       await idb.writeHandle(handle)
       setFileName(handle.name)
       setProjectNameState(envelope.name)
@@ -678,6 +729,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     projectRef.current = envelope.project!
     lastSavedProjectRef.current = JSON.stringify(envelope.project)
     pendingMigrationRef.current = false
+    applyReleases([])
     setProjectState(envelope.project!)
     resetProjectHistory(envelope.project!)
     activeItemIdRef.current = envelope.project!.areas[0].rooms[0].items[0].id
@@ -698,6 +750,21 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     isDirtyRef.current = true
     setIsDirty(true)
   }, [])
+
+  const recordRelease = useCallback(
+    async (input: RecordReleaseInput): Promise<RecordReleaseResult> => {
+      const base = releasesRef.current
+      const result = await recordReleaseEntry(base, input)
+      if (!result.ok) return result
+      if (releasesRef.current !== base) return { ok: false, reason: 'stale' }
+      releasesRef.current = result.releases
+      setReleases(result.releases)
+      isDirtyRef.current = true
+      setIsDirty(true)
+      return result
+    },
+    [],
+  )
 
   const setProject = useCallback((value: ProjectStructure) => {
     value = reconcileProject(value, sceneRef.current, activeItemIdRef.current)
@@ -748,5 +815,8 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     setActiveItemId,
     undoProject: () => stepProjectHistory(-1),
     redoProject: () => stepProjectHistory(1),
+    releases,
+    releaseIntegrity,
+    recordRelease,
   }
 }
