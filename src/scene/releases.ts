@@ -40,8 +40,13 @@ export async function sha256Hex(text: string): Promise<string> {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
+const isNullOrHex = (value: unknown): boolean =>
+  value === null || (typeof value === 'string' && HEX64.test(value))
+
 function readRelease(value: unknown): ProductionRelease | null {
   if (!isRecord(value)) return null
+  // A stray key would make isReadable misread a valid entry, and releasesForFile would drop it.
+  if ('unreadable' in value) return null
   const { id, revision, releasedBy, identity, releasedAt, packetSha256, sourceSha256, source } =
     value
   if (typeof id !== 'string' || id === '') return null
@@ -66,9 +71,15 @@ function readRelease(value: unknown): ProductionRelease | null {
     assessment.packetSha256 !== packetSha256 ||
     assessment.formalApproval !== 'not-recorded' ||
     !Array.isArray(assessment.findings) ||
+    !assessment.findings.every(isRecord) ||
     !Array.isArray(assessment.limitations) ||
+    !assessment.limitations.every((item) => typeof item === 'string') ||
+    typeof assessment.assessedAt !== 'string' ||
+    !Number.isFinite(Date.parse(assessment.assessedAt)) ||
     !isRecord(assessment.revision) ||
-    (assessment.revision.mode !== 'initial' && assessment.revision.mode !== 'revision')
+    (assessment.revision.mode !== 'initial' && assessment.revision.mode !== 'revision') ||
+    !isNullOrHex(assessment.revision.beforeSha256) ||
+    !isNullOrHex(assessment.revision.reviewSha256)
   )
     return null
   // Chars never exceed bytes, so this never rejects a source the recorder accepted. JSON validity

@@ -113,6 +113,68 @@ describe('parseReleases', () => {
   })
 })
 
+describe('parseReleases hardening', () => {
+  it.each([[42], [null], [[]]])(
+    'keeps the non-record entry %j as unreadable with its raw value',
+    (raw) => {
+      expect(parseReleases([raw])).toEqual([{ unreadable: true, raw }])
+    },
+  )
+
+  it('keeps an otherwise valid entry carrying an unreadable key whole, and writes it back intact', async () => {
+    const bad = { ...(await makeRelease()), unreadable: true }
+    const parsed = parseReleases([bad])
+    expect(parsed).toEqual([{ unreadable: true, raw: bad }])
+    expect(releasesForFile(parsed)[0]).toBe(bad)
+  })
+
+  it('writes a good entry back as the same object', async () => {
+    const good = await makeRelease()
+    const parsed = parseReleases(roundTrip([good]))
+    expect(releasesForFile(parsed)[0]).toBe(parsed[0])
+  })
+
+  it.each([
+    ['a wrong schemaVersion', { schemaVersion: 2 }],
+    ['a wrong kind', { kind: 'other' }],
+    ['a null finding', { findings: [null] }],
+    ['a numeric finding', { findings: [42] }],
+    ['a non-string limitation', { limitations: [7] }],
+    ['a bad assessedAt', { assessedAt: 'yesterday' }],
+    ['a missing assessedAt', { assessedAt: undefined }],
+    ['a numeric assessedAt', { assessedAt: 2020 }],
+    [
+      'a non-hex beforeSha256',
+      { revision: { mode: 'initial', beforeSha256: 'zz', reviewSha256: null } },
+    ],
+    [
+      'a non-string reviewSha256',
+      { revision: { mode: 'initial', beforeSha256: null, reviewSha256: 5 } },
+    ],
+  ])('rejects an assessment with %s', async (_label, patch) => {
+    const release = await makeRelease()
+    const bad = roundTrip({ ...release, assessment: { ...release.assessment, ...patch } })
+    expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
+  })
+
+  it('rejects a null assessment', async () => {
+    const bad = roundTrip({ ...(await makeRelease()), assessment: null })
+    expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
+  })
+
+  it('accepts hex digests in the revision block', async () => {
+    const release = await makeRelease()
+    const ok = roundTrip({
+      ...release,
+      assessment: {
+        ...release.assessment,
+        revision: { mode: 'revision', beforeSha256: 'a'.repeat(64), reviewSha256: 'b'.repeat(64) },
+      },
+    })
+    expect(parseReleases([ok])[0]).not.toHaveProperty('unreadable')
+  })
+})
+
 describe('releasesForFile', () => {
   it('writes an unreadable entry back as its raw value so reloading never nests it', async () => {
     const good = await makeRelease()
