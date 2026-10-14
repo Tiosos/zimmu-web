@@ -1580,6 +1580,7 @@ type Recordable = 'match' | 'mismatch' | 'no-digest' | null
 const REFUSAL_TEXT: Record<RecordRefusal, string> = {
   'not-ready': 'Only a technically ready packet can be recorded as a release.',
   'invalid-manifest-hash': 'This packet does not carry a valid source digest.',
+  'invalid-packet-hash': 'The release assessment carries no valid packet digest.',
   'source-mismatch':
     'The model changed since this packet was exported. Re-export the packet, then verify it again.',
   'invalid-name': 'Enter who is releasing this (1 to 100 characters).',
