@@ -61,6 +61,19 @@ const list = (value: unknown): unknown[] => {
   return value
 }
 
+// The digest the packet claims for its source. Read only from a packet that passed integrity
+// inspection, because inspectProductionPacket exposes files for passed packets alone.
+export async function packetSourceSha256(packet: Uint8Array): Promise<string | null> {
+  const { files } = await inspectProductionPacket(packet)
+  if (!files?.['manifest.json']) return null
+  try {
+    const value = obj(JSON.parse(strFromU8(files['manifest.json']))).sourceSha256
+    return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value) ? value.toLowerCase() : null
+  } catch {
+    return null
+  }
+}
+
 export async function assessProductionRelease(
   input: ProductionReleaseInput,
 ): Promise<ProductionReleaseRecord> {

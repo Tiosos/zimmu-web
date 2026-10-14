@@ -10,7 +10,12 @@ import { buildCsv, buildDowelCsv } from './buildCsv'
 import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
 import { createReadinessSnapshot } from '../scene/readinessSnapshot'
 import { reconcileScene } from './outputReconciliation'
-import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
+import {
+  buildProductionPacket,
+  captureProductionSource,
+  productionPacketFilename,
+} from './buildProductionPacket'
+import { packetSourceSha256 } from './productionReleaseGate'
 import { machiningProject } from '../scene/__fixtures__/machiningProject'
 import { manufacturingParts } from '../scene/manufacturingPart'
 import { buildMachiningSchedule } from '../scene/machiningSchedule'
@@ -31,6 +36,41 @@ const hash = async (bytes: Uint8Array) =>
   ).join('')
 
 describe('production handoff packet', () => {
+  it('captures the exact text the manifest sourceSha256 covers', async () => {
+    const input = {
+      scene: machiningProject(),
+      projectName: 'Source',
+      capturedAt,
+      materialLibrary: {},
+      hardwareLibrary: { x: { supplier: 's', partNumber: 'p', unitCost: 1.5 } },
+    }
+    const source = captureProductionSource(input)
+    const files = unzipSync(await buildProductionPacket(input))
+    const manifest = JSON.parse(strFromU8(files['manifest.json']))
+    expect(await hash(strToU8(source))).toBe(manifest.sourceSha256)
+    expect(Object.keys(JSON.parse(source))).toEqual([
+      'scene',
+      'projectName',
+      'hardwareLibrary',
+      'materialLibrary',
+    ])
+  })
+
+  it('reads the manifest source digest only from a verified packet', async () => {
+    const input = {
+      scene: machiningProject(),
+      projectName: 'Digest',
+      capturedAt,
+      materialLibrary: {},
+      hardwareLibrary: {},
+    }
+    const packet = await buildProductionPacket(input)
+    expect(await packetSourceSha256(packet)).toBe(
+      await hash(strToU8(captureProductionSource(input))),
+    )
+    expect(await packetSourceSha256(new Uint8Array([1, 2, 3]))).toBeNull()
+  })
+
   it('captures complete machining schedules before asynchronous work and hashes both formats', async () => {
     const scene = machiningProject()
     const expected = buildMachiningSchedule(
