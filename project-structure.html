@@ -599,6 +599,7 @@
 │   │   ├── manufacturingCsv.json
 │   │   ├── manufacturingNest.json
 │   │   ├── manufacturingProject.ts
+│   │   ├── release.ts
 │   │   ├── resolve.ts
 │   │   └── sweep.ts
 │   ├── adjacentFronts.test.ts
@@ -716,6 +717,8 @@
 │   ├── regenerateDrawers.ts
 │   ├── regenerateFaceFrames.test.ts
 │   ├── regenerateFaceFrames.ts
+│   ├── releases.test.ts
+│   ├── releases.ts
 │   ├── resolveJointKind.ts
 │   ├── resolvePlacement.test.ts
 │   ├── resolvePlacement.ts
@@ -863,6 +866,7 @@
 │   ├── ProductionReleaseGate.test.tsx
 │   ├── productionReleaseGate.ts
 │   ├── ProductionReleaseGate.tsx
+│   ├── ProductionReleaseGateRecording.test.tsx
 │   ├── ProductionReviewSection.tsx
 │   ├── ProjectPanel.test.tsx
 │   ├── ProjectPanel.tsx
@@ -870,6 +874,8 @@
 │   ├── reconciliationLocation.test.ts
 │   ├── ReconciliationSection.test.tsx
 │   ├── ReconciliationSection.tsx
+│   ├── ReleaseList.test.tsx
+│   ├── ReleaseList.tsx
 │   ├── revisionReviewViewPreferences.test.ts
 │   ├── revisionReviewViewPreferences.ts
 │   ├── RoomAssessmentPanel.test.tsx
@@ -1553,7 +1559,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->168<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->171<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1752,7 +1758,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-10-matching-note-paging-notes.md
     │   ├── 2026-10-10-matching-note-return-notes.md
     │   ├── 2026-10-10-part-note-search-snippets-notes.md
-    │   └── 2026-10-10-production-release-gate-notes.md
+    │   ├── 2026-10-10-production-release-gate-notes.md
+    │   └── 2026-10-14-persisted-release-record-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1819,7 +1826,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-03-catalogue-impact.md
     │   ├── 2026-10-03-manufacturing-checks-plan.md
     │   ├── 2026-10-03-manufacturing-nesting-labels.md
-    │   └── 2026-10-03-manufacturing-record.md
+    │   ├── 2026-10-03-manufacturing-record.md
+    │   └── 2026-10-14-persisted-release-record.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -1926,7 +1934,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-10-matching-note-paging-design.md
         ├── 2026-10-10-matching-note-return-design.md
         ├── 2026-10-10-part-note-search-snippets-design.md
-        └── 2026-10-10-production-release-gate-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-10-10-production-release-gate-design.md
+        └── 2026-10-14-persisted-release-record-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->

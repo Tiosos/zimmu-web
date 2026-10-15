@@ -34,6 +34,26 @@ test('a downloaded production packet verifies locally and altered files fail', a
   expect(release.packetSha256).toBe(createHash('sha256').update(bytes).digest('hex'))
   expect(release.formalApproval).toBe('not-recorded')
   expect(release.revision.mode).toBe('initial')
+  // A packet exported from the unchanged model offers recording exactly when it is technically
+  // ready; otherwise recording is not offered at all.
+  await expect(
+    gate.getByRole('heading', {
+      name: /Release blocked|Release review required|Technically ready for release/,
+    }),
+  ).toBeVisible()
+  const ready = await gate
+    .getByRole('heading', { name: 'Technically ready for release' })
+    .isVisible()
+  if (ready) {
+    await gate.getByLabel('Released by').fill('E2E Designer')
+    await gate.getByRole('button', { name: 'Record release' }).click()
+    await expect(gate.getByText('Recorded as revision 1.')).toBeVisible()
+    const recorded = dialog.getByRole('region', { name: 'Recorded releases' })
+    await expect(recorded.getByText('E2E Designer (self-declared, unverified)')).toBeVisible()
+    await expect(recorded.getByText('Integrity check passed')).toBeVisible()
+  } else {
+    await expect(gate.getByRole('button', { name: 'Record release' })).toHaveCount(0)
+  }
   const files = unzipSync(bytes)
   files['lists/machining.csv'] = strToU8('Altered machining')
   await input.setInputFiles({

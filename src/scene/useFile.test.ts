@@ -20,6 +20,8 @@ import { defaultProject } from './projectStructure'
 import { carcaseBoxes as boxesOf, validateCarcaseParams as validateOf } from './carcaseRoles'
 import { DEFAULT_FRAME_MATERIAL, PRESET_MATERIALS } from './carcasePresets'
 import { roleThicknessFor } from './resolveThickness'
+import { makeRelease, readyAssessment, SOURCE_A } from './__fixtures__/release'
+import { sha256Hex, verifyReleases, type RecordReleaseResult } from './releases'
 
 // A pre-v14 file states one thickness per carcase; the v14 migration turns those into material
 // definitions. Every legacy fixture below is 18 mm ply on a 12 mm back, which migrates to exactly
@@ -175,7 +177,7 @@ describe('useFile', () => {
     await act(async () => { await result.current.saveFile() })
     expect(result.current.fileError).toBeNull()
     const text = write.mock.calls[0][0] as string
-    expect(JSON.parse(text).version).toBe(27)
+    expect(JSON.parse(text).version).toBe(FILE_FORMAT_VERSION)
     const reopened = parseFile(text)
     expect(reopened.scene.companyCatalogues).toEqual(scene.companyCatalogues)
     expect(reopened.scene.parts).toEqual(scene.parts)
@@ -254,7 +256,7 @@ describe('useFile', () => {
     expect(result.current.isDirty).toBe(true)
   })
 
-  it.each([24, 25])('suggests a v27 copy when saving a v%s room without rules', async (version) => {
+  it.each([24, 25])('suggests a v28 copy when saving a v%s room without rules', async (version) => {
     const oldHandle = {
       name: 'kitchen.zimmu', queryPermission: vi.fn().mockResolvedValue('granted'),
       getFile: vi.fn().mockResolvedValue({ text: vi.fn().mockResolvedValue(JSON.stringify({
@@ -262,14 +264,14 @@ describe('useFile', () => {
       })) }),
     } as unknown as FileSystemFileHandle
     const write = vi.fn().mockResolvedValue(undefined)
-    const nextHandle = { name: 'kitchen-v27.zimmu', isSameEntry: vi.fn().mockResolvedValue(false),
+    const nextHandle = { name: 'kitchen-v28.zimmu', isSameEntry: vi.fn().mockResolvedValue(false),
       createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }) }
     vi.mocked(idb.readHandle).mockResolvedValue(oldHandle)
     vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(nextHandle))
     const { result } = renderHook(() => useFile(makeInput()))
     await waitFor(() => expect(result.current.fileReady).toBe(true))
     await act(async () => { await result.current.saveFile() })
-    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v27.zimmu' }))
+    expect(window.showSaveFilePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'kitchen-v28.zimmu' }))
     expect(JSON.parse(write.mock.calls[0][0]).version).toBe(FILE_FORMAT_VERSION)
   })
 
@@ -1230,6 +1232,431 @@ describe('useFile', () => {
 
     const loaded = vi.mocked(onFileLoaded).mock.calls[0][0] as ZimmuFile
     expect(loaded.scene.parts[0].visible).toBe(false)
+  })
+
+  describe('recorded releases', () => {
+    // Spies on globals are restored here, not at the end of each test: a test that fails part-way
+    // would otherwise leave digests held or warnings captured for every test after it.
+    const cleanups: Array<() => void> = []
+    afterEach(() => {
+      cleanups.splice(0).forEach((cleanup) => cleanup())
+    })
+    const quietWarn = () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      cleanups.push(() => warn.mockRestore())
+    }
+    const recordInput = async (packet: string) => ({
+      assessment: readyAssessment(packet.repeat(64)),
+      packetSourceSha256: await sha256Hex(SOURCE_A),
+      liveSource: SOURCE_A,
+      releasedBy: 'Sam',
+    })
+    const saveTarget = () => {
+      const write = vi.fn().mockResolvedValue(undefined)
+      const handle = {
+        name: 'rel.zimmu',
+        createWritable: vi
+          .fn()
+          .mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }),
+      }
+      vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(handle))
+      return write
+    }
+    const storedFile = (extra: Record<string, unknown>, version = FILE_FORMAT_VERSION) =>
+      ({
+        name: 'stored.zimmu',
+        queryPermission: vi.fn().mockResolvedValue('granted'),
+        getFile: vi.fn().mockResolvedValue({
+          text: vi.fn().mockResolvedValue(
+            JSON.stringify({
+              ...FIXTURE,
+              version,
+              project: defaultProject(FIXTURE.scene, 'current'),
+              ...extra,
+            }),
+          ),
+        }),
+        createWritable: vi.fn(),
+      }) as unknown as FileSystemFileHandle
+
+    it('records a release, marks the project dirty, saves it and clears dirty', async () => {
+      const write = saveTarget()
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      await act(async () => { await result.current.saveFile() })
+      expect(result.current.isDirty).toBe(false)
+      let outcome: Awaited<ReturnType<typeof result.current.recordRelease>> | undefined
+      await act(async () => { outcome = await result.current.recordRelease(await recordInput('c')) })
+      expect(outcome).toMatchObject({ ok: true })
+      expect(result.current.releases).toHaveLength(1)
+      expect(result.current.isDirty).toBe(true)
+      await waitFor(() => expect(result.current.releaseIntegrity).toEqual(['ok']))
+      await act(async () => { await result.current.saveFile() })
+      expect(result.current.isDirty).toBe(false)
+      const written = JSON.parse(write.mock.calls[1][0] as string)
+      expect(written.version).toBe(FILE_FORMAT_VERSION)
+      expect(parseFile(write.mock.calls[1][0] as string).releases).toEqual(result.current.releases)
+    })
+
+    it('saves the source byte-for-byte although the serializer rounds numbers to 6 dp', async () => {
+      const write = saveTarget()
+      const source = JSON.stringify({ scene: { x: 0.1234567891, y: 1 / 3 } })
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      await act(async () => {
+        await result.current.recordRelease({
+          assessment: readyAssessment('c'.repeat(64)),
+          packetSourceSha256: await sha256Hex(source),
+          liveSource: source,
+          releasedBy: 'Sam',
+        })
+      })
+      await act(async () => { await result.current.saveFile() })
+      const text = write.mock.calls[0][0] as string
+      expect(JSON.parse(text).releases[0].source).toBe(source)
+      expect(await verifyReleases(parseFile(text).releases!)).toEqual(['ok'])
+    })
+
+    it('does not mark a release recorded during the write as saved', async () => {
+      let finishWrite!: () => void
+      const write = vi.fn().mockImplementation(
+        () => new Promise<void>((resolve) => { finishWrite = resolve }),
+      )
+      const handle = {
+        name: 'slow.zimmu',
+        createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }),
+      }
+      vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(handle))
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      const input = await recordInput('c')
+      let saving!: Promise<void>
+      act(() => { saving = result.current.saveFile() })
+      await waitFor(() => expect(write).toHaveBeenCalled())
+      await act(async () => { await result.current.recordRelease(input) })
+      await act(async () => { finishWrite(); await saving })
+      expect(JSON.parse(write.mock.calls[0][0] as string).releases).toBeUndefined()
+      expect(result.current.isDirty).toBe(true)
+    })
+
+    it('writes no releases key when none were recorded', async () => {
+      const write = saveTarget()
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      await act(async () => { await result.current.saveFile() })
+      expect('releases' in JSON.parse(write.mock.calls[0][0] as string)).toBe(false)
+    })
+
+    it('restores releases from a stored file without marking it dirty, and verifies them', async () => {
+      const release = await makeRelease()
+      vi.mocked(idb.readHandle).mockResolvedValue(storedFile({ releases: [release] }))
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      expect(result.current.releases).toEqual([release])
+      expect(result.current.isDirty).toBe(false)
+      await waitFor(() => expect(result.current.releaseIntegrity).toEqual(['ok']))
+    })
+
+    it('reports a stored source that no longer matches its hash as corrupted', async () => {
+      const release = await makeRelease()
+      vi.mocked(idb.readHandle).mockResolvedValue(
+        storedFile({ releases: [{ ...release, source: '{"edited":true}' }] }),
+      )
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.releaseIntegrity).toEqual(['corrupted']))
+    })
+
+    it('writes an unreadable entry back unchanged, so reloading does not nest it', async () => {
+      vi.mocked(idb.readHandle).mockResolvedValue(storedFile({ releases: [{ id: 'broken' }] }))
+      const write = vi.fn().mockResolvedValue(undefined)
+      const next = {
+        name: 'copy.zimmu',
+        isSameEntry: vi.fn().mockResolvedValue(false),
+        createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }),
+      }
+      vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(next))
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      expect(result.current.releases).toEqual([{ unreadable: true, raw: { id: 'broken' } }])
+      await act(async () => { await result.current.saveAsFile() })
+      expect(JSON.parse(write.mock.calls[0][0] as string).releases).toEqual([{ id: 'broken' }])
+    })
+
+    it('a second record that started from the same list is stale, not a duplicate revision', async () => {
+      saveTarget()
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      const inputC = await recordInput('c')
+      const inputD = await recordInput('d')
+      let first: unknown
+      let second: unknown
+      await act(async () => {
+        // Both start from the same empty list before either commits.
+        const a = result.current.recordRelease(inputC)
+        const b = result.current.recordRelease(inputD)
+        ;[first, second] = await Promise.all([a, b])
+      })
+      // crypto.subtle does not promise completion order, so either call may commit first.
+      const outcomes = [first, second] as RecordReleaseResult[]
+      expect(outcomes.filter((o) => o.ok)).toHaveLength(1)
+      expect(outcomes.filter((o) => !o.ok)).toEqual([{ ok: false, reason: 'stale' }])
+      expect(result.current.releases).toHaveLength(1)
+    })
+
+    it('keeps the releases array identity across a scene change', async () => {
+      const release = await makeRelease()
+      vi.mocked(idb.readHandle).mockResolvedValue(storedFile({ releases: [release] }))
+      const { result, rerender } = renderHook((props) => useFile(props), {
+        initialProps: makeInput(),
+      })
+      await waitFor(() => expect(result.current.releases).toHaveLength(1))
+      const before = result.current.releases
+      rerender(makeInput({ scene: { ...makeInput().scene, hardware: [] } }))
+      expect(result.current.releases).toBe(before)
+      expect(result.current.isDirty).toBe(false)
+    })
+
+    it('opens a file newer than the app as save-as-copy only', async () => {
+      const oldHandle = storedFile({}, 99)
+      vi.mocked(idb.readHandle).mockResolvedValue(oldHandle)
+      const write = vi.fn().mockResolvedValue(undefined)
+      const next = {
+        name: 'copy.zimmu',
+        isSameEntry: vi.fn().mockResolvedValue(false),
+        createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }),
+      }
+      vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(next))
+      quietWarn()
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      expect(result.current.isDirty).toBe(true)
+      await act(async () => { await result.current.saveFile() })
+      expect(window.showSaveFilePicker).toHaveBeenCalled()
+      expect(oldHandle.createWritable).not.toHaveBeenCalled()
+    })
+
+    it('clears releases on a new file', async () => {
+      const release = await makeRelease()
+      vi.mocked(idb.readHandle).mockResolvedValue(storedFile({ releases: [release] }))
+      vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
+      // The scene the app holds after File -> New, as in the existing newFile test: the mock does not
+      // apply onFileLoaded, and a scene left empty would differ from the seeded snapshot.
+      const { result } = renderHook(() =>
+        useFile(makeInput({ scene: { ...makeInput().scene, materials: { ...PRESET_MATERIALS } } })),
+      )
+      await waitFor(() => expect(result.current.releases).toHaveLength(1))
+      await act(async () => { await result.current.newFile() })
+      expect(result.current.releases).toEqual([])
+      expect(result.current.isDirty).toBe(false)
+    })
+
+    // Holds every crypto.subtle.digest call until released, so a hash in flight can be overtaken
+    // deterministically. Each pending entry starts the real digest when called.
+    const holdDigests = () => {
+      const original = crypto.subtle.digest.bind(crypto.subtle)
+      const pending: Array<() => void> = []
+      const spy = vi
+        .spyOn(crypto.subtle, 'digest')
+        .mockImplementation(
+          (...args: Parameters<SubtleCrypto['digest']>) =>
+            new Promise<ArrayBuffer>((resolve, reject) => {
+              pending.push(() => void original(...args).then(resolve, reject))
+            }),
+        )
+      const releaseAll = () => {
+        spy.mockRestore()
+        pending.splice(0).forEach((start) => start())
+      }
+      cleanups.push(releaseAll)
+      return { pending, releaseAll }
+    }
+
+    it('replaces the list with the opened file\'s releases, clean, and verifies them', async () => {
+      const releaseA = await makeRelease()
+      const releaseB = await makeRelease({ id: 'rel-b', packetSha256: 'b'.repeat(64) })
+      vi.mocked(idb.readHandle).mockResolvedValue(storedFile({ releases: [releaseA] }))
+      vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
+      vi.stubGlobal(
+        'showOpenFilePicker',
+        vi.fn().mockResolvedValue([storedFile({ releases: [releaseB] })]),
+      )
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.releases).toEqual([releaseA]))
+      await act(async () => { await result.current.openFile() })
+      expect(result.current.releases).toEqual([releaseB])
+      expect(result.current.isDirty).toBe(false)
+      await waitFor(() => expect(result.current.releaseIntegrity).toEqual(['ok']))
+    })
+
+    it('opens a file newer than the app through openFile as save-as-copy only', async () => {
+      const newer = storedFile({}, 99)
+      vi.stubGlobal('showOpenFilePicker', vi.fn().mockResolvedValue([newer]))
+      const next = {
+        name: 'copy.zimmu',
+        isSameEntry: vi.fn().mockResolvedValue(false),
+        createWritable: vi
+          .fn()
+          .mockResolvedValue({ write: vi.fn().mockResolvedValue(undefined), close: vi.fn().mockResolvedValue(undefined) }),
+      }
+      vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(next))
+      quietWarn()
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      await act(async () => { await result.current.openFile() })
+      expect(result.current.isDirty).toBe(true)
+      await act(async () => { await result.current.saveFile() })
+      expect(window.showSaveFilePicker).toHaveBeenCalled()
+      expect(newer.createWritable).not.toHaveBeenCalled()
+    })
+
+    it('saveAsFile records the saved releases as the baseline', async () => {
+      saveTarget()
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      const input = await recordInput('c')
+      await act(async () => { await result.current.recordRelease(input) })
+      expect(result.current.isDirty).toBe(true)
+      await act(async () => { await result.current.saveAsFile() })
+      expect(result.current.isDirty).toBe(false)
+    })
+
+    // Writes resolve at once except the one at `slowCall` (0-based), which waits for finishWrite.
+    const slowSaveTarget = (slowCall: number) => {
+      let finishWrite!: () => void
+      let calls = 0
+      const write = vi.fn().mockImplementation(() =>
+        calls++ === slowCall
+          ? new Promise<void>((resolve) => { finishWrite = resolve })
+          : Promise.resolve(),
+      )
+      const handle = {
+        name: 'slow.zimmu',
+        createWritable: vi
+          .fn()
+          .mockResolvedValue({ write, close: vi.fn().mockResolvedValue(undefined) }),
+      }
+      vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(handle))
+      return { write, finish: () => finishWrite() }
+    }
+
+    it('saveAsFile does not mark a release recorded during the write as saved', async () => {
+      const slow = slowSaveTarget(0)
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      const input = await recordInput('c')
+      let saving!: Promise<void>
+      act(() => { saving = result.current.saveAsFile() })
+      await waitFor(() => expect(slow.write).toHaveBeenCalled())
+      await act(async () => { await result.current.recordRelease(input) })
+      await act(async () => { slow.finish(); await saving })
+      expect(JSON.parse(slow.write.mock.calls[0][0] as string).releases).toBeUndefined()
+      expect(result.current.isDirty).toBe(true)
+    })
+
+    it('saveFile to an existing handle does not mark a release recorded during the write as saved', async () => {
+      const slow = slowSaveTarget(1)
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      await act(async () => { await result.current.saveAsFile() })
+      const input = await recordInput('c')
+      let saving!: Promise<void>
+      act(() => { saving = result.current.saveFile() })
+      await waitFor(() => expect(slow.write).toHaveBeenCalledTimes(2))
+      await act(async () => { await result.current.recordRelease(input) })
+      await act(async () => { slow.finish(); await saving })
+      expect(JSON.parse(slow.write.mock.calls[1][0] as string).releases).toBeUndefined()
+      expect(result.current.isDirty).toBe(true)
+    })
+
+    it('reports no integrity while a new list is being hashed, never the previous list\'s result', async () => {
+      const recorded = await makeRelease({ source: '{"a":1}' })
+      vi.mocked(idb.readHandle).mockResolvedValue(
+        storedFile({ releases: [{ ...recorded, source: '{"edited":true}' }] }),
+      )
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.releaseIntegrity).toEqual(['corrupted']))
+      const input = await recordInput('c')
+      const held = holdDigests()
+      let recording!: Promise<RecordReleaseResult>
+      act(() => { recording = result.current.recordRelease(input) })
+      expect(held.pending).toHaveLength(1)
+      await act(async () => {
+        held.pending.shift()!()
+        expect(await recording).toMatchObject({ ok: true })
+      })
+      await waitFor(() => expect(held.pending).toHaveLength(2))
+      expect(result.current.releases).toHaveLength(2)
+      expect(result.current.releaseIntegrity).toBeNull()
+      await act(async () => { held.releaseAll() })
+      await waitFor(() => expect(result.current.releaseIntegrity).toEqual(['corrupted', 'ok']))
+    })
+
+    it('a record in flight when newFile replaces the list is stale, not a refusal against the old list', async () => {
+      const release = await makeRelease()
+      vi.mocked(idb.readHandle).mockResolvedValue(storedFile({ releases: [release] }))
+      vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.releaseIntegrity).toEqual(['ok']))
+      // Against the loaded list this is a duplicate-packet refusal; that list is gone by the time it
+      // resolves, so reporting the refusal would describe a file that is no longer open.
+      const input = {
+        ...(await recordInput('c')),
+        assessment: readyAssessment(release.packetSha256),
+      }
+      const held = holdDigests()
+      let recording!: Promise<RecordReleaseResult>
+      act(() => { recording = result.current.recordRelease(input) })
+      expect(held.pending).toHaveLength(1)
+      await act(async () => { await result.current.newFile() })
+      expect(result.current.releases).toEqual([])
+      let outcome: RecordReleaseResult | undefined
+      await act(async () => {
+        held.releaseAll()
+        outcome = await recording
+      })
+      expect(outcome).toEqual({ ok: false, reason: 'stale' })
+      expect(result.current.releases).toEqual([])
+    })
+
+    it('a record in flight when openFile replaces the list is stale and not added to the new file', async () => {
+      const opened = await makeRelease({ id: 'rel-b', packetSha256: 'b'.repeat(64), source: '{"b":1}' })
+      vi.stubGlobal('showOpenFilePicker', vi.fn().mockResolvedValue([storedFile({ releases: [opened] })]))
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      const input = await recordInput('c')
+      const held = holdDigests()
+      let recording!: Promise<RecordReleaseResult>
+      act(() => { recording = result.current.recordRelease(input) })
+      expect(held.pending).toHaveLength(1)
+      await act(async () => { await result.current.openFile() })
+      let outcome: RecordReleaseResult | undefined
+      await act(async () => {
+        held.releaseAll()
+        outcome = await recording
+      })
+      expect(outcome).toEqual({ ok: false, reason: 'stale' })
+      expect(result.current.releases).toEqual([opened])
+    })
+
+    it('undoing a project edit does not remove a recorded release', async () => {
+      saveTarget()
+      const { result } = renderHook(() => useFile(makeInput()))
+      await waitFor(() => expect(result.current.fileReady).toBe(true))
+      const original = result.current.project
+      act(() => {
+        result.current.setProject({
+          ...original,
+          areas: original.areas.map((area) => ({ ...area, name: 'Kitchen level' })),
+        })
+      })
+      const input = await recordInput('c')
+      await act(async () => { await result.current.recordRelease(input) })
+      const recorded = result.current.releases
+      expect(recorded).toHaveLength(1)
+      act(() => result.current.undoProject())
+      expect(result.current.project.areas[0].name).toBe(original.areas[0].name)
+      expect(result.current.releases).toBe(recorded)
+    })
   })
 })
 
@@ -2286,7 +2713,7 @@ describe('v20 face frames', () => {
   // constant itself is asserted. This pin replaces the v19 one: the constant is global, so only the
   // newest value can be asserted.
   it('states the current file format version', () => {
-    expect(FILE_FORMAT_VERSION).toBe(27)
+    expect(FILE_FORMAT_VERSION).toBe(28)
   })
 
   // tsc cannot see this: `base.params` is typed loosely, so a parser that forgot the new slot would
@@ -2334,5 +2761,30 @@ describe('v20 face frames', () => {
     void _omit
     const f = parseFile(fileWith(20, [carcase({ ...PARAMS, frame: FRAME }), undriven]))
     expect(f.scene.components.find((c) => c.id === 'cmp_f')).toMatchObject({ driven: false })
+  })
+})
+
+describe('parseFile releases', () => {
+  const envelope = (releases?: unknown): string =>
+    JSON.stringify({
+      ...FIXTURE,
+      version: FILE_FORMAT_VERSION,
+      project: defaultProject(FIXTURE.scene, 'current'),
+      ...(releases === undefined ? {} : { releases }),
+    })
+
+  it('parses a file without releases and does not invent the field', () => {
+    expect('releases' in parseFile(envelope())).toBe(false)
+  })
+
+  it('keeps recorded releases', async () => {
+    const release = await makeRelease()
+    expect(parseFile(envelope([release])).releases).toEqual([release])
+  })
+
+  it('opens a file whose release entry is damaged and keeps the entry as unreadable', async () => {
+    const good = await makeRelease()
+    const parsed = parseFile(envelope([good, { id: 'broken' }]))
+    expect(parsed.releases).toEqual([good, { unreadable: true, raw: { id: 'broken' } }])
   })
 })

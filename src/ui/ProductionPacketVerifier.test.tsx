@@ -108,4 +108,21 @@ describe('packet verification UI', () => {
     await Promise.resolve()
     expect(screen.queryByText('Integrity checks passed')).toBeNull()
   })
+  it('lists recorded releases before any packet is chosen', async () => {
+    const { makeRelease } = await import('../scene/__fixtures__/release')
+    const recorded = await makeRelease()
+    render(
+      <ProductionPacketVerifier
+        onClose={() => {}}
+        recording={{
+          captureSource: () => '',
+          onRecord: async () => ({ ok: false, reason: 'stale' }),
+          releases: [recorded],
+          integrity: ['ok'],
+        }}
+      />,
+    )
+    expect(screen.getByRole('region', { name: 'Recorded releases' })).toBeTruthy()
+    expect(screen.getByText('Integrity check passed')).toBeTruthy()
+  })
 })
