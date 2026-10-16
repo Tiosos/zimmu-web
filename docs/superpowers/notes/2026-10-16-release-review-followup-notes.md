@@ -109,3 +109,30 @@ append here.
   which covers the existing unit tests and `e2e/release-source.spec.ts`. The `Map` is a
   performance change no test can distinguish from `find`; only the cap, the toggle and the ids
   the buttons pass were mutation-tested.
+
+## Group 3: release status cost and the second IndexedDB database
+
+- 2026-10-16 — `ReleaseStatus` (mounted for the whole session in App) captured the production
+  source (a `structuredClone` plus `JSON.stringify` of the whole job) and hashed it on every
+  committed scene, project-name or library change, on the main thread. The check now runs on a
+  trailing timer, `RELEASE_CHECK_DELAY_MS = 400`, restarted by every change and cleared on
+  unmount, so a drag or a typed dimension captures once after the edits settle. 400 ms is long
+  enough to cover a burst of keystrokes or drag commits and short enough that the bar catches up
+  before anyone reads it; it is a feel figure, not a measured one. The first check after mount
+  also waits the delay ("Checking changes since release…" meanwhile). The existing `active` flag
+  still discards an older hash finishing after a newer change.
+- 2026-10-16 — While a newer check is pending, the bar keeps the last result only when it was
+  `changed` against the same latest release: "Unreleased changes since revision N" stays
+  practically true across further edits, and dropping to "Checking…" on every keystroke was a
+  flicker. A last `matches` is not kept — the new edit may well have broken the match — and
+  neither is `error` or a result against a different release; those show "Checking…".
+- 2026-10-16 — The obsolete-hash test now waits for the first hash to start before changing the
+  input: with the debounce, an immediate rerender cancels the first check, so the old test no
+  longer reached the out-of-order case at all. The new tests use fake timers and a stubbed
+  `sha256Hex` (a real `crypto.subtle` digest resolves on the real event loop, which fake-timer
+  `waitFor` does not drive). Mutations, predicted and observed: calling `compare()` directly
+  failed the burst, pending-keep and unmount tests (6 captures, 2 hashes, 1 capture); keeping a
+  pending `matches` failed "stops claiming a match" and the existing board-edit test;
+  removing `clearTimeout` failed the burst and unmount tests, and also the obsolete-hash test
+  (the uncancelled first check hashed a second time), which was not predicted but is the same
+  defect; disabling the `active` guard failed the obsolete-hash test.
