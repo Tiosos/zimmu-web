@@ -74,6 +74,11 @@ append here.
   failure is swallowed because nothing is left on screen to report it to. App-level tests mock
   the dialog and count mounts; whether an unmount keeps the draft is the dialog-level test in
   `ReleaseSourceComparison.autosave.test.tsx`.
+- 2026-10-16 — The unmount write would also save a review the user had just confirmed
+  discarding through `canLeave()`, bringing it back on the next open once storage recovered. An
+  accepted discard now calls the hook's `discard()`, which marks that draft by identity so the
+  unmount write skips it; the next edit is a new draft and is saved again, and a new dialog starts
+  with no mark. A cancelled discard and a forced close without a prompt still write on unmount.
 - 2026-10-16 — Resuming from a downloaded report asked `canLeave()`'s "Discard review edits since
   your last report download?", which is about leaving, not replacing, and says nothing about the
   autosaved draft that accepting overwrites on the next autosave. Resume now has its own prompt —

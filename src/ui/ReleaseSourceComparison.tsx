@@ -214,13 +214,17 @@ export function ReleaseSourceComparison({
       )
     )
   }
-  const canLeave = () =>
-    !review ||
-    !hasReviewEdits(review) ||
-    savedReview.current === review ||
-    window.confirm(
-      'Discard review edits since your last report download? Download a report first to keep them.',
+  const canLeave = () => {
+    if (!review || !hasReviewEdits(review) || savedReview.current === review) return true
+    if (
+      !window.confirm(
+        'Discard review edits since your last report download? Download a report first to keep them.',
+      )
     )
+      return false
+    autosave.discard()
+    return true
+  }
   const leave = async (action: () => void) => {
     setLeaveNotice('')
     if (!review || !hasReviewEdits(review) || savedReview.current === review || autosave.saved) {

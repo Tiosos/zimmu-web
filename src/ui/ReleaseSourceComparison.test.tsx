@@ -18,6 +18,7 @@ vi.mock('./useLocalChangeReview', () => ({
     error: 'Storage unavailable in this isolated test.',
     restored: false,
     retry: () => {},
+    discard: () => {},
     flush: async () => false,
   })),
 }))
@@ -520,6 +521,7 @@ async function closingWhileSaving() {
     error: undefined,
     restored: false,
     retry: () => {},
+    discard: () => {},
     flush,
   }))
   const input = inputOf()

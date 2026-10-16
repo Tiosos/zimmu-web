@@ -40,13 +40,9 @@ async function opened() {
   const release = await makeRelease({ source: captureProductionSource(input) })
   input.scene.parts[0].label = 'Unmounted panel'
   const context = await localChangeReviewContext(release, captureProductionSource(input))
+  const close = vi.fn()
   const view = render(
-    <ReleaseSourceComparison
-      release={release}
-      input={input}
-      onClose={vi.fn()}
-      onInspect={vi.fn()}
-    />,
+    <ReleaseSourceComparison release={release} input={input} onClose={close} onInspect={vi.fn()} />,
   )
   await screen.findByText('Local autosave ready.')
   const saved = async () => {
@@ -62,7 +58,7 @@ async function opened() {
     const json = reports.releaseChangeReportJson(report)
     return new File([json], 'review.json', { type: 'application/json' })
   }
-  return { view, saved, reviewJson }
+  return { view, close, saved, reviewJson }
 }
 
 it('keeps an edit made just before the dialog is unmounted', async () => {
@@ -110,4 +106,54 @@ it('leaves the review and its local draft untouched when a resume is cancelled',
   await screen.findByText(/Review resumed from review.json/)
   await screen.findByText('Review draft saved locally.')
   expect((await saved()).reviewer).toBe('Uploaded reviewer')
+})
+
+async function closingAfterFailedSave(discard: boolean) {
+  const opening = await opened()
+  const notes = (value: string) =>
+    fireEvent.change(screen.getByLabelText('Overall review notes'), { target: { value } })
+  notes('Kept earlier')
+  await screen.findByText('Review draft saved locally.')
+  const failure = vi
+    .spyOn(storage, 'writeLocalChangeReview')
+    .mockRejectedValueOnce(new Error('Quota exceeded'))
+  notes('Discarded later')
+  await screen.findByText('Quota exceeded', { exact: false })
+  failure.mockRestore()
+  const confirm = vi.mocked(window.confirm).mockReturnValue(discard)
+  fireEvent.click(screen.getByRole('button', { name: 'Close comparison' }))
+  expect(confirm).toHaveBeenCalledOnce()
+  expect(confirm.mock.calls[0][0]).toMatch(/^Discard review edits/)
+  return { ...opening, notes }
+}
+
+it('does not save a review the user confirmed discarding when the dialog unmounts', async () => {
+  const { view, close, saved } = await closingAfterFailedSave(true)
+  expect(close).toHaveBeenCalledOnce()
+  const write = vi.spyOn(storage, 'writeLocalChangeReview')
+  view.unmount()
+  expect(write).not.toHaveBeenCalled()
+  expect((await saved()).notes).toBe('Kept earlier')
+})
+
+it('keeps the dialog and saves the draft when the discard is cancelled', async () => {
+  const { view, close, saved } = await closingAfterFailedSave(false)
+  expect(close).not.toHaveBeenCalled()
+  expect((screen.getByLabelText('Overall review notes') as HTMLTextAreaElement).value).toBe(
+    'Discarded later',
+  )
+  view.unmount()
+  expect((await saved()).notes).toBe('Discarded later')
+})
+
+it('saves an edit made after a confirmed discard', async () => {
+  const { view, saved, notes } = await closingAfterFailedSave(true)
+  const failure = vi
+    .spyOn(storage, 'writeLocalChangeReview')
+    .mockRejectedValueOnce(new Error('Still full'))
+  notes('Typed after discarding')
+  await screen.findByText('Still full', { exact: false })
+  failure.mockRestore()
+  view.unmount()
+  expect((await saved()).notes).toBe('Typed after discarding')
 })

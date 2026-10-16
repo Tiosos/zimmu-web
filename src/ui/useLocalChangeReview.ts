@@ -70,13 +70,15 @@ export function useLocalChangeReview(
   const context = state.scope === scope ? state.context : undefined
   const unsaved = useRef({ draft, context })
   unsaved.current = { draft, context }
+  // Held by identity, so the next edit, being a new draft, is saved again.
+  const discarded = useRef<ChangeReviewDraft | null>(null)
   // The dialog can be unmounted without its leave guard (the release disappears from the file).
   // A draft whose autosave failed would otherwise exist only in memory.
   useEffect(() => {
     const live = unsaved
     return () => {
       const { draft, context } = live.current
-      if (!context || !draft || saved.current === draft) return
+      if (!context || !draft || saved.current === draft || discarded.current === draft) return
       void (async () => writeLocalChangeReview(packLocalChangeReview(draft, context)))().catch(
         () => {},
       )
@@ -110,6 +112,9 @@ export function useLocalChangeReview(
     error: state.scope === scope ? state.error : undefined,
     restored: state.scope === scope && state.restored,
     retry: () => setRetry((value) => value + 1),
+    discard: () => {
+      discarded.current = unsaved.current.draft
+    },
     // Reads the latest render, so a caller that saw the draft change mid-flush can flush again.
     flush: async () => {
       const { draft, context } = unsaved.current
