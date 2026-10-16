@@ -123,6 +123,8 @@ const roomSpy = vi.hoisted(() => ({ geometry: undefined as RoomGeometry | undefi
 vi.mock('./scene/useFile', () => ({
   useFile: () => ({
     fileReady: true,
+    releases: [],
+    releaseIntegrity: [],
     fileName: null,
     projectName: 'Test',
     project: { id: 'project_test', areas: [{ id: 'area_test', name: 'Area', rooms: [{

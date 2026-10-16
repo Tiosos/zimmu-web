@@ -12,6 +12,9 @@ import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { CabinetEditor, type CabinetTab } from './ui/CabinetEditor'
 import { FileMenu } from './ui/FileMenu'
+import { ReleaseStatus } from './ui/ReleaseStatus'
+import { ReleaseSourceComparison } from './ui/ReleaseSourceComparison'
+import type { ProductionRelease } from './scene/releases'
 import { PlanView } from './ui/PlanView'
 import { anchorForDrop } from './scene/dragAnchor'
 import { turnedInPlace } from './scene/turnCabinet'
@@ -48,6 +51,7 @@ import type {
 const supported = 'showOpenFilePicker' in window
 
 function App() {
+  const [comparisonRelease, setComparisonRelease] = useState<ProductionRelease | null>(null)
   const [importCatalogue, setImportCatalogue] = useState(false)
   const {
     scene,
@@ -668,6 +672,7 @@ function App() {
         mainView={mainView}
         onMainViewChange={setMainView}
       />
+      <ReleaseStatus input={packetInputs} releases={releases} integrity={releaseIntegrity} onReview={() => setPacketVerificationOpen(true)} />
       {projectPanelOpen && (
         <ProjectPanel
           library={library}
@@ -900,10 +905,22 @@ function App() {
                   onRecord: recordRelease,
                   releases,
                   integrity: releaseIntegrity,
+                  onCompare: (release) => {
+                    setPacketVerificationOpen(false)
+                    setComparisonRelease(release)
+                  },
                 }
               : undefined
           }
         />
+      )}
+      {comparisonRelease && releases.includes(comparisonRelease) && releaseIntegrity?.[releases.indexOf(comparisonRelease)] === 'ok' && (
+        <ReleaseSourceComparison release={comparisonRelease} input={packetInputs} onClose={() => setComparisonRelease(null)} onInspect={(id) => {
+          onSelectPart(id)
+          setCabinetTab('3d')
+          setMainView('model')
+          setComparisonRelease(null)
+        }} />
       )}
       {readinessOpen && (
         <ManufacturingReadiness

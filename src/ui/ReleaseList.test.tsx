@@ -1,5 +1,5 @@
-import { afterEach, expect, it } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { afterEach, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ReleaseList } from './ReleaseList'
 import { makeRelease } from '../scene/__fixtures__/release'
 
@@ -44,4 +44,18 @@ it('shows each integrity state, including still checking', async () => {
   expect(screen.getByText('Integrity check passed')).toBeTruthy()
   expect(screen.getByText(/Integrity check failed/)).toBeTruthy()
   expect(screen.getByText(/Unreadable entry, preserved/)).toBeTruthy()
+})
+
+it('offers comparison only for verified releases and passes the chosen snapshot', async () => {
+  const release = await makeRelease()
+  const onCompare = vi.fn()
+  const { rerender } = render(
+    <ReleaseList releases={[release]} integrity={null} onCompare={onCompare} />,
+  )
+  expect(screen.queryByRole('button', { name: /Compare current design/ })).toBeNull()
+  rerender(<ReleaseList releases={[release]} integrity={['corrupted']} onCompare={onCompare} />)
+  expect(screen.queryByRole('button', { name: /Compare current design/ })).toBeNull()
+  rerender(<ReleaseList releases={[release]} integrity={['ok']} onCompare={onCompare} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Compare current design with revision 1' }))
+  expect(onCompare).toHaveBeenCalledWith(release)
 })
