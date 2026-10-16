@@ -1,8 +1,11 @@
-import { expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { machiningProject } from '../scene/__fixtures__/machiningProject'
 import { manufacturingProject } from '../scene/__fixtures__/manufacturingProject'
 import { captureProductionSource, type ProductionPacketInput } from './buildProductionPacket'
 import { compareReleaseSource } from './compareReleaseSource'
+import * as inventories from './packetPartInventory'
+
+afterEach(() => vi.restoreAllMocks())
 
 const inputOf = (): ProductionPacketInput => ({
   scene: machiningProject(),
@@ -156,4 +159,43 @@ it('compares effective stock definitions supplied only by the material library',
       c.fields.some((f) => f.name === 'stock' && f.classification === 'manufacturing'),
     ),
   ).toBe(true)
+})
+
+it('joins inventory parts to their source records by id, not by position', () => {
+  const before = inputOf(),
+    after = structuredClone(before)
+  after.scene.parts[0].color = '#123456'
+  const expected = compare(before, after)
+  expect(expected.changes.find((c) => c.id === after.scene.parts[0].id)!.fields).toContainEqual(
+    expect.objectContaining({ name: 'color', after: '#123456' }),
+  )
+  const original = inventories.buildPacketPartInventory
+  vi.spyOn(inventories, 'buildPacketPartInventory').mockImplementation((records) => {
+    const inventory = original(records)
+    return { ...inventory, parts: [...inventory.parts].reverse() }
+  })
+  expect(compare(before, after)).toEqual(expected)
+})
+
+it('refuses an inventory part that names no source part', () => {
+  const input = inputOf()
+  const original = inventories.buildPacketPartInventory
+  vi.spyOn(inventories, 'buildPacketPartInventory').mockImplementation((records) => {
+    const inventory = original(records)
+    return {
+      ...inventory,
+      parts: [{ ...inventory.parts[0], id: 'ghost' }, ...inventory.parts.slice(1)],
+    }
+  })
+  expect(() => compare(input, input)).toThrow(/ghost/)
+})
+
+it('refuses an inventory that omits a source part', () => {
+  const input = inputOf()
+  const original = inventories.buildPacketPartInventory
+  vi.spyOn(inventories, 'buildPacketPartInventory').mockImplementation((records) => {
+    const inventory = original(records)
+    return { ...inventory, parts: inventory.parts.slice(1) }
+  })
+  expect(() => compare(input, input)).toThrow(/does not cover every source part/)
 })

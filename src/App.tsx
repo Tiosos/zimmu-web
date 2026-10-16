@@ -14,7 +14,7 @@ import { CabinetEditor, type CabinetTab } from './ui/CabinetEditor'
 import { FileMenu } from './ui/FileMenu'
 import { ReleaseStatus } from './ui/ReleaseStatus'
 import { ReleaseSourceComparison } from './ui/ReleaseSourceComparison'
-import type { ProductionRelease } from './scene/releases'
+import { isReadable, type ProductionRelease } from './scene/releases'
 import { PlanView } from './ui/PlanView'
 import { anchorForDrop } from './scene/dragAnchor'
 import { turnedInPlace } from './scene/turnCabinet'
@@ -613,6 +613,15 @@ function App() {
     materialLibrary: library,
   }
 
+  // Matched by id rather than identity: recording a release or reopening the file replaces the
+  // array and re-verifies it, and unmounting the dialog then would cut its review short.
+  const comparisonIndex = comparisonRelease
+    ? releases.findIndex((entry) => isReadable(entry) && entry.id === comparisonRelease.id && entry.sourceSha256 === comparisonRelease.sourceSha256)
+    : -1
+  const comparisonOpen = comparisonIndex >= 0 && (releaseIntegrity === null || releaseIntegrity[comparisonIndex] === 'ok')
+  // Closed, not hidden: reopening a file that holds the release must not bring the dialog back.
+  if (comparisonRelease && !comparisonOpen) setComparisonRelease(null)
+
   if (!fileReady) return null
 
   return (
@@ -914,7 +923,7 @@ function App() {
           }
         />
       )}
-      {comparisonRelease && releases.includes(comparisonRelease) && releaseIntegrity?.[releases.indexOf(comparisonRelease)] === 'ok' && (
+      {comparisonRelease && comparisonOpen && (
         <ReleaseSourceComparison release={comparisonRelease} input={packetInputs} onClose={() => setComparisonRelease(null)} onInspect={(id) => {
           onSelectPart(id)
           setCabinetTab('3d')

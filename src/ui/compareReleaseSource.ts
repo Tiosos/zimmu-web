@@ -7,7 +7,9 @@ import { resolveWorldMatrix } from '../geom/transform'
 import { carcaseHardware } from '../scene/carcaseHardware'
 import { groupHardware } from './groupHardware'
 import { validateCurrentFile } from '../scene/fileValidation'
+import { FILE_FORMAT_VERSION } from '../scene/useFile'
 import { productionLimitIssue } from '../scene/readinessLimits'
+import { canonicalJson } from './canonicalJson'
 
 export interface SourceChange {
   key: string
@@ -29,16 +31,6 @@ export interface SourceComparison {
   otherSourceChanges: string[]
 }
 
-// Object insertion order is immaterial; array order and every recorded value remain significant.
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
-  if (value && typeof value === 'object')
-    return `{${Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`)
-      .join(',')}}`
-  return JSON.stringify(value) ?? 'undefined'
-}
 function readSource(text: string): ProductionPacketInput {
   const input = JSON.parse(text) as ProductionPacketInput
   if (
@@ -55,7 +47,7 @@ function readSource(text: string): ProductionPacketInput {
     throw new Error('The recorded production source is not supported.')
   // Validate without migrating, regenerating or rounding the frozen snapshot.
   validateCurrentFile({
-    version: 28,
+    version: FILE_FORMAT_VERSION,
     name: input.projectName,
     units: 'mm',
     appVersion: '',
@@ -94,8 +86,15 @@ function descriptors(input: ProductionPacketInput): Map<string, Descriptor> {
     if (result.has(key)) throw new Error('The production source contains duplicate identities.')
     result.set(key, descriptor)
   }
-  inventory.parts.forEach((part, index) => {
-    const raw = scene.parts[index]
+  const raws = new Map(scene.parts.map((part) => [part.id, part]))
+  const operations = new Map(records.map((record) => [record.id, record.operations]))
+  if (inventory.parts.length !== scene.parts.length)
+    throw new Error('The part inventory does not cover every source part.')
+  for (const part of inventory.parts) {
+    const raw = raws.get(part.id),
+      instructions = operations.get(part.id)
+    if (!raw || !instructions)
+      throw new Error(`The part inventory names no source part ${JSON.stringify(part.id)}.`)
     const { id, label, ...physical } = part
     add({
       entity: 'part',
@@ -109,10 +108,10 @@ function descriptors(input: ProductionPacketInput): Map<string, Descriptor> {
         visible: raw.visible,
         placement: Array.from(resolveWorldMatrix(raw, byId)),
         cuts: raw.cuts,
-        instructions: records[index].operations,
+        instructions,
       },
     })
-  })
+  }
   for (const item of scene.hardware) {
     const { id, name, linkedPartIds, ...fields } = item
     if (typeof id !== 'string' || typeof name !== 'string' || !Array.isArray(linkedPartIds))
@@ -166,7 +165,7 @@ export function compareReleaseSource(beforeSource: string, afterSource: string):
       .flatMap((name) => {
         const before = old?.fields[name],
           after = next?.fields[name]
-        return canonical(before) === canonical(after)
+        return canonicalJson(before) === canonicalJson(after)
           ? []
           : [
               {
@@ -212,7 +211,7 @@ export function compareReleaseSource(beforeSource: string, afterSource: string):
         after.scene[key as keyof typeof after.scene],
       ]),
   ]
-    .filter(([, a, b]) => canonical(a) !== canonical(b))
+    .filter(([, a, b]) => canonicalJson(a) !== canonicalJson(b))
     .map(([label]) => String(label))
   return { changes, otherSourceChanges }
 }

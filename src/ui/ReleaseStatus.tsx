@@ -8,6 +8,10 @@ import {
 } from '../scene/releases'
 import { captureProductionSource, type ProductionPacketInput } from './buildProductionPacket'
 
+// Capturing clones and stringifies the whole job on the main thread, so a drag or a typed
+// dimension waits until the edits settle instead of hashing every committed change.
+export const RELEASE_CHECK_DELAY_MS = 400
+
 export function ReleaseStatus({
   input,
   releases,
@@ -62,9 +66,10 @@ export function ReleaseStatus({
           status,
         })
     }
-    void compare()
+    const timer = setTimeout(() => void compare(), RELEASE_CHECK_DELAY_MS)
     return () => {
       active = false
+      clearTimeout(timer)
     }
   }, [scene, projectName, hardwareLibrary, materialLibrary, latest, verified])
 
@@ -76,6 +81,10 @@ export function ReleaseStatus({
     comparison.latest === latest
       ? comparison.status
       : null
+  // A pending check may only keep the last 'changed': a stale 'matches' could now be false.
+  const shown =
+    current ??
+    (comparison?.latest === latest && comparison?.status === 'changed' ? 'changed' : null)
   let text = 'No recorded release'
   if (releases.length > 0) {
     if (!latest || releases.some((entry) => !isReadable(entry))) {
@@ -84,13 +93,13 @@ export function ReleaseStatus({
       text = 'Checking release integrity…'
     } else if (!verified) {
       text = 'Release comparison unavailable: latest release integrity failed'
-    } else if (current === 'error') {
+    } else if (shown === 'error') {
       text = 'Release comparison unavailable: source could not be checked'
-    } else if (!current) {
+    } else if (!shown) {
       text = 'Checking changes since release…'
     } else {
       text =
-        current === 'matches'
+        shown === 'matches'
           ? `Matches revision ${latest.revision}`
           : `Unreleased changes since revision ${latest.revision}`
     }

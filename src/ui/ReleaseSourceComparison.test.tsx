@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ReleaseSourceComparison } from './ReleaseSourceComparison'
 import { makeRelease } from '../scene/__fixtures__/release'
 import { machiningProject } from '../scene/__fixtures__/machiningProject'
@@ -7,19 +7,23 @@ import * as downloads from './download'
 import * as reports from './releaseChangeReport'
 import * as resumes from './resumeChangeReview'
 import { compareReleaseSource } from './compareReleaseSource'
+import * as comparisons from './compareReleaseSource'
+import { useLocalChangeReview } from './useLocalChangeReview'
 import { captureProductionSource, type ProductionPacketInput } from './buildProductionPacket'
 
 vi.mock('./useLocalChangeReview', () => ({
-  useLocalChangeReview: () => ({
+  useLocalChangeReview: vi.fn(() => ({
     loading: false,
     saved: false,
     error: 'Storage unavailable in this isolated test.',
     restored: false,
     retry: () => {},
+    discard: () => {},
     flush: async () => false,
-  }),
+  })),
 }))
 
+const defaultHook = vi.mocked(useLocalChangeReview).getMockImplementation()!
 const inputOf = (): ProductionPacketInput => ({
   scene: machiningProject(),
   projectName: 'Kitchen',
@@ -39,6 +43,7 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  vi.mocked(useLocalChangeReview).mockImplementation(defaultHook)
 })
 
 it('shows grouped changes and selects an affected part', async () => {
@@ -157,6 +162,45 @@ it('prevents duplicate exports and cancels delivery after closing', async () => 
   finish(report)
   await new Promise((resolve) => setTimeout(resolve, 0))
   expect(download).not.toHaveBeenCalled()
+})
+
+it('exports from the displayed comparison without comparing the sources again', async () => {
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  input.scene.parts[0].label = 'Exported panel'
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  const compare = vi.spyOn(comparisons, 'compareReleaseSource')
+  fireEvent.click(screen.getByRole('button', { name: 'Download change report JSON' }))
+  await vi.waitFor(() => expect(download).toHaveBeenCalledOnce())
+  expect(compare).not.toHaveBeenCalled()
+  expect(JSON.parse(download.mock.calls[0][0] as string).changes).toEqual(
+    compareReleaseSource(release.source, captureProductionSource(input)).changes,
+  )
+})
+
+it('hands local autosave the displayed comparison', async () => {
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  input.scene.parts[0].label = 'Autosaved panel'
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  const [, source, , , comparison] = vi.mocked(useLocalChangeReview).mock.lastCall!
+  expect(source).toBe(captureProductionSource(input))
+  expect(comparison).toEqual(compareReleaseSource(release.source, source!))
 })
 
 it('keeps notes for identical sources and never applies them to a changed comparison', async () => {
@@ -319,6 +363,33 @@ it('keeps current notes on invalid input or cancelled replacement, and can retry
   expect((screen.getByLabelText('Reviewer name') as HTMLInputElement).value).toBe('Saved reviewer')
 })
 
+it('asks before a resume replaces edits, naming the local draft, and never for an untouched review', async () => {
+  const { input, release, json } = await savedReviewFixture()
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  fireEvent.change(screen.getByLabelText('Reviewer name'), { target: { value: 'Current' } })
+  chooseReview(reviewFile(json))
+  await screen.findByText('Resume cancelled. Your current review was kept.')
+  expect(confirm).toHaveBeenCalledOnce()
+  expect(confirm.mock.calls[0][0]).toMatch(
+    /^Replace your current review with the uploaded report\?/,
+  )
+  expect(confirm.mock.calls[0][0]).toMatch(/saved in this browser will be replaced too/)
+  expect(confirm.mock.calls[0][0]).not.toMatch(/Discard review edits since your last report/)
+  fireEvent.change(screen.getByLabelText('Reviewer name'), { target: { value: '' } })
+  confirm.mockClear()
+  chooseReview(reviewFile(json))
+  await screen.findByText(/Review resumed from review.json/)
+  expect(confirm).not.toHaveBeenCalled()
+})
+
 it('rejects an oversized file before reading it and recovers from file-read errors', async () => {
   const { input, release, json } = await savedReviewFixture()
   const read = vi.fn(async () => json)
@@ -439,4 +510,123 @@ it('does not overwrite a newer review edit if a queued change arrives during loa
   expect(
     screen.getByText(/Review could not be resumed:.*comparison or review changed while loading/),
   ).toBeTruthy()
+})
+
+async function closingWhileSaving() {
+  const pending: ((kept: boolean) => void)[] = []
+  const flush = vi.fn(() => new Promise<boolean>((resolve) => pending.push(resolve)))
+  vi.mocked(useLocalChangeReview).mockImplementation(() => ({
+    loading: false,
+    saved: false,
+    error: undefined,
+    restored: false,
+    retry: () => {},
+    discard: () => {},
+    flush,
+  }))
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  input.scene.parts[0].label = 'Saving panel'
+  const close = vi.fn()
+  render(
+    <ReleaseSourceComparison release={release} input={input} onClose={close} onInspect={vi.fn()} />,
+  )
+  const type = (value: string) =>
+    fireEvent.change(screen.getByLabelText('Reviewer name'), { target: { value } })
+  let settled = 0
+  const settle = async (kept: boolean) => {
+    await vi.waitFor(() => expect(pending.length).toBeGreaterThan(settled))
+    await act(async () => pending[settled++](kept))
+  }
+  return { close, flush, type, settle }
+}
+
+it('saves again and closes when the review changes during the save before closing', async () => {
+  const { close, flush, type, settle } = await closingWhileSaving()
+  type('Pat')
+  fireEvent.click(screen.getByRole('button', { name: 'Close comparison' }))
+  type('Pat Lee')
+  await settle(true)
+  expect(close).not.toHaveBeenCalled()
+  await settle(true)
+  expect(flush).toHaveBeenCalledTimes(2)
+  expect(close).toHaveBeenCalledOnce()
+})
+
+it('says so, rather than doing nothing, when the review keeps changing while it is saved', async () => {
+  const { close, flush, type, settle } = await closingWhileSaving()
+  type('A')
+  fireEvent.click(screen.getByRole('button', { name: 'Close comparison' }))
+  for (const value of ['AB', 'ABC', 'ABCD']) {
+    type(value)
+    await settle(true)
+  }
+  expect(flush).toHaveBeenCalledTimes(3)
+  expect(close).not.toHaveBeenCalled()
+  expect(
+    screen
+      .getByText('Your review changed while it was being saved. Try again.')
+      .getAttribute('role'),
+  ).toBe('status')
+  fireEvent.click(screen.getByRole('button', { name: 'Close comparison' }))
+  await settle(true)
+  expect(close).toHaveBeenCalledOnce()
+  expect(screen.queryByText('Your review changed while it was being saved. Try again.')).toBeNull()
+})
+
+it('caps the part buttons on a finding that links many parts, with a toggle for the rest', async () => {
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  const template = input.scene.parts[0]
+  const bulk = Array.from({ length: 30 }, (_, i) => ({
+    ...template,
+    id: `bulk-${i}`,
+    label: `Bulk ${i}`,
+    visible: true,
+  }))
+  input.scene.parts.push(...bulk)
+  const real = compareReleaseSource(release.source, captureProductionSource(inputOf()))
+  vi.spyOn(comparisons, 'compareReleaseSource').mockReturnValue({
+    ...real,
+    changes: [
+      {
+        key: 'hardware:generated:cabinet',
+        entity: 'hardware',
+        id: 'generated:cabinet',
+        label: 'Cabinet: Hinge',
+        change: 'modified',
+        classification: 'manufacturing',
+        partIds: bulk.map((part) => part.id),
+        fields: [],
+      },
+    ],
+  })
+  const inspect = vi.fn()
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={inspect}
+    />,
+  )
+  const finding = screen.getByRole('region', { name: 'manufacturing changes' })
+  const partButtons = () =>
+    within(finding)
+      .queryAllByRole('button')
+      .filter((button) => /^Show Bulk \d+$/.test(button.textContent ?? ''))
+  expect(partButtons().map((button) => button.textContent)).toEqual(
+    ['Bulk 0', 'Bulk 1', 'Bulk 2', 'Bulk 3', 'Bulk 4'].map((label) => `Show ${label}`),
+  )
+  fireEvent.click(within(finding).getByRole('button', { name: 'Show Bulk 1' }))
+  await vi.waitFor(() => expect(inspect).toHaveBeenCalledWith('bulk-1'))
+  const more = within(finding).getByRole('button', { name: 'Show 25 more parts' })
+  expect(more.getAttribute('aria-expanded')).toBe('false')
+  fireEvent.click(more)
+  expect(partButtons()).toHaveLength(30)
+  expect(partButtons()[29].textContent).toBe('Show Bulk 29')
+  const fewer = within(finding).getByRole('button', { name: 'Show fewer parts' })
+  expect(fewer.getAttribute('aria-expanded')).toBe('true')
+  fireEvent.click(fewer)
+  expect(partButtons()).toHaveLength(5)
 })

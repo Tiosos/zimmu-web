@@ -11,6 +11,8 @@ import * as downloadModule from './ui/download'
 import type { DrawingSheet } from './geom/drawing'
 import { emptyRoomGeometry, type RoomGeometry } from './scene/projectStructure'
 import type { Part, PartId, Selection } from './scene/types'
+import type { ReleaseEntry, ReleaseIntegrity } from './scene/releases'
+import { makeRelease } from './scene/__fixtures__/release'
 
 const mockUndo = vi.fn()
 const mockRedo = vi.fn()
@@ -119,12 +121,16 @@ vi.mock('./ui/DrawingViewer', () => ({
 }))
 
 const roomSpy = vi.hoisted(() => ({ geometry: undefined as RoomGeometry | undefined }))
+const releaseSpy = vi.hoisted(() => ({
+  releases: [] as ReleaseEntry[],
+  integrity: [] as ReleaseIntegrity[] | null,
+}))
 
 vi.mock('./scene/useFile', () => ({
   useFile: () => ({
     fileReady: true,
-    releases: [],
-    releaseIntegrity: [],
+    releases: releaseSpy.releases,
+    releaseIntegrity: releaseSpy.integrity,
     fileName: null,
     projectName: 'Test',
     project: { id: 'project_test', areas: [{ id: 'area_test', name: 'Area', rooms: [{
@@ -739,5 +745,102 @@ describe('the open cabinet', () => {
     expect(mockOnSelect).toHaveBeenCalledWith({ kind: 'section', cabinetId: cabinet.id, sectionId })
     fireEvent.click(screen.getByTestId('section-elevation-background'))
     expect(mockOnSelect).toHaveBeenLastCalledWith({ kind: 'component', id: cabinet.id })
+  })
+})
+
+// The comparison dialog holds a review draft, so App must not unmount it while the release it
+// compares is still in the file and merely being re-verified. Whether an unmount keeps the draft is
+// the dialog's own test (ReleaseSourceComparison.autosave.test.tsx).
+const comparisonSpy = vi.hoisted(() => ({ mounts: 0, unmounts: 0 }))
+vi.mock('./ui/ReleaseStatus', () => ({
+  ReleaseStatus: (props: { onReview?: () => void }) => (
+    <button onClick={props.onReview}>Review releases</button>
+  ),
+}))
+vi.mock('./ui/ProductionPacketVerifier', () => ({
+  ProductionPacketVerifier: (props: {
+    recording?: { releases: readonly ReleaseEntry[]; onCompare: (release: ReleaseEntry) => void }
+  }) => (
+    <button onClick={() => props.recording!.onCompare(props.recording!.releases[0])}>
+      Compare first release
+    </button>
+  ),
+}))
+vi.mock('./ui/ReleaseSourceComparison', async () => {
+  const { useEffect } = await import('react')
+  return {
+    ReleaseSourceComparison: () => {
+      useEffect(() => {
+        comparisonSpy.mounts += 1
+        return () => {
+          comparisonSpy.unmounts += 1
+        }
+      }, [])
+      return <div data-testid="release-comparison" />
+    },
+  }
+})
+
+describe('the release comparison', () => {
+  beforeEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    mockUseScene.mockImplementation(makeDefaultSceneReturn)
+    comparisonSpy.mounts = 0
+    comparisonSpy.unmounts = 0
+  })
+
+  async function compare() {
+    const release = await makeRelease()
+    releaseSpy.releases = [release]
+    releaseSpy.integrity = ['ok']
+    const view = render(<App />)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Review releases' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Compare first release' }))
+    expect(screen.getByTestId('release-comparison')).toBeTruthy()
+    const update = async (releases: ReleaseEntry[], integrity: ReleaseIntegrity[] | null) => {
+      releaseSpy.releases = releases
+      releaseSpy.integrity = integrity
+      view.rerender(<App />)
+      await act(async () => {})
+    }
+    return { release, update }
+  }
+
+  it('stays mounted while the release list is re-verified', async () => {
+    const { release, update } = await compare()
+    const recorded = await makeRelease({ id: 'release_newer', revision: 2 })
+    await update([release, recorded], null)
+    expect(screen.getByTestId('release-comparison')).toBeTruthy()
+    await update([release, recorded], ['ok', 'ok'])
+    expect(comparisonSpy).toEqual({ mounts: 1, unmounts: 0 })
+  })
+
+  it('stays mounted when a reloaded file holds the same release as a new object', async () => {
+    const { release, update } = await compare()
+    await update([structuredClone(release)], null)
+    await update([structuredClone(release)], ['ok'])
+    expect(screen.getByTestId('release-comparison')).toBeTruthy()
+    expect(comparisonSpy).toEqual({ mounts: 1, unmounts: 0 })
+  })
+
+  it('closes when the release leaves the file, and stays closed when it returns', async () => {
+    const { release, update } = await compare()
+    await update([], [])
+    expect(screen.queryByTestId('release-comparison')).toBeNull()
+    expect(comparisonSpy.unmounts).toBe(1)
+    await update([release], ['ok'])
+    expect(screen.queryByTestId('release-comparison')).toBeNull()
+  })
+
+  it('closes when the same id arrives with other content or fails verification', async () => {
+    const { release, update } = await compare()
+    await update([{ ...release, sourceSha256: 'b'.repeat(64) }], null)
+    expect(screen.queryByTestId('release-comparison')).toBeNull()
+    cleanup()
+    const reopened = await compare()
+    await reopened.update([release], ['corrupted'])
+    expect(screen.queryByTestId('release-comparison')).toBeNull()
   })
 })

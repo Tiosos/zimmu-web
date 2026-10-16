@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useId, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import type { ProductionRelease } from '../scene/releases'
+import type { Part } from '../scene/types'
 import { captureProductionSource, type ProductionPacketInput } from './buildProductionPacket'
 import { compareReleaseSource } from './compareReleaseSource'
 import {
@@ -65,6 +66,38 @@ function ReviewFinding({
   )
 }
 
+// A cabinet-level hardware change links every board of the cabinet.
+const PART_BUTTON_LIMIT = 5
+function FindingParts({ parts, onShow }: { parts: Part[]; onShow: (id: string) => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const more = parts.length - PART_BUTTON_LIMIT
+  return (
+    <>
+      {(expanded ? parts : parts.slice(0, PART_BUTTON_LIMIT)).map((part) => (
+        <Button
+          key={part.id}
+          variant="outline"
+          className="mr-2 mt-2"
+          onClick={() => onShow(part.id)}
+        >
+          Show {part.label}
+          {part.visible ? '' : ' (hidden)'}
+        </Button>
+      ))}
+      {more > 0 && (
+        <Button
+          variant="ghost"
+          className="mr-2 mt-2"
+          aria-expanded={expanded}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Show fewer parts' : `Show ${more} more ${more === 1 ? 'part' : 'parts'}`}
+        </Button>
+      )}
+    </>
+  )
+}
+
 export function ReleaseSourceComparison({
   release,
   input,
@@ -90,9 +123,14 @@ export function ReleaseSourceComparison({
     message: string
   } | null>(null)
   const [exportError, setExportError] = useState('')
+  const [leaveNotice, setLeaveNotice] = useState('')
   const savedReview = useRef<ChangeReviewDraft | null>(null)
   const [reviewState, setReviewState] = useState<ChangeReviewDraft | null>(null)
   const { scene, projectName, hardwareLibrary, materialLibrary } = input
+  const partsById = useMemo(
+    () => new Map(scene.parts.map((part) => [part.id, part])),
+    [scene.parts],
+  )
   const result = useMemo(() => {
     try {
       const source = captureProductionSource({
@@ -142,6 +180,7 @@ export function ReleaseSourceComparison({
       editVersion.current += 1
       setReviewState(draft)
     },
+    result.report,
   )
   const busy = operationBusy || autosave.loading
   const coverage = result.report ? changeReviewCoverage(result.report) : []
@@ -175,14 +214,19 @@ export function ReleaseSourceComparison({
       )
     )
   }
-  const canLeave = () =>
-    !review ||
-    !hasReviewEdits(review) ||
-    savedReview.current === review ||
-    window.confirm(
-      'Discard review edits since your last report download? Download a report first to keep them.',
+  const canLeave = () => {
+    if (!review || !hasReviewEdits(review) || savedReview.current === review) return true
+    if (
+      !window.confirm(
+        'Discard review edits since your last report download? Download a report first to keep them.',
+      )
     )
+      return false
+    autosave.discard()
+    return true
+  }
   const leave = async (action: () => void) => {
+    setLeaveNotice('')
     if (!review || !hasReviewEdits(review) || savedReview.current === review || autosave.saved) {
       action()
       return
@@ -191,12 +235,17 @@ export function ReleaseSourceComparison({
       if (canLeave()) action()
       return
     }
-    const version = editVersion.current
     const context = contextVersion.current
-    const kept = await autosave.flush()
-    if (!alive.current || version !== editVersion.current || context !== contextVersion.current)
-      return
-    if (kept || canLeave()) action()
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const version = editVersion.current
+      const kept = await autosave.flush()
+      if (!alive.current || context !== contextVersion.current) return
+      if (version === editVersion.current) {
+        if (kept || canLeave()) action()
+        return
+      }
+    }
+    setLeaveNotice('Your review changed while it was being saved. Try again.')
   }
   const close = () => {
     void leave(onClose)
@@ -216,7 +265,13 @@ export function ReleaseSourceComparison({
     setActivity('export')
     setExportError('')
     try {
-      const report = await buildReleaseChangeReport(release, result.source, new Date(), review)
+      const report = await buildReleaseChangeReport(
+        release,
+        result.source,
+        new Date(),
+        review,
+        result.report,
+      )
       if (alive.current) {
         downloadBlob(
           format === 'html' ? releaseChangeReportHtml(report) : releaseChangeReportJson(report),
@@ -252,7 +307,12 @@ export function ReleaseSourceComparison({
       if (!alive.current) return
       if (originalContext !== contextVersion.current || originalEdit !== editVersion.current)
         throw new Error('The comparison or review changed while loading. Choose the JSON again.')
-      if (!canLeave()) {
+      if (
+        hasReviewEdits(review) &&
+        !window.confirm(
+          'Replace your current review with the uploaded report? Your current notes and check-offs will be replaced, and the review draft saved in this browser will be replaced too.',
+        )
+      ) {
         setResumeNotice({
           review: restored,
           message: 'Resume cancelled. Your current review was kept.',
@@ -300,6 +360,7 @@ export function ReleaseSourceComparison({
       {resumeError && <p role="alert">Review could not be resumed: {resumeError}</p>}
       {resumeNotice && matches(resumeNotice.review) && <p role="status">{resumeNotice.message}</p>}
       {exportError && <p role="alert">Report export failed: {exportError}</p>}
+      {leaveNotice && <p role="status">{leaveNotice}</p>}
       {result.error && <p role="alert">Comparison unavailable: {result.error}</p>}
       {result.report && (
         <>
@@ -447,24 +508,12 @@ export function ReleaseSourceComparison({
                       {change.change === 'removed' && (
                         <p>Removed from the current design; no current part to select.</p>
                       )}
-                      {change.partIds.map((id) => {
-                        const part = scene.parts.find((part) => part.id === id)
-                        return (
-                          part && (
-                            <Button
-                              key={id}
-                              variant="outline"
-                              className="mr-2 mt-2"
-                              onClick={() => {
-                                void leave(() => onInspect(id))
-                              }}
-                            >
-                              Show {part.label}
-                              {part.visible ? '' : ' (hidden)'}
-                            </Button>
-                          )
-                        )
-                      })}
+                      <FindingParts
+                        parts={change.partIds.flatMap((id) => partsById.get(id) ?? [])}
+                        onShow={(id) => {
+                          void leave(() => onInspect(id))
+                        }}
+                      />
                     </li>
                   ))}
               </ul>

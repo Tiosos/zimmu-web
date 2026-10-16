@@ -16,7 +16,9 @@ import {
 } from './localChangeReviewStore'
 import * as storage from './localChangeReviewStore'
 import { useLocalChangeReview } from './useLocalChangeReview'
-import type { ChangeReviewDraft } from './releaseChangeReport'
+import { buildReleaseChangeReport, type ChangeReviewDraft } from './releaseChangeReport'
+import * as comparisons from './compareReleaseSource'
+import { sha256Hex } from '../scene/releases'
 
 afterEach(async () => {
   cleanup()
@@ -156,4 +158,62 @@ it('rejects an aborted save and preserves the previous committed draft', async (
   expect(restoreLocalChangeReview(await readLocalChangeReview(context.key), context).draft).toEqual(
     draft,
   )
+})
+
+it('derives the same key and fingerprint from a supplied comparison without comparing again', async () => {
+  const { release, source, context } = await fixture()
+  // The derivation localChangeReviewContext used before it accepted a comparison.
+  const report = await buildReleaseChangeReport({ ...release }, source)
+  const key = JSON.stringify([
+    release.id,
+    release.revision,
+    release.packetSha256,
+    report.before.sourceSha256,
+    report.after.sourceSha256,
+  ])
+  const fingerprint = await sha256Hex(
+    JSON.stringify({
+      before: report.before,
+      after: report.after,
+      counts: report.counts,
+      changes: report.changes,
+      otherSourceChanges: report.otherSourceChanges,
+      limitations: report.limitations,
+    }),
+  )
+  const comparison = comparisons.compareReleaseSource(release.source, source)
+  const compare = vi.spyOn(comparisons, 'compareReleaseSource')
+  const supplied = await localChangeReviewContext(release, source, comparison)
+  expect(compare).not.toHaveBeenCalled()
+  expect(supplied.key).toBe(key)
+  expect(supplied.fingerprint).toBe(fingerprint)
+  expect(supplied).toEqual(context)
+})
+it('builds its context from the comparison it is given', async () => {
+  const { release, source, context, draft } = await fixture()
+  await writeLocalChangeReview(packLocalChangeReview(draft, context))
+  const comparison = comparisons.compareReleaseSource(release.source, source)
+  const compare = vi.spyOn(comparisons, 'compareReleaseSource')
+  const restore = vi.fn()
+  renderHook(() => useLocalChangeReview(release, source, null, restore, comparison))
+  await waitFor(() => expect(restore).toHaveBeenCalledOnce())
+  expect(restore.mock.calls[0][0]).toEqual(draft)
+  expect(compare).not.toHaveBeenCalled()
+})
+it('flushes the latest draft even through a flush taken from an earlier render', async () => {
+  const { release, source, context, draft } = await fixture()
+  const hook = renderHook(
+    ({ draft: current }: { draft: ChangeReviewDraft | null }) =>
+      useLocalChangeReview(release, source, current, vi.fn()),
+    { initialProps: { draft } },
+  )
+  await waitFor(() => expect(hook.result.current.saved).toBe(true))
+  const earlier = hook.result.current.flush
+  const later = { ...draft, notes: 'Typed while closing' }
+  hook.rerender({ draft: later })
+  await waitFor(() => expect(hook.result.current.saved).toBe(true))
+  const write = vi.spyOn(storage, 'writeLocalChangeReview')
+  expect(await act(earlier)).toBe(true)
+  expect(write).toHaveBeenCalledOnce()
+  expect(write.mock.calls[0][0].review).toEqual(packLocalChangeReview(later, context).review)
 })

@@ -7,6 +7,7 @@ import {
   MAX_CHANGE_REVIEW_NOTE_LENGTH,
   type ChangeReviewDraft,
 } from './releaseChangeReport'
+import { canonicalJson } from './canonicalJson'
 
 export const MAX_CHANGE_REVIEW_BYTES = 64 * 1024 * 1024
 
@@ -14,18 +15,6 @@ function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error('Invalid change report structure.')
   return value as Record<string, unknown>
-}
-// Compare the JSON representation, ignoring object-key order but preserving array order.
-function canonical(value: unknown): string {
-  if (Array.isArray(value))
-    return `[${value.map((v) => (v === undefined ? 'null' : canonical(v))).join(',')}]`
-  if (value && typeof value === 'object')
-    return `{${Object.entries(value)
-      .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`)
-      .join(',')}}`
-  return JSON.stringify(value) ?? 'undefined'
 }
 function text(value: unknown, limit: number): string {
   if (typeof value !== 'string' || value.length > limit)
@@ -67,7 +56,7 @@ export async function resumeChangeReview(
   // Capture the baseline before hashing; never let a later caller edit retarget this import.
   const baseline = { ...release }
   const fresh = await buildReleaseChangeReport(baseline, currentSource)
-  if (canonical(Object.keys(saved).sort()) !== canonical(Object.keys(fresh).sort()))
+  if (canonicalJson(Object.keys(saved).sort()) !== canonicalJson(Object.keys(fresh).sort()))
     throw new Error('Invalid change report fields.')
   const before = record(saved.before),
     after = record(saved.after)
@@ -87,7 +76,7 @@ export async function resumeChangeReview(
     'otherSourceChanges',
     'limitations',
   ] as const) {
-    if (canonical(saved[key]) !== canonical(fresh[key]))
+    if (canonicalJson(saved[key]) !== canonicalJson(fresh[key]))
       throw new Error('The saved comparison differs from the current results. Start a new review.')
   }
 
@@ -115,10 +104,10 @@ export async function resumeChangeReview(
   // identify findings, while comparison arrays above retain their exact exported order.
   const byReference = new Map(rawEntries.map((entry) => [entry.reference, entry]))
   for (const entry of checked.entries) {
-    if (canonical(byReference.get(entry.reference)) !== canonical(entry))
+    if (canonicalJson(byReference.get(entry.reference)) !== canonicalJson(entry))
       throw new Error('Saved review finding details do not match the current comparison.')
   }
-  if (canonical({ ...savedReview, entries: checked.entries }) !== canonical(checked))
+  if (canonicalJson({ ...savedReview, entries: checked.entries }) !== canonicalJson(checked))
     throw new Error('Invalid review identity, approval status or progress.')
   return {
     ...draft,

@@ -7,20 +7,22 @@ import {
   type LocalChangeReviewContext,
 } from './localChangeReview'
 import { readLocalChangeReview, writeLocalChangeReview } from './localChangeReviewStore'
+import type { SourceComparison } from './compareReleaseSource'
 
 export function useLocalChangeReview(
   baseline: ChangeReviewBaseline,
   source: string | null,
   draft: ChangeReviewDraft | null,
   restore: (draft: ChangeReviewDraft) => void,
+  comparison?: SourceComparison | null,
 ) {
   const { id, revision, packetSha256, sourceSha256, source: beforeSource } = baseline
   const scope = useMemo(
     () => JSON.stringify([id, revision, packetSha256, sourceSha256, beforeSource, source]),
     [id, revision, packetSha256, sourceSha256, beforeSource, source],
   )
-  const latest = useRef({ baseline, source, draft, restore, scope })
-  latest.current = { baseline, source, draft, restore, scope }
+  const latest = useRef({ baseline, source, draft, restore, comparison, scope })
+  latest.current = { baseline, source, draft, restore, comparison, scope }
   const [state, setState] = useState<{
     scope: string
     context?: LocalChangeReviewContext
@@ -37,7 +39,11 @@ export function useLocalChangeReview(
     void (async () => {
       let context: LocalChangeReviewContext | undefined
       try {
-        context = await localChangeReviewContext(captured.baseline, captured.source!)
+        context = await localChangeReviewContext(
+          captured.baseline,
+          captured.source!,
+          captured.comparison ?? undefined,
+        )
         const record = await readLocalChangeReview(context.key)
         if (!active || latest.current.scope !== captured.scope) return
         let restored = false
@@ -62,6 +68,22 @@ export function useLocalChangeReview(
     }
   }, [scope, retry])
   const context = state.scope === scope ? state.context : undefined
+  const unsaved = useRef({ draft, context })
+  unsaved.current = { draft, context }
+  // Held by identity, so the next edit, being a new draft, is saved again.
+  const discarded = useRef<ChangeReviewDraft | null>(null)
+  // The dialog can be unmounted without its leave guard (the release disappears from the file).
+  // A draft whose autosave failed would otherwise exist only in memory.
+  useEffect(() => {
+    const live = unsaved
+    return () => {
+      const { draft, context } = live.current
+      if (!context || !draft || saved.current === draft || discarded.current === draft) return
+      void (async () => writeLocalChangeReview(packLocalChangeReview(draft, context)))().catch(
+        () => {},
+      )
+    }
+  }, [])
   useEffect(() => {
     if (!context || !draft || saved.current === draft) return
     let active = true
@@ -90,7 +112,12 @@ export function useLocalChangeReview(
     error: state.scope === scope ? state.error : undefined,
     restored: state.scope === scope && state.restored,
     retry: () => setRetry((value) => value + 1),
+    discard: () => {
+      discarded.current = unsaved.current.draft
+    },
+    // Reads the latest render, so a caller that saw the draft change mid-flush can flush again.
     flush: async () => {
+      const { draft, context } = unsaved.current
       if (!draft) return true
       if (!context) return false
       try {
