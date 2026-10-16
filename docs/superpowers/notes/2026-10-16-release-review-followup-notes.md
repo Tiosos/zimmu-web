@@ -152,3 +152,13 @@ append here.
 - Not fixed: the review's formatting-churn finding (unrelated reformatting in `ReleaseList.tsx`,
   long unformatted JSX in `App.tsx`). The repo's Prettier hook formats every edited file, so
   reverting that churn would fight the hook on the next edit; left as is.
+
+## Final review (2026-10-16): accepted, not fixed
+
+An independent review of the whole follow-up approved it with no critical or important issues. These minors were accepted deliberately:
+
+- The "supplied comparison" parameters (`buildReleaseChangeReport`, `localChangeReviewContext`, `useLocalChangeReview`) are guarded by a comment only. Current callers pass `result.report` from the same memo as `result.source` and `release.source`, so the pairing holds; the release-source hash check still runs. A runtime pairing guard would cost another comparison, which is what these parameters avoid.
+- `compareReleaseSource.ts` imports `FILE_FORMAT_VERSION` from `scene/useFile.ts` (a hook module). There is no import cycle. Moving the constant to a leaf module would touch every importer of `useFile`; not worth it here.
+- `App.test.tsx` mocks `ReleaseStatus`, the verifier and the comparison dialog for every App test (hoisted `vi.mock`); the mocks fit the mount/unmount claim being tested, and draft persistence is tested for real in `ReleaseSourceComparison.autosave.test.tsx` with fake IndexedDB.
+- The unmount-time write may repeat a write whose autosave is still in flight; the store queue is serialised and the content identical, so only `updatedAt` moves.
+- `FindingParts` toggle has `aria-expanded` but no `aria-controls`.
