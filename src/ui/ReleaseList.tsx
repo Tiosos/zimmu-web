@@ -46,6 +46,11 @@ export function ReleaseList({
                 <p>
                   {entry.releasedBy} (self-declared, unverified) · {entry.releasedAt}
                 </p>
+                {(entry.acknowledgedReviewItems ?? 0) > 0 && (
+                  <p>
+                    Recorded with {entry.acknowledgedReviewItems} open review items acknowledged
+                  </p>
+                )}
                 <p className="break-all">Packet {entry.packetSha256.slice(0, 12)}</p>
                 {status === 'ok' && onCompare && (
                   <Button

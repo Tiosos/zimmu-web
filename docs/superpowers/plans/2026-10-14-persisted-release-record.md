@@ -4,6 +4,8 @@
 
 **Goal:** Record a technically-ready production release in the `.zimmu` file together with a frozen copy of the source the packet was built from, list recorded releases, and flag corrupted or unreadable entries on load.
 
+> **Amended 2026-10-16:** a `review-required` assessment can also be recorded once the releaser acknowledges its open review items; `blocked` still refuses. See the amendment in the spec and notes. The steps below are the plan as executed on 2026-10-14.
+
 **Architecture:** A browser-safe module `src/scene/releases.ts` owns the types, structural parsing, SHA-256 verification and the pure-ish `recordRelease` rules. `useFile` carries `releases` beside `project` (outside undo history, compared by reference for dirty tracking). The existing release gate dialog gains a "Released by" field and a Record button that is offered only when the live source hashes to the packet manifest's `sourceSha256`.
 
 **Tech Stack:** TypeScript strict, React 19, Vitest + happy-dom + Testing Library, `crypto.subtle` SHA-256, fflate (existing), Playwright (one e2e addition).

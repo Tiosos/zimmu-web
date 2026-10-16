@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ReleaseList } from './ReleaseList'
-import { makeRelease } from '../scene/__fixtures__/release'
+import { makeRelease, reviewAssessment } from '../scene/__fixtures__/release'
 
 afterEach(cleanup)
 
@@ -44,6 +44,23 @@ it('shows each integrity state, including still checking', async () => {
   expect(screen.getByText('Integrity check passed')).toBeTruthy()
   expect(screen.getByText(/Integrity check failed/)).toBeTruthy()
   expect(screen.getByText(/Unreadable entry, preserved/)).toBeTruthy()
+})
+
+it('says how many open review items were acknowledged, and nothing for a ready release', async () => {
+  const ready = await makeRelease({ id: 'r1', revision: 1, acknowledgedReviewItems: 0 })
+  const reviewed = await makeRelease({
+    id: 'r2',
+    revision: 2,
+    packetSha256: 'b'.repeat(64),
+    assessment: reviewAssessment('b'.repeat(64), 9),
+    acknowledgedReviewItems: 9,
+  })
+  render(<ReleaseList releases={[ready, reviewed]} integrity={['ok', 'ok']} />)
+  const rows = within(screen.getByRole('region', { name: 'Recorded releases' })).getAllByRole(
+    'listitem',
+  )
+  expect(rows[0].textContent).toContain('Recorded with 9 open review items acknowledged')
+  expect(rows[1].textContent).not.toContain('acknowledged')
 })
 
 it('offers comparison only for verified releases and passes the chosen snapshot', async () => {

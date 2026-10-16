@@ -442,6 +442,7 @@ src/
 - **A release stores `source` as a string, and the saved scene is not comparable to it.** Saving rounds floats to 6 dp, which would change `sourceSha256`. The string is the authority; reproduction (a later slice) must load from it.
 - **`parseFile` stays synchronous, so release hashes are checked after load.** `parseReleases` validates structure only; `verifyReleases` re-hashes asynchronously. A damaged or duplicate entry is kept as `{ unreadable: true, raw }` and written back as `raw`, so one bad entry neither blocks opening nor nests on re-save. The hash check detects accidental corruption only: digests sit beside the data in an editable file.
 - **Revision numbers are file-local, and a file newer than the app saves only as a copy.** Two copies of a file can each record revision N+1; identify a release across files by `packetSha256`. `pendingMigrationRef` is set for any `version !== FILE_FORMAT_VERSION` so a build never silently drops fields it does not know.
+- **A release records a `review-required` assessment only with explicit acknowledgment; `technically-ready` is effectively unreachable because `manufacturing.unassessed` is constant; blocked never records.** The acknowledged count is stored as `acknowledgedReviewItems` and must equal the record's review-required findings on parse.
 
 ## Code Conventions
 

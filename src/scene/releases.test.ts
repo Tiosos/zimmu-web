@@ -10,7 +10,13 @@ import {
   type RecordReleaseInput,
   type UnreadableRelease,
 } from './releases'
-import { makeRelease, readyAssessment, SOURCE_A } from './__fixtures__/release'
+import {
+  makeRelease,
+  readyAssessment,
+  reviewAssessment,
+  reviewFinding,
+  SOURCE_A,
+} from './__fixtures__/release'
 
 const roundTrip = (value: unknown): unknown => JSON.parse(JSON.stringify(value))
 
@@ -82,13 +88,85 @@ describe('parseReleases', () => {
     expect(parseReleases([withExtra])).toEqual([withExtra])
   })
 
-  it('rejects an assessment that is not technically ready', async () => {
+  it('rejects a blocked assessment', async () => {
     const release = await makeRelease()
+    const bad = roundTrip({ ...release, assessment: { ...release.assessment, status: 'blocked' } })
+    expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
+  })
+
+  it('reads a ready release written before acknowledgedReviewItems existed', async () => {
+    const release = await makeRelease()
+    expect(release).not.toHaveProperty('acknowledgedReviewItems')
+    expect(parseReleases(roundTrip([release]))).toEqual([release])
+  })
+
+  it('reads a review-required release whose acknowledged count matches its open items', async () => {
+    const release = await makeRelease({
+      assessment: reviewAssessment('a'.repeat(64), 3),
+      acknowledgedReviewItems: 3,
+    })
+    expect(parseReleases(roundTrip([release]))).toEqual([release])
+  })
+
+  it.each([
+    ['no acknowledged count', undefined],
+    ['a count below its open items', 2],
+    ['a count above its open items', 4],
+    ['a fractional count', 2.5],
+    ['a string count', '3'],
+  ])('rejects a review-required release with %s', async (_label, acknowledgedReviewItems) => {
     const bad = roundTrip({
-      ...release,
-      assessment: { ...release.assessment, status: 'review-required' },
+      ...(await makeRelease({ assessment: reviewAssessment('a'.repeat(64), 3) })),
+      acknowledgedReviewItems,
     })
     expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
+  })
+
+  it('rejects a review-required release with no review items, even acknowledging none', async () => {
+    const bad = roundTrip(
+      await makeRelease({
+        assessment: reviewAssessment('a'.repeat(64), 0),
+        acknowledgedReviewItems: 0,
+      }),
+    )
+    expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
+  })
+
+  it('rejects a review-required release carrying a blocker, even with a matching count', async () => {
+    const assessment = reviewAssessment('a'.repeat(64), 1)
+    assessment.findings.push({ ...reviewFinding('broken'), category: 'blocker' })
+    const bad = roundTrip(await makeRelease({ assessment, acknowledgedReviewItems: 1 }))
+    expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
+  })
+
+  it('rejects a finding whose category is unknown or missing', async () => {
+    for (const category of ['advisory', undefined]) {
+      const assessment = reviewAssessment('a'.repeat(64), 1)
+      const bad = roundTrip(
+        await makeRelease({
+          assessment: {
+            ...assessment,
+            findings: [...assessment.findings, { ...reviewFinding('x'), category } as never],
+          },
+          acknowledgedReviewItems: 1,
+        }),
+      )
+      expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
+    }
+  })
+
+  it('rejects a ready release that lists findings or acknowledges any', async () => {
+    const release = await makeRelease()
+    const withFinding = roundTrip({
+      ...release,
+      assessment: { ...release.assessment, findings: [reviewFinding('x')] },
+    })
+    const withCount = roundTrip({ ...release, acknowledgedReviewItems: 1 })
+    expect(parseReleases([withFinding])[0]).toMatchObject({ unreadable: true })
+    expect(parseReleases([withCount])[0]).toMatchObject({ unreadable: true })
+    expect(
+      parseReleases([roundTrip({ ...release, acknowledgedReviewItems: 0 })])[0],
+    ).not.toHaveProperty('unreadable')
   })
 
   it('rejects an assessment bound to a different packet', async () => {
@@ -240,6 +318,7 @@ describe('recordRelease', () => {
       sourceSha256: await sha256Hex(SOURCE_A),
       assessment: readyAssessment('b'.repeat(64)),
       source: SOURCE_A,
+      acknowledgedReviewItems: 0,
     })
   })
 
@@ -256,10 +335,92 @@ describe('recordRelease', () => {
     expect(existing).toEqual(before)
   })
 
-  it.each(['blocked', 'review-required'] as const)('refuses a %s assessment', async (status) => {
-    const input = await inputFor(SOURCE_A)
-    input.assessment = { ...input.assessment, status }
+  it('refuses a blocked assessment, acknowledged or not', async () => {
+    for (const acknowledgeReview of [false, true]) {
+      const input = await inputFor(SOURCE_A, { acknowledgeReview })
+      input.assessment = { ...input.assessment, status: 'blocked' }
+      expect(await recordRelease([], input)).toEqual({ ok: false, reason: 'not-ready' })
+    }
+  })
+
+  it.each(['technically-ready', 'review-required'] as const)(
+    'refuses a %s assessment that carries a blocker finding',
+    async (status) => {
+      const input = await inputFor(SOURCE_A, { acknowledgeReview: true })
+      input.assessment = {
+        ...reviewAssessment('b'.repeat(64), 1),
+        status,
+        findings: [{ ...reviewFinding('broken'), category: 'blocker' }],
+      }
+      expect(await recordRelease([], input)).toEqual({ ok: false, reason: 'not-ready' })
+    },
+  )
+
+  it.each([
+    ['a ready assessment listing a finding', 'technically-ready', [reviewFinding('x')]],
+    ['a review-required assessment with nothing to review', 'review-required', []],
+    [
+      'a finding of unknown category',
+      'review-required',
+      [reviewFinding('y'), { ...reviewFinding('x'), category: 'advisory' }],
+    ],
+  ] as const)('refuses %s, as parse would', async (_label, status, findings) => {
+    const input = await inputFor(SOURCE_A, { acknowledgeReview: true })
+    input.assessment = {
+      ...readyAssessment('b'.repeat(64)),
+      status,
+      findings: findings as never,
+    }
     expect(await recordRelease([], input)).toEqual({ ok: false, reason: 'not-ready' })
+  })
+
+  it('refuses a contradictory assessment before checking any digest', async () => {
+    const input = await inputFor(SOURCE_A, { acknowledgeReview: true, packetSourceSha256: 'abc' })
+    input.assessment = { ...readyAssessment('b'.repeat(64)), findings: [reviewFinding('x')] }
+    expect(await recordRelease([], input)).toEqual({ ok: false, reason: 'not-ready' })
+  })
+
+  it.each([undefined, false])(
+    'refuses a review-required assessment when acknowledgeReview is %s',
+    async (acknowledgeReview) => {
+      const input = await inputFor(SOURCE_A, {
+        assessment: reviewAssessment('b'.repeat(64)),
+        acknowledgeReview,
+      })
+      expect(await recordRelease([], input)).toEqual({
+        ok: false,
+        reason: 'review-not-acknowledged',
+      })
+    },
+  )
+
+  it('asks for acknowledgment before checking any digest', async () => {
+    const input = await inputFor(SOURCE_A, {
+      assessment: reviewAssessment('b'.repeat(64)),
+      packetSourceSha256: 'abc',
+    })
+    expect(await recordRelease([], input)).toEqual({
+      ok: false,
+      reason: 'review-not-acknowledged',
+    })
+  })
+
+  it('records an acknowledged review-required assessment with the count of its open items', async () => {
+    const assessment = reviewAssessment('b'.repeat(64), 3)
+    const result = await recordRelease(
+      [],
+      await inputFor(SOURCE_A, { assessment, acknowledgeReview: true }),
+    )
+    if (!result.ok) throw new Error(result.reason)
+    expect(result.release.acknowledgedReviewItems).toBe(3)
+    expect(result.release.assessment).toEqual(assessment)
+    expect(parseReleases(roundTrip(result.releases))).toEqual(result.releases)
+  })
+
+  it('records a ready assessment with nothing acknowledged, even when acknowledgeReview is set', async () => {
+    const result = await recordRelease([], await inputFor(SOURCE_A, { acknowledgeReview: true }))
+    if (!result.ok) throw new Error(result.reason)
+    expect(result.release.acknowledgedReviewItems).toBe(0)
   })
 
   it('refuses a manifest digest that is not 64 hex characters', async () => {
