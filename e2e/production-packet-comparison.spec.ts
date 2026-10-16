@@ -8,6 +8,8 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
 }) => {
   await page.goto('/')
   await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({ timeout: 120_000 })
+  await page.getByRole('button', { name: '+ Board' }).click()
+  await expect(page.getByText('Board 1', { exact: true })).toBeVisible()
   const exportPacket = async () => {
     await page.getByRole('button', { name: 'File ▾' }).click()
     await page.getByRole('button', { name: 'Manufacturing readiness…' }).click()
@@ -20,8 +22,7 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     return bytes
   }
   const earlier = await exportPacket()
-  // The initial board has no machining operations, so this exercises the complete part inventory.
-  await page.getByText('Board 1', { exact: true }).click()
+  // The added board has no machining operations, so this exercises the complete part inventory.
   const length = page.getByLabel('L', { exact: true })
   await length.fill('720')
   await length.blur()

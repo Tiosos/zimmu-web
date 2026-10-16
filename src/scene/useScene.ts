@@ -5,7 +5,6 @@ import { wrap } from 'comlink'
 import type { OcctWorkerApi, BuildSpec } from '../geom/occt.worker'
 import type { ExportSpec } from '../geom/occt'
 import type {
-  BoardPart,
   CarcaseComponent,
   FaceFrameParams,
   Component,
@@ -79,29 +78,6 @@ function buildGeometry(data: {
   return geo
 }
 
-function makeDefaultBoard(): BoardPart {
-  return {
-    kind: 'board',
-    id: `board_${crypto.randomUUID()}`,
-    label: 'Board 1',
-    length: 200,
-    width: 100,
-    thickness: 25,
-    // A hand-made board's grain is unknown, so the nester is left free to rotate it. Only the
-    // carcase generator states a direction.
-    grain: 'free',
-    material: '',
-    color: PART_COLORS[0],
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { x: 0, y: 0, z: 0 },
-    rotationOrder: 'XYZ',
-    cuts: [],
-    visible: true,
-    parentId: null,
-    driven: false,
-  }
-}
-
 export interface UseSceneResult {
   onInstallCatalogue: (pkg: CataloguePackage, source: Scene) => boolean
   onApplyRulePreview: (preview: RulePreview) => boolean
@@ -170,7 +146,7 @@ export function buildSpecForPart(part: Part): BuildSpec {
 
 export function useScene(): UseSceneResult {
   const [scene, setScene] = useState<Scene>(() => ({
-    parts: [makeDefaultBoard()],
+    parts: [],
     // Seeded, not empty: a carcase preset names its materials, and a panel whose material is not
     // in the scene has no thickness to resolve — the first cabinet dropped into a new file would
     // fail validation and never appear.
@@ -205,7 +181,8 @@ export function useScene(): UseSceneResult {
     }, 0)
     return max > 0 ? max : scene.components.length
   }, [scene])
-  const colorIndex = useRef(0)
+  // Pre-incremented on add, so -1 hands the first part PART_COLORS[0] — the swatch the seeded board used to take.
+  const colorIndex = useRef(-1)
 
   const pastRef = useRef<HistoryEntry[]>([])
   const futureRef = useRef<HistoryEntry[]>([])
@@ -228,6 +205,20 @@ export function useScene(): UseSceneResult {
       geos.forEach((geo) => geo.dispose())
       geos.clear()
     }
+  }, [])
+
+  // Readiness is the kernel having built something. A scene that starts empty has no part to
+  // build, so without this the add buttons would stay disabled until a file was opened.
+  useEffect(() => {
+    if (sceneRef.current.parts.length > 0) return
+    getOcct()
+      .buildPart({ kind: 'board', length: 1, width: 1, thickness: 1, cuts: [] })
+      .then(() => {
+        if (!isMounted.current || occtReadyRef.current) return
+        occtReadyRef.current = true
+        setOcctReady(true)
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {

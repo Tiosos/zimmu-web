@@ -42,9 +42,10 @@ test('applying a suggested joint leaves the pair on the checklist as done, in pl
   await expect(addBoard).toBeEnabled({ timeout: OCCT_READY_TIMEOUT })
 
   // Board 1 is the housing board "H" of the proven tee fixture (src/scene/jointChecklist.test.ts):
-  // 200×100×20 at the origin. Only the thickness differs from the seeded 200×100×25 default, so the
+  // 200×100×20 at the origin. Only the thickness differs from the added 200×100×25 default, so the
   // dado seats on Board 1's face rather than 5mm into it.
-  await page.getByText('Board 1', { exact: true }).click()
+  await addBoard.click()
+  await expect(page.getByText('Board 1', { exact: true })).toBeVisible()
   await (await sectionInput(page, 'Shape', 2)).fill('20') // T
 
   // Board 2 is the dado board "D": 80×40×18, rolled −90° about Y and stood on Board 1 to form a

@@ -43,6 +43,7 @@ vi.stubGlobal(
 )
 
 import { useScene, buildSpecForPart, applyPipeline } from './useScene'
+import { PART_COLORS } from './palette'
 import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { resolveWorldMatrix } from '../geom/transform'
 import { componentsById } from './componentTree'
@@ -58,6 +59,36 @@ import { FILE_FORMAT_VERSION, parseFile } from './useFile'
 
 import { previewProjectRules } from './ruleFlow'
 import { DEFAULT_CABINET_RULES } from './constructionRules'
+
+function renderSeeded() {
+  const hook = renderHook(() => useScene())
+  act(() => {
+    hook.result.current.replaceScene({
+      ...hook.result.current.scene,
+      parts: [
+        {
+          kind: 'board',
+          id: 'board_seed',
+          label: 'Board 1',
+          length: 200,
+          width: 100,
+          thickness: 25,
+          grain: 'free',
+          material: '',
+          color: PART_COLORS[0],
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          rotationOrder: 'XYZ',
+          cuts: [],
+          visible: true,
+          parentId: null,
+          driven: false,
+        },
+      ],
+    })
+  })
+  return hook
+}
 
 describe('useScene', () => {
   beforeEach(() => {
@@ -117,11 +148,18 @@ describe('useScene', () => {
     expect(result.current.scene.components.find((c) => c.id === id)).toBeUndefined()
   })
 
-  it('starts with one default board labelled "Board 1"', () => {
+  it('starts with an empty scene, like File > New, but with the preset materials', () => {
     const { result } = renderHook(() => useScene())
-    expect(result.current.scene.parts).toHaveLength(1)
-    expect(result.current.scene.parts[0].label).toBe('Board 1')
-    expect(result.current.scene.parts[0].kind).toBe('board')
+    expect(result.current.scene.parts).toEqual([])
+    expect(Object.keys(result.current.scene.materials).length).toBeGreaterThan(0)
+    expect(result.current.nextLabel).toBe('Board 1')
+  })
+
+  it('becomes ready on an empty scene by warming the kernel, so the first board can be added', async () => {
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    expect(result.current.scene.parts).toEqual([])
+    expect(result.current.geometries.size).toBe(0)
   })
 
   it('starts with occtReady false', () => {
@@ -135,7 +173,7 @@ describe('useScene', () => {
   })
 
   it('onAdd is a no-op when occtReady is false', () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     act(() => {
       result.current.onAdd('board')
     })
@@ -143,7 +181,7 @@ describe('useScene', () => {
   })
 
   it('onAdd appends a new board when occtReady is true', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
       result.current.onAdd('board')
@@ -153,7 +191,7 @@ describe('useScene', () => {
   })
 
   it('onAdd auto-selects the new part', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
       result.current.onAdd('board')
@@ -163,7 +201,7 @@ describe('useScene', () => {
   })
 
   it('onRemove removes the part and clears selectedId when matched', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
       result.current.onAdd('board')
@@ -177,7 +215,7 @@ describe('useScene', () => {
   })
 
   it('onUpdate replaces the matching part', () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     const original = result.current.scene.parts[0]
     act(() => {
       result.current.onUpdate(original.id, (p) => ({ ...p, label: 'Updated' }))
@@ -186,7 +224,7 @@ describe('useScene', () => {
   })
 
   it('onDuplicate appends a clone after the original', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     const id = result.current.scene.parts[0].id
     act(() => {
@@ -197,7 +235,7 @@ describe('useScene', () => {
   })
 
   it('onDuplicate resets rotation to zero', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     const original = result.current.scene.parts[0]
     act(() => {
@@ -210,7 +248,7 @@ describe('useScene', () => {
   })
 
   it('onDuplicate selects the clone', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     const origId = result.current.scene.parts[0].id
     act(() => {
@@ -221,7 +259,7 @@ describe('useScene', () => {
   })
 
   it('undo after onDuplicate restores selection to original', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     const origId = result.current.scene.parts[0].id
     act(() => {
@@ -234,7 +272,7 @@ describe('useScene', () => {
   })
 
   it('onToggleVisible hides a visible part', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     const id = result.current.scene.parts[0].id
     act(() => {
@@ -244,7 +282,7 @@ describe('useScene', () => {
   })
 
   it('onToggleVisible twice restores visibility', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     const id = result.current.scene.parts[0].id
     act(() => {
@@ -257,7 +295,7 @@ describe('useScene', () => {
   })
 
   it('undo after onToggleVisible restores original visibility', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     const id = result.current.scene.parts[0].id
     act(() => {
@@ -271,7 +309,7 @@ describe('useScene', () => {
   })
 
   it('redo after onToggleVisible re-hides the part', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     const id = result.current.scene.parts[0].id
     act(() => {
@@ -288,7 +326,7 @@ describe('useScene', () => {
   })
 
   it('onToggleVisible with unknown id is a no-op', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     const before = result.current.scene.parts[0].visible
     act(() => {
@@ -298,7 +336,7 @@ describe('useScene', () => {
   })
 
   it('nextLabel increments with each add', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     expect(result.current.nextLabel).toBe('Board 2')
     act(() => {
@@ -308,7 +346,7 @@ describe('useScene', () => {
   })
 
   it('replaceScene replaces parts, clears selectedId, resets labelCounter', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     act(() => {
       result.current.onAdd('board')
@@ -378,7 +416,7 @@ describe('useScene', () => {
     })
 
     it('after onAdd: canUndo true, undoLabel "Add Board 2", canRedo false', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -389,7 +427,7 @@ describe('useScene', () => {
     })
 
     it('undo after onAdd removes the added part', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -402,7 +440,7 @@ describe('useScene', () => {
     })
 
     it('undo after onAdd clears selectedId if it pointed to the removed part', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -416,7 +454,7 @@ describe('useScene', () => {
     })
 
     it('redo after undo re-adds the part with the same id', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -434,7 +472,7 @@ describe('useScene', () => {
     })
 
     it('after undo: canUndo false, canRedo true, redoLabel "Add Board 2"', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -448,7 +486,7 @@ describe('useScene', () => {
     })
 
     it('after onRemove: canUndo true, undoLabel "Remove Board 1"', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const id = result.current.scene.parts[0].id
       act(() => {
         result.current.onRemove(id)
@@ -458,7 +496,7 @@ describe('useScene', () => {
     })
 
     it('undo after onRemove reinserts part at its original index', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -475,7 +513,7 @@ describe('useScene', () => {
     })
 
     it('redo after remove-undo removes the part again', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       const id = result.current.scene.parts[0].id
       act(() => {
@@ -492,7 +530,7 @@ describe('useScene', () => {
     })
 
     it('after onDuplicate: canUndo true, undoLabel "Duplicate Board 1"', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       const id = result.current.scene.parts[0].id
       act(() => {
@@ -503,7 +541,7 @@ describe('useScene', () => {
     })
 
     it('undo after onDuplicate removes the clone, leaves original', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       const origId = result.current.scene.parts[0].id
       act(() => {
@@ -517,7 +555,7 @@ describe('useScene', () => {
     })
 
     it('redo after duplicate-undo reinserts clone at idx+1', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       const origId = result.current.scene.parts[0].id
       act(() => {
@@ -537,7 +575,7 @@ describe('useScene', () => {
     })
 
     it('after onUpdate: canUndo true, undoLabel "Update Board 1"', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const id = result.current.scene.parts[0].id
       act(() => {
         result.current.onUpdate(id, (p) => ({ ...p, length: 300 }))
@@ -547,7 +585,7 @@ describe('useScene', () => {
     })
 
     it('undo after onUpdate restores the previous length', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const id = result.current.scene.parts[0].id
       const originalLength = result.current.scene.parts[0].length
       act(() => {
@@ -560,7 +598,7 @@ describe('useScene', () => {
     })
 
     it('redo after update-undo re-applies the update', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const id = result.current.scene.parts[0].id
       const originalLength = result.current.scene.parts[0].length
       act(() => {
@@ -577,7 +615,7 @@ describe('useScene', () => {
     })
 
     it('two consecutive onUpdate on same part produce one undo step', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const id = result.current.scene.parts[0].id
       act(() => {
         result.current.onUpdate(id, (p) => ({ ...p, length: 300 }))
@@ -593,7 +631,7 @@ describe('useScene', () => {
     })
 
     it('coalesced undo restores to value before the first edit', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const id = result.current.scene.parts[0].id
       const originalLength = result.current.scene.parts[0].length
       act(() => {
@@ -609,7 +647,7 @@ describe('useScene', () => {
     })
 
     it('onUpdate on different parts creates two separate undo steps', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -631,7 +669,7 @@ describe('useScene', () => {
     })
 
     it('history is capped at 50: 51st add is not undoable', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       for (let i = 0; i < 51; i++) {
         act(() => {
@@ -692,7 +730,7 @@ describe('useScene', () => {
     })
 
     it('onUpdate with historyLabel suppresses coalescing — two undos required', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const id = result.current.scene.parts[0].id
       const pos0 = result.current.scene.parts[0].position.z
 
@@ -727,7 +765,7 @@ describe('useScene', () => {
     })
 
     it('after onAdd then undo, next onAdd creates Board 2 not Board 3', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -744,7 +782,7 @@ describe('useScene', () => {
   })
 
   it('passes cuts array to buildPart when geometry is triggered', async () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     await waitFor(() => expect(result.current.occtReady).toBe(true))
     mockBuildPart.mockClear()
 
@@ -799,7 +837,7 @@ describe('useScene', () => {
     }
 
     it('updates the matching cut', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const partId = result.current.scene.parts[0].id
       act(() => {
         result.current.onUpdate(partId, (p) => ({ ...p, cuts: [cut1] }) as Part)
@@ -814,7 +852,7 @@ describe('useScene', () => {
     })
 
     it('creates an undoable entry (single undo restores)', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const partId = result.current.scene.parts[0].id
       act(() => {
         result.current.onUpdate(partId, (p) => ({ ...p, cuts: [cut1] }) as Part)
@@ -832,7 +870,7 @@ describe('useScene', () => {
     })
 
     it('propagates u/v sizes to paired cut; single undo restores both', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -889,7 +927,7 @@ describe('useScene', () => {
 
   describe('onAddMitre', () => {
     it('adds a mitre cut with defaults and undo removes it', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const partId = result.current.scene.parts[0].id
       act(() => {
         result.current.onAddMitre(partId)
@@ -906,7 +944,7 @@ describe('useScene', () => {
     })
 
     it('editing the mitre angle via onUpdateCut updates it', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const partId = result.current.scene.parts[0].id
       act(() => {
         result.current.onAddMitre(partId)
@@ -925,7 +963,7 @@ describe('useScene', () => {
 
   describe('onRemoveCut', () => {
     it('removes cut from the part', () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       const partId = result.current.scene.parts[0].id
       act(() => {
         result.current.onUpdate(
@@ -953,7 +991,7 @@ describe('useScene', () => {
     })
 
     it('clears stale pairedCutId references on other parts', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -1009,7 +1047,7 @@ describe('useScene', () => {
     })
 
     it('undo restores cut and paired references in one step', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -1072,7 +1110,7 @@ describe('useScene', () => {
 
   describe('onLinkCuts', () => {
     it('sets pairedCutId bidirectionally', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -1134,7 +1172,7 @@ describe('useScene', () => {
     })
 
     it('undo clears both pairedCutIds', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -1190,7 +1228,7 @@ describe('useScene', () => {
 
   describe('onUnlinkCuts', () => {
     it('clears pairedCutId on both sides', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -1243,7 +1281,7 @@ describe('useScene', () => {
     })
 
     it('undo restores both pairedCutIds', async () => {
-      const { result } = renderHook(() => useScene())
+      const { result } = renderSeeded()
       await waitFor(() => expect(result.current.occtReady).toBe(true))
       act(() => {
         result.current.onAdd('board')
@@ -1305,7 +1343,7 @@ describe('useScene', () => {
 
   it('exportStep builds one spec per part with a 16-element matrix and returns the worker string', async () => {
     mockExportStep.mockResolvedValue('ISO-10303-21;\nENDSEC;')
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     const parts = result.current.scene.parts
 
     const text = await result.current.exportStep(parts)
@@ -2135,7 +2173,7 @@ describe('selection of parts and components', () => {
   })
 
   it('exposes selectedId for a part selection and null for a component selection', () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     const partId = result.current.scene.parts[0].id
     act(() => result.current.onSelect({ kind: 'part', id: partId }))
     expect(result.current.selectedId).toBe(partId)
@@ -2144,7 +2182,7 @@ describe('selection of parts and components', () => {
   })
 
   it('clears both on a null selection', () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     act(() => result.current.onSelect({ kind: 'part', id: result.current.scene.parts[0].id }))
     act(() => result.current.onSelect(null))
     expect(result.current.selection).toBeNull()
@@ -2152,13 +2190,13 @@ describe('selection of parts and components', () => {
   })
 
   it('onRemove clears a part selection for the removed part but leaves a component selection', () => {
-    const partSel = renderHook(() => useScene()).result
+    const partSel = renderSeeded().result
     const partId = partSel.current.scene.parts[0].id
     act(() => partSel.current.onSelect({ kind: 'part', id: partId }))
     act(() => partSel.current.onRemove(partId))
     expect(partSel.current.selection).toBeNull()
 
-    const componentSel = renderHook(() => useScene()).result
+    const componentSel = renderSeeded().result
     act(() => componentSel.current.onSelect({ kind: 'component', id: 'cmp_1' }))
     act(() => componentSel.current.onRemove(componentSel.current.scene.parts[0].id))
     expect(componentSel.current.selection).toEqual({ kind: 'component', id: 'cmp_1' })
@@ -2202,7 +2240,7 @@ describe('component CRUD', () => {
   })
 
   it('deletes driven descendants but promotes detached ones to top level', () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     act(() => result.current.onAddComponent(null))
     const cmpId = result.current.scene.components[0].id
     const seed = result.current.scene.parts[0]
@@ -2233,7 +2271,7 @@ describe('component CRUD', () => {
   })
 
   it('drops joints the deleted component sourced, and joints left dangling, but keeps hand-made ones', () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     act(() => result.current.onAddComponent(null))
     const cmpId = result.current.scene.components[0].id
     const seed = result.current.scene.parts[0]
@@ -2270,7 +2308,7 @@ describe('component CRUD', () => {
   })
 
   it('undoes a component deletion, restoring its driven parts', () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     act(() => result.current.onAddComponent(null))
     const id = result.current.scene.components[0].id
     const seed = result.current.scene.parts[0]
@@ -2329,7 +2367,7 @@ describe('component CRUD', () => {
   })
 
   it('keeps a part selection when a component is deleted', () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     act(() => result.current.onAddComponent(null))
     const cmpId = result.current.scene.components[0].id
     const partId = result.current.scene.parts[0].id
@@ -2406,7 +2444,7 @@ describe('deleting a component preserves where detached parts are', () => {
   })
 
   it('bakes the lost ancestor placement into a promoted part so it does not move', () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     act(() => result.current.onAddComponent(null))
     const cmpId = result.current.scene.components[0].id
     const seed = result.current.scene.parts[0]
@@ -2447,7 +2485,7 @@ describe('deleting a component preserves where detached parts are', () => {
   })
 
   it('leaves a top-level detached part untouched', () => {
-    const { result } = renderHook(() => useScene())
+    const { result } = renderSeeded()
     act(() => result.current.onAddComponent(null))
     const cmpId = result.current.scene.components[0].id
     const seed = result.current.scene.parts[0]

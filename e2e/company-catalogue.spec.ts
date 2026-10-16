@@ -13,7 +13,7 @@ test('catalogue opens separately and preserves the CAD application', async ({ pa
   await expect(dialog.getByText(/Company sign-in is not configured/)).toBeVisible()
   await expect(dialog.getByRole('button', { name: /Sign in/ })).toHaveCount(0)
   expect(await catalogue.evaluate(() => window.opener)).toBeNull()
-  await expect(page.getByText('Board 1', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: '+ Board' })).toBeVisible()
   const closed = catalogue.waitForEvent('close')
   // Escape closes this scripted window before Chromium may acknowledge the key.
   await catalogue.keyboard.press('Escape').catch((error: unknown) => {

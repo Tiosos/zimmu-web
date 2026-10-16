@@ -55,6 +55,8 @@ test('hovering a joint suggestion tints the neighbour board and outlines the joi
   // (src/scene/useScene.ts), so moving the second to y=100 makes their long edges meet at y=50 —
   // the geometry suggestJointsFor scores as a tongue & groove.
   await addBoard.click()
+  await expect(page.getByText('Board 1', { exact: true })).toBeVisible()
+  await addBoard.click()
   await expect(page.getByText('Board 2')).toBeVisible()
   await (await positionInput(page, 'Y')).fill('100')
 

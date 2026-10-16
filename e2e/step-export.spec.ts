@@ -20,8 +20,10 @@ test('exports a valid STEP file for a board + dowel compound', async ({ page }) 
   const addBoard = page.getByRole('button', { name: '+ Board' })
   await expect(addBoard).toBeEnabled({ timeout: OCCT_READY_TIMEOUT })
 
-  // Add a dowel so the compound holds two distinct solids (default "Board 1" +
+  // Add a board and a dowel so the compound holds two distinct solids ("Board 1" +
   // "Dowel 1") through the cylinder kernel path, not just boxes.
+  await addBoard.click()
+  await expect(page.getByText('Board 1')).toBeVisible()
   const addDowel = page.getByRole('button', { name: '+ Dowel' })
   await expect(addDowel).toBeEnabled({ timeout: OCCT_READY_TIMEOUT })
   await addDowel.click()
