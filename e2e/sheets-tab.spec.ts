@@ -149,7 +149,7 @@ test('stock too small for any panel reports every part as unplaced', async ({ pa
 
   await page.getByLabel('Add cabinet').click()
   await page.getByRole('option', { name: 'Base 600' }).click()
-  await expect(page.getByTestId(/^node-board_/)).toHaveCount(9)
+  await expect(page.getByTestId(/^node-board_/)).toHaveCount(8)
 
   await page.getByRole('button', { name: /^File/ }).click()
   await page.getByRole('button', { name: /Cutting List/ }).click()
