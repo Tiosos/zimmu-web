@@ -54,6 +54,7 @@ export function ProductionReleaseGate({
   const [recordable, setRecordable] = useState<Recordable>(null)
   const [packetSource, setPacketSource] = useState<string | null>(null)
   const [releasedBy, setReleasedBy] = useState('')
+  const [acknowledged, setAcknowledged] = useState(false)
   const [recordMessage, setRecordMessage] = useState('')
   const [recorded, setRecorded] = useState(false)
   const [recordBusy, setRecordBusy] = useState(false)
@@ -70,6 +71,7 @@ export function ProductionReleaseGate({
     setPacketSource(null)
     setRecordMessage('')
     setRecorded(false)
+    setAcknowledged(false)
   }
   const assess = async () => {
     reset()
@@ -89,7 +91,7 @@ export function ProductionReleaseGate({
       })
       let state: Recordable = null
       let digest: string | null = null
-      if (recording && result.status === 'technically-ready') {
+      if (recording && result.status !== 'blocked') {
         digest = await packetSourceSha256(packet)
         state =
           digest === null
@@ -145,6 +147,7 @@ export function ProductionReleaseGate({
         packetSourceSha256: packetSource,
         liveSource: recording.captureSource(),
         releasedBy,
+        acknowledgeReview: acknowledged,
       })
       if (!alive.current) return
       if (outcome.ok) {
@@ -160,6 +163,9 @@ export function ProductionReleaseGate({
       if (alive.current) setRecordBusy(false)
     }
   }
+  const openReviewItems =
+    record?.findings.filter((f) => f.category === 'review-required').length ?? 0
+  const needsAcknowledgment = record?.status === 'review-required'
   return (
     <section aria-label="Production release gate" className="my-4 rounded border p-3">
       <h3 className="font-semibold">Production release gate</h3>
@@ -262,12 +268,26 @@ export function ProductionReleaseGate({
                     onChange={(event) => setReleasedBy(event.target.value)}
                   />
                 </label>
+                {needsAcknowledgment && (
+                  <label className="block">
+                    <input
+                      type="checkbox"
+                      checked={acknowledged}
+                      disabled={recordBusy}
+                      onChange={(event) => setAcknowledged(event.target.checked)}
+                    />{' '}
+                    I have reviewed the {openReviewItems} open review items listed above
+                  </label>
+                )}
                 <p className="text-sm">
-                  Recording stores a frozen copy of this project in the file. The name is typed, not
-                  verified, and this is not formal approval.
+                  Recording stores a frozen copy of this project and this assessment, including the
+                  open review items, in the file. The name is typed, not verified, and this is not
+                  formal approval.
                 </p>
                 <Button
-                  disabled={recordBusy || releasedBy.trim() === ''}
+                  disabled={
+                    recordBusy || releasedBy.trim() === '' || (needsAcknowledgment && !acknowledged)
+                  }
                   onClick={() => void recordThisRelease()}
                 >
                   Record release

@@ -3,7 +3,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { ProductionReleaseGate, type ReleaseRecording } from './ProductionReleaseGate'
 import * as release from './productionReleaseGate'
 import { sha256Hex, type RecordRefusal } from '../scene/releases'
-import { readyAssessment, SOURCE_A } from '../scene/__fixtures__/release'
+import {
+  readyAssessment,
+  reviewAssessment,
+  reviewFinding,
+  SOURCE_A,
+} from '../scene/__fixtures__/release'
 
 let hash: string
 beforeAll(async () => {
@@ -14,10 +19,18 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-const assessed = (status: release.ProductionReleaseRecord['status'] = 'technically-ready') => ({
-  ...readyAssessment('b'.repeat(64)),
-  status,
-})
+const assessed = (
+  status: release.ProductionReleaseRecord['status'] = 'technically-ready',
+): release.ProductionReleaseRecord =>
+  status === 'review-required'
+    ? reviewAssessment('b'.repeat(64), 2)
+    : status === 'blocked'
+      ? {
+          ...readyAssessment('b'.repeat(64)),
+          status,
+          findings: [reviewFinding('x'), { ...reviewFinding('y'), category: 'blocker' }],
+        }
+      : readyAssessment('b'.repeat(64))
 function setup(options: {
   status?: release.ProductionReleaseRecord['status']
   live?: string
@@ -43,19 +56,69 @@ function setup(options: {
   return onRecord
 }
 
-it.each(['blocked', 'review-required'] as const)(
-  'offers no recording for a %s assessment',
-  async (status) => {
-    setup({ status })
-    await screen.findByText(/Release blocked|Release review required/)
-    expect(screen.queryByRole('button', { name: 'Record release' })).toBeNull()
-    expect(screen.queryByLabelText('Released by')).toBeNull()
-  },
-)
+it('offers no recording for a blocked assessment', async () => {
+  setup({ status: 'blocked' })
+  await screen.findByText('Release blocked')
+  expect(screen.queryByRole('button', { name: 'Record release' })).toBeNull()
+  expect(screen.queryByLabelText('Released by')).toBeNull()
+  expect(screen.queryByRole('checkbox')).toBeNull()
+})
+
+const ACK = 'I have reviewed the 2 open review items listed above'
+
+it('records a review-required assessment only once a name is typed and the review is acknowledged', async () => {
+  const onRecord = setup({ status: 'review-required' })
+  const button = (await screen.findByRole('button', {
+    name: 'Record release',
+  })) as HTMLButtonElement
+  const box = screen.getByRole('checkbox', { name: ACK }) as HTMLInputElement
+  expect(box.checked).toBe(false)
+  expect(button.disabled).toBe(true)
+  fireEvent.click(box)
+  expect(button.disabled).toBe(true)
+  fireEvent.click(box)
+  fireEvent.change(screen.getByLabelText('Released by'), { target: { value: 'Sam' } })
+  expect(button.disabled).toBe(true)
+  fireEvent.click(box)
+  expect(button.disabled).toBe(false)
+  fireEvent.click(button)
+  await screen.findByText('Recorded as revision 1.')
+  expect(onRecord).toHaveBeenCalledWith({
+    assessment: assessed('review-required'),
+    packetSourceSha256: hash,
+    liveSource: SOURCE_A,
+    releasedBy: 'Sam',
+    acknowledgeReview: true,
+  })
+})
+
+it('clears the acknowledgment when the packet is assessed again', async () => {
+  setup({ status: 'review-required', outcome: { ok: false, reason: 'stale' } })
+  fireEvent.click(await screen.findByRole('checkbox', { name: ACK }))
+  fireEvent.change(screen.getByLabelText('Released by'), { target: { value: 'Sam' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Record release' }))
+  await screen.findByText('The release list changed. Try again.')
+  expect((screen.getByRole('checkbox', { name: ACK }) as HTMLInputElement).checked).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Assess production release' }))
+  await waitFor(() =>
+    expect((screen.getByRole('checkbox', { name: ACK }) as HTMLInputElement).checked).toBe(false),
+  )
+})
+
+it('says the recorded copy includes the open review items and is not approval', async () => {
+  setup({ status: 'review-required' })
+  await screen.findByRole('button', { name: 'Record release' })
+  expect(
+    screen.getByText(
+      'Recording stores a frozen copy of this project and this assessment, including the open review items, in the file. The name is typed, not verified, and this is not formal approval.',
+    ),
+  ).toBeTruthy()
+})
 
 it('offers recording for a ready assessment whose live source matches, and needs a name', async () => {
   const onRecord = setup({})
   const button = await screen.findByRole('button', { name: 'Record release' })
+  expect(screen.queryByRole('checkbox')).toBeNull()
   expect((button as HTMLButtonElement).disabled).toBe(true)
   fireEvent.change(screen.getByLabelText('Released by'), { target: { value: 'Sam' } })
   expect((button as HTMLButtonElement).disabled).toBe(false)
@@ -66,6 +129,7 @@ it('offers recording for a ready assessment whose live source matches, and needs
     packetSourceSha256: hash,
     liveSource: SOURCE_A,
     releasedBy: 'Sam',
+    acknowledgeReview: false,
   })
   expect(screen.queryByRole('button', { name: 'Record release' })).toBeNull()
 })
