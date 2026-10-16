@@ -360,6 +360,33 @@ it('keeps current notes on invalid input or cancelled replacement, and can retry
   expect((screen.getByLabelText('Reviewer name') as HTMLInputElement).value).toBe('Saved reviewer')
 })
 
+it('asks before a resume replaces edits, naming the local draft, and never for an untouched review', async () => {
+  const { input, release, json } = await savedReviewFixture()
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  fireEvent.change(screen.getByLabelText('Reviewer name'), { target: { value: 'Current' } })
+  chooseReview(reviewFile(json))
+  await screen.findByText('Resume cancelled. Your current review was kept.')
+  expect(confirm).toHaveBeenCalledOnce()
+  expect(confirm.mock.calls[0][0]).toMatch(
+    /^Replace your current review with the uploaded report\?/,
+  )
+  expect(confirm.mock.calls[0][0]).toMatch(/saved in this browser will be replaced too/)
+  expect(confirm.mock.calls[0][0]).not.toMatch(/Discard review edits since your last report/)
+  fireEvent.change(screen.getByLabelText('Reviewer name'), { target: { value: '' } })
+  confirm.mockClear()
+  chooseReview(reviewFile(json))
+  await screen.findByText(/Review resumed from review.json/)
+  expect(confirm).not.toHaveBeenCalled()
+})
+
 it('rejects an oversized file before reading it and recovers from file-read errors', async () => {
   const { input, release, json } = await savedReviewFixture()
   const read = vi.fn(async () => json)

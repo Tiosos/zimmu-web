@@ -74,3 +74,16 @@ append here.
   failure is swallowed because nothing is left on screen to report it to. App-level tests mock
   the dialog and count mounts; whether an unmount keeps the draft is the dialog-level test in
   `ReleaseSourceComparison.autosave.test.tsx`.
+- 2026-10-16 — Resuming from a downloaded report asked `canLeave()`'s "Discard review edits since
+  your last report download?", which is about leaving, not replacing, and says nothing about the
+  autosaved draft that accepting overwrites on the next autosave. Resume now has its own prompt —
+  replace the current review with the uploaded report, and the draft saved in this browser with it
+  — asked whenever the current review has edits. It is asked even when that review was already
+  downloaded, which the old prompt skipped: the download is a copy, but the local draft is still
+  replaced. An untouched review is replaced without a prompt, as before. Cancel was already
+  side-effect free; the new test proves it against the real store (no write after cancel, the
+  saved draft still reads back) rather than only the on-screen value.
+- 2026-10-16 — `canLeave()`'s text was kept for Close and Show. `leave()` reaches it only when the
+  edits are *not* safe locally — autosave reports an error, or the explicit flush failed — so
+  "discard … download a report first to keep them" is accurate there, and an autosaved review
+  closes without any prompt.

@@ -259,7 +259,12 @@ export function ReleaseSourceComparison({
       if (!alive.current) return
       if (originalContext !== contextVersion.current || originalEdit !== editVersion.current)
         throw new Error('The comparison or review changed while loading. Choose the JSON again.')
-      if (!canLeave()) {
+      if (
+        hasReviewEdits(review) &&
+        !window.confirm(
+          'Replace your current review with the uploaded report? Your current notes and check-offs will be replaced, and the review draft saved in this browser will be replaced too.',
+        )
+      ) {
         setResumeNotice({
           review: restored,
           message: 'Resume cancelled. Your current review was kept.',
