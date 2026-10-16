@@ -15,6 +15,9 @@ export interface ProductionRelease {
   packetSha256: string
   sourceSha256: string
   assessment: ProductionReleaseRecord
+  // How many review-required findings the releaser ticked as reviewed. Absent on entries written
+  // before review-required packets could be recorded, which were all technically ready (0).
+  acknowledgedReviewItems?: number
   // The exact text the packet manifest's sourceSha256 covers. A string, never an object: saving
   // rounds floats to 6 dp, which would change the hash.
   source: string
@@ -43,6 +46,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isNullOrHex = (value: unknown): boolean =>
   value === null || (typeof value === 'string' && HEX64.test(value))
 
+const openReviewItems = (assessment: ProductionReleaseRecord): number =>
+  assessment.findings.filter((finding) => finding.category === 'review-required').length
+
 function readRelease(value: unknown): ProductionRelease | null {
   if (!isRecord(value)) return null
   // A stray key would make isReadable misread a valid entry, and releasesForFile would drop it.
@@ -67,11 +73,15 @@ function readRelease(value: unknown): ProductionRelease | null {
     !isRecord(assessment) ||
     assessment.schemaVersion !== 1 ||
     assessment.kind !== 'production-release-assessment' ||
-    assessment.status !== 'technically-ready' ||
+    (assessment.status !== 'technically-ready' && assessment.status !== 'review-required') ||
     assessment.packetSha256 !== packetSha256 ||
     assessment.formalApproval !== 'not-recorded' ||
     !Array.isArray(assessment.findings) ||
-    !assessment.findings.every(isRecord) ||
+    !assessment.findings.every(
+      (finding) =>
+        isRecord(finding) &&
+        (finding.category === 'blocker' || finding.category === 'review-required'),
+    ) ||
     !Array.isArray(assessment.limitations) ||
     !assessment.limitations.every((item) => typeof item === 'string') ||
     typeof assessment.assessedAt !== 'string' ||
@@ -80,6 +90,17 @@ function readRelease(value: unknown): ProductionRelease | null {
     (assessment.revision.mode !== 'initial' && assessment.revision.mode !== 'revision') ||
     !isNullOrHex(assessment.revision.beforeSha256) ||
     !isNullOrHex(assessment.revision.reviewSha256)
+  )
+    return null
+  // A record that contradicts itself is unreadable: a blocker never records, a ready packet has
+  // nothing to acknowledge, and a review-required one acknowledged exactly what it listed.
+  const record = assessment as unknown as ProductionReleaseRecord
+  const acknowledged = value.acknowledgedReviewItems
+  if (record.findings.some((finding) => finding.category === 'blocker')) return null
+  if (
+    record.status === 'technically-ready'
+      ? record.findings.length !== 0 || (acknowledged !== undefined && acknowledged !== 0)
+      : acknowledged !== openReviewItems(record)
   )
     return null
   // Chars never exceed bytes, so this never rejects a source the recorder accepted. JSON validity
@@ -95,7 +116,7 @@ function readRelease(value: unknown): ProductionRelease | null {
     releasedAt,
     packetSha256,
     sourceSha256,
-    assessment: assessment as unknown as ProductionReleaseRecord,
+    assessment: record,
     source,
   }
 }
@@ -134,6 +155,7 @@ export function verifyReleases(entries: readonly ReleaseEntry[]): Promise<Releas
 
 export type RecordRefusal =
   | 'not-ready'
+  | 'review-not-acknowledged'
   | 'invalid-manifest-hash'
   | 'invalid-packet-hash'
   | 'source-mismatch'
@@ -149,6 +171,7 @@ export interface RecordReleaseInput {
   packetSourceSha256: string // sourceSha256 from the verified packet manifest
   liveSource: string // captureProductionSource(...) of the live project
   releasedBy: string
+  acknowledgeReview?: boolean // the releaser ticked that the open review items were reviewed
   releasedAt?: Date
   id?: string
 }
@@ -164,7 +187,13 @@ export async function recordRelease(
   input: RecordReleaseInput,
 ): Promise<RecordReleaseResult> {
   const { assessment } = input
-  if (assessment.status !== 'technically-ready') return refuse('not-ready')
+  if (
+    assessment.status === 'blocked' ||
+    assessment.findings.some((finding) => finding.category === 'blocker')
+  )
+    return refuse('not-ready')
+  if (assessment.status === 'review-required' && input.acknowledgeReview !== true)
+    return refuse('review-not-acknowledged')
   const packetSource = input.packetSourceSha256.toLowerCase()
   if (!HEX64.test(packetSource)) return refuse('invalid-manifest-hash')
   if (!HEX64.test(assessment.packetSha256)) return refuse('invalid-packet-hash')
@@ -193,6 +222,8 @@ export async function recordRelease(
     sourceSha256,
     assessment,
     source: input.liveSource,
+    acknowledgedReviewItems:
+      assessment.status === 'review-required' ? openReviewItems(assessment) : 0,
   }
   return { ok: true, releases: [...existing, release], release }
 }

@@ -110,6 +110,7 @@ it('offers recording again when the packet is re-assessed after a successful rec
 // A Record keyed by the union makes the compiler reject a list that misses a refusal.
 const REFUSALS = Object.keys({
   'not-ready': true,
+  'review-not-acknowledged': true,
   'invalid-manifest-hash': true,
   'invalid-packet-hash': true,
   'source-mismatch': true,

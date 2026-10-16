@@ -1,5 +1,5 @@
 import { sha256Hex, type ProductionRelease } from '../releases'
-import type { ProductionReleaseRecord } from '../../ui/productionReleaseGate'
+import type { ProductionReleaseRecord, ReleaseFinding } from '../../ui/productionReleaseGate'
 
 export const readyAssessment = (packetSha256: string): ProductionReleaseRecord => ({
   schemaVersion: 1,
@@ -11,6 +11,22 @@ export const readyAssessment = (packetSha256: string): ProductionReleaseRecord =
   revision: { mode: 'initial', beforeSha256: null, reviewSha256: null },
   findings: [],
   limitations: [],
+})
+
+export const reviewFinding = (reference: string): ReleaseFinding => ({
+  reference,
+  category: 'review-required',
+  source: 'readiness',
+  message: 'Not assessed',
+  partIds: [],
+  operationId: null,
+  locations: ['readiness/review.json'],
+})
+
+export const reviewAssessment = (packetSha256: string, open = 2): ProductionReleaseRecord => ({
+  ...readyAssessment(packetSha256),
+  status: 'review-required',
+  findings: Array.from({ length: open }, (_, i) => reviewFinding(`unassessed-${i}`)),
 })
 
 export const SOURCE_A = JSON.stringify({

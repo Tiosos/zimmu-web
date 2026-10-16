@@ -22,7 +22,9 @@ export interface ReleaseRecording {
 type Recordable = 'match' | 'mismatch' | 'no-digest' | null
 
 const REFUSAL_TEXT: Record<RecordRefusal, string> = {
-  'not-ready': 'Only a technically ready packet can be recorded as a release.',
+  'not-ready':
+    'A blocked packet cannot be recorded as a release. Correct the blockers and export again.',
+  'review-not-acknowledged': 'Tick the box to confirm you reviewed the open review items.',
   'invalid-manifest-hash': 'This packet does not carry a valid source digest.',
   'invalid-packet-hash': 'The release assessment carries no valid packet digest.',
   'source-mismatch':
