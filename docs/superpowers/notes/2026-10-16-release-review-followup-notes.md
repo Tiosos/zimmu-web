@@ -136,3 +136,14 @@ append here.
   removing `clearTimeout` failed the burst and unmount tests, and also the obsolete-hash test
   (the uncancelled first check hashed a second time), which was not predicted but is the same
   defect; disabling the `active` guard failed the obsolete-hash test.
+- 2026-10-16 — `localChangeReviewStore.ts` opens its own IndexedDB database,
+  `zimmu-review-drafts` (store `drafts`, version 1), rather than a store in `idb.ts`. It stays
+  separate: moving it into `idb.ts` would mean `DB_VERSION` 5 plus a one-off copy from the old
+  database, and any draft not copied (a failed or interrupted migration, a second tab on the old
+  build) would be orphaned in users' browsers with no way back. Only CLAUDE.md changed — the
+  IndexedDB invariant and the `idb.ts` tree entry now say the drafts live in that separate
+  database, hold reviewer names and notes, are capped at `MAX_LOCAL_CHANGE_REVIEWS`, and are not
+  part of the `idb.ts` schema nor cleared with the library or settings.
+- Not fixed: the review's formatting-churn finding (unrelated reformatting in `ReleaseList.tsx`,
+  long unformatted JSX in `App.tsx`). The repo's Prettier hook formats every edited file, so
+  reverting that churn would fight the hook on the next edit; left as is.
