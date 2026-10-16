@@ -95,8 +95,15 @@ function descriptors(input: ProductionPacketInput): Map<string, Descriptor> {
     if (result.has(key)) throw new Error('The production source contains duplicate identities.')
     result.set(key, descriptor)
   }
-  inventory.parts.forEach((part, index) => {
-    const raw = scene.parts[index]
+  const raws = new Map(scene.parts.map((part) => [part.id, part]))
+  const operations = new Map(records.map((record) => [record.id, record.operations]))
+  if (inventory.parts.length !== scene.parts.length)
+    throw new Error('The part inventory does not cover every source part.')
+  for (const part of inventory.parts) {
+    const raw = raws.get(part.id),
+      instructions = operations.get(part.id)
+    if (!raw || !instructions)
+      throw new Error(`The part inventory names no source part ${JSON.stringify(part.id)}.`)
     const { id, label, ...physical } = part
     add({
       entity: 'part',
@@ -110,10 +117,10 @@ function descriptors(input: ProductionPacketInput): Map<string, Descriptor> {
         visible: raw.visible,
         placement: Array.from(resolveWorldMatrix(raw, byId)),
         cuts: raw.cuts,
-        instructions: records[index].operations,
+        instructions,
       },
     })
-  })
+  }
   for (const item of scene.hardware) {
     const { id, name, linkedPartIds, ...fields } = item
     if (typeof id !== 'string' || typeof name !== 'string' || !Array.isArray(linkedPartIds))
