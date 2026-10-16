@@ -7,6 +7,7 @@ import { resolveWorldMatrix } from '../geom/transform'
 import { carcaseHardware } from '../scene/carcaseHardware'
 import { groupHardware } from './groupHardware'
 import { validateCurrentFile } from '../scene/fileValidation'
+import { FILE_FORMAT_VERSION } from '../scene/useFile'
 import { productionLimitIssue } from '../scene/readinessLimits'
 
 export interface SourceChange {
@@ -55,7 +56,7 @@ function readSource(text: string): ProductionPacketInput {
     throw new Error('The recorded production source is not supported.')
   // Validate without migrating, regenerating or rounding the frozen snapshot.
   validateCurrentFile({
-    version: 28,
+    version: FILE_FORMAT_VERSION,
     name: input.projectName,
     units: 'mm',
     appVersion: '',
