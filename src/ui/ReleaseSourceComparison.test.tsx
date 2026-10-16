@@ -8,17 +8,18 @@ import * as reports from './releaseChangeReport'
 import * as resumes from './resumeChangeReview'
 import { compareReleaseSource } from './compareReleaseSource'
 import * as comparisons from './compareReleaseSource'
+import { useLocalChangeReview } from './useLocalChangeReview'
 import { captureProductionSource, type ProductionPacketInput } from './buildProductionPacket'
 
 vi.mock('./useLocalChangeReview', () => ({
-  useLocalChangeReview: () => ({
+  useLocalChangeReview: vi.fn(() => ({
     loading: false,
     saved: false,
     error: 'Storage unavailable in this isolated test.',
     restored: false,
     retry: () => {},
     flush: async () => false,
-  }),
+  })),
 }))
 
 const inputOf = (): ProductionPacketInput => ({
@@ -180,6 +181,23 @@ it('exports from the displayed comparison without comparing the sources again', 
   expect(JSON.parse(download.mock.calls[0][0] as string).changes).toEqual(
     compareReleaseSource(release.source, captureProductionSource(input)).changes,
   )
+})
+
+it('hands local autosave the displayed comparison', async () => {
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  input.scene.parts[0].label = 'Autosaved panel'
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  const [, source, , , comparison] = vi.mocked(useLocalChangeReview).mock.lastCall!
+  expect(source).toBe(captureProductionSource(input))
+  expect(comparison).toEqual(compareReleaseSource(release.source, source!))
 })
 
 it('keeps notes for identical sources and never applies them to a changed comparison', async () => {

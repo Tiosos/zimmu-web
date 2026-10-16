@@ -8,6 +8,7 @@ import {
   type ChangeReviewDraft,
 } from './releaseChangeReport'
 import type { LocalChangeReviewRecord } from './localChangeReviewStore'
+import type { SourceComparison } from './compareReleaseSource'
 
 export interface LocalChangeReviewContext {
   key: string
@@ -19,9 +20,10 @@ export interface LocalChangeReviewContext {
 export async function localChangeReviewContext(
   baseline: ChangeReviewBaseline,
   source: string,
+  comparison?: SourceComparison,
 ): Promise<LocalChangeReviewContext> {
   const captured = { ...baseline }
-  const report = await buildReleaseChangeReport(captured, source)
+  const report = await buildReleaseChangeReport(captured, source, undefined, undefined, comparison)
   const key = JSON.stringify([
     captured.id,
     captured.revision,

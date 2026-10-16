@@ -7,20 +7,22 @@ import {
   type LocalChangeReviewContext,
 } from './localChangeReview'
 import { readLocalChangeReview, writeLocalChangeReview } from './localChangeReviewStore'
+import type { SourceComparison } from './compareReleaseSource'
 
 export function useLocalChangeReview(
   baseline: ChangeReviewBaseline,
   source: string | null,
   draft: ChangeReviewDraft | null,
   restore: (draft: ChangeReviewDraft) => void,
+  comparison?: SourceComparison | null,
 ) {
   const { id, revision, packetSha256, sourceSha256, source: beforeSource } = baseline
   const scope = useMemo(
     () => JSON.stringify([id, revision, packetSha256, sourceSha256, beforeSource, source]),
     [id, revision, packetSha256, sourceSha256, beforeSource, source],
   )
-  const latest = useRef({ baseline, source, draft, restore, scope })
-  latest.current = { baseline, source, draft, restore, scope }
+  const latest = useRef({ baseline, source, draft, restore, comparison, scope })
+  latest.current = { baseline, source, draft, restore, comparison, scope }
   const [state, setState] = useState<{
     scope: string
     context?: LocalChangeReviewContext
@@ -37,7 +39,11 @@ export function useLocalChangeReview(
     void (async () => {
       let context: LocalChangeReviewContext | undefined
       try {
-        context = await localChangeReviewContext(captured.baseline, captured.source!)
+        context = await localChangeReviewContext(
+          captured.baseline,
+          captured.source!,
+          captured.comparison ?? undefined,
+        )
         const record = await readLocalChangeReview(context.key)
         if (!active || latest.current.scope !== captured.scope) return
         let restored = false

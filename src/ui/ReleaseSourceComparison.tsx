@@ -142,6 +142,7 @@ export function ReleaseSourceComparison({
       editVersion.current += 1
       setReviewState(draft)
     },
+    result.report,
   )
   const busy = operationBusy || autosave.loading
   const coverage = result.report ? changeReviewCoverage(result.report) : []
