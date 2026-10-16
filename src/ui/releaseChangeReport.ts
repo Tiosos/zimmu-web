@@ -154,6 +154,8 @@ export async function buildReleaseChangeReport(
   currentSource: string,
   generatedAt = new Date(),
   reviewDraft?: ChangeReviewDraft,
+  // Only ever compareReleaseSource(release.source, currentSource), already computed by the caller.
+  comparison?: SourceComparison,
 ): Promise<ReleaseChangeReport> {
   // Capture metadata and compute the comparison before awaiting hashes. Nothing in the result
   // retains references to the live scene, libraries or mutable release record.
@@ -169,15 +171,15 @@ export async function buildReleaseChangeReport(
     identity: release.identity,
   }
   const capturedAt = generatedAt.toISOString()
-  const comparison = compareReleaseSource(source, currentSource)
-  const review = captureChangeReview(release, currentSource, comparison, reviewDraft)
+  const compared = comparison ?? compareReleaseSource(source, currentSource)
+  const review = captureChangeReview(release, currentSource, compared, reviewDraft)
   before.projectName = (JSON.parse(source) as { projectName: string }).projectName
   const projectName = (JSON.parse(currentSource) as { projectName: string }).projectName
   const [beforeHash, afterHash] = await Promise.all([sha256Hex(source), sha256Hex(currentSource)])
   if (beforeHash !== before.sourceSha256)
     throw new Error('The recorded release source no longer matches its hash.')
   const counts = { added: 0, removed: 0, modified: 0, manufacturing: 0, metadata: 0 }
-  for (const change of comparison.changes) {
+  for (const change of compared.changes) {
     counts[change.change]++
     counts[change.classification]++
   }
@@ -189,7 +191,7 @@ export async function buildReleaseChangeReport(
     before,
     after: { projectName, sourceSha256: afterHash },
     counts,
-    ...comparison,
+    ...compared,
     limitations: [...CHANGE_REPORT_LIMITATIONS],
     review,
   }

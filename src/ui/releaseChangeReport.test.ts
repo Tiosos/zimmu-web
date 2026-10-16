@@ -10,7 +10,7 @@ import {
   releaseChangeReportJson,
 } from './releaseChangeReport'
 import * as hashes from '../scene/releases'
-import { compareReleaseSource } from './compareReleaseSource'
+import * as comparisons from './compareReleaseSource'
 
 const inputOf = () => ({
   scene: machiningProject(),
@@ -164,7 +164,11 @@ async function reviewFixture() {
   const release = await makeRelease({ source: beforeSource })
   input.projectName = 'Reviewed kitchen'
   const source = captureProductionSource(input)
-  const draft = createChangeReview(release, source, compareReleaseSource(beforeSource, source))
+  const draft = createChangeReview(
+    release,
+    source,
+    comparisons.compareReleaseSource(beforeSource, source),
+  )
   return { release, source, draft }
 }
 
@@ -238,4 +242,30 @@ it('captures review notes and check-offs before awaiting hashes', async () => {
   const report = await pending
   expect(report.review.notes).toBe('Captured note')
   expect(report.review.entries[0].reviewed).toBe(true)
+})
+
+it('reuses a supplied comparison instead of comparing the sources again', async () => {
+  const { release, source, draft } = await reviewFixture()
+  const at = new Date('2026-10-15T04:00:00Z')
+  const expected = await buildReleaseChangeReport(release, source, at, draft)
+  const comparison = comparisons.compareReleaseSource(release.source, source)
+  const compare = vi.spyOn(comparisons, 'compareReleaseSource')
+  const digest = vi.spyOn(hashes, 'sha256Hex')
+  expect(await buildReleaseChangeReport(release, source, at, draft, comparison)).toEqual(expected)
+  expect(compare).not.toHaveBeenCalled()
+  expect(digest.mock.calls).toEqual([[release.source], [source]])
+})
+
+it('still refuses a corrupted baseline source when a comparison is supplied', async () => {
+  const source = captureProductionSource(inputOf())
+  const release = await makeRelease({ source, sourceSha256: '0'.repeat(64) })
+  await expect(
+    buildReleaseChangeReport(
+      release,
+      source,
+      new Date(),
+      undefined,
+      comparisons.compareReleaseSource(source, source),
+    ),
+  ).rejects.toThrow(/no longer matches its hash/)
 })

@@ -216,7 +216,13 @@ export function ReleaseSourceComparison({
     setActivity('export')
     setExportError('')
     try {
-      const report = await buildReleaseChangeReport(release, result.source, new Date(), review)
+      const report = await buildReleaseChangeReport(
+        release,
+        result.source,
+        new Date(),
+        review,
+        result.report,
+      )
       if (alive.current) {
         downloadBlob(
           format === 'html' ? releaseChangeReportHtml(report) : releaseChangeReportJson(report),

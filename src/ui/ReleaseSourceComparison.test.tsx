@@ -7,6 +7,7 @@ import * as downloads from './download'
 import * as reports from './releaseChangeReport'
 import * as resumes from './resumeChangeReview'
 import { compareReleaseSource } from './compareReleaseSource'
+import * as comparisons from './compareReleaseSource'
 import { captureProductionSource, type ProductionPacketInput } from './buildProductionPacket'
 
 vi.mock('./useLocalChangeReview', () => ({
@@ -157,6 +158,28 @@ it('prevents duplicate exports and cancels delivery after closing', async () => 
   finish(report)
   await new Promise((resolve) => setTimeout(resolve, 0))
   expect(download).not.toHaveBeenCalled()
+})
+
+it('exports from the displayed comparison without comparing the sources again', async () => {
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  input.scene.parts[0].label = 'Exported panel'
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  const compare = vi.spyOn(comparisons, 'compareReleaseSource')
+  fireEvent.click(screen.getByRole('button', { name: 'Download change report JSON' }))
+  await vi.waitFor(() => expect(download).toHaveBeenCalledOnce())
+  expect(compare).not.toHaveBeenCalled()
+  expect(JSON.parse(download.mock.calls[0][0] as string).changes).toEqual(
+    compareReleaseSource(release.source, captureProductionSource(input)).changes,
+  )
 })
 
 it('keeps notes for identical sources and never applies them to a changed comparison', async () => {
