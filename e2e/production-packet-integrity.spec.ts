@@ -6,10 +6,6 @@ import { strToU8, unzipSync, zipSync } from 'fflate'
 test('a downloaded production packet verifies locally and altered files fail', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({ timeout: 120_000 })
-  // The seeded Board 1 has no material, which blocks a packet; remove it so the cabinet is all there is.
-  await page.getByText('Board 1', { exact: true }).click()
-  await page.getByTitle('Delete part').click()
-  await expect(page.getByText('Board 1', { exact: true })).toHaveCount(0)
   await page.getByLabel('Add cabinet').click()
   await page.getByRole('option', { name: 'Base 600' }).click()
   await page.getByRole('button', { name: 'File ▾' }).click()

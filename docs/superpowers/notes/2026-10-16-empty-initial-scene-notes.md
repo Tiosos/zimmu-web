@@ -1,0 +1,7 @@
+# Empty initial scene — notes
+
+- 2026-10-16: The app no longer seeds "Board 1". A fresh launch starts with the same empty scene File > New produces (preset materials, no parts). The seeded board had no material, so it raised unresolved-material, no-stock-thickness and no-board-stock blockers and a user's first production packet could never be released.
+- A board added with "+ Board" still has no material. That is deliberate: the user chooses one, and the readiness report says so until they do.
+- `occtReady` used to flip only when the first part finished building, which an empty scene never has. `useScene` now builds a 1 mm board once on mount purely to warm the kernel and flip readiness; its geometry is discarded. Without it "+ Board" and "+ Cabinet" stay disabled forever on first launch (the unit test "becomes ready on an empty scene…" pins it). File > New never hit this because the kernel was already warm.
+- `colorIndex` starts at -1 because it is pre-incremented on add. The first part added now takes `PART_COLORS[0]`, the swatch the seeded board used to have, so the palette order (and the colour-calibrated suggestion-highlight e2e) is unchanged.
+- Tests that relied on the seed use `renderSeeded()` (replaceScene with one fixture board) rather than clicking through `onAdd`, so their undo history and `canUndo` stay as they were. `useScene.geometryLifecycle.test.ts` scripts its mocked builds by spec, not call order, because the warm-up is now the first `buildPart` call.

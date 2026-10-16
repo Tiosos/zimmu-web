@@ -11,16 +11,18 @@ const OCCT_READY_TIMEOUT = 120_000
 // real-dowel delta (~0.68%) and steady-state high-bit noise (~0.005%).
 const DOWEL_RENDER_DELTA = 0.002
 
-test('app boots, OCCT initializes, and the default board renders', async ({ page }) => {
+test('app boots empty, OCCT initializes, and an added board renders', async ({ page }) => {
   await page.goto('/')
 
-  // Default scene seeds one board labeled "Board 1" (src/scene/useScene.ts).
-  await expect(page.getByText('Board 1')).toBeVisible()
+  // The first launch starts empty, like File > New: no part is seeded.
+  await expect(page.getByText('Board 1')).toHaveCount(0)
 
   // The "+ Board" button is disabled until occtReady flips true, i.e.
   // until the OCCT WASM kernel has booted in the worker.
   const addBoard = page.getByRole('button', { name: '+ Board' })
   await expect(addBoard).toBeEnabled({ timeout: OCCT_READY_TIMEOUT })
+  await addBoard.click()
+  await expect(page.getByText('Board 1')).toBeVisible()
 
   // Geometry reached the screen: the viewport canvas is not a uniform color.
   // Poll the screenshot — occtReady flips before the next animation frame has
@@ -31,7 +33,7 @@ test('app boots, OCCT initializes, and the default board renders', async ({ page
     .toBe(true)
 })
 
-test('adding a board appends a second part', async ({ page }) => {
+test('adding a board appends a part', async ({ page }) => {
   await page.goto('/')
 
   const addBoard = page.getByRole('button', { name: '+ Board' })
@@ -39,8 +41,10 @@ test('adding a board appends a second part', async ({ page }) => {
 
   await addBoard.click()
 
-  // labelCounter derives the next label as "Board 2" (src/scene/useScene.ts);
+  // labelCounter derives the next label as "Board 1" on an empty scene (src/scene/useScene.ts);
   // the new part appears as a row in the sidebar list.
+  await expect(page.getByText('Board 1')).toBeVisible()
+  await addBoard.click()
   await expect(page.getByText('Board 2')).toBeVisible()
 })
 
@@ -51,9 +55,10 @@ test('adding a dowel renders through the OCCT cylinder kernel path', async ({ pa
   const addDowel = page.getByRole('button', { name: '+ Dowel' })
   await expect(addDowel).toBeEnabled({ timeout: OCCT_READY_TIMEOUT })
 
-  // Capture the board-only frame once the default board has rendered. The camera
+  // Add a board, then capture the board-only frame once it has rendered. The camera
   // is set a single time at init and is never auto-reframed on part changes
   // (src/render/viewport.tsx), so any later pixel change is strictly new geometry.
+  await page.getByRole('button', { name: '+ Board' }).click()
   const canvas = await viewportCanvas(page)
   await expect
     .poll(async () => isNonBlank(await canvas.screenshot()), { timeout: 30_000 })

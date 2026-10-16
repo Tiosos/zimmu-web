@@ -30,7 +30,7 @@ test('the Sheets tab nests a real cabinet through the nest worker', async ({ pag
   // becomes its own nest group with its own sheet count.
   await page.getByLabel('Add cabinet').click()
   await page.getByRole('option', { name: 'Base 600' }).click()
-  await expect(page.getByTestId(/^node-board_/)).toHaveCount(9) // 8 + the seeded Board 1
+  await expect(page.getByTestId(/^node-board_/)).toHaveCount(8)
 
   await page.getByRole('button', { name: /^File/ }).click()
   await page.getByRole('button', { name: /Cutting List/ }).click()
