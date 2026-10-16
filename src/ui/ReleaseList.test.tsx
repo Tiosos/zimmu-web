@@ -1,5 +1,5 @@
-import { afterEach, expect, it } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { afterEach, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ReleaseList } from './ReleaseList'
 import { makeRelease, reviewAssessment } from '../scene/__fixtures__/release'
 
@@ -61,4 +61,18 @@ it('says how many open review items were acknowledged, and nothing for a ready r
   )
   expect(rows[0].textContent).toContain('Recorded with 9 open review items acknowledged')
   expect(rows[1].textContent).not.toContain('acknowledged')
+})
+
+it('offers comparison only for verified releases and passes the chosen snapshot', async () => {
+  const release = await makeRelease()
+  const onCompare = vi.fn()
+  const { rerender } = render(
+    <ReleaseList releases={[release]} integrity={null} onCompare={onCompare} />,
+  )
+  expect(screen.queryByRole('button', { name: /Compare current design/ })).toBeNull()
+  rerender(<ReleaseList releases={[release]} integrity={['corrupted']} onCompare={onCompare} />)
+  expect(screen.queryByRole('button', { name: /Compare current design/ })).toBeNull()
+  rerender(<ReleaseList releases={[release]} integrity={['ok']} onCompare={onCompare} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Compare current design with revision 1' }))
+  expect(onCompare).toHaveBeenCalledWith(release)
 })

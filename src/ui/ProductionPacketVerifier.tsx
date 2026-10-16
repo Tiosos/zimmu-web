@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { downloadBlob } from './download'
 import { ProductionReleaseGate, type ReleaseRecording } from './ProductionReleaseGate'
 import { ReleaseList } from './ReleaseList'
-import type { ReleaseEntry, ReleaseIntegrity } from '../scene/releases'
+import type { ProductionRelease, ReleaseEntry, ReleaseIntegrity } from '../scene/releases'
 import {
   MAX_PACKET_BYTES,
   verifyProductionPacket,
@@ -14,6 +14,7 @@ import {
 export interface VerifierRecording extends ReleaseRecording {
   releases: readonly ReleaseEntry[]
   integrity: readonly ReleaseIntegrity[] | null
+  onCompare?: (release: ProductionRelease) => void
 }
 
 export function ProductionPacketVerifier({
@@ -81,7 +82,13 @@ export function ProductionPacketVerifier({
         Check a downloaded packet locally for missing or altered files and inconsistent machining or
         drawing references. Your project is unchanged.
       </p>
-      {recording && <ReleaseList releases={recording.releases} integrity={recording.integrity} />}
+      {recording && (
+        <ReleaseList
+          releases={recording.releases}
+          integrity={recording.integrity}
+          onCompare={recording.onCompare}
+        />
+      )}
       <label htmlFor={inputId} className="mb-2 block text-sm font-medium">
         Production packet ZIP
       </label>

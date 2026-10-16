@@ -101,3 +101,49 @@ In **Verify production packet**, use **Assess production release** to combine th
 Revision mode requires the earlier ZIP and saved review JSON. The app recomputes the comparison and rejects stale reviews; changes, other outputs and comparison limitations must all be acknowledged. Choose **Initial release — no predecessor** only when there is no earlier packet.
 
 Download the release record beside the ZIP. It contains the final packet SHA-256, evidence hashes, traceable findings and independent formal-approval status. Changing a packet requires a fresh assessment. The packet manifest includes the shared gate policy; the final-hash assessment remains separate to avoid circular hashing. Technical readiness and locally saved evidence do not grant formal production approval. Packet exports remain available for fixing blockers.
+
+## Working design release status
+
+The status below the main toolbar compares the current production source with the highest recorded revision. It shows **No recorded release**, **Matches revision N**, or **Unreleased changes since revision N**. Editing a dimension changes the status; undoing it restores a match when all captured inputs match again.
+
+This is an exact source-hash comparison using the same capture as the packet exporter: scene, project name, material library and hardware library. Labels, visibility and library pricing can therefore trigger unreleased changes too. Camera position and the recorded release list are outside this comparison. Saving the working file does not record a new release.
+
+The latest release must pass its stored snapshot integrity check. A failed latest check or any unreadable release entry makes comparison unavailable rather than silently using an older baseline. Pending checks and source-check failures are shown explicitly. This status does not indicate production approval.
+
+### Compare the working design with a release
+
+Choose **Review releases** beside the toolbar status, then **Compare with this release** on any release whose snapshot integrity check has passed. The comparison shows added, removed and modified parts and hardware, grouped as manufacturing or metadata changes. Expand an item to inspect each changed field's before/after values. **Show [part]** selects a current part and opens the model's 3D view; removed parts have no selection target. Hidden parts are identified and keep their visibility.
+
+Part comparison uses the shared manufacturing inventory for dimensions, materials, stock, grain and edge treatment, plus captured cuts, manual instructions and resolved world placement. Hardware includes manual entries and the generated cabinet requirements, with current source-specific library purchasing details. Labels, presentation, provenance and prices count as metadata; additions, removals and any physical/purchasing change count as manufacturing changes. A mixed item appears in manufacturing, with individual field classifications retained. Labels nested within machining definitions are conservatively treated as manufacturing changes.
+
+Other changed source sections are listed as well, including raw part/hardware records and library, material, component and joint data. These may overlap the detailed item changes; they also expose changes outside the compared projections. Source record ordering can trigger the exact toolbar hash status even when individual item projections match.
+
+The comparison reads frozen source using the current application's manufacturing rules; it does not recreate or verify the original exported drawings or packet, grant approval, or assess machine compatibility or hardware suitability. Unusable snapshots show an error instead of an empty result. Use production packet comparison for actual exported output revisions. Comparison does not change the design, saved release or file format.
+
+### Download a change report
+
+In **Changes since revision N**, choose **Download printable change report** or **Download change report JSON**. Downloads capture the displayed comparison when requested. The standalone HTML can be opened locally and printed or saved as PDF through the browser's Print command; it includes every field without requiring expanded on-screen details. New JSON downloads use schema version 2 and kind `release-source-change-report`; version 2 includes the local review record. Previously downloaded version-1 reports remain unchanged.
+
+Both formats include the capture timestamp (UTC), application version, baseline revision/release ID, baseline and current project names, both complete source SHA-256 hashes, and the recorded packet hash as a reference. They retain added/removed/modified parts and hardware, before/after field values, per-item and per-field classifications, current part references, other changed source section names and comparison limitations. Counts refer to changed items, not fields. An unchanged comparison remains exportable with zero counts.
+
+The baseline source hash is checked again before download. Failed hashing or a mismatched baseline produces an error and no download; retry is available. While preparing one format, both download buttons are disabled. Closing the comparison cancels delivery. Later edits cannot change a downloaded report; download again for a new snapshot. These reports compare captured sources using current application rules, and neither verify the original production ZIP nor record approval. Other changed source sections are identified by name; their complete definitions are not reproduced in the report.
+
+### Review the change report
+
+Use **Reviewer name** and **Overall review notes**, then check **Reviewed** and add a **Review note** for each changed item, other changed source section and comparison limitation. Progress counts all of these findings; checking an item does not automatically check its source sections or limitations. Fields and exports allow partial reviews and an optional reviewer name. Names are self-declared and unverified, and even a fully checked review does not record formal production approval.
+
+Printable HTML and JSON include the reviewer, overall and per-finding notes, reviewed/pending states and progress. The review belongs to the exact baseline release ID/revision, packet reference and both captured source strings, whose hashes are included in the report. The exporter checks that context again before saving. Source changes get an unchecked review; marks from a different source pair are not applied. An identical source pair keeps its current draft across rerenders.
+
+Review drafts autosave in this browser using IndexedDB, retaining up to ten recent source comparisons. Matching drafts restore automatically when reopened, including after a browser restart once the same project and design are loaded. Drafts are tied to the release, both source hashes and the current comparison results; mismatched drafts are never applied. Closing, Escape or jumping to a part waits for the latest save. Storage failures show a warning and retry action; unsaved edits still require confirmation before leaving. Browser data clearing, private browsing and eviction can remove drafts, so download JSON for a portable backup. Drafts store review text and check-offs, not project geometry, and do not modify project files. Use the JSON resume action below to restore a saved checkpoint. Reviewer names are limited to 100 characters; overall and individual notes to 5,000 characters. Review controls are disabled while a report is being prepared.
+
+### Resume a change review from JSON
+
+Open the same recorded-release comparison, then choose your downloaded file using **Resume change review JSON**. This accepts version-2 `release-source-change-report` JSON up to 64 MiB. Version-1 exports have no review record and cannot be resumed; HTML is a printable copy, not a resume file.
+
+The app recomputes the current comparison and both source hashes, verifies the baseline source against its stored digest, and requires the same release ID/revision and packet reference. It checks the complete comparison, counts, other source sections and limitations, plus every review reference, label, category, note, identity, approval field and progress total. Reordered JSON object keys and review entries are accepted; missing, duplicate, unknown or altered findings are rejected. A different application version is acceptable only when the recomputed comparison and review coverage still match.
+
+A successful resume restores reviewer name, overall/per-finding notes, check-offs and progress, and counts as an existing saved checkpoint. Further edits require a new download. If current review edits have not been downloaded, confirmation is requested only after the incoming file passes validation. Cancelling keeps the current draft. Invalid files, read errors or a comparison/review changing during loading also leave the draft intact; choose the JSON again to retry. Closing the dialog cancels pending delivery.
+
+Review controls, downloads and the file chooser are disabled during loading. Validation confirms compatibility with the current comparison; it does not authenticate the file's author or verify that review work was actually performed. All review identities remain self-declared and formal production approval stays unrecorded.
+
+Incoming JSON numbers must be finite; overflowing numeric tokens are rejected as invalid report data.
