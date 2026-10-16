@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useId, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import type { ProductionRelease } from '../scene/releases'
+import type { Part } from '../scene/types'
 import { captureProductionSource, type ProductionPacketInput } from './buildProductionPacket'
 import { compareReleaseSource } from './compareReleaseSource'
 import {
@@ -65,6 +66,38 @@ function ReviewFinding({
   )
 }
 
+// A cabinet-level hardware change links every board of the cabinet.
+const PART_BUTTON_LIMIT = 5
+function FindingParts({ parts, onShow }: { parts: Part[]; onShow: (id: string) => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const more = parts.length - PART_BUTTON_LIMIT
+  return (
+    <>
+      {(expanded ? parts : parts.slice(0, PART_BUTTON_LIMIT)).map((part) => (
+        <Button
+          key={part.id}
+          variant="outline"
+          className="mr-2 mt-2"
+          onClick={() => onShow(part.id)}
+        >
+          Show {part.label}
+          {part.visible ? '' : ' (hidden)'}
+        </Button>
+      ))}
+      {more > 0 && (
+        <Button
+          variant="ghost"
+          className="mr-2 mt-2"
+          aria-expanded={expanded}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Show fewer parts' : `Show ${more} more ${more === 1 ? 'part' : 'parts'}`}
+        </Button>
+      )}
+    </>
+  )
+}
+
 export function ReleaseSourceComparison({
   release,
   input,
@@ -94,6 +127,10 @@ export function ReleaseSourceComparison({
   const savedReview = useRef<ChangeReviewDraft | null>(null)
   const [reviewState, setReviewState] = useState<ChangeReviewDraft | null>(null)
   const { scene, projectName, hardwareLibrary, materialLibrary } = input
+  const partsById = useMemo(
+    () => new Map(scene.parts.map((part) => [part.id, part])),
+    [scene.parts],
+  )
   const result = useMemo(() => {
     try {
       const source = captureProductionSource({
@@ -467,24 +504,12 @@ export function ReleaseSourceComparison({
                       {change.change === 'removed' && (
                         <p>Removed from the current design; no current part to select.</p>
                       )}
-                      {change.partIds.map((id) => {
-                        const part = scene.parts.find((part) => part.id === id)
-                        return (
-                          part && (
-                            <Button
-                              key={id}
-                              variant="outline"
-                              className="mr-2 mt-2"
-                              onClick={() => {
-                                void leave(() => onInspect(id))
-                              }}
-                            >
-                              Show {part.label}
-                              {part.visible ? '' : ' (hidden)'}
-                            </Button>
-                          )
-                        )
-                      })}
+                      <FindingParts
+                        parts={change.partIds.flatMap((id) => partsById.get(id) ?? [])}
+                        onShow={(id) => {
+                          void leave(() => onInspect(id))
+                        }}
+                      />
                     </li>
                   ))}
               </ul>

@@ -571,3 +571,60 @@ it('says so, rather than doing nothing, when the review keeps changing while it 
   expect(close).toHaveBeenCalledOnce()
   expect(screen.queryByText('Your review changed while it was being saved. Try again.')).toBeNull()
 })
+
+it('caps the part buttons on a finding that links many parts, with a toggle for the rest', async () => {
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  const template = input.scene.parts[0]
+  const bulk = Array.from({ length: 30 }, (_, i) => ({
+    ...template,
+    id: `bulk-${i}`,
+    label: `Bulk ${i}`,
+    visible: true,
+  }))
+  input.scene.parts.push(...bulk)
+  const real = compareReleaseSource(release.source, captureProductionSource(inputOf()))
+  vi.spyOn(comparisons, 'compareReleaseSource').mockReturnValue({
+    ...real,
+    changes: [
+      {
+        key: 'hardware:generated:cabinet',
+        entity: 'hardware',
+        id: 'generated:cabinet',
+        label: 'Cabinet: Hinge',
+        change: 'modified',
+        classification: 'manufacturing',
+        partIds: bulk.map((part) => part.id),
+        fields: [],
+      },
+    ],
+  })
+  const inspect = vi.fn()
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={inspect}
+    />,
+  )
+  const finding = screen.getByRole('region', { name: 'manufacturing changes' })
+  const partButtons = () =>
+    within(finding)
+      .queryAllByRole('button')
+      .filter((button) => /^Show Bulk \d+$/.test(button.textContent ?? ''))
+  expect(partButtons().map((button) => button.textContent)).toEqual(
+    ['Bulk 0', 'Bulk 1', 'Bulk 2', 'Bulk 3', 'Bulk 4'].map((label) => `Show ${label}`),
+  )
+  fireEvent.click(within(finding).getByRole('button', { name: 'Show Bulk 1' }))
+  await vi.waitFor(() => expect(inspect).toHaveBeenCalledWith('bulk-1'))
+  const more = within(finding).getByRole('button', { name: 'Show 25 more parts' })
+  expect(more.getAttribute('aria-expanded')).toBe('false')
+  fireEvent.click(more)
+  expect(partButtons()).toHaveLength(30)
+  expect(partButtons()[29].textContent).toBe('Show Bulk 29')
+  const fewer = within(finding).getByRole('button', { name: 'Show fewer parts' })
+  expect(fewer.getAttribute('aria-expanded')).toBe('true')
+  fireEvent.click(fewer)
+  expect(partButtons()).toHaveLength(5)
+})

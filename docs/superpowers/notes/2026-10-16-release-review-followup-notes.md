@@ -98,3 +98,14 @@ append here.
   earlier render and requires it to write the later draft. A change of *comparison* during the
   flush still returns silently: that is a different context, the dialog re-renders for it, and
   the button works on the next click. The message is cleared at the start of every leave.
+- 2026-10-16 — A finding rendered one "Show <part>" button per linked part, each resolved with
+  `scene.parts.find`. A generated hardware row links every board of its cabinet (`partIds` is
+  every inventory record with that `cabinetId`), so one hinge-count change put a cabinet's worth
+  of buttons on the finding, and a job's worth of such findings made the lookup quadratic. Each
+  finding now shows the first five resolvable parts and a "Show N more parts" toggle
+  (`aria-expanded`) that reveals the rest; labels resolve through one `Map` memoised on
+  `scene.parts`. The limit counts parts that exist, so a removed part neither renders nor inflates
+  "N more". Button names and the `leave()` path are unchanged for findings of five parts or fewer,
+  which covers the existing unit tests and `e2e/release-source.spec.ts`. The `Map` is a
+  performance change no test can distinguish from `find`; only the cap, the toggle and the ids
+  the buttons pass were mutation-tested.
