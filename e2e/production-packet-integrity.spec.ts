@@ -6,6 +6,10 @@ import { strToU8, unzipSync, zipSync } from 'fflate'
 test('a downloaded production packet verifies locally and altered files fail', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({ timeout: 120_000 })
+  // The seeded Board 1 has no material, which blocks a packet; remove it so the cabinet is all there is.
+  await page.getByText('Board 1', { exact: true }).click()
+  await page.getByTitle('Delete part').click()
+  await expect(page.getByText('Board 1', { exact: true })).toHaveCount(0)
   await page.getByLabel('Add cabinet').click()
   await page.getByRole('option', { name: 'Base 600' }).click()
   await page.getByRole('button', { name: 'File ▾' }).click()
@@ -34,26 +38,25 @@ test('a downloaded production packet verifies locally and altered files fail', a
   expect(release.packetSha256).toBe(createHash('sha256').update(bytes).digest('hex'))
   expect(release.formalApproval).toBe('not-recorded')
   expect(release.revision.mode).toBe('initial')
-  // A packet exported from the unchanged model offers recording exactly when it is technically
-  // ready; otherwise recording is not offered at all.
+  // A clean Base 600 is review-required, never technically ready: the readiness review always lists
+  // standing unassessed items. Recording it must work, and it is the browser's proof that the live
+  // project hashes to the packet manifest's sourceSha256.
+  await expect(gate.getByRole('heading', { name: 'Release review required' })).toBeVisible()
+  const recordButton = gate.getByRole('button', { name: 'Record release' })
+  await expect(recordButton).toBeDisabled()
+  await gate.getByLabel('Released by').fill('E2E Designer')
+  await expect(recordButton).toBeDisabled()
+  await gate
+    .getByRole('checkbox', { name: /I have reviewed the \d+ open review items listed above/ })
+    .check()
+  await recordButton.click()
+  await expect(gate.getByText('Recorded as revision 1.')).toBeVisible()
+  const recorded = dialog.getByRole('region', { name: 'Recorded releases' })
+  await expect(recorded.getByText('E2E Designer (self-declared, unverified)')).toBeVisible()
   await expect(
-    gate.getByRole('heading', {
-      name: /Release blocked|Release review required|Technically ready for release/,
-    }),
+    recorded.getByText('Recorded with 9 open review items acknowledged', { exact: true }),
   ).toBeVisible()
-  const ready = await gate
-    .getByRole('heading', { name: 'Technically ready for release' })
-    .isVisible()
-  if (ready) {
-    await gate.getByLabel('Released by').fill('E2E Designer')
-    await gate.getByRole('button', { name: 'Record release' }).click()
-    await expect(gate.getByText('Recorded as revision 1.')).toBeVisible()
-    const recorded = dialog.getByRole('region', { name: 'Recorded releases' })
-    await expect(recorded.getByText('E2E Designer (self-declared, unverified)')).toBeVisible()
-    await expect(recorded.getByText('Integrity check passed')).toBeVisible()
-  } else {
-    await expect(gate.getByRole('button', { name: 'Record release' })).toHaveCount(0)
-  }
+  await expect(recorded.getByText('Integrity check passed')).toBeVisible()
   const files = unzipSync(bytes)
   files['lists/machining.csv'] = strToU8('Altered machining')
   await input.setInputFiles({
