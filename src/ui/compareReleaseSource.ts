@@ -9,6 +9,7 @@ import { groupHardware } from './groupHardware'
 import { validateCurrentFile } from '../scene/fileValidation'
 import { FILE_FORMAT_VERSION } from '../scene/useFile'
 import { productionLimitIssue } from '../scene/readinessLimits'
+import { canonicalJson } from './canonicalJson'
 
 export interface SourceChange {
   key: string
@@ -30,16 +31,6 @@ export interface SourceComparison {
   otherSourceChanges: string[]
 }
 
-// Object insertion order is immaterial; array order and every recorded value remain significant.
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
-  if (value && typeof value === 'object')
-    return `{${Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`)
-      .join(',')}}`
-  return JSON.stringify(value) ?? 'undefined'
-}
 function readSource(text: string): ProductionPacketInput {
   const input = JSON.parse(text) as ProductionPacketInput
   if (
@@ -174,7 +165,7 @@ export function compareReleaseSource(beforeSource: string, afterSource: string):
       .flatMap((name) => {
         const before = old?.fields[name],
           after = next?.fields[name]
-        return canonical(before) === canonical(after)
+        return canonicalJson(before) === canonicalJson(after)
           ? []
           : [
               {
@@ -220,7 +211,7 @@ export function compareReleaseSource(beforeSource: string, afterSource: string):
         after.scene[key as keyof typeof after.scene],
       ]),
   ]
-    .filter(([, a, b]) => canonical(a) !== canonical(b))
+    .filter(([, a, b]) => canonicalJson(a) !== canonicalJson(b))
     .map(([label]) => String(label))
   return { changes, otherSourceChanges }
 }
