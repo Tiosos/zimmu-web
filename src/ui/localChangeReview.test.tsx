@@ -200,3 +200,20 @@ it('builds its context from the comparison it is given', async () => {
   expect(restore.mock.calls[0][0]).toEqual(draft)
   expect(compare).not.toHaveBeenCalled()
 })
+it('flushes the latest draft even through a flush taken from an earlier render', async () => {
+  const { release, source, context, draft } = await fixture()
+  const hook = renderHook(
+    ({ draft: current }: { draft: ChangeReviewDraft | null }) =>
+      useLocalChangeReview(release, source, current, vi.fn()),
+    { initialProps: { draft } },
+  )
+  await waitFor(() => expect(hook.result.current.saved).toBe(true))
+  const earlier = hook.result.current.flush
+  const later = { ...draft, notes: 'Typed while closing' }
+  hook.rerender({ draft: later })
+  await waitFor(() => expect(hook.result.current.saved).toBe(true))
+  const write = vi.spyOn(storage, 'writeLocalChangeReview')
+  expect(await act(earlier)).toBe(true)
+  expect(write).toHaveBeenCalledOnce()
+  expect(write.mock.calls[0][0].review).toEqual(packLocalChangeReview(later, context).review)
+})

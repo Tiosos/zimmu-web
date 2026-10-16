@@ -87,3 +87,14 @@ append here.
   edits are *not* safe locally — autosave reports an error, or the explicit flush failed — so
   "discard … download a report first to keep them" is accurate there, and an autosaved review
   closes without any prompt.
+- 2026-10-16 — `leave()` flushed once and, if the edit version moved during the flush, returned
+  without acting or saying anything, so Close or Show looked dead. It now flushes up to three
+  times while the version keeps moving, then applies the usual guard; if the review is still
+  changing after the third, it shows a `role="status"` message asking to try again. The review's
+  premise was right, with one gap it did not name: `autosave.flush` closed over the draft of the
+  render that created it, so a retry from the same `leave()` call would have re-saved the stale
+  draft and then closed with the newest edit unsaved. `flush` now reads the hook's latest draft and
+  context through a ref (the same one the unmount write uses); the hook test takes a flush from an
+  earlier render and requires it to write the later draft. A change of *comparison* during the
+  flush still returns silently: that is a different context, the dialog re-renders for it, and
+  the button works on the next click. The message is cleared at the start of every leave.

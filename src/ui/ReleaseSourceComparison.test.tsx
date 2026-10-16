@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ReleaseSourceComparison } from './ReleaseSourceComparison'
 import { makeRelease } from '../scene/__fixtures__/release'
 import { machiningProject } from '../scene/__fixtures__/machiningProject'
@@ -22,6 +22,7 @@ vi.mock('./useLocalChangeReview', () => ({
   })),
 }))
 
+const defaultHook = vi.mocked(useLocalChangeReview).getMockImplementation()!
 const inputOf = (): ProductionPacketInput => ({
   scene: machiningProject(),
   projectName: 'Kitchen',
@@ -41,6 +42,7 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  vi.mocked(useLocalChangeReview).mockImplementation(defaultHook)
 })
 
 it('shows grouped changes and selects an affected part', async () => {
@@ -507,4 +509,65 @@ it('does not overwrite a newer review edit if a queued change arrives during loa
   expect(
     screen.getByText(/Review could not be resumed:.*comparison or review changed while loading/),
   ).toBeTruthy()
+})
+
+async function closingWhileSaving() {
+  const pending: ((kept: boolean) => void)[] = []
+  const flush = vi.fn(() => new Promise<boolean>((resolve) => pending.push(resolve)))
+  vi.mocked(useLocalChangeReview).mockImplementation(() => ({
+    loading: false,
+    saved: false,
+    error: undefined,
+    restored: false,
+    retry: () => {},
+    flush,
+  }))
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  input.scene.parts[0].label = 'Saving panel'
+  const close = vi.fn()
+  render(
+    <ReleaseSourceComparison release={release} input={input} onClose={close} onInspect={vi.fn()} />,
+  )
+  const type = (value: string) =>
+    fireEvent.change(screen.getByLabelText('Reviewer name'), { target: { value } })
+  let settled = 0
+  const settle = async (kept: boolean) => {
+    await vi.waitFor(() => expect(pending.length).toBeGreaterThan(settled))
+    await act(async () => pending[settled++](kept))
+  }
+  return { close, flush, type, settle }
+}
+
+it('saves again and closes when the review changes during the save before closing', async () => {
+  const { close, flush, type, settle } = await closingWhileSaving()
+  type('Pat')
+  fireEvent.click(screen.getByRole('button', { name: 'Close comparison' }))
+  type('Pat Lee')
+  await settle(true)
+  expect(close).not.toHaveBeenCalled()
+  await settle(true)
+  expect(flush).toHaveBeenCalledTimes(2)
+  expect(close).toHaveBeenCalledOnce()
+})
+
+it('says so, rather than doing nothing, when the review keeps changing while it is saved', async () => {
+  const { close, flush, type, settle } = await closingWhileSaving()
+  type('A')
+  fireEvent.click(screen.getByRole('button', { name: 'Close comparison' }))
+  for (const value of ['AB', 'ABC', 'ABCD']) {
+    type(value)
+    await settle(true)
+  }
+  expect(flush).toHaveBeenCalledTimes(3)
+  expect(close).not.toHaveBeenCalled()
+  expect(
+    screen
+      .getByText('Your review changed while it was being saved. Try again.')
+      .getAttribute('role'),
+  ).toBe('status')
+  fireEvent.click(screen.getByRole('button', { name: 'Close comparison' }))
+  await settle(true)
+  expect(close).toHaveBeenCalledOnce()
+  expect(screen.queryByText('Your review changed while it was being saved. Try again.')).toBeNull()
 })

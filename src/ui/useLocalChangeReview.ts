@@ -110,7 +110,9 @@ export function useLocalChangeReview(
     error: state.scope === scope ? state.error : undefined,
     restored: state.scope === scope && state.restored,
     retry: () => setRetry((value) => value + 1),
+    // Reads the latest render, so a caller that saw the draft change mid-flush can flush again.
     flush: async () => {
+      const { draft, context } = unsaved.current
       if (!draft) return true
       if (!context) return false
       try {

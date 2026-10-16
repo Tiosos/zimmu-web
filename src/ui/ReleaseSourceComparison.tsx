@@ -90,6 +90,7 @@ export function ReleaseSourceComparison({
     message: string
   } | null>(null)
   const [exportError, setExportError] = useState('')
+  const [leaveNotice, setLeaveNotice] = useState('')
   const savedReview = useRef<ChangeReviewDraft | null>(null)
   const [reviewState, setReviewState] = useState<ChangeReviewDraft | null>(null)
   const { scene, projectName, hardwareLibrary, materialLibrary } = input
@@ -184,6 +185,7 @@ export function ReleaseSourceComparison({
       'Discard review edits since your last report download? Download a report first to keep them.',
     )
   const leave = async (action: () => void) => {
+    setLeaveNotice('')
     if (!review || !hasReviewEdits(review) || savedReview.current === review || autosave.saved) {
       action()
       return
@@ -192,12 +194,17 @@ export function ReleaseSourceComparison({
       if (canLeave()) action()
       return
     }
-    const version = editVersion.current
     const context = contextVersion.current
-    const kept = await autosave.flush()
-    if (!alive.current || version !== editVersion.current || context !== contextVersion.current)
-      return
-    if (kept || canLeave()) action()
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const version = editVersion.current
+      const kept = await autosave.flush()
+      if (!alive.current || context !== contextVersion.current) return
+      if (version === editVersion.current) {
+        if (kept || canLeave()) action()
+        return
+      }
+    }
+    setLeaveNotice('Your review changed while it was being saved. Try again.')
   }
   const close = () => {
     void leave(onClose)
@@ -312,6 +319,7 @@ export function ReleaseSourceComparison({
       {resumeError && <p role="alert">Review could not be resumed: {resumeError}</p>}
       {resumeNotice && matches(resumeNotice.review) && <p role="status">{resumeNotice.message}</p>}
       {exportError && <p role="alert">Report export failed: {exportError}</p>}
+      {leaveNotice && <p role="status">{leaveNotice}</p>}
       {result.error && <p role="alert">Comparison unavailable: {result.error}</p>}
       {result.report && (
         <>
