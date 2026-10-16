@@ -64,7 +64,7 @@ it('offers no recording for a blocked assessment', async () => {
   expect(screen.queryByRole('checkbox')).toBeNull()
 })
 
-const ACK = 'I have reviewed the 2 open review items listed above'
+const ACK = 'I have reviewed the 2 open review items in this assessment'
 
 it('records a review-required assessment only once a name is typed and the review is acknowledged', async () => {
   const onRecord = setup({ status: 'review-required' })

@@ -47,7 +47,7 @@ test('a downloaded production packet verifies locally and altered files fail', a
   await gate.getByLabel('Released by').fill('E2E Designer')
   await expect(recordButton).toBeDisabled()
   await gate
-    .getByRole('checkbox', { name: /I have reviewed the \d+ open review items listed above/ })
+    .getByRole('checkbox', { name: /I have reviewed the \d+ open review items in this assessment/ })
     .check()
   await recordButton.click()
   await expect(gate.getByText('Recorded as revision 1.')).toBeVisible()

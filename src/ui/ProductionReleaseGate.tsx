@@ -276,7 +276,7 @@ export function ProductionReleaseGate({
                       disabled={recordBusy}
                       onChange={(event) => setAcknowledged(event.target.checked)}
                     />{' '}
-                    I have reviewed the {openReviewItems} open review items listed above
+                    I have reviewed the {openReviewItems} open review items in this assessment
                   </label>
                 )}
                 <p className="text-sm">
