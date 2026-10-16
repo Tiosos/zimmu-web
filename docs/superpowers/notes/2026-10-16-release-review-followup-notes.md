@@ -50,3 +50,27 @@ append here.
   explicit, rare action and that function's behaviour belongs to another group. The report builder
   still `JSON.parse`s both sources to read `projectName`; removing that would mean changing
   `SourceComparison`, which is spread into the exported report.
+
+## Group 2: the comparison dialog's lifecycle and controls
+
+- 2026-10-16 — App rendered the comparison only while `releases.includes(comparisonRelease)` and
+  that index's integrity was `'ok'`. `releaseIntegrity` is `null` whenever the `releases` array
+  changes identity (recording a release, opening a file), so recording a release from the verifier
+  unmounted the dialog, and reopening the same file failed `includes` for good. App now finds the
+  release by `id` and `sourceSha256` and keeps the dialog while that entry's integrity is `'ok'` or
+  still being checked (`null`). The dialog keeps receiving the stored object it was opened with:
+  an entry with the same id and source hash has, once verified, the same source text. A same-id
+  entry with a different source hash counts as a different release. When the release is gone or
+  verified as not `'ok'`, App clears `comparisonRelease` during render (the
+  `react-hooks/set-state-in-effect` rule refuses the effect form), so reopening a file that holds
+  the release does not bring the dialog back on its own — before, it did.
+- 2026-10-16 — The premise that an unmount loses edits since "the last autosave tick" was only
+  partly right: there is no tick. Every draft change starts its write in an effect immediately,
+  and the store queue lets it finish after unmount, so an ordinary edit followed by an unmount
+  is kept (tested, real fake-indexeddb). What was lost was an edit made after an autosave
+  failure: the hook writes again only on Retry, so on unmount the draft existed only in memory.
+  `useLocalChangeReview` now makes one best-effort write of an unsaved draft in its unmount
+  cleanup. It cannot prompt there, and if storage still fails the edit is lost as before; a
+  failure is swallowed because nothing is left on screen to report it to. App-level tests mock
+  the dialog and count mounts; whether an unmount keeps the draft is the dialog-level test in
+  `ReleaseSourceComparison.autosave.test.tsx`.

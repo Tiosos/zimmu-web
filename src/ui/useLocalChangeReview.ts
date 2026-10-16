@@ -68,6 +68,20 @@ export function useLocalChangeReview(
     }
   }, [scope, retry])
   const context = state.scope === scope ? state.context : undefined
+  const unsaved = useRef({ draft, context })
+  unsaved.current = { draft, context }
+  // The dialog can be unmounted without its leave guard (the release disappears from the file).
+  // A draft whose autosave failed would otherwise exist only in memory.
+  useEffect(() => {
+    const live = unsaved
+    return () => {
+      const { draft, context } = live.current
+      if (!context || !draft || saved.current === draft) return
+      void (async () => writeLocalChangeReview(packLocalChangeReview(draft, context)))().catch(
+        () => {},
+      )
+    }
+  }, [])
   useEffect(() => {
     if (!context || !draft || saved.current === draft) return
     let active = true
