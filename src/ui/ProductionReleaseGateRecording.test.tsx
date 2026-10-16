@@ -105,6 +105,42 @@ it('clears the acknowledgment when the packet is assessed again', async () => {
   )
 })
 
+function setupOpen(open: number) {
+  vi.spyOn(release, 'assessProductionRelease').mockResolvedValue(
+    reviewAssessment('b'.repeat(64), open),
+  )
+  vi.spyOn(release, 'packetSourceSha256').mockResolvedValue(hash)
+  render(
+    <ProductionReleaseGate
+      packet={new Uint8Array([1])}
+      recording={{ captureSource: () => SOURCE_A, onRecord: vi.fn() }}
+    />,
+  )
+  fireEvent.change(screen.getByLabelText('Release context'), { target: { value: 'initial' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Assess production release' }))
+}
+
+it('names a single open review item in the singular', async () => {
+  setupOpen(1)
+  expect(
+    await screen.findByRole('checkbox', {
+      name: 'I have reviewed the 1 open review item in this assessment',
+    }),
+  ).toBeTruthy()
+})
+
+it('says the release record lists every item when the findings shown are truncated', async () => {
+  setupOpen(201)
+  await screen.findByRole('checkbox', {
+    name: 'I have reviewed the 201 open review items in this assessment',
+  })
+  expect(
+    screen.getByText(
+      'Recording stores a frozen copy of this project and this assessment, including the open review items (the release record lists all of them), in the file. The name is typed, not verified, and this is not formal approval.',
+    ),
+  ).toBeTruthy()
+})
+
 it('says the recorded copy includes the open review items and is not approval', async () => {
   setup({ status: 'review-required' })
   await screen.findByRole('button', { name: 'Record release' })

@@ -93,14 +93,15 @@ function readRelease(value: unknown): ProductionRelease | null {
   )
     return null
   // A record that contradicts itself is unreadable: a blocker never records, a ready packet has
-  // nothing to acknowledge, and a review-required one acknowledged exactly what it listed.
+  // nothing to acknowledge, and a review-required one lists review items and acknowledged exactly
+  // what it listed.
   const record = assessment as unknown as ProductionReleaseRecord
   const acknowledged = value.acknowledgedReviewItems
   if (record.findings.some((finding) => finding.category === 'blocker')) return null
   if (
     record.status === 'technically-ready'
       ? record.findings.length !== 0 || (acknowledged !== undefined && acknowledged !== 0)
-      : acknowledged !== openReviewItems(record)
+      : openReviewItems(record) === 0 || acknowledged !== openReviewItems(record)
   )
     return null
   // Chars never exceed bytes, so this never rejects a source the recorder accepted. JSON validity
@@ -187,9 +188,13 @@ export async function recordRelease(
   input: RecordReleaseInput,
 ): Promise<RecordReleaseResult> {
   const { assessment } = input
+  // Refuse whatever readRelease would reject, so a recorded release always reloads.
   if (
     assessment.status === 'blocked' ||
-    assessment.findings.some((finding) => finding.category === 'blocker')
+    assessment.findings.some((finding) => finding.category !== 'review-required') ||
+    (assessment.status === 'technically-ready'
+      ? assessment.findings.length !== 0
+      : openReviewItems(assessment) === 0)
   )
     return refuse('not-ready')
   if (assessment.status === 'review-required' && input.acknowledgeReview !== true)

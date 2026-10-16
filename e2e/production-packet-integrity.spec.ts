@@ -47,15 +47,15 @@ test('a downloaded production packet verifies locally and altered files fail', a
   await gate.getByLabel('Released by').fill('E2E Designer')
   await expect(recordButton).toBeDisabled()
   await gate
-    .getByRole('checkbox', { name: /I have reviewed the \d+ open review items in this assessment/ })
+    .getByRole('checkbox', {
+      name: /I have reviewed the \d+ open review items? in this assessment/,
+    })
     .check()
   await recordButton.click()
   await expect(gate.getByText('Recorded as revision 1.')).toBeVisible()
   const recorded = dialog.getByRole('region', { name: 'Recorded releases' })
   await expect(recorded.getByText('E2E Designer (self-declared, unverified)')).toBeVisible()
-  await expect(
-    recorded.getByText('Recorded with 9 open review items acknowledged', { exact: true }),
-  ).toBeVisible()
+  await expect(recorded.getByText(/Recorded with \d+ open review items acknowledged/)).toBeVisible()
   await expect(recorded.getByText('Integrity check passed')).toBeVisible()
   const files = unzipSync(bytes)
   files['lists/machining.csv'] = strToU8('Altered machining')

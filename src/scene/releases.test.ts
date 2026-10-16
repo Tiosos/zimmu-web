@@ -122,6 +122,16 @@ describe('parseReleases', () => {
     expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
   })
 
+  it('rejects a review-required release with no review items, even acknowledging none', async () => {
+    const bad = roundTrip(
+      await makeRelease({
+        assessment: reviewAssessment('a'.repeat(64), 0),
+        acknowledgedReviewItems: 0,
+      }),
+    )
+    expect(parseReleases([bad])[0]).toMatchObject({ unreadable: true })
+  })
+
   it('rejects a review-required release carrying a blocker, even with a matching count', async () => {
     const assessment = reviewAssessment('a'.repeat(64), 1)
     assessment.findings.push({ ...reviewFinding('broken'), category: 'blocker' })
@@ -345,6 +355,30 @@ describe('recordRelease', () => {
       expect(await recordRelease([], input)).toEqual({ ok: false, reason: 'not-ready' })
     },
   )
+
+  it.each([
+    ['a ready assessment listing a finding', 'technically-ready', [reviewFinding('x')]],
+    ['a review-required assessment with nothing to review', 'review-required', []],
+    [
+      'a finding of unknown category',
+      'review-required',
+      [reviewFinding('y'), { ...reviewFinding('x'), category: 'advisory' }],
+    ],
+  ] as const)('refuses %s, as parse would', async (_label, status, findings) => {
+    const input = await inputFor(SOURCE_A, { acknowledgeReview: true })
+    input.assessment = {
+      ...readyAssessment('b'.repeat(64)),
+      status,
+      findings: findings as never,
+    }
+    expect(await recordRelease([], input)).toEqual({ ok: false, reason: 'not-ready' })
+  })
+
+  it('refuses a contradictory assessment before checking any digest', async () => {
+    const input = await inputFor(SOURCE_A, { acknowledgeReview: true, packetSourceSha256: 'abc' })
+    input.assessment = { ...readyAssessment('b'.repeat(64)), findings: [reviewFinding('x')] }
+    expect(await recordRelease([], input)).toEqual({ ok: false, reason: 'not-ready' })
+  })
 
   it.each([undefined, false])(
     'refuses a review-required assessment when acknowledgeReview is %s',

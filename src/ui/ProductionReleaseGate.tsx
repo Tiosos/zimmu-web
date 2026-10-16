@@ -276,13 +276,15 @@ export function ProductionReleaseGate({
                       disabled={recordBusy}
                       onChange={(event) => setAcknowledged(event.target.checked)}
                     />{' '}
-                    I have reviewed the {openReviewItems} open review items in this assessment
+                    I have reviewed the {openReviewItems} open review{' '}
+                    {openReviewItems === 1 ? 'item' : 'items'} in this assessment
                   </label>
                 )}
                 <p className="text-sm">
                   Recording stores a frozen copy of this project and this assessment, including the
-                  open review items, in the file. The name is typed, not verified, and this is not
-                  formal approval.
+                  open review items
+                  {record.findings.length > 200 && ' (the release record lists all of them)'}, in
+                  the file. The name is typed, not verified, and this is not formal approval.
                 </p>
                 <Button
                   disabled={
