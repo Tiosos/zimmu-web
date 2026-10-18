@@ -105,7 +105,40 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
   await comparison
     .getByRole('textbox', { name: 'Overall review notes', exact: true })
     .fill('Confirm site dimensions before handover.')
-  await comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ }).check()
+  await comparison
+    .getByRole('searchbox', { name: 'Search review findings', exact: true })
+    .fill('RELEASE SHELF')
+  await expect(comparison.getByText(/Showing 1 of/)).toBeVisible()
+  await comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }).check()
+  await comparison.getByRole('button', { name: 'Next pending finding', exact: true }).click()
+  await expect(comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ })).toBeFocused()
+  await comparison.getByRole('button', { name: 'Review pending limitations', exact: true }).click()
+  await expect(
+    comparison.getByRole('searchbox', { name: 'Search review findings', exact: true }),
+  ).toHaveValue('')
+  await expect(
+    comparison
+      .getByRole('region', { name: 'Review comparison limitations' })
+      .getByRole('checkbox')
+      .first(),
+  ).toBeFocused()
+  await comparison
+    .getByRole('button', { name: 'Review pending source changes', exact: true })
+    .click()
+  await expect(
+    comparison.getByRole('checkbox', { name: 'Reviewed: Part source records', exact: true }),
+  ).toBeFocused()
+  await comparison.getByRole('button', { name: 'Review pending changes', exact: true }).click()
+  await expect(comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ })).toBeFocused()
+  await comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ }).click()
+  await expect(comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ })).toHaveCount(
+    0,
+  )
+  await expect(
+    comparison.getByRole('checkbox', { name: 'Reviewed: Part source records', exact: true }),
+  ).toBeFocused()
+  await expect(comparison.getByText(/Pending changes: 0 of 1/)).toBeVisible()
+  await comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }).uncheck()
   await comparison
     .getByLabel('Review note: Release shelf (part:board_release-shelf)', { exact: true })
     .fill('Shelf resize checked against opening.')
@@ -122,10 +155,32 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
     comparison.getByRole('textbox', { name: 'Overall review notes', exact: true }),
   ).toHaveValue('Confirm site dimensions before handover.')
   await expect(comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ })).toBeChecked()
+  await comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }).check()
+  await comparison
+    .getByRole('searchbox', { name: 'Search review findings', exact: true })
+    .fill('Shelf resize checked')
+  await expect(comparison.getByText(/No findings match the current filters/)).toBeVisible()
   const jsonDownload = page.waitForEvent('download')
   await comparison.getByRole('button', { name: 'Download change report JSON' }).click()
   const jsonFile = await jsonDownload
   const jsonText = await readFile(await jsonFile.path(), 'utf8')
+  await comparison.getByRole('button', { name: 'Reset review view', exact: true }).click()
+  await expect(
+    comparison.getByRole('searchbox', { name: 'Search review findings', exact: true }),
+  ).toHaveValue('')
+  await expect(
+    comparison.getByRole('searchbox', { name: 'Search review findings', exact: true }),
+  ).toBeFocused()
+  await expect(
+    comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }),
+  ).not.toBeChecked()
+  await expect(comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ })).toBeChecked()
+  await expect(
+    comparison.getByLabel('Review note: Release shelf (part:board_release-shelf)', { exact: true }),
+  ).toHaveValue('Shelf resize checked against opening.')
+  await expect(
+    comparison.getByRole('button', { name: 'Reset review view', exact: true }),
+  ).toBeDisabled()
   const report = JSON.parse(jsonText)
   expect(report.kind).toBe('release-source-change-report')
   expect(report.schemaVersion).toBe(2)

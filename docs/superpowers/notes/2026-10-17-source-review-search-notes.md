@@ -1,0 +1,7 @@
+# Search source-review findings
+
+- Search extends the pending-review navigation work without changing review data or saved schemas. It is a local dialog preference; clearing it preserves pending-only, and reopening defaults to no query.
+- Case-insensitive NFC-normalized literal matching follows the existing packet-review convention. Item text includes change descriptors, field names/values and linked part labels; source/limitation text and per-finding notes are searchable. Overall notes and reviewer names are excluded because they cannot identify an individual finding.
+- Visibility and pending navigation share the search predicate, so the next action cannot focus a hidden finding. Full coverage still determines progress/count totals, JSON/HTML exports and autosave. Empty search results disable next without claiming the whole review is complete.
+- A note edit that stops matching returns focus to the search field after DOM commit. This prevents focus from falling out of the modal when the row is removed.
+- Validation: 148 focused/integration tests across eight files passed; Chromium's real project workflow passed with case-insensitive search, pending filtering, focus, autosave restore and complete exports from an empty filtered view. Lint and the production build/typecheck passed (existing bundle-size warnings). Bypassing search matching caused three assertions to fail; omitting search from pending navigation caused the expected focus assertion failure. Both mutations were restored and the component suite passed again.
