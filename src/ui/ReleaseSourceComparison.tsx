@@ -32,18 +32,23 @@ function ReviewFinding({
   entry,
   label,
   disabled,
+  checkboxRef,
+  onFocus,
   onChange,
 }: {
   entry: ChangeReviewDraft['entries'][number]
   label: string
   disabled: boolean
+  checkboxRef: (node: HTMLInputElement | null) => void
+  onFocus: () => void
   onChange: (patch: { reviewed?: boolean; note?: string }) => void
 }) {
   return (
-    <div className="my-2 space-y-2 text-sm">
+    <div className="my-2 space-y-2 text-sm" onFocus={onFocus}>
       <label className="flex items-start gap-2">
         <input
           type="checkbox"
+          ref={checkboxRef}
           disabled={disabled}
           checked={entry.reviewed}
           onChange={(event) => onChange({ reviewed: event.target.checked })}
@@ -111,6 +116,13 @@ export function ReleaseSourceComparison({
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useId()
+  const [pendingOnly, setPendingOnly] = useState(false)
+  const [search, setSearch] = useState('')
+  const searchInput = useRef<HTMLInputElement>(null)
+  const pendingToggle = useRef<HTMLInputElement>(null)
+  const findingNodes = useRef(new Map<string, HTMLInputElement>())
+  const currentFinding = useRef<string | null>(null)
+  const requestedFocus = useRef<string | null>(null)
   const alive = useRef(false)
   const operationPending = useRef(false)
   const [activity, setActivity] = useState<'export' | 'resume' | null>(null)
@@ -154,6 +166,8 @@ export function ReleaseSourceComparison({
   }, [release, scene, projectName, hardwareLibrary, materialLibrary])
   useLayoutEffect(() => {
     contextVersion.current += 1
+    currentFinding.current = null
+    requestedFocus.current = null
   }, [
     release.id,
     release.revision,
@@ -186,6 +200,69 @@ export function ReleaseSourceComparison({
   const coverage = result.report ? changeReviewCoverage(result.report) : []
   const coverageByReference = new Map(coverage.map((entry) => [entry.reference, entry]))
   const entriesByReference = new Map(review?.entries.map((entry) => [entry.reference, entry]) ?? [])
+  // Match the grouped display order, which can differ from inventory coverage order.
+  const orderedCoverage = [
+    ...(['manufacturing', 'metadata'] as const).flatMap((category) =>
+      (result.report?.changes ?? [])
+        .filter((change) => change.classification === category)
+        .map((change) => coverageByReference.get(`item:${change.key}`)!),
+    ),
+    ...coverage.filter((entry) => entry.category !== 'item'),
+  ]
+  const isPending = (reference: string) => entriesByReference.get(reference)?.reviewed === false
+  const normalizeSearch = (value: string) => value.normalize('NFC').toLowerCase()
+  const query = normalizeSearch(search.trim())
+  const itemSearchText = useMemo(
+    () =>
+      new Map(
+        (result.report?.changes ?? []).map((change) => [
+          `item:${change.key}`,
+          JSON.stringify(change) +
+            ' ' +
+            change.partIds.map((id) => partsById.get(id)?.label ?? '').join(' '),
+        ]),
+      ),
+    [result.report, partsById],
+  )
+  const matchesSearch = (reference: string, note = entriesByReference.get(reference)?.note ?? '') =>
+    !query ||
+    [
+      coverageByReference.get(reference)?.label ?? '',
+      itemSearchText.get(reference) ?? '',
+      note,
+    ].some((text) => normalizeSearch(text).includes(query))
+  const visibleFinding = (reference: string) =>
+    (!pendingOnly || isPending(reference)) && matchesSearch(reference)
+  const visibleCount = coverage.filter((entry) => visibleFinding(entry.reference)).length
+  const matchingPendingCount = coverage.filter(
+    (entry) => isPending(entry.reference) && matchesSearch(entry.reference),
+  ).length
+  const pendingCount = coverage.filter((entry) => isPending(entry.reference)).length
+  const pendingSummary = (category: 'item' | 'source' | 'limitation') => {
+    const group = coverage.filter((entry) => entry.category === category)
+    return `${group.filter((entry) => isPending(entry.reference)).length} of ${group.length}`
+  }
+  const nextPending = (after: string | null) => {
+    const start = orderedCoverage.findIndex((entry) => entry.reference === after)
+    for (let offset = 1; offset <= orderedCoverage.length; offset++) {
+      const entry = orderedCoverage[(start + offset) % orderedCoverage.length]
+      if (entry.reference !== after && isPending(entry.reference) && matchesSearch(entry.reference))
+        return entry.reference
+    }
+    return after && isPending(after) && matchesSearch(after) ? after : null
+  }
+  const focusFinding = (reference: string) => {
+    const node = findingNodes.current.get(reference)
+    node?.focus()
+    node?.scrollIntoView?.({ block: 'nearest' })
+  }
+  useLayoutEffect(() => {
+    const reference = requestedFocus.current
+    requestedFocus.current = null
+    if (reference === '__search') searchInput.current?.focus()
+    else if (reference === '__pending_toggle') pendingToggle.current?.focus()
+    else if (reference) focusFinding(reference)
+  })
   const updateReview = (updater: (draft: ChangeReviewDraft) => ChangeReviewDraft) => {
     if (!blankReview) return
     editVersion.current += 1
@@ -202,14 +279,28 @@ export function ReleaseSourceComparison({
           entry={entry}
           label={info.label}
           disabled={busy}
-          onChange={(patch) =>
+          checkboxRef={(node) => {
+            if (node) findingNodes.current.set(reference, node)
+            else findingNodes.current.delete(reference)
+          }}
+          onFocus={() => {
+            currentFinding.current = reference
+          }}
+          onChange={(patch) => {
+            if (pendingOnly && patch.reviewed) {
+              const next = nextPending(reference)
+              requestedFocus.current = next && next !== reference ? next : '__pending_toggle'
+            }
+            if (patch.note !== undefined && !matchesSearch(reference, patch.note)) {
+              requestedFocus.current = '__search'
+            }
             updateReview((draft) => ({
               ...draft,
               entries: draft.entries.map((item) =>
                 item.reference === reference ? { ...item, ...patch } : item,
               ),
             }))
-          }
+          }}
         />
       )
     )
@@ -380,6 +471,117 @@ export function ReleaseSourceComparison({
                 {review.entries.length} findings reviewed.
               </p>
               <p role="status">
+                Pending changes: {pendingSummary('item')} · Other source changes:{' '}
+                {pendingSummary('source')} · Limitations: {pendingSummary('limitation')}
+              </p>
+              <label className="block">
+                Search review findings
+                <input
+                  ref={searchInput}
+                  type="search"
+                  value={search}
+                  disabled={busy}
+                  className="mt-1 block w-full rounded border border-border bg-background p-2"
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </label>
+              <Button
+                variant="outline"
+                disabled={busy || search === ''}
+                onClick={() => {
+                  setSearch('')
+                  searchInput.current?.focus()
+                }}
+              >
+                Clear finding search
+              </Button>
+              <Button
+                variant="outline"
+                disabled={busy || (search === '' && !pendingOnly)}
+                onClick={() => {
+                  setSearch('')
+                  setPendingOnly(false)
+                  searchInput.current?.focus()
+                }}
+              >
+                Reset review view
+              </Button>
+              <p role="status">
+                Showing {visibleCount} of {coverage.length} findings.
+              </p>
+              {visibleCount === 0 && (
+                <p role="status">
+                  No findings match the current filters. Clear the search or turn off Show pending
+                  only to see more findings.
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    ref={pendingToggle}
+                    type="checkbox"
+                    checked={pendingOnly}
+                    disabled={busy}
+                    onChange={(event) => setPendingOnly(event.target.checked)}
+                  />
+                  Show pending only
+                </label>
+                <Button
+                  variant="outline"
+                  disabled={busy || matchingPendingCount === 0}
+                  onClick={() => {
+                    const reference = nextPending(currentFinding.current)
+                    if (reference) focusFinding(reference)
+                  }}
+                >
+                  Next pending finding
+                </Button>
+              </div>
+              <div
+                role="group"
+                aria-label="Jump to pending review group"
+                className="flex flex-wrap gap-2"
+              >
+                {(
+                  [
+                    ['item', 'Review pending changes'],
+                    ['source', 'Review pending source changes'],
+                    ['limitation', 'Review pending limitations'],
+                  ] as const
+                ).map(([category, label]) => {
+                  const target = orderedCoverage.find(
+                    (entry) => entry.category === category && isPending(entry.reference),
+                  )
+                  return (
+                    <Button
+                      key={category}
+                      variant="outline"
+                      disabled={busy || !target}
+                      onClick={() => {
+                        if (!target) return
+                        if (search === '' && pendingOnly) focusFinding(target.reference)
+                        else {
+                          requestedFocus.current = target.reference
+                          setSearch('')
+                          setPendingOnly(true)
+                        }
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  )
+                })}
+              </div>
+              {pendingCount === 0 && (
+                <p role="status">
+                  All findings reviewed.
+                  {pendingOnly && ' Clear Show pending only to edit reviewed findings.'}
+                </p>
+              )}
+              <p className="text-muted-foreground">
+                View filters affect this dialog only. Downloads always include every finding.
+              </p>
+              <p role="status">
                 {autosave.loading
                   ? 'Checking for a local review draft…'
                   : autosave.error
@@ -481,7 +683,10 @@ export function ReleaseSourceComparison({
               </h3>
               <ul className="space-y-3">
                 {result
-                  .report!.changes.filter((change) => change.classification === category)
+                  .report!.changes.filter(
+                    (change) =>
+                      change.classification === category && visibleFinding(`item:${change.key}`),
+                  )
                   .map((change) => (
                     <li key={change.key} className="rounded border border-border p-3 text-sm">
                       <p className="font-medium">
@@ -526,12 +731,14 @@ export function ReleaseSourceComparison({
                 These source sections also differ. Review them alongside the item changes.
               </p>
               <ul>
-                {result.report.otherSourceChanges.map((label) => (
-                  <li key={label}>
-                    {label}
-                    {finding(`source:${JSON.stringify(label)}`)}
-                  </li>
-                ))}
+                {result.report.otherSourceChanges
+                  .filter((label) => visibleFinding(`source:${JSON.stringify(label)}`))
+                  .map((label) => (
+                    <li key={label}>
+                      {label}
+                      {finding(`source:${JSON.stringify(label)}`)}
+                    </li>
+                  ))}
               </ul>
             </section>
           )}
@@ -539,7 +746,9 @@ export function ReleaseSourceComparison({
             <h3 className="font-semibold">Comparison limitations</h3>
             <ul>
               {coverage
-                .filter((entry) => entry.category === 'limitation')
+                .filter(
+                  (entry) => entry.category === 'limitation' && visibleFinding(entry.reference),
+                )
                 .map((entry) => (
                   <li key={entry.reference}>{finding(entry.reference)}</li>
                 ))}
