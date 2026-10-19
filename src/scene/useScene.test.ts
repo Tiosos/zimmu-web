@@ -1,3 +1,4 @@
+import { openingLayout } from './openingLayouts'
 import { packageFixture } from './__fixtures__/companyCatalogue'
 import { installedDefinitions } from './catalogue'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -3089,4 +3090,40 @@ describe('project-local catalogue installation', () => {
     expect(() => result.current.onInstallCatalogue(bad, imported)).toThrow(/immutable version/)
     expect(result.current.scene).toBe(imported)
   })
+})
+
+
+it('keeps opening layout applications as separate undo steps and ignores stale or missing component edits', () => {
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const cabinet = result.current.scene.components.find((component): component is CarcaseComponent => component.kind === 'carcase')!
+  const id = cabinet.id
+  act(() => result.current.onUpdateComponent(id, c => c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 700 } } : c))
+  const resized = result.current.scene
+  act(() => result.current.onUpdateComponent(id, c => c.kind === 'carcase' ? { ...c, params: openingLayout(c.params, c.params.section.id, 'drawers') } : c, 'Apply opening layout'))
+  expect(result.current.scene.components.filter(c => c.kind === 'drawer')).toHaveLength(3)
+  const drawers = result.current.scene
+  act(() => result.current.onUpdateComponent(id, c => c.kind === 'carcase' ? { ...c, params: openingLayout(c.params, c.params.section.id, 'double-door') } : c, 'Apply opening layout'))
+  expect(result.current.scene.components.filter(c => c.kind === 'drawer')).toHaveLength(0)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(drawers)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(resized)
+  act(() => result.current.undo())
+  expect((result.current.scene.components.find(c => c.id === id) as CarcaseComponent).params.width).toBe(600)
+  act(() => result.current.redo())
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(drawers)
+  const before = result.current.scene
+  const label = result.current.undoLabel
+  act(() => result.current.onUpdateComponent(id, c => c, 'No-op'))
+  const missing = vi.fn(() => ({ ...cabinet, label: 'Unexpected' }))
+  act(() => result.current.onUpdateComponent('missing', missing, 'Missing'))
+  expect(missing).not.toHaveBeenCalled()
+  expect(result.current.scene).toBe(before)
+  expect(result.current.undoLabel).toBe(label)
 })

@@ -163,9 +163,12 @@ describe('the section toolbar', () => {
 
   // Asserted through the applied params rather than through the SVG: the picture is the elevation's
   // claim, and this toolbar's is that the buttons change the tree.
-  const applied = (onUpdate: ReturnType<typeof vi.fn>): CarcaseParams => {
+  const applied = (
+    onUpdate: ReturnType<typeof vi.fn>,
+    current: CarcaseComponent = cabinet,
+  ): CarcaseParams => {
     const updater = onUpdate.mock.calls.at(-1)![0] as (c: Component) => Component
-    const next = updater(cabinet)
+    const next = updater(current)
     if (next.kind !== 'carcase') throw new Error('updater must return a carcase')
     return next.params
   }
@@ -187,11 +190,12 @@ describe('the section toolbar', () => {
   it('merges a split back and keeps the first child’s front', async () => {
     const DOOR = { kind: 'door', leaves: 1, hinge: 'left' } as const
     const split = splitSection({ ...base.section, front: DOOR }, rootId, 'vertical', 'panel', 2)
+    const current = { ...cabinet, params: { ...base, section: split } }
     const onUpdate = vi.fn()
     render(
       <CabinetEditor
         {...props({
-          component: { ...cabinet, params: { ...base, section: split } },
+          component: current,
           selectedSectionId: rootId,
           onUpdate,
         })}
@@ -199,7 +203,7 @@ describe('the section toolbar', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: 'Merge' }))
 
-    const next = applied(onUpdate).section
+    const next = applied(onUpdate, current).section
     expect(next.content.kind).toBe('leaf')
     expect(next.front).toEqual(DOOR)
   })
@@ -208,11 +212,12 @@ describe('the section toolbar', () => {
     const split = splitSection(base.section, rootId, 'vertical', 'panel', 2)
     if (split.content.kind !== 'split') throw new Error('fixture is not a split')
     const childId = split.content.children[0].id
+    const current = { ...cabinet, params: { ...base, section: split } }
     const onUpdate = vi.fn()
     render(
       <CabinetEditor
         {...props({
-          component: { ...cabinet, params: { ...base, section: split } },
+          component: current,
           selectedSectionId: childId,
           onUpdate,
         })}
@@ -221,9 +226,9 @@ describe('the section toolbar', () => {
     await userEvent.click(screen.getByLabelText('Size'))
     await userEvent.click(screen.getByRole('option', { name: 'Fixed' }))
 
-    const content = applied(onUpdate).section.content
+    const content = applied(onUpdate, current).section.content
     if (content.kind !== 'split') throw new Error('expected a split')
-    expect(content.children[0].size).toEqual({ kind: 'fixed', mm: 300 })
+    expect(content.children[0].size).toEqual({ kind: 'fixed', mm: 273 })
   })
 
   // The mm field only exists once a size is Fixed — an Equal section has no millimetres to show —

@@ -816,7 +816,7 @@ function App() {
             onTabChange={setCabinetTab}
             selectedSectionId={selectedSectionId}
             onSelectSection={onSelectSection}
-            onUpdate={(updater) => onUpdateComponent(selectedCarcase.id, updater)}
+            onUpdate={(updater, historyLabel) => onUpdateComponent(selectedCarcase.id, updater, historyLabel)}
             parts={cabinetParts}
             byId={componentMap}
             selectedPartId={selection?.kind === 'part' ? selection.id : null}

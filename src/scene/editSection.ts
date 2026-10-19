@@ -40,7 +40,13 @@ export function splitSection(
 ): Section {
   // `validateSection` rejects a split with fewer than two children. Refusing here keeps a tree that
   // cannot be built from ever existing, rather than building one and reporting it afterwards.
-  if (count < 2) return root
+  if (
+    !Number.isInteger(count) ||
+    count < 2 ||
+    count > 8 ||
+    (division === 'rail' && axis === 'vertical')
+  )
+    return root
   return edit(root, id, (s) => {
     const child = (): Section => ({
       id: newSectionId(),

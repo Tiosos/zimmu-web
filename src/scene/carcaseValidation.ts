@@ -114,8 +114,18 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
     openingRect(p, thicknessAt),
     sectionThickness(thicknessAt),
   )
-  for (const rect of resolved.rects.values()) {
-    if (rect.x1 - rect.x0 <= 0 || rect.z1 - rect.z0 <= 0) {
+  for (const [id, rect] of resolved.rects) {
+    // All-fixed splits can overrun their parent while every child still has positive dimensions.
+    const outside = resolved
+      .childRects(id)
+      .some(
+        (child) =>
+          child.x0 < rect.x0 - 1e-6 ||
+          child.x1 > rect.x1 + 1e-6 ||
+          child.z0 < rect.z0 - 1e-6 ||
+          child.z1 > rect.z1 + 1e-6,
+      )
+    if (rect.x1 - rect.x0 <= 0 || rect.z1 - rect.z0 <= 0 || outside) {
       errors.push('the sections do not fit in the carcase')
       break
     }
@@ -135,4 +145,3 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
   }
   return errors
 }
-
