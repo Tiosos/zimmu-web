@@ -338,3 +338,39 @@ it('rejects malformed part preferences without applying partial settings', () =>
     expect(readSourceReviewView(key()).view).toEqual(defaultSourceReviewView())
   }
 })
+
+it('roundtrips additional filters, rejects invalid combinations and defaults legacy settings', () => {
+  const view = {
+    ...defaultSourceReviewView(),
+    reviewedOnly: true,
+    pendingPartsOnly: true,
+    classification: 'metadata' as const,
+    changeType: 'removed' as const,
+  }
+  expect(saveSourceReviewView(key(), view)).toBe(true)
+  expect(readSourceReviewView(key()).view).toEqual(view)
+  expect(saveSourceReviewView(key(), { ...view, pendingOnly: true })).toBe(false)
+  expect(saveSourceReviewView(key(), { ...view, changeType: 'invalid' as 'all' })).toBe(false)
+  expect(readSourceReviewView(key()).view).toEqual(view)
+})
+
+it('restores the new filters and keeps pending and reviewed modes mutually exclusive', async () => {
+  const hook = renderHook(() => useSourceReviewView(key()))
+  act(() => {
+    hook.result.current.setReviewedOnly(true)
+    hook.result.current.setPendingPartsOnly(true)
+    hook.result.current.setClassification('manufacturing')
+    hook.result.current.setChangeType('added')
+  })
+  await waitFor(() => expect(readSourceReviewView(key()).view.classification).toBe('manufacturing'))
+  hook.unmount()
+  const reopened = renderHook(() => useSourceReviewView(key()))
+  expect(reopened.result.current.reviewedOnly).toBe(true)
+  expect(reopened.result.current.pendingPartsOnly).toBe(true)
+  expect(reopened.result.current.changeType).toBe('added')
+  act(() => reopened.result.current.setPendingOnly(true))
+  expect(reopened.result.current.reviewedOnly).toBe(false)
+  expect(reopened.result.current.pendingOnly).toBe(true)
+  act(() => reopened.result.current.setReviewedOnly(true))
+  expect(reopened.result.current.pendingOnly).toBe(false)
+})

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import { ReleaseSourceComparison } from './ReleaseSourceComparison'
 import { makeRelease } from '../scene/__fixtures__/release'
 import { machiningProject } from '../scene/__fixtures__/machiningProject'
@@ -1235,7 +1235,7 @@ it('orders pending parts first and searches normalized labels, IDs and finding n
     expect(names()).toEqual(['Filter findings for Panel Alpha (manual-board)'])
   }
   fireEvent.change(search, { target: { value: 'no matching part' } })
-  expect(within(summary).getByText('No parts match the summary search.')).toBeTruthy()
+  expect(within(summary).getByText('No parts match the summary filters.')).toBeTruthy()
   expect(screen.getByRole('checkbox', { name: /^Reviewed: Panel Beta/ })).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
   expect((search as HTMLInputElement).value).toBe('')
@@ -1291,4 +1291,98 @@ it('updates every linked part count when shared hardware is reviewed', async () 
     (within(summary).getByRole('button', { name: 'Next pending part' }) as HTMLButtonElement)
       .disabled,
   ).toBe(true)
+})
+
+it('combines classification, change type and reviewed filters while retaining global findings and complete exports', async () => {
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  input.scene.parts[0].label = 'Metadata panel'
+  const board = input.scene.parts[1]
+  input.scene.parts = input.scene.parts.filter((part) => part.id !== board.id)
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  const metadata = screen.getByRole('region', { name: 'metadata changes' })
+  const manufacturing = screen.getByRole('region', { name: 'manufacturing changes' })
+  const checkbox = within(metadata).getByRole('checkbox')
+  fireEvent.click(checkbox)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show reviewed only' }))
+  expect(within(metadata).getAllByRole('checkbox')).toHaveLength(1)
+  expect(screen.getByText('Visible: 0 pending · 1 reviewed.')).toBeTruthy()
+  expect(within(manufacturing).queryByRole('checkbox')).toBeNull()
+  expect(
+    (screen.getByRole('button', { name: 'Next pending finding' }) as HTMLButtonElement).disabled,
+  ).toBe(true)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show pending only' }))
+  expect(
+    (screen.getByRole('checkbox', { name: 'Show reviewed only' }) as HTMLInputElement).checked,
+  ).toBe(false)
+  fireEvent.change(screen.getByRole('combobox', { name: 'Change classification' }), {
+    target: { value: 'metadata' },
+  })
+  expect(within(manufacturing).queryByRole('checkbox')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending changes' }))
+  expect(document.activeElement).toBe(within(manufacturing).getByRole('checkbox'))
+  fireEvent.change(screen.getByRole('combobox', { name: 'Change type' }), {
+    target: { value: 'added' },
+  })
+  expect(within(manufacturing).queryByRole('checkbox')).toBeNull()
+  expect(
+    within(screen.getByRole('region', { name: 'Review comparison limitations' })).getAllByRole(
+      'checkbox',
+    ).length,
+  ).toBeGreaterThan(0)
+  fireEvent.click(screen.getByRole('button', { name: 'Download change report JSON' }))
+  await act(async () => {})
+  await waitFor(() => expect(download).toHaveBeenCalled())
+  const report = JSON.parse(download.mock.calls[0][0] as string)
+  expect(report.changes).toHaveLength(2)
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect((screen.getByRole('combobox', { name: 'Change type' }) as HTMLSelectElement).value).toBe(
+    'all',
+  )
+  expect((within(metadata).getByRole('checkbox') as HTMLInputElement).checked).toBe(true)
+})
+
+it('navigates visible pending findings backwards and to endpoints with buttons and modified keys', async () => {
+  await partReviewFixture()
+  const findings = screen
+    .getAllByRole('checkbox')
+    .filter((node) => node.closest('label')?.textContent?.startsWith('Reviewed:'))
+  fireEvent.click(screen.getByRole('button', { name: 'Last pending finding' }))
+  expect(document.activeElement).toBe(findings.at(-1))
+  fireEvent.click(screen.getByRole('button', { name: 'Next pending finding' }))
+  expect(document.activeElement).toBe(findings[0])
+  fireEvent.click(screen.getByRole('button', { name: 'Previous pending finding' }))
+  expect(document.activeElement).toBe(findings.at(-1))
+  fireEvent.keyDown(document.activeElement!, { key: 'Home', altKey: true })
+  expect(document.activeElement).toBe(findings[0])
+  fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+  expect(document.activeElement).toBe(findings[0])
+  fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', altKey: true })
+  expect(document.activeElement).toBe(findings[1])
+  fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp', altKey: true })
+  expect(document.activeElement).toBe(findings[0])
+  fireEvent.keyDown(document.activeElement!, { key: 'End', altKey: true })
+  expect(document.activeElement).toBe(findings.at(-1))
+})
+
+it('filters the part summary to pending parts and shows complete classification and type counts', async () => {
+  await partReviewFixture()
+  const summary = screen.getByRole('region', { name: 'Part review summary' })
+  const metadata = screen.getByRole('region', { name: 'metadata changes' })
+  fireEvent.click(within(metadata).getAllByRole('checkbox')[0])
+  expect(within(summary).getAllByText('0 manufacturing · 1 metadata')).toHaveLength(2)
+  expect(within(summary).getAllByText('0 added · 0 removed · 1 modified')).toHaveLength(2)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show pending parts only' }))
+  expect(within(summary).getAllByRole('button', { name: /^Filter findings for/ })).toHaveLength(1)
+  expect(within(metadata).getAllByRole('checkbox')).toHaveLength(2)
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect(within(summary).getAllByRole('button', { name: /^Filter findings for/ })).toHaveLength(2)
 })

@@ -7,6 +7,10 @@ export interface SourceReviewView {
   pendingFirst: boolean
   partFilter: string | null
   partSearch: string
+  reviewedOnly?: boolean
+  pendingPartsOnly?: boolean
+  classification?: 'all' | 'manufacturing' | 'metadata'
+  changeType?: 'all' | 'added' | 'removed' | 'modified'
   pendingPartsFirst: boolean
 }
 export const defaultSourceReviewView = (): SourceReviewView => ({
@@ -41,6 +45,13 @@ function viewOf(value: unknown): SourceReviewView | null {
     typeof value.search === 'string' &&
     value.search.length <= MAX_SOURCE_REVIEW_SEARCH &&
     typeof value.pendingOnly === 'boolean' &&
+    (value.reviewedOnly === undefined || typeof value.reviewedOnly === 'boolean') &&
+    !(value.reviewedOnly === true && value.pendingOnly === true) &&
+    (value.pendingPartsOnly === undefined || typeof value.pendingPartsOnly === 'boolean') &&
+    (value.classification === undefined ||
+      ['all', 'manufacturing', 'metadata'].includes(value.classification as string)) &&
+    (value.changeType === undefined ||
+      ['all', 'added', 'removed', 'modified'].includes(value.changeType as string)) &&
     (value.pendingFirst === undefined || typeof value.pendingFirst === 'boolean') &&
     (value.partFilter === undefined ||
       value.partFilter === null ||
@@ -56,6 +67,16 @@ function viewOf(value: unknown): SourceReviewView | null {
         partFilter: typeof value.partFilter === 'string' ? value.partFilter : null,
         partSearch: typeof value.partSearch === 'string' ? value.partSearch : '',
         pendingPartsFirst: value.pendingPartsFirst === true,
+        ...(value.reviewedOnly !== undefined ? { reviewedOnly: value.reviewedOnly === true } : {}),
+        ...(value.pendingPartsOnly !== undefined
+          ? { pendingPartsOnly: value.pendingPartsOnly === true }
+          : {}),
+        ...(value.classification !== undefined
+          ? { classification: value.classification as SourceReviewView['classification'] }
+          : {}),
+        ...(value.changeType !== undefined
+          ? { changeType: value.changeType as SourceReviewView['changeType'] }
+          : {}),
       }
     : null
 }
