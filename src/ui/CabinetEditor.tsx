@@ -67,7 +67,7 @@ export function CabinetEditor({
   onTabChange: (t: CabinetTab) => void
   selectedSectionId: SectionId | null
   onSelectSection: (id: SectionId | null) => void
-  onUpdate: (updater: (c: Component) => Component) => void
+  onUpdate: (updater: (c: Component) => Component, historyLabel?: string) => void
   parts: Part[]
   byId: Map<ComponentId, Component>
   selectedPartId: PartId | null
@@ -179,7 +179,11 @@ export function CabinetEditor({
               </div>
               <SectionToolbar
                 params={component.params}
+                componentId={component.id}
+                materials={materials}
+                parts={parts}
                 selected={selectedSectionId}
+                onSelect={onSelectSection}
                 onUpdate={onUpdate}
               />
             </div>

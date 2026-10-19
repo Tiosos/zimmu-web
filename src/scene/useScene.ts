@@ -116,7 +116,7 @@ export interface UseSceneResult {
   ) => keyof CarcaseParams | null
   onRemoveComponent: (id: ComponentId) => void
   onReparentComponent: (id: ComponentId, newParentId: ComponentId | null) => void
-  onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component) => void
+  onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component, historyLabel?: string) => void
   syncComponents: (updater: (components: Component[]) => Component[]) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
@@ -1391,14 +1391,18 @@ export function useScene(): UseSceneResult {
   )
 
   const onUpdateComponent = useCallback(
-    (id: ComponentId, updater: (c: Component) => Component) => {
+    (id: ComponentId, updater: (c: Component) => Component, historyLabel?: string) => {
+      const current = sceneRef.current.components.find(c => c.id === id)
+      if (!current) return
+      const next = updater(current)
+      if (next === current) return
       commitReconciled(
         (before) => ({
           ...before,
-          components: before.components.map((c) => (c.id === id ? updater(c) : c)),
+          components: before.components.map((c) => (c.id === id ? next : c)),
         }),
-        'Edit component',
-        `component-${id}`,
+        historyLabel ?? 'Edit component',
+        historyLabel === undefined ? `component-${id}` : undefined,
       )
     },
     [commitReconciled],
