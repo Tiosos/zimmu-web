@@ -355,3 +355,64 @@ it('ignores an unavailable saved part filter and allows clearing it', async () =
     screen.queryByText('The saved part filter is unavailable. All item findings are shown.'),
   ).toBeNull()
 })
+
+it('autosaves bulk review changes and undo, restores triage preferences and expires undo on JSON resume', async () => {
+  const { view, input, release, saved, reviewJson } = await opened()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Finding group' }), {
+    target: { value: 'item' },
+  })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Item kind' }), {
+    target: { value: 'part' },
+  })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Finding notes' }), {
+    target: { value: 'without' },
+  })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Part summary order' }), {
+    target: { value: 'name' },
+  })
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Mark visible pending findings reviewed (1)' }),
+  )
+  await screen.findByText('Review draft saved locally.')
+  expect((await saved()).entries.filter((entry) => entry.reviewed)).toHaveLength(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Undo last bulk review change' }))
+  await screen.findByText('Review draft saved locally.')
+  expect((await saved()).entries.every((entry) => !entry.reviewed)).toBe(true)
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Mark visible pending findings reviewed (1)' }),
+  )
+  const file = await reviewJson()
+  fireEvent.change(screen.getByLabelText('Resume change review JSON'), {
+    target: { files: [file] },
+  })
+  await screen.findByText(/Review resumed from review.json/)
+  expect(
+    (screen.getByRole('button', { name: 'Undo last bulk review change' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+  view.unmount()
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  await screen.findByText('Local review draft restored.')
+  for (const [name, value] of [
+    ['Finding group', 'item'],
+    ['Item kind', 'part'],
+    ['Finding notes', 'without'],
+    ['Part summary order', 'name'],
+  ])
+    expect((screen.getByRole('combobox', { name }) as HTMLSelectElement).value).toBe(value)
+  expect(
+    (screen.getByRole('button', { name: 'Undo last bulk review change' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect((screen.getByRole('combobox', { name: 'Finding notes' }) as HTMLSelectElement).value).toBe(
+    'all',
+  )
+})

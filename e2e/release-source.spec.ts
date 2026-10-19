@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Dialog } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { readyAssessment } from '../src/scene/__fixtures__/release'
@@ -78,7 +78,8 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
       },
     })
   }, fileText)
-  page.on('dialog', (dialog) => void dialog.accept())
+  const acceptDialog = (dialog: Dialog) => void dialog.accept()
+  page.on('dialog', acceptDialog)
   await page.goto('/')
   await expect(page.getByRole('button', { name: '+ Board', exact: true })).toBeEnabled({
     timeout: 120_000,
@@ -226,6 +227,10 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
     .selectOption('manufacturing')
   await comparison.getByRole('combobox', { name: 'Change type' }).selectOption('modified')
   await comparison.getByRole('checkbox', { name: 'Show reviewed only', exact: true }).check()
+  await comparison.getByRole('combobox', { name: 'Finding group' }).selectOption('item')
+  await comparison.getByRole('combobox', { name: 'Item kind' }).selectOption('part')
+  await comparison.getByRole('combobox', { name: 'Finding notes' }).selectOption('with')
+  await comparison.getByRole('combobox', { name: 'Part summary order' }).selectOption('name')
   await partSummary.getByRole('checkbox', { name: 'Show pending parts only', exact: true }).check()
   await expect(
     comparison.getByText('Visible: 0 pending · 1 reviewed.', { exact: true }),
@@ -243,10 +248,46 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
   await expect(
     comparison.getByRole('checkbox', { name: 'Show reviewed only', exact: true }),
   ).toBeChecked()
+  await expect(comparison.getByRole('combobox', { name: 'Finding group' })).toHaveValue('item')
+  await expect(comparison.getByRole('combobox', { name: 'Item kind' })).toHaveValue('part')
+  await expect(comparison.getByRole('combobox', { name: 'Finding notes' })).toHaveValue('with')
+  await expect(comparison.getByRole('combobox', { name: 'Part summary order' })).toHaveValue('name')
   await expect(
     partSummary.getByRole('checkbox', { name: 'Show pending parts only', exact: true }),
   ).toBeChecked()
   await comparison.getByRole('button', { name: 'Reset review view', exact: true }).click()
+  await comparison.getByRole('combobox', { name: 'Finding group' }).selectOption('item')
+  const shelfReview = comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ })
+  page.off('dialog', acceptDialog)
+  page.once('dialog', (dialog) => dialog.dismiss())
+  await comparison
+    .getByRole('button', { name: 'Reopen visible reviewed findings (1)', exact: true })
+    .click()
+  await expect(shelfReview).toBeChecked()
+  page.once('dialog', (dialog) => dialog.accept())
+  await comparison
+    .getByRole('button', { name: 'Reopen visible reviewed findings (1)', exact: true })
+    .click()
+  await expect(shelfReview).not.toBeChecked()
+  await comparison
+    .getByRole('button', { name: 'Undo last bulk review change', exact: true })
+    .click()
+  await expect(shelfReview).toBeChecked()
+  page.once('dialog', (dialog) => dialog.accept())
+  await comparison
+    .getByRole('button', { name: 'Reopen visible reviewed findings (1)', exact: true })
+    .click()
+  page.once('dialog', (dialog) => dialog.accept())
+  await comparison
+    .getByRole('button', { name: 'Mark visible pending findings reviewed (1)', exact: true })
+    .click()
+  await expect(shelfReview).toBeChecked()
+  await comparison.getByRole('button', { name: 'Reset review view', exact: true }).click()
+  page.on('dialog', acceptDialog)
+  for (const position of ['Previous', 'First', 'Last'])
+    await expect(
+      comparison.getByRole('button', { name: `${position} pending part`, exact: true }),
+    ).toBeDisabled()
   await comparison.getByRole('button', { name: 'First pending finding', exact: true }).click()
   await page.keyboard.press('Alt+End')
   await expect(comparison.getByRole('checkbox', { name: /^Reviewed:/ }).last()).toBeFocused()

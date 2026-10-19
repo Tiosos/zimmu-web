@@ -39,6 +39,17 @@ export function useSourceReviewView(key: string | null) {
       readFailed: false,
     }))
   return {
+    findingGroup: state.view.findingGroup ?? 'all',
+    entityType: state.view.entityType ?? 'all',
+    noteFilter: state.view.noteFilter ?? 'all',
+    partSort: state.view.partSort ?? 'comparison',
+    setFindingGroup: (findingGroup: NonNullable<SourceReviewView['findingGroup']>) =>
+      update({ findingGroup }),
+    setEntityType: (entityType: NonNullable<SourceReviewView['entityType']>) =>
+      update({ entityType }),
+    setNoteFilter: (noteFilter: NonNullable<SourceReviewView['noteFilter']>) =>
+      update({ noteFilter }),
+    setPartSort: (partSort: NonNullable<SourceReviewView['partSort']>) => update({ partSort }),
     reviewedOnly: state.view.reviewedOnly ?? false,
     pendingPartsOnly: state.view.pendingPartsOnly ?? false,
     classification: state.view.classification ?? 'all',

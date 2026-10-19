@@ -7,6 +7,10 @@ export interface SourceReviewView {
   pendingFirst: boolean
   partFilter: string | null
   partSearch: string
+  findingGroup?: 'all' | 'item' | 'source' | 'limitation'
+  entityType?: 'all' | 'part' | 'hardware'
+  noteFilter?: 'all' | 'with' | 'without'
+  partSort?: 'comparison' | 'name'
   reviewedOnly?: boolean
   pendingPartsOnly?: boolean
   classification?: 'all' | 'manufacturing' | 'metadata'
@@ -45,6 +49,13 @@ function viewOf(value: unknown): SourceReviewView | null {
     typeof value.search === 'string' &&
     value.search.length <= MAX_SOURCE_REVIEW_SEARCH &&
     typeof value.pendingOnly === 'boolean' &&
+    (value.findingGroup === undefined ||
+      ['all', 'item', 'source', 'limitation'].includes(value.findingGroup as string)) &&
+    (value.entityType === undefined ||
+      ['all', 'part', 'hardware'].includes(value.entityType as string)) &&
+    (value.noteFilter === undefined ||
+      ['all', 'with', 'without'].includes(value.noteFilter as string)) &&
+    (value.partSort === undefined || ['comparison', 'name'].includes(value.partSort as string)) &&
     (value.reviewedOnly === undefined || typeof value.reviewedOnly === 'boolean') &&
     !(value.reviewedOnly === true && value.pendingOnly === true) &&
     (value.pendingPartsOnly === undefined || typeof value.pendingPartsOnly === 'boolean') &&
@@ -61,6 +72,18 @@ function viewOf(value: unknown): SourceReviewView | null {
         value.partSearch.length <= MAX_SOURCE_REVIEW_SEARCH)) &&
     (value.pendingPartsFirst === undefined || typeof value.pendingPartsFirst === 'boolean')
     ? {
+        ...(value.findingGroup !== undefined
+          ? { findingGroup: value.findingGroup as SourceReviewView['findingGroup'] }
+          : {}),
+        ...(value.entityType !== undefined
+          ? { entityType: value.entityType as SourceReviewView['entityType'] }
+          : {}),
+        ...(value.noteFilter !== undefined
+          ? { noteFilter: value.noteFilter as SourceReviewView['noteFilter'] }
+          : {}),
+        ...(value.partSort !== undefined
+          ? { partSort: value.partSort as SourceReviewView['partSort'] }
+          : {}),
         search: value.search,
         pendingOnly: value.pendingOnly,
         pendingFirst: value.pendingFirst === true,
