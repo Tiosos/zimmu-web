@@ -327,3 +327,83 @@ it('blocks a drawer-stack preview whose fronts fit but whose drawer boxes are to
     (screen.getByRole('button', { name: 'Apply opening layout' }) as HTMLButtonElement).disabled,
   ).toBe(true)
 })
+
+it('copies an opening snapshot, navigates siblings and pastes only the requested content with separate history', () => {
+  const section = splitSection(
+    cabinet.params.section,
+    cabinet.params.section.id,
+    'vertical',
+    'panel',
+    2,
+  )
+  const [a, b] = children(section)
+  a.front = { kind: 'door', leaves: 1, hinge: 'right' }
+  const view = opened({ ...cabinet.params, section }, a.id)
+  expect(screen.getByRole('button', { name: 'Previous opening' }).hasAttribute('disabled')).toBe(
+    true,
+  )
+  expect(
+    screen.getByRole('button', { name: 'Paste opening layout' }).hasAttribute('disabled'),
+  ).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Copy opening design' }))
+  expect(view.updates).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Next opening' }))
+  expect(screen.getByRole('button', { name: 'Next opening' }).hasAttribute('disabled')).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Paste opening front' }))
+  expect(children(view.current().params.section)[1].front).toEqual(a.front)
+  expect(children(view.current().params.section)[1].id).toBe(b.id)
+  expect(view.updates.mock.lastCall?.[1]).toBe('Paste opening front')
+  fireEvent.click(screen.getByRole('button', { name: 'Previous opening' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Mirror opening left/right' }))
+  expect(children(view.current().params.section)[0].front).toMatchObject({ hinge: 'left' })
+  fireEvent.click(screen.getByRole('button', { name: 'Next opening' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Paste opening front' }))
+  expect(children(view.current().params.section)[1].front).toMatchObject({ hinge: 'right' })
+})
+
+it('repeats fronts, clears contents and locks the actual sibling sizes through the opening tools', () => {
+  const section = splitSection(
+    cabinet.params.section,
+    cabinet.params.section.id,
+    'vertical',
+    'panel',
+    2,
+  )
+  const [a] = children(section)
+  a.front = { kind: 'door', leaves: 2, hinge: 'left' }
+  const view = opened({ ...cabinet.params, section }, a.id)
+  fireEvent.click(screen.getByRole('button', { name: 'Repeat front to siblings' }))
+  expect(
+    children(view.current().params.section).every((child) => child.front?.kind === 'door'),
+  ).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Lock current opening sizes' }))
+  expect(children(view.current().params.section).map((child) => child.size)).toEqual([
+    { kind: 'fixed', mm: 273 },
+    { kind: 'fixed', mm: 273 },
+  ])
+  fireEvent.click(screen.getByRole('button', { name: 'Edit parent opening' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Clear opening contents' }))
+  expect(
+    children(view.current().params.section).every(
+      (child) => child.front === undefined && child.interior === undefined,
+    ),
+  ).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Equalize nested openings' }))
+  expect(
+    children(view.current().params.section).every((child) => child.size.kind === 'equal'),
+  ).toBe(true)
+})
+
+it('keeps a copied layout across cabinet parameter edits and rejects it when drawer boxes cannot fit', () => {
+  const view = opened()
+  fireEvent.change(screen.getByRole('combobox', { name: 'Opening layout' }), {
+    target: { value: 'drawers' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Preview opening layout' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Apply opening layout' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Copy opening design' }))
+  view.change({ ...view.current().params, height: 200, section: { ...cabinet.params.section } })
+  fireEvent.click(screen.getByRole('button', { name: 'Paste opening layout' }))
+  expect(screen.getByRole('alert').textContent).toContain('drawer boxes do not fit')
+  expect(view.current().params.section.content.kind).toBe('leaf')
+})

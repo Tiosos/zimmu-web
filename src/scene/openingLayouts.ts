@@ -1,3 +1,4 @@
+import type { DrawerComponent } from './types'
 import { regenerateDrawers } from './regenerateDrawers'
 import {
   carcaseRoles,
@@ -199,6 +200,7 @@ export function openingLayoutErrors(
   materials: Record<string, MaterialDef>,
   parts: Part[],
   componentId: ComponentId,
+  existingDrawers: DrawerComponent[] = [],
 ): string[] {
   const geometry = openingGeometry(params, materials, parts, componentId)
   if (geometry.errors.length) return geometry.errors
@@ -217,6 +219,7 @@ export function openingLayoutErrors(
     joints: [],
     hardware: [],
     components: [
+      ...existingDrawers.filter((drawer) => drawer.parentId === componentId),
       {
         kind: 'carcase',
         id: componentId,
