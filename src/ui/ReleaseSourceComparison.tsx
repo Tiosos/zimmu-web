@@ -36,18 +36,47 @@ function ReviewFinding({
   label,
   disabled,
   checkboxRef,
+  noteRef,
+  selected,
+  onSelect,
+  onEditNote,
   onFocus,
   onChange,
 }: {
   entry: ChangeReviewDraft['entries'][number]
   label: string
   disabled: boolean
+  noteRef: (node: HTMLTextAreaElement | null) => void
+  selected: boolean
+  onSelect: () => void
+  onEditNote: () => void
   checkboxRef: (node: HTMLInputElement | null) => void
   onFocus: () => void
   onChange: (patch: { reviewed?: boolean; note?: string }) => void
 }) {
   return (
     <div className="my-2 space-y-2 text-sm" onFocus={onFocus}>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          aria-pressed={selected}
+          aria-label={`Select finding: ${label}`}
+          onClick={onSelect}
+        >
+          {selected ? 'Selected' : 'Select finding'}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          aria-label={`Edit review note: ${label}`}
+          onClick={onEditNote}
+        >
+          Edit note
+        </Button>
+      </div>
       <label className="flex items-start gap-2">
         <input
           type="checkbox"
@@ -62,6 +91,7 @@ function ReviewFinding({
         Review note
         <textarea
           className="mt-1 block w-full rounded border border-border bg-background p-2"
+          ref={noteRef}
           aria-label={`Review note: ${label}`}
           disabled={disabled}
           maxLength={MAX_CHANGE_REVIEW_NOTE_LENGTH}
@@ -122,6 +152,7 @@ export function ReleaseSourceComparison({
   const searchInput = useRef<HTMLInputElement>(null)
   const partSearchInput = useRef<HTMLInputElement>(null)
   const pendingToggle = useRef<HTMLInputElement>(null)
+  const noteNodes = useRef(new Map<string, HTMLTextAreaElement>())
   const findingNodes = useRef(new Map<string, HTMLInputElement>())
   const currentFinding = useRef<string | null>(null)
   const requestedFocus = useRef<string | null>(null)
@@ -190,6 +221,30 @@ export function ReleaseSourceComparison({
         : null,
     [release, result],
   )
+  const selectionContext = useMemo(
+    () => ({
+      releaseId: release.id,
+      revision: release.revision,
+      packet: release.packetSha256,
+      baselineHash: release.sourceSha256,
+      before: release.source,
+      after: result.source,
+    }),
+    [
+      release.id,
+      release.revision,
+      release.packetSha256,
+      release.sourceSha256,
+      release.source,
+      result.source,
+    ],
+  )
+  const [selection, setSelection] = useState(() => ({
+    context: selectionContext,
+    references: new Set<string>(),
+  }))
+  if (selection.context !== selectionContext)
+    setSelection({ context: selectionContext, references: new Set() })
   const matches = (draft: ChangeReviewDraft) =>
     result.source !== null && changeReviewMatchesSource(draft, release, result.source)
   const review = reviewState && matches(reviewState) ? reviewState : blankReview
@@ -234,6 +289,7 @@ export function ReleaseSourceComparison({
     setNoteFilter,
     setPartSort,
   } = viewPreferences
+  const { searchScope, setSearchScope } = viewPreferences
   const busy = operationBusy || autosave.loading
   const coverage = result.report ? changeReviewCoverage(result.report) : []
   const coverageByReference = new Map(coverage.map((entry) => [entry.reference, entry]))
@@ -295,11 +351,10 @@ export function ReleaseSourceComparison({
   )
   const matchesSearch = (reference: string, note = entriesByReference.get(reference)?.note ?? '') =>
     !query ||
-    [
-      coverageByReference.get(reference)?.label ?? '',
-      itemSearchText.get(reference) ?? '',
-      note,
-    ].some((text) => normalizeSearch(text).includes(query))
+    (searchScope === 'notes'
+      ? [note]
+      : [coverageByReference.get(reference)?.label ?? '', itemSearchText.get(reference) ?? '', note]
+    ).some((text) => normalizeSearch(text).includes(query))
   const changesByReference = new Map(
     (result.report?.changes ?? []).map((change) => [`item:${change.key}`, change]),
   )
@@ -333,16 +388,51 @@ export function ReleaseSourceComparison({
     const group = coverage.filter((entry) => entry.category === category)
     return `${group.filter((entry) => isPending(entry.reference)).length} of ${group.length}`
   }
-  const nextPending = (after: string | null, direction = 1) => {
-    if (!visiblePending.length) return null
+  const visibleNotes = orderedCoverage.filter(
+    (entry) =>
+      visibleFinding(entry.reference) &&
+      (entriesByReference.get(entry.reference)?.note.trim().length ?? 0) > 0,
+  )
+  const selectedCoverage = orderedCoverage.filter((entry) =>
+    selection.references.has(entry.reference),
+  )
+  const selectedVisibleCount = selectedCoverage.filter((entry) =>
+    visibleFinding(entry.reference),
+  ).length
+  const selectedPending = selectedCoverage.filter((entry) => isPending(entry.reference))
+  const selectedReviewed = selectedCoverage.filter((entry) => !isPending(entry.reference))
+  const selectReferences = (references: readonly string[]) =>
+    setSelection((previous) => ({
+      ...previous,
+      references: new Set([...previous.references, ...references]),
+    }))
+  const toggleSelection = (reference: string) =>
+    setSelection((previous) => {
+      const references = new Set(previous.references)
+      if (references.has(reference)) references.delete(reference)
+      else references.add(reference)
+      return { ...previous, references }
+    })
+  const nextMatching = (after: string | null, matching: typeof coverage, direction = 1) => {
+    if (!matching.length) return null
+    const references = new Set(matching.map((entry) => entry.reference))
     const found = orderedCoverage.findIndex((entry) => entry.reference === after)
     const start = found < 0 ? (direction === 1 ? -1 : 0) : found
     for (let offset = 1; offset <= orderedCoverage.length; offset++) {
       const index = (start + direction * offset + orderedCoverage.length) % orderedCoverage.length
       const reference = orderedCoverage[index].reference
-      if (isPending(reference) && visibleFinding(reference)) return reference
+      if (references.has(reference)) return reference
     }
     return null
+  }
+  const nextPending = (after: string | null, direction = 1) =>
+    nextMatching(after, visiblePending, direction)
+  const nextNote = (after: string | null, direction = 1) =>
+    nextMatching(after, visibleNotes, direction)
+  const focusNote = (reference: string) => {
+    const node = noteNodes.current.get(reference)
+    node?.focus()
+    node?.scrollIntoView?.({ block: 'nearest' })
   }
 
   const focusFinding = (reference: string) => {
@@ -439,13 +529,20 @@ export function ReleaseSourceComparison({
   const visibleReviewed = orderedCoverage.filter(
     (entry) => !isPending(entry.reference) && visibleFinding(entry.reference),
   )
-  const bulkReview = (reviewed: boolean) => {
+  const bulkReview = (reviewed: boolean, selectedOnly = false) => {
     if (busy || !review) return
-    const targets = reviewed ? visiblePending : visibleReviewed
+    const targets = selectedOnly
+      ? reviewed
+        ? selectedPending
+        : selectedReviewed
+      : reviewed
+        ? visiblePending
+        : visibleReviewed
+    const hidden = targets.filter((entry) => !visibleFinding(entry.reference)).length
     if (
       !targets.length ||
       !window.confirm(
-        `${reviewed ? 'Mark' : 'Reopen'} ${targets.length} visible ${reviewed ? 'pending findings as reviewed' : 'reviewed findings as pending'}? Hidden findings and all notes will stay unchanged.`,
+        `${reviewed ? 'Mark' : 'Reopen'} ${targets.length} ${selectedOnly ? 'selected' : 'visible'} ${reviewed ? 'pending findings as reviewed' : 'reviewed findings as pending'}? ${selectedOnly ? `${hidden} affected findings are hidden by filters. Unselected findings and all notes will stay unchanged.` : 'Hidden findings and all notes will stay unchanged.'}`,
       )
     )
       return
@@ -474,6 +571,13 @@ export function ReleaseSourceComparison({
           entry={entry}
           label={info.label}
           disabled={busy}
+          selected={selection.references.has(reference)}
+          onSelect={() => toggleSelection(reference)}
+          onEditNote={() => focusNote(reference)}
+          noteRef={(node) => {
+            if (node) noteNodes.current.set(reference, node)
+            else noteNodes.current.delete(reference)
+          }}
           checkboxRef={(node) => {
             if (node) findingNodes.current.set(reference, node)
             else findingNodes.current.delete(reference)
@@ -632,7 +736,6 @@ export function ReleaseSourceComparison({
           !event.altKey ||
           event.ctrlKey ||
           event.metaKey ||
-          event.shiftKey ||
           event.nativeEvent.isComposing ||
           !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)
         )
@@ -640,13 +743,19 @@ export function ReleaseSourceComparison({
         event.preventDefault()
         event.stopPropagation()
         if (busy) return
+        const targets = event.shiftKey ? visibleNotes : visiblePending
         const reference =
           event.key === 'Home'
-            ? visiblePending[0]?.reference
+            ? targets[0]?.reference
             : event.key === 'End'
-              ? visiblePending.at(-1)?.reference
-              : nextPending(currentFinding.current, event.key === 'ArrowUp' ? -1 : 1)
-        if (reference) focusFinding(reference)
+              ? targets.at(-1)?.reference
+              : event.shiftKey
+                ? nextNote(currentFinding.current, event.key === 'ArrowUp' ? -1 : 1)
+                : nextPending(currentFinding.current, event.key === 'ArrowUp' ? -1 : 1)
+        if (reference) {
+          if (event.shiftKey) focusNote(reference)
+          else focusFinding(reference)
+        }
       }}
       ref={dialog}
       aria-labelledby={heading}
@@ -707,6 +816,18 @@ export function ReleaseSourceComparison({
                   onChange={(event) => setSearch(event.target.value)}
                 />
               </label>
+              <label>
+                Search in
+                <select
+                  aria-label="Search in"
+                  value={searchScope}
+                  disabled={busy}
+                  onChange={(event) => setSearchScope(event.target.value as typeof searchScope)}
+                >
+                  <option value="all">All finding text</option>
+                  <option value="notes">Finding notes only</option>
+                </select>
+              </label>
               <Button
                 variant="outline"
                 disabled={busy || search === ''}
@@ -734,9 +855,11 @@ export function ReleaseSourceComparison({
                     findingGroup === 'all' &&
                     entityType === 'all' &&
                     noteFilter === 'all' &&
-                    partSort === 'comparison')
+                    partSort === 'comparison' &&
+                    searchScope === 'all')
                 }
                 onClick={() => {
+                  setSearchScope('all')
                   setFindingGroup('all')
                   setEntityType('all')
                   setNoteFilter('all')
@@ -920,6 +1043,96 @@ export function ReleaseSourceComparison({
                   No findings match the current filters. Reset review view to see all findings.
                 </p>
               )}
+              <section
+                aria-label="Finding selection"
+                className="space-y-2 rounded border border-border p-3"
+              >
+                <h4 className="font-semibold">Finding selection</h4>
+                <p role="status">
+                  Selected: {selectedCoverage.length} findings · {selectedVisibleCount} visible ·{' '}
+                  {selectedCoverage.length - selectedVisibleCount} hidden.
+                </p>
+                <p>
+                  Selection lasts for this open comparison. Selected actions include selected
+                  findings hidden by filters.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      [
+                        'Select all visible findings',
+                        orderedCoverage.filter((entry) => visibleFinding(entry.reference)),
+                      ],
+                      ['Select visible pending findings', visiblePending],
+                      ['Select visible reviewed findings', visibleReviewed],
+                    ] as const
+                  ).map(([label, entries]) => (
+                    <Button
+                      key={label}
+                      variant="outline"
+                      disabled={
+                        busy ||
+                        !entries.length ||
+                        entries.every((entry) => selection.references.has(entry.reference))
+                      }
+                      onClick={() => selectReferences(entries.map((entry) => entry.reference))}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                  <Button
+                    variant="outline"
+                    disabled={busy || !selectedCoverage.length}
+                    onClick={() =>
+                      setSelection({ context: selectionContext, references: new Set() })
+                    }
+                  >
+                    Clear finding selection
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={busy || !selectedPending.length}
+                    onClick={() => bulkReview(true, true)}
+                  >
+                    Mark selected pending findings reviewed ({selectedPending.length})
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={busy || !selectedReviewed.length}
+                    onClick={() => bulkReview(false, true)}
+                  >
+                    Reopen selected reviewed findings ({selectedReviewed.length})
+                  </Button>
+                </div>
+              </section>
+              <div
+                role="group"
+                aria-label="Finding note navigation"
+                className="flex flex-wrap gap-2"
+              >
+                <p role="status">{visibleNotes.length} visible findings with notes.</p>
+                {(['Previous', 'Next', 'First', 'Last'] as const).map((position) => (
+                  <Button
+                    key={position}
+                    variant="outline"
+                    disabled={busy || !visibleNotes.length}
+                    onClick={() => {
+                      const reference =
+                        position === 'First'
+                          ? visibleNotes[0]?.reference
+                          : position === 'Last'
+                            ? visibleNotes.at(-1)?.reference
+                            : nextNote(currentFinding.current, position === 'Previous' ? -1 : 1)
+                      if (reference) focusNote(reference)
+                    }}
+                  >
+                    {position} finding note
+                  </Button>
+                ))}
+                <p>
+                  Alt+Shift+↓ / ↑: next / previous note. Alt+Shift+Home / End: first / last note.
+                </p>
+              </div>
               <div role="group" aria-label="Bulk review actions" className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"

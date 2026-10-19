@@ -231,6 +231,8 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
   await comparison.getByRole('combobox', { name: 'Item kind' }).selectOption('part')
   await comparison.getByRole('combobox', { name: 'Finding notes' }).selectOption('with')
   await comparison.getByRole('combobox', { name: 'Part summary order' }).selectOption('name')
+  await comparison.getByRole('combobox', { name: 'Search in' }).selectOption('notes')
+  await comparison.getByRole('button', { name: /^Select finding: Release shelf/ }).click()
   await partSummary.getByRole('checkbox', { name: 'Show pending parts only', exact: true }).check()
   await expect(
     comparison.getByText('Visible: 0 pending · 1 reviewed.', { exact: true }),
@@ -252,6 +254,10 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
   await expect(comparison.getByRole('combobox', { name: 'Item kind' })).toHaveValue('part')
   await expect(comparison.getByRole('combobox', { name: 'Finding notes' })).toHaveValue('with')
   await expect(comparison.getByRole('combobox', { name: 'Part summary order' })).toHaveValue('name')
+  await expect(comparison.getByRole('combobox', { name: 'Search in' })).toHaveValue('notes')
+  await expect(
+    comparison.getByText('Selected: 0 findings · 0 visible · 0 hidden.', { exact: true }),
+  ).toBeVisible()
   await expect(
     partSummary.getByRole('checkbox', { name: 'Show pending parts only', exact: true }),
   ).toBeChecked()
@@ -288,6 +294,59 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
     await expect(
       comparison.getByRole('button', { name: `${position} pending part`, exact: true }),
     ).toBeDisabled()
+  await comparison.getByRole('combobox', { name: 'Search in' }).selectOption('notes')
+  await comparison
+    .getByRole('searchbox', { name: 'Search review findings', exact: true })
+    .fill('Shelf resize checked')
+  await comparison
+    .getByRole('button', { name: 'Select visible reviewed findings', exact: true })
+    .click()
+  await comparison.getByRole('button', { name: 'First finding note', exact: true }).click()
+  const shelfNote = comparison.getByRole('textbox', {
+    name: 'Review note: Release shelf (part:board_release-shelf)',
+    exact: true,
+  })
+  await expect(shelfNote).toBeFocused()
+  await page.keyboard.press('Alt+Shift+End')
+  await expect(shelfNote).toBeFocused()
+  await comparison.getByRole('button', { name: /^Edit review note: Release shelf/ }).click()
+  await expect(shelfNote).toBeFocused()
+  await comparison.getByRole('combobox', { name: 'Search in' }).selectOption('all')
+  await comparison
+    .getByRole('searchbox', { name: 'Search review findings', exact: true })
+    .fill('Part source records')
+  await comparison
+    .getByRole('button', { name: 'Select visible pending findings', exact: true })
+    .click()
+  await expect(
+    comparison.getByText('Selected: 2 findings · 1 visible · 1 hidden.', { exact: true }),
+  ).toBeVisible()
+  await comparison
+    .getByRole('button', { name: 'Mark selected pending findings reviewed (1)', exact: true })
+    .click()
+  await comparison
+    .getByRole('button', { name: 'Undo last bulk review change', exact: true })
+    .click()
+  page.off('dialog', acceptDialog)
+  page.once('dialog', (dialog) => {
+    expect(dialog.message()).toContain('1 affected findings are hidden by filters')
+    void dialog.dismiss()
+  })
+  await comparison
+    .getByRole('button', { name: 'Reopen selected reviewed findings (1)', exact: true })
+    .click()
+  await expect(comparison.getByText(/Review progress: 1 of/)).toBeVisible()
+  page.once('dialog', (dialog) => dialog.accept())
+  await comparison
+    .getByRole('button', { name: 'Reopen selected reviewed findings (1)', exact: true })
+    .click()
+  await expect(comparison.getByText(/Review progress: 0 of/)).toBeVisible()
+  await comparison
+    .getByRole('button', { name: 'Undo last bulk review change', exact: true })
+    .click()
+  page.on('dialog', acceptDialog)
+  await comparison.getByRole('button', { name: 'Clear finding selection', exact: true }).click()
+  await comparison.getByRole('button', { name: 'Reset review view', exact: true }).click()
   await comparison.getByRole('button', { name: 'First pending finding', exact: true }).click()
   await page.keyboard.press('Alt+End')
   await expect(comparison.getByRole('checkbox', { name: /^Reviewed:/ }).last()).toBeFocused()

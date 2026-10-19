@@ -38,3 +38,10 @@
 | `Alt+Home` / `Alt+End` | Focus the first / last visible pending finding |
 
 These shortcuts respect finding search, part, classification, change type and review-status filters. They are unavailable during report operations or draft restoration. Reviewed-only views have no pending navigation targets.
+
+| Key | Action |
+|-----|--------|
+| `Alt+Shift+ArrowDown` / `Alt+Shift+ArrowUp` | Focus the next / previous visible finding with a nonempty note, wrapping at either end |
+| `Alt+Shift+Home` / `Alt+Shift+End` | Focus the first / last visible finding with a nonempty note |
+
+Note navigation follows displayed finding order and filters, including reviewed-only views. It focuses the note editor and leaves review progress unchanged. Whitespace-only notes are skipped. Ctrl/Cmd-modified shortcuts and composing text are left alone.
