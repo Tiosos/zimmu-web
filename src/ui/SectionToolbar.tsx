@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { DimInput } from './DimInput'
 import { SectionElevation } from './SectionElevation'
+import { OpeningReuseTools } from './OpeningReuseTools'
 import type {
   CarcaseParams,
   Component,
@@ -43,7 +44,9 @@ export function SectionToolbar({
   materials,
   parts,
   onSelect,
+  components = [],
 }: {
+  components?: Component[]
   params: CarcaseParams
   selected: SectionId | null
   onUpdate: (updater: (c: Component) => Component, historyLabel?: string) => void
@@ -52,6 +55,7 @@ export function SectionToolbar({
   parts: Part[]
   onSelect: (id: SectionId | null) => void
 }) {
+  const [copied, setCopied] = useState<Section | null>(null)
   const [count, setCount] = useState(2)
   const [division, setDivision] = useState<DivisionKind>('panel')
   const [layout, setLayout] = useState<OpeningLayoutId>('shelves')
@@ -119,7 +123,14 @@ export function SectionToolbar({
     editFailure?.base === params && editFailure.selected === selected ? editFailure.errors : []
   const commit = (next: CarcaseParams, label?: string, drawerTarget?: SectionId) => {
     const errors = drawerTarget
-      ? openingLayoutErrors(next, drawerTarget, materials, parts, componentId)
+      ? openingLayoutErrors(
+          next,
+          drawerTarget,
+          materials,
+          parts,
+          componentId,
+          components.filter((c) => c.kind === 'drawer'),
+        )
       : openingGeometry(next, materials, parts, componentId).errors
     setEditFailure(errors.length ? { base: params, selected, errors } : null)
     if (errors.length) {
@@ -359,7 +370,14 @@ export function SectionToolbar({
             next,
             materials,
             overrides,
-            errors: openingLayoutErrors(next, selected, materials, parts, componentId),
+            errors: openingLayoutErrors(
+              next,
+              selected,
+              materials,
+              parts,
+              componentId,
+              components.filter((c) => c.kind === 'drawer'),
+            ),
             label: OPENING_LAYOUTS.find((item) => item.id === layout)!.label,
           })
         }}
@@ -406,6 +424,15 @@ export function SectionToolbar({
           </Button>
         </section>
       )}
+      <OpeningReuseTools
+        params={params}
+        selected={selected}
+        tree={geometry.tree}
+        copied={copied}
+        onCopy={setCopied}
+        onSelect={onSelect}
+        onCommit={(next, label, target) => commit(next, label, target)}
+      />
     </div>
   )
 }

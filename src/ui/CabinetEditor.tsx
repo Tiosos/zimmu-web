@@ -178,6 +178,7 @@ export function CabinetEditor({
                 />
               </div>
               <SectionToolbar
+                components={scene?.components}
                 params={component.params}
                 componentId={component.id}
                 materials={materials}

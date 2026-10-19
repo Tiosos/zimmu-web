@@ -699,6 +699,8 @@
 │   ├── obbOverlap.ts
 │   ├── openingLayouts.test.ts
 │   ├── openingLayouts.ts
+│   ├── openingReuse.test.ts
+│   ├── openingReuse.ts
 │   ├── palette.ts
 │   ├── panelThickness.test.ts
 │   ├── pipeline.ts
@@ -855,6 +857,7 @@
 │   ├── ManufacturingReadiness.test.tsx
 │   ├── ManufacturingReadiness.tsx
 │   ├── NumberField.tsx
+│   ├── OpeningReuseTools.tsx
 │   ├── outputReconciliation.test.ts
 │   ├── outputReconciliation.ts
 │   ├── packetPartInventory.ts
@@ -1585,7 +1588,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->184<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->185<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1666,6 +1669,7 @@ import { useScene } from './useScene'</code></pre>
     <section id="docs-tree">
       <h2>Docs directory</h2>
       <pre><code><!-- AUTOGEN:docs-tree -->docs/
+├── cabinet-layout-reuse.md
 ├── cabinet-opening-layouts.md
 ├── company-catalogue-api.md
 ├── drawing-references.md
@@ -1797,6 +1801,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-17-pending-review-navigation-notes.md
     │   ├── 2026-10-17-source-review-search-notes.md
     │   ├── 2026-10-17-source-review-shortcuts-notes.md
+    │   ├── 2026-10-19-cabinet-layout-reuse-notes.md
     │   ├── 2026-10-19-forget-source-review-views-notes.md
     │   ├── 2026-10-19-part-source-review-notes.md
     │   ├── 2026-10-19-pending-first-source-review-notes.md
