@@ -1,0 +1,7 @@
+# Pending-first source-review ordering and group counts
+
+- Added stable pending-first ordering within each existing group, preserving manufacturing/metadata separation. The same derived arrays drive rendering, next-pending navigation and shortcuts; source/report arrays are never mutated.
+- Ordering is an optional persisted view flag. Version-1 records missing it restore false, so existing search/pending-only preferences survive. Reset includes ordering; forget/pause/resume retain their existing semantics. Export order and draft schemas remain unchanged.
+- Continued with per-group pending/reviewed/total counts, derived from full coverage rather than filtered rows. They remain useful when search hides all findings and update with current, resumed or restored check-offs.
+- Validation: 168 focused/integration tests across nine files passed; Chromium's real-project workflow verified group counts plus ordering restoration and reset alongside existing draft/export behavior. Lint and production build/typecheck passed (existing bundle-size warning). Mutations disabling ordering, counting only visible pending findings and refusing legacy preference records each produced the expected assertion failure; source files were restored and the full focused suite passed again.
+- The first ordering assertion used deep equality on checkbox nodes, which failed to detect reordered inputs with identical attributes. Assertions now compare finding labels in sequence; the disabled-order mutation is caught. Navigation focus assertions continue to use node identity.

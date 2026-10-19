@@ -107,6 +107,7 @@ export function useLocalChangeReview(
     }
   }, [context, draft, retry])
   return {
+    comparisonKey: context?.key ?? null,
     loading: state.scope !== scope,
     saved: !!draft && state.scope === scope && state.saved === draft,
     error: state.scope === scope ? state.error : undefined,

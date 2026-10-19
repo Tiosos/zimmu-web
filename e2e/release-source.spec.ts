@@ -101,6 +101,19 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
   await expect(
     comparison.getByText('Release shelf · part · modified', { exact: true }),
   ).toBeVisible()
+  await expect(
+    comparison.getByRole('region', { name: 'manufacturing changes' }).getByRole('status'),
+  ).toHaveText('1 pending · 0 reviewed · 1 total')
+  const partSummary = comparison.getByRole('region', { name: 'Part review summary' })
+  await expect(partSummary.getByText('Showing 1 of 1 parts.', { exact: true })).toBeVisible()
+  await partSummary
+    .getByRole('searchbox', { name: 'Find a part in review', exact: true })
+    .fill('RELEASE SHELF')
+  await partSummary.getByRole('checkbox', { name: 'Show pending parts first', exact: true }).check()
+  await partSummary.getByRole('button', { name: 'Next pending part', exact: true }).click()
+  await expect(comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ })).toBeFocused()
+  await partSummary.getByRole('button', { name: 'Clear part filter', exact: true }).click()
+  await partSummary.getByRole('button', { name: 'Clear part search', exact: true }).click()
   await comparison.getByLabel('Reviewer name', { exact: true }).fill('Workshop reviewer')
   await comparison
     .getByRole('textbox', { name: 'Overall review notes', exact: true })
@@ -108,7 +121,7 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
   await comparison
     .getByRole('searchbox', { name: 'Search review findings', exact: true })
     .fill('RELEASE SHELF')
-  await expect(comparison.getByText(/Showing 1 of/)).toBeVisible()
+  await expect(comparison.getByText(/Showing 1 of \d+ findings\./)).toBeVisible()
   await comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }).check()
   await comparison.getByRole('button', { name: 'Next pending finding', exact: true }).click()
   await expect(comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ })).toBeFocused()
@@ -138,16 +151,69 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
     comparison.getByRole('checkbox', { name: 'Reviewed: Part source records', exact: true }),
   ).toBeFocused()
   await expect(comparison.getByText(/Pending changes: 0 of 1/)).toBeVisible()
+  await expect(
+    comparison.getByRole('region', { name: 'manufacturing changes' }).getByRole('status'),
+  ).toHaveText('0 pending · 1 reviewed · 1 total')
   await comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }).uncheck()
   await comparison
     .getByLabel('Review note: Release shelf (part:board_release-shelf)', { exact: true })
     .fill('Shelf resize checked against opening.')
   await expect(comparison.getByText(/Review progress: 1 of/)).toBeVisible()
   await expect(comparison.getByText('Review draft saved locally.', { exact: true })).toBeVisible()
+  await comparison
+    .getByRole('searchbox', { name: 'Search review findings', exact: true })
+    .fill('source')
+  await comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }).check()
+  await comparison
+    .getByRole('checkbox', { name: 'Show pending findings first', exact: true })
+    .check()
+  await partSummary
+    .getByRole('searchbox', { name: 'Find a part in review', exact: true })
+    .fill('shelf')
+  await partSummary
+    .getByRole('button', {
+      name: 'Filter findings for Release shelf (board_release-shelf)',
+      exact: true,
+    })
+    .click()
+  await comparison
+    .getByRole('searchbox', { name: 'Search review findings', exact: true })
+    .fill('source')
   await comparison.getByRole('button', { name: 'Close comparison', exact: true }).click()
   await page.getByRole('button', { name: 'Review releases' }).click()
   await page.getByRole('button', { name: 'Compare current design with revision 1' }).click()
   await expect(comparison.getByText('Local review draft restored.', { exact: true })).toBeVisible()
+  await expect(
+    comparison.getByRole('searchbox', { name: 'Search review findings', exact: true }),
+  ).toHaveValue('source')
+  await expect(
+    comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }),
+  ).toBeChecked()
+  await expect(
+    comparison.getByRole('checkbox', { name: 'Show pending findings first', exact: true }),
+  ).toBeChecked()
+  await expect(
+    partSummary.getByRole('searchbox', { name: 'Find a part in review', exact: true }),
+  ).toHaveValue('shelf')
+  await expect(
+    partSummary.getByRole('checkbox', { name: 'Show pending parts first', exact: true }),
+  ).toBeChecked()
+  await expect(
+    partSummary.getByRole('button', {
+      name: 'Filter findings for Release shelf (board_release-shelf)',
+      exact: true,
+    }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await comparison.getByRole('button', { name: 'Reset review view', exact: true }).click()
+  await expect(
+    partSummary.getByRole('searchbox', { name: 'Find a part in review', exact: true }),
+  ).toHaveValue('')
+  await expect(
+    partSummary.getByRole('checkbox', { name: 'Show pending parts first', exact: true }),
+  ).not.toBeChecked()
+  await expect(
+    comparison.getByRole('checkbox', { name: 'Show pending findings first', exact: true }),
+  ).not.toBeChecked()
   await expect(comparison.getByLabel('Reviewer name', { exact: true })).toHaveValue(
     'Workshop reviewer',
   )
@@ -181,6 +247,34 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
   await expect(
     comparison.getByRole('button', { name: 'Reset review view', exact: true }),
   ).toBeDisabled()
+  await comparison
+    .getByRole('searchbox', { name: 'Search review findings', exact: true })
+    .fill('source')
+  await comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }).check()
+  await comparison
+    .getByRole('button', { name: 'Forget remembered source review views', exact: true })
+    .click()
+  await expect(comparison.getByText(/Remembered source review views cleared/)).toBeVisible()
+  await expect(
+    comparison.getByRole('searchbox', { name: 'Search review findings', exact: true }),
+  ).toHaveValue('source')
+  await expect(
+    comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }),
+  ).toBeChecked()
+  expect(await page.evaluate(() => localStorage.getItem('zimmu:source-review-views:v1'))).toBeNull()
+  await comparison
+    .getByRole('button', { name: 'Resume saving source review views', exact: true })
+    .click()
+  await expect(
+    comparison.getByText('Saving source review views resumed.', { exact: true }),
+  ).toBeVisible()
+  expect(await page.evaluate(() => localStorage.getItem('zimmu:source-review-views:v1'))).toContain(
+    'source',
+  )
+  await comparison
+    .getByRole('button', { name: 'Forget remembered source review views', exact: true })
+    .click()
+
   const report = JSON.parse(jsonText)
   expect(report.kind).toBe('release-source-change-report')
   expect(report.schemaVersion).toBe(2)

@@ -17,6 +17,9 @@ import {
   releaseChangeReportJson,
   releaseChangeReportHtml,
 } from './releaseChangeReport'
+import { sourceReviewParts } from './sourceReviewParts'
+import { useSourceReviewView } from './useSourceReviewView'
+import { MAX_SOURCE_REVIEW_SEARCH } from './sourceReviewViewPreferences'
 import { useLocalChangeReview } from './useLocalChangeReview'
 import { downloadBlob } from './download'
 import { resumeChangeReview, MAX_CHANGE_REVIEW_BYTES } from './resumeChangeReview'
@@ -116,9 +119,8 @@ export function ReleaseSourceComparison({
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useId()
-  const [pendingOnly, setPendingOnly] = useState(false)
-  const [search, setSearch] = useState('')
   const searchInput = useRef<HTMLInputElement>(null)
+  const partSearchInput = useRef<HTMLInputElement>(null)
   const pendingToggle = useRef<HTMLInputElement>(null)
   const findingNodes = useRef(new Map<string, HTMLInputElement>())
   const currentFinding = useRef<string | null>(null)
@@ -196,20 +198,62 @@ export function ReleaseSourceComparison({
     },
     result.report,
   )
+  const viewPreferences = useSourceReviewView(autosave.comparisonKey ?? null)
+  const { search, pendingOnly, pendingFirst, setSearch, setPendingOnly, setPendingFirst } =
+    viewPreferences
+  const {
+    partFilter,
+    partSearch,
+    pendingPartsFirst,
+    setPartFilter,
+    setPartSearch,
+    setPendingPartsFirst,
+  } = viewPreferences
   const busy = operationBusy || autosave.loading
   const coverage = result.report ? changeReviewCoverage(result.report) : []
   const coverageByReference = new Map(coverage.map((entry) => [entry.reference, entry]))
   const entriesByReference = new Map(review?.entries.map((entry) => [entry.reference, entry]) ?? [])
-  // Match the grouped display order, which can differ from inventory coverage order.
+  const isPending = (reference: string) => entriesByReference.get(reference)?.reviewed === false
+  const pendingOrder = <T,>(items: readonly T[], reference: (item: T) => string): readonly T[] =>
+    pendingFirst
+      ? [
+          ...items.filter((item) => isPending(reference(item))),
+          ...items.filter((item) => !isPending(reference(item))),
+        ]
+      : items
+  const itemsFor = (category: 'manufacturing' | 'metadata') =>
+    pendingOrder(
+      (result.report?.changes ?? []).filter((change) => change.classification === category),
+      (change) => `item:${change.key}`,
+    )
+  const sourceFindings = pendingOrder(
+    result.report?.otherSourceChanges ?? [],
+    (label) => `source:${JSON.stringify(label)}`,
+  )
+  const limitationFindings = pendingOrder(
+    coverage.filter((entry) => entry.category === 'limitation'),
+    (entry) => entry.reference,
+  )
   const orderedCoverage = [
     ...(['manufacturing', 'metadata'] as const).flatMap((category) =>
-      (result.report?.changes ?? [])
-        .filter((change) => change.classification === category)
-        .map((change) => coverageByReference.get(`item:${change.key}`)!),
+      itemsFor(category).map((change) => coverageByReference.get(`item:${change.key}`)!),
     ),
-    ...coverage.filter((entry) => entry.category !== 'item'),
+    ...sourceFindings.map((label) => coverageByReference.get(`source:${JSON.stringify(label)}`)!),
+    ...limitationFindings,
   ]
-  const isPending = (reference: string) => entriesByReference.get(reference)?.reviewed === false
+  const groupSummary = (references: readonly string[]) => {
+    const pending = references.filter(isPending).length
+    return `${pending} pending · ${references.length - pending} reviewed · ${references.length} total`
+  }
+  const partGroups = useMemo(
+    () => sourceReviewParts(result.report?.changes ?? [], partsById),
+    [result.report, partsById],
+  )
+  const activePart = partGroups.find((part) => part.id === partFilter)
+  const matchesPart = (reference: string) =>
+    !activePart || !reference.startsWith('item:') || activePart.references.includes(reference)
+  const pendingForPart = (part: (typeof partGroups)[number]) =>
+    part.references.filter(isPending).length
   const normalizeSearch = (value: string) => value.normalize('NFC').toLowerCase()
   const query = normalizeSearch(search.trim())
   const itemSearchText = useMemo(
@@ -232,10 +276,11 @@ export function ReleaseSourceComparison({
       note,
     ].some((text) => normalizeSearch(text).includes(query))
   const visibleFinding = (reference: string) =>
-    (!pendingOnly || isPending(reference)) && matchesSearch(reference)
+    (!pendingOnly || isPending(reference)) && matchesSearch(reference) && matchesPart(reference)
   const visibleCount = coverage.filter((entry) => visibleFinding(entry.reference)).length
   const matchingPendingCount = coverage.filter(
-    (entry) => isPending(entry.reference) && matchesSearch(entry.reference),
+    (entry) =>
+      isPending(entry.reference) && matchesSearch(entry.reference) && matchesPart(entry.reference),
   ).length
   const pendingCount = coverage.filter((entry) => isPending(entry.reference)).length
   const pendingSummary = (category: 'item' | 'source' | 'limitation') => {
@@ -246,10 +291,15 @@ export function ReleaseSourceComparison({
     const start = orderedCoverage.findIndex((entry) => entry.reference === after)
     for (let offset = 1; offset <= orderedCoverage.length; offset++) {
       const entry = orderedCoverage[(start + offset) % orderedCoverage.length]
-      if (entry.reference !== after && isPending(entry.reference) && matchesSearch(entry.reference))
+      if (
+        entry.reference !== after &&
+        isPending(entry.reference) &&
+        matchesSearch(entry.reference) &&
+        matchesPart(entry.reference)
+      )
         return entry.reference
     }
-    return after && isPending(after) && matchesSearch(after) ? after : null
+    return after && isPending(after) && matchesSearch(after) && matchesPart(after) ? after : null
   }
   const focusFinding = (reference: string) => {
     const node = findingNodes.current.get(reference)
@@ -259,10 +309,51 @@ export function ReleaseSourceComparison({
   useLayoutEffect(() => {
     const reference = requestedFocus.current
     requestedFocus.current = null
-    if (reference === '__search') searchInput.current?.focus()
+    if (reference === '__part_search') partSearchInput.current?.focus()
+    else if (reference === '__search') searchInput.current?.focus()
     else if (reference === '__pending_toggle') pendingToggle.current?.focus()
     else if (reference) focusFinding(reference)
   })
+  const partQuery = normalizeSearch(partSearch.trim())
+  const matchedParts = partGroups.filter(
+    (part) =>
+      !partQuery ||
+      [
+        part.id,
+        part.label,
+        ...part.references.map((reference) => entriesByReference.get(reference)?.note ?? ''),
+      ].some((text) => normalizeSearch(text).includes(partQuery)),
+  )
+  const displayedParts = pendingPartsFirst
+    ? [
+        ...matchedParts.filter((part) => pendingForPart(part) > 0),
+        ...matchedParts.filter((part) => pendingForPart(part) === 0),
+      ]
+    : matchedParts
+  const nextPart = (() => {
+    const start = displayedParts.findIndex((part) => part.id === activePart?.id)
+    for (let offset = 1; offset <= displayedParts.length; offset++) {
+      const part = displayedParts[(start + offset) % displayedParts.length]
+      if (pendingForPart(part) > 0) return part
+    }
+    return undefined
+  })()
+  const openPartReview = (part: (typeof partGroups)[number], pending = pendingOnly) => {
+    const reference = orderedCoverage.find(
+      (entry) =>
+        part.references.includes(entry.reference) && (!pending || isPending(entry.reference)),
+    )?.reference
+    const target = reference ?? '__part_search'
+    if (activePart?.id === part.id && search === '' && pending === pendingOnly) {
+      if (reference) focusFinding(reference)
+      else partSearchInput.current?.focus()
+    } else {
+      requestedFocus.current = target
+      setPartFilter(part.id)
+      setSearch('')
+      setPendingOnly(pending)
+    }
+  }
   const updateReview = (updater: (draft: ChangeReviewDraft) => ChangeReviewDraft) => {
     if (!blankReview) return
     editVersion.current += 1
@@ -479,6 +570,7 @@ export function ReleaseSourceComparison({
                 <input
                   ref={searchInput}
                   type="search"
+                  maxLength={MAX_SOURCE_REVIEW_SEARCH}
                   value={search}
                   disabled={busy}
                   className="mt-1 block w-full rounded border border-border bg-background p-2"
@@ -497,15 +589,124 @@ export function ReleaseSourceComparison({
               </Button>
               <Button
                 variant="outline"
-                disabled={busy || (search === '' && !pendingOnly)}
+                disabled={
+                  busy ||
+                  (search === '' &&
+                    !pendingOnly &&
+                    !pendingFirst &&
+                    partFilter === null &&
+                    partSearch === '' &&
+                    !pendingPartsFirst)
+                }
                 onClick={() => {
                   setSearch('')
                   setPendingOnly(false)
+                  setPendingFirst(false)
+                  setPartFilter(null)
+                  setPartSearch('')
+                  setPendingPartsFirst(false)
                   searchInput.current?.focus()
                 }}
               >
                 Reset review view
               </Button>
+              <section
+                aria-label="Part review summary"
+                className="space-y-2 rounded border border-border p-3"
+              >
+                <h4 className="font-semibold">Part review summary</h4>
+                <p>
+                  A finding linked to multiple parts appears in each part’s count. Part filters
+                  apply to item findings; source sections and limitations remain in scope.
+                </p>
+                <label className="block">
+                  Find a part in review
+                  <input
+                    ref={partSearchInput}
+                    type="search"
+                    maxLength={MAX_SOURCE_REVIEW_SEARCH}
+                    value={partSearch}
+                    disabled={busy}
+                    onChange={(event) => setPartSearch(event.target.value)}
+                    className="mt-1 block w-full rounded border border-border bg-background p-2"
+                  />
+                </label>
+                <Button
+                  variant="outline"
+                  disabled={busy || partSearch === ''}
+                  onClick={() => {
+                    setPartSearch('')
+                    partSearchInput.current?.focus()
+                  }}
+                >
+                  Clear part search
+                </Button>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={pendingPartsFirst}
+                    disabled={busy}
+                    onChange={(event) => setPendingPartsFirst(event.target.checked)}
+                  />
+                  Show pending parts first
+                </label>
+                <Button
+                  variant="outline"
+                  disabled={busy || !nextPart}
+                  onClick={() => {
+                    if (nextPart) openPartReview(nextPart, true)
+                  }}
+                >
+                  Next pending part
+                </Button>
+                <p role="status">
+                  Showing {displayedParts.length} of {partGroups.length} parts.
+                </p>
+                {displayedParts.length === 0 && <p>No parts match the summary search.</p>}
+                {partFilter && !activePart && (
+                  <p role="status">
+                    The saved part filter is unavailable. All item findings are shown.
+                  </p>
+                )}
+                {activePart && (
+                  <p role="status">
+                    Item findings filtered to {activePart.label} ({activePart.id}).
+                  </p>
+                )}
+                <Button
+                  variant="outline"
+                  disabled={busy || partFilter === null}
+                  onClick={() => {
+                    setPartFilter(null)
+                    partSearchInput.current?.focus()
+                  }}
+                >
+                  Clear part filter
+                </Button>
+                <ul>
+                  {displayedParts.map((part) => (
+                    <li key={part.id} className="my-2 border-t pt-2">
+                      <p>
+                        {part.label} · {part.id}
+                        {part.removed ? ' · Not in current design' : ''}
+                      </p>
+                      <p>
+                        {pendingForPart(part)} pending ·{' '}
+                        {part.references.length - pendingForPart(part)} reviewed ·{' '}
+                        {part.references.length} total
+                      </p>
+                      <Button
+                        variant="outline"
+                        disabled={busy}
+                        aria-pressed={activePart?.id === part.id}
+                        onClick={() => openPartReview(part)}
+                      >
+                        Filter findings for {part.label} ({part.id})
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
               <p role="status">
                 Showing {visibleCount} of {coverage.length} findings.
               </p>
@@ -525,6 +726,15 @@ export function ReleaseSourceComparison({
                     onChange={(event) => setPendingOnly(event.target.checked)}
                   />
                   Show pending only
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={pendingFirst}
+                    disabled={busy}
+                    onChange={(event) => setPendingFirst(event.target.checked)}
+                  />
+                  Show pending findings first
                 </label>
                 <Button
                   variant="outline"
@@ -559,9 +769,11 @@ export function ReleaseSourceComparison({
                       disabled={busy || !target}
                       onClick={() => {
                         if (!target) return
-                        if (search === '' && pendingOnly) focusFinding(target.reference)
+                        if (search === '' && pendingOnly && !activePart)
+                          focusFinding(target.reference)
                         else {
                           requestedFocus.current = target.reference
+                          setPartFilter(null)
                           setSearch('')
                           setPendingOnly(true)
                         }
@@ -577,6 +789,37 @@ export function ReleaseSourceComparison({
                   All findings reviewed.
                   {pendingOnly && ' Clear Show pending only to edit reviewed findings.'}
                 </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" disabled={busy} onClick={viewPreferences.forget}>
+                  Forget remembered source review views
+                </Button>
+                {viewPreferences.paused && (
+                  <Button
+                    variant="outline"
+                    disabled={busy || !viewPreferences.ready}
+                    onClick={viewPreferences.resume}
+                  >
+                    Resume saving source review views
+                  </Button>
+                )}
+              </div>
+              {viewPreferences.message && <p role="status">{viewPreferences.message}</p>}
+              {viewPreferences.actionError && <p role="alert">{viewPreferences.actionError}</p>}
+              {viewPreferences.failed ? (
+                <p role="alert">
+                  Review view settings could not be remembered in this browser.
+                  <Button variant="outline" onClick={viewPreferences.retry}>
+                    Retry saving source review view
+                  </Button>
+                </p>
+              ) : (
+                viewPreferences.ready &&
+                !viewPreferences.paused && (
+                  <p className="text-muted-foreground">
+                    View settings are remembered for ten recent source comparisons.
+                  </p>
+                )
               )}
               <p className="text-muted-foreground">
                 View filters affect this dialog only. Downloads always include every finding.
@@ -681,12 +924,12 @@ export function ReleaseSourceComparison({
               <h3 className="font-semibold">
                 {category === 'manufacturing' ? 'Manufacturing changes' : 'Metadata changes'}
               </h3>
+              <p role="status">
+                {groupSummary(itemsFor(category).map((change) => `item:${change.key}`))}
+              </p>
               <ul className="space-y-3">
-                {result
-                  .report!.changes.filter(
-                    (change) =>
-                      change.classification === category && visibleFinding(`item:${change.key}`),
-                  )
+                {itemsFor(category)
+                  .filter((change) => visibleFinding(`item:${change.key}`))
                   .map((change) => (
                     <li key={change.key} className="rounded border border-border p-3 text-sm">
                       <p className="font-medium">
@@ -727,11 +970,14 @@ export function ReleaseSourceComparison({
           {result.report.otherSourceChanges.length > 0 && (
             <section aria-label="Other source changes">
               <h3 className="font-semibold">Other source changes</h3>
+              <p role="status">
+                {groupSummary(sourceFindings.map((label) => `source:${JSON.stringify(label)}`))}
+              </p>
               <p className="text-sm">
                 These source sections also differ. Review them alongside the item changes.
               </p>
               <ul>
-                {result.report.otherSourceChanges
+                {sourceFindings
                   .filter((label) => visibleFinding(`source:${JSON.stringify(label)}`))
                   .map((label) => (
                     <li key={label}>
@@ -744,11 +990,10 @@ export function ReleaseSourceComparison({
           )}
           <section aria-label="Review comparison limitations" className="my-4 text-sm">
             <h3 className="font-semibold">Comparison limitations</h3>
+            <p role="status">{groupSummary(limitationFindings.map((entry) => entry.reference))}</p>
             <ul>
-              {coverage
-                .filter(
-                  (entry) => entry.category === 'limitation' && visibleFinding(entry.reference),
-                )
+              {limitationFindings
+                .filter((entry) => visibleFinding(entry.reference))
                 .map((entry) => (
                   <li key={entry.reference}>{finding(entry.reference)}</li>
                 ))}
