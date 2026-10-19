@@ -374,3 +374,36 @@ it('restores the new filters and keeps pending and reviewed modes mutually exclu
   act(() => reopened.result.current.setReviewedOnly(true))
   expect(reopened.result.current.pendingOnly).toBe(false)
 })
+
+it('remembers triage filters and part ordering, validates enums and defaults legacy settings', async () => {
+  const hook = renderHook(() => useSourceReviewView(key()))
+  expect(hook.result.current.findingGroup).toBe('all')
+  expect(hook.result.current.entityType).toBe('all')
+  expect(hook.result.current.noteFilter).toBe('all')
+  expect(hook.result.current.partSort).toBe('comparison')
+  act(() => {
+    hook.result.current.setFindingGroup('item')
+    hook.result.current.setEntityType('hardware')
+    hook.result.current.setNoteFilter('with')
+    hook.result.current.setPartSort('name')
+  })
+  await waitFor(() => expect(readSourceReviewView(key()).view.partSort).toBe('name'))
+  hook.unmount()
+  const reopened = renderHook(() => useSourceReviewView(key()))
+  expect(reopened.result.current.findingGroup).toBe('item')
+  expect(reopened.result.current.entityType).toBe('hardware')
+  expect(reopened.result.current.noteFilter).toBe('with')
+  expect(reopened.result.current.partSort).toBe('name')
+  for (const field of ['findingGroup', 'entityType', 'noteFilter', 'partSort'])
+    expect(saveSourceReviewView(key(), { ...defaultSourceReviewView(), [field]: 'invalid' })).toBe(
+      false,
+    )
+  reopened.rerender()
+  act(() => {
+    reopened.result.current.setFindingGroup('all')
+    reopened.result.current.setEntityType('all')
+    reopened.result.current.setNoteFilter('all')
+    reopened.result.current.setPartSort('comparison')
+  })
+  await waitFor(() => expect(readSourceReviewView(key()).view.noteFilter).toBe('all'))
+})
