@@ -60,6 +60,9 @@ export function useSourceReviewView(key: string | null) {
       update({ classification }),
     setChangeType: (changeType: NonNullable<SourceReviewView['changeType']>) =>
       update({ changeType }),
+    searchScope: state.view.searchScope ?? 'all',
+    setSearchScope: (searchScope: NonNullable<SourceReviewView['searchScope']>) =>
+      update({ searchScope }),
     search: state.view.search,
     pendingOnly: state.view.pendingOnly,
     pendingFirst: state.view.pendingFirst,

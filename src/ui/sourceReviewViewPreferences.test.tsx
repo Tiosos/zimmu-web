@@ -407,3 +407,22 @@ it('remembers triage filters and part ordering, validates enums and defaults leg
   })
   await waitFor(() => expect(readSourceReviewView(key()).view.noteFilter).toBe('all'))
 })
+
+it('remembers notes-only search, defaults legacy records and rejects invalid search scopes', async () => {
+  const hook = renderHook(() => useSourceReviewView(key()))
+  expect(hook.result.current.searchScope).toBe('all')
+  act(() => {
+    hook.result.current.setSearch('Bench note')
+    hook.result.current.setSearchScope('notes')
+  })
+  await waitFor(() => expect(readSourceReviewView(key()).view.searchScope).toBe('notes'))
+  hook.unmount()
+  const reopened = renderHook(() => useSourceReviewView(key()))
+  expect(reopened.result.current.searchScope).toBe('notes')
+  expect(reopened.result.current.search).toBe('Bench note')
+  expect(
+    saveSourceReviewView(key(), { ...defaultSourceReviewView(), searchScope: 'invalid' as 'all' }),
+  ).toBe(false)
+  act(() => reopened.result.current.setSearchScope('all'))
+  await waitFor(() => expect(readSourceReviewView(key()).view.searchScope).toBe('all'))
+})

@@ -1303,6 +1303,12 @@ it('updates every linked part count when shared hardware is reviewed', async () 
   expect(within(summary).getAllByText('0 pending · 1 reviewed · 1 total')).toHaveLength(2)
   fireEvent.click(screen.getByRole('button', { name: 'Undo last bulk review change' }))
   expect(within(summary).getAllByText('1 pending · 0 reviewed · 1 total')).toHaveLength(2)
+  fireEvent.click(screen.getByRole('button', { name: 'Select all visible findings' }))
+  expect(screen.getByText('Selected: 1 findings · 1 visible · 0 hidden.')).toBeTruthy()
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Mark selected pending findings reviewed (1)' }),
+  )
+  expect(within(summary).getAllByText('0 pending · 1 reviewed · 1 total')).toHaveLength(2)
 })
 
 it('combines classification, change type and reviewed filters while retaining global findings and complete exports', async () => {
@@ -1753,3 +1759,304 @@ it.each([
     ).toEqual(ids)
   },
 )
+
+it('selects individual findings independently of review progress, keeps hidden counts and preserves selection on view reset', async () => {
+  const { input, release, view } = await partReviewFixture()
+  const close = vi.fn()
+  view.rerender(
+    <ReleaseSourceComparison release={release} input={input} onClose={close} onInspect={vi.fn()} />,
+  )
+  const alpha = screen.getByRole('button', { name: /^Select finding: Panel Alpha/ })
+  fireEvent.click(alpha)
+  expect(alpha.getAttribute('aria-pressed')).toBe('true')
+  expect(screen.getByText('Selected: 1 findings · 1 visible · 0 hidden.')).toBeTruthy()
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search review findings' }), {
+    target: { value: 'Panel Beta' },
+  })
+  expect(screen.getByText('Selected: 1 findings · 0 visible · 1 hidden.')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect(
+    screen
+      .getByRole('button', { name: /^Select finding: Panel Alpha/ })
+      .getAttribute('aria-pressed'),
+  ).toBe('true')
+  fireEvent.click(screen.getByRole('button', { name: /^Select finding: Panel Alpha/ }))
+  expect(screen.getByText('Selected: 0 findings · 0 visible · 0 hidden.')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: /^Select finding: Panel Beta/ }))
+  expect(screen.getByText(/Review progress: 0 of 10 findings reviewed/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Close comparison' }))
+  expect(close).toHaveBeenCalledOnce()
+  expect(window.confirm).not.toHaveBeenCalled()
+})
+
+it('adds visible pending, reviewed and all findings to a unique selection and clears hidden selections', async () => {
+  await partReviewFixture()
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Reviewed: Panel Alpha/ }))
+  selectReviewView('Finding group', 'item')
+  fireEvent.click(screen.getByRole('button', { name: 'Select visible pending findings' }))
+  expect(
+    screen
+      .getByRole('button', { name: /^Select finding: Panel Beta/ })
+      .getAttribute('aria-pressed'),
+  ).toBe('true')
+  expect(
+    screen
+      .getByRole('button', { name: /^Select finding: Panel Alpha/ })
+      .getAttribute('aria-pressed'),
+  ).toBe('false')
+  fireEvent.click(screen.getByRole('button', { name: 'Select visible reviewed findings' }))
+  expect(screen.getByText('Selected: 2 findings · 2 visible · 0 hidden.')).toBeTruthy()
+  expect(
+    (screen.getByRole('button', { name: 'Select all visible findings' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+  selectReviewView('Finding group', 'limitation')
+  fireEvent.click(screen.getByRole('button', { name: 'Select all visible findings' }))
+  expect(screen.getByText('Selected: 9 findings · 7 visible · 2 hidden.')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Clear finding selection' }))
+  expect(screen.getByText('Selected: 0 findings · 0 visible · 0 hidden.')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect(
+    screen
+      .getAllByRole('button', { name: /^Select finding:/ })
+      .every((node) => node.getAttribute('aria-pressed') === 'false'),
+  ).toBe(true)
+  expect(screen.getByText(/Review progress: 1 of 10 findings reviewed/)).toBeTruthy()
+})
+
+it('confirms selected bulk completion including hidden findings, preserves unselected notes and full exports, and supports undo', async () => {
+  await partReviewFixture()
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  fireEvent.change(screen.getByRole('textbox', { name: /^Review note: Panel Alpha/ }), {
+    target: { value: 'Selected note kept' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: /^Select finding: Panel Alpha/ }))
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search review findings' }), {
+    target: { value: 'Panel Beta' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Select all visible findings' }))
+  const mark = screen.getByRole('button', { name: 'Mark selected pending findings reviewed (2)' })
+  vi.mocked(window.confirm).mockReturnValueOnce(false)
+  fireEvent.click(mark)
+  expect(screen.getByText(/Review progress: 0 of 10/)).toBeTruthy()
+  fireEvent.click(mark)
+  expect(vi.mocked(window.confirm).mock.calls.at(-1)?.[0]).toMatch(
+    /^Mark 2 selected pending findings as reviewed\? 1 affected findings are hidden/,
+  )
+  expect(screen.getByText(/Review progress: 2 of 10/)).toBeTruthy()
+  expect(screen.getByText('Selected: 2 findings · 1 visible · 1 hidden.')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Download change report JSON' }))
+  await waitFor(() => expect(download).toHaveBeenCalledOnce())
+  const report = JSON.parse(download.mock.calls[0][0] as string)
+  expect(report.review.entries).toHaveLength(10)
+  expect(
+    report.review.entries.filter((entry: { reviewed: boolean }) => entry.reviewed),
+  ).toHaveLength(2)
+  expect(
+    report.review.entries.find((entry: { note: string }) => entry.note === 'Selected note kept'),
+  ).toBeTruthy()
+  expect(report.review).not.toHaveProperty('selection')
+  expect(
+    report.review.entries.every((entry: Record<string, unknown>) => !('selected' in entry)),
+  ).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Clear finding selection' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Undo last bulk review change' }))
+  expect(screen.getByText(/Review progress: 0 of 10/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect(
+    (screen.getByRole('textbox', { name: /^Review note: Panel Alpha/ }) as HTMLTextAreaElement)
+      .value,
+  ).toBe('Selected note kept')
+})
+
+it('reopens only selected reviewed findings with confirmation, keeps pending selection and expires undo on later edits', async () => {
+  await partReviewFixture()
+  selectReviewView('Finding group', 'item')
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Reviewed: Panel Alpha/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Select all visible findings' }))
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Mark selected pending findings reviewed (1)' }),
+  )
+  expect(screen.getByText(/Review progress: 2 of 10/)).toBeTruthy()
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search review findings' }), {
+    target: { value: 'Panel Beta' },
+  })
+  vi.mocked(window.confirm).mockReturnValueOnce(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Reopen selected reviewed findings (2)' }))
+  expect(screen.getByText(/Review progress: 2 of 10/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Reopen selected reviewed findings (2)' }))
+  expect(vi.mocked(window.confirm).mock.calls.at(-1)?.[0]).toMatch(
+    /^Reopen 2 selected reviewed findings as pending\? 1 affected findings are hidden/,
+  )
+  expect(screen.getByText(/Review progress: 0 of 10/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Undo last bulk review change' }))
+  expect(screen.getByText(/Review progress: 2 of 10/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Reopen selected reviewed findings (2)' }))
+  fireEvent.change(screen.getByLabelText('Overall review notes'), {
+    target: { value: 'Later note' },
+  })
+  expect(
+    (screen.getByRole('button', { name: 'Undo last bulk review change' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+})
+
+it('clears selection on comparison changes and reopen while keeping it for identical source rerenders', async () => {
+  const { input, release, view } = await partReviewFixture()
+  const props = { onClose: vi.fn(), onInspect: vi.fn() }
+  fireEvent.click(screen.getByRole('button', { name: /^Select finding: Panel Alpha/ }))
+  view.rerender(
+    <ReleaseSourceComparison
+      release={release}
+      input={{ ...input, scene: structuredClone(input.scene) }}
+      {...props}
+    />,
+  )
+  expect(screen.getByText('Selected: 1 findings · 1 visible · 0 hidden.')).toBeTruthy()
+  view.rerender(
+    <ReleaseSourceComparison
+      release={release}
+      input={{ ...input, projectName: 'New comparison' }}
+      {...props}
+    />,
+  )
+  expect(screen.getByText('Selected: 0 findings · 0 visible · 0 hidden.')).toBeTruthy()
+  view.rerender(<ReleaseSourceComparison release={release} input={input} {...props} />)
+  expect(
+    screen
+      .getByRole('button', { name: /^Select finding: Panel Alpha/ })
+      .getAttribute('aria-pressed'),
+  ).toBe('false')
+  fireEvent.click(screen.getByRole('button', { name: /^Select finding: Panel Alpha/ }))
+  view.unmount()
+  render(<ReleaseSourceComparison release={release} input={input} {...props} />)
+  expect(screen.getByText('Selected: 0 findings · 0 visible · 0 hidden.')).toBeTruthy()
+})
+
+it('searches finding notes literally and with Unicode normalization without matching labels or overall notes', async () => {
+  await partReviewFixture()
+  fireEvent.change(screen.getByRole('textbox', { name: /^Review note: Panel Alpha/ }), {
+    target: { value: 'Cafe\u0301 [cut.*] checked' },
+  })
+  fireEvent.change(screen.getByLabelText('Overall review notes'), {
+    target: { value: 'Overall-only token' },
+  })
+  selectReviewView('Search in', 'notes')
+  const search = screen.getByRole('searchbox', { name: 'Search review findings' })
+  fireEvent.change(search, { target: { value: 'Panel Alpha' } })
+  expect(screen.queryByRole('checkbox', { name: /^Reviewed:/ })).toBeNull()
+  fireEvent.change(search, { target: { value: ' CAFÉ [cut.*] ' } })
+  expect(screen.getAllByRole('checkbox', { name: /^Reviewed:/ })).toHaveLength(1)
+  fireEvent.change(screen.getByRole('textbox', { name: /^Review note: Panel Alpha/ }), {
+    target: { value: 'Replaced note' },
+  })
+  expect(screen.queryByRole('checkbox', { name: /^Reviewed:/ })).toBeNull()
+  expect(document.activeElement).toBe(search)
+  fireEvent.change(search, { target: { value: 'Overall-only token' } })
+  expect(screen.queryByRole('checkbox', { name: /^Reviewed:/ })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending changes' }))
+  expect(screen.getByRole('checkbox', { name: /^Reviewed: Panel Alpha/ })).toBe(
+    document.activeElement,
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect((screen.getByRole('combobox', { name: 'Search in' }) as HTMLSelectElement).value).toBe(
+    'all',
+  )
+})
+
+it('navigates visible nonempty notes in display order with buttons, direct focus and modified keys', async () => {
+  await partReviewFixture()
+  const allNotes = screen.getAllByRole('textbox', { name: /^Review note:/ })
+  const alpha = allNotes[0],
+    beta = allNotes[1],
+    limit = allNotes.at(-1)!
+  fireEvent.click(screen.getByRole('button', { name: /^Edit review note: Panel Beta/ }))
+  expect(document.activeElement).toBe(beta)
+  for (const note of [alpha, beta, limit])
+    fireEvent.change(note, { target: { value: 'Note to revisit' } })
+  fireEvent.change(allNotes[2], { target: { value: '   ' } })
+  expect(screen.getByText('3 visible findings with notes.')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'First finding note' }))
+  expect(document.activeElement).toBe(alpha)
+  fireEvent.click(screen.getByRole('button', { name: 'Previous finding note' }))
+  expect(document.activeElement).toBe(limit)
+  fireEvent.click(screen.getByRole('button', { name: 'Next finding note' }))
+  expect(document.activeElement).toBe(alpha)
+  fireEvent.click(screen.getByRole('button', { name: 'Next finding note' }))
+  expect(document.activeElement).toBe(beta)
+  fireEvent.click(screen.getByRole('button', { name: 'Last finding note' }))
+  expect(document.activeElement).toBe(limit)
+  fireEvent.click(screen.getByRole('button', { name: /^Edit review note: Panel Alpha/ }))
+  expect(document.activeElement).toBe(alpha)
+  fireEvent.keyDown(alpha, { key: 'End', altKey: true, shiftKey: true })
+  expect(document.activeElement).toBe(limit)
+  fireEvent.keyDown(limit, { key: 'Home', altKey: true, shiftKey: true })
+  expect(document.activeElement).toBe(alpha)
+  fireEvent.keyDown(alpha, { key: 'ArrowDown', altKey: true, shiftKey: true })
+  expect(document.activeElement).toBe(beta)
+  fireEvent.keyDown(beta, { key: 'ArrowUp', altKey: true, shiftKey: true })
+  expect(document.activeElement).toBe(alpha)
+  fireEvent.keyDown(alpha, { key: 'ArrowDown', shiftKey: true })
+  expect(document.activeElement).toBe(alpha)
+  fireEvent.keyDown(alpha, { key: 'ArrowDown', altKey: true, shiftKey: true, ctrlKey: true })
+  expect(document.activeElement).toBe(alpha)
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Reviewed: Panel Alpha/ }))
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show pending findings first' }))
+  fireEvent.click(screen.getByRole('button', { name: 'First finding note' }))
+  expect(document.activeElement).toBe(beta)
+  fireEvent.click(screen.getByRole('button', { name: 'Next finding note' }))
+  expect(document.activeElement).toBe(alpha)
+  fireEvent.click(screen.getByRole('button', { name: 'Next finding note' }))
+  expect(document.activeElement).toBe(limit)
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  selectReviewView('Finding group', 'item')
+  fireEvent.click(screen.getByRole('button', { name: 'Last finding note' }))
+  expect(document.activeElement).toBe(beta)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show reviewed only' }))
+  fireEvent.click(screen.getByRole('button', { name: 'First finding note' }))
+  expect(document.activeElement).toBe(alpha)
+  selectReviewView('Finding notes', 'without')
+  for (const position of ['Previous', 'Next', 'First', 'Last'])
+    expect(
+      (screen.getByRole('button', { name: `${position} finding note` }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+})
+
+it('disables selection, note navigation and selected bulk actions during draft restoration', async () => {
+  const { input, release, view } = await partReviewFixture()
+  fireEvent.click(screen.getByRole('button', { name: /^Select finding: Panel Alpha/ }))
+  fireEvent.change(screen.getByRole('textbox', { name: /^Review note: Panel Alpha/ }), {
+    target: { value: 'A note' },
+  })
+  vi.mocked(useLocalChangeReview).mockImplementation(() => ({
+    ...defaultHook(release, null, null, vi.fn()),
+    loading: true,
+  }))
+  view.rerender(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  const selection = screen.getByRole('region', { name: 'Finding selection' })
+  for (const button of within(selection).getAllByRole('button'))
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+  for (const button of within(
+    screen.getByRole('group', { name: 'Finding note navigation' }),
+  ).getAllByRole('button'))
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+  expect(
+    (screen.getByRole('button', { name: /^Select finding: Panel Alpha/ }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+  expect(
+    (screen.getByRole('button', { name: /^Edit review note: Panel Alpha/ }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
+  expect((screen.getByRole('combobox', { name: 'Search in' }) as HTMLSelectElement).disabled).toBe(
+    true,
+  )
+})

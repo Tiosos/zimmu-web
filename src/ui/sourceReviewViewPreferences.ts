@@ -2,6 +2,7 @@ export const SOURCE_REVIEW_VIEWS_KEY = 'zimmu:source-review-views:v1'
 export const MAX_SOURCE_REVIEW_VIEWS = 10
 export const MAX_SOURCE_REVIEW_SEARCH = 4096
 export interface SourceReviewView {
+  searchScope?: 'all' | 'notes'
   search: string
   pendingOnly: boolean
   pendingFirst: boolean
@@ -46,6 +47,7 @@ function identity(key: unknown): key is string {
 }
 function viewOf(value: unknown): SourceReviewView | null {
   return object(value) &&
+    (value.searchScope === undefined || ['all', 'notes'].includes(value.searchScope as string)) &&
     typeof value.search === 'string' &&
     value.search.length <= MAX_SOURCE_REVIEW_SEARCH &&
     typeof value.pendingOnly === 'boolean' &&
@@ -83,6 +85,9 @@ function viewOf(value: unknown): SourceReviewView | null {
           : {}),
         ...(value.partSort !== undefined
           ? { partSort: value.partSort as SourceReviewView['partSort'] }
+          : {}),
+        ...(value.searchScope !== undefined
+          ? { searchScope: value.searchScope as SourceReviewView['searchScope'] }
           : {}),
         search: value.search,
         pendingOnly: value.pendingOnly,

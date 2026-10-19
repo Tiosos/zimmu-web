@@ -416,3 +416,50 @@ it('autosaves bulk review changes and undo, restores triage preferences and expi
     'all',
   )
 })
+
+it('keeps selection temporary while autosaving selected actions and undo and remembering notes-only search', async () => {
+  const { view, input, release, saved } = await opened()
+  const write = vi.spyOn(storage, 'writeLocalChangeReview')
+  fireEvent.click(screen.getByRole('button', { name: /^Select finding: Unmounted panel/ }))
+  expect(write).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByRole('textbox', { name: /^Review note: Unmounted panel/ }), {
+    target: { value: 'Saved selection note' },
+  })
+  await screen.findByText('Review draft saved locally.')
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Mark selected pending findings reviewed (1)' }),
+  )
+  await screen.findByText('Review draft saved locally.')
+  expect((await saved()).entries.filter((entry) => entry.reviewed)).toHaveLength(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Undo last bulk review change' }))
+  await screen.findByText('Review draft saved locally.')
+  expect((await saved()).entries.every((entry) => !entry.reviewed)).toBe(true)
+  fireEvent.change(screen.getByRole('combobox', { name: 'Search in' }), {
+    target: { value: 'notes' },
+  })
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search review findings' }), {
+    target: { value: 'Saved selection note' },
+  })
+  view.unmount()
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  await screen.findByText('Local review draft restored.')
+  expect((screen.getByRole('combobox', { name: 'Search in' }) as HTMLSelectElement).value).toBe(
+    'notes',
+  )
+  expect(screen.getByText('Selected: 0 findings · 0 visible · 0 hidden.')).toBeTruthy()
+  expect(
+    (screen.getByRole('checkbox', { name: /^Reviewed: Unmounted panel/ }) as HTMLInputElement)
+      .checked,
+  ).toBe(false)
+  expect(
+    (screen.getByRole('textbox', { name: /^Review note: Unmounted panel/ }) as HTMLTextAreaElement)
+      .value,
+  ).toBe('Saved selection note')
+})
