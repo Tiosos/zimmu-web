@@ -29,3 +29,12 @@
 | `Ctrl+N` | New |
 | `Ctrl+D` | Duplicate selected part |
 | `Ctrl+Shift+E` | Open cutting list |
+
+## Source change review dialog
+
+| Key | Action |
+|-----|--------|
+| `Alt+ArrowDown` / `Alt+ArrowUp` | Focus the next / previous visible pending finding, wrapping at either end |
+| `Alt+Home` / `Alt+End` | Focus the first / last visible pending finding |
+
+These shortcuts respect finding search, part, classification, change type and review-status filters. They are unavailable during report operations or draft restoration. Reviewed-only views have no pending navigation targets.

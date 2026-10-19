@@ -209,6 +209,16 @@ export function ReleaseSourceComparison({
     setPartSearch,
     setPendingPartsFirst,
   } = viewPreferences
+  const {
+    reviewedOnly,
+    pendingPartsOnly,
+    classification,
+    changeType,
+    setReviewedOnly,
+    setPendingPartsOnly,
+    setClassification,
+    setChangeType,
+  } = viewPreferences
   const busy = operationBusy || autosave.loading
   const coverage = result.report ? changeReviewCoverage(result.report) : []
   const coverageByReference = new Map(coverage.map((entry) => [entry.reference, entry]))
@@ -275,32 +285,45 @@ export function ReleaseSourceComparison({
       itemSearchText.get(reference) ?? '',
       note,
     ].some((text) => normalizeSearch(text).includes(query))
+  const changesByReference = new Map(
+    (result.report?.changes ?? []).map((change) => [`item:${change.key}`, change]),
+  )
+  const matchesItemFilters = (reference: string) => {
+    const change = changesByReference.get(reference)
+    return (
+      !change ||
+      ((classification === 'all' || change.classification === classification) &&
+        (changeType === 'all' || change.change === changeType))
+    )
+  }
   const visibleFinding = (reference: string) =>
-    (!pendingOnly || isPending(reference)) && matchesSearch(reference) && matchesPart(reference)
+    (!pendingOnly || isPending(reference)) &&
+    (!reviewedOnly || !isPending(reference)) &&
+    matchesItemFilters(reference) &&
+    matchesSearch(reference) &&
+    matchesPart(reference)
   const visibleCount = coverage.filter((entry) => visibleFinding(entry.reference)).length
-  const matchingPendingCount = coverage.filter(
-    (entry) =>
-      isPending(entry.reference) && matchesSearch(entry.reference) && matchesPart(entry.reference),
-  ).length
+  const visiblePending = orderedCoverage.filter(
+    (entry) => isPending(entry.reference) && visibleFinding(entry.reference),
+  )
+  const matchingPendingCount = visiblePending.length
   const pendingCount = coverage.filter((entry) => isPending(entry.reference)).length
   const pendingSummary = (category: 'item' | 'source' | 'limitation') => {
     const group = coverage.filter((entry) => entry.category === category)
     return `${group.filter((entry) => isPending(entry.reference)).length} of ${group.length}`
   }
-  const nextPending = (after: string | null) => {
-    const start = orderedCoverage.findIndex((entry) => entry.reference === after)
+  const nextPending = (after: string | null, direction = 1) => {
+    if (!visiblePending.length) return null
+    const found = orderedCoverage.findIndex((entry) => entry.reference === after)
+    const start = found < 0 ? (direction === 1 ? -1 : 0) : found
     for (let offset = 1; offset <= orderedCoverage.length; offset++) {
-      const entry = orderedCoverage[(start + offset) % orderedCoverage.length]
-      if (
-        entry.reference !== after &&
-        isPending(entry.reference) &&
-        matchesSearch(entry.reference) &&
-        matchesPart(entry.reference)
-      )
-        return entry.reference
+      const index = (start + direction * offset + orderedCoverage.length) % orderedCoverage.length
+      const reference = orderedCoverage[index].reference
+      if (isPending(reference) && visibleFinding(reference)) return reference
     }
-    return after && isPending(after) && matchesSearch(after) && matchesPart(after) ? after : null
+    return null
   }
+
   const focusFinding = (reference: string) => {
     const node = findingNodes.current.get(reference)
     node?.focus()
@@ -317,12 +340,13 @@ export function ReleaseSourceComparison({
   const partQuery = normalizeSearch(partSearch.trim())
   const matchedParts = partGroups.filter(
     (part) =>
-      !partQuery ||
-      [
-        part.id,
-        part.label,
-        ...part.references.map((reference) => entriesByReference.get(reference)?.note ?? ''),
-      ].some((text) => normalizeSearch(text).includes(partQuery)),
+      (!pendingPartsOnly || pendingForPart(part) > 0) &&
+      (!partQuery ||
+        [
+          part.id,
+          part.label,
+          ...part.references.map((reference) => entriesByReference.get(reference)?.note ?? ''),
+        ].some((text) => normalizeSearch(text).includes(partQuery))),
   )
   const displayedParts = pendingPartsFirst
     ? [
@@ -344,11 +368,21 @@ export function ReleaseSourceComparison({
         part.references.includes(entry.reference) && (!pending || isPending(entry.reference)),
     )?.reference
     const target = reference ?? '__part_search'
-    if (activePart?.id === part.id && search === '' && pending === pendingOnly) {
+    if (
+      activePart?.id === part.id &&
+      search === '' &&
+      pending === pendingOnly &&
+      !reviewedOnly &&
+      classification === 'all' &&
+      changeType === 'all'
+    ) {
       if (reference) focusFinding(reference)
       else partSearchInput.current?.focus()
     } else {
       requestedFocus.current = target
+      setReviewedOnly(false)
+      setClassification('all')
+      setChangeType('all')
       setPartFilter(part.id)
       setSearch('')
       setPendingOnly(pending)
@@ -382,6 +416,8 @@ export function ReleaseSourceComparison({
               const next = nextPending(reference)
               requestedFocus.current = next && next !== reference ? next : '__pending_toggle'
             }
+            if (reviewedOnly && patch.reviewed === false)
+              requestedFocus.current = '__pending_toggle'
             if (patch.note !== undefined && !matchesSearch(reference, patch.note)) {
               requestedFocus.current = '__search'
             }
@@ -518,6 +554,27 @@ export function ReleaseSourceComparison({
   }
   return createPortal(
     <dialog
+      onKeyDown={(event) => {
+        if (
+          !event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          event.nativeEvent.isComposing ||
+          !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)
+        )
+          return
+        event.preventDefault()
+        event.stopPropagation()
+        if (busy) return
+        const reference =
+          event.key === 'Home'
+            ? visiblePending[0]?.reference
+            : event.key === 'End'
+              ? visiblePending.at(-1)?.reference
+              : nextPending(currentFinding.current, event.key === 'ArrowUp' ? -1 : 1)
+        if (reference) focusFinding(reference)
+      }}
       ref={dialog}
       aria-labelledby={heading}
       onCancel={(event) => {
@@ -596,9 +653,17 @@ export function ReleaseSourceComparison({
                     !pendingFirst &&
                     partFilter === null &&
                     partSearch === '' &&
-                    !pendingPartsFirst)
+                    !pendingPartsFirst &&
+                    !reviewedOnly &&
+                    !pendingPartsOnly &&
+                    classification === 'all' &&
+                    changeType === 'all')
                 }
                 onClick={() => {
+                  setReviewedOnly(false)
+                  setPendingPartsOnly(false)
+                  setClassification('all')
+                  setChangeType('all')
                   setSearch('')
                   setPendingOnly(false)
                   setPendingFirst(false)
@@ -650,6 +715,15 @@ export function ReleaseSourceComparison({
                   />
                   Show pending parts first
                 </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={pendingPartsOnly}
+                    disabled={busy}
+                    onChange={(event) => setPendingPartsOnly(event.target.checked)}
+                  />{' '}
+                  Show pending parts only
+                </label>
                 <Button
                   variant="outline"
                   disabled={busy || !nextPart}
@@ -662,7 +736,7 @@ export function ReleaseSourceComparison({
                 <p role="status">
                   Showing {displayedParts.length} of {partGroups.length} parts.
                 </p>
-                {displayedParts.length === 0 && <p>No parts match the summary search.</p>}
+                {displayedParts.length === 0 && <p>No parts match the summary filters.</p>}
                 {partFilter && !activePart && (
                   <p role="status">
                     The saved part filter is unavailable. All item findings are shown.
@@ -695,6 +769,22 @@ export function ReleaseSourceComparison({
                         {part.references.length - pendingForPart(part)} reviewed ·{' '}
                         {part.references.length} total
                       </p>
+                      <p>
+                        {(['manufacturing', 'metadata'] as const)
+                          .map(
+                            (category) =>
+                              `${part.references.filter((reference) => changesByReference.get(reference)?.classification === category).length} ${category}`,
+                          )
+                          .join(' · ')}
+                      </p>
+                      <p>
+                        {(['added', 'removed', 'modified'] as const)
+                          .map(
+                            (type) =>
+                              `${part.references.filter((reference) => changesByReference.get(reference)?.change === type).length} ${type}`,
+                          )
+                          .join(' · ')}
+                      </p>
                       <Button
                         variant="outline"
                         disabled={busy}
@@ -710,13 +800,54 @@ export function ReleaseSourceComparison({
               <p role="status">
                 Showing {visibleCount} of {coverage.length} findings.
               </p>
+              <p role="status">
+                Visible: {matchingPendingCount} pending · {visibleCount - matchingPendingCount}{' '}
+                reviewed.
+              </p>
               {visibleCount === 0 && (
                 <p role="status">
-                  No findings match the current filters. Clear the search or turn off Show pending
-                  only to see more findings.
+                  No findings match the current filters. Reset review view to see all findings.
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-3">
+                <label>
+                  Change classification
+                  <select
+                    aria-label="Change classification"
+                    value={classification}
+                    disabled={busy}
+                    onChange={(event) =>
+                      setClassification(event.target.value as typeof classification)
+                    }
+                  >
+                    <option value="all">All classifications</option>
+                    <option value="manufacturing">Manufacturing</option>
+                    <option value="metadata">Metadata</option>
+                  </select>
+                </label>
+                <label>
+                  Change type
+                  <select
+                    aria-label="Change type"
+                    value={changeType}
+                    disabled={busy}
+                    onChange={(event) => setChangeType(event.target.value as typeof changeType)}
+                  >
+                    <option value="all">All change types</option>
+                    <option value="added">Added</option>
+                    <option value="removed">Removed</option>
+                    <option value="modified">Modified</option>
+                  </select>
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={reviewedOnly}
+                    disabled={busy}
+                    onChange={(event) => setReviewedOnly(event.target.checked)}
+                  />{' '}
+                  Show reviewed only
+                </label>
                 <label className="flex items-center gap-2">
                   <input
                     ref={pendingToggle}
@@ -746,6 +877,27 @@ export function ReleaseSourceComparison({
                 >
                   Next pending finding
                 </Button>
+                {(['Previous', 'First', 'Last'] as const).map((position) => (
+                  <Button
+                    key={position}
+                    variant="outline"
+                    disabled={busy || matchingPendingCount === 0}
+                    onClick={() => {
+                      const reference =
+                        position === 'Previous'
+                          ? nextPending(currentFinding.current, -1)
+                          : position === 'First'
+                            ? visiblePending[0]?.reference
+                            : visiblePending.at(-1)?.reference
+                      if (reference) focusFinding(reference)
+                    }}
+                  >
+                    {position} pending finding
+                  </Button>
+                ))}
+                <p>
+                  Alt+↓ / Alt+↑: next / previous pending. Alt+Home / Alt+End: first / last pending.
+                </p>
               </div>
               <div
                 role="group"
@@ -769,10 +921,18 @@ export function ReleaseSourceComparison({
                       disabled={busy || !target}
                       onClick={() => {
                         if (!target) return
-                        if (search === '' && pendingOnly && !activePart)
+                        if (
+                          search === '' &&
+                          pendingOnly &&
+                          !activePart &&
+                          classification === 'all' &&
+                          changeType === 'all'
+                        )
                           focusFinding(target.reference)
                         else {
                           requestedFocus.current = target.reference
+                          setClassification('all')
+                          setChangeType('all')
                           setPartFilter(null)
                           setSearch('')
                           setPendingOnly(true)

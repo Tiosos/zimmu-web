@@ -221,6 +221,38 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
     comparison.getByRole('textbox', { name: 'Overall review notes', exact: true }),
   ).toHaveValue('Confirm site dimensions before handover.')
   await expect(comparison.getByRole('checkbox', { name: /^Reviewed: Release shelf/ })).toBeChecked()
+  await comparison
+    .getByRole('combobox', { name: 'Change classification' })
+    .selectOption('manufacturing')
+  await comparison.getByRole('combobox', { name: 'Change type' }).selectOption('modified')
+  await comparison.getByRole('checkbox', { name: 'Show reviewed only', exact: true }).check()
+  await partSummary.getByRole('checkbox', { name: 'Show pending parts only', exact: true }).check()
+  await expect(
+    comparison.getByText('Visible: 0 pending · 1 reviewed.', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    comparison.getByRole('button', { name: 'Next pending finding', exact: true }),
+  ).toBeDisabled()
+  await comparison.getByRole('button', { name: 'Close comparison', exact: true }).click()
+  await page.getByRole('button', { name: 'Review releases' }).click()
+  await page.getByRole('button', { name: 'Compare current design with revision 1' }).click()
+  await expect(comparison.getByRole('combobox', { name: 'Change classification' })).toHaveValue(
+    'manufacturing',
+  )
+  await expect(comparison.getByRole('combobox', { name: 'Change type' })).toHaveValue('modified')
+  await expect(
+    comparison.getByRole('checkbox', { name: 'Show reviewed only', exact: true }),
+  ).toBeChecked()
+  await expect(
+    partSummary.getByRole('checkbox', { name: 'Show pending parts only', exact: true }),
+  ).toBeChecked()
+  await comparison.getByRole('button', { name: 'Reset review view', exact: true }).click()
+  await comparison.getByRole('button', { name: 'First pending finding', exact: true }).click()
+  await page.keyboard.press('Alt+End')
+  await expect(comparison.getByRole('checkbox', { name: /^Reviewed:/ }).last()).toBeFocused()
+  await page.keyboard.press('Alt+Home')
+  await comparison.getByRole('button', { name: 'Previous pending finding', exact: true }).click()
+  await expect(comparison.getByRole('checkbox', { name: /^Reviewed:/ }).last()).toBeFocused()
   await comparison.getByRole('checkbox', { name: 'Show pending only', exact: true }).check()
   await comparison
     .getByRole('searchbox', { name: 'Search review findings', exact: true })

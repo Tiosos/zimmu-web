@@ -39,6 +39,16 @@ export function useSourceReviewView(key: string | null) {
       readFailed: false,
     }))
   return {
+    reviewedOnly: state.view.reviewedOnly ?? false,
+    pendingPartsOnly: state.view.pendingPartsOnly ?? false,
+    classification: state.view.classification ?? 'all',
+    changeType: state.view.changeType ?? 'all',
+    setReviewedOnly: (reviewedOnly: boolean) => update({ reviewedOnly, pendingOnly: false }),
+    setPendingPartsOnly: (pendingPartsOnly: boolean) => update({ pendingPartsOnly }),
+    setClassification: (classification: NonNullable<SourceReviewView['classification']>) =>
+      update({ classification }),
+    setChangeType: (changeType: NonNullable<SourceReviewView['changeType']>) =>
+      update({ changeType }),
     search: state.view.search,
     pendingOnly: state.view.pendingOnly,
     pendingFirst: state.view.pendingFirst,
@@ -46,7 +56,8 @@ export function useSourceReviewView(key: string | null) {
     partSearch: state.view.partSearch,
     pendingPartsFirst: state.view.pendingPartsFirst,
     setSearch: (search: string) => update({ search }),
-    setPendingOnly: (pendingOnly: boolean) => update({ pendingOnly }),
+    setPendingOnly: (pendingOnly: boolean) =>
+      update({ pendingOnly, ...(state.view.reviewedOnly ? { reviewedOnly: false } : {}) }),
     setPendingFirst: (pendingFirst: boolean) => update({ pendingFirst }),
     setPartFilter: (partFilter: string | null) => update({ partFilter }),
     setPartSearch: (partSearch: string) => update({ partSearch }),
