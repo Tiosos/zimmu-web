@@ -13,6 +13,7 @@ import { captureProductionSource, type ProductionPacketInput } from './buildProd
 
 vi.mock('./useLocalChangeReview', () => ({
   useLocalChangeReview: vi.fn(() => ({
+    comparisonKey: null,
     loading: false,
     saved: false,
     error: 'Storage unavailable in this isolated test.',
@@ -516,6 +517,7 @@ async function closingWhileSaving() {
   const pending: ((kept: boolean) => void)[] = []
   const flush = vi.fn(() => new Promise<boolean>((resolve) => pending.push(resolve)))
   vi.mocked(useLocalChangeReview).mockImplementation(() => ({
+    comparisonKey: null,
     loading: false,
     saved: false,
     error: undefined,
@@ -1054,4 +1056,239 @@ it('enables reset for either filter and disables it at defaults or while busy', 
   }))
   rerender(<ReleaseSourceComparison release={release} input={input} {...props} />)
   expect(reset.disabled).toBe(true)
+})
+
+it('orders pending findings first within each group, preserves stable order and leaves exports complete', async () => {
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  input.scene.parts[0].label = 'First changed part'
+  input.scene.parts[1].label = 'Second changed part'
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  const region = screen.getByRole('region', { name: 'metadata changes' })
+  const parts = within(region).getAllByRole('checkbox')
+  const partNames = parts.map((node) => node.closest('label')!.textContent)
+  fireEvent.click(parts[0])
+  expect(
+    within(region)
+      .getAllByRole('checkbox')
+      .map((node) => node.closest('label')!.textContent),
+  ).toEqual(partNames)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show pending findings first' }))
+  expect(
+    within(region)
+      .getAllByRole('checkbox')
+      .map((node) => node.closest('label')!.textContent),
+  ).toEqual([partNames[1], partNames[0]])
+  const limits = screen.getByRole('region', { name: 'Review comparison limitations' })
+  const checks = within(limits).getAllByRole('checkbox')
+  const limitNames = checks.map((node) => node.closest('label')!.textContent)
+  fireEvent.click(checks[0])
+  expect(
+    within(limits)
+      .getAllByRole('checkbox')
+      .map((node) => node.closest('label')!.textContent),
+  ).toEqual([...limitNames.slice(1), limitNames[0]])
+  act(() => screen.getByRole('searchbox', { name: 'Search review findings' }).focus())
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending changes' }))
+  expect(document.activeElement).toBe(parts[1])
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect(
+    (screen.getByRole('checkbox', { name: 'Show pending findings first' }) as HTMLInputElement)
+      .checked,
+  ).toBe(false)
+  expect(
+    within(region)
+      .getAllByRole('checkbox')
+      .map((node) => node.closest('label')!.textContent),
+  ).toEqual(partNames)
+  fireEvent.click(screen.getByRole('button', { name: 'Download change report JSON' }))
+  await vi.waitFor(() => expect(download).toHaveBeenCalledOnce())
+  const report = JSON.parse(download.mock.calls[0][0] as string)
+  expect(report.changes.map((c: { label: string }) => c.label)).toEqual([
+    'First changed part',
+    'Second changed part',
+  ])
+  expect(report.review.entries.filter((e: { reviewed: boolean }) => e.reviewed)).toHaveLength(2)
+})
+
+it('shows full group pending counts through filtering, completion and JSON resume', async () => {
+  const { input, release, json } = await savedReviewFixture()
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  const changes = screen.getByRole('region', { name: 'metadata changes' })
+  const sources = screen.getByRole('region', { name: 'Other source changes' })
+  const limits = screen.getByRole('region', { name: 'Review comparison limitations' })
+  expect(within(changes).getByRole('status').textContent).toBe('1 pending · 0 reviewed · 1 total')
+  expect(within(sources).getByRole('status').textContent).toBe('1 pending · 0 reviewed · 1 total')
+  expect(within(limits).getByRole('status').textContent).toBe('7 pending · 0 reviewed · 7 total')
+  chooseReview(reviewFile(json))
+  await screen.findByText(/Review resumed from review.json/)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show pending only' }))
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search review findings' }), {
+    target: { value: 'No matching finding' },
+  })
+  expect(within(changes).getByRole('status').textContent).toBe('0 pending · 1 reviewed · 1 total')
+  expect(within(limits).getByRole('status').textContent).toBe('7 pending · 0 reviewed · 7 total')
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending source changes' }))
+  fireEvent.click(within(sources).getByRole('checkbox'))
+  expect(within(sources).getByRole('status').textContent).toBe('0 pending · 1 reviewed · 1 total')
+})
+
+async function partReviewFixture() {
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  input.scene.parts[0].label = 'Panel Alpha'
+  input.scene.parts[1].label = 'Panel Beta'
+  const view = render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  return { input, release, view }
+}
+it('summarizes parts and filters their findings while retaining global sections and complete exports', async () => {
+  await partReviewFixture()
+  const download = vi.spyOn(downloads, 'downloadBlob').mockImplementation(() => {})
+  const summary = screen.getByRole('region', { name: 'Part review summary' })
+  expect(within(summary).getByText('Showing 2 of 2 parts.')).toBeTruthy()
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Filter findings for Panel Alpha (manual-board)' }),
+  )
+  expect(screen.getByRole('checkbox', { name: /^Reviewed: Panel Alpha/ })).toBeTruthy()
+  expect(screen.queryByRole('checkbox', { name: /^Reviewed: Panel Beta/ })).toBeNull()
+  expect(screen.getByRole('checkbox', { name: 'Reviewed: Part source records' })).toBeTruthy()
+  expect(
+    within(screen.getByRole('region', { name: 'Review comparison limitations' })).getAllByRole(
+      'checkbox',
+    ),
+  ).toHaveLength(7)
+  fireEvent.click(screen.getByRole('button', { name: 'Download change report JSON' }))
+  await vi.waitFor(() => expect(download).toHaveBeenCalledOnce())
+  expect(JSON.parse(download.mock.calls[0][0] as string).changes).toHaveLength(2)
+  fireEvent.click(screen.getByRole('button', { name: 'Clear part filter' }))
+  expect(screen.getByRole('checkbox', { name: /^Reviewed: Panel Beta/ })).toBeTruthy()
+})
+it('cycles pending parts, skips completed parts, wraps and respects summary search', async () => {
+  await partReviewFixture()
+  const next = screen.getByRole('button', { name: 'Next pending part' })
+  fireEvent.click(next)
+  expect(document.activeElement).toBe(
+    screen.getByRole('checkbox', { name: /^Reviewed: Panel Alpha/ }),
+  )
+  fireEvent.click(next)
+  expect(document.activeElement).toBe(
+    screen.getByRole('checkbox', { name: /^Reviewed: Panel Beta/ }),
+  )
+  fireEvent.click(next)
+  expect(document.activeElement).toBe(
+    screen.getByRole('checkbox', { name: /^Reviewed: Panel Alpha/ }),
+  )
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Reviewed: Panel Alpha/ }))
+  fireEvent.click(next)
+  expect(document.activeElement).toBe(
+    screen.getByRole('checkbox', { name: /^Reviewed: Panel Beta/ }),
+  )
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Find a part in review' }), {
+    target: { value: 'Alpha' },
+  })
+  expect((next as HTMLButtonElement).disabled).toBe(true)
+  expect(screen.getByRole('checkbox', { name: /^Reviewed: Panel Beta/ })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Clear part search' }))
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Reviewed: Panel Beta/ }))
+  expect((next as HTMLButtonElement).disabled).toBe(true)
+})
+it('orders pending parts first and searches normalized labels, IDs and finding notes without editing review content', async () => {
+  await partReviewFixture()
+  const note = screen.getByLabelText('Review note: Panel Alpha (part:manual-board)')
+  fireEvent.change(note, { target: { value: 'Cafe\u0301 [.*]' } })
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Reviewed: Panel Alpha/ }))
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show pending parts first' }))
+  const summary = screen.getByRole('region', { name: 'Part review summary' })
+  const names = () =>
+    within(summary)
+      .queryAllByRole('button', { name: /^Filter findings for/ })
+      .map((node) => node.textContent)
+  expect(names()).toEqual([
+    'Filter findings for Panel Beta (manual-round)',
+    'Filter findings for Panel Alpha (manual-board)',
+  ])
+  const search = screen.getByRole('searchbox', { name: 'Find a part in review' })
+  for (const value of [' CAFÉ [.*] ', 'MANUAL-BOARD', 'ALPHA']) {
+    fireEvent.change(search, { target: { value } })
+    expect(names()).toEqual(['Filter findings for Panel Alpha (manual-board)'])
+  }
+  fireEvent.change(search, { target: { value: 'no matching part' } })
+  expect(within(summary).getByText('No parts match the summary search.')).toBeTruthy()
+  expect(screen.getByRole('checkbox', { name: /^Reviewed: Panel Beta/ })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  expect((search as HTMLInputElement).value).toBe('')
+  expect(
+    (screen.getByRole('checkbox', { name: 'Show pending parts first' }) as HTMLInputElement)
+      .checked,
+  ).toBe(false)
+  expect((note as HTMLTextAreaElement).value).toBe('Cafe\u0301 [.*]')
+})
+it('global group shortcuts clear an active part filter', async () => {
+  await partReviewFixture()
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Filter findings for Panel Alpha (manual-board)' }),
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Review pending limitations' }))
+  expect(
+    (screen.getByRole('button', { name: 'Clear part filter' }) as HTMLButtonElement).disabled,
+  ).toBe(true)
+  expect(screen.getByRole('checkbox', { name: /^Reviewed: Panel Beta/ })).toBeTruthy()
+})
+
+it('updates every linked part count when shared hardware is reviewed', async () => {
+  const input = inputOf()
+  const release = await makeRelease({ source: captureProductionSource(input) })
+  vi.spyOn(comparisons, 'compareReleaseSource').mockReturnValue({
+    changes: [
+      {
+        key: 'shared',
+        entity: 'hardware',
+        id: 'hinge',
+        label: 'Shared hinge',
+        partIds: ['manual-board', 'manual-round'],
+        change: 'modified',
+        fields: [],
+        classification: 'manufacturing',
+      },
+    ],
+    otherSourceChanges: [],
+  })
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  const summary = screen.getByRole('region', { name: 'Part review summary' })
+  expect(within(summary).getAllByText('1 pending · 0 reviewed · 1 total')).toHaveLength(2)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Reviewed: Shared hinge (hardware:hinge)' }))
+  expect(within(summary).getAllByText('0 pending · 1 reviewed · 1 total')).toHaveLength(2)
+  expect(
+    (within(summary).getByRole('button', { name: 'Next pending part' }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true)
 })

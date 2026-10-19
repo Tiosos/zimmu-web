@@ -11,6 +11,7 @@ import { LOCAL_CHANGE_REVIEW_DB, readLocalChangeReview } from './localChangeRevi
 import * as storage from './localChangeReviewStore'
 
 beforeEach(() => {
+  localStorage.clear()
   vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
   vi.spyOn(HTMLDialogElement.prototype, 'showModal').mockImplementation(function (
     this: HTMLDialogElement,
@@ -58,7 +59,7 @@ async function opened() {
     const json = reports.releaseChangeReportJson(report)
     return new File([json], 'review.json', { type: 'application/json' })
   }
-  return { view, close, saved, reviewJson }
+  return { view, close, saved, reviewJson, release, input, context }
 }
 
 it('keeps an edit made just before the dialog is unmounted', async () => {
@@ -156,4 +157,201 @@ it('saves an edit made after a confirmed discard', async () => {
   failure.mockRestore()
   view.unmount()
   expect((await saved()).notes).toBe('Typed after discarding')
+})
+
+it('restores exact-comparison view settings and persists reset without altering saved notes', async () => {
+  const { view, release, input, saved } = await opened()
+  fireEvent.change(screen.getByRole('textbox', { name: 'Overall review notes' }), {
+    target: { value: 'Keep my note' },
+  })
+  await screen.findByText('Review draft saved locally.')
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search review findings' }), {
+    target: { value: 'source' },
+  })
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show pending only' }))
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show pending findings first' }))
+  view.unmount()
+  const reopened = render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  await screen.findByText('Local review draft restored.')
+  expect(
+    (screen.getByRole('searchbox', { name: 'Search review findings' }) as HTMLInputElement).value,
+  ).toBe('source')
+  expect(
+    (screen.getByRole('checkbox', { name: 'Show pending only' }) as HTMLInputElement).checked,
+  ).toBe(true)
+  expect(
+    (screen.getByRole('checkbox', { name: 'Show pending findings first' }) as HTMLInputElement)
+      .checked,
+  ).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  reopened.unmount()
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  await screen.findByText('Local review draft restored.')
+  expect(
+    (screen.getByRole('searchbox', { name: 'Search review findings' }) as HTMLInputElement).value,
+  ).toBe('')
+  expect(
+    (screen.getByRole('checkbox', { name: 'Show pending only' }) as HTMLInputElement).checked,
+  ).toBe(false)
+  expect(
+    (screen.getByRole('checkbox', { name: 'Show pending findings first' }) as HTMLInputElement)
+      .checked,
+  ).toBe(false)
+  expect((await saved()).notes).toBe('Keep my note')
+})
+
+it('reports preference write failures separately and retries without changing the working draft', async () => {
+  await opened()
+  const failure = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+    throw new Error('Preferences blocked')
+  })
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search review findings' }), {
+    target: { value: 'source' },
+  })
+  await screen.findByText(/Review view settings could not be remembered/)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Overall review notes' }), {
+    target: { value: 'Draft still works' },
+  })
+  await screen.findByText('Review draft saved locally.')
+  failure.mockRestore()
+  fireEvent.click(screen.getByRole('button', { name: 'Retry saving source review view' }))
+  await vi.waitFor(() =>
+    expect(screen.queryByText(/Review view settings could not be remembered/)).toBeNull(),
+  )
+  expect(
+    (screen.getByRole('searchbox', { name: 'Search review findings' }) as HTMLInputElement).value,
+  ).toBe('source')
+  expect(
+    (screen.getByRole('textbox', { name: 'Overall review notes' }) as HTMLTextAreaElement).value,
+  ).toBe('Draft still works')
+})
+
+it('forgets preferences and pauses saving while keeping the live filters and saved review draft', async () => {
+  const { view, release, input, saved } = await opened()
+  fireEvent.change(screen.getByRole('textbox', { name: 'Overall review notes' }), {
+    target: { value: 'Keep this draft' },
+  })
+  await screen.findByText('Review draft saved locally.')
+  const search = screen.getByRole('searchbox', { name: 'Search review findings' })
+  fireEvent.change(search, { target: { value: 'source' } })
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show pending only' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Forget remembered source review views' }))
+  expect((search as HTMLInputElement).value).toBe('source')
+  expect(
+    (screen.getByRole('checkbox', { name: 'Show pending only' }) as HTMLInputElement).checked,
+  ).toBe(true)
+  expect(localStorage.getItem('zimmu:source-review-views:v1')).toBeNull()
+  fireEvent.change(search, { target: { value: 'limitation' } })
+  expect(localStorage.getItem('zimmu:source-review-views:v1')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Resume saving source review views' }))
+  expect(localStorage.getItem('zimmu:source-review-views:v1')).toContain('limitation')
+  fireEvent.click(screen.getByRole('button', { name: 'Forget remembered source review views' }))
+  view.unmount()
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  await screen.findByText('Local review draft restored.')
+  expect(
+    (screen.getByRole('searchbox', { name: 'Search review findings' }) as HTMLInputElement).value,
+  ).toBe('')
+  expect(
+    (screen.getByRole('checkbox', { name: 'Show pending only' }) as HTMLInputElement).checked,
+  ).toBe(false)
+  expect((await saved()).notes).toBe('Keep this draft')
+})
+
+it('restores part-view settings and resets them without losing notes', async () => {
+  const { view, release, input, saved } = await opened()
+  fireEvent.change(screen.getByRole('textbox', { name: 'Overall review notes' }), {
+    target: { value: 'Part review note' },
+  })
+  await screen.findByText('Review draft saved locally.')
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Filter findings for Unmounted panel (manual-board)' }),
+  )
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Find a part in review' }), {
+    target: { value: 'panel' },
+  })
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Show pending parts first' }))
+  view.unmount()
+  const reopened = render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  await screen.findByText('Local review draft restored.')
+  expect(
+    screen
+      .getByRole('button', { name: 'Filter findings for Unmounted panel (manual-board)' })
+      .getAttribute('aria-pressed'),
+  ).toBe('true')
+  expect(
+    (screen.getByRole('searchbox', { name: 'Find a part in review' }) as HTMLInputElement).value,
+  ).toBe('panel')
+  expect(
+    (screen.getByRole('checkbox', { name: 'Show pending parts first' }) as HTMLInputElement)
+      .checked,
+  ).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Reset review view' }))
+  reopened.unmount()
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  await screen.findByText('Local review draft restored.')
+  expect(
+    (screen.getByRole('button', { name: 'Clear part filter' }) as HTMLButtonElement).disabled,
+  ).toBe(true)
+  expect(
+    (screen.getByRole('searchbox', { name: 'Find a part in review' }) as HTMLInputElement).value,
+  ).toBe('')
+  expect((await saved()).notes).toBe('Part review note')
+})
+
+it('ignores an unavailable saved part filter and allows clearing it', async () => {
+  const { view, release, input, context } = await opened()
+  view.unmount()
+  const { saveSourceReviewView, defaultSourceReviewView } =
+    await import('./sourceReviewViewPreferences')
+  saveSourceReviewView(context.key, { ...defaultSourceReviewView(), partFilter: 'missing-part' })
+  render(
+    <ReleaseSourceComparison
+      release={release}
+      input={input}
+      onClose={vi.fn()}
+      onInspect={vi.fn()}
+    />,
+  )
+  await screen.findByText('The saved part filter is unavailable. All item findings are shown.')
+  expect(screen.getByRole('checkbox', { name: /^Reviewed: Unmounted panel/ })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Clear part filter' }))
+  expect(
+    screen.queryByText('The saved part filter is unavailable. All item findings are shown.'),
+  ).toBeNull()
 })
