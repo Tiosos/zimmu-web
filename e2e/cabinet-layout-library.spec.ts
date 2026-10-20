@@ -39,6 +39,11 @@ test('saves a drawer layout, restores it on reload and applies it to another cab
     .getByRole('region', { name: 'Cabinet parameters' })
     .getByLabel('Width', { exact: true })
   await width.fill('720')
+  await width.blur()
+  await expect(page.locator('[data-testid^="section-cell-"]').first()).toHaveAttribute(
+    'width',
+    '684',
+  )
   await page.locator('[data-testid^="section-cell-"]').first().click()
   await saved.getByRole('button', { name: 'Preview saved layout', exact: true }).click()
   await expect(saved.getByRole('region', { name: 'Saved layout preview' })).toBeVisible()

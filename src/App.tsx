@@ -68,6 +68,7 @@ function App() {
     onAddCarcase,
     onInstallCatalogue,
     onApplyRulePreview,
+    onApplyPlacementPreview,
     parameterFor,
     onDetachPart,
     onRemove,
@@ -805,6 +806,7 @@ function App() {
         )}
         {selectedCarcase !== null && mainView === 'model' && (
           <CabinetEditor
+            onApplyPlacementPreview={onApplyPlacementPreview}
             library={library}
             hardwareLibrary={hardwareLibrary}
             scene={scene}

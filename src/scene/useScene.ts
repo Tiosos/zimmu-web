@@ -1,3 +1,4 @@
+import { acceptPlacement, type PlacementPreview } from './placementTools'
 import { installCataloguePackage, type CataloguePackage } from './cataloguePackage'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
@@ -80,6 +81,7 @@ function buildGeometry(data: {
 
 export interface UseSceneResult {
   onInstallCatalogue: (pkg: CataloguePackage, source: Scene) => boolean
+  onApplyPlacementPreview: (preview: PlacementPreview) => boolean
   onApplyRulePreview: (preview: RulePreview) => boolean
   scene: Scene
   geometries: Map<PartId, THREE.BufferGeometry>
@@ -342,6 +344,13 @@ export function useScene(): UseSceneResult {
     }
     return true
   }, [push])
+
+  const onApplyPlacementPreview = useCallback((preview: PlacementPreview): boolean => {
+    const next = acceptPlacement(sceneRef.current, preview)
+    if (!next) return false
+    commitReconciled(() => next, 'Apply cabinet placement')
+    return true
+  }, [commitReconciled])
 
   const onApplyRulePreview = useCallback((preview: RulePreview): boolean => {
     const next = acceptedRulePreview(sceneRef.current, preview)
@@ -1458,6 +1467,7 @@ export function useScene(): UseSceneResult {
   return {
     onInstallCatalogue,
     onApplyRulePreview,
+    onApplyPlacementPreview,
     scene,
     geometries,
     errors,
