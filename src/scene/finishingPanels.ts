@@ -51,6 +51,7 @@ export function finishingSignature(scene: Scene): string {
       cuts: p.cuts,
       operations: p.kind === 'board' ? p.operations : undefined,
       edges: p.kind === 'board' ? p.edgeBanding : undefined,
+      runWorktop: p.kind === 'board' ? p.runWorktop : undefined,
       frontPull: p.kind === 'board' ? p.frontPull : undefined,
       finishing: p.kind === 'board' ? p.finishing : undefined,
       overrides: p.kind === 'board' ? p.overrides : undefined,
@@ -312,6 +313,7 @@ export function regenerateFinishing(scene: Scene): Scene {
 
 function detachedFinishing(part: BoardPart): BoardPart {
   const fixed = { ...part }
+  delete fixed.runWorktop
   delete fixed.finishing
   return fixed
 }
@@ -334,7 +336,7 @@ function mergeFinishing(existing: BoardPart, candidate: BoardPart): BoardPart {
 
 /** Editing fields owned by a recipe through normal part tools makes the board fixed-size. */
 export function releaseEditedFinishing(before: BoardPart, after: BoardPart): BoardPart {
-  if (!before.finishing) return after
+  if (!before.finishing && !before.runWorktop) return after
   const owned = (p: BoardPart) => [
     p.length,
     p.width,

@@ -1,3 +1,4 @@
+import { runWorktopLinkError } from './runWorktopRecipe'
 import { pullSpecError } from './pullPattern'
 import { finishingLinkError } from './finishingRecipe'
 import { validateInstalledCatalogues } from './cataloguePackage'
@@ -149,6 +150,12 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
   if (kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (kind === 'board') {
+    if (part.runWorktop !== undefined) {
+      const error = runWorktopLinkError(part.runWorktop)
+      if (error) throw new ZimmuFileValidationError(`${path}.runWorktop`, error)
+      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.frontPull !== undefined)
+        throw new ZimmuFileValidationError(`${path}.runWorktop`, 'must own a role-free manual board exclusively')
+    }
     if (part.frontPull !== undefined) {
       const error = pullSpecError(part.frontPull)
       if (error) throw new ZimmuFileValidationError(`${path}.frontPull`, error)
@@ -267,6 +274,12 @@ function validateCurrentPart(part: Part, index: number): void {
   if (part.kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (part.kind === 'board') {
+    if (part.runWorktop !== undefined) {
+      const error = runWorktopLinkError(part.runWorktop)
+      if (error) throw new ZimmuFileValidationError(`${path}.runWorktop`, error)
+      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.frontPull !== undefined)
+        throw new ZimmuFileValidationError(`${path}.runWorktop`, 'must own a role-free manual board exclusively')
+    }
     if (part.frontPull !== undefined) {
       const error = pullSpecError(part.frontPull)
       if (error) throw new ZimmuFileValidationError(`${path}.frontPull`, error)

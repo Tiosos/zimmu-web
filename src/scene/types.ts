@@ -1,3 +1,4 @@
+import type { RunWorktopLink } from './runWorktopRecipe'
 import type { PullSpec } from './pullPattern'
 import type { FinishingLink } from './finishingRecipe'
 import type { CataloguePackage } from './cataloguePackage'
@@ -163,6 +164,7 @@ export interface BoardPart {
   frontPull?: PullSpec
   // Opt-in, role-free finishing geometry owned by the immediate carcase parent.
   finishing?: FinishingLink
+  runWorktop?: RunWorktopLink
   visible: boolean
   parentId: ComponentId | null
   driven: boolean

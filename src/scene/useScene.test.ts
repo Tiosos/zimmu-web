@@ -1,3 +1,4 @@
+import { previewRunWorktop, runWorktopDraft } from './runWorktops'
 import { pullTargets, previewPulls, stagePull } from './pullLayout'
 import { defaultPull } from './pullPattern'
 import { frontTargets, emptyFrontsDraft, stageFront, stageDrawer, previewFronts } from './frontsDrawers'
@@ -3294,4 +3295,37 @@ it('applies, undoes and redoes pull drilling as one step, keeps stable IDs and c
   act(() => result.current.onUpdateComponent(cabinet.id,c => c.kind === 'carcase' ? { ...c,params: { ...c.params,width:900 } } : c))
   expect(result.current.scene.parts.find(p=>p.id===clone.id)).toEqual(clone)
   expect(pullTargets(result.current.scene,cabinet.id)[0].part.id).toBe(ids[0])
+})
+
+it('keeps run worktop creation, source resize, edit, detach and deletion in separate undo steps',()=>{
+ mockBuildPart.mockReset().mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const {result}=renderHook(()=>useScene())
+ act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]));act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
+ const cabinets=result.current.scene.components.filter((c):c is CarcaseComponent=>c.kind==='carcase'),[a,b]=cabinets
+ act(()=>result.current.onUpdateComponent(b.id,c=>({...c,position:{x:600,y:0,z:0},anchor:{to:a.id,face:'right',gap:0,offset:{u:0,v:0}}})))
+ const before=result.current.scene,d={...runWorktopDraft(before,a.id),memberIds:[a.id,b.id]}
+ act(()=>{expect(result.current.onApplyRunWorktopPreview(previewRunWorktop(before,d))).toBe(true)})
+ const top=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&!!p.runWorktop)!
+ expect(top).toBeDefined();expect(result.current.undoLabel).toBe('Add run worktop')
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo())
+ act(()=>result.current.onUpdateComponent(a.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:800}}:c))
+ expect(result.current.scene.parts.find(p=>p.id===top.id)?.length).toBe(1400)
+ const resized=result.current.scene
+ act(()=>{expect(result.current.onApplyRunWorktopPreview(previewRunWorktop(resized,{...d,left:'20'},top.id))).toBe(true)})
+ expect(result.current.undoLabel).toBe('Update run worktop')
+ expect(result.current.scene.parts.find(p=>p.id===top.id)?.length).toBe(1420)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(resized)
+ const request=previewRunWorktop(resized,d,top.id)
+ act(()=>{expect(result.current.onApplyRunWorktopPreview({...request,action:'detach'})).toBe(true)})
+ expect((result.current.scene.parts.find(p=>p.id===top.id) as BoardPart).runWorktop).toBeUndefined()
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(resized)
+ act(()=>{expect(result.current.onApplyRunWorktopPreview({...request,action:'delete'})).toBe(true)})
+ expect(result.current.scene.parts.some(p=>p.id===top.id)).toBe(false)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(resized)
+ act(()=>result.current.onDuplicate(top.id))
+ expect(result.current.scene.parts.filter((p):p is BoardPart=>p.kind==='board'&&!p.driven&&p.id!==top.id).every(p=>!p.runWorktop)).toBe(true)
+ act(()=>result.current.undo())
+ act(()=>result.current.onUpdate(top.id,p=>({...p,length:100})))
+ expect((result.current.scene.parts.find(p=>p.id===top.id) as BoardPart).runWorktop).toBeUndefined()
 })

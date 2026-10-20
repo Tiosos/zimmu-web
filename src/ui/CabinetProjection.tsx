@@ -44,6 +44,7 @@ export function CabinetProjection({
   materials,
   selectedId,
   onSelect,
+  sectionViews = true,
 }: {
   view: 'Front' | 'Top' | 'End'
   parts: Part[]
@@ -51,6 +52,7 @@ export function CabinetProjection({
   cabinet: CarcaseComponent
   materials: Record<string, MaterialDef>
   selectedId: PartId | null
+  sectionViews?: boolean
   onSelect: (id: PartId) => void
 }) {
   const thicknessOf = roleThicknessFor(cabinet.params, materials, overridesOf(parts, cabinet.id))
@@ -59,7 +61,7 @@ export function CabinetProjection({
   // Not memoised. `parts`, `byId`, `cabinet` and `materials` are all rebuilt by App on every
   // render, so a useMemo over them would recompute every time anyway while reading as though it
   // did not. A whole-cabinet projection is a few hundred rectangles; measure before adding one.
-  const views = buildable ? buildAssemblyViews(parts, byId, cabinet, materials) : null
+  const views = buildable ? buildAssemblyViews(parts, byId, cabinet, materials, sectionViews) : null
 
   if (views === null) {
     return (
