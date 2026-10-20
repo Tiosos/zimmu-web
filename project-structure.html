@@ -684,6 +684,8 @@
 │   ├── jointChecklist.ts
 │   ├── jointInvolves.test.ts
 │   ├── jointInvolves.ts
+│   ├── layoutTools.test.ts
+│   ├── layoutTools.ts
 │   ├── machiningSchedule.test.ts
 │   ├── machiningSchedule.ts
 │   ├── manufacturingChecks.test.ts
@@ -817,6 +819,8 @@
 │   ├── CabinetConstructionEditor.tsx
 │   ├── CabinetEditor.test.tsx
 │   ├── CabinetEditor.tsx
+│   ├── CabinetLayoutEditor.test.tsx
+│   ├── CabinetLayoutEditor.tsx
 │   ├── CabinetLayoutLibrary.test.tsx
 │   ├── CabinetLayoutLibrary.tsx
 │   ├── CabinetPlacementEditor.test.tsx
@@ -1600,7 +1604,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->191<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->193<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1683,6 +1687,7 @@ import { useScene } from './useScene'</code></pre>
       <pre><code><!-- AUTOGEN:docs-tree -->docs/
 ├── cabinet-construction-editor.md
 ├── cabinet-layout-reuse.md
+├── cabinet-layout-tools.md
 ├── cabinet-opening-layouts.md
 ├── cabinet-placement-tools.md
 ├── company-catalogue-api.md
@@ -1825,6 +1830,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-19-source-review-filter-navigation-notes.md
     │   ├── 2026-10-19-source-review-view-preferences-notes.md
     │   ├── 2026-10-20-cabinet-construction-editor-notes.md
+    │   ├── 2026-10-20-cabinet-layout-tools-notes.md
     │   ├── 2026-10-20-cabinet-opening-layouts-notes.md
     │   ├── 2026-10-20-cabinet-placement-tools-notes.md
     │   ├── 2026-10-20-personal-layout-library-notes.md
@@ -1896,7 +1902,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-03-manufacturing-checks-plan.md
     │   ├── 2026-10-03-manufacturing-nesting-labels.md
     │   ├── 2026-10-03-manufacturing-record.md
-    │   └── 2026-10-14-persisted-release-record.md
+    │   ├── 2026-10-14-persisted-release-record.md
+    │   └── 2026-10-20-cabinet-layout-tools.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -2006,6 +2013,7 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-10-production-release-gate-design.md
         ├── 2026-10-14-persisted-release-record-design.md
         ├── 2026-10-20-cabinet-construction-editor-design.md
+        ├── 2026-10-20-cabinet-layout-tools-design.md
         ├── 2026-10-20-cabinet-placement-tools-design.md
         └── 2026-10-20-personal-layout-library-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
