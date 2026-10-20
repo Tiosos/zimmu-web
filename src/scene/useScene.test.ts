@@ -1,3 +1,5 @@
+import { pullTargets, previewPulls, stagePull } from './pullLayout'
+import { defaultPull } from './pullPattern'
 import { frontTargets, emptyFrontsDraft, stageFront, stageDrawer, previewFronts } from './frontsDrawers'
 import { finishingDraft, previewFinishing } from './finishingPanels'
 import { layoutDraft, stageLayout, previewLayout } from './layoutTools'
@@ -3266,4 +3268,30 @@ it('keeps linked finishing creation, resize, edit, detach and delete in separate
   act(() => result.current.onDuplicate(linked.id))
   const duplicate = result.current.scene.parts.find((p): p is BoardPart => p.kind === 'board' && !p.driven && p.id !== linked.id)!
   expect(duplicate.finishing).toBeUndefined()
+})
+
+
+it('applies, undoes and redoes pull drilling as one step, keeps stable IDs and copies fixed geometry', () => {
+  mockBuildPart.mockReset().mockResolvedValue({ positions: new Float32Array([0,0,0,1,0,0,0,1,0]), normals: new Float32Array([0,0,1,0,0,1,0,0,1]) })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const cabinet = result.current.scene.components.find((c): c is CarcaseComponent => c.kind === 'carcase')!
+  const s = result.current.scene, ids = pullTargets(s, cabinet.id).map(t => t.id)
+  const p = previewPulls(s, cabinet.id, stagePull(s, cabinet.id, {}, ids, defaultPull()))
+  act(() => { expect(result.current.onApplyPullPreview(p)).toBe(true) })
+  const added = result.current.scene
+  expect(result.current.undoLabel).toBe('Apply cabinet hardware')
+  expect(pullTargets(added, cabinet.id).map(t => t.id)).toEqual(ids)
+  act(() => { expect(result.current.onApplyPullPreview(p)).toBe(false) })
+  act(() => result.current.undo()); expect(result.current.scene).toEqual(s)
+  act(() => result.current.redo()); expect(result.current.scene).toEqual(added)
+  act(() => result.current.onUpdateComponent(cabinet.id,c => c.kind === 'carcase' ? { ...c,params: { ...c.params,width:800 } } : c))
+  expect(pullTargets(result.current.scene,cabinet.id)[0].part.frontPull).toEqual(defaultPull())
+  act(() => result.current.onDuplicate(ids[0]))
+  const clone = result.current.scene.parts.find(p=>p.kind==='board'&&p.id!==ids[0]&&!p.driven) as BoardPart
+  expect(clone).toBeDefined()
+  expect(clone.frontPull).toBeUndefined(); expect(clone.role).toBeUndefined()
+  act(() => result.current.onUpdateComponent(cabinet.id,c => c.kind === 'carcase' ? { ...c,params: { ...c.params,width:900 } } : c))
+  expect(result.current.scene.parts.find(p=>p.id===clone.id)).toEqual(clone)
+  expect(pullTargets(result.current.scene,cabinet.id)[0].part.id).toBe(ids[0])
 })

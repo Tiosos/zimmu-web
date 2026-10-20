@@ -1,4 +1,4 @@
-import { HARDWARE_CATALOGUE } from '../scene/hardwareCatalogue'
+import { hardwareDefinition } from '../scene/hardwareCatalogue'
 import type { HardwareLine } from '../scene/carcaseHardware'
 import type { ComponentId, HardwareLibraryEntry } from '../scene/types'
 
@@ -25,7 +25,7 @@ export function groupHardware(
   library: Record<string, HardwareLibraryEntry>,
 ): HardwareRow[] {
   return lines.map((line) => {
-    const def = HARDWARE_CATALOGUE[line.key]
+    const def = hardwareDefinition(line.key)!
     const entry = library[line.key]
     const unitCost = entry?.unitCost ?? null
     return {

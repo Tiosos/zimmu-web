@@ -1,3 +1,4 @@
+import { pullSpecError } from './pullPattern'
 import { finishingLinkError } from './finishingRecipe'
 import { validateInstalledCatalogues } from './cataloguePackage'
 import type { MaterialDef, Part, Scene, Vec3, ZimmuFile } from './types'
@@ -148,6 +149,10 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
   if (kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (kind === 'board') {
+    if (part.frontPull !== undefined) {
+      const error = pullSpecError(part.frontPull)
+      if (error) throw new ZimmuFileValidationError(`${path}.frontPull`, error)
+    }
     if (part.finishing !== undefined) {
       const error = finishingLinkError(part.finishing)
       if (error) throw new ZimmuFileValidationError(`${path}.finishing`, error)
@@ -262,6 +267,10 @@ function validateCurrentPart(part: Part, index: number): void {
   if (part.kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (part.kind === 'board') {
+    if (part.frontPull !== undefined) {
+      const error = pullSpecError(part.frontPull)
+      if (error) throw new ZimmuFileValidationError(`${path}.frontPull`, error)
+    }
     if (part.finishing !== undefined) {
       const error = finishingLinkError(part.finishing)
       if (error) throw new ZimmuFileValidationError(`${path}.finishing`, error)

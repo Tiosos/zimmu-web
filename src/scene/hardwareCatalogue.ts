@@ -1,3 +1,4 @@
+import { pullHardwareDef } from './pullPattern'
 import { BLUM_FACE_FRAME_HINGES } from './faceFrameHardware'
 
 // The hardware a generated cabinet implies, as stated figures rather than derived ones — the same
@@ -59,4 +60,9 @@ export function runnerKeyFor(clearDepth: number): string | null {
 export function hingeKeyFor(mount: 'overlay' | 'half-overlay' | 'inset'): string | undefined {
   if (mount === 'half-overlay') return undefined
   return mount === 'overlay' ? HINGE_OVERLAY_KEY : HINGE_INSET_KEY
+}
+
+// Pull drilling dimensions identify generic items; supplier/part number remain library choices.
+export function hardwareDefinition(key: string): HardwareDef | undefined {
+  return HARDWARE_CATALOGUE[key] ?? pullHardwareDef(key)
 }

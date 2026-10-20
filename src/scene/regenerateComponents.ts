@@ -1,3 +1,8 @@
+import { pullPattern } from './pullPattern'
+import { frontCells, frontRoleOf } from './frontCells'
+import { frontGeometryOf } from './carcaseLayout'
+import { openingRect, sectionThickness } from './carcaseLayout'
+import { resolveSections } from './sectionTree'
 import type {
   BoardPart,
   CarcaseComponent,
@@ -73,6 +78,10 @@ function regenerateOne(
   // cabinet mid-keystroke — the same contract deriveJoint has when it returns null.
   if (roles.length === 0) return { parts, joints }
 
+  const tree = resolveSections(component.params.section, openingRect(component.params, thicknessOf), sectionThickness(thicknessOf))
+  const cells = new Map(frontCells(component.params.section, tree, frontGeometryOf(component.params, tree))
+    .filter((c) => c.spec.kind === 'door' || c.spec.kind === 'drawer-front')
+    .map((c) => [frontRoleOf(c), c]))
   const wanted = new Set(roles.map((r) => r.role))
 
   const kept: Part[] = []
@@ -94,9 +103,21 @@ function regenerateOne(
       ...carcaseMachining(component.params, thicknessOf, kindOf, r.role, drawerFor),
     ].map((c) => ({ ...c, sourceComponentId: component.id }))
     const existingCuts = existing?.kind === 'board' ? existing.cuts : []
+    const frontCell = cells.get(r.role)
+    const frontPull = existing?.kind === 'board' && frontCell ? existing.frontPull : undefined
+    if (frontPull) {
+      const pattern = pullPattern({
+        ...r.panel,
+        cuts: [...componentCuts, ...existingCuts.filter(
+          (c) => !('sourceComponentId' in c && c.sourceComponentId !== undefined),
+        )],
+      }, frontPull, frontCell?.hinge, r.role)
+      if (pattern.cut) componentCuts.push({ ...pattern.cut, sourceComponentId: component.id })
+    }
 
     const board: BoardPart = {
       kind: 'board',
+      ...(frontPull ? { frontPull } : {}),
       id: existing?.id ?? `board_${crypto.randomUUID()}`,
       label: existing?.label ?? r.label,
       length: r.panel.length,
@@ -121,6 +142,8 @@ function regenerateOne(
         ),
         ...componentCuts,
       ],
+      ...(existing?.kind === 'board' && existing.operations !== undefined
+        ? { operations: existing.operations.filter((op) => op.sourceComponentId === undefined) } : {}),
       visible: existing?.visible ?? true,
       parentId: component.id,
       driven: true,

@@ -7,7 +7,7 @@ import type {
   Part,
 } from '../scene/types'
 import type { HardwareLine } from '../scene/carcaseHardware'
-import { CATALOGUE_ORDER, HARDWARE_CATALOGUE } from '../scene/hardwareCatalogue'
+import { CATALOGUE_ORDER, hardwareDefinition } from '../scene/hardwareCatalogue'
 import { CuttingList, MaterialPopover } from './CuttingList'
 import { DowelList } from './DowelList'
 import { HardwareTab } from './HardwareTab'
@@ -224,7 +224,7 @@ function LibraryTab({
           </thead>
           <tbody>
             {hardwareEntries.map(([key, entry]) => {
-              const name = HARDWARE_CATALOGUE[key]?.name ?? key
+              const name = hardwareDefinition(key)?.name ?? key
               return (
                 <tr key={key} className="border-b border-border/30">
                   {/* The name is the catalogue's, never the library's: one statement of what an

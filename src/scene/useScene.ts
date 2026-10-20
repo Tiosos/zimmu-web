@@ -1,3 +1,4 @@
+import { acceptPulls, type PullPreview } from './pullLayout'
 import { acceptFronts, type FrontsPreview } from './frontsDrawers'
 import { acceptFinishing, releaseEditedFinishing, type FinishingPreview } from './finishingPanels'
 import { acceptLayout, type LayoutPreview } from './layoutTools'
@@ -84,6 +85,7 @@ function buildGeometry(data: {
 
 export interface UseSceneResult {
   onInstallCatalogue: (pkg: CataloguePackage, source: Scene) => boolean
+  onApplyPullPreview: (preview: PullPreview) => boolean
   onApplyFrontsPreview: (preview: FrontsPreview) => boolean
   onApplyFinishingPreview: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview: (preview: LayoutPreview) => boolean
@@ -351,6 +353,13 @@ export function useScene(): UseSceneResult {
     return true
   }, [push])
 
+  const onApplyPullPreview = useCallback((preview: PullPreview): boolean => {
+    const next = acceptPulls(sceneRef.current, preview)
+    if (!next) return false
+    commitReconciled(() => next, 'Apply cabinet hardware')
+    return true
+  }, [commitReconciled])
+
   const onApplyFrontsPreview = useCallback((preview: FrontsPreview): boolean => {
     const next = acceptFronts(sceneRef.current, preview)
     if (!next) return false
@@ -532,6 +541,8 @@ export function useScene(): UseSceneResult {
         clone = {
           ...orig,
           id: `board_${crypto.randomUUID()}` as PartId,
+          ...(orig.frontPull ? { driven: false, role: undefined } : {}),
+          frontPull: undefined,
           finishing: undefined, // A moved duplicate is a fixed board; it must not snap back on regeneration.
           color,
           position: { ...orig.position, x: orig.position.x + orig.length + 10 },
@@ -1497,6 +1508,7 @@ export function useScene(): UseSceneResult {
   return {
     onInstallCatalogue,
     onApplyRulePreview,
+    onApplyPullPreview,
     onApplyFrontsPreview,
     onApplyFinishingPreview,
     onApplyLayoutPreview,

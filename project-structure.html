@@ -724,6 +724,10 @@
 │   ├── productionReview.ts
 │   ├── projectStructure.test.ts
 │   ├── projectStructure.ts
+│   ├── pullLayout.test.ts
+│   ├── pullLayout.ts
+│   ├── pullPattern.test.ts
+│   ├── pullPattern.ts
 │   ├── readinessLimits.ts
 │   ├── readinessSnapshot.ts
 │   ├── reconcileBoards.ts
@@ -837,6 +841,8 @@
 │   ├── CabinetPlacementEditor.tsx
 │   ├── CabinetProjection.test.tsx
 │   ├── CabinetProjection.tsx
+│   ├── CabinetPullEditor.test.tsx
+│   ├── CabinetPullEditor.tsx
 │   ├── CabinetRulesPanel.test.tsx
 │   ├── CabinetRulesPanel.tsx
 │   ├── canonicalJson.test.ts
@@ -1614,7 +1620,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->198<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->201<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1702,6 +1708,7 @@ import { useScene } from './useScene'</code></pre>
 ├── cabinet-layout-tools.md
 ├── cabinet-opening-layouts.md
 ├── cabinet-placement-tools.md
+├── cabinet-pull-layout.md
 ├── company-catalogue-api.md
 ├── drawing-references.md
 ├── keyboard-shortcuts.md
@@ -1849,7 +1856,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-20-cabinet-placement-tools-notes.md
     │   ├── 2026-10-20-parametric-finishing-notes.md
     │   ├── 2026-10-20-personal-layout-library-notes.md
-    │   └── 2026-10-20-source-review-selection-notes-notes.md
+    │   ├── 2026-10-20-source-review-selection-notes-notes.md
+    │   └── 2026-10-21-cabinet-pull-layout-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1921,7 +1929,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-20-cabinet-finishing-panels.md
     │   ├── 2026-10-20-cabinet-fronts-drawers.md
     │   ├── 2026-10-20-cabinet-layout-tools.md
-    │   └── 2026-10-20-parametric-finishing.md
+    │   ├── 2026-10-20-parametric-finishing.md
+    │   └── 2026-10-21-cabinet-pull-layout.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -2036,7 +2045,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-20-cabinet-layout-tools-design.md
         ├── 2026-10-20-cabinet-placement-tools-design.md
         ├── 2026-10-20-parametric-finishing-design.md
-        └── 2026-10-20-personal-layout-library-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-10-20-personal-layout-library-design.md
+        └── 2026-10-21-cabinet-pull-layout-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
