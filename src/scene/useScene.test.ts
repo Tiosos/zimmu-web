@@ -1,3 +1,4 @@
+import { placementDraft, previewPlacement } from './placementTools'
 import { openingLayout } from './openingLayouts'
 import { packageFixture } from './__fixtures__/companyCatalogue'
 import { installedDefinitions } from './catalogue'
@@ -3126,4 +3127,33 @@ it('keeps opening layout applications as separate undo steps and ignores stale o
   expect(missing).not.toHaveBeenCalled()
   expect(result.current.scene).toBe(before)
   expect(result.current.undoLabel).toBe(label)
+})
+
+it('applies cabinet placement as its own undo step and refuses stale/no-op previews', () => {
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const cabinet = result.current.scene.components.find((c): c is CarcaseComponent => c.kind === 'carcase')!
+  act(() => result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
+  const resized = result.current.scene
+  const first = previewPlacement(resized,cabinet.id,{...placementDraft(cabinet),x:'100'})
+  act(() => { expect(result.current.onApplyPlacementPreview(first)).toBe(true) })
+  const placed = result.current.scene
+  expect(placed.components.find(c=>c.id===cabinet.id)?.position.x).toBe(100)
+  expect(result.current.undoLabel).toBe('Apply cabinet placement')
+  act(() => { expect(result.current.onApplyPlacementPreview(first)).toBe(false) })
+  expect(result.current.scene).toBe(placed)
+  const current=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
+  const noop=previewPlacement(placed,current.id,placementDraft(current))
+  act(() => { expect(result.current.onApplyPlacementPreview(noop)).toBe(false) })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(resized)
+  act(() => result.current.undo())
+  expect((result.current.scene.components.find(c=>c.id===cabinet.id) as CarcaseComponent).params.width).toBe(600)
+  act(() => result.current.redo())
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(placed)
 })
