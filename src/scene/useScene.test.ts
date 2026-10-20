@@ -1,3 +1,4 @@
+import { frontTargets, emptyFrontsDraft, stageFront, stageDrawer, previewFronts } from './frontsDrawers'
 import { finishingDraft, previewFinishing } from './finishingPanels'
 import { layoutDraft, stageLayout, previewLayout } from './layoutTools'
 import { placementDraft, previewPlacement } from './placementTools'
@@ -3205,4 +3206,25 @@ it('adds a finishing board as a separate undo step, retains it after resizing an
   act(() => result.current.redo());act(() => result.current.redo());expect(result.current.scene).toEqual(added)
   act(() => result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:800}}:c))
   expect(result.current.scene.parts.find(p=>p.id===manual.id)).toEqual(manual)
+})
+
+
+it('applies coordinated fronts and drawers in one separate undo step and refuses stale previews', () => {
+  mockBuildPart.mockResolvedValue({ positions: new Float32Array([0,0,0,1,0,0,0,1,0]), normals: new Float32Array([0,0,1,0,0,1,0,0,1]) })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
+  act(() => result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
+  const resized=result.current.scene,ids=frontTargets(resized,cabinet.id).map(t=>t.id)
+  let draft=stageFront(resized,cabinet.id,emptyFrontsDraft(),ids,'drawer-front')
+  draft=stageDrawer(resized,cabinet.id,draft,ids,{kind:'height',value:'100'})
+  const preview=previewFronts(resized,cabinet.id,draft)
+  act(() => { expect(result.current.onApplyFrontsPreview(preview)).toBe(true) })
+  const changed=result.current.scene
+  expect(changed.components.some(c=>c.kind==='drawer'&&c.params.boxHeight===100)).toBe(true)
+  expect(result.current.undoLabel).toBe('Apply fronts and drawers')
+  act(() => { expect(result.current.onApplyFrontsPreview(preview)).toBe(false) });expect(result.current.scene).toBe(changed)
+  act(() => result.current.undo());expect(result.current.scene).toEqual(resized)
+  act(() => result.current.undo());expect((result.current.scene.components.find(c=>c.id===cabinet.id) as CarcaseComponent).params.width).toBe(600)
+  act(() => result.current.redo());act(() => result.current.redo());expect(result.current.scene).toEqual(changed)
 })

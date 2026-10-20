@@ -1,3 +1,4 @@
+import { acceptFronts, type FrontsPreview } from './frontsDrawers'
 import { acceptFinishing, type FinishingPreview } from './finishingPanels'
 import { acceptLayout, type LayoutPreview } from './layoutTools'
 import { acceptPlacement, type PlacementPreview } from './placementTools'
@@ -83,6 +84,7 @@ function buildGeometry(data: {
 
 export interface UseSceneResult {
   onInstallCatalogue: (pkg: CataloguePackage, source: Scene) => boolean
+  onApplyFrontsPreview: (preview: FrontsPreview) => boolean
   onApplyFinishingPreview: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview: (preview: LayoutPreview) => boolean
   onApplyPlacementPreview: (preview: PlacementPreview) => boolean
@@ -348,6 +350,13 @@ export function useScene(): UseSceneResult {
     }
     return true
   }, [push])
+
+  const onApplyFrontsPreview = useCallback((preview: FrontsPreview): boolean => {
+    const next = acceptFronts(sceneRef.current, preview)
+    if (!next) return false
+    commitReconciled(() => next, 'Apply fronts and drawers')
+    return true
+  }, [commitReconciled])
 
   const onApplyFinishingPreview = useCallback((preview: FinishingPreview): boolean => {
     const next = acceptFinishing(sceneRef.current, preview, `board_${crypto.randomUUID()}`)
@@ -1485,6 +1494,7 @@ export function useScene(): UseSceneResult {
   return {
     onInstallCatalogue,
     onApplyRulePreview,
+    onApplyFrontsPreview,
     onApplyFinishingPreview,
     onApplyLayoutPreview,
     onApplyPlacementPreview,

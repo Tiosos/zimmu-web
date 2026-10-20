@@ -265,7 +265,7 @@ test('clicking a part in the Front view selects it without closing the editor', 
   await page.getByRole('option', { name: 'Base 600' }).click()
   await page.locator('[data-testid^="node-cmp_"]').filter({ hasText: 'Base 600' }).first().click()
 
-  await page.getByRole('tab', { name: 'Front' }).click()
+  await page.getByRole('tab', { name: 'Front', exact: true }).click()
   // Last, not first. `CabinetProjection` paints farthest-first so the nearest part takes the
   // click, which puts the back panel at the head of the DOM and the door at its tail — clicking
   // the first one is a click the door intercepts, and Playwright retries that until the test
@@ -278,7 +278,7 @@ test('clicking a part in the Front view selects it without closing the editor', 
   await expect(nearest).toHaveAttribute('data-selected', 'true')
 
   // Still on Front, and the sidebar now shows a part rather than the carcase parameters.
-  await expect(page.getByRole('tab', { name: 'Front' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tab', { name: 'Front', exact: true })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByLabel('L', { exact: true }).first()).toBeVisible()
 })
 
@@ -306,7 +306,7 @@ test('the End view cuts the near side away', async ({ page }) => {
 
   // Drawn in Front, which is a view rather than a section — so its absence below is the cull and
   // not a mistyped id.
-  await page.getByRole('tab', { name: 'Front' }).click()
+  await page.getByRole('tab', { name: 'Front', exact: true }).click()
   await expect(nearPanel).toHaveCount(1)
 
   await page.getByRole('tab', { name: 'End' }).click()
