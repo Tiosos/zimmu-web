@@ -1,3 +1,5 @@
+import { previewWorktopMachining } from './worktopMachining'
+import { defaultWorktopFeature } from './worktopMachiningRecipe'
 import { previewRunWorktop, runWorktopDraft } from './runWorktops'
 import { pullTargets, previewPulls, stagePull } from './pullLayout'
 import { defaultPull } from './pullPattern'
@@ -3328,4 +3330,32 @@ it('keeps run worktop creation, source resize, edit, detach and deletion in sepa
  act(()=>result.current.undo())
  act(()=>result.current.onUpdate(top.id,p=>({...p,length:100})))
  expect((result.current.scene.parts.find(p=>p.id===top.id) as BoardPart).runWorktop).toBeUndefined()
+})
+
+it('applies worktop machining in one step, locks derived cuts, revalidates size and duplicates fixed geometry',()=>{
+ mockBuildPart.mockReset().mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const {result}=renderHook(()=>useScene())
+ act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
+ const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
+ const s=result.current.scene
+ act(()=>{expect(result.current.onApplyFinishingPreview(previewFinishing(s,cabinet.id,{...finishingDraft(s,cabinet.id),follow:true}))).toBe(true)})
+ const top=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&!!p.finishing)!,before=result.current.scene
+ const recipe={version:1 as const,features:[defaultWorktopFeature('opening')]}
+ act(()=>{expect(result.current.onApplyWorktopMachiningPreview(previewWorktopMachining(before,top.id,recipe))).toBe(true)})
+ const applied=result.current.scene;expect(result.current.undoLabel).toBe('Apply worktop machining')
+ expect(applied.parts.find(p=>p.id===top.id)?.cuts).toHaveLength(1)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(applied)
+ act(()=>result.current.onUpdateCut(top.id,'wm_opening',c=>({...c,label:'forged'})))
+ act(()=>result.current.onRemoveCut(top.id,'wm_opening'))
+ act(()=>result.current.onLinkCuts(top.id,'wm_opening',top.id,'wm_opening'))
+ expect(result.current.scene).toEqual(applied)
+ act(()=>result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:150}}:c))
+ expect(result.current.scene.parts.find(p=>p.id===top.id)?.cuts).toEqual([])
+ expect((result.current.scene.parts.find(p=>p.id===top.id) as BoardPart).worktopMachining).toBeDefined()
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(applied)
+ act(()=>result.current.onDuplicate(top.id))
+ const duplicate=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&!p.driven&&p.id!==top.id)!
+ expect(duplicate.worktopMachining).toBeUndefined();expect(duplicate.cuts).toHaveLength(1)
+ expect(duplicate.cuts[0].id).not.toBe('wm_opening')
 })

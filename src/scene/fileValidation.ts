@@ -1,3 +1,4 @@
+import { worktopMachiningError } from './worktopMachiningRecipe'
 import { runWorktopLinkError } from './runWorktopRecipe'
 import { pullSpecError } from './pullPattern'
 import { finishingLinkError } from './finishingRecipe'
@@ -150,6 +151,11 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
   if (kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (kind === 'board') {
+    if (part.worktopMachining !== undefined) {
+      const error = worktopMachiningError(part.worktopMachining)
+      if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
+      if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop')) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+    }
     if (part.runWorktop !== undefined) {
       const error = runWorktopLinkError(part.runWorktop)
       if (error) throw new ZimmuFileValidationError(`${path}.runWorktop`, error)
@@ -274,6 +280,11 @@ function validateCurrentPart(part: Part, index: number): void {
   if (part.kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (part.kind === 'board') {
+    if (part.worktopMachining !== undefined) {
+      const error = worktopMachiningError(part.worktopMachining)
+      if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
+      if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop')) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+    }
     if (part.runWorktop !== undefined) {
       const error = runWorktopLinkError(part.runWorktop)
       if (error) throw new ZimmuFileValidationError(`${path}.runWorktop`, error)

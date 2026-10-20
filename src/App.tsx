@@ -72,6 +72,7 @@ function App() {
     onApplyFrontsPreview,
     onApplyFinishingPreview,
     onApplyRunWorktopPreview,
+    onApplyWorktopMachiningPreview,
     onApplyLayoutPreview,
     onApplyPlacementPreview,
     parameterFor,
@@ -815,6 +816,7 @@ function App() {
             onApplyFrontsPreview={onApplyFrontsPreview}
             onApplyFinishingPreview={onApplyFinishingPreview}
             onApplyRunWorktopPreview={onApplyRunWorktopPreview}
+            onApplyWorktopMachiningPreview={onApplyWorktopMachiningPreview}
             onApplyLayoutPreview={onApplyLayoutPreview}
             onApplyPlacementPreview={onApplyPlacementPreview}
             library={library}

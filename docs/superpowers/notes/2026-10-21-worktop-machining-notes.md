@@ -1,0 +1,21 @@
+# Worktop machining notes
+
+- Starts at merged main17740eb. Prior50tasks are already merged as PR148.
+- Existing BoxCut and HoleArrayCut represent these operations; no new geometry kind or ownership impersonation is needed. Saved feature IDs identify derived cuts; generic editing is locked, while board duplication bakes fixed geometry.
+- Box subtraction in OCCT ignores sizes<=0.1mm, so supported dimensions/depth must exceed0.1mm.
+- Source recipes remain on invalid resizing; invalid cuts are omitted and repair/removal remains available.
+- Spec: ../specs/2026-10-21-worktop-machining-design.md
+- Plan: ../plans/2026-10-21-worktop-machining.md
+- Generic cut update/remove/pair callbacks reject recipe-derived IDs, and EditPanel displays read-only ownership. Board dimension edits keep recipes for revalidation; duplicated boards drop recipes and retain freshly identified fixed cuts.
+- Existing Top/End section projections remain unchanged; machining preview opts into complete views like the run-worktop preview.
+- Schema/geometry mutations: all34 tested mutations fail with AssertionErrors. Each changed file is restored from a compared scratch backup. Additional hook guards are checked separately.
+- Browser coverage includes live OCCT volume and centre-of-mass measurements for through/blind rectangles and circles, in addition to interactive workspace flows.
+- All three hook ownership mutations also fail with AssertionErrors (37 total mutations across schema, geometry and ownership checks). Originals restored and compared after every mutation.
+- Added explicit manufacturing-schedule checks for circular through/blind drilling: single-hole pitch0 is valid, and the exported depth mode is assessed correctly.
+- User explicitly confirmed the worktop cut-outs/machining batch. Typechecking passes after the full implementation. A temporary browser configuration uses port5194 with reuse disabled for worktree isolation.
+- Final geometry review added a positive remaining-volume guard, covering both one whole-board through cut and tangent features collectively removing the board. Its mutation is killed too (38 total).
+- Editing the final guard/tests during the first full run produced a mixed-input result: the new tests saw an earlier compiled solver. Focused final geometry passes all64 tests. Rerun the whole suite with frozen source and compared SHA256 checksums; no source edits during that run.
+- Final frozen-source full unit suite passes: 212 files, 3,752 tests passed, 10 skipped. All recorded source SHA256 checksums match after the run. Typechecking and lint also pass on the final implementation.
+- Both production builds pass: CAD and catalogue service. Browser checks run after the builds, against an isolated worktree server on port5194.
+- Browser validation: all12 selected Chromium flows pass across runs. Initial run passed11, including live OCCT volume/centroid checks; the circular-bore flow had an ambiguous Playwright label selector, fixed with exact matching. That flow then passed on rerun (19.2s). No application source changed for that selector fix; focused ESLint passed for the changed browser spec.
+- User guide: docs/cabinet-worktop-machining.md. Naming it alongside the existing cabinet guides keeps the generated architecture-tree diff small. Temporary browser configuration removed. All25 tasks completed; commit locally, with no PR/push until requested.

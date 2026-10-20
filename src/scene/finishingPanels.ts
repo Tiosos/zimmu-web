@@ -51,6 +51,7 @@ export function finishingSignature(scene: Scene): string {
       cuts: p.cuts,
       operations: p.kind === 'board' ? p.operations : undefined,
       edges: p.kind === 'board' ? p.edgeBanding : undefined,
+      worktopMachining: p.kind === 'board' ? p.worktopMachining : undefined,
       runWorktop: p.kind === 'board' ? p.runWorktop : undefined,
       frontPull: p.kind === 'board' ? p.frontPull : undefined,
       finishing: p.kind === 'board' ? p.finishing : undefined,

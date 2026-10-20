@@ -1,3 +1,4 @@
+import { worktopCutOwned } from '../scene/worktopMachining'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import type {
   BoxCut,
@@ -943,6 +944,8 @@ export function EditPanel({
                   onRemoveCut={onRemoveCut}
                   defaultOpen={cut.id === lastPlacedCutId}
                 />
+              ) : worktopCutOwned(part, cut.id) ? (
+                <p key={cut.id} className="text-xs">{cut.label} (worktop machining — edit in Finishing)</p>
               ) : isJointOwned(cut) ? (
                 <div
                   key={cut.id}
