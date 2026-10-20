@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { buildDrawingSheets } from '../geom/drawing'
 import { CabinetProjection } from './CabinetProjection'
 import { SectionElevation } from './SectionElevation'
+import { CabinetConstructionEditor } from './CabinetConstructionEditor'
 import { CabinetLayoutLibrary } from './CabinetLayoutLibrary'
 import { SectionToolbar } from './SectionToolbar'
 import { buildDxf } from './buildDxf'
@@ -33,11 +34,12 @@ import type {
 // cabinet. It is hidden rather than unmounted, which is why this component renders nothing for it:
 // `viewport.tsx` builds its renderer, camera and every mesh in a mount-once effect, so swapping it
 // out on a tab change would tear all of that down and rebuild it. `App` owns the showing.
-const TABS = ['section', 'front', 'top', 'end', '3d'] as const
+const TABS = ['section', 'construction', 'front', 'top', 'end', '3d'] as const
 export type CabinetTab = (typeof TABS)[number]
 
 const LABELS: Record<CabinetTab, string> = {
   section: 'Section',
+  construction: 'Construction',
   front: 'Front',
   top: 'Top',
   end: 'End',
@@ -151,7 +153,7 @@ export function CabinetEditor({
 
       {/* A projection is a drawing, so it can be exported as one. Section is an editor and 3D is
           the viewport; neither is what `buildDrawingSheets` would put on a sheet. */}
-      {tab !== '3d' && tab !== 'section' && (
+      {tab !== '3d' && tab !== 'section' && tab !== 'construction' && (
         <div className="flex gap-2 px-3 pt-2">
           <Button variant="outline" size="sm" onClick={() => exportSheet('svg')}>
             SVG
@@ -166,7 +168,9 @@ export function CabinetEditor({
           cover it. */}
       {tab !== '3d' && (
         <div data-testid="cabinet-editor-panel" className="flex-1 min-h-0 overflow-auto p-3">
-          {tab === 'section' ? (
+          {tab === 'construction' ? (
+            <CabinetConstructionEditor cabinet={component} materials={materials} parts={parts} components={scene?.components ?? []} onUpdate={onUpdate} />
+          ) : tab === 'section' ? (
             <div className="h-full flex gap-3 min-h-0">
               <div className="flex-1 min-w-0">
                 <SectionElevation
