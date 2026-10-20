@@ -1,4 +1,5 @@
-import { acceptFinishing, type FinishingPreview } from './finishingPanels'
+import { acceptFronts, type FrontsPreview } from './frontsDrawers'
+import { acceptFinishing, releaseEditedFinishing, type FinishingPreview } from './finishingPanels'
 import { acceptLayout, type LayoutPreview } from './layoutTools'
 import { acceptPlacement, type PlacementPreview } from './placementTools'
 import { installCataloguePackage, type CataloguePackage } from './cataloguePackage'
@@ -83,6 +84,7 @@ function buildGeometry(data: {
 
 export interface UseSceneResult {
   onInstallCatalogue: (pkg: CataloguePackage, source: Scene) => boolean
+  onApplyFrontsPreview: (preview: FrontsPreview) => boolean
   onApplyFinishingPreview: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview: (preview: LayoutPreview) => boolean
   onApplyPlacementPreview: (preview: PlacementPreview) => boolean
@@ -349,10 +351,17 @@ export function useScene(): UseSceneResult {
     return true
   }, [push])
 
+  const onApplyFrontsPreview = useCallback((preview: FrontsPreview): boolean => {
+    const next = acceptFronts(sceneRef.current, preview)
+    if (!next) return false
+    commitReconciled(() => next, 'Apply fronts and drawers')
+    return true
+  }, [commitReconciled])
+
   const onApplyFinishingPreview = useCallback((preview: FinishingPreview): boolean => {
     const next = acceptFinishing(sceneRef.current, preview, `board_${crypto.randomUUID()}`)
     if (!next) return false
-    commitReconciled(() => next, 'Add finishing board')
+    commitReconciled(() => next, preview.action === 'delete' ? 'Delete finishing board' : preview.action === 'detach' ? 'Detach finishing board' : preview.targetId ? 'Update finishing board' : 'Add finishing board')
     return true
   }, [commitReconciled])
 
@@ -523,6 +532,7 @@ export function useScene(): UseSceneResult {
         clone = {
           ...orig,
           id: `board_${crypto.randomUUID()}` as PartId,
+          finishing: undefined, // A moved duplicate is a fixed board; it must not snap back on regeneration.
           color,
           position: { ...orig.position, x: orig.position.x + orig.length + 10 },
           rotation: { x: 0, y: 0, z: 0 },
@@ -609,7 +619,9 @@ export function useScene(): UseSceneResult {
       const before = sceneRef.current
       const beforePart = before.parts.find((p) => p.id === id)
       if (!beforePart) return
-      const afterPart = updater(beforePart)
+      const updatedPart = updater(beforePart)
+      const afterPart = beforePart.kind === 'board' && updatedPart.kind === 'board'
+        ? releaseEditedFinishing(beforePart, updatedPart) : updatedPart
       const label = historyLabel ?? `Update ${afterPart.label}`
       const coalesceKey = historyLabel !== undefined ? undefined : `update-${id}`
       // A driven part's dimensions are owned by its carcase, so an edit to one has to go through
@@ -1251,7 +1263,7 @@ export function useScene(): UseSceneResult {
       const after = applyPipeline({
         ...before,
         parts: before.parts.map((p) =>
-          p.id === id ? { ...(updater ? updater(p) : p), driven: false, role: undefined } : p,
+          p.id === id ? { ...(updater ? updater(p) : p), driven: false, role: undefined, ...(p.kind === 'board' ? { finishing: undefined } : {}) } : p,
         ),
       })
       setScene(after)
@@ -1485,6 +1497,7 @@ export function useScene(): UseSceneResult {
   return {
     onInstallCatalogue,
     onApplyRulePreview,
+    onApplyFrontsPreview,
     onApplyFinishingPreview,
     onApplyLayoutPreview,
     onApplyPlacementPreview,

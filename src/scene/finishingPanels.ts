@@ -1,4 +1,5 @@
-import type { BoardPart, CarcaseComponent, Grain, Scene, ThicknessAxis } from './types'
+import type { BoardPart, CarcaseComponent, Scene, ThicknessAxis } from './types'
+import { jointInvolves } from './jointInvolves'
 import { carcaseBounds } from './carcaseBounds'
 import { orientedPanel, type LocalBox } from './carcaseLayout'
 import { roleThicknessFor } from './resolveThickness'
@@ -6,35 +7,21 @@ import { openingGeometry } from './openingLayouts'
 import { placementSignature } from './placementTools'
 import { applyMatrixToPoint, resolveWorldMatrix } from '../geom/transform'
 
-export const FINISHING_KINDS = [
-  ['worktop', 'Worktop'],
-  ['left-end', 'Left end panel'],
-  ['right-end', 'Right end panel'],
-  ['left-filler', 'Left filler'],
-  ['right-filler', 'Right filler'],
-  ['plinth', 'Front plinth'],
-  ['splashback', 'Rear splashback'],
-] as const
-export type FinishingKind = (typeof FINISHING_KINDS)[number][0]
-export interface FinishingDraft {
-  kind: FinishingKind
-  label: string
-  material: string
-  thicknessMode: 'stock' | 'custom'
-  thickness: string
-  grain: Grain
-  left: string
-  right: string
-  front: string
-  rear: string
-  height: string
-  fillerWidth: string
-  bottom: string
-  setback: string
-}
+import {
+  FINISHING_KINDS,
+  finishingLinkError,
+  type FinishingDraft,
+  type FinishingKind,
+  type FinishingLink,
+} from './finishingRecipe'
+export { FINISHING_KINDS } from './finishingRecipe'
+export type { FinishingDraft, FinishingKind } from './finishingRecipe'
+
 export interface FinishingPreview {
   signature: string
   cabinetId: string
+  targetId?: string
+  action?: 'save' | 'detach' | 'delete'
   draft: FinishingDraft
   part: BoardPart | null
   bounds: LocalBox | null
@@ -64,6 +51,7 @@ export function finishingSignature(scene: Scene): string {
       cuts: p.cuts,
       operations: p.kind === 'board' ? p.operations : undefined,
       edges: p.kind === 'board' ? p.edgeBanding : undefined,
+      finishing: p.kind === 'board' ? p.finishing : undefined,
       overrides: p.kind === 'board' ? p.overrides : undefined,
     })),
   })
@@ -94,6 +82,9 @@ export function finishingDraft(
     thicknessMode: 'stock',
     thickness: String(scene.materials[material]?.thickness ?? 18),
     grain: 'length',
+    follow: false,
+    heightMode: 'custom',
+    setbackMode: 'custom',
     left: '0',
     right: '0',
     front: kind === 'worktop' ? '20' : '0',
@@ -119,17 +110,38 @@ export function previewFinishing(
   scene: Scene,
   cabinetId: string,
   draft: FinishingDraft,
+  targetId?: string,
 ): FinishingPreview {
-  const result: FinishingPreview = {
+  const built = buildFinishing(scene, cabinetId, draft)
+  const target = targetId ? scene.parts.find((p) => p.id === targetId) : undefined
+  return {
     signature: finishingSignature(scene),
     cabinetId,
+    targetId,
     draft: { ...draft },
+    ...built,
+    part: target?.kind === 'board' && built.part ? mergeFinishing(target, built.part) : built.part,
+  }
+}
+
+function buildFinishing(
+  scene: Scene,
+  cabinetId: string,
+  draft: FinishingDraft,
+): Pick<FinishingPreview, 'part' | 'bounds' | 'errors'> {
+  const result: Pick<FinishingPreview, 'part' | 'bounds' | 'errors'> = {
     part: null,
     bounds: null,
     errors: [],
   }
   try {
     const c = cabinetOf(scene, cabinetId)
+    if (draft.follow !== undefined && typeof draft.follow !== 'boolean')
+      throw Error('Choose whether to follow cabinet dimensions.')
+    if (draft.follow) {
+      const error = finishingLinkError(linkOf(draft))
+      if (error) throw Error(error)
+    }
     if (!FINISHING_KINDS.some(([kind]) => kind === draft.kind))
       throw Error('Choose a supported finishing panel.')
     if (!draft.label.trim()) throw Error('Name the finishing board before previewing.')
@@ -145,8 +157,8 @@ export function previewFinishing(
       draft.thicknessMode === 'stock'
         ? scene.materials[draft.material].thickness!
         : numeric(draft.thickness)
-    const height = numeric(draft.height),
-      width = numeric(draft.fillerWidth)
+    let height = numeric(draft.height)
+    const width = numeric(draft.fillerWidth)
     const left = numeric(draft.left),
       right = numeric(draft.right),
       front = numeric(draft.front),
@@ -158,6 +170,13 @@ export function previewFinishing(
     if ([left, right, front, rear, bottom, setback].some((n) => n < 0))
       throw Error('Overhangs, clearance and setback must be zero or greater.')
     const b = carcaseBounds(c.params, roleThicknessFor(c.params, scene.materials, new Map()))
+    if (draft.follow && draft.heightMode === 'cabinet') height = b.z1 - b.z0 - bottom
+    if (draft.follow && draft.heightMode === 'toe-kick') height = c.params.toeKickHeight - bottom
+    if (height <= 0) throw Error('Following height must remain greater than zero after clearance.')
+    const resolvedSetback =
+      draft.follow && draft.setbackMode === 'toe-kick' ? c.params.toeKickSetback : setback
+    if (!Number.isFinite(resolvedSetback) || resolvedSetback < 0)
+      throw Error('Following setback must be finite and zero or greater.')
     let bounds: LocalBox, axis: ThicknessAxis
     if (draft.kind === 'worktop') {
       bounds = {
@@ -192,13 +211,13 @@ export function previewFinishing(
       }
       axis = 'y'
     } else if (draft.kind === 'plinth') {
-      if (b.y0 + setback + t > b.y1)
+      if (b.y0 + resolvedSetback + t > b.y1)
         throw Error('Plinth setback and thickness exceed the occupied depth.')
       bounds = {
         x0: b.x0,
         x1: b.x1,
-        y0: b.y0 + setback,
-        y1: b.y0 + setback + t,
+        y0: b.y0 + resolvedSetback,
+        y1: b.y0 + resolvedSetback + t,
         z0: b.z0 + bottom,
         z1: b.z0 + bottom + height,
       }
@@ -235,6 +254,7 @@ export function previewFinishing(
       driven: false,
       visible: true,
       cuts: [],
+      ...(draft.follow ? { finishing: linkOf(draft) } : {}),
     }
     const matrix = resolveWorldMatrix(
       part,
@@ -254,20 +274,128 @@ export function previewFinishing(
   }
   return result
 }
+function linkOf(draft: FinishingDraft): FinishingLink {
+  return {
+    version: 1,
+    draft: {
+      ...draft,
+      follow: true,
+      heightMode: draft.heightMode ?? 'custom',
+      setbackMode: draft.setbackMode ?? 'custom',
+    },
+  }
+}
+
+export function finishingIssues(scene: Scene, part: BoardPart): string[] {
+  if (!part.finishing) return []
+  const malformed = finishingLinkError(part.finishing)
+  if (malformed) return [malformed]
+  return buildFinishing(scene, part.parentId ?? '', part.finishing.draft).errors
+}
+
+/** Invalid recipes keep their last-good geometry. A lost parent releases ownership. */
+export function regenerateFinishing(scene: Scene): Scene {
+  return {
+    ...scene,
+    parts: scene.parts.map((part) => {
+      if (part.kind !== 'board' || !part.finishing) return part
+      if (!scene.components.some((c) => c.id === part.parentId && c.kind === 'carcase')) {
+        return detachedFinishing(part)
+      }
+      if (finishingLinkError(part.finishing)) return part
+      const built = buildFinishing(scene, part.parentId!, part.finishing.draft)
+      return built.part ? mergeFinishing(part, built.part) : part
+    }),
+  }
+}
+
+function detachedFinishing(part: BoardPart): BoardPart {
+  const fixed = { ...part }
+  delete fixed.finishing
+  return fixed
+}
+
+function mergeFinishing(existing: BoardPart, candidate: BoardPart): BoardPart {
+  return {
+    ...existing,
+    length: candidate.length,
+    width: candidate.width,
+    thickness: candidate.thickness,
+    position: candidate.position,
+    rotation: candidate.rotation,
+    rotationOrder: candidate.rotationOrder,
+    label: candidate.label,
+    material: candidate.material,
+    grain: candidate.grain,
+    finishing: candidate.finishing,
+  }
+}
+
+/** Editing fields owned by a recipe through normal part tools makes the board fixed-size. */
+export function releaseEditedFinishing(before: BoardPart, after: BoardPart): BoardPart {
+  if (!before.finishing) return after
+  const owned = (p: BoardPart) => [
+    p.length,
+    p.width,
+    p.thickness,
+    p.position,
+    p.rotation,
+    p.rotationOrder,
+    p.parentId,
+    p.label,
+    p.material,
+    p.grain,
+  ]
+  if (JSON.stringify(owned(before)) === JSON.stringify(owned(after))) return after
+  return detachedFinishing(after)
+}
+
 export function acceptFinishing(
   scene: Scene,
   preview: FinishingPreview,
   newId: string,
 ): Scene | null {
-  if (preview.errors.length || !preview.part || preview.signature !== finishingSignature(scene))
-    return null
+  if (preview.signature !== finishingSignature(scene)) return null
+  if (preview.targetId !== undefined && !preview.targetId.trim()) return null
+  const target = preview.targetId ? scene.parts.find((p) => p.id === preview.targetId) : undefined
   if (
-    !newId.trim() ||
-    scene.parts.some((p) => p.id === newId) ||
-    scene.components.some((c) => c.id === newId)
+    preview.targetId &&
+    (target?.kind !== 'board' ||
+      !target.finishing ||
+      target.parentId !== preview.cabinetId ||
+      target.driven ||
+      target.role !== undefined)
+  )
+    return null
+  if (preview.action === 'detach' || preview.action === 'delete') {
+    if (target?.kind !== 'board') return null
+    if (preview.action === 'delete') {
+      // Joint ownership must be removed with the board, as with the normal delete tool.
+      return {
+        ...scene,
+        parts: scene.parts.filter((p) => p.id !== target.id),
+        joints: scene.joints.filter((j) => !jointInvolves(j, target.id)),
+      }
+    }
+    const fixed = detachedFinishing(target)
+    return { ...scene, parts: scene.parts.map((p) => (p.id === target.id ? fixed : p)) }
+  }
+  if (preview.action !== undefined && preview.action !== 'save') return null
+  if (preview.errors.length || !preview.part) return null
+  if (
+    !target &&
+    (!newId.trim() ||
+      scene.parts.some((p) => p.id === newId) ||
+      scene.components.some((c) => c.id === newId))
   )
     return null
   const checked = previewFinishing(scene, preview.cabinetId, preview.draft)
   if (checked.errors.length || !checked.part) return null
-  return { ...scene, parts: [...scene.parts, { ...checked.part, id: newId }] }
+  return {
+    ...scene,
+    parts:
+      target?.kind === 'board'
+        ? scene.parts.map((p) => (p.id === target.id ? mergeFinishing(target, checked.part!) : p))
+        : [...scene.parts, { ...checked.part, id: newId }],
+  }
 }

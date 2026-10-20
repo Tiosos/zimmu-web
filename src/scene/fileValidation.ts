@@ -1,3 +1,4 @@
+import { finishingLinkError } from './finishingRecipe'
 import { validateInstalledCatalogues } from './cataloguePackage'
 import type { MaterialDef, Part, Scene, Vec3, ZimmuFile } from './types'
 import { EDGE_KEYS } from './edgeBanding'
@@ -147,6 +148,12 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
   if (kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (kind === 'board') {
+    if (part.finishing !== undefined) {
+      const error = finishingLinkError(part.finishing)
+      if (error) throw new ZimmuFileValidationError(`${path}.finishing`, error)
+      if (part.driven || part.role !== undefined)
+        throw new ZimmuFileValidationError(`${path}.finishing`, 'must belong to a role-free manual board')
+    }
     finiteNumberAt(part.width, `${path}.width`)
     finiteNumberAt(part.thickness, `${path}.thickness`)
     if (
@@ -255,6 +262,12 @@ function validateCurrentPart(part: Part, index: number): void {
   if (part.kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (part.kind === 'board') {
+    if (part.finishing !== undefined) {
+      const error = finishingLinkError(part.finishing)
+      if (error) throw new ZimmuFileValidationError(`${path}.finishing`, error)
+      if (part.driven || part.role !== undefined)
+        throw new ZimmuFileValidationError(`${path}.finishing`, 'must belong to a role-free manual board')
+    }
     finiteNumberAt(part.width, `${path}.width`)
     finiteNumberAt(part.thickness, `${path}.thickness`)
     if (part.grain !== 'free' && part.grain !== 'length' && part.grain !== 'width') {

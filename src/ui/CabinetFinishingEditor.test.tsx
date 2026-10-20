@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { CabinetFinishingEditor } from './CabinetFinishingEditor'
 import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
-import { acceptFinishing, type FinishingPreview } from '../scene/finishingPanels'
+import { acceptFinishing, finishingDraft, previewFinishing, type FinishingPreview } from '../scene/finishingPanels'
 import type { Scene } from '../scene/types'
 afterEach(cleanup)
 const sceneOf = (): Scene => ({
@@ -149,4 +149,89 @@ it('reports rejected Apply and accepts the reconciled scene after successful add
     />,
   )
   expect(screen.getByRole('alert').textContent).toContain('changed')
+})
+
+it('creates a linked panel, edits it in place and explicitly detaches or deletes it', () => {
+  let scene = sceneOf()
+  let last: FinishingPreview | undefined
+  const apply = (p: FinishingPreview) => {
+    last = p
+    const next = acceptFinishing(scene, p, 'linked')
+    if (!next) return false
+    scene = next
+    return true
+  }
+  const view = render(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  fireEvent.click(screen.getByLabelText('Follow cabinet dimensions'))
+  field('Finishing board name', 'Linked worktop')
+  click('Preview finishing board')
+  click('Add finishing board')
+  view.rerender(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  expect(region('Linked finishing panels').textContent).toContain('Linked worktop')
+  click('Edit linked panel')
+  click('Fit to cabinet defaults')
+  expect(screen.getByRole('button', { name: 'Save finishing board' })).toBeTruthy()
+  expect(screen.getByLabelText('Follow cabinet dimensions')).toHaveProperty('checked', true)
+  field('Left overhang', '15')
+  click('Preview finishing board')
+  expect(region('Finishing board size summary').textContent).toContain('615.00')
+  click('Save finishing board')
+  view.rerender(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  expect(last?.targetId).toBe('linked')
+  expect(scene.parts.filter((p) => p.id === 'linked')).toHaveLength(1)
+  click('Detach linked panel')
+  view.rerender(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  expect(region('Linked finishing panels').textContent).toContain('No linked panels')
+  expect(scene.parts.find((p) => p.id === 'linked')?.length).toBe(615)
+  scene = { ...scene, parts: scene.parts.filter((p) => p.id !== 'linked') }
+  view.rerender(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  click('Reset finishing draft')
+  fireEvent.click(screen.getByLabelText('Follow cabinet dimensions'))
+  click('Preview finishing board')
+  click('Add finishing board')
+  view.rerender(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  click('Delete linked panel')
+  view.rerender(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  expect(scene.parts.some((p) => p.id === 'linked')).toBe(false)
+})
+it('supports following height and setback, disables literal fields and allows repair of invalid links', () => {
+  let scene = sceneOf()
+  const apply = vi.fn((p: FinishingPreview) => {
+    const next = acceptFinishing(scene, p, 'plinth')
+    if (!next) return false
+    scene = next
+    return true
+  })
+  const view = render(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  field('Finishing panel type', 'plinth')
+  fireEvent.click(screen.getByLabelText('Follow cabinet dimensions'))
+  field('Finishing height source', 'toe-kick')
+  field('Finishing setback source', 'toe-kick')
+  expect(screen.getByLabelText('Panel height')).toHaveProperty('disabled', true)
+  expect(screen.getByLabelText('Plinth setback')).toHaveProperty('disabled', true)
+  click('Preview finishing board')
+  click('Add finishing board')
+  view.rerender(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  scene = { ...scene, materials: {} }
+  view.rerender(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  expect(region('Linked finishing panels').textContent).toContain('Last valid geometry is retained')
+  click('Edit linked panel')
+  expect(screen.getByLabelText('Finishing height source')).toHaveProperty('value', 'toe-kick')
+  click('Detach linked panel')
+  view.rerender(<CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={apply} />)
+  expect(region('Linked finishing panels').textContent).toContain('No linked panels')
+})
+it('retains the edit target across panel type changes and reports rejected management actions', () => {
+  const s = sceneOf()
+  const linked = acceptFinishing(s, previewFinishing(s, cabinet.id, { ...finishingDraft(s, cabinet.id), follow: true }), 'linked')!
+  const reject = vi.fn((_: FinishingPreview) => false)
+  render(<CabinetFinishingEditor cabinet={cabinet} scene={linked} onApply={reject} />)
+  click('Edit linked panel')
+  field('Finishing panel type', 'right-end')
+  field('Finishing height source', 'cabinet')
+  click('Preview finishing board')
+  click('Save finishing board')
+  expect(reject.mock.calls[0][0]).toMatchObject({ targetId: 'linked', draft: { kind: 'right-end', heightMode: 'cabinet' } })
+  click('Delete linked panel')
+  expect(screen.getByRole('alert').textContent).toContain('Reload the linked panel')
 })
