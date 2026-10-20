@@ -1,3 +1,4 @@
+import { acceptFinishing, type FinishingPreview } from './finishingPanels'
 import { acceptLayout, type LayoutPreview } from './layoutTools'
 import { acceptPlacement, type PlacementPreview } from './placementTools'
 import { installCataloguePackage, type CataloguePackage } from './cataloguePackage'
@@ -82,6 +83,7 @@ function buildGeometry(data: {
 
 export interface UseSceneResult {
   onInstallCatalogue: (pkg: CataloguePackage, source: Scene) => boolean
+  onApplyFinishingPreview: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview: (preview: LayoutPreview) => boolean
   onApplyPlacementPreview: (preview: PlacementPreview) => boolean
   onApplyRulePreview: (preview: RulePreview) => boolean
@@ -346,6 +348,13 @@ export function useScene(): UseSceneResult {
     }
     return true
   }, [push])
+
+  const onApplyFinishingPreview = useCallback((preview: FinishingPreview): boolean => {
+    const next = acceptFinishing(sceneRef.current, preview, `board_${crypto.randomUUID()}`)
+    if (!next) return false
+    commitReconciled(() => next, 'Add finishing board')
+    return true
+  }, [commitReconciled])
 
   const onApplyLayoutPreview = useCallback((preview: LayoutPreview): boolean => {
     const next = acceptLayout(sceneRef.current, preview)
@@ -1476,6 +1485,7 @@ export function useScene(): UseSceneResult {
   return {
     onInstallCatalogue,
     onApplyRulePreview,
+    onApplyFinishingPreview,
     onApplyLayoutPreview,
     onApplyPlacementPreview,
     scene,

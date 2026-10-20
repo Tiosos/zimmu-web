@@ -1,3 +1,4 @@
+import { finishingDraft, previewFinishing } from './finishingPanels'
 import { layoutDraft, stageLayout, previewLayout } from './layoutTools'
 import { placementDraft, previewPlacement } from './placementTools'
 import { openingLayout } from './openingLayouts'
@@ -3181,4 +3182,27 @@ it('applies a multi-cabinet layout as one undo step and refuses stale or noop ac
   act(() => result.current.undo());expect(result.current.scene).toEqual(resized)
   act(() => result.current.undo());expect((result.current.scene.components.find(c=>c.id===ids[0]) as CarcaseComponent).params.width).toBe(600)
   act(() => result.current.redo());act(() => result.current.redo());expect(result.current.scene).toEqual(arranged)
+})
+
+
+it('adds a finishing board as a separate undo step, retains it after resizing and rejects stale previews', () => {
+  mockBuildPart.mockResolvedValue({ positions: new Float32Array([0,0,0,1,0,0,0,1,0]), normals: new Float32Array([0,0,1,0,0,1,0,0,1]) })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
+  act(() => result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
+  const resized=result.current.scene
+  const preview=previewFinishing(resized,cabinet.id,finishingDraft(resized,cabinet.id))
+  act(() => { expect(result.current.onApplyFinishingPreview(preview)).toBe(true) })
+  const added=result.current.scene
+  const manual=added.parts.find(p=>p.parentId===cabinet.id&&!p.driven)!
+  expect(manual.kind).toBe('board');expect(manual.length).toBe(700)
+  expect(result.current.undoLabel).toBe('Add finishing board')
+  act(() => { expect(result.current.onApplyFinishingPreview(preview)).toBe(false) })
+  expect(result.current.scene).toBe(added)
+  act(() => result.current.undo());expect(result.current.scene).toEqual(resized)
+  act(() => result.current.undo());expect((result.current.scene.components.find(c=>c.id===cabinet.id) as CarcaseComponent).params.width).toBe(600)
+  act(() => result.current.redo());act(() => result.current.redo());expect(result.current.scene).toEqual(added)
+  act(() => result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:800}}:c))
+  expect(result.current.scene.parts.find(p=>p.id===manual.id)).toEqual(manual)
 })

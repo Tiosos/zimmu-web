@@ -1,3 +1,5 @@
+import { CabinetFinishingEditor } from './CabinetFinishingEditor'
+import type { FinishingPreview } from '../scene/finishingPanels'
 import { CabinetLayoutEditor } from './CabinetLayoutEditor'
 import type { LayoutPreview } from '../scene/layoutTools'
 import { CabinetPlacementEditor } from './CabinetPlacementEditor'
@@ -38,7 +40,7 @@ import type {
 // cabinet. It is hidden rather than unmounted, which is why this component renders nothing for it:
 // `viewport.tsx` builds its renderer, camera and every mesh in a mount-once effect, so swapping it
 // out on a tab change would tear all of that down and rebuild it. `App` owns the showing.
-const TABS = ['section', 'construction', 'placement', 'layout', 'front', 'top', 'end', '3d'] as const
+const TABS = ['section', 'construction', 'placement', 'layout', 'finishing', 'front', 'top', 'end', '3d'] as const
 export type CabinetTab = (typeof TABS)[number]
 
 const LABELS: Record<CabinetTab, string> = {
@@ -46,6 +48,7 @@ const LABELS: Record<CabinetTab, string> = {
   construction: 'Construction',
   placement: 'Placement',
   layout: 'Layout',
+  finishing: 'Finishing',
   front: 'Front',
   top: 'Top',
   end: 'End',
@@ -68,6 +71,7 @@ export function CabinetEditor({
   scene,
   onApplyRulePreview,
   onApplyPlacementPreview,
+  onApplyFinishingPreview,
   onApplyLayoutPreview,
   library,
   hardwareLibrary,
@@ -85,6 +89,7 @@ export function CabinetEditor({
   onSelectPart: (id: PartId) => void
   projectName: string
   scene?: Scene
+  onApplyFinishingPreview?: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview?: (preview: LayoutPreview) => boolean
   onApplyPlacementPreview?: (preview: PlacementPreview) => boolean
   onApplyRulePreview?: (preview: RulePreview) => boolean
@@ -163,7 +168,7 @@ export function CabinetEditor({
 
       {/* A projection is a drawing, so it can be exported as one. Section is an editor and 3D is
           the viewport; neither is what `buildDrawingSheets` would put on a sheet. */}
-      {tab !== '3d' && tab !== 'section' && tab !== 'construction' && tab !== 'placement' && tab !== 'layout' && (
+      {tab !== '3d' && tab !== 'section' && tab !== 'construction' && tab !== 'placement' && tab !== 'layout' && tab !== 'finishing' && (
         <div className="flex gap-2 px-3 pt-2">
           <Button variant="outline" size="sm" onClick={() => exportSheet('svg')}>
             SVG
@@ -178,7 +183,9 @@ export function CabinetEditor({
           cover it. */}
       {tab !== '3d' && (
         <div data-testid="cabinet-editor-panel" className="flex-1 min-h-0 overflow-auto p-3">
-          {tab === 'layout' ? (
+          {tab === 'finishing' ? (
+            scene && onApplyFinishingPreview ? <CabinetFinishingEditor cabinet={component} scene={scene} onApply={onApplyFinishingPreview} /> : <p>Finishing tools require the full project scene.</p>
+          ) : tab === 'layout' ? (
             scene && onApplyLayoutPreview ? <CabinetLayoutEditor cabinet={component} scene={scene} onApply={onApplyLayoutPreview} /> : <p>Layout tools require the full project scene.</p>
           ) : tab === 'placement' ? (
             scene && onApplyPlacementPreview ? <CabinetPlacementEditor cabinet={component} scene={scene} onApply={onApplyPlacementPreview} /> : <p>Placement tools require the full project scene.</p>

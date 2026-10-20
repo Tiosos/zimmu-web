@@ -47,6 +47,7 @@ describe('CabinetEditor', () => {
       'Construction',
       'Placement',
       'Layout',
+      'Finishing',
       'Front',
       'Top',
       'End',
@@ -130,7 +131,7 @@ describe('CabinetEditor', () => {
   // Section is an editor and 3D is the viewport. Neither is a drawing, and neither is what
   // `buildDrawingSheets` would put on a sheet, so offering the buttons there would offer a file
   // that does not correspond to what is on screen.
-  it.each(['section', 'construction', 'placement', 'layout', '3d'])('offers no export from the %s tab, which is not a drawing', (name) => {
+  it.each(['section', 'construction', 'placement', 'layout', 'finishing', '3d'])('offers no export from the %s tab, which is not a drawing', (name) => {
     render(<CabinetEditor {...props({ tab: name as CabinetTab })} />)
     expect(screen.queryByRole('button', { name: 'SVG' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'DXF' })).toBeNull()
