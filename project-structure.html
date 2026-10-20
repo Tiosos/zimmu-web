@@ -607,6 +607,8 @@
 │   ├── anchor.ts
 │   ├── blindCorner.test.ts
 │   ├── blindCorner.ts
+│   ├── cabinetLayoutLibrary.test.ts
+│   ├── cabinetLayoutLibrary.ts
 │   ├── carcaseBounds.test.ts
 │   ├── carcaseBounds.ts
 │   ├── carcaseContacts.ts
@@ -809,6 +811,8 @@
 │   ├── buildSvg.ts
 │   ├── CabinetEditor.test.tsx
 │   ├── CabinetEditor.tsx
+│   ├── CabinetLayoutLibrary.test.tsx
+│   ├── CabinetLayoutLibrary.tsx
 │   ├── CabinetProjection.test.tsx
 │   ├── CabinetProjection.tsx
 │   ├── CabinetRulesPanel.test.tsx
@@ -1588,7 +1592,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->185<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->187<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1675,6 +1679,7 @@ import { useScene } from './useScene'</code></pre>
 ├── drawing-references.md
 ├── keyboard-shortcuts.md
 ├── machining-schedule.md
+├── personal-cabinet-layout-library.md
 ├── production-packet-comparison.md
 ├── production-packet-integrity.md
 ├── production-packet-revision-review.md
@@ -1810,6 +1815,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-19-source-review-filter-navigation-notes.md
     │   ├── 2026-10-19-source-review-view-preferences-notes.md
     │   ├── 2026-10-20-cabinet-opening-layouts-notes.md
+    │   ├── 2026-10-20-personal-layout-library-notes.md
     │   └── 2026-10-20-source-review-selection-notes-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
@@ -1986,7 +1992,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-10-matching-note-return-design.md
         ├── 2026-10-10-part-note-search-snippets-design.md
         ├── 2026-10-10-production-release-gate-design.md
-        └── 2026-10-14-persisted-release-record-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-10-14-persisted-release-record-design.md
+        └── 2026-10-20-personal-layout-library-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->

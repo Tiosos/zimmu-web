@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { buildDrawingSheets } from '../geom/drawing'
 import { CabinetProjection } from './CabinetProjection'
 import { SectionElevation } from './SectionElevation'
+import { CabinetLayoutLibrary } from './CabinetLayoutLibrary'
 import { SectionToolbar } from './SectionToolbar'
 import { buildDxf } from './buildDxf'
 import { buildSvg } from './buildSvg'
@@ -177,16 +178,21 @@ export function CabinetEditor({
                   onSelect={onSelectSection}
                 />
               </div>
-              <SectionToolbar
-                components={scene?.components}
-                params={component.params}
-                componentId={component.id}
-                materials={materials}
-                parts={parts}
-                selected={selectedSectionId}
-                onSelect={onSelectSection}
-                onUpdate={onUpdate}
-              />
+              <div className="w-52 shrink-0 overflow-y-auto flex flex-col gap-3">
+                <SectionToolbar
+                  components={scene?.components}
+                  params={component.params}
+                  componentId={component.id}
+                  materials={materials}
+                  parts={parts}
+                  selected={selectedSectionId}
+                  onSelect={onSelectSection}
+                  onUpdate={onUpdate}
+                />
+                <CabinetLayoutLibrary cabinet={component} materials={materials} parts={parts}
+                  components={scene?.components ?? []} selected={selectedSectionId}
+                  onUpdate={onUpdate} onSelect={onSelectSection} />
+              </div>
             </div>
           ) : (
             <CabinetProjection

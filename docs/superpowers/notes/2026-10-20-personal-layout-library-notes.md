@@ -1,0 +1,12 @@
+# Personal cabinet layout library
+
+- User selected the personal cabinet layout library from three proposed directions. Implements fifteen capabilities: save selected opening/save whole cabinet, rename, duplicate, delete, search, sort, summaries, preview, apply opening/apply cabinet, export selected/export all, append-only import and local restoration.
+- Reuses pasteOpening, SectionElevation and openingLayoutErrors. No project format changes or additional dependencies. Saved section snapshots exclude independent face-frame layouts, materials, drawer parameters and per-board overrides; controls and documentation disclose this scope.
+- Local storage is written explicitly before updating the visible entries. Loading errors leave data untouched and disable edits until reload succeeds. Storage events refresh the library. Writes compare the current raw snapshot before replacing it; this detects ordinary concurrent-tab conflicts, rather than claiming a transactional cross-tab lock.
+- File requests use generation checks on success and failure plus unmount cleanup. The common write path catches storage changes during asynchronous reads. Import always appends fresh library identities and unique names.
+- Unknown JSON is reconstructed from whitelisted fields with version, size, entry-count, tree-budget, enum and numeric checks, followed by canonical section validation. No partial import on an invalid entry. Full paste keeps destination root identity/size, and fresh descendants prevent binding source board or drawer overrides to unrelated openings.
+- Thirty-seven deliberate guard mutations produced expected assertion failures. Each source was backed up before mutation, restored and compared afterward. Coverage includes bounds/schema, snapshot identity, append behavior, storage failure/conflicts, preview expiry, stale update guards, invalid fit, late import results/errors and unmounts.
+
+- Final cleanup uses a captured, stable request-state object in the unmount handler, removing the hooks lint warning while still incrementing the live generation. The three asynchronous-import mutations were rerun against this version and produced expected assertion failures before restoration. Final verification was rerun on the restored source.
+
+- Final validation: all 194 unit-test files passed (3,451 tests passed, 10 skipped); all six Chromium workflows passed. Typecheck, lint with no warnings, production build and catalogue service build passed.
