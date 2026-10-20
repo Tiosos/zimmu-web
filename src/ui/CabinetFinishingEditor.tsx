@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import type { CarcaseComponent, Scene } from '../scene/types'
+import type { BoardPart, CarcaseComponent, Scene } from '../scene/types'
 import { nearestCarcase } from '../scene/nearestCarcase'
 import { CabinetProjection } from './CabinetProjection'
 import {
   FINISHING_KINDS,
   finishingDraft,
+  finishingIssues,
   finishingMaterials,
   finishingSignature,
   previewFinishing,
@@ -24,6 +25,7 @@ export function CabinetFinishingEditor({
   onApply: (preview: FinishingPreview) => boolean
 }) {
   const signature = finishingSignature(scene)
+  const [targetId, setTargetId] = useState<string | undefined>()
   const [base, setBase] = useState(signature)
   const [draft, setDraft] = useState(() => finishingDraft(scene, cabinet.id))
   const [preview, setPreview] = useState<FinishingPreview | null>(null)
@@ -32,7 +34,7 @@ export function CabinetFinishingEditor({
   const [message, setMessage] = useState('')
   const stale = base !== signature
   if (preview && preview.signature !== signature) setPreview(null)
-  // Apply adds an ordinary board. Capture the parent's reconciled scene, including its new ID.
+  // Capture the parent's reconciled scene, including its new ID.
   if (applied && stale) {
     setBase(signature)
     setApplied(false)
@@ -44,8 +46,12 @@ export function CabinetFinishingEditor({
     setApplied(false)
     setMessage('')
   }
-  const reset = (kind = draft.kind) => {
-    setDraft(finishingDraft(scene, cabinet.id, kind))
+  const reset = (kind = draft.kind, keepTarget = false) => {
+    if (!keepTarget) setTargetId(undefined)
+    setDraft({
+      ...finishingDraft(scene, cabinet.id, kind),
+      follow: keepTarget ? !!draft.follow : false,
+    })
     setBase(signature)
     setPreview(null)
     setError('')
@@ -60,6 +66,11 @@ export function CabinetFinishingEditor({
       {label} (mm)
       <input
         aria-label={label}
+        disabled={
+          !!draft.follow &&
+          ((key === 'height' && draft.heightMode !== undefined && draft.heightMode !== 'custom') ||
+            (key === 'setback' && draft.setbackMode === 'toe-kick'))
+        }
         type="number"
         step="any"
         min="0"
@@ -71,19 +82,86 @@ export function CabinetFinishingEditor({
   )
   const byId = new Map(scene.components.map((c) => [c.id, c]))
   const parts = scene.parts.filter((p) => nearestCarcase(p, byId)?.id === cabinet.id)
+  const linked = parts.filter(
+    (p): p is BoardPart => p.kind === 'board' && !!p.finishing && p.parentId === cabinet.id,
+  )
+  const edit = (part: BoardPart) => {
+    setTargetId(part.id)
+    setDraft({ ...part.finishing!.draft })
+    setBase(signature)
+    setPreview(null)
+    setError('')
+    setMessage('')
+    setApplied(false)
+  }
+  const manage = (part: BoardPart, action: 'detach' | 'delete') => {
+    const request = {
+      ...previewFinishing(scene, cabinet.id, part.finishing!.draft, part.id),
+      action,
+    }
+    if (!onApply(request)) {
+      setError('The project changed. Reload the linked panel before continuing.')
+      return
+    }
+    reset()
+    setApplied(true)
+    setMessage(
+      action === 'detach'
+        ? 'Finishing board detached; its size is now fixed.'
+        : 'Finishing board deleted.',
+    )
+  }
   const p = preview?.part
   return (
     <section aria-label="Cabinet finishing editor" className="text-xs max-w-5xl mx-auto space-y-4">
       <p>
         Create a worktop or finishing panel in this cabinet's local frame. Boards move and rotate
-        with the cabinet; their sizes remain fixed after creation. Edit or delete them with the
-        normal part tools.
+        with the cabinet. Enable Follow cabinet dimensions to keep a panel linked; unchecked boards
+        keep fixed sizes. Editing a linked board's dimensions, position, name, material or grain
+        with normal part tools detaches it. Color, visibility and machining edits keep the link.
       </p>
       <p>
         Defaults use the occupied envelope from material slots, including fronts, frames and applied
         backs. Individual board overrides do not change that envelope. No joints, machining or
         clearance checks are added. Drafts are discarded when leaving this tab.
       </p>
+      <section aria-label="Linked finishing panels" className="border rounded p-3 space-y-2">
+        <h3 className="font-medium">Linked finishing panels ({linked.length})</h3>
+        {!linked.length && <p>No linked panels in this cabinet.</p>}
+        {linked.map((part) => (
+          <section
+            key={part.id}
+            aria-label={`Linked panel ${part.label}`}
+            className="border rounded p-2"
+          >
+            <p>
+              {part.label} — {part.length.toFixed(2)} × {part.width.toFixed(2)} ×{' '}
+              {part.thickness.toFixed(2)} mm
+            </p>
+            {finishingIssues(scene, part).map((issue) => (
+              <p key={issue} role="alert">
+                {issue} Last valid geometry is retained.
+              </p>
+            ))}
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => edit(part)}>
+                Edit linked panel
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => manage(part, 'detach')}>
+                Detach linked panel
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => manage(part, 'delete')}>
+                Delete linked panel
+              </Button>
+            </div>
+          </section>
+        ))}
+      </section>
+      {targetId && (
+        <p role="status">
+          Editing an existing linked panel. Preview before saving; its board ID stays the same.
+        </p>
+      )}
       {stale && !applied && (
         <p role="alert">
           Cabinet geometry, parts or materials changed. Reset the finishing draft before continuing.
@@ -93,12 +171,29 @@ export function CabinetFinishingEditor({
       {message && <p role="status">{message}</p>}
       <fieldset disabled={stale && !applied} className="border rounded p-3 grid grid-cols-2 gap-3">
         <legend>Finishing board</legend>
+        <label className="col-span-2">
+          <input
+            type="checkbox"
+            checked={!!draft.follow}
+            onChange={(e) => patch('follow', e.target.checked)}
+          />{' '}
+          Follow cabinet dimensions
+        </label>
         <label>
           Panel type
           <select
             aria-label="Finishing panel type"
             value={draft.kind}
-            onChange={(e) => reset(e.target.value as FinishingKind)}
+            onChange={(e) => {
+              if (targetId) {
+                setDraft({
+                  ...finishingDraft(scene, cabinet.id, e.target.value as FinishingKind),
+                  follow: !!draft.follow,
+                })
+                setPreview(null)
+                setError('')
+              } else reset(e.target.value as FinishingKind)
+            }}
             className="block border rounded p-1 w-full"
           >
             {FINISHING_KINDS.map(([id, label]) => (
@@ -134,6 +229,7 @@ export function CabinetFinishingEditor({
               setPreview(null)
               setError('')
               setApplied(false)
+              setMessage('')
             }}
             className="block border rounded p-1 w-full"
           >
@@ -187,6 +283,45 @@ export function CabinetFinishingEditor({
             className="block border rounded p-1 w-full"
           />
         </label>
+        {draft.follow &&
+          (draft.kind.includes('end') ||
+            draft.kind.includes('filler') ||
+            draft.kind === 'plinth') && (
+            <label>
+              Height source
+              <select
+                aria-label="Finishing height source"
+                value={draft.heightMode ?? 'custom'}
+                onChange={(e) =>
+                  patch('heightMode', e.target.value as FinishingDraft['heightMode'])
+                }
+                className="block border rounded p-1 w-full"
+              >
+                <option value="custom">Custom height</option>
+                {draft.kind === 'plinth' ? (
+                  <option value="toe-kick">Toe-kick height less bottom clearance</option>
+                ) : (
+                  <option value="cabinet">Cabinet height less bottom clearance</option>
+                )}
+              </select>
+            </label>
+          )}
+        {draft.follow && draft.kind === 'plinth' && (
+          <label>
+            Setback source
+            <select
+              aria-label="Finishing setback source"
+              value={draft.setbackMode ?? 'custom'}
+              onChange={(e) =>
+                patch('setbackMode', e.target.value as FinishingDraft['setbackMode'])
+              }
+              className="block border rounded p-1 w-full"
+            >
+              <option value="custom">Custom setback</option>
+              <option value="toe-kick">Cabinet toe-kick setback</option>
+            </select>
+          </label>
+        )}
         {draft.kind === 'worktop' ? (
           <>
             {numericField('left', 'Left overhang')}
@@ -209,7 +344,7 @@ export function CabinetFinishingEditor({
         {draft.kind === 'plinth' && numericField('setback', 'Plinth setback')}
       </fieldset>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => reset()}>
+        <Button size="sm" variant="outline" onClick={() => reset(draft.kind, !!targetId)}>
           Fit to cabinet defaults
         </Button>
         <Button
@@ -218,7 +353,7 @@ export function CabinetFinishingEditor({
           onClick={() => {
             setError('')
             setApplied(false)
-            setPreview(previewFinishing(scene, cabinet.id, draft))
+            setPreview(previewFinishing(scene, cabinet.id, draft, targetId))
           }}
         >
           Preview finishing board
@@ -235,10 +370,11 @@ export function CabinetFinishingEditor({
             setPreview(null)
             setError('')
             setApplied(true)
-            setMessage('Finishing board added.')
+            setMessage(targetId ? 'Finishing board updated.' : 'Finishing board added.')
+            if (!draft.follow) setTargetId(undefined)
           }}
         >
-          Add finishing board
+          {targetId ? 'Save finishing board' : 'Add finishing board'}
         </Button>
         <Button size="sm" variant="outline" onClick={() => reset()}>
           Reset finishing draft
@@ -288,7 +424,7 @@ export function CabinetFinishingEditor({
                         view={view}
                         cabinet={cabinet}
                         materials={scene.materials}
-                        parts={[...parts, p]}
+                        parts={[...parts.filter((part) => part.id !== targetId), p]}
                         byId={byId}
                         selectedId={p.id}
                         onSelect={() => {}}

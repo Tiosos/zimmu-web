@@ -1,3 +1,4 @@
+import type { FinishingLink } from './finishingRecipe'
 import type { CataloguePackage } from './cataloguePackage'
 import type { Section, SectionId } from './sectionTree'
 import type { PartOverrides } from './resolveThickness'
@@ -157,6 +158,8 @@ export interface BoardPart {
   // Optional for file compatibility: pre-Stage-4 boards carry none.
   operations?: ManualMachiningOperation[]
   edgeBanding?: EdgeDecisions
+  // Opt-in, role-free finishing geometry owned by the immediate carcase parent.
+  finishing?: FinishingLink
   visible: boolean
   parentId: ComponentId | null
   driven: boolean

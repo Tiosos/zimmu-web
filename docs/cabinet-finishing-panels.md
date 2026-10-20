@@ -1,6 +1,6 @@
 # Cabinet finishing panels
 
-Open a cabinet's **Finishing** tab and choose Worktop, Left/Right end panel, Left/Right filler, Front plinth or Rear splashback. **Fit to cabinet defaults** resets the draft to the selected panel type's starting dimensions. Changing panel type also resets the draft.
+Open a cabinet's **Finishing** tab and choose Worktop, Left/Right end panel, Left/Right filler, Front plinth or Rear splashback. **Fit to cabinet defaults** resets the draft to the selected panel type's starting dimensions. Changing panel type resets dimensions; while editing a linked panel it keeps the same target board.
 
 Choose an existing panel material and use its stock thickness, or choose Custom thickness explicitly. Name the board and select length, width or free grain in the board's own axes. The summary shows a custom thickness that differs from stock. Edge-band and non-panel materials are excluded.
 
@@ -8,6 +8,14 @@ Worktops have independent left/right/front/rear overhangs and a vertical gap abo
 
 **Preview finishing board** displays Front/Top/End projections with the new board highlighted, its local extents, length × width × thickness, material, grain and area. Check these values before **Add finishing board**, which creates one real board and one undo step. Reset and Cancel never modify the project.
 
-Created boards are ordinary, editable, non-driven parts attached to the cabinet. They move and rotate with it, appear in the normal part tools, cutting lists, nesting and exports, and are saved with the project. Their dimensions remain fixed when the cabinet is resized. Use the normal part editor to change/delete them; adding another panel creates another board and does not replace an existing one.
+Unchecked boards remain ordinary fixed-size boards. They move and rotate with the cabinet, appear in normal part tools, cutting lists, nesting and exports, and save with the project. Existing boards keep this behavior.
+
+Enable **Follow cabinet dimensions** before previewing to create a linked panel. Worktops follow occupied width/depth and top elevation, retaining all overhangs and vertical gaps. Ends follow occupied depth and outside side placement; fillers keep their custom width and follow outside side/front placement. Ends and fillers offer custom height or cabinet height less bottom clearance. Plinths follow width and offer custom or toe-kick height/setback; following height subtracts bottom clearance and requires a positive remainder. Splashbacks follow width, rear placement and top elevation while retaining custom height and clearance. Stock thickness follows changes to that named material; custom thickness and grain remain explicit.
+
+**Linked finishing panels** lists the cabinet's linked boards and their current dimensions. **Edit linked panel** loads its saved settings, then **Preview finishing board** shows the replacement in Front/Top/End views. **Save finishing board** updates the existing board with the same ID. **Detach linked panel** keeps its current geometry as a fixed board; **Delete linked panel** removes it. Each operation is one undo step. Switching Follow off while editing also makes the saved board fixed-size.
+
+A linked board retains its color, visibility, cuts, machining and edge decisions through resizing. Editing its dimensions, transform, parent, name, material or grain with normal part tools detaches it; cosmetic, visibility and machining edits retain the recipe. A moved duplicate is fixed-size. Deleting its cabinet promotes it in world space as a fixed board, matching the existing manual-board lifecycle.
+
+If a linked panel cannot rebuild, its list shows the reason and retains its last valid geometry. Restore valid cabinet/material settings to resume following, edit the recipe, or detach/delete the panel. Check these messages before manufacturing: exports contain the current last-valid board geometry. Version 29 projects save recipes; older fixed-board projects load unchanged. An older app cannot maintain these links correctly.
 
 Fit defaults use material-slot occupied bounds, including fronts, frames and applied backs. Per-board overrides do not change that envelope. Finishing panels do not change placement envelopes or add joints, machining, collision or clearance assessments. Preview against the actual cabinet and review fit before manufacture. Geometry, part or material changes require a draft reset; mesh updates do not. Drafts are discarded when leaving the tab.

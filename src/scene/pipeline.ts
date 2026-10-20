@@ -1,3 +1,4 @@
+import { regenerateFinishing } from './finishingPanels'
 import type { Scene } from './types'
 import { resolvePlacement } from './resolvePlacement'
 import { reconcileJoints } from './reconcileJoints'
@@ -6,14 +7,15 @@ import { regenerateDrawers } from './regenerateDrawers'
 import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { reconcileCatalogue } from './catalogue'
 
-// The one place a scene mutation becomes geometry. Five stages, and the order is fixed because
+// The one place a scene mutation becomes geometry. The order is fixed because
 // the dependencies run one way. The face frame leads the generators: it reads nothing any of them
 // emit — its inputs are the section tree, the cabinet's front rectangle, the frame parameters and
 // the materials. Drawers follow for the same reason: a drawer reads nothing a carcase emits — its
 // inputs are the section tree, its own parameters and the materials — while the carcase's slide
 // machining is a figure about the box that fills the opening, so a pass run the other way round
 // would machine the cabinet against a box it had not built yet. Carcases then emit their parts and
-// component-owned cuts, and reconcileJoints derives joint cuts and seats from scene.joints last:
+// component-owned cuts. Linked finishing boards follow their cabinet envelope next, before
+// reconcileJoints derives joint cuts and seats from scene.joints last:
 // reversed, joints would be derived against parts that do not exist yet.
 // Placement leads, and it has to. regenerateDrawers and regenerateComponents genuinely do not read a
 // component's position — they write part positions *local* to the component — but reconcileJoints
@@ -26,7 +28,7 @@ export function applyPipeline(scene: Scene): Scene {
   const catalogued = { ...scene, components: scene.components.map((component) =>
     component.kind === 'carcase' ? reconcileCatalogue(component, scene.cabinetRules, scene.companyCatalogues) : component) }
   return reconcileJoints(
-    regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(catalogued)))),
+    regenerateFinishing(regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(catalogued))))),
   )
 }
 
