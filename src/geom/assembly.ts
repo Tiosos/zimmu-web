@@ -472,6 +472,7 @@ export function buildAssemblyViews(
   byId: Map<ComponentId, Component>,
   cabinet: CarcaseComponent,
   materials: Record<string, MaterialDef>,
+  sectionViews = true,
 ): [AssemblyView, AssemblyView, AssemblyView] {
   const p = cabinet.params
   // Overrides are read BEFORE the layout resolves, exactly as the generator does. A drawing that
@@ -482,7 +483,7 @@ export function buildAssemblyViews(
     .map((part) => ({ part, box: cabinetSpaceBox(part, byId, cabinet) }))
 
   const views = VIEWS.map((view): AssemblyView => {
-    const kept = boxes.filter(({ box }) => !culled(box, view, p))
+    const kept = boxes.filter(({ box }) => !sectionViews || !culled(box, view, p))
     const projected = kept
       .map(({ part, box }) => ({ part, box, proj: projectBox(box, view, p) }))
       .sort((a, b) => a.proj.depthMin - b.proj.depthMin)

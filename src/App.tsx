@@ -68,8 +68,10 @@ function App() {
     onAddCarcase,
     onInstallCatalogue,
     onApplyRulePreview,
+    onApplyPullPreview,
     onApplyFrontsPreview,
     onApplyFinishingPreview,
+    onApplyRunWorktopPreview,
     onApplyLayoutPreview,
     onApplyPlacementPreview,
     parameterFor,
@@ -809,8 +811,10 @@ function App() {
         )}
         {selectedCarcase !== null && mainView === 'model' && (
           <CabinetEditor
+            onApplyPullPreview={onApplyPullPreview}
             onApplyFrontsPreview={onApplyFrontsPreview}
             onApplyFinishingPreview={onApplyFinishingPreview}
+            onApplyRunWorktopPreview={onApplyRunWorktopPreview}
             onApplyLayoutPreview={onApplyLayoutPreview}
             onApplyPlacementPreview={onApplyPlacementPreview}
             library={library}

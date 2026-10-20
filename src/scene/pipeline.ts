@@ -1,3 +1,4 @@
+import { regenerateRunWorktops } from './runWorktops'
 import { regenerateFinishing } from './finishingPanels'
 import type { Scene } from './types'
 import { resolvePlacement } from './resolvePlacement'
@@ -7,6 +8,7 @@ import { regenerateDrawers } from './regenerateDrawers'
 import { regenerateFaceFrames } from './regenerateFaceFrames'
 import { reconcileCatalogue } from './catalogue'
 
+// Run worktops resolve after cabinet and single-panel geometry, before joint machining.
 // The one place a scene mutation becomes geometry. The order is fixed because
 // the dependencies run one way. The face frame leads the generators: it reads nothing any of them
 // emit — its inputs are the section tree, the cabinet's front rectangle, the frame parameters and
@@ -28,7 +30,7 @@ export function applyPipeline(scene: Scene): Scene {
   const catalogued = { ...scene, components: scene.components.map((component) =>
     component.kind === 'carcase' ? reconcileCatalogue(component, scene.cabinetRules, scene.companyCatalogues) : component) }
   return reconcileJoints(
-    regenerateFinishing(regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(catalogued))))),
+    regenerateRunWorktops(regenerateFinishing(regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(catalogued)))))),
   )
 }
 

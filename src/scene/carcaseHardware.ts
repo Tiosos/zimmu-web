@@ -1,3 +1,4 @@
+import { pullHardwareKey, pullSpecError } from './pullPattern'
 import { clearDepth, frontGeometryOf } from './carcaseRoles'
 import { resolveCarcase } from './carcaseOpenings'
 import { componentsById } from './componentTree'
@@ -96,6 +97,7 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
   // A slide row is bored into BOTH uprights of a bay and both carry the same cut id, because both
   // name the front the bay wears. Deduped by that id, the pair is counted once.
   const seenSlide = new Set<string>()
+  const pullKeys = new Set<string>()
 
   for (const part of scene.parts) {
     if (part.kind !== 'board') continue
@@ -104,8 +106,21 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
     const cabinet = nearestCarcase(part, byId)
     const owner = cabinet?.id ?? null
 
+    let countedPull = false
     for (const cut of part.cuts) {
       if (cut.kind !== 'hole-array') continue
+
+      const pull = part.frontPull
+      if (!countedPull && pull && !pullSpecError(pull) && cut.id.startsWith('pull_') &&
+          cut.count === (pull.kind === 'knob' ? 1 : 2) && cut.diameter === pull.diameter &&
+          cut.face === '+Z' && cut.depth === part.thickness &&
+          cut.pitch === (pull.kind === 'knob' ? 1 : pull.pitch) &&
+          cut.axis === (pull.orientation === 'vertical' ? 'U' : 'V')) {
+        const key = pullHardwareKey(pull)
+        pullKeys.add(key)
+        add(owner, key, 1)
+        countedPull = true
+      }
 
       if (cut.id.startsWith('cups_')) {
         // One hinge per cup, and the plate with it: they are sold as a set and their quantities
@@ -205,7 +220,7 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
   // is then byte-identical, which is what makes it diffable.
   const lines: HardwareLine[] = []
   const emit = (id: ComponentId | null, label: string) => {
-    for (const key of CATALOGUE_ORDER) {
+    for (const key of [...CATALOGUE_ORDER, ...[...pullKeys].sort()]) {
       const qty = tally.get(cell(id, key))
       if (qty !== undefined && qty > 0)
         lines.push({ componentId: id, cabinetLabel: label, key, qty })

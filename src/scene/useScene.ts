@@ -1,3 +1,5 @@
+import { acceptRunWorktop, type RunWorktopPreview } from './runWorktops'
+import { acceptPulls, type PullPreview } from './pullLayout'
 import { acceptFronts, type FrontsPreview } from './frontsDrawers'
 import { acceptFinishing, releaseEditedFinishing, type FinishingPreview } from './finishingPanels'
 import { acceptLayout, type LayoutPreview } from './layoutTools'
@@ -84,7 +86,9 @@ function buildGeometry(data: {
 
 export interface UseSceneResult {
   onInstallCatalogue: (pkg: CataloguePackage, source: Scene) => boolean
+  onApplyPullPreview: (preview: PullPreview) => boolean
   onApplyFrontsPreview: (preview: FrontsPreview) => boolean
+  onApplyRunWorktopPreview: (preview: RunWorktopPreview) => boolean
   onApplyFinishingPreview: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview: (preview: LayoutPreview) => boolean
   onApplyPlacementPreview: (preview: PlacementPreview) => boolean
@@ -351,10 +355,24 @@ export function useScene(): UseSceneResult {
     return true
   }, [push])
 
+  const onApplyPullPreview = useCallback((preview: PullPreview): boolean => {
+    const next = acceptPulls(sceneRef.current, preview)
+    if (!next) return false
+    commitReconciled(() => next, 'Apply cabinet hardware')
+    return true
+  }, [commitReconciled])
+
   const onApplyFrontsPreview = useCallback((preview: FrontsPreview): boolean => {
     const next = acceptFronts(sceneRef.current, preview)
     if (!next) return false
     commitReconciled(() => next, 'Apply fronts and drawers')
+    return true
+  }, [commitReconciled])
+
+  const onApplyRunWorktopPreview = useCallback((preview: RunWorktopPreview): boolean => {
+    const next = acceptRunWorktop(sceneRef.current, preview, `board_${crypto.randomUUID()}`)
+    if (!next) return false
+    commitReconciled(() => next, preview.action === 'detach' ? 'Detach run worktop' : preview.action === 'delete' ? 'Delete run worktop' : preview.targetId ? 'Update run worktop' : 'Add run worktop')
     return true
   }, [commitReconciled])
 
@@ -532,6 +550,9 @@ export function useScene(): UseSceneResult {
         clone = {
           ...orig,
           id: `board_${crypto.randomUUID()}` as PartId,
+          ...(orig.frontPull ? { driven: false, role: undefined } : {}),
+          runWorktop: undefined,
+          frontPull: undefined,
           finishing: undefined, // A moved duplicate is a fixed board; it must not snap back on regeneration.
           color,
           position: { ...orig.position, x: orig.position.x + orig.length + 10 },
@@ -1263,7 +1284,7 @@ export function useScene(): UseSceneResult {
       const after = applyPipeline({
         ...before,
         parts: before.parts.map((p) =>
-          p.id === id ? { ...(updater ? updater(p) : p), driven: false, role: undefined, ...(p.kind === 'board' ? { finishing: undefined } : {}) } : p,
+          p.id === id ? { ...(updater ? updater(p) : p), driven: false, role: undefined, ...(p.kind === 'board' ? { finishing: undefined, runWorktop: undefined } : {}) } : p,
         ),
       })
       setScene(after)
@@ -1497,7 +1518,9 @@ export function useScene(): UseSceneResult {
   return {
     onInstallCatalogue,
     onApplyRulePreview,
+    onApplyPullPreview,
     onApplyFrontsPreview,
+    onApplyRunWorktopPreview,
     onApplyFinishingPreview,
     onApplyLayoutPreview,
     onApplyPlacementPreview,

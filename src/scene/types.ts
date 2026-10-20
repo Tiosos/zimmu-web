@@ -1,3 +1,5 @@
+import type { RunWorktopLink } from './runWorktopRecipe'
+import type { PullSpec } from './pullPattern'
 import type { FinishingLink } from './finishingRecipe'
 import type { CataloguePackage } from './cataloguePackage'
 import type { Section, SectionId } from './sectionTree'
@@ -158,8 +160,11 @@ export interface BoardPart {
   // Optional for file compatibility: pre-Stage-4 boards carry none.
   operations?: ManualMachiningOperation[]
   edgeBanding?: EdgeDecisions
+  // Generated front fixing layout; detached boards retain their existing manual geometry.
+  frontPull?: PullSpec
   // Opt-in, role-free finishing geometry owned by the immediate carcase parent.
   finishing?: FinishingLink
+  runWorktop?: RunWorktopLink
   visible: boolean
   parentId: ComponentId | null
   driven: boolean
