@@ -40,10 +40,11 @@ const props = (over: Partial<ComponentProps<typeof CabinetEditor>> = {}) => ({
 describe('CabinetEditor', () => {
   afterEach(cleanup)
 
-  it('offers the five subtabs a cabinet is described by', () => {
+  it('offers the cabinet subtabs a cabinet is described by', () => {
     render(<CabinetEditor {...props()} />)
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'Section',
+      'Construction',
       'Front',
       'Top',
       'End',
@@ -127,7 +128,7 @@ describe('CabinetEditor', () => {
   // Section is an editor and 3D is the viewport. Neither is a drawing, and neither is what
   // `buildDrawingSheets` would put on a sheet, so offering the buttons there would offer a file
   // that does not correspond to what is on screen.
-  it.each(['section', '3d'])('offers no export from the %s tab, which is not a drawing', (name) => {
+  it.each(['section', 'construction', '3d'])('offers no export from the %s tab, which is not a drawing', (name) => {
     render(<CabinetEditor {...props({ tab: name as CabinetTab })} />)
     expect(screen.queryByRole('button', { name: 'SVG' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'DXF' })).toBeNull()
