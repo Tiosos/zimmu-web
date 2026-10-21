@@ -1,3 +1,4 @@
+import { hingeLayoutRow, type HingeLayout } from './hingeLayout'
 // The machining a front implies — which is not the same as machining *on* fronts. A hinge cup is
 // bored into the door, but the plate screws that carry it are bored into the carcase upright beside
 // it, and a drawer's slide screws are bored into two uprights with nothing on the front at all. So
@@ -75,9 +76,11 @@ export function cupRow(
   hinge: 'left' | 'right',
   frontRole: string,
   depth = CUP_DEPTH,
+  layout?: HingeLayout,
 ): HoleArrayCut | null {
   if (panel.thickness < depth + MIN_FACE_BEHIND_CUP) return null
-  const row = hingePositions(panel.length)
+  const row = layout ? hingeLayoutRow(panel.length, layout, hingeCount(panel.length)) : hingePositions(panel.length)
+  if (!row || (layout && (panel.width < CUP_EDGE_DISTANCE + CUP_DIAMETER / 2 || !Number.isFinite(panel.thickness)))) return null
   return {
     kind: 'hole-array',
     id: `cups_${frontRole}`,
@@ -131,7 +134,9 @@ export function slideScrewRow(
   face: Face,
   height: number,
   frontRole: string,
+  span?: { start: number; end: number },
 ): HoleArrayCut {
+  const first = (span?.start ?? 0) + SLIDE_SCREW_SETBACK
   const runnable = panel.length - SLIDE_SCREW_SETBACK
   return {
     kind: 'hole-array',
@@ -139,9 +144,9 @@ export function slideScrewRow(
     label: 'Drawer slide',
     face,
     axis: 'U',
-    start: { x: SLIDE_SCREW_SETBACK, y: height, z: face === '+Z' ? panel.thickness : 0 },
+    start: { x: first, y: height, z: face === '+Z' ? panel.thickness : 0 },
     pitch: SLIDE_SCREW_PITCH,
-    count: Math.max(2, Math.floor(runnable / SLIDE_SCREW_PITCH)),
+    count: span ? Math.max(2, Math.floor((span.end - first - PLATE_SCREW_DIAMETER / 2) / SLIDE_SCREW_PITCH) + 1) : Math.max(2, Math.floor(runnable / SLIDE_SCREW_PITCH)),
     diameter: PLATE_SCREW_DIAMETER,
     depth: blindDepth(PLATE_SCREW_DEPTH, panel.thickness),
   }

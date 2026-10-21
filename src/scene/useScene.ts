@@ -1,3 +1,4 @@
+import { acceptMotion, type MotionPreview } from './motionHardware'
 import { acceptWorktopMachining, worktopCutOwned, type WorktopMachiningPreview } from './worktopMachining'
 import { acceptRunWorktop, type RunWorktopPreview } from './runWorktops'
 import { acceptPulls, type PullPreview } from './pullLayout'
@@ -87,6 +88,7 @@ function buildGeometry(data: {
 
 export interface UseSceneResult {
   onInstallCatalogue: (pkg: CataloguePackage, source: Scene) => boolean
+  onApplyMotionPreview: (preview: MotionPreview) => boolean
   onApplyPullPreview: (preview: PullPreview) => boolean
   onApplyFrontsPreview: (preview: FrontsPreview) => boolean
   onApplyWorktopMachiningPreview: (preview: WorktopMachiningPreview) => boolean
@@ -371,6 +373,13 @@ export function useScene(): UseSceneResult {
     return true
   }, [commitReconciled])
 
+  const onApplyMotionPreview = useCallback((preview: MotionPreview): boolean => {
+    const next = acceptMotion(sceneRef.current, preview)
+    if (!next) return false
+    commitReconciled(() => next, 'Apply hinges and runners')
+    return true
+  }, [commitReconciled])
+
   const onApplyWorktopMachiningPreview = useCallback((preview: WorktopMachiningPreview): boolean => {
     const next = acceptWorktopMachining(sceneRef.current, preview)
     if (!next) return false
@@ -559,9 +568,10 @@ export function useScene(): UseSceneResult {
         clone = {
           ...orig,
           id: `board_${crypto.randomUUID()}` as PartId,
-          ...(orig.frontPull ? { driven: false, role: undefined } : {}),
+          ...((orig.frontPull || orig.hingeLayout) ? { driven: false, role: undefined } : {}),
           worktopMachining: undefined,
           runWorktop: undefined,
+          hingeLayout: undefined,
           frontPull: undefined,
           finishing: undefined, // A moved duplicate is a fixed board; it must not snap back on regeneration.
           color,
@@ -1531,6 +1541,7 @@ export function useScene(): UseSceneResult {
   return {
     onInstallCatalogue,
     onApplyRulePreview,
+    onApplyMotionPreview,
     onApplyPullPreview,
     onApplyFrontsPreview,
     onApplyWorktopMachiningPreview,

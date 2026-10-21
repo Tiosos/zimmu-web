@@ -53,6 +53,7 @@ export function finishingSignature(scene: Scene): string {
       edges: p.kind === 'board' ? p.edgeBanding : undefined,
       worktopMachining: p.kind === 'board' ? p.worktopMachining : undefined,
       runWorktop: p.kind === 'board' ? p.runWorktop : undefined,
+      hingeLayout: p.kind === 'board' ? p.hingeLayout : undefined,
       frontPull: p.kind === 'board' ? p.frontPull : undefined,
       finishing: p.kind === 'board' ? p.finishing : undefined,
       overrides: p.kind === 'board' ? p.overrides : undefined,

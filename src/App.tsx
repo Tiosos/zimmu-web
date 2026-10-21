@@ -68,6 +68,7 @@ function App() {
     onAddCarcase,
     onInstallCatalogue,
     onApplyRulePreview,
+    onApplyMotionPreview,
     onApplyPullPreview,
     onApplyFrontsPreview,
     onApplyFinishingPreview,
@@ -812,6 +813,7 @@ function App() {
         )}
         {selectedCarcase !== null && mainView === 'model' && (
           <CabinetEditor
+            onApplyMotionPreview={onApplyMotionPreview}
             onApplyPullPreview={onApplyPullPreview}
             onApplyFrontsPreview={onApplyFrontsPreview}
             onApplyFinishingPreview={onApplyFinishingPreview}
