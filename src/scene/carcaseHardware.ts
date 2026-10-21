@@ -6,6 +6,7 @@ import { boxDepth } from './drawerBox'
 import { nearestCarcase } from './nearestCarcase'
 import {
   CATALOGUE_ORDER,
+  RUNNER_NOMINALS,
   hingeKeyFor,
   runnerKeyFor,
   SCREW_KEY,
@@ -70,12 +71,18 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
   // A framed cabinet can need several hinge SKUs: an outer stile and a mid stile can present
   // different overlays. Resolve the variant per front role from the same tree/frame geometry that
   // generated the door and frame. Quantity still comes later, exclusively from emitted cup rows.
+  const runnerNominal = new Map<string, number>()
   const framedHingeKey = new Map<string, string>()
   for (const cabinet of carcases) {
-    if (cabinet.params.frame === undefined) continue
     const resolved = resolveCarcase(cabinet, scene.parts, scene.materials)
     if (resolved === null) continue
     const fronts = frontGeometryOf(cabinet.params, resolved.tree)
+    for (const cell of frontCells(cabinet.params.section, resolved.tree, fronts)) {
+      if (cell.spec.kind !== 'drawer-front') continue
+      const drawer = scene.components.find(c => c.kind === 'drawer' && c.parentId === cabinet.id && c.sectionId === cell.sectionId && (c.frameOpeningId ?? c.sectionId) === cell.openingId)
+      if (drawer?.kind === 'drawer' && drawer.params.nominal != null) runnerNominal.set(`${cabinet.id} ${frontRoleOf(cell)}`, drawer.params.nominal)
+    }
+    if (cabinet.params.frame === undefined) continue
     const frame = faceFrameGeometry(
       cabinet.params.section,
       fronts.outer,
@@ -161,7 +168,8 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
           cabinet.params.frontMount === 'inset',
           frameDepth.get(owner) ?? 0,
         )
-        const key = runnerKeyFor(usable)
+        const chosen = runnerNominal.get(`${owner} ${cut.id.slice('slide_'.length)}`)
+        const key = runnerKeyFor(chosen === undefined ? usable : (RUNNER_NOMINALS as readonly number[]).includes(chosen) && chosen <= usable ? chosen : 0)
         if (key !== null) add(owner, key, 1)
         continue
       }

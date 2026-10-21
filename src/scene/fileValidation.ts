@@ -1,3 +1,6 @@
+import { hingeLayoutError } from './hingeLayout'
+import { RUNNER_NOMINALS } from './hardwareCatalogue'
+import { worktopMachiningError } from './worktopMachiningRecipe'
 import { runWorktopLinkError } from './runWorktopRecipe'
 import { pullSpecError } from './pullPattern'
 import { finishingLinkError } from './finishingRecipe'
@@ -150,6 +153,15 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
   if (kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (kind === 'board') {
+    if (part.hingeLayout !== undefined) {
+      const error = hingeLayoutError(part.hingeLayout)
+      if (error) throw new ZimmuFileValidationError(`${path}.hingeLayout`, error)
+    }
+    if (part.worktopMachining !== undefined) {
+      const error = worktopMachiningError(part.worktopMachining)
+      if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
+      if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop')) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+    }
     if (part.runWorktop !== undefined) {
       const error = runWorktopLinkError(part.runWorktop)
       if (error) throw new ZimmuFileValidationError(`${path}.runWorktop`, error)
@@ -224,6 +236,7 @@ export function validateLegacyFileInput(value: unknown): ZimmuFile {
   const hardware = optionalRecordArray(scene.hardware, 'file.scene.hardware')
   const joints = optionalRecordArray(scene.joints, 'file.scene.joints')
   const components = optionalRecordArray(scene.components, 'file.scene.components')
+  for (const c of components) if (c.kind === 'drawer' && isRecord(c.params)) validateNominal(c.params.nominal)
 
   // From this point the migration code receives only the container/value categories it reads.
   // Legacy omissions remain omissions; `parseFile` owns their historical defaults.
@@ -274,6 +287,15 @@ function validateCurrentPart(part: Part, index: number): void {
   if (part.kind === 'board') validateOperations(part.operations, `${path}.operations`)
 
   if (part.kind === 'board') {
+    if (part.hingeLayout !== undefined) {
+      const error = hingeLayoutError(part.hingeLayout)
+      if (error) throw new ZimmuFileValidationError(`${path}.hingeLayout`, error)
+    }
+    if (part.worktopMachining !== undefined) {
+      const error = worktopMachiningError(part.worktopMachining)
+      if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
+      if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop')) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+    }
     if (part.runWorktop !== undefined) {
       const error = runWorktopLinkError(part.runWorktop)
       if (error) throw new ZimmuFileValidationError(`${path}.runWorktop`, error)
@@ -546,6 +568,7 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   const componentIds = new Set(file.scene.components.map((component) => component.id))
   for (const [index, component] of file.scene.components.entries()) {
     const path = `file.scene.components[${index}]`
+    if (component.kind === 'drawer') validateNominal(component.params?.nominal)
     stringAt(component.id, `${path}.id`)
     stringAt(component.label, `${path}.label`)
     vecAt(component.position, `${path}.position`)
@@ -593,4 +616,8 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   if (file.project !== undefined) validateProject(file.project, file.scene)
 
   return file
+}
+
+function validateNominal(value: unknown): void {
+  if (value !== undefined && value !== null && !(RUNNER_NOMINALS as readonly unknown[]).includes(value)) throw new ZimmuFileValidationError('file.scene.components.params.nominal', 'must name a supported runner nominal')
 }

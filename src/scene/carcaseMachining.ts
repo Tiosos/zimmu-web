@@ -1,3 +1,4 @@
+import type { HingeLayout } from './hingeLayout'
 import type { CarcaseParams, Face, HoleArrayCut } from './types'
 import type { RoleThickness } from './resolveThickness'
 import type { RoleJointKind } from './resolveJointKind'
@@ -123,6 +124,7 @@ export function carcaseMachining(
     sectionId: SectionId,
     openingId: string,
   ) => { params: DrawerParams; sideThickness: number } | null,
+  hingeFor: (role: string) => HingeLayout | undefined = () => undefined,
 ): HoleArrayCut[] {
   // Empty for a carcase whose parameters do not build, which is what makes every line below safe.
   const panel = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === role)?.panel
@@ -159,7 +161,7 @@ export function carcaseMachining(
         if (cup !== null) cuts.push(cup)
         continue
       }
-      const cup = cupRow(panel, cell.hinge, frontRole)
+      const cup = cupRow(panel, cell.hinge, frontRole, undefined, hingeFor(frontRole))
       if (cup !== null) cuts.push(cup)
       continue
     }
@@ -183,7 +185,7 @@ export function carcaseMachining(
       if (cell.hinge !== side) continue
       const door = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === frontRole)?.panel
       if (door === undefined) continue
-      const cup = cupRow(door, cell.hinge, frontRole)
+      const cup = cupRow(door, cell.hinge, frontRole, undefined, hingeFor(frontRole))
       if (cup === null) continue
       // Carried across through *carcase* space, reading each panel's own origin: board x on the
       // door runs the carcase height from the door's bottom edge, board y on the upright runs it
@@ -222,7 +224,7 @@ export function carcaseMachining(
       // opening. A slide row beside a box the drawer generator refused to build is screws for a
       // runner nobody ordered.
       if (metrics === null) continue
-      cuts.push(slideScrewRow(panel, face, metrics.runnerZ - panel.position.z, frontRole))
+      cuts.push(slideScrewRow(panel, face, metrics.runnerZ - panel.position.z, frontRole, drawer.params.nominal == null ? undefined : { start: metrics.box.y0 - panel.position.y, end: metrics.box.y1 - panel.position.y }))
     }
   }
   return cuts

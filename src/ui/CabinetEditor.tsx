@@ -1,4 +1,6 @@
-import { CabinetPullEditor } from './CabinetPullEditor'
+import type { WorktopMachiningPreview } from '../scene/worktopMachining'
+import { CabinetHardwareWorkspace } from './CabinetHardwareWorkspace'
+import type { MotionPreview } from '../scene/motionHardware'
 import type { PullPreview } from '../scene/pullLayout'
 import { CabinetFrontsEditor } from './CabinetFrontsEditor'
 import type { FrontsPreview } from '../scene/frontsDrawers'
@@ -78,9 +80,11 @@ export function CabinetEditor({
   scene,
   onApplyRulePreview,
   onApplyPlacementPreview,
+  onApplyMotionPreview,
   onApplyPullPreview,
   onApplyFrontsPreview,
   onApplyFinishingPreview,
+  onApplyWorktopMachiningPreview,
   onApplyRunWorktopPreview,
   onApplyLayoutPreview,
   library,
@@ -99,8 +103,10 @@ export function CabinetEditor({
   onSelectPart: (id: PartId) => void
   projectName: string
   scene?: Scene
+  onApplyMotionPreview?: (preview: MotionPreview) => boolean
   onApplyPullPreview?: (preview: PullPreview) => boolean
   onApplyFrontsPreview?: (preview: FrontsPreview) => boolean
+  onApplyWorktopMachiningPreview?: (preview: WorktopMachiningPreview) => boolean
   onApplyRunWorktopPreview?: (preview: RunWorktopPreview) => boolean
   onApplyFinishingPreview?: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview?: (preview: LayoutPreview) => boolean
@@ -197,11 +203,11 @@ export function CabinetEditor({
       {tab !== '3d' && (
         <div data-testid="cabinet-editor-panel" className="flex-1 min-h-0 overflow-auto p-3">
           {tab === 'hardware' ? (
-            scene && onApplyPullPreview ? <CabinetPullEditor cabinet={component} scene={scene} onApply={onApplyPullPreview} /> : <p>Hardware layout tools require the full project scene.</p>
+            scene && onApplyPullPreview ? <CabinetHardwareWorkspace cabinet={component} scene={scene} onApply={onApplyPullPreview} onApplyMotion={onApplyMotionPreview} /> : <p>Hardware layout tools require the full project scene.</p>
           ) : tab === 'fronts' ? (
             scene && onApplyFrontsPreview ? <CabinetFrontsEditor cabinet={component} scene={scene} onApply={onApplyFrontsPreview} /> : <p>Fronts and drawers require the full project scene.</p>
           ) : tab === 'finishing' ? (
-            scene && onApplyFinishingPreview ? <CabinetFinishingWorkspace cabinet={component} scene={scene} onApply={onApplyFinishingPreview} onApplyRun={onApplyRunWorktopPreview} /> : <p>Finishing tools require the full project scene.</p>
+            scene && onApplyFinishingPreview ? <CabinetFinishingWorkspace cabinet={component} scene={scene} onApply={onApplyFinishingPreview} onApplyRun={onApplyRunWorktopPreview} onApplyMachining={onApplyWorktopMachiningPreview} /> : <p>Finishing tools require the full project scene.</p>
           ) : tab === 'layout' ? (
             scene && onApplyLayoutPreview ? <CabinetLayoutEditor cabinet={component} scene={scene} onApply={onApplyLayoutPreview} /> : <p>Layout tools require the full project scene.</p>
           ) : tab === 'placement' ? (

@@ -100,7 +100,7 @@ function regenerateOne(
     const componentCuts = [
       ...carcaseCuts(component.params, thicknessOf, r.role),
       ...carcaseHoleArrays(component.params, thicknessOf, kindOf, r.role),
-      ...carcaseMachining(component.params, thicknessOf, kindOf, r.role, drawerFor),
+      ...carcaseMachining(component.params, thicknessOf, kindOf, r.role, drawerFor, (role) => { const p = byRole.get(role); return component.params.frame === undefined && p?.kind === 'board' ? p.hingeLayout : undefined }),
     ].map((c) => ({ ...c, sourceComponentId: component.id }))
     const existingCuts = existing?.kind === 'board' ? existing.cuts : []
     const frontCell = cells.get(r.role)
@@ -118,6 +118,7 @@ function regenerateOne(
     const board: BoardPart = {
       kind: 'board',
       ...(frontPull ? { frontPull } : {}),
+      ...(existing?.kind === 'board' && component.params.frame === undefined && frontCell?.spec.kind === 'door' && existing.hingeLayout ? { hingeLayout: existing.hingeLayout } : {}),
       id: existing?.id ?? `board_${crypto.randomUUID()}`,
       label: existing?.label ?? r.label,
       length: r.panel.length,

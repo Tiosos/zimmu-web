@@ -55,6 +55,7 @@ export const UNDERMOUNT_HOLE_DEPTH = 10
 export const UNDERMOUNT_HOLE_ABOVE_BOTTOM = 7
 
 export interface DrawerParams {
+  nominal?: number | null
   family: RunnerFamily
   // null derives it from the front cell. An explicit value lets a shallow box sit behind a tall
   // front, which is ordinary where plumbing or a rail is in the way.
@@ -150,7 +151,8 @@ export function drawerBoxMetrics(
   // The nominal is recovered from the key rather than chosen here, so the box and the hardware
   // quote cannot pick different runners for the same cabinet.
   const runnerKey = runnerKeyFor(boxDepth(ctx.clearDepth, ctx.frontThickness, ctx.inset, ctx.frameDepth ?? 0))
-  const depth = RUNNER_NOMINALS.find((n) => `runner-${n}` === runnerKey)
+  const available = boxDepth(ctx.clearDepth, ctx.frontThickness, ctx.inset, ctx.frameDepth ?? 0)
+  const depth = params.nominal == null ? RUNNER_NOMINALS.find((n) => `runner-${n}` === runnerKey) : RUNNER_NOMINALS.find((n) => n === params.nominal && n <= available)
   if (depth === undefined) return null
 
   const openingHeight = opening.z1 - opening.z0

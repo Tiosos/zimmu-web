@@ -1,3 +1,5 @@
+import type { HingeLayout } from './hingeLayout'
+import type { WorktopMachining } from './worktopMachiningRecipe'
 import type { RunWorktopLink } from './runWorktopRecipe'
 import type { PullSpec } from './pullPattern'
 import type { FinishingLink } from './finishingRecipe'
@@ -161,9 +163,11 @@ export interface BoardPart {
   operations?: ManualMachiningOperation[]
   edgeBanding?: EdgeDecisions
   // Generated front fixing layout; detached boards retain their existing manual geometry.
+  hingeLayout?: HingeLayout
   frontPull?: PullSpec
   // Opt-in, role-free finishing geometry owned by the immediate carcase parent.
   finishing?: FinishingLink
+  worktopMachining?: WorktopMachining
   runWorktop?: RunWorktopLink
   visible: boolean
   parentId: ComponentId | null

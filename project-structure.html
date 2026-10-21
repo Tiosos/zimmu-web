@@ -599,9 +599,11 @@
 │   │   ├── manufacturingCsv.json
 │   │   ├── manufacturingNest.json
 │   │   ├── manufacturingProject.ts
+│   │   ├── motion.ts
 │   │   ├── release.ts
 │   │   ├── resolve.ts
-│   │   └── sweep.ts
+│   │   ├── sweep.ts
+│   │   └── worktop.ts
 │   ├── adjacentFronts.test.ts
 │   ├── anchor.test.ts
 │   ├── anchor.ts
@@ -681,6 +683,7 @@
 │   ├── groupSuggestions.ts
 │   ├── hardwareCatalogue.test.ts
 │   ├── hardwareCatalogue.ts
+│   ├── hingeLayout.ts
 │   ├── idb.test.ts
 │   ├── idb.ts
 │   ├── interiorAccess.test.ts
@@ -702,6 +705,8 @@
 │   ├── manufacturingPart.ts
 │   ├── migrateSections.test.ts
 │   ├── migrateSections.ts
+│   ├── motionHardware.test.ts
+│   ├── motionHardware.ts
 │   ├── moveGizmo.test.ts
 │   ├── moveGizmo.ts
 │   ├── nearestCarcase.test.ts
@@ -802,7 +807,10 @@
 │   ├── useSnap.test.ts
 │   ├── useSnap.ts
 │   ├── utils.test.ts
-│   └── utils.ts
+│   ├── utils.ts
+│   ├── worktopMachining.test.ts
+│   ├── worktopMachining.ts
+│   └── worktopMachiningRecipe.ts
 ├── ui/
 │   ├── __fixtures__/
 │   │   └── packetRevisionComparison.ts
@@ -837,10 +845,13 @@
 │   ├── CabinetFinishingWorkspace.tsx
 │   ├── CabinetFrontsEditor.test.tsx
 │   ├── CabinetFrontsEditor.tsx
+│   ├── CabinetHardwareWorkspace.tsx
 │   ├── CabinetLayoutEditor.test.tsx
 │   ├── CabinetLayoutEditor.tsx
 │   ├── CabinetLayoutLibrary.test.tsx
 │   ├── CabinetLayoutLibrary.tsx
+│   ├── CabinetMotionEditor.test.tsx
+│   ├── CabinetMotionEditor.tsx
 │   ├── CabinetPlacementEditor.test.tsx
 │   ├── CabinetPlacementEditor.tsx
 │   ├── CabinetProjection.test.tsx
@@ -975,7 +986,9 @@
 │   ├── useLocalChangeReview.ts
 │   ├── useSourceReviewView.ts
 │   ├── verifyProductionPacket.test.ts
-│   └── verifyProductionPacket.ts
+│   ├── verifyProductionPacket.ts
+│   ├── WorktopMachiningEditor.test.tsx
+│   └── WorktopMachiningEditor.tsx
 └── vite-env.d.ts<!-- /AUTOGEN:src-tree --></code></pre>
 
       <h3>src/geom/ — Geometry kernel</h3>
@@ -1626,7 +1639,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->203<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->207<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1710,12 +1723,14 @@ import { useScene } from './useScene'</code></pre>
 ├── cabinet-construction-editor.md
 ├── cabinet-finishing-panels.md
 ├── cabinet-fronts-drawers.md
+├── cabinet-hinges-runners.md
 ├── cabinet-layout-reuse.md
 ├── cabinet-layout-tools.md
 ├── cabinet-opening-layouts.md
 ├── cabinet-placement-tools.md
 ├── cabinet-pull-layout.md
 ├── cabinet-run-worktops.md
+├── cabinet-worktop-machining.md
 ├── company-catalogue-api.md
 ├── drawing-references.md
 ├── keyboard-shortcuts.md
@@ -1865,7 +1880,9 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-20-personal-layout-library-notes.md
     │   ├── 2026-10-20-source-review-selection-notes-notes.md
     │   ├── 2026-10-21-cabinet-pull-layout-notes.md
-    │   └── 2026-10-21-run-worktops-notes.md
+    │   ├── 2026-10-21-hinges-runners-notes.md
+    │   ├── 2026-10-21-run-worktops-notes.md
+    │   └── 2026-10-21-worktop-machining-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -1939,7 +1956,9 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-20-cabinet-layout-tools.md
     │   ├── 2026-10-20-parametric-finishing.md
     │   ├── 2026-10-21-cabinet-pull-layout.md
-    │   └── 2026-10-21-run-worktops.md
+    │   ├── 2026-10-21-hinges-runners.md
+    │   ├── 2026-10-21-run-worktops.md
+    │   └── 2026-10-21-worktop-machining.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -2056,7 +2075,9 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-20-parametric-finishing-design.md
         ├── 2026-10-20-personal-layout-library-design.md
         ├── 2026-10-21-cabinet-pull-layout-design.md
-        └── 2026-10-21-run-worktops-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-10-21-hinges-runners-design.md
+        ├── 2026-10-21-run-worktops-design.md
+        └── 2026-10-21-worktop-machining-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->

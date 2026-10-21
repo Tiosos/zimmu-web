@@ -1,3 +1,4 @@
+import { RUNNER_NOMINALS } from './hardwareCatalogue'
 import { nearestCarcase } from './nearestCarcase'
 import { cabinetSpaceBox } from '../geom/assembly'
 import type { CarcaseComponent, DrawerComponent, DrawerParams, FrameZone, Scene } from './types'
@@ -192,6 +193,7 @@ export function stageFront(
   return next
 }
 export type DrawerAction =
+  | { kind: 'nominal'; value: string | null }
   | { kind: 'family'; value: 'side-mount' | 'undermount' }
   | { kind: 'height'; value: string | null }
   | { kind: 'offset'; value: string }
@@ -202,6 +204,7 @@ const number = (raw: string) => {
   return n
 }
 function validatePatch(scene: Scene, p: Partial<DrawerParams>): void {
+  if (p.nominal !== undefined && p.nominal !== null && !(RUNNER_NOMINALS as readonly number[]).includes(p.nominal)) throw Error('Choose a supported runner nominal.')
   if (p.family !== undefined && !['side-mount', 'undermount'].includes(p.family))
     throw Error('Unsupported runner family.')
   if (
@@ -229,7 +232,9 @@ export function stageDrawer(
   const targets = selected(scene, cabinetId, ids),
     next = copy(draft)
   const patch: Partial<DrawerParams> =
-    action.kind === 'family'
+    action.kind === 'nominal'
+      ? { nominal: action.value === null ? null : number(action.value) }
+      : action.kind === 'family'
       ? { family: action.value }
       : action.kind === 'height'
         ? { boxHeight: action.value === null ? null : number(action.value) }

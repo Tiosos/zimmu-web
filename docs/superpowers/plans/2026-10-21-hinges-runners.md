@@ -1,0 +1,10 @@
+# Hinges and runners implementation
+
+1. Add shared hinge schema/default/row solver. Extend cupRow optional settings and carcaseMachining role callback; preserve metadata in frameless door regeneration, release on other roles/framed conversion and duplicates. Add signature and file format33 validation at both boundaries.
+2. Add optional explicit drawer nominal, supported-list/fit validation in drawerBoxMetrics and Fronts draft action. Count requested supported/fitting nominal in carcaseHardware using matching drawer opening/front-role; preserve automatic behavior when unset and refuse unsupported/oversize choices.
+3. Build motion target/staging/preview/acceptance helpers over existing Fronts/Pulls identities and pipeline. Validate frameless/driven door ownership, row and actual emitted cup/plate consistency and pull interference; reuse Fronts geometry checks for drawers. Report actual hardware deltas. Refuse stale/no-op/forged previews and rebuild from current scene.
+4. Hardware wrapper defaults to Pulls, new Hinges & Runners editor stages multi-front layouts and per-opening drawer changes. Show read-only framed diagnostics, rows/dimensions, actual generated geometry and hardware changes. Reset/reload stale scenes, discard unsaved drafts on exit, wire hook/App one-step history.
+5. Test auto/manual count/inset, cup/plate alignment and BOM, invalid dimensions/spacing/depth, mixed ownership, paired leaves, frame locks/conversion, pull interference, nominal fit/box/BOM parity, schema persistence, default restoration, no-op/stale/forged requests, UI stage/reset/stale and hook undo/redo. Mutation-test guards from scratch backups; require green baseline and assertion failures. No source mutation/edits during full runs.
+6. Run typecheck/lint/full units sequentially, both builds, then Chromium interaction/regression checks. Document model limits, regenerate structure index, inspect and commit locally. Preserve prior unmerged worktop-machining commit; no push/PR until asked.
+
+Notes: ../notes/2026-10-21-hinges-runners-notes.md
