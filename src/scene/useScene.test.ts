@@ -1,3 +1,4 @@
+import { previewRunWorktop as previewRunPanel, runPanelDraft } from './runWorktops'
 import { interiorTargets, previewInteriors } from './shelvesInteriors'
 import { defaultInterior as interiorDefaults } from './sectionInterior'
 import { previewRunFit, runFitDraft } from './runFit'
@@ -3425,4 +3426,24 @@ it('applies cabinet interiors in one independent undo step and refuses stale or 
  act(()=>{expect(result.current.onApplyInteriorsPreview(noop)).toBe(false)})
  act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
  act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+})
+
+it('adds and edits a linked run plinth as independent undo steps with profile-specific labels', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const {result}=renderHook(()=>useScene())
+ act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]));act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
+ const ids=result.current.scene.components.filter(c=>c.kind==='carcase').map(c=>c.id)
+ act(()=>result.current.onUpdateComponent(ids[1],c=>({...c,position:{x:600,y:0,z:0},anchor:{to:ids[0],face:'right',gap:0,offset:{u:0,v:0}}})))
+ const before=result.current.scene
+ const d={...runPanelDraft(before,ids[0]),memberIds:ids},p=previewRunPanel(before,d)
+ expect(p.errors).toEqual([])
+ act(()=>{expect(result.current.onApplyRunWorktopPreview(p)).toBe(true)})
+ expect(result.current.undoLabel).toBe('Add run plinth')
+ const added=result.current.scene,board=added.parts.find(p=>p.kind==='board'&&p.runWorktop?.draft.profile==='plinth')!
+ const edit=previewRunPanel(added,{...d,label:'New plinth'},board.id)
+ act(()=>{expect(result.current.onApplyRunWorktopPreview(edit)).toBe(true)})
+ expect(result.current.undoLabel).toBe('Update run plinth')
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(added)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(added)
 })

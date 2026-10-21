@@ -1,0 +1,12 @@
+# Run finishing implementation
+
+Spec: ../specs/2026-10-21-run-finishing-design.md
+Notes: ../notes/2026-10-21-run-finishing-notes.md
+
+1. Extend RunWorktopDraft with optional profile/height/heightMode/setback; validate complete finite vertical fields and explicit recipe versions. Preserve v1 worktop API/defaults. New helper constructs vertical defaults from first cabinet/material slots.
+2. Extend common build member validation: legacy/splash top alignment, plinth base alignment and allowed base modes; all share parent/coorientation/front/gap checks. Require splash rear line. Derive thickness-Y rectangular geometry, compose local board/reference matrices and decompose XYZ; prove world corners and occupied extents at 0/90/other rotations and transformed groups. Plinth height/setback must fit all members. Include vertical fields in no-op key so recipe-only changes are not dropped. Preserve unrelated board data in merge and existing lifecycle.
+3. Protect worktop machining eligibility and file validation. Set FILE_FORMAT_VERSION 34 and update only newest version pin; test v33 unaffected plus v2 vertical roundtrip. Worktop UI filters vertical links; new run-panel editor filters vertical links. Do not turn old horizontal links into vertical panels with existing machining. Wire new finishing mode using the existing run callback with profile-specific history labels.
+4. Add member selector/anchored selection, type/material/thickness/grain/name, height mode/height/clearance/setback/extensions/gap inputs, explicit preview/three projections/member diagnostics. Linked list edit/detach/delete retains IDs. Apply/reset/stale handling follows existing run tool. Avoid whole-file formatting of old App/useScene/fileValidation/useFile tests; format only new/small files.
+5. Add pure/UI/hook/browser tests as each seam is built. Run focused baseline, mutate new guards and restore exact backups. Freeze source during full unit/browser tests. Full typecheck/lint/tests and both builds; browser new vertical flows plus old run worktops and single finishing. Update user guide/notes and regenerate structure. Commit locally, based on prior local shelf commit a8b7ccb so a later PR can include both batches. No push absent user request.
+
+Alternatives rejected: duplicating a second run-board pipeline/recipe lifecycle; storing profile in an unversioned v1 extension (older app would reinterpret geometry); arbitrary corner strips/automatic joints; declaring collision-free installation from rectangular envelope alone.

@@ -394,7 +394,9 @@ export function useScene(): UseSceneResult {
   const onApplyRunWorktopPreview = useCallback((preview: RunWorktopPreview): boolean => {
     const next = acceptRunWorktop(sceneRef.current, preview, `board_${crypto.randomUUID()}`)
     if (!next) return false
-    commitReconciled(() => next, preview.action === 'detach' ? 'Detach run worktop' : preview.action === 'delete' ? 'Delete run worktop' : preview.targetId ? 'Update run worktop' : 'Add run worktop')
+    const kind = preview.draft.profile ?? 'worktop'
+    const action = preview.action === 'detach' ? 'Detach' : preview.action === 'delete' ? 'Delete' : preview.targetId ? 'Update' : 'Add'
+    commitReconciled(() => next, `${action} run ${kind}`)
     return true
   }, [commitReconciled])
 

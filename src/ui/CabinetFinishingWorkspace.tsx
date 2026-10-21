@@ -1,3 +1,4 @@
+import { CabinetRunPanelEditor } from './CabinetRunPanelEditor'
 import { WorktopMachiningEditor } from './WorktopMachiningEditor'
 import type { WorktopMachiningPreview } from '../scene/worktopMachining'
 import { useState } from 'react'
@@ -21,7 +22,7 @@ export function CabinetFinishingWorkspace({
   onApplyMachining?: (preview: WorktopMachiningPreview) => boolean
   onApplyRun?: (preview: RunWorktopPreview) => boolean
 }) {
-  const [mode, setMode] = useState<'single' | 'run' | 'machining'>('single')
+  const [mode, setMode] = useState<'single' | 'run' | 'machining' | 'panels'>('single')
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -45,6 +46,15 @@ export function CabinetFinishingWorkspace({
         <Button
           size="sm"
           variant="outline"
+          aria-pressed={mode === 'panels'}
+          disabled={!onApplyRun}
+          onClick={() => setMode('panels')}
+        >
+          Run plinths &amp; splashbacks
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
           aria-pressed={mode === 'machining'}
           disabled={!onApplyMachining}
           onClick={() => setMode('machining')}
@@ -54,6 +64,8 @@ export function CabinetFinishingWorkspace({
       </div>
       {mode === 'single' ? (
         <CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={onApply} />
+      ) : mode === 'panels' ? (
+        onApplyRun && <CabinetRunPanelEditor cabinet={cabinet} scene={scene} onApply={onApplyRun} />
       ) : mode === 'machining' ? (
         onApplyMachining && (
           <WorktopMachiningEditor cabinet={cabinet} scene={scene} onApply={onApplyMachining} />
