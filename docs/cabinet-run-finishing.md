@@ -1,0 +1,17 @@
+# Run plinths and splashbacks
+
+Open any cabinet's **Finishing** tab and choose **Run plinths & splashbacks**. Select the panel type and its source cabinets. **Select anchored panel run** selects the current cabinet's connected run. Membership stays explicit; cabinets added later are not included automatically.
+
+Cabinets must share a parent/container and orientation, with straight occupied fronts and no overlap along the run. Set an explicit allowed gap if the cabinets are separated; this allows the geometry, not a claim about support. Left/right extensions add to the outer member span. Corner returns require separate boards.
+
+**Front plinth:** use cabinets with toe-kick or ladder bases and aligned base planes. Cabinet tops may differ. Follow the smallest toe-kick height or choose a custom height that fits every member. Bottom clearance is subtracted from the available toe-kick height. Setback is measured behind the occupied front line; setback plus panel thickness must fit the shallowest cabinet. This fit-envelope check does not certify that the board clears every side/base part or has suitable attachment hardware; inspect the preview and installation design.
+
+**Rear splashback:** cabinet top planes and occupied rear edges must align. Height is explicit. Top clearance starts above the cabinet top plane, not above a separately fitted worktop; include worktop thickness in that clearance when needed. Rear clearance moves the splashback behind the occupied rear line. Different rear lines need separate panels.
+
+Choose an existing panel material, stock/custom thickness, grain and board name. The vertical board's **length** runs up its height; **width** follows the cabinet run. Select grain along board width to run horizontally. Preview shows dimensions, area, member widths/gaps and complete Front/Top/End projections. **Add run panel** creates one real board in one undo step. It participates in normal part tools, drawings, cutting lists, nesting and manufacturing outputs.
+
+Enable **Follow cabinet run dimensions** to keep the link. Valid width, pose, toe-height and stock-thickness changes update it with the same board ID. Linked panels are listed separately from run worktops. **Edit linked run panel** loads the recipe; preview before **Save run panel**. Independent cuts, edges, visibility and colour are preserved. Detach retains fixed geometry; Delete removes the board and its joint references. These actions and edits have individual undo/redo steps. Normal owned-property edits and duplication release links through the existing finishing-board lifecycle.
+
+If sources become missing/misaligned or dimensions/materials become invalid, the panel retains its last valid geometry and its list reports the reason. Restore valid sources, edit membership/settings or detach/delete. Removing every source releases the link. Exports contain the currently visible last-valid geometry, so resolve these diagnostics before manufacturing. Worktop cut-out recipes cannot be attached to linked vertical panels.
+
+Stale previews require reset or reloading the linked panel; mesh-only updates do not invalidate them. Reset/Cancel do not modify the project. Drafts are discarded when leaving the workspace. Project format **34** stores vertical run recipes as version **2**; legacy horizontal run-worktop recipes remain version 1. Older builds cannot maintain the new links. Save the project normally to retain them.

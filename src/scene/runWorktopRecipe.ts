@@ -1,6 +1,10 @@
 import type { Grain } from './types'
 
 export interface RunWorktopDraft {
+  profile?: 'plinth' | 'splashback'
+  height?: string
+  heightMode?: 'custom' | 'toe-kick'
+  setback?: string
   memberIds: string[]
   label: string
   material: string
@@ -16,7 +20,7 @@ export interface RunWorktopDraft {
   follow: boolean
 }
 export interface RunWorktopLink {
-  version: 1
+  version: 1 | 2
   draft: RunWorktopDraft & { follow: true }
 }
 export function runDraftError(value: unknown): string | null {
@@ -43,15 +47,36 @@ export function runDraftError(value: unknown): string | null {
     if (key === 'thickness' ? Number(d[key]) <= 0 : Number(d[key]) < 0)
       return 'Thickness must be positive; overhangs, vertical gap and allowed gap must be zero or greater.'
   }
+  if (d.profile !== undefined) {
+    if (d.profile !== 'plinth' && d.profile !== 'splashback') return 'Choose plinth or splashback.'
+    if (d.heightMode !== 'custom' && !(d.profile === 'plinth' && d.heightMode === 'toe-kick'))
+      return 'Choose a supported panel height mode.'
+    for (const key of ['height', 'setback']) {
+      const value = d[key]
+      if (
+        typeof value !== 'string' ||
+        !value.trim() ||
+        !Number.isFinite(Number(value)) ||
+        (key === 'height' ? Number(value) <= 0 : Number(value) < 0)
+      )
+        return 'Panel height must be positive and setback/clearance must be finite and non-negative.'
+    }
+  }
   return null
 }
 export function runWorktopLinkError(value: unknown): string | null {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     return 'Run worktop link must be an object.'
   const link = value as Record<string, unknown>
-  if (link.version !== 1) return 'Unsupported run worktop recipe version.'
+  if (link.version !== 1 && link.version !== 2) return 'Unsupported run worktop recipe version.'
   const error = runDraftError(link.draft)
   if (error) return error
+  const profile = (link.draft as RunWorktopDraft).profile
+  if (
+    (link.version === 1 && profile !== undefined) ||
+    (link.version === 2 && profile === undefined)
+  )
+    return 'Run panel profile requires recipe version 2; worktops use version 1.'
   if ((link.draft as RunWorktopDraft).follow !== true)
     return 'A saved run link must follow its cabinets.'
   return null

@@ -9,6 +9,8 @@ import {
   applyInverseToPoint,
   applyMatrixToPoint,
   composeWorldMatrix,
+  decomposeMatrix,
+  multiplyMatrix,
   resolveWorldMatrix,
 } from '../geom/transform'
 import { jointInvolves } from './jointInvolves'
@@ -54,6 +56,24 @@ export function runWorktopDraft(scene: Scene, cabinetId: string): RunWorktopDraf
     bottom: '0',
     maxGap: '0',
     follow: true,
+  }
+}
+export function runPanelDraft(
+  scene: Scene,
+  cabinetId: string,
+  profile: 'plinth' | 'splashback' = 'plinth',
+): RunWorktopDraft {
+  const cabinet = cabinetOf(scene, cabinetId)
+  return {
+    ...runWorktopDraft(scene, cabinetId),
+    profile,
+    label: profile === 'plinth' ? 'Run plinth' : 'Run splashback',
+    height: String(profile === 'plinth' ? cabinet.params.toeKickHeight : 100),
+    heightMode: profile === 'plinth' ? 'toe-kick' : 'custom',
+    setback: String(profile === 'plinth' ? cabinet.params.toeKickSetback : 0),
+    front: '0',
+    rear: '0',
+    grain: 'width',
   }
 }
 export function anchoredRunMembers(scene: Scene, cabinetId: string): string[] {
@@ -121,7 +141,10 @@ function build(
         [b.y0, b.y1].flatMap((y) => [b.z0, b.z1].map((z) => point(x, y, z))),
       )
       const top = [b.x0, b.x1].flatMap((x) => [b.y0, b.y1].map((y) => point(x, y, b.z1)[2]))
-      if (top.some((z) => !Number.isFinite(z) || Math.abs(z - reference.params.height) > EPS))
+      if (
+        draft.profile !== 'plinth' &&
+        top.some((z) => !Number.isFinite(z) || Math.abs(z - reference.params.height) > EPS)
+      )
         throw Error('Selected cabinets must have aligned top planes.')
       const bounds: Bounds3 = {
         x0: Math.min(...points.map((p) => p[0])),
@@ -144,6 +167,17 @@ function build(
   const frontLine = members[0].bounds.y0
   if (members.some((m) => Math.abs(m.bounds.y0 - frontLine) > EPS))
     throw Error('Occupied cabinet fronts must align in one straight line.')
+  if (draft.profile === 'plinth') {
+    if (cabinets.some((c) => c.params.baseMode !== 'toe-kick' && c.params.baseMode !== 'ladder'))
+      throw Error('Run plinths require toe-kick or ladder bases.')
+    if (members.some((m) => Math.abs(m.bounds.z0 - members[0].bounds.z0) > EPS))
+      throw Error('Plinth cabinet base planes must align.')
+  }
+  if (
+    draft.profile === 'splashback' &&
+    members.some((m) => Math.abs(m.bounds.y1 - members[0].bounds.y1) > EPS)
+  )
+    throw Error('Splashback cabinet rear lines must align.')
   for (let i = 1; i < members.length; i++) {
     const gap = members[i].bounds.x0 - members[i - 1].bounds.x1
     if (gap < -EPS) throw Error('Selected cabinets overlap along the run.')
@@ -165,7 +199,24 @@ function build(
     z0: reference.params.height + Number(draft.bottom),
     z1: reference.params.height + Number(draft.bottom) + thickness,
   }
-  const panel = orientedPanel(bounds, 'z')
+  if (draft.profile === 'plinth') {
+    const available =
+      Math.min(...cabinets.map((c) => c.params.toeKickHeight)) - Number(draft.bottom)
+    const height = draft.heightMode === 'toe-kick' ? available : Number(draft.height)
+    if (!Number.isFinite(available) || height <= 0 || height > available + EPS)
+      throw Error('Plinth height must fit every cabinet toe kick after bottom clearance.')
+    bounds.y0 = frontLine + Number(draft.setback)
+    bounds.y1 = bounds.y0 + thickness
+    if (bounds.y1 > Math.min(...members.map((m) => m.bounds.y1)) + EPS)
+      throw Error('Plinth setback and thickness must fit every cabinet depth.')
+    bounds.z0 = members[0].bounds.z0 + Number(draft.bottom)
+    bounds.z1 = bounds.z0 + height
+  } else if (draft.profile === 'splashback') {
+    bounds.y0 = members[0].bounds.y1 + Number(draft.setback)
+    bounds.y1 = bounds.y0 + thickness
+    bounds.z1 = bounds.z0 + Number(draft.height)
+  }
+  const panel = orientedPanel(bounds, draft.profile ? 'y' : 'z')
   if (
     !Object.values(bounds).every(Number.isFinite) ||
     ![panel.length, panel.width, panel.thickness, panel.length * panel.width].every(
@@ -174,6 +225,9 @@ function build(
   )
     throw Error('The worktop must have positive finite dimensions, area and bounds.')
   const position = applyMatrixToPoint(refMatrix, bounds.x0, bounds.y0, bounds.z0)
+  const vertical = draft.profile
+    ? decomposeMatrix(multiplyMatrix(refMatrix, composeWorldMatrix(panel)))
+    : null
   let id = 'run-worktop-preview'
   while (scene.parts.some((p) => p.id === id) || byId.has(id)) id += ':'
   const part: BoardPart = {
@@ -185,14 +239,19 @@ function build(
     grain: draft.grain,
     color: '#b69b76',
     position: { x: position[0], y: position[1], z: position[2] },
-    rotation: { ...reference.rotation },
-    rotationOrder: reference.rotationOrder,
+    rotation: vertical?.rotation ?? { ...reference.rotation },
+    rotationOrder: vertical ? 'XYZ' : reference.rotationOrder,
     parentId: reference.parentId,
     visible: true,
     driven: false,
     cuts: [],
     ...(draft.follow
-      ? { runWorktop: { version: 1 as const, draft: { ...copy(draft), follow: true as const } } }
+      ? {
+          runWorktop: {
+            version: draft.profile ? (2 as const) : (1 as const),
+            draft: { ...copy(draft), follow: true as const },
+          },
+        }
       : {}),
   }
   const world = resolveWorldMatrix(part, byId)
@@ -247,6 +306,7 @@ function partKey(p: BoardPart): string {
           d.grain,
           ...[d.left, d.right, d.front, d.rear, d.bottom, d.maxGap].map(Number),
           d.follow,
+          ...(d.profile ? [d.profile, d.heightMode, Number(d.height), Number(d.setback)] : []),
         ]
       : null,
   ])
@@ -269,6 +329,10 @@ export function previewRunWorktop(
   try {
     const target = targetOf(scene, targetId),
       built = build(scene, draft)
+    if (target && !!target.runWorktop?.draft.profile !== !!draft.profile)
+      throw Error('Edit this board in its matching run workspace.')
+    if (draft.profile && target?.worktopMachining)
+      throw Error('Remove worktop machining before using a vertical run panel.')
     Object.assign(result, built)
     if (target) result.part = merge(target, built.part!)
     result.changed = !target || partKey(target) !== partKey(result.part!)

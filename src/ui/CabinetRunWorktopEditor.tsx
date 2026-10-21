@@ -54,6 +54,7 @@ export function CabinetRunWorktopEditor({
     (p): p is BoardPart =>
       p.kind === 'board' &&
       !!p.runWorktop &&
+      !p.runWorktop.draft?.profile &&
       (p.parentId === cabinet.parentId ||
         (!runWorktopLinkError(p.runWorktop) && p.runWorktop.draft.memberIds.includes(cabinet.id))),
   )

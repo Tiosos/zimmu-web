@@ -1,3 +1,5 @@
+import { CabinetInteriorsEditor } from './CabinetInteriorsEditor'
+import type { InteriorsPreview } from '../scene/shelvesInteriors'
 import type { WorktopMachiningPreview } from '../scene/worktopMachining'
 import { CabinetHardwareWorkspace } from './CabinetHardwareWorkspace'
 import type { MotionPreview } from '../scene/motionHardware'
@@ -48,11 +50,12 @@ import type {
 // cabinet. It is hidden rather than unmounted, which is why this component renders nothing for it:
 // `viewport.tsx` builds its renderer, camera and every mesh in a mount-once effect, so swapping it
 // out on a tab change would tear all of that down and rebuild it. `App` owns the showing.
-const TABS = ['section', 'construction', 'placement', 'layout', 'finishing', 'fronts', 'hardware', 'front', 'top', 'end', '3d'] as const
+const TABS = ['section', 'construction', 'placement', 'layout', 'finishing', 'fronts', 'interiors', 'hardware', 'front', 'top', 'end', '3d'] as const
 export type CabinetTab = (typeof TABS)[number]
 
 const LABELS: Record<CabinetTab, string> = {
   section: 'Section',
+  interiors: 'Shelves & Interiors',
   construction: 'Construction',
   placement: 'Placement',
   layout: 'Layout',
@@ -80,6 +83,7 @@ export function CabinetEditor({
   projectName,
   scene,
   onApplyRulePreview,
+  onApplyInteriorsPreview,
   onApplyRunFitPreview,
   onApplyPlacementPreview,
   onApplyMotionPreview,
@@ -112,6 +116,7 @@ export function CabinetEditor({
   onApplyRunWorktopPreview?: (preview: RunWorktopPreview) => boolean
   onApplyFinishingPreview?: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview?: (preview: LayoutPreview) => boolean
+  onApplyInteriorsPreview?: (preview: InteriorsPreview) => boolean
   onApplyRunFitPreview?: (preview: RunFitPreview) => boolean
   onApplyPlacementPreview?: (preview: PlacementPreview) => boolean
   onApplyRulePreview?: (preview: RulePreview) => boolean
@@ -190,7 +195,7 @@ export function CabinetEditor({
 
       {/* A projection is a drawing, so it can be exported as one. Section is an editor and 3D is
           the viewport; neither is what `buildDrawingSheets` would put on a sheet. */}
-      {tab !== '3d' && tab !== 'section' && tab !== 'construction' && tab !== 'placement' && tab !== 'layout' && tab !== 'finishing' && tab !== 'fronts' && tab !== 'hardware' && (
+      {tab !== '3d' && tab !== 'section' && tab !== 'construction' && tab !== 'placement' && tab !== 'layout' && tab !== 'finishing' && tab !== 'fronts' && tab !== 'hardware' && tab !== 'interiors' && (
         <div className="flex gap-2 px-3 pt-2">
           <Button variant="outline" size="sm" onClick={() => exportSheet('svg')}>
             SVG
@@ -205,7 +210,9 @@ export function CabinetEditor({
           cover it. */}
       {tab !== '3d' && (
         <div data-testid="cabinet-editor-panel" className="flex-1 min-h-0 overflow-auto p-3">
-          {tab === 'hardware' ? (
+          {tab === 'interiors' ? (
+            scene && onApplyInteriorsPreview ? <CabinetInteriorsEditor cabinet={component} scene={scene} onApply={onApplyInteriorsPreview} /> : <p>Interiors require the full project scene.</p>
+          ) : tab === 'hardware' ? (
             scene && onApplyPullPreview ? <CabinetHardwareWorkspace cabinet={component} scene={scene} onApply={onApplyPullPreview} onApplyMotion={onApplyMotionPreview} /> : <p>Hardware layout tools require the full project scene.</p>
           ) : tab === 'fronts' ? (
             scene && onApplyFrontsPreview ? <CabinetFrontsEditor cabinet={component} scene={scene} onApply={onApplyFrontsPreview} /> : <p>Fronts and drawers require the full project scene.</p>
