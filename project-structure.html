@@ -640,6 +640,8 @@
 │   ├── componentTree.ts
 │   ├── constructionDraft.test.ts
 │   ├── constructionDraft.ts
+│   ├── constructionPresets.test.ts
+│   ├── constructionPresets.ts
 │   ├── constructionRules.ts
 │   ├── cutFootprint.test.ts
 │   ├── cutFootprint.ts
@@ -873,6 +875,8 @@
 │   ├── compareReleaseSource.test.ts
 │   ├── compareReleaseSource.ts
 │   ├── compareReleaseSource.version.test.ts
+│   ├── ConstructionPresetLibrary.test.tsx
+│   ├── ConstructionPresetLibrary.tsx
 │   ├── CuttingList.test.tsx
 │   ├── CuttingList.tsx
 │   ├── DimInput.tsx
@@ -1639,7 +1643,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->207<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->209<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1721,6 +1725,7 @@ import { useScene } from './useScene'</code></pre>
       <h2>Docs directory</h2>
       <pre><code><!-- AUTOGEN:docs-tree -->docs/
 ├── cabinet-construction-editor.md
+├── cabinet-construction-presets.md
 ├── cabinet-finishing-panels.md
 ├── cabinet-fronts-drawers.md
 ├── cabinet-hinges-runners.md
@@ -1880,6 +1885,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-20-personal-layout-library-notes.md
     │   ├── 2026-10-20-source-review-selection-notes-notes.md
     │   ├── 2026-10-21-cabinet-pull-layout-notes.md
+    │   ├── 2026-10-21-construction-presets-notes.md
     │   ├── 2026-10-21-hinges-runners-notes.md
     │   ├── 2026-10-21-run-worktops-notes.md
     │   └── 2026-10-21-worktop-machining-notes.md
@@ -1956,6 +1962,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-20-cabinet-layout-tools.md
     │   ├── 2026-10-20-parametric-finishing.md
     │   ├── 2026-10-21-cabinet-pull-layout.md
+    │   ├── 2026-10-21-construction-presets.md
     │   ├── 2026-10-21-hinges-runners.md
     │   ├── 2026-10-21-run-worktops.md
     │   └── 2026-10-21-worktop-machining.md
@@ -2075,6 +2082,7 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-20-parametric-finishing-design.md
         ├── 2026-10-20-personal-layout-library-design.md
         ├── 2026-10-21-cabinet-pull-layout-design.md
+        ├── 2026-10-21-construction-presets-design.md
         ├── 2026-10-21-hinges-runners-design.md
         ├── 2026-10-21-run-worktops-design.md
         └── 2026-10-21-worktop-machining-design.md<!-- /AUTOGEN:docs-tree --></code></pre>

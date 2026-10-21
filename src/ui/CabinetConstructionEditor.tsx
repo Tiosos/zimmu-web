@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { SectionElevation } from './SectionElevation'
+import { ConstructionPresetLibrary } from './ConstructionPresetLibrary'
 import {
   constructionCandidate,
   constructionDraft,
@@ -173,6 +174,7 @@ export function CabinetConstructionEditor({
           current cabinet before previewing.
         </p>
       )}
+      <ConstructionPresetLibrary draft={draft} stale={stale} materials={materials} onStage={(next) => { setDraft(next); setPreview(null) }} />
       <fieldset className="grid grid-cols-2 gap-3 border rounded p-3">
         <legend>Size and shell</legend>
         {NUMBERS.slice(0, 3).map(numberField)}
