@@ -1,3 +1,4 @@
+import { previewRunFit, runFitDraft } from './runFit'
 import { previewMotion, stageHinges, emptyMotionDraft, motionDoors } from './motionHardware'
 import { defaultHingeLayout } from './hingeLayout'
 import { previewWorktopMachining } from './worktopMachining'
@@ -3383,4 +3384,24 @@ it('applies hinge/runner settings as one step, follows resize and duplicates fix
  const clone=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&p.id!==id&&!p.driven)!
  expect(clone).toBeDefined();expect(clone.hingeLayout).toBeUndefined();expect(clone.role).toBeUndefined()
  act(()=>result.current.undo());expect(result.current.scene).toEqual(resized)
+})
+
+
+it('fits cabinet widths and placements in one independent undo step', () => {
+  mockBuildPart.mockResolvedValue({ positions: new Float32Array([0,0,0,1,0,0,0,1,0]), normals: new Float32Array([0,0,1,0,0,1,0,0,1]) })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const ids=result.current.scene.components.filter(c=>c.kind==='carcase').map(c=>c.id)
+  act(() => result.current.onUpdateComponent(ids[0],c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
+  const before=result.current.scene
+  const preview=previewRunFit(before,{...runFitDraft(ids),target:'1800',detach:true})
+  expect(preview.errors).toEqual([])
+  act(()=>{expect(result.current.onApplyRunFitPreview(preview)).toBe(true)})
+  const after=result.current.scene
+  expect(result.current.undoLabel).toBe('Fit cabinet run')
+  expect((after.components.find(c=>c.id===ids[1]) as CarcaseComponent).params.width).toBeCloseTo(900)
+  act(()=>{expect(result.current.onApplyRunFitPreview(preview)).toBe(false)})
+  act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+  act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
 })
