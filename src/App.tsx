@@ -75,6 +75,7 @@ function App() {
     onApplyRunWorktopPreview,
     onApplyWorktopMachiningPreview,
     onApplyLayoutPreview,
+    onApplyRunFitPreview,
     onApplyPlacementPreview,
     parameterFor,
     onDetachPart,
@@ -820,6 +821,7 @@ function App() {
             onApplyRunWorktopPreview={onApplyRunWorktopPreview}
             onApplyWorktopMachiningPreview={onApplyWorktopMachiningPreview}
             onApplyLayoutPreview={onApplyLayoutPreview}
+            onApplyRunFitPreview={onApplyRunFitPreview}
             onApplyPlacementPreview={onApplyPlacementPreview}
             library={library}
             hardwareLibrary={hardwareLibrary}

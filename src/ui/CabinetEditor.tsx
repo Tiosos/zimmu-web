@@ -7,7 +7,8 @@ import type { FrontsPreview } from '../scene/frontsDrawers'
 import { CabinetFinishingWorkspace } from './CabinetFinishingWorkspace'
 import type { RunWorktopPreview } from '../scene/runWorktops'
 import type { FinishingPreview } from '../scene/finishingPanels'
-import { CabinetLayoutEditor } from './CabinetLayoutEditor'
+import { CabinetLayoutWorkspace } from './CabinetLayoutWorkspace'
+import type { RunFitPreview } from '../scene/runFit'
 import type { LayoutPreview } from '../scene/layoutTools'
 import { CabinetPlacementEditor } from './CabinetPlacementEditor'
 import type { PlacementPreview } from '../scene/placementTools'
@@ -79,6 +80,7 @@ export function CabinetEditor({
   projectName,
   scene,
   onApplyRulePreview,
+  onApplyRunFitPreview,
   onApplyPlacementPreview,
   onApplyMotionPreview,
   onApplyPullPreview,
@@ -110,6 +112,7 @@ export function CabinetEditor({
   onApplyRunWorktopPreview?: (preview: RunWorktopPreview) => boolean
   onApplyFinishingPreview?: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview?: (preview: LayoutPreview) => boolean
+  onApplyRunFitPreview?: (preview: RunFitPreview) => boolean
   onApplyPlacementPreview?: (preview: PlacementPreview) => boolean
   onApplyRulePreview?: (preview: RulePreview) => boolean
 } & ImpactPricing) {
@@ -209,7 +212,7 @@ export function CabinetEditor({
           ) : tab === 'finishing' ? (
             scene && onApplyFinishingPreview ? <CabinetFinishingWorkspace cabinet={component} scene={scene} onApply={onApplyFinishingPreview} onApplyRun={onApplyRunWorktopPreview} onApplyMachining={onApplyWorktopMachiningPreview} /> : <p>Finishing tools require the full project scene.</p>
           ) : tab === 'layout' ? (
-            scene && onApplyLayoutPreview ? <CabinetLayoutEditor cabinet={component} scene={scene} onApply={onApplyLayoutPreview} /> : <p>Layout tools require the full project scene.</p>
+            scene && onApplyLayoutPreview ? <CabinetLayoutWorkspace cabinet={component} scene={scene} onApply={onApplyLayoutPreview} onFit={onApplyRunFitPreview} /> : <p>Layout tools require the full project scene.</p>
           ) : tab === 'placement' ? (
             scene && onApplyPlacementPreview ? <CabinetPlacementEditor cabinet={component} scene={scene} onApply={onApplyPlacementPreview} /> : <p>Placement tools require the full project scene.</p>
           ) : tab === 'construction' ? (

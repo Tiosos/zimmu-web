@@ -6,6 +6,7 @@ import { acceptFronts, type FrontsPreview } from './frontsDrawers'
 import { acceptFinishing, releaseEditedFinishing, type FinishingPreview } from './finishingPanels'
 import { acceptLayout, type LayoutPreview } from './layoutTools'
 import { acceptPlacement, type PlacementPreview } from './placementTools'
+import { acceptRunFit, type RunFitPreview } from './runFit'
 import { installCataloguePackage, type CataloguePackage } from './cataloguePackage'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
@@ -95,6 +96,7 @@ export interface UseSceneResult {
   onApplyRunWorktopPreview: (preview: RunWorktopPreview) => boolean
   onApplyFinishingPreview: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview: (preview: LayoutPreview) => boolean
+  onApplyRunFitPreview: (preview: RunFitPreview) => boolean
   onApplyPlacementPreview: (preview: PlacementPreview) => boolean
   onApplyRulePreview: (preview: RulePreview) => boolean
   scene: Scene
@@ -405,6 +407,13 @@ export function useScene(): UseSceneResult {
     const next = acceptLayout(sceneRef.current, preview)
     if (!next) return false
     commitReconciled(() => next, 'Apply cabinet layout')
+    return true
+  }, [commitReconciled])
+
+  const onApplyRunFitPreview = useCallback((preview: RunFitPreview): boolean => {
+    const next = acceptRunFit(sceneRef.current, preview)
+    if (!next) return false
+    commitReconciled(() => next, 'Fit cabinet run')
     return true
   }, [commitReconciled])
 
@@ -1548,6 +1557,7 @@ export function useScene(): UseSceneResult {
     onApplyRunWorktopPreview,
     onApplyFinishingPreview,
     onApplyLayoutPreview,
+    onApplyRunFitPreview,
     onApplyPlacementPreview,
     scene,
     geometries,
