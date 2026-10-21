@@ -1,3 +1,4 @@
+import { acceptInteriors, type InteriorsPreview } from './shelvesInteriors'
 import { acceptMotion, type MotionPreview } from './motionHardware'
 import { acceptWorktopMachining, worktopCutOwned, type WorktopMachiningPreview } from './worktopMachining'
 import { acceptRunWorktop, type RunWorktopPreview } from './runWorktops'
@@ -96,6 +97,7 @@ export interface UseSceneResult {
   onApplyRunWorktopPreview: (preview: RunWorktopPreview) => boolean
   onApplyFinishingPreview: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview: (preview: LayoutPreview) => boolean
+  onApplyInteriorsPreview: (preview: InteriorsPreview) => boolean
   onApplyRunFitPreview: (preview: RunFitPreview) => boolean
   onApplyPlacementPreview: (preview: PlacementPreview) => boolean
   onApplyRulePreview: (preview: RulePreview) => boolean
@@ -407,6 +409,13 @@ export function useScene(): UseSceneResult {
     const next = acceptLayout(sceneRef.current, preview)
     if (!next) return false
     commitReconciled(() => next, 'Apply cabinet layout')
+    return true
+  }, [commitReconciled])
+
+  const onApplyInteriorsPreview = useCallback((preview: InteriorsPreview): boolean => {
+    const next = acceptInteriors(sceneRef.current, preview)
+    if (!next) return false
+    commitReconciled(() => next, 'Apply cabinet interiors')
     return true
   }, [commitReconciled])
 
@@ -1557,6 +1566,7 @@ export function useScene(): UseSceneResult {
     onApplyRunWorktopPreview,
     onApplyFinishingPreview,
     onApplyLayoutPreview,
+    onApplyInteriorsPreview,
     onApplyRunFitPreview,
     onApplyPlacementPreview,
     scene,

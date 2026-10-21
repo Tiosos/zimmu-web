@@ -595,6 +595,7 @@
 ├── scene/
 │   ├── __fixtures__/
 │   │   ├── companyCatalogue.ts
+│   │   ├── interiors.ts
 │   │   ├── machiningProject.ts
 │   │   ├── manufacturingCsv.json
 │   │   ├── manufacturingNest.json
@@ -774,6 +775,8 @@
 │   ├── sectionTree.ts
 │   ├── shelfReadiness.test.ts
 │   ├── shelfReadiness.ts
+│   ├── shelvesInteriors.test.ts
+│   ├── shelvesInteriors.ts
 │   ├── snapMath.test.ts
 │   ├── snapMath.ts
 │   ├── suggestionOutline.test.ts
@@ -850,6 +853,8 @@
 │   ├── CabinetFrontsEditor.test.tsx
 │   ├── CabinetFrontsEditor.tsx
 │   ├── CabinetHardwareWorkspace.tsx
+│   ├── CabinetInteriorsEditor.test.tsx
+│   ├── CabinetInteriorsEditor.tsx
 │   ├── CabinetLayoutEditor.test.tsx
 │   ├── CabinetLayoutEditor.tsx
 │   ├── CabinetLayoutLibrary.test.tsx
@@ -1648,7 +1653,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->211<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->213<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1741,6 +1746,7 @@ import { useScene } from './useScene'</code></pre>
 ├── cabinet-pull-layout.md
 ├── cabinet-run-fit.md
 ├── cabinet-run-worktops.md
+├── cabinet-shelves-interiors.md
 ├── cabinet-worktop-machining.md
 ├── company-catalogue-api.md
 ├── drawing-references.md
@@ -1895,6 +1901,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-21-construction-presets-notes.md
     │   ├── 2026-10-21-hinges-runners-notes.md
     │   ├── 2026-10-21-run-worktops-notes.md
+    │   ├── 2026-10-21-shelves-interiors-notes.md
     │   └── 2026-10-21-worktop-machining-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
@@ -1973,6 +1980,7 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-21-construction-presets.md
     │   ├── 2026-10-21-hinges-runners.md
     │   ├── 2026-10-21-run-worktops.md
+    │   ├── 2026-10-21-shelves-interiors.md
     │   └── 2026-10-21-worktop-machining.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
@@ -2094,6 +2102,7 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-21-construction-presets-design.md
         ├── 2026-10-21-hinges-runners-design.md
         ├── 2026-10-21-run-worktops-design.md
+        ├── 2026-10-21-shelves-interiors-design.md
         └── 2026-10-21-worktop-machining-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 

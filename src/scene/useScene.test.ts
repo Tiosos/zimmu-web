@@ -1,3 +1,5 @@
+import { interiorTargets, previewInteriors } from './shelvesInteriors'
+import { defaultInterior as interiorDefaults } from './sectionInterior'
 import { previewRunFit, runFitDraft } from './runFit'
 import { previewMotion, stageHinges, emptyMotionDraft, motionDoors } from './motionHardware'
 import { defaultHingeLayout } from './hingeLayout'
@@ -3404,4 +3406,23 @@ it('fits cabinet widths and placements in one independent undo step', () => {
   act(()=>{expect(result.current.onApplyRunFitPreview(preview)).toBe(false)})
   act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
   act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+})
+
+it('applies cabinet interiors in one independent undo step and refuses stale or unchanged previews', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const {result}=renderHook(()=>useScene())
+ act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
+ const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
+ act(()=>result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
+ const before=result.current.scene,id=interiorTargets(before,cabinet.id)[0].id
+ const preview=previewInteriors(before,cabinet.id,{[id]:interiorDefaults(2)})
+ expect(preview.errors).toEqual([])
+ act(()=>{expect(result.current.onApplyInteriorsPreview(preview)).toBe(true)})
+ const after=result.current.scene
+ expect(result.current.undoLabel).toBe('Apply cabinet interiors')
+ act(()=>{expect(result.current.onApplyInteriorsPreview(preview)).toBe(false)})
+ const noop=previewInteriors(after,cabinet.id,{[id]:interiorDefaults(2)})
+ act(()=>{expect(result.current.onApplyInteriorsPreview(noop)).toBe(false)})
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
 })

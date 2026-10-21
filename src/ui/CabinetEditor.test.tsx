@@ -49,6 +49,7 @@ describe('CabinetEditor', () => {
       'Layout',
       'Finishing',
       'Fronts & Drawers',
+      'Shelves & Interiors',
       'Hardware',
       'Front',
       'Top',
