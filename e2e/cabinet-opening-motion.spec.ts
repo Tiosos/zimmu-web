@@ -124,7 +124,7 @@ test('saves settings and reopens with closed manufacturing positions', async ({ 
   })
   await e.getByRole('button', { name: 'Close motion', exact: true }).click()
   await page.getByRole('button', { name: 'File ▾', exact: true }).click()
-  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('button', { name: /^New(?:\s|$)/ }).click()
   await expect(page).toHaveTitle(/Untitled/)
   await page.evaluate(() => localStorage.setItem('motion-reopen', 'yes'))
   await page.getByRole('button', { name: 'File ▾', exact: true }).click()
