@@ -1573,12 +1573,10 @@ describe('useFile', () => {
       const next = {
         name: 'copy.zimmu',
         isSameEntry: vi.fn().mockResolvedValue(false),
-        createWritable: vi
-          .fn()
-          .mockResolvedValue({
-            write: vi.fn().mockResolvedValue(undefined),
-            close: vi.fn().mockResolvedValue(undefined),
-          }),
+        createWritable: vi.fn().mockResolvedValue({
+          write: vi.fn().mockResolvedValue(undefined),
+          close: vi.fn().mockResolvedValue(undefined),
+        }),
       }
       vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(next))
       quietWarn()

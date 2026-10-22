@@ -3420,12 +3420,10 @@ it('applies coordinated fronts and drawers in one separate undo step and refuses
 })
 
 it('keeps linked finishing creation, resize, edit, detach and delete in separate undo steps', () => {
-  mockBuildPart
-    .mockReset()
-    .mockResolvedValue({
-      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
-      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
-    })
+  mockBuildPart.mockReset().mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
   const cabinet = result.current.scene.components.find(
@@ -3503,12 +3501,10 @@ it('keeps linked finishing creation, resize, edit, detach and delete in separate
 })
 
 it('applies, undoes and redoes pull drilling as one step, keeps stable IDs and copies fixed geometry', () => {
-  mockBuildPart
-    .mockReset()
-    .mockResolvedValue({
-      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
-      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
-    })
+  mockBuildPart.mockReset().mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
   const cabinet = result.current.scene.components.find(
@@ -3553,12 +3549,10 @@ it('applies, undoes and redoes pull drilling as one step, keeps stable IDs and c
 })
 
 it('keeps run worktop creation, source resize, edit, detach and deletion in separate undo steps', () => {
-  mockBuildPart
-    .mockReset()
-    .mockResolvedValue({
-      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
-      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
-    })
+  mockBuildPart.mockReset().mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
@@ -3633,12 +3627,10 @@ it('keeps run worktop creation, source resize, edit, detach and deletion in sepa
 })
 
 it('applies worktop machining in one step, locks derived cuts, revalidates size and duplicates fixed geometry', () => {
-  mockBuildPart
-    .mockReset()
-    .mockResolvedValue({
-      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
-      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
-    })
+  mockBuildPart.mockReset().mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
   const cabinet = result.current.scene.components.find(
@@ -3696,12 +3688,10 @@ it('applies worktop machining in one step, locks derived cuts, revalidates size 
 })
 
 it('applies hinge/runner settings as one step, follows resize and duplicates fixed front geometry', () => {
-  mockBuildPart
-    .mockReset()
-    .mockResolvedValue({
-      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
-      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
-    })
+  mockBuildPart.mockReset().mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
   const cabinet = result.current.scene.components.find(
