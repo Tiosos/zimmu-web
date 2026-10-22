@@ -9,6 +9,7 @@ import type {
   MaterialDef,
   Part,
 } from './types'
+import type { GrainMatchBinding } from './grainMatchRecipe'
 import type { PartOverrides } from './resolveThickness'
 import { componentsById } from './componentTree'
 import { nearestCarcase } from './nearestCarcase'
@@ -86,6 +87,7 @@ interface RecordBase {
   operations: ManualMachiningOperation[]
 }
 export interface ManufacturingBoard extends RecordBase {
+  grainMatch?: GrainMatchBinding
   kind: 'board'
   nesting: Pick<BoardPart, 'length' | 'width' | 'thickness' | 'cuts'>
   local: CutDims
@@ -162,6 +164,7 @@ export function manufacturingPart(p: Part, context: ManufacturingContext): Manuf
     ...base,
     kind: 'board',
     local: { length: p.length, width: p.width, thickness: p.thickness },
+    ...(p.grainMatch ? { grainMatch: structuredClone(p.grainMatch) } : {}),
     finished: finishedDimensions(p),
     cut,
     nesting: nestingGeometryOf(p, edges, context.materials, localCut),

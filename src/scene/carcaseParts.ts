@@ -1,3 +1,5 @@
+import { slopedRoles } from './slopedPanels'
+import type { MitreCut } from './types'
 import type { CarcaseParams, Grain, ThicknessAxis } from './types'
 import { dadoDepthFor } from '../geom/dado'
 import { grainAxisOf, grainFieldFor } from './grain'
@@ -70,6 +72,8 @@ function shelfPins(shelves: number, pins: number): number[] {
 export interface RoleSpec {
   role: string
   label: string
+  cuts?: MitreCut[]
+  sourcePanel?: PanelSpec
   panel: PanelSpec
   grain: Grain
 }
@@ -127,7 +131,7 @@ export function carcaseBoxes(
   // height from the ground in every mode.
   const carcaseZ0 = p.baseMode === 'ladder' ? p.toeKickHeight : 0
   const floor = floorZ(p)
-  const innerTop = p.hasTop ? H - TT : H
+  const innerTop = openingRect(p, thicknessOf).z1
   const backY0 = clearDepth(p, BT)
   const shelfBackY = p.backMode === 'captured' ? backY0 : D
   const bayZ0 = floor + TB
@@ -470,7 +474,7 @@ export function carcaseRoles(
     extendToward(housed.box, housing.box, ax, extensionFor(d.kind, thickness))
   }
 
-  return boxes.map((b) => ({
+  return slopedRoles(p, boxes.map((b) => ({
     role: b.role,
     label: b.label,
     panel: orientedPanel(b.box, b.thicknessAxis),
@@ -478,5 +482,5 @@ export function carcaseRoles(
       b.thicknessAxis,
       grainAxisOf(b.role, b.thicknessAxis === 'x' ? 'vertical' : 'horizontal'),
     ),
-  }))
+  })), thicknessOf)
 }

@@ -1,3 +1,4 @@
+import { lowestRoof } from './slopedTopRecipe'
 import type { CarcaseParams, ThicknessAxis, Vec3 } from './types'
 import type { RoleThickness } from './resolveThickness'
 import type { DivisionThickness, Rect, ResolvedTree } from './sectionTree'
@@ -103,7 +104,7 @@ export function openingRect(p: CarcaseParams, thicknessOf: RoleThickness): Rect 
     x0: thicknessOf('left-side'),
     x1: p.width - thicknessOf('right-side'),
     z0: floorZ(p) + thicknessOf('bottom'),
-    z1: p.hasTop ? p.height - thicknessOf('top') : p.height,
+    z1: p.hasTop ? lowestRoof(p, thicknessOf('top')) : p.height,
   }
 }
 

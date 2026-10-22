@@ -427,7 +427,7 @@ it('serializes format 38 links and validates raw/current metadata without reject
       project: f.project,
       camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
     } as ZimmuFile
-  expect(FILE_FORMAT_VERSION).toBe(39)
+  expect(FILE_FORMAT_VERSION).toBe(42)
   const read = parseFile(JSON.stringify(file))
   expect(board(read.scene).wallFiller).toEqual(board(s).wallFiller)
   const run = installed(f),

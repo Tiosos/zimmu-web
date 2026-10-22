@@ -54,7 +54,18 @@ export interface SheetSpec {
   width: number
 }
 
+export interface MatchBlankPlacement {
+  groupId: string
+  label: string
+  sheet: number
+  x: number
+  y: number
+  w: number
+  h: number
+  rotation: Rotation
+}
 export interface Placement {
+  grainMatch?: { groupId: string; label: string; sequence: number }
   id: string
   sheet: number
   rotation: Rotation
@@ -68,6 +79,8 @@ export interface Placement {
 }
 
 export interface NestResult {
+  blanks?: MatchBlankPlacement[]
+  matchProblems?: { groupId: string; message: string; memberIds: string[] }[]
   sheets: Placement[][]
   utilisation: number[] // per sheet: placed material area / sheet area
   // Parts that fit no sheet in any allowed rotation. Not in the design doc and load-bearing: a

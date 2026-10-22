@@ -1,0 +1,8 @@
+# Implementation plan
+
+1. Isolate worktree from prior stock batch. Read role, cut, opening, machining, bounds, projection, validation and history seams; create spec, notes and 50-task guide first.
+2. Define bounded versioned slope recipe and pure roof functions; integrate profile checks with existing carcase validation, minimum conservative opening and outer bounds. Keep zero-drop valid. Persist optional field in format 42 and validate optional flipped mitres.
+3. Add opposite-long-edge support to existing bevel tool, outline and cache key without changing default output. Derive cap plumb ends, top stock allowances and vertical profiles from roof plane; transform roles before component emission. Map generated shelf-pin/notch coordinates into changed board frames; stop automatic joinery for slopes explicitly.
+4. Build source compatibility and preview/accept model. Preserve supported material/thickness/grain/edge decisions and reject manual/dependent geometry instead of silently dropping it. Show exact roof and conservative usable region, shelf headroom and manufacturing review notes. Recompute before one atomic history command; reject stale/no-op requests.
+5. Add File workspace with cabinet choice, heights/angle/reference, axis and overhang/clearance controls, preview diagrams and actual-part 3D projection, panel/bevel schedule, apply/disable/reset/cancel/history. Avoid geometry writes on staging; hide stale diagrams.
+6. Verify geometry, machining transforms, old/new bevels, cache/mask/drawings, file validation, resizing, compatibility, history, App and UI. Mutation-check guard categories. Freeze source, run typecheck/lint/full local units/builds and browser discovery; document limitations/results and commit locally. No PR unless requested.

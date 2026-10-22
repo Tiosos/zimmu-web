@@ -116,7 +116,7 @@ test('saves settings and reopens with closed manufacturing positions', async ({ 
       h = await r.getFileHandle('motion-saved.zimmu')
     return JSON.parse(await (await h.getFile()).text())
   })
-  expect(saved.version).toBe(39)
+  expect(saved.version).toBe(42)
   expect(saved.scene.components.find((c: { id: string }) => c.id === 'cab').position).toEqual({
     x: 0,
     y: 0,

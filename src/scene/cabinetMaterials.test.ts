@@ -509,7 +509,7 @@ describe('material/grain and edge persistence', () => {
       overrides: { material: 'Oak 18', grain: 'width' },
       edgeBanding: { x0: 'ABS 1', x1: null },
     })
-    expect(FILE_FORMAT_VERSION).toBe(39)
+    expect(FILE_FORMAT_VERSION).toBe(42)
   })
   it('rejects malformed grain ownership at raw and current file boundaries', () => {
     const s = fixture(),

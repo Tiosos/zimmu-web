@@ -1,3 +1,4 @@
+import { regenerateGrainMatches } from './grainMatching'
 import { resolveInstallations, regenerateWallFillers } from './roomInstallation'
 import { regenerateCorners } from './cornerPanels'
 import { regenerateServices } from './serviceMachining'
@@ -35,8 +36,8 @@ import { reconcileCatalogue } from './catalogue'
 export function applyPipeline(scene: Scene): Scene {
   const catalogued = { ...scene, components: scene.components.map((component) =>
     component.kind === 'carcase' ? reconcileCatalogue(component, scene.cabinetRules, scene.companyCatalogues) : component) }
-  return regenerateServices(reconcileJoints(
+  return regenerateGrainMatches(regenerateServices(reconcileJoints(
     regenerateWorktopMachining(regenerateCorners(regenerateRunWorktops(regenerateWallFillers(regenerateFinishing(regenerateComponents(regenerateDrawers(regenerateFaceFrames(resolvePlacement(resolveInstallations(catalogued)))))))))),
-  ))
+  )))
 }
 

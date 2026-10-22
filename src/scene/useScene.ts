@@ -1,3 +1,6 @@
+import { acceptSlope, type SlopePreview } from './slopedTop'
+import { acceptStockPlan, type StockPreview } from './stockPlanning'
+import { acceptGrainMatch, type GrainMatchPreview } from './grainMatching'
 import { acceptOpeningSettings, type OpeningPreview } from './openingMotion'
 import type { ProjectStructure } from './projectStructure'
 import { refreshInstallationSources } from './installationSources'
@@ -103,6 +106,9 @@ export interface UseSceneResult {
   onApplyPullPreview: (preview: PullPreview) => boolean
   onApplyFrontsPreview: (preview: FrontsPreview) => boolean
   onApplyWorktopMachiningPreview: (preview: WorktopMachiningPreview) => boolean
+  onApplySlope: (project: ProjectStructure, preview: SlopePreview) => boolean
+  onApplyStockPlan: (project: ProjectStructure, materials: Record<string, MaterialDef>, preview: StockPreview, action: 'save' | 'consume', remnantIds?: string[]) => boolean
+  onApplyGrainMatchPreview: (project: ProjectStructure, preview: GrainMatchPreview) => boolean
   onApplyOpeningPreview: (project: ProjectStructure, preview: OpeningPreview) => boolean
   syncRoomInstallationSources: (project: ProjectStructure) => void
   onApplyInstallationPreview: (project: ProjectStructure, preview: InstallationPreview) => boolean
@@ -408,6 +414,27 @@ export function useScene(): UseSceneResult {
     return true
   }, [commitReconciled])
 
+  const onApplySlope = useCallback((project: ProjectStructure, preview: SlopePreview): boolean => {
+    const next = acceptSlope(sceneRef.current, project, preview)
+    if (!next) return false
+    commitReconciled(() => next, preview.draft.enabled ? 'Apply sloped cabinet' : 'Disable sloped cabinet')
+    return true
+  }, [commitReconciled])
+
+  const onApplyStockPlan = useCallback((project: ProjectStructure, materials: Record<string, MaterialDef>, preview: StockPreview, action: 'save' | 'consume', remnantIds: string[] = []): boolean => {
+    const next = acceptStockPlan(sceneRef.current, project, materials, preview, action, remnantIds, `offcut_${crypto.randomUUID()}`)
+    if (!next) return false
+    commitReconciled(() => next, action === 'save' ? 'Save stock settings' : 'Consume stock and save remnants')
+    return true
+  }, [commitReconciled])
+
+  const onApplyGrainMatchPreview = useCallback((project: ProjectStructure, preview: GrainMatchPreview): boolean => {
+    const next = acceptGrainMatch(sceneRef.current, project, preview, `grain_${crypto.randomUUID()}`)
+    if (!next) return false
+    commitReconciled(() => next, preview.action === 'detach' ? 'Detach grain matching group' : 'Apply grain matching group')
+    return true
+  }, [commitReconciled])
+
   const onApplyOpeningPreview = useCallback((project: ProjectStructure, preview: OpeningPreview): boolean => {
     const next = acceptOpeningSettings(sceneRef.current, project, preview)
     if (!next) return false
@@ -656,14 +683,17 @@ export function useScene(): UseSceneResult {
       const color = PART_COLORS[colorIndex.current % PART_COLORS.length]
       let clone: Part
       if (orig.kind === 'board') {
+        const owner = sceneRef.current.components.find(c => c.id === orig.parentId)
+        const sloped = owner?.kind === 'carcase' && !!owner.params.slopedTop
         clone = {
           ...orig,
           id: `board_${crypto.randomUUID()}` as PartId,
-          ...((orig.frontPull || orig.hingeLayout || orig.serviceMachining) ? { driven: false, role: undefined } : {}),
+          ...((orig.frontPull || orig.hingeLayout || orig.serviceMachining || orig.grainMatch || sloped) ? { driven: false, role: undefined } : {}),
           serviceMachining: undefined,
           worktopMachining: undefined,
           cornerPanel: undefined,
           wallFiller: undefined,
+          grainMatch: undefined,
           runWorktop: undefined,
           hingeLayout: undefined,
           frontPull: undefined,
@@ -676,8 +706,8 @@ export function useScene(): UseSceneResult {
             .filter((c) => !isJointOwned(c))
             .map((c) =>
               c.kind === 'box'
-                ? { ...c, id: `cut_${crypto.randomUUID()}` as CutId, pairedCutId: undefined }
-                : { ...c, id: `cut_${crypto.randomUUID()}` as CutId },
+                ? { ...c, ...(sloped ? { sourceComponentId: undefined } : {}), id: `cut_${crypto.randomUUID()}` as CutId, pairedCutId: undefined }
+                : { ...c, ...(sloped ? { sourceComponentId: undefined } : {}), id: `cut_${crypto.randomUUID()}` as CutId },
             ),
         }
       } else {
@@ -755,6 +785,7 @@ export function useScene(): UseSceneResult {
       const beforePart = before.parts.find((p) => p.id === id)
       if (!beforePart) return
       const updatedPart = updater(beforePart)
+      if (beforePart.kind === 'board' && updatedPart.kind === 'board' && beforePart.grainMatch && (beforePart.grain !== updatedPart.grain || beforePart.overrides?.grain !== updatedPart.overrides?.grain)) return
       // Assembly dimensions and treatments are edited atomically in the corner workspace.
       // Normal machining and visibility edits remain available on individual boards.
       if (beforePart.kind === 'board' && updatedPart.kind === 'board' && (beforePart.cornerPanel || beforePart.wallFiller)) {
@@ -1645,6 +1676,9 @@ export function useScene(): UseSceneResult {
     onApplyPullPreview,
     onApplyFrontsPreview,
     onApplyWorktopMachiningPreview,
+    onApplySlope,
+    onApplyStockPlan,
+    onApplyGrainMatchPreview,
     onApplyOpeningPreview,
     syncRoomInstallationSources,
     onApplyInstallationPreview,

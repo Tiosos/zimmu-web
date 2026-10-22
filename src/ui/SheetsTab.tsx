@@ -109,18 +109,44 @@ export function SheetsTab({ reports, pending, materials, labelOf, labelDetails }
               </p>
             )}
 
+            {r.result.matchProblems?.map((p) => (
+              <p key={p.groupId} role="alert" className="text-xs">
+                Grain group {p.groupId}: {p.message}
+              </p>
+            ))}
+            {r.result.blanks?.length ? (
+              <p className="text-xs">
+                Purple dashed outlines reserve matched blanks; panels retain their sequence and
+                rotate together.
+              </p>
+            ) : null}
             <div className="mt-3 space-y-3">
               {r.result.sheets.map((placements, i) => (
                 <div key={i}>
                   <div className="mb-1 text-[11px] text-muted-foreground">
                     Sheet {i + 1} — {Math.round((r.result.utilisation[i] ?? 0) * 100)}% used
                   </div>
+                  {r.result.blanks
+                    ?.filter((b) => b.sheet === i)
+                    .map((b) => (
+                      <p key={b.groupId} className="text-xs">
+                        Matched blank: {b.label} · {b.w.toFixed(2)} × {b.h.toFixed(2)} mm · rotation{' '}
+                        {b.rotation}°
+                      </p>
+                    ))}
                   {/* The markup is built by `buildSheetSvg`, which escapes every value it
                       interpolates — including part labels, the only user-authored text here. */}
                   <div
                     className="text-foreground"
                     dangerouslySetInnerHTML={{
-                      __html: buildSheetSvg(r.sheet, placements, labelOf, 600, labelDetails),
+                      __html: buildSheetSvg(
+                        r.sheet,
+                        placements,
+                        labelOf,
+                        600,
+                        labelDetails,
+                        r.result.blanks?.filter((b) => b.sheet === i),
+                      ),
                     }}
                   />
                 </div>

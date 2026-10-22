@@ -124,6 +124,7 @@ export function buildRunWorktop(
   const rotationIndices = [0, 1, 2, 4, 5, 6, 8, 9, 10]
   const members = cabinets
     .map((c): WorktopMember => {
+      if (c.params.slopedTop) throw Error('Run finishing panels require flat-top cabinets; sloped cabinets need independent reviewed panels.')
       if (![...Object.values(c.position), ...Object.values(c.rotation)].every(Number.isFinite))
         throw Error('Cabinet positions and rotations must be finite.')
       const matrix = composeWorldMatrix(c)
