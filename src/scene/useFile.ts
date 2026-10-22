@@ -1,3 +1,4 @@
+import { sceneJson } from './sceneJson'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import type {
   Part,
@@ -516,7 +517,7 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     const dirty =
       pendingMigrationRef.current ||
       releasesRef.current !== lastSavedReleasesRef.current ||
-      JSON.stringify(scene) !== lastSavedSceneRef.current ||
+      sceneJson(scene) !== lastSavedSceneRef.current ||
       projectNameRef.current !== lastSavedProjectNameRef.current ||
       (lastSavedProjectRef.current !== null &&
         JSON.stringify(project) !== lastSavedProjectRef.current)

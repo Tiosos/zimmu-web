@@ -3,7 +3,7 @@ import { grainFixture } from './scene/__fixtures__/grainMatch'
 import { motionScene as openingScene } from './scene/__fixtures__/motion'
 import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, act, cleanup, screen, fireEvent, within } from '@testing-library/react'
+import { render, act, cleanup, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import App from './App'
 import { PRESET_MATERIALS } from './scene/carcasePresets'
 import { cabinet, partsOfBase600, partsOfCarcase } from './geom/__fixtures__/cabinetSheet'
@@ -629,6 +629,7 @@ describe('the open cabinet', () => {
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
     fireEvent.click(screen.getByRole('button', { name: '2D Drawings…' }))
+    await waitFor(() => expect(drawingsSpy.sheets.length).toBeGreaterThan(0))
 
     const assemblies = drawingsSpy.sheets.filter((s) => s.kind === 'assembly')
     expect(assemblies).toHaveLength(1)
@@ -664,6 +665,7 @@ describe('the open cabinet', () => {
       await act(async () => {})
       fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
       fireEvent.click(screen.getByRole('button', { name: '2D Drawings…' }))
+      await waitFor(() => expect(drawingsSpy.sheets.length).toBeGreaterThan(0))
       const elevations = drawingsSpy.sheets.filter((s) => s.kind === 'elevation')
       expect(elevations).toHaveLength(1)
       if (elevations[0].kind !== 'elevation') throw new Error('unreachable')
@@ -848,8 +850,8 @@ describe('the release comparison', () => {
     const view = render(<App />)
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: 'Review releases' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Compare first release' }))
-    expect(screen.getByTestId('release-comparison')).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Compare first release' }))
+    expect(await screen.findByTestId('release-comparison')).toBeTruthy()
     const update = async (releases: ReleaseEntry[], integrity: ReleaseIntegrity[] | null) => {
       releaseSpy.releases = releases
       releaseSpy.integrity = integrity
@@ -896,7 +898,7 @@ describe('the release comparison', () => {
   })
 })
 
-it('previews opening poses through viewport overrides and clears them on Escape', () => {
+it('previews opening poses through viewport overrides and clears them on Escape', async () => {
   cleanup()
   vi.clearAllMocks()
   mockSnapActive = false
@@ -906,7 +908,7 @@ it('previews opening poses through viewport overrides and clears them on Escape'
   render(<App />)
   fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
   fireEvent.click(screen.getByRole('button', { name: 'Door & Drawer Motion…' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Select supported fronts' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Select supported fronts' }))
   fireEvent.click(screen.getByRole('button', { name: 'Open selected' }))
   expect(viewportSpy.previewOnly).toBe(true)
   expect(viewportSpy.motionCount).toBe(1)
@@ -921,7 +923,7 @@ it('previews opening poses through viewport overrides and clears them on Escape'
   cleanup()
 })
 
-it('opens grain matching from File and closes it with Escape without changing geometry', () => {
+it('opens grain matching from File and closes it with Escape without changing geometry', async () => {
   cleanup()
   vi.clearAllMocks()
   mockSnapActive = false
@@ -932,8 +934,8 @@ it('opens grain matching from File and closes it with Escape without changing ge
   fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
   fireEvent.click(screen.getByRole('button', { name: 'Front Grain Matching…' }))
   expect(
-    screen.queryByRole('complementary', { name: 'Front grain matching workspace' }),
-  ).not.toBeNull()
+    await screen.findByRole('complementary', { name: 'Front grain matching workspace' }),
+  ).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Add visible fronts' }))
   fireEvent.click(screen.getByRole('button', { name: 'Preview grain matching' }))
   expect(screen.queryByRole('img', { name: 'Cutting blank grain matching preview' })).not.toBeNull()
@@ -942,7 +944,7 @@ it('opens grain matching from File and closes it with Escape without changing ge
   cleanup()
 })
 
-it('opens the stock workspace from File and closes it with Escape', () => {
+it('opens the stock workspace from File and closes it with Escape', async () => {
   cleanup()
   vi.clearAllMocks()
   mockSnapActive = false
@@ -952,14 +954,14 @@ it('opens the stock workspace from File and closes it with Escape', () => {
   fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
   fireEvent.click(screen.getByRole('button', { name: 'Stock Optimisation…' }))
   expect(
-    screen.queryByRole('complementary', { name: 'Stock optimisation workspace' }),
-  ).not.toBeNull()
+    await screen.findByRole('complementary', { name: 'Stock optimisation workspace' }),
+  ).toBeTruthy()
   fireEvent.keyDown(window, { key: 'Escape' })
   expect(screen.queryByRole('complementary', { name: 'Stock optimisation workspace' })).toBeNull()
   cleanup()
 })
 
-it('opens the sloped cabinet workspace from File and closes it with Escape', () => {
+it('opens the sloped cabinet workspace from File and closes it with Escape', async () => {
   cleanup()
   vi.clearAllMocks()
   mockSnapActive = false
@@ -970,8 +972,8 @@ it('opens the sloped cabinet workspace from File and closes it with Escape', () 
   fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
   fireEvent.click(screen.getByRole('button', { name: 'Sloped-Top Cabinets…' }))
   expect(
-    screen.queryByRole('complementary', { name: 'Sloped top cabinet workspace' }),
-  ).not.toBeNull()
+    await screen.findByRole('complementary', { name: 'Sloped top cabinet workspace' }),
+  ).toBeTruthy()
   fireEvent.click(screen.getByLabelText('Enable sloped top'))
   fireEvent.click(screen.getByRole('button', { name: 'Preview sloped cabinet' }))
   expect(

@@ -6,7 +6,7 @@ import {
   type ReleaseEntry,
   type ReleaseIntegrity,
 } from '../scene/releases'
-import { captureProductionSource, type ProductionPacketInput } from './buildProductionPacket'
+import { captureProductionSource, type ProductionPacketInput } from './captureProductionSource'
 
 // Capturing clones and stringifies the whole job on the main thread, so a drag or a typed
 // dimension waits until the edits settle instead of hashing every committed change.

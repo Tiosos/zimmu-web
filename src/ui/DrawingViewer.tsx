@@ -4,7 +4,6 @@ import type { DrawingSheet } from '../geom/drawing'
 import { buildSvg } from './buildSvg'
 import { buildDxf } from './buildDxf'
 import { downloadBlob } from './download'
-import { buildPdf } from './buildPdf'
 import { sheetFilename } from './sheetFilename'
 
 export interface DrawingViewerProps {
@@ -54,9 +53,11 @@ export function DrawingViewer({ open, onClose, sheets, projectName }: DrawingVie
   }, [open, handleKey])
 
   const handleDownloadPdf = useCallback(() => {
-    void buildPdf(sheets).then((bytes) => {
-      downloadBlob(bytes as BlobPart, `${projectName}-drawings.pdf`, 'application/pdf')
-    })
+    void import('./buildPdf')
+      .then(({ buildPdf }) => buildPdf(sheets))
+      .then((bytes) => {
+        downloadBlob(bytes as BlobPart, `${projectName}-drawings.pdf`, 'application/pdf')
+      })
   }, [sheets, projectName])
 
   if (!open || sheets.length === 0) return null

@@ -1,3 +1,4 @@
+import { captureInput, type ProductionPacketInput } from './captureProductionSource'
 import { buildSlopeCsv } from './buildSlopeCsv'
 import { buildGrainMatchCsv } from './buildGrainMatchCsv'
 import { PRODUCTION_RELEASE_POLICY } from './productionReleaseGate'
@@ -6,7 +7,7 @@ import { buildDrawingIndex, buildDrawingIndexCsv } from './buildDrawingIndex'
 import { buildProductionReview } from '../scene/productionReview'
 import { reconcileMachining } from './machiningReconciliation'
 import { strToU8, zip } from 'fflate'
-import type { Scene, HardwareLibraryEntry, CarcaseComponent, MaterialDef } from '../scene/types'
+import type { CarcaseComponent } from '../scene/types'
 import { componentsById, descendantIds } from '../scene/componentTree'
 import { carcaseHardware } from '../scene/carcaseHardware'
 import { createReadinessSnapshot } from '../scene/readinessSnapshot'
@@ -28,13 +29,7 @@ import { manufacturingParts } from '../scene/manufacturingPart'
 import { buildMachiningSchedule, machiningScheduleJson } from '../scene/machiningSchedule'
 import { buildMachiningCsv } from './buildMachiningCsv'
 
-export interface ProductionPacketInput {
-  scene: Scene
-  projectName: string
-  hardwareLibrary: Record<string, HardwareLibraryEntry>
-  materialLibrary: Record<string, MaterialDef>
-  capturedAt?: Date
-}
+export { captureProductionSource, type ProductionPacketInput } from './captureProductionSource'
 
 export function productionPacketFilename(projectName: string): string {
   return readinessPdfFilename(projectName).replace(
@@ -52,19 +47,6 @@ const archive = (files: Record<string, Uint8Array>): Promise<Uint8Array> =>
   new Promise((resolve, reject) => {
     zip(files, { level: 6 }, (error, data) => (error ? reject(error) : resolve(data)))
   })
-
-const captureInput = (input: ProductionPacketInput) =>
-  structuredClone({
-    scene: input.scene,
-    projectName: input.projectName,
-    hardwareLibrary: input.hardwareLibrary,
-    materialLibrary: input.materialLibrary,
-  })
-
-// The text whose SHA-256 is the manifest's sourceSha256. A release stores it verbatim.
-export function captureProductionSource(input: ProductionPacketInput): string {
-  return JSON.stringify(captureInput(input))
-}
 
 export async function buildProductionPacket(input: ProductionPacketInput): Promise<Uint8Array> {
   // This copy happens before the first await, including both pricing libraries outside the scene.

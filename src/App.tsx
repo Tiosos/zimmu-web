@@ -1,10 +1,6 @@
-import { SlopedTopWorkspace } from './ui/SlopedTopWorkspace'
-import { StockWorkspace } from './ui/StockWorkspace'
-import { GrainMatchWorkspace } from './ui/GrainMatchWorkspace'
-import { OpeningMotionWorkspace, type OpeningTransient } from './ui/OpeningMotionWorkspace'
+import type { OpeningTransient } from './ui/OpeningMotionWorkspace'
 import { openingSignature } from './scene/openingMotion'
-import { CatalogueImport } from './ui/CatalogueImport'
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
@@ -18,14 +14,12 @@ import { Sidebar } from './ui/sidebar'
 import { CabinetEditor, type CabinetTab } from './ui/CabinetEditor'
 import { FileMenu } from './ui/FileMenu'
 import { ReleaseStatus } from './ui/ReleaseStatus'
-import { ReleaseSourceComparison } from './ui/ReleaseSourceComparison'
 import { isReadable, type ProductionRelease } from './scene/releases'
 import { PlanView } from './ui/PlanView'
 import { anchorForDrop } from './scene/dragAnchor'
 import { turnedInPlace } from './scene/turnCabinet'
 import { cornerWarnings } from './scene/blindCorner'
 import { dropForCentre, gizmoCentreOf } from './scene/moveGizmo'
-import { BomModal } from './ui/BomModal'
 import { useMaterialLibrary } from './scene/useMaterialLibrary'
 import { useHardwareLibrary } from './scene/useHardwareLibrary'
 import { carcaseHardware } from './scene/carcaseHardware'
@@ -34,11 +28,7 @@ import { buildBinaryStl } from './geom/stl'
 import { downloadBlob } from './ui/download'
 import { buildDrawingSheets } from './geom/drawing'
 import type { DrawingSheet } from './geom/drawing'
-import { DrawingViewer } from './ui/DrawingViewer'
-import { ManufacturingReadiness } from './ui/ManufacturingReadiness'
-import { ProductionPacketVerifier } from './ui/ProductionPacketVerifier'
-import { captureProductionSource, type ProductionPacketInput } from './ui/buildProductionPacket'
-import { ProductionPacketComparison } from './ui/ProductionPacketComparison'
+import { captureProductionSource, type ProductionPacketInput } from './ui/captureProductionSource'
 import { ProjectPanel } from './ui/ProjectPanel'
 import { wallPlacementPose } from './scene/roomGeometry'
 import { roomComponentIds } from './scene/projectStructure'
@@ -52,6 +42,37 @@ import type {
   SectionId,
   Selection,
 } from './scene/types'
+import { lazyNamed } from './lib/lazyNamed'
+
+const SlopedTopWorkspace = lazyNamed(() => import('./ui/SlopedTopWorkspace'), 'SlopedTopWorkspace')
+const StockWorkspace = lazyNamed(() => import('./ui/StockWorkspace'), 'StockWorkspace')
+const GrainMatchWorkspace = lazyNamed(
+  () => import('./ui/GrainMatchWorkspace'),
+  'GrainMatchWorkspace',
+)
+const OpeningMotionWorkspace = lazyNamed(
+  () => import('./ui/OpeningMotionWorkspace'),
+  'OpeningMotionWorkspace',
+)
+const CatalogueImport = lazyNamed(() => import('./ui/CatalogueImport'), 'CatalogueImport')
+const ReleaseSourceComparison = lazyNamed(
+  () => import('./ui/ReleaseSourceComparison'),
+  'ReleaseSourceComparison',
+)
+const BomModal = lazyNamed(() => import('./ui/BomModal'), 'BomModal')
+const ManufacturingReadiness = lazyNamed(
+  () => import('./ui/ManufacturingReadiness'),
+  'ManufacturingReadiness',
+)
+const ProductionPacketVerifier = lazyNamed(
+  () => import('./ui/ProductionPacketVerifier'),
+  'ProductionPacketVerifier',
+)
+const ProductionPacketComparison = lazyNamed(
+  () => import('./ui/ProductionPacketComparison'),
+  'ProductionPacketComparison',
+)
+const DrawingViewer = lazyNamed(() => import('./ui/DrawingViewer'), 'DrawingViewer')
 
 const supported = 'showOpenFilePicker' in window
 
@@ -752,71 +773,82 @@ function App() {
         overflow: 'hidden',
       }}
     >
-      {slopedTopOpen && (
-        <SlopedTopWorkspace
-          scene={scene}
-          project={project}
-          onApply={(p) => onApplySlope(project, p)}
-          onClose={() => setSlopedTopOpen(false)}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-        />
-      )}
-      {stockOptimisationOpen && (
-        <StockWorkspace
-          scene={scene}
-          project={project}
-          materials={nestMaterials}
-          clearance={clearance}
-          onApply={(preview, action, remnants) =>
-            onApplyStockPlan(project, nestMaterials, preview, action, remnants)
-          }
-          onClose={() => setStockOptimisationOpen(false)}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-        />
-      )}
-      {grainMatchingOpen && (
-        <GrainMatchWorkspace
-          scene={scene}
-          project={project}
-          materials={nestMaterials}
-          clearance={clearance}
-          onApply={(preview) => onApplyGrainMatchPreview(project, preview)}
-          onClose={() => setGrainMatchingOpen(false)}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-        />
-      )}
-      {openingMotionOpen && (
-        <OpeningMotionWorkspace
-          scene={scene}
-          project={project}
-          onApply={(preview) => onApplyOpeningPreview(project, preview)}
-          onTransient={updateOpeningTransient}
-          onClose={() => {
-            setOpeningMotionOpen(false)
-            setOpeningTransient(null)
-          }}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
-        />
-      )}
-      {importCatalogue && (
-        <CatalogueImport
-          scene={scene}
-          onInstall={onInstallCatalogue}
-          onClose={() => setImportCatalogue(false)}
-        />
-      )}
+      <Suspense
+        fallback={
+          <div
+            role="status"
+            className="fixed bottom-3 right-3 z-50 rounded bg-background/90 px-3 py-1 text-sm shadow"
+          >
+            Loading…
+          </div>
+        }
+      >
+        {slopedTopOpen && (
+          <SlopedTopWorkspace
+            scene={scene}
+            project={project}
+            onApply={(p) => onApplySlope(project, p)}
+            onClose={() => setSlopedTopOpen(false)}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+          />
+        )}
+        {stockOptimisationOpen && (
+          <StockWorkspace
+            scene={scene}
+            project={project}
+            materials={nestMaterials}
+            clearance={clearance}
+            onApply={(preview, action, remnants) =>
+              onApplyStockPlan(project, nestMaterials, preview, action, remnants)
+            }
+            onClose={() => setStockOptimisationOpen(false)}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+          />
+        )}
+        {grainMatchingOpen && (
+          <GrainMatchWorkspace
+            scene={scene}
+            project={project}
+            materials={nestMaterials}
+            clearance={clearance}
+            onApply={(preview) => onApplyGrainMatchPreview(project, preview)}
+            onClose={() => setGrainMatchingOpen(false)}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+          />
+        )}
+        {openingMotionOpen && (
+          <OpeningMotionWorkspace
+            scene={scene}
+            project={project}
+            onApply={(preview) => onApplyOpeningPreview(project, preview)}
+            onTransient={updateOpeningTransient}
+            onClose={() => {
+              setOpeningMotionOpen(false)
+              setOpeningTransient(null)
+            }}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+          />
+        )}
+        {importCatalogue && (
+          <CatalogueImport
+            scene={scene}
+            onInstall={onInstallCatalogue}
+            onClose={() => setImportCatalogue(false)}
+          />
+        )}
+      </Suspense>
       <FileMenu
         fileName={fileName}
         projectName={projectName}
@@ -1116,97 +1148,110 @@ function App() {
           onHoverPair={setHoveredPair}
         />
       </div>
-      {cuttingListOpen && (
-        <BomModal
-          parts={scene.parts}
-          components={scene.components}
-          materials={scene.materials}
-          hardware={scene.hardware}
-          projectName={projectName}
-          onClose={closeCuttingList}
-          onMaterialCostChange={onUpdateMaterial}
-          onUpdateHardware={onUpdateHardware}
-          library={library}
-          onSaveRate={saveRate}
-          onDeleteLibraryEntry={deleteEntry}
-          clearance={clearance}
-          onSetClearance={setClearance}
-          nestReports={nestReports}
-          nestPending={nestPending}
-          onSheetsTabChange={setSheetsTabOpen}
-          hardwareLines={hardwareLines}
-          hardwareLibrary={hardwareLibrary}
-          onSaveHardwareEntry={saveHardwareEntry}
-          onDeleteHardwareEntry={deleteHardwareLibraryEntry}
-        />
-      )}
-      <DrawingViewer
-        key={
-          drawingSheets[0]?.kind === 'installation'
-            ? `${drawingSheets[0].cabinetId}/${drawingSheets[0].shelfRole}`
-            : 'deck'
+      <Suspense
+        fallback={
+          <div
+            role="status"
+            className="fixed bottom-3 right-3 z-50 rounded bg-background/90 px-3 py-1 text-sm shadow"
+          >
+            Loading…
+          </div>
         }
-        open={drawingsOpen}
-        onClose={closeDrawings}
-        sheets={drawingSheets}
-        projectName={projectName}
-      />
-      {packetComparisonOpen && (
-        <ProductionPacketComparison onClose={() => setPacketComparisonOpen(false)} />
-      )}
-      {packetVerificationOpen && (
-        <ProductionPacketVerifier
-          onClose={() => setPacketVerificationOpen(false)}
-          recording={
-            fileReady
-              ? {
-                  captureSource: () => captureProductionSource(packetInputs),
-                  onRecord: recordRelease,
-                  releases,
-                  integrity: releaseIntegrity,
-                  onCompare: (release) => {
-                    setPacketVerificationOpen(false)
-                    setComparisonRelease(release)
-                  },
-                }
-              : undefined
-          }
-        />
-      )}
-      {comparisonRelease && comparisonOpen && (
-        <ReleaseSourceComparison
-          release={comparisonRelease}
-          input={packetInputs}
-          onClose={() => setComparisonRelease(null)}
-          onInspect={(id) => {
-            onSelectPart(id)
-            setCabinetTab('3d')
-            setMainView('model')
-            setComparisonRelease(null)
-          }}
-        />
-      )}
-      {readinessOpen && (
-        <ManufacturingReadiness
-          {...packetInputs}
-          onInspect={(selection) => {
-            onSelect(selection)
-            setReadinessOpen(false)
-            setMainView('model')
-          }}
-          onClose={() => setReadinessOpen(false)}
-          onOpenSheet={(cabinet, role) => {
-            const sheet = buildShelfInstallationSheets(
-              { cabinet, parts: scene.parts, materials: scene.materials, byId: componentMap },
-              new Date().toISOString().slice(0, 10),
-            ).find((s) => s.shelfRole === role)
-            if (!sheet) return
-            setDrawingSheets([sheet])
-            setReadinessOpen(false)
-            setDrawingsOpen(true)
-          }}
-        />
-      )}
+      >
+        {cuttingListOpen && (
+          <BomModal
+            parts={scene.parts}
+            components={scene.components}
+            materials={scene.materials}
+            hardware={scene.hardware}
+            projectName={projectName}
+            onClose={closeCuttingList}
+            onMaterialCostChange={onUpdateMaterial}
+            onUpdateHardware={onUpdateHardware}
+            library={library}
+            onSaveRate={saveRate}
+            onDeleteLibraryEntry={deleteEntry}
+            clearance={clearance}
+            onSetClearance={setClearance}
+            nestReports={nestReports}
+            nestPending={nestPending}
+            onSheetsTabChange={setSheetsTabOpen}
+            hardwareLines={hardwareLines}
+            hardwareLibrary={hardwareLibrary}
+            onSaveHardwareEntry={saveHardwareEntry}
+            onDeleteHardwareEntry={deleteHardwareLibraryEntry}
+          />
+        )}
+        {drawingsOpen && (
+          <DrawingViewer
+            key={
+              drawingSheets[0]?.kind === 'installation'
+                ? `${drawingSheets[0].cabinetId}/${drawingSheets[0].shelfRole}`
+                : 'deck'
+            }
+            open={drawingsOpen}
+            onClose={closeDrawings}
+            sheets={drawingSheets}
+            projectName={projectName}
+          />
+        )}
+        {packetComparisonOpen && (
+          <ProductionPacketComparison onClose={() => setPacketComparisonOpen(false)} />
+        )}
+        {packetVerificationOpen && (
+          <ProductionPacketVerifier
+            onClose={() => setPacketVerificationOpen(false)}
+            recording={
+              fileReady
+                ? {
+                    captureSource: () => captureProductionSource(packetInputs),
+                    onRecord: recordRelease,
+                    releases,
+                    integrity: releaseIntegrity,
+                    onCompare: (release) => {
+                      setPacketVerificationOpen(false)
+                      setComparisonRelease(release)
+                    },
+                  }
+                : undefined
+            }
+          />
+        )}
+        {comparisonRelease && comparisonOpen && (
+          <ReleaseSourceComparison
+            release={comparisonRelease}
+            input={packetInputs}
+            onClose={() => setComparisonRelease(null)}
+            onInspect={(id) => {
+              onSelectPart(id)
+              setCabinetTab('3d')
+              setMainView('model')
+              setComparisonRelease(null)
+            }}
+          />
+        )}
+        {readinessOpen && (
+          <ManufacturingReadiness
+            {...packetInputs}
+            onInspect={(selection) => {
+              onSelect(selection)
+              setReadinessOpen(false)
+              setMainView('model')
+            }}
+            onClose={() => setReadinessOpen(false)}
+            onOpenSheet={(cabinet, role) => {
+              const sheet = buildShelfInstallationSheets(
+                { cabinet, parts: scene.parts, materials: scene.materials, byId: componentMap },
+                new Date().toISOString().slice(0, 10),
+              ).find((s) => s.shelfRole === role)
+              if (!sheet) return
+              setDrawingSheets([sheet])
+              setReadinessOpen(false)
+              setDrawingsOpen(true)
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   )
 }
