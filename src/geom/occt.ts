@@ -38,8 +38,7 @@ export function makeCylinder(
   // BRepPrimAPI_MakeCylinder_1(R, H): default axis +Z, base circle centered at
   // origin. The _2 overload is (R, H, Angle) — 3 args — and throws at runtime if
   // called with 2 (confirmed against opencascade.js v1.1.1, 2026-06-27).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const builder = new (oc as any).BRepPrimAPI_MakeCylinder_1(radius, height)
+  const builder = new oc.BRepPrimAPI_MakeCylinder_1(radius, height)
   const shape = builder.Shape()
   builder.delete()
   return shape
@@ -51,28 +50,23 @@ export function makeCut(
   position: Vec3,
   size: Vec3,
 ): TopoDS_Shape {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const builder = new (oc as any).BRepPrimAPI_MakeBox_1(size.x, size.y, size.z)
+  const builder = new oc.BRepPrimAPI_MakeBox_1(size.x, size.y, size.z)
   const toolShape = builder.Shape()
   builder.delete()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const trsf = new (oc as any).gp_Trsf_1()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vec = new (oc as any).gp_Vec_4(position.x, position.y, position.z)
+  const trsf = new oc.gp_Trsf_1()
+  const vec = new oc.gp_Vec_4(position.x, position.y, position.z)
   trsf.SetTranslation_1(vec)
   vec.delete()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const xform = new (oc as any).BRepBuilderAPI_Transform_2(toolShape, trsf, false)
+  const xform = new oc.BRepBuilderAPI_Transform_2(toolShape, trsf, false)
   trsf.delete()
   const movedTool = xform.Shape()
 
   // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor (IsDone/Shape are
   // valid immediately). The progress-range overloads are unusable: Message_ProgressRange
   // is absent in opencascade.js v1.1.1 (see 2026-06-05-3d-export-notes.md).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const op = new (oc as any).BRepAlgoAPI_Cut_3(shape, movedTool)
+  const op = new oc.BRepAlgoAPI_Cut_3(shape, movedTool)
 
   if (!op.IsDone()) {
     console.warn('makeCut: BRepAlgoAPI_Cut did not complete — returning input shape')
@@ -101,8 +95,7 @@ export function makeMitreCut(
   board: { length: number; width: number; thickness: number },
   mitre: MitreCut,
 ): TopoDS_Shape {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
+  const O = oc
   const tool = computeMitreTool(board, mitre)
 
   const builder = new O.BRepPrimAPI_MakeBox_1(tool.boxSize.x, tool.boxSize.y, tool.boxSize.z)
@@ -162,8 +155,7 @@ export function makeBoxCutAt(
   shape: TopoDS_Shape,
   tool: BoxToolDescriptor,
 ): TopoDS_Shape {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
+  const O = oc
   const builder = new O.BRepPrimAPI_MakeBox_1(tool.boxSize.x, tool.boxSize.y, tool.boxSize.z)
   const boxShape = builder.Shape()
   builder.delete()
@@ -219,8 +211,7 @@ export function makeCylinderCut(
   shape: TopoDS_Shape,
   tool: CylinderToolDescriptor,
 ): TopoDS_Shape {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
+  const O = oc
   const pnt = new O.gp_Pnt_3(tool.basePoint.x, tool.basePoint.y, tool.basePoint.z)
   const dir = new O.gp_Dir_4(tool.dir.x, tool.dir.y, tool.dir.z)
   const ax2 = new O.gp_Ax2_3(pnt, dir)
@@ -350,8 +341,7 @@ export function makeHoleArrayCut(
   cut: HoleArrayCut,
 ): TopoDS_Shape {
   if (cut.count <= 0 || cut.diameter <= 0 || cut.depth <= 0) return shape
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
+  const O = oc
 
   const { axis: drillAxis, sign } = faceDrillAxis(cut.face)
   const step = stepVector(cut.face, cut.axis, cut.pitch)
@@ -432,8 +422,7 @@ export function makeShape(
 }
 
 function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS_Shape {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
+  const O = oc
   let shape: TopoDS_Shape
   switch (spec.kind) {
     case 'board':
@@ -468,8 +457,7 @@ function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS
 // range). Solids are not individually named. See 2026-06-05-3d-export-notes.md
 // "Live spike findings".
 export function writeStep(oc: OpenCascadeInstance, specs: ExportSpec[]): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
+  const O = oc
   O.Interface_Static.SetCVal('write.step.unit', 'MM')
 
   const builder = new O.BRep_Builder()
@@ -486,8 +474,7 @@ export function writeStep(oc: OpenCascadeInstance, specs: ExportSpec[]): string 
   writer.Transfer(compound, O.STEPControl_StepModelType.STEPControl_AsIs, true)
   writer.Write('out.step')
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const text: string = (oc as any).FS.readFile('out.step', { encoding: 'utf8' })
+  const text: string = oc.FS.readFile('out.step', { encoding: 'utf8' })
   for (const s of moved) s.delete()
   compound.delete()
   builder.delete()
