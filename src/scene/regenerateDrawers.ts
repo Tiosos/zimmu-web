@@ -12,7 +12,13 @@ import type {
 } from './types'
 import type { Rect, SectionId } from './sectionTree'
 import { resolveCarcase } from './carcaseOpenings'
-import { clearDepth, frontGeometryOf, orientedPanel, type LocalBox, type PanelSpec } from './carcaseRoles'
+import {
+  clearDepth,
+  frontGeometryOf,
+  orientedPanel,
+  type LocalBox,
+  type PanelSpec,
+} from './carcaseRoles'
 import { frontCells, frontRoleOf } from './frontCells'
 import { usableInteriorRect } from './carcaseLayout'
 import { grainAxisOf, grainFieldFor } from './grain'
@@ -99,8 +105,7 @@ function drawerSitesOf(cabinet: CarcaseComponent, scene: Scene): DrawerSite[] | 
           // A frame-zone drawer passes through its own physical opening; legacy drawers keep using
           // the section-level frame opening exactly as before.
           opening:
-            physical ??
-            usableInteriorRect(sectionRect, fronts.frameOpenings?.get(cell.sectionId)),
+            physical ?? usableInteriorRect(sectionRect, fronts.frameOpenings?.get(cell.sectionId)),
           ctx: {
             clearDepth: clear,
             frontThickness: thicknessOf(frontRoleOf(cell)),
@@ -423,9 +428,7 @@ export function regenerateDrawers(scene: Scene): Scene {
   for (const c of scene.components) {
     if (c.kind !== 'drawer' || claimed.has(c)) continue
     if (!c.driven) {
-      released.push(
-        c.sectionId === null ? c : { ...c, sectionId: null, frameOpeningId: undefined },
-      )
+      released.push(c.sectionId === null ? c : { ...c, sectionId: null, frameOpeningId: undefined })
       continue
     }
     // No board is built, so no material is read.

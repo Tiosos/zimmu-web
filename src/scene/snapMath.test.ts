@@ -676,7 +676,13 @@ describe('computeDowelSnapTransform', () => {
       localHitPoint: { x: 0, y: 0, z: 0 },
       hitPoint: { x: 10, y: 20, z: 50 },
     }
-    const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, false, NO_COMPONENTS)
+    const { position, rotation } = computeDowelSnapTransform(
+      source,
+      target,
+      DOWEL,
+      false,
+      NO_COMPONENTS,
+    )
 
     const q = eulerToQuat(rotation)
     const capNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(q)
@@ -701,7 +707,13 @@ describe('computeDowelSnapTransform', () => {
       localHitPoint: { x: 0, y: 0, z: 0 },
       hitPoint: { x: 1, y: 2, z: 200 },
     }
-    const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, true, NO_COMPONENTS)
+    const { position, rotation } = computeDowelSnapTransform(
+      source,
+      target,
+      DOWEL,
+      true,
+      NO_COMPONENTS,
+    )
     const q = eulerToQuat(rotation)
     const capLocal = new THREE.Vector3(0, 0, DOWEL.length).applyQuaternion(q)
     expectVec3(
@@ -722,7 +734,13 @@ describe('computeDowelSnapTransform', () => {
       localHitPoint: { x: 0, y: 0, z: 0 },
       hitPoint: { x: 7, y: 8, z: 30 },
     }
-    const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, false, NO_COMPONENTS)
+    const { position, rotation } = computeDowelSnapTransform(
+      source,
+      target,
+      DOWEL,
+      false,
+      NO_COMPONENTS,
+    )
     const q = eulerToQuat(rotation)
     expectVec3(position, 7, 8, 30)
     const capNormal = new THREE.Vector3(0, 0, -1).applyQuaternion(q)
@@ -759,7 +777,13 @@ describe('computeDowelSnapTransform', () => {
       localHitPoint: { x: 0, y: 0, z: 0 },
       hitPoint: { x: 3, y: 4, z: 70 },
     }
-    const { position, rotation } = computeDowelSnapTransform(source, target, DOWEL, false, NO_COMPONENTS)
+    const { position, rotation } = computeDowelSnapTransform(
+      source,
+      target,
+      DOWEL,
+      false,
+      NO_COMPONENTS,
+    )
     const q = eulerToQuat(rotation)
     const capNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(q)
     expect(capNormal.z).toBeCloseTo(-1, 5)

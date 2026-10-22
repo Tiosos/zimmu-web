@@ -5,7 +5,10 @@ vi.mock('comlink', () => ({
   expose: vi.fn(),
   transfer: vi.fn((data) => data),
 }))
-vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
+vi.stubGlobal(
+  'Worker',
+  vi.fn(function MockWorker() {}),
+)
 
 import { applyPipeline } from './useScene'
 import { CARCASE_PRESETS, PRESET_MATERIALS } from './carcasePresets'

@@ -81,7 +81,8 @@ function vec2At(value: unknown, path: string): { x: number; y: number } {
 
 function positiveAt(value: unknown, path: string, allowZero = false): number {
   const number = finiteNumberAt(value, path)
-  if (allowZero ? number < 0 : number <= 0) throw new ZimmuFileValidationError(path, 'must be positive')
+  if (allowZero ? number < 0 : number <= 0)
+    throw new ZimmuFileValidationError(path, 'must be positive')
   return number
 }
 
@@ -112,13 +113,17 @@ function validateCuts(value: unknown, path: string): void {
     if (cut.kind !== undefined && typeof cut.kind !== 'string') {
       throw new ZimmuFileValidationError(`${path}[${index}].kind`, 'must be a string')
     }
-    if (cut.kind === 'mitre' && cut.flip !== undefined && typeof cut.flip !== 'boolean') throw new ZimmuFileValidationError(`${path}[${index}].flip`, 'must be a boolean')
+    if (cut.kind === 'mitre' && cut.flip !== undefined && typeof cut.flip !== 'boolean')
+      throw new ZimmuFileValidationError(`${path}[${index}].flip`, 'must be a boolean')
     if (cut.id !== undefined) stringAt(cut.id, `${path}[${index}].id`)
   }
 }
 
 function validateSlopeComponent(c: RecordValue, path: string): void {
-  if (c.kind === 'carcase' && isRecord(c.params) && c.params.slopedTop !== undefined) { const error = slopedTopError(c.params.slopedTop); if (error) throw new ZimmuFileValidationError(`${path}.params.slopedTop`, error) }
+  if (c.kind === 'carcase' && isRecord(c.params) && c.params.slopedTop !== undefined) {
+    const error = slopedTopError(c.params.slopedTop)
+    if (error) throw new ZimmuFileValidationError(`${path}.params.slopedTop`, error)
+  }
 }
 
 function validateOperations(value: unknown, path: string): void {
@@ -193,26 +198,77 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
     if (part.worktopMachining !== undefined) {
       const error = worktopMachiningError(part.worktopMachining)
       if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
-      if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop') || (isRecord(part.runWorktop) && isRecord(part.runWorktop.draft) && part.runWorktop.draft.profile !== undefined) || (isRecord(part.cornerPanel) && isRecord(part.cornerPanel.draft) && Array.isArray(part.cornerPanel.draft.legs) && isRecord(part.cornerPanel.draft.legs[0]) && isRecord(part.cornerPanel.draft.legs[0].run) && part.cornerPanel.draft.legs[0].run.profile !== undefined)) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+      if (
+        part.driven ||
+        part.role !== undefined ||
+        part.frontPull !== undefined ||
+        (isRecord(part.finishing) &&
+          isRecord(part.finishing.draft) &&
+          part.finishing.draft.kind !== 'worktop') ||
+        (isRecord(part.runWorktop) &&
+          isRecord(part.runWorktop.draft) &&
+          part.runWorktop.draft.profile !== undefined) ||
+        (isRecord(part.cornerPanel) &&
+          isRecord(part.cornerPanel.draft) &&
+          Array.isArray(part.cornerPanel.draft.legs) &&
+          isRecord(part.cornerPanel.draft.legs[0]) &&
+          isRecord(part.cornerPanel.draft.legs[0].run) &&
+          part.cornerPanel.draft.legs[0].run.profile !== undefined)
+      )
+        throw new ZimmuFileValidationError(
+          `${path}.worktopMachining`,
+          'requires a role-free manual board',
+        )
     }
-    if (part.grainMatch !== undefined) { const error = grainMatchBindingError(part.grainMatch); if (error) throw new ZimmuFileValidationError(`${path}.grainMatch`, error) }
+    if (part.grainMatch !== undefined) {
+      const error = grainMatchBindingError(part.grainMatch)
+      if (error) throw new ZimmuFileValidationError(`${path}.grainMatch`, error)
+    }
     if (part.wallFiller !== undefined) {
       const error = wallFillerLinkError(part.wallFiller)
       if (error) throw new ZimmuFileValidationError(`${path}.wallFiller`, error)
-      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.runWorktop !== undefined || part.cornerPanel !== undefined || part.frontPull !== undefined || part.worktopMachining !== undefined)
-        throw new ZimmuFileValidationError(`${path}.wallFiller`, 'must exclusively own a role-free manual filler board')
+      if (
+        part.driven ||
+        part.role !== undefined ||
+        part.finishing !== undefined ||
+        part.runWorktop !== undefined ||
+        part.cornerPanel !== undefined ||
+        part.frontPull !== undefined ||
+        part.worktopMachining !== undefined
+      )
+        throw new ZimmuFileValidationError(
+          `${path}.wallFiller`,
+          'must exclusively own a role-free manual filler board',
+        )
     }
     if (part.cornerPanel !== undefined) {
       const error = cornerLinkError(part.cornerPanel)
       if (error) throw new ZimmuFileValidationError(`${path}.cornerPanel`, error)
-      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.runWorktop !== undefined || part.frontPull !== undefined)
-        throw new ZimmuFileValidationError(`${path}.cornerPanel`, 'must own a role-free manual board exclusively')
+      if (
+        part.driven ||
+        part.role !== undefined ||
+        part.finishing !== undefined ||
+        part.runWorktop !== undefined ||
+        part.frontPull !== undefined
+      )
+        throw new ZimmuFileValidationError(
+          `${path}.cornerPanel`,
+          'must own a role-free manual board exclusively',
+        )
     }
     if (part.runWorktop !== undefined) {
       const error = runWorktopLinkError(part.runWorktop)
       if (error) throw new ZimmuFileValidationError(`${path}.runWorktop`, error)
-      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.frontPull !== undefined)
-        throw new ZimmuFileValidationError(`${path}.runWorktop`, 'must own a role-free manual board exclusively')
+      if (
+        part.driven ||
+        part.role !== undefined ||
+        part.finishing !== undefined ||
+        part.frontPull !== undefined
+      )
+        throw new ZimmuFileValidationError(
+          `${path}.runWorktop`,
+          'must own a role-free manual board exclusively',
+        )
     }
     if (part.frontPull !== undefined) {
       const error = pullSpecError(part.frontPull)
@@ -222,7 +278,10 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
       const error = finishingLinkError(part.finishing)
       if (error) throw new ZimmuFileValidationError(`${path}.finishing`, error)
       if (part.driven || part.role !== undefined)
-        throw new ZimmuFileValidationError(`${path}.finishing`, 'must belong to a role-free manual board')
+        throw new ZimmuFileValidationError(
+          `${path}.finishing`,
+          'must belong to a role-free manual board',
+        )
     }
     finiteNumberAt(part.width, `${path}.width`)
     finiteNumberAt(part.thickness, `${path}.thickness`)
@@ -267,10 +326,22 @@ export function validateLegacyFileInput(value: unknown): ZimmuFile {
   vecAt(camera.target, 'file.camera.target')
 
   const scene = recordAt(root.scene, 'file.scene')
-  if (scene.stockPlan !== undefined) { const error = stockPlanError(scene.stockPlan); if (error) throw new ZimmuFileValidationError('file.scene.stockPlan', error) }
-  if (scene.grainMatches !== undefined) { const error = grainMatchesError(scene.grainMatches); if (error) throw new ZimmuFileValidationError('file.scene.grainMatches', error) }
-  if (scene.openingMotion !== undefined) { const error = openingMotionError(scene.openingMotion); if (error) throw new ZimmuFileValidationError('file.scene.openingMotion', error) }
-  if (scene.installations !== undefined) { const error = installationsError(scene.installations); if (error) throw new ZimmuFileValidationError('file.scene.installations', error) }
+  if (scene.stockPlan !== undefined) {
+    const error = stockPlanError(scene.stockPlan)
+    if (error) throw new ZimmuFileValidationError('file.scene.stockPlan', error)
+  }
+  if (scene.grainMatches !== undefined) {
+    const error = grainMatchesError(scene.grainMatches)
+    if (error) throw new ZimmuFileValidationError('file.scene.grainMatches', error)
+  }
+  if (scene.openingMotion !== undefined) {
+    const error = openingMotionError(scene.openingMotion)
+    if (error) throw new ZimmuFileValidationError('file.scene.openingMotion', error)
+  }
+  if (scene.installations !== undefined) {
+    const error = installationsError(scene.installations)
+    if (error) throw new ZimmuFileValidationError('file.scene.installations', error)
+  }
   const bayError = applianceBaysError(scene.applianceBays)
   if (bayError) throw new ZimmuFileValidationError('file.scene.applianceBays', bayError)
   if (scene.companyCatalogues !== undefined) validateInstalledCatalogues(scene.companyCatalogues)
@@ -289,7 +360,8 @@ export function validateLegacyFileInput(value: unknown): ZimmuFile {
   const joints = optionalRecordArray(scene.joints, 'file.scene.joints')
   const components = optionalRecordArray(scene.components, 'file.scene.components')
   components.forEach((c, i) => validateSlopeComponent(c, `file.scene.components[${i}]`))
-  for (const c of components) if (c.kind === 'drawer' && isRecord(c.params)) validateNominal(c.params.nominal)
+  for (const c of components)
+    if (c.kind === 'drawer' && isRecord(c.params)) validateNominal(c.params.nominal)
 
   // From this point the migration code receives only the container/value categories it reads.
   // Legacy omissions remain omissions; `parseFile` owns their historical defaults.
@@ -354,26 +426,77 @@ function validateCurrentPart(part: Part, index: number): void {
     if (part.worktopMachining !== undefined) {
       const error = worktopMachiningError(part.worktopMachining)
       if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
-      if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop') || (isRecord(part.runWorktop) && isRecord(part.runWorktop.draft) && part.runWorktop.draft.profile !== undefined) || (isRecord(part.cornerPanel) && isRecord(part.cornerPanel.draft) && Array.isArray(part.cornerPanel.draft.legs) && isRecord(part.cornerPanel.draft.legs[0]) && isRecord(part.cornerPanel.draft.legs[0].run) && part.cornerPanel.draft.legs[0].run.profile !== undefined)) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+      if (
+        part.driven ||
+        part.role !== undefined ||
+        part.frontPull !== undefined ||
+        (isRecord(part.finishing) &&
+          isRecord(part.finishing.draft) &&
+          part.finishing.draft.kind !== 'worktop') ||
+        (isRecord(part.runWorktop) &&
+          isRecord(part.runWorktop.draft) &&
+          part.runWorktop.draft.profile !== undefined) ||
+        (isRecord(part.cornerPanel) &&
+          isRecord(part.cornerPanel.draft) &&
+          Array.isArray(part.cornerPanel.draft.legs) &&
+          isRecord(part.cornerPanel.draft.legs[0]) &&
+          isRecord(part.cornerPanel.draft.legs[0].run) &&
+          part.cornerPanel.draft.legs[0].run.profile !== undefined)
+      )
+        throw new ZimmuFileValidationError(
+          `${path}.worktopMachining`,
+          'requires a role-free manual board',
+        )
     }
-    if (part.grainMatch !== undefined) { const error = grainMatchBindingError(part.grainMatch); if (error) throw new ZimmuFileValidationError(`${path}.grainMatch`, error) }
+    if (part.grainMatch !== undefined) {
+      const error = grainMatchBindingError(part.grainMatch)
+      if (error) throw new ZimmuFileValidationError(`${path}.grainMatch`, error)
+    }
     if (part.wallFiller !== undefined) {
       const error = wallFillerLinkError(part.wallFiller)
       if (error) throw new ZimmuFileValidationError(`${path}.wallFiller`, error)
-      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.runWorktop !== undefined || part.cornerPanel !== undefined || part.frontPull !== undefined || part.worktopMachining !== undefined)
-        throw new ZimmuFileValidationError(`${path}.wallFiller`, 'must exclusively own a role-free manual filler board')
+      if (
+        part.driven ||
+        part.role !== undefined ||
+        part.finishing !== undefined ||
+        part.runWorktop !== undefined ||
+        part.cornerPanel !== undefined ||
+        part.frontPull !== undefined ||
+        part.worktopMachining !== undefined
+      )
+        throw new ZimmuFileValidationError(
+          `${path}.wallFiller`,
+          'must exclusively own a role-free manual filler board',
+        )
     }
     if (part.cornerPanel !== undefined) {
       const error = cornerLinkError(part.cornerPanel)
       if (error) throw new ZimmuFileValidationError(`${path}.cornerPanel`, error)
-      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.runWorktop !== undefined || part.frontPull !== undefined)
-        throw new ZimmuFileValidationError(`${path}.cornerPanel`, 'must own a role-free manual board exclusively')
+      if (
+        part.driven ||
+        part.role !== undefined ||
+        part.finishing !== undefined ||
+        part.runWorktop !== undefined ||
+        part.frontPull !== undefined
+      )
+        throw new ZimmuFileValidationError(
+          `${path}.cornerPanel`,
+          'must own a role-free manual board exclusively',
+        )
     }
     if (part.runWorktop !== undefined) {
       const error = runWorktopLinkError(part.runWorktop)
       if (error) throw new ZimmuFileValidationError(`${path}.runWorktop`, error)
-      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.frontPull !== undefined)
-        throw new ZimmuFileValidationError(`${path}.runWorktop`, 'must own a role-free manual board exclusively')
+      if (
+        part.driven ||
+        part.role !== undefined ||
+        part.finishing !== undefined ||
+        part.frontPull !== undefined
+      )
+        throw new ZimmuFileValidationError(
+          `${path}.runWorktop`,
+          'must own a role-free manual board exclusively',
+        )
     }
     if (part.frontPull !== undefined) {
       const error = pullSpecError(part.frontPull)
@@ -383,7 +506,10 @@ function validateCurrentPart(part: Part, index: number): void {
       const error = finishingLinkError(part.finishing)
       if (error) throw new ZimmuFileValidationError(`${path}.finishing`, error)
       if (part.driven || part.role !== undefined)
-        throw new ZimmuFileValidationError(`${path}.finishing`, 'must belong to a role-free manual board')
+        throw new ZimmuFileValidationError(
+          `${path}.finishing`,
+          'must belong to a role-free manual board',
+        )
     }
     finiteNumberAt(part.width, `${path}.width`)
     finiteNumberAt(part.thickness, `${path}.thickness`)
@@ -403,11 +529,14 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
   const ownedParts = new Set<string>()
   const placedCabinets = new Set<string>()
   const roots = new Set(scene.components.filter((c) => c.parentId === null).map((c) => c.id))
-  const rootCabinets = new Set(scene.components.filter((c) => c.parentId === null && c.kind === 'carcase').map((c) => c.id))
+  const rootCabinets = new Set(
+    scene.components.filter((c) => c.parentId === null && c.kind === 'carcase').map((c) => c.id),
+  )
   const partRoots = new Set(scene.parts.filter((p) => p.parentId === null).map((p) => p.id))
   const unique = (value: unknown, path: string) => {
     const id = stringAt(value, path)
-    if (!id || ids.has(id)) throw new ZimmuFileValidationError(path, 'must be a unique non-empty id')
+    if (!id || ids.has(id))
+      throw new ZimmuFileValidationError(path, 'must be a unique non-empty id')
     ids.add(id)
   }
   const areas = arrayAt(root.areas, 'file.project.areas')
@@ -425,10 +554,12 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
       unique(room.id, `${roomPath}.id`)
       stringAt(room.name, `${roomPath}.name`)
       const items = arrayAt(room.items, `${roomPath}.items`)
-      const roomRoots = new Set(items.flatMap((item) => {
-        const record = recordAt(item, `${roomPath}.items`)
-        return arrayAt(record.rootComponentIds, `${roomPath}.items.rootComponentIds`)
-      }))
+      const roomRoots = new Set(
+        items.flatMap((item) => {
+          const record = recordAt(item, `${roomPath}.items`)
+          return arrayAt(record.rootComponentIds, `${roomPath}.items.rootComponentIds`)
+        }),
+      )
       const roomComponents = roomComponentIds(roomRoots as Set<string>, scene)
       if (room.geometry !== undefined) {
         const path = `${roomPath}.geometry`
@@ -439,7 +570,10 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
         if (geometry.siteLevels !== undefined) {
           const levels = arrayAt(geometry.siteLevels, `${path}.siteLevels`)
           if (levels.length && !stringAt(geometry.datum, `${path}.datum`).trim())
-            throw new ZimmuFileValidationError(`${path}.datum`, 'must identify the site level datum')
+            throw new ZimmuFileValidationError(
+              `${path}.datum`,
+              'must identify the site level datum',
+            )
           levels.forEach((rawLevel, n) => {
             const lp = `${path}.siteLevels[${n}]`
             const level = recordAt(rawLevel, lp)
@@ -450,9 +584,19 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
             finiteNumberAt(elevation.value, `${lp}.elevation.value`)
             positiveAt(elevation.uncertainty, `${lp}.elevation.uncertainty`, true)
             if (!stringAt(elevation.source, `${lp}.elevation.source`).trim())
-              throw new ZimmuFileValidationError(`${lp}.elevation.source`, 'must identify the measurement source')
-            if (!Number.isFinite(Date.parse(stringAt(elevation.recordedAt, `${lp}.elevation.recordedAt`))))
-              throw new ZimmuFileValidationError(`${lp}.elevation.recordedAt`, 'must be a valid date')
+              throw new ZimmuFileValidationError(
+                `${lp}.elevation.source`,
+                'must identify the measurement source',
+              )
+            if (
+              !Number.isFinite(
+                Date.parse(stringAt(elevation.recordedAt, `${lp}.elevation.recordedAt`)),
+              )
+            )
+              throw new ZimmuFileValidationError(
+                `${lp}.elevation.recordedAt`,
+                'must be a valid date',
+              )
           })
         }
         const walls = arrayAt(geometry.walls, `${path}.walls`)
@@ -465,13 +609,17 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
           stringAt(wall.name, `${wp}.name`)
           const start = vec2At(wall.start, `${wp}.start`)
           const end = vec2At(wall.end, `${wp}.end`)
-          if (start.x === end.x && start.y === end.y) throw new ZimmuFileValidationError(wp, 'wall must have length')
+          if (start.x === end.x && start.y === end.y)
+            throw new ZimmuFileValidationError(wp, 'wall must have length')
           if (wall.measuredLength !== undefined) {
             const mp = `${wp}.measuredLength`
             const measurement = recordAt(wall.measuredLength, mp)
             positiveAt(measurement.value, `${mp}.value`)
             if (!stringAt(measurement.source, `${mp}.source`).trim())
-              throw new ZimmuFileValidationError(`${mp}.source`, 'must identify the measurement source')
+              throw new ZimmuFileValidationError(
+                `${mp}.source`,
+                'must identify the measurement source',
+              )
             if (!Number.isFinite(Date.parse(stringAt(measurement.recordedAt, `${mp}.recordedAt`))))
               throw new ZimmuFileValidationError(`${mp}.recordedAt`, 'must be a valid date')
             positiveAt(measurement.uncertainty, `${mp}.uncertainty`, true)
@@ -481,14 +629,17 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
           const op = `${path}.openings[${n}]`
           const opening = recordAt(rawOpening, op)
           unique(opening.id, `${op}.id`)
-          if (!wallIds.has(opening.wallId as string)) throw new ZimmuFileValidationError(`${op}.wallId`, 'must name a room wall')
-          if (opening.kind !== 'door' && opening.kind !== 'window') throw new ZimmuFileValidationError(`${op}.kind`, 'must be door or window')
+          if (!wallIds.has(opening.wallId as string))
+            throw new ZimmuFileValidationError(`${op}.wallId`, 'must name a room wall')
+          if (opening.kind !== 'door' && opening.kind !== 'window')
+            throw new ZimmuFileValidationError(`${op}.kind`, 'must be door or window')
           positiveAt(opening.offset, `${op}.offset`, true)
           positiveAt(opening.width, `${op}.width`)
           positiveAt(opening.sill, `${op}.sill`, true)
           positiveAt(opening.height, `${op}.height`)
           if (opening.swing !== undefined) {
-            if (opening.kind !== 'door') throw new ZimmuFileValidationError(`${op}.swing`, 'only a door can swing')
+            if (opening.kind !== 'door')
+              throw new ZimmuFileValidationError(`${op}.swing`, 'only a door can swing')
             const swing = recordAt(opening.swing, `${op}.swing`)
             if (swing.hinge !== 'start' && swing.hinge !== 'end')
               throw new ZimmuFileValidationError(`${op}.swing.hinge`, 'must be start or end')
@@ -511,9 +662,18 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
           const pp = `${path}.placements[${n}]`
           const placement = recordAt(rawPlacement, pp)
           const cabinetId = stringAt(placement.cabinetId, `${pp}.cabinetId`)
-          if (!rootCabinets.has(cabinetId) || !roomRoots.has(cabinetId) || placedCabinets.has(cabinetId)) throw new ZimmuFileValidationError(`${pp}.cabinetId`, 'must name an unplaced cabinet owned by this room')
+          if (
+            !rootCabinets.has(cabinetId) ||
+            !roomRoots.has(cabinetId) ||
+            placedCabinets.has(cabinetId)
+          )
+            throw new ZimmuFileValidationError(
+              `${pp}.cabinetId`,
+              'must name an unplaced cabinet owned by this room',
+            )
           placedCabinets.add(cabinetId)
-          if (!wallIds.has(placement.wallId as string)) throw new ZimmuFileValidationError(`${pp}.wallId`, 'must name a room wall')
+          if (!wallIds.has(placement.wallId as string))
+            throw new ZimmuFileValidationError(`${pp}.wallId`, 'must name a room wall')
           positiveAt(placement.offset, `${pp}.offset`, true)
           positiveAt(placement.setback, `${pp}.setback`, true)
           vec2At(placement.manualOffset, `${pp}.manualOffset`)
@@ -526,26 +686,44 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
             const cabinetId = stringAt(clearance.cabinetId, `${cp}.cabinetId`)
             const sectionId = stringAt(clearance.sectionId, `${cp}.sectionId`)
             const cabinet = scene.components.find((c) => c.id === cabinetId)
-            const front = cabinet?.kind === 'carcase' ? frontForSection(cabinet.params.section, sectionId, cabinet.params.frame) : undefined
+            const front =
+              cabinet?.kind === 'carcase'
+                ? frontForSection(cabinet.params.section, sectionId, cabinet.params.frame)
+                : undefined
             const kind = clearance.kind
-            if (!roomComponents.has(cabinetId) || !front ||
-              (kind === 'door' ? front.kind !== 'door' : kind === 'drawer' ? front.kind !== 'drawer-front' : true))
-              throw new ZimmuFileValidationError(cp, 'must name a matching door or drawer front owned by this room')
+            if (
+              !roomComponents.has(cabinetId) ||
+              !front ||
+              (kind === 'door'
+                ? front.kind !== 'door'
+                : kind === 'drawer'
+                  ? front.kind !== 'drawer-front'
+                  : true)
+            )
+              throw new ZimmuFileValidationError(
+                cp,
+                'must name a matching door or drawer front owned by this room',
+              )
             const key = `${cabinetId}:${sectionId}`
-            if (assessed.has(key)) throw new ZimmuFileValidationError(cp, 'must assess each front only once')
+            if (assessed.has(key))
+              throw new ZimmuFileValidationError(cp, 'must assess each front only once')
             assessed.add(key)
             positiveAt(clearance.projection, `${cp}.projection`)
           })
         }
       }
-      if (!items.length) throw new ZimmuFileValidationError(`${roomPath}.items`, 'must not be empty')
+      if (!items.length)
+        throw new ZimmuFileValidationError(`${roomPath}.items`, 'must not be empty')
       items.forEach((rawItem, i) => {
         const itemPath = `${roomPath}.items[${i}]`
         const item = recordAt(rawItem, itemPath)
         unique(item.id, `${itemPath}.id`)
         stringAt(item.name, `${itemPath}.name`)
         if (item.jid !== undefined) stringAt(item.jid, `${itemPath}.jid`)
-        if (item.cutlistNumber !== undefined && !/^\d{6}$/.test(stringAt(item.cutlistNumber, `${itemPath}.cutlistNumber`)))
+        if (
+          item.cutlistNumber !== undefined &&
+          !/^\d{6}$/.test(stringAt(item.cutlistNumber, `${itemPath}.cutlistNumber`))
+        )
           throw new ZimmuFileValidationError(`${itemPath}.cutlistNumber`, 'must be six digits')
         arrayAt(item.rootComponentIds, `${itemPath}.rootComponentIds`).forEach((value, n) => {
           const refPath = `${itemPath}.rootComponentIds[${n}]`
@@ -565,7 +743,10 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
     })
   })
   if (owned.size !== roots.size || ownedParts.size !== partRoots.size)
-    throw new ZimmuFileValidationError('file.project', 'must assign every root component and part to one item')
+    throw new ZimmuFileValidationError(
+      'file.project',
+      'must assign every root component and part to one item',
+    )
 }
 
 function validateEdgeFacts(scene: Scene): void {
@@ -602,11 +783,14 @@ export function validateCabinetRules(value: unknown): void {
   }
   for (const [key, value] of Object.entries(overrides)) {
     const path = `file.scene.cabinetRules.project.${key}`
-    if (!(RULE_KEYS as readonly string[]).includes(key)) throw new ZimmuFileValidationError(path, 'is not a supported project rule')
+    if (!(RULE_KEYS as readonly string[]).includes(key))
+      throw new ZimmuFileValidationError(path, 'is not a supported project rule')
     if (key === 'frontReveal') positiveAt(value, path, true)
     else if (enums[key]) {
-      if (!enums[key].includes(stringAt(value, path))) throw new ZimmuFileValidationError(path, 'has an unsupported value')
-    } else if (!stringAt(value, path).trim() && key !== 'edgeMaterial') throw new ZimmuFileValidationError(path, 'must name a material')
+      if (!enums[key].includes(stringAt(value, path)))
+        throw new ZimmuFileValidationError(path, 'has an unsupported value')
+    } else if (!stringAt(value, path).trim() && key !== 'edgeMaterial')
+      throw new ZimmuFileValidationError(path, 'must name a material')
   }
 }
 
@@ -617,7 +801,8 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   if (file.units !== 'mm') throw new ZimmuFileValidationError('file.units', 'must be "mm"')
   vecAt(file.camera.position, 'file.camera.position')
   vecAt(file.camera.target, 'file.camera.target')
-  if (file.scene.companyCatalogues !== undefined) validateInstalledCatalogues(file.scene.companyCatalogues)
+  if (file.scene.companyCatalogues !== undefined)
+    validateInstalledCatalogues(file.scene.companyCatalogues)
   if (file.scene.cabinetRules !== undefined) validateCabinetRules(file.scene.cabinetRules)
 
   if (!Array.isArray(file.scene.parts)) {
@@ -633,12 +818,24 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
     throw new ZimmuFileValidationError('file.scene.components', 'must be an array')
   }
 
-  if (file.scene.installations !== undefined) { const error = installationsError(file.scene.installations); if (error) throw new ZimmuFileValidationError('file.scene.installations', error) }
-  if (file.scene.openingMotion !== undefined) { const error = openingMotionError(file.scene.openingMotion); if (error) throw new ZimmuFileValidationError('file.scene.openingMotion', error) }
-  if (file.scene.grainMatches !== undefined) { const error = grainMatchesError(file.scene.grainMatches); if (error) throw new ZimmuFileValidationError('file.scene.grainMatches', error) }
+  if (file.scene.installations !== undefined) {
+    const error = installationsError(file.scene.installations)
+    if (error) throw new ZimmuFileValidationError('file.scene.installations', error)
+  }
+  if (file.scene.openingMotion !== undefined) {
+    const error = openingMotionError(file.scene.openingMotion)
+    if (error) throw new ZimmuFileValidationError('file.scene.openingMotion', error)
+  }
+  if (file.scene.grainMatches !== undefined) {
+    const error = grainMatchesError(file.scene.grainMatches)
+    if (error) throw new ZimmuFileValidationError('file.scene.grainMatches', error)
+  }
   const bayError = applianceBaysError(file.scene.applianceBays)
   if (bayError) throw new ZimmuFileValidationError('file.scene.applianceBays', bayError)
-  if (file.scene.stockPlan !== undefined) { const error = stockPlanError(file.scene.stockPlan); if (error) throw new ZimmuFileValidationError('file.scene.stockPlan', error) }
+  if (file.scene.stockPlan !== undefined) {
+    const error = stockPlanError(file.scene.stockPlan)
+    if (error) throw new ZimmuFileValidationError('file.scene.stockPlan', error)
+  }
   file.scene.parts.forEach(validateCurrentPart)
   assertUniqueIds(file.scene.parts, 'file.scene.parts')
   validateEdgeFacts(file.scene)
@@ -662,16 +859,29 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
       const overrides = recordAt(catalogue.overrides, `${path}.catalogue.overrides`)
       for (const key of Object.keys(overrides)) {
         if (!Object.hasOwn(component.params, key))
-          throw new ZimmuFileValidationError(`${path}.catalogue.overrides.${key}`, 'must name a cabinet parameter')
-        if (JSON.stringify(overrides[key]) !== JSON.stringify(component.params[key as keyof typeof component.params]))
-          throw new ZimmuFileValidationError(`${path}.catalogue.overrides.${key}`, 'must match the saved cabinet parameter')
+          throw new ZimmuFileValidationError(
+            `${path}.catalogue.overrides.${key}`,
+            'must name a cabinet parameter',
+          )
+        if (
+          JSON.stringify(overrides[key]) !==
+          JSON.stringify(component.params[key as keyof typeof component.params])
+        )
+          throw new ZimmuFileValidationError(
+            `${path}.catalogue.overrides.${key}`,
+            'must match the saved cabinet parameter',
+          )
       }
     }
     if (component.parentId !== null && !componentIds.has(component.parentId)) {
-      throw new ZimmuFileValidationError(`${path}.parentId`, 'must name a live component or be null')
+      throw new ZimmuFileValidationError(
+        `${path}.parentId`,
+        'must name a live component or be null',
+      )
     }
     if (component.kind === 'carcase') {
-      const edgeMaterial = (component.params as { edgeMaterial?: unknown } | undefined)?.edgeMaterial
+      const edgeMaterial = (component.params as { edgeMaterial?: unknown } | undefined)
+        ?.edgeMaterial
       if (edgeMaterial !== undefined) stringAt(edgeMaterial, `${path}.params.edgeMaterial`)
     }
     // An anchor's target is the same kind of reference parentId is, over a different graph.
@@ -699,5 +909,13 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
 }
 
 function validateNominal(value: unknown): void {
-  if (value !== undefined && value !== null && !(RUNNER_NOMINALS as readonly unknown[]).includes(value)) throw new ZimmuFileValidationError('file.scene.components.params.nominal', 'must name a supported runner nominal')
+  if (
+    value !== undefined &&
+    value !== null &&
+    !(RUNNER_NOMINALS as readonly unknown[]).includes(value)
+  )
+    throw new ZimmuFileValidationError(
+      'file.scene.components.params.nominal',
+      'must name a supported runner nominal',
+    )
 }

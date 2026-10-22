@@ -42,7 +42,10 @@ const boardsOf = (s: Scene) =>
       (p.role.startsWith('stile-') || p.role.startsWith('rail-')),
   )
 
-const roles = (s: Scene) => boardsOf(s).map((p) => p.role!).sort()
+const roles = (s: Scene) =>
+  boardsOf(s)
+    .map((p) => p.role!)
+    .sort()
 
 const board = (s: Scene, role: string): BoardPart => {
   const b = boardsOf(s).find((p) => p.role === role)
@@ -103,7 +106,11 @@ describe('regenerateFaceFrames', () => {
 
   it('gives each cabinet its own frame', () => {
     const out = regenerateFaceFrames(sceneOf([cab('cmp_a'), cab('cmp_b')]))
-    expect(frames(out).map((f) => f.parentId).sort()).toEqual(['cmp_a', 'cmp_b'])
+    expect(
+      frames(out)
+        .map((f) => f.parentId)
+        .sort(),
+    ).toEqual(['cmp_a', 'cmp_b'])
     expect(boardsOf(out)).toHaveLength(8)
   })
 
@@ -112,13 +119,9 @@ describe('regenerateFaceFrames', () => {
     const out = regenerateFaceFrames(sceneOf([cab('cmp_a', { frame: FRAME, section: split })]))
     expect(frames(out)).toHaveLength(1)
     const midRole = `stile-${BASE.section.id}-0`
-    expect(roles(out)).toEqual([
-      'rail-bottom',
-      'rail-top',
-      'stile-left',
-      'stile-right',
-      midRole,
-    ].sort())
+    expect(roles(out)).toEqual(
+      ['rail-bottom', 'rail-top', 'stile-left', 'stile-right', midRole].sort(),
+    )
     const mid = board(out, midRole)
     expect(mid.position).toEqual({ x: 272, y: -20, z: 132 })
     expect(mid.length).toBe(556)
@@ -149,9 +152,7 @@ describe('regenerateFaceFrames', () => {
   })
 
   it('records inset adapter work as manual template machining, never fake CNC holes', () => {
-    const out = regenerateFaceFrames(
-      sceneOf([cab('cmp_a', { frame: FRAME, frontMount: 'inset' })]),
-    )
+    const out = regenerateFaceFrames(sceneOf([cab('cmp_a', { frame: FRAME, frontMount: 'inset' })]))
     const left = board(out, 'stile-left')
     expect(left.cuts.filter((cut) => cut.id.startsWith('frame_plate_'))).toEqual([])
     expect(left.operations).toHaveLength(2)
@@ -177,9 +178,7 @@ describe('regenerateFaceFrames', () => {
     const overlay = regenerateFaceFrames({
       ...inset,
       components: inset.components.map((c) =>
-        c.kind === 'carcase'
-          ? cab('cmp_a', { frame: FRAME, frontMount: 'overlay' })
-          : c,
+        c.kind === 'carcase' ? cab('cmp_a', { frame: FRAME, frontMount: 'overlay' }) : c,
       ),
     })
     expect(board(overlay, 'stile-left').operations).toEqual([])

@@ -48,6 +48,19 @@ describe('SectionElevation', () => {
     expect(onSelect).toHaveBeenCalledWith(ids[0])
   })
 
+  it('lets the keyboard reach a cell and select it with Enter or Space', async () => {
+    const p = divided()
+    const onSelect = draw(p)
+    const ids = sectionOpenings(p.section, resolvedOf(p)).map((o) => o.sectionId)
+    const second = screen.getByRole('button', { name: 'Select opening 2' })
+    second.focus()
+    expect(document.activeElement).toBe(second)
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard(' ')
+    await userEvent.keyboard('a')
+    expect(onSelect.mock.calls).toEqual([[ids[1]], [ids[1]]])
+  })
+
   it('marks the selected cell and no other', () => {
     const p = divided()
     const [first] = sectionOpenings(p.section, resolvedOf(p))
@@ -181,8 +194,8 @@ describe('SectionElevation', () => {
     const p: CarcaseParams = { ...base, section: asymmetric, frame: DEFAULT_FRAME }
     const openings = sectionOpenings(p.section, resolvedOf(p))
     draw(p)
-    const labels = openings.map((o) =>
-      screen.getByTestId(`section-opening-dimension-${o.sectionId}`).textContent,
+    const labels = openings.map(
+      (o) => screen.getByTestId(`section-opening-dimension-${o.sectionId}`).textContent,
     )
     expect(labels).toHaveLength(2)
     expect(labels[0]).not.toBe(labels[1])
@@ -251,9 +264,7 @@ describe('SectionElevation', () => {
     }
     draw(p)
 
-    const labels = [
-      ...screen.getByRole('img').querySelectorAll('text[data-kind="section-number"]'),
-    ]
+    const labels = [...screen.getByRole('img').querySelectorAll('text[data-kind="section-number"]')]
     expect(labels).toHaveLength(3)
     // Each number is read off the cell it lands in, never off document order: cells numbered
     // backwards still read 1, 2, 3 down the DOM.

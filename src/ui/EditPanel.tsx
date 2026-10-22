@@ -1,3 +1,4 @@
+import { activateOnKey } from '../lib/a11y'
 import { serviceCutOwned } from '../scene/serviceMachining'
 import { worktopCutOwned } from '../scene/worktopMachining'
 import { useState, useEffect, useRef, useMemo } from 'react'
@@ -147,6 +148,10 @@ function CutRow({
       <div
         className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground py-1 cursor-pointer select-none hover:text-foreground transition-colors"
         onClick={() => setOpen((v) => !v)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={activateOnKey(() => setOpen((v) => !v))}
       >
         <span>{open ? '▾' : '▸'}</span>
         <span className="flex-1">{cut.label}</span>
@@ -300,6 +305,10 @@ function MitreRow({
       <div
         className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground py-1 cursor-pointer select-none hover:text-foreground transition-colors"
         onClick={() => setOpen((v) => !v)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={activateOnKey(() => setOpen((v) => !v))}
       >
         <span>{open ? '▾' : '▸'}</span>
         <span className="flex-1">{cut.label}</span>
@@ -586,8 +595,18 @@ export function EditPanel({
   // panel's content is tall enough to overflow the sidebar and cover the rows above it.
   return (
     <div className="p-2 border-t border-border max-h-[55%] overflow-y-auto">
-      {part.kind === 'board' && part.cornerPanel && <p className="text-xs mb-2">Linked corner board. Edit dimensions, materials, grain and edges in Finishing → Corner assemblies, or detach the assembly.</p>}
-      {part.kind === 'board' && part.wallFiller && <p className="text-xs mb-2">Linked wall filler. Edit its dimensions and treatments in Project → Room installation, or detach it there.</p>}
+      {part.kind === 'board' && part.cornerPanel && (
+        <p className="text-xs mb-2">
+          Linked corner board. Edit dimensions, materials, grain and edges in Finishing → Corner
+          assemblies, or detach the assembly.
+        </p>
+      )}
+      {part.kind === 'board' && part.wallFiller && (
+        <p className="text-xs mb-2">
+          Linked wall filler. Edit its dimensions and treatments in Project → Room installation, or
+          detach it there.
+        </p>
+      )}
       {/* Label input + delete */}
       <div className="mb-2 flex gap-1">
         <Input
@@ -948,9 +967,13 @@ export function EditPanel({
                   defaultOpen={cut.id === lastPlacedCutId}
                 />
               ) : serviceCutOwned(part, cut.id) ? (
-                <p key={cut.id} className="text-xs">{cut.label} (service opening — edit in Service Openings)</p>
+                <p key={cut.id} className="text-xs">
+                  {cut.label} (service opening — edit in Service Openings)
+                </p>
               ) : worktopCutOwned(part, cut.id) ? (
-                <p key={cut.id} className="text-xs">{cut.label} (worktop machining — edit in Finishing)</p>
+                <p key={cut.id} className="text-xs">
+                  {cut.label} (worktop machining — edit in Finishing)
+                </p>
               ) : isJointOwned(cut) ? (
                 <div
                   key={cut.id}

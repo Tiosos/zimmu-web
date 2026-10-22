@@ -44,7 +44,9 @@ const api = {
     // The kernel figures behind these numbers are recorded in the cabinet-assembly notes.
     if (import.meta.env.DEV) {
       const cutCount = spec.cuts.length
-      console.debug(`zimmu: buildPart ${spec.kind} (${cutCount} cuts) ${(performance.now() - t0).toFixed(1)}ms`)
+      console.debug(
+        `zimmu: buildPart ${spec.kind} (${cutCount} cuts) ${(performance.now() - t0).toFixed(1)}ms`,
+      )
     }
     return transfer(data, [data.positions.buffer, data.normals.buffer])
   },

@@ -42,5 +42,10 @@ export function dropForCentre(
   candidates: CarcaseComponent[],
   materials: Record<string, MaterialDef>,
 ): Drop {
-  return anchorForDrop(dragged, positionForCentre(dragged, materials, centre), candidates, materials)
+  return anchorForDrop(
+    dragged,
+    positionForCentre(dragged, materials, centre),
+    candidates,
+    materials,
+  )
 }

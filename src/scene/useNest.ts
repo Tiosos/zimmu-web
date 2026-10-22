@@ -71,7 +71,10 @@ export function jobSignature(groups: Group[], clearance: number): string {
       g.def.sheet?.length,
       g.def.sheet?.width,
       g.def.hasGrain ?? true,
-      g.parts.map((p) => `${p.id}|${shapeKey(p)}|${p.grain}|${JSON.stringify(p.grainMatch)}|${p.cuts.some(c => c.kind === 'mitre' && c.sourceComponentId !== undefined)}`),
+      g.parts.map(
+        (p) =>
+          `${p.id}|${shapeKey(p)}|${p.grain}|${JSON.stringify(p.grainMatch)}|${p.cuts.some((c) => c.kind === 'mitre' && c.sourceComponentId !== undefined)}`,
+      ),
       g.excluded,
     ]),
   ])

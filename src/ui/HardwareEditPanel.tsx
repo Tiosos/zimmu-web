@@ -30,6 +30,7 @@ export function HardwareEditPanel({
       <div className="flex flex-col gap-1">
         <label className="text-xs text-muted-foreground">Name</label>
         <input
+          aria-label="Name"
           type="text"
           value={draft.name}
           onChange={(e) => field('name', e.target.value)}
@@ -42,6 +43,7 @@ export function HardwareEditPanel({
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Qty</label>
           <input
+            aria-label="Qty"
             type="number"
             min={1}
             value={draft.qty}
@@ -52,6 +54,7 @@ export function HardwareEditPanel({
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Unit</label>
           <input
+            aria-label="Unit"
             type="text"
             list="hw-units"
             value={draft.unit}
@@ -72,6 +75,7 @@ export function HardwareEditPanel({
       <div className="flex flex-col gap-1">
         <label className="text-xs text-muted-foreground">Supplier</label>
         <input
+          aria-label="Supplier"
           type="text"
           value={draft.supplier}
           onChange={(e) => field('supplier', e.target.value)}
@@ -82,6 +86,7 @@ export function HardwareEditPanel({
       <div className="flex flex-col gap-1">
         <label className="text-xs text-muted-foreground">Part #</label>
         <input
+          aria-label="Part #"
           type="text"
           value={draft.partNumber}
           onChange={(e) => field('partNumber', e.target.value)}
@@ -92,6 +97,7 @@ export function HardwareEditPanel({
       <div className="flex flex-col gap-1">
         <label className="text-xs text-muted-foreground">Unit cost</label>
         <input
+          aria-label="Unit cost"
           type="number"
           min={0}
           step="0.01"

@@ -4,7 +4,13 @@ import { CabinetRulesPanel } from './CabinetRulesPanel'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
 import type { RulePreview } from '../scene/ruleFlow'
 import type { Scene } from '../scene/types'
-const scene: Scene = { components: [], parts: [], joints: [], hardware: [], materials: PRESET_MATERIALS }
+const scene: Scene = {
+  components: [],
+  parts: [],
+  joints: [],
+  hardware: [],
+  materials: PRESET_MATERIALS,
+}
 afterEach(cleanup)
 describe('CabinetRulesPanel', () => {
   it('invalidates a preview after editing and reports stale acceptance', () => {

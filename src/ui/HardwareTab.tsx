@@ -1,3 +1,4 @@
+import { activateOnKey } from '../lib/a11y'
 import { useState, useEffect, useRef } from 'react'
 import type { Component, HardwareItem, HardwareLibraryEntry, Part } from '../scene/types'
 import type { HardwareRow } from './groupHardware'
@@ -281,6 +282,12 @@ export function HardwareTab({
                     setPendingItem(null)
                     setSelectedId(item.id)
                   }}
+                  tabIndex={0}
+                  aria-current={selectedId === item.id ? 'true' : undefined}
+                  onKeyDown={activateOnKey(() => {
+                    setPendingItem(null)
+                    setSelectedId(item.id)
+                  })}
                   className={`border-b border-border/30 cursor-pointer hover:bg-muted/30 ${selectedId === item.id ? 'bg-muted/50' : ''}`}
                 >
                   <td className="py-1.5 pr-2 text-xs">{item.name || '—'}</td>

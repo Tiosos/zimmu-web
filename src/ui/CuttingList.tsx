@@ -41,6 +41,7 @@ export function MaterialPopover({ current, unitLabel, onSave, onClose }: Materia
       <span className="text-muted-foreground whitespace-nowrap">{unitLabel}</span>
       <input
         ref={inputRef}
+        aria-label={unitLabel}
         type="number"
         min={0}
         step="any"
@@ -243,6 +244,9 @@ export function CuttingList({
     >
       <div
         data-testid="cl-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Cutting list"
         onClick={(e) => e.stopPropagation()}
         className="bg-card border border-border rounded-lg p-6 min-w-[680px] max-w-[900px] max-h-[80vh] overflow-auto shadow-2xl text-foreground text-sm"
       >

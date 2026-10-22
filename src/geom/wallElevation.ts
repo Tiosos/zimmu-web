@@ -108,7 +108,9 @@ export function buildWallElevation(
     verified: measured !== undefined && lengthVerified(drawn, measured),
   }
 
-  const breaks = [originX, originX + drawn, ...spans.flatMap((s) => [s.x0, s.x1])].sort((a, b) => a - b)
+  const breaks = [originX, originX + drawn, ...spans.flatMap((s) => [s.x0, s.x1])].sort(
+    (a, b) => a - b,
+  )
   const unique = breaks.filter((x, i) => i === 0 || x - breaks[i - 1] > EPS)
   const chain: AssemblyDim[] = unique.slice(1).map((end, i) => ({
     axis: 'h',

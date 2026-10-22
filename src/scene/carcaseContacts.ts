@@ -136,4 +136,3 @@ export function faceFrameContactPairs(
   }
   return pairs
 }
-

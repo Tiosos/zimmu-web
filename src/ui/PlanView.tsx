@@ -1,3 +1,4 @@
+import { activateOnKey } from '../lib/a11y'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CarcaseComponent, ComponentId, Scene, Vec3 } from '../scene/types'
 import { worldBoundsOf } from '../scene/carcaseWorldBounds'
@@ -74,13 +75,20 @@ export function PlanView({
   const boxes = useMemo(
     () =>
       scene.components
-        .filter((c): c is CarcaseComponent => c.kind === 'carcase' && (!cabinetIds || cabinetIds.has(c.id)))
+        .filter(
+          (c): c is CarcaseComponent =>
+            c.kind === 'carcase' && (!cabinetIds || cabinetIds.has(c.id)),
+        )
         .map((c) => ({ c, b: worldBoundsOf(c, scene.materials) })),
     [scene.components, scene.materials, cabinetIds],
   )
 
   const runs = useMemo(
-    () => runsOf(scene.components.filter((c) => !cabinetIds || cabinetIds.has(c.id)), scene.materials),
+    () =>
+      runsOf(
+        scene.components.filter((c) => !cabinetIds || cabinetIds.has(c.id)),
+        scene.materials,
+      ),
     [scene.components, scene.materials, cabinetIds],
   )
 
@@ -88,13 +96,16 @@ export function PlanView({
   // needs the frame to know what a pixel is worth.
   const frame = useMemo((): Frame | null => {
     const points = [
-      ...(room?.walls.flatMap((wall) => [roomPoint(wall.start, room), roomPoint(wall.end, room)]) ?? []),
-      ...(room?.obstacles.flatMap((o) => [
-        o.position,
-        { x: o.position.x + o.width, y: o.position.y },
-        { x: o.position.x + o.width, y: o.position.y + o.depth },
-        { x: o.position.x, y: o.position.y + o.depth },
-      ].map((point) => roomPoint(point, room))) ?? []),
+      ...(room?.walls.flatMap((wall) => [roomPoint(wall.start, room), roomPoint(wall.end, room)]) ??
+        []),
+      ...(room?.obstacles.flatMap((o) =>
+        [
+          o.position,
+          { x: o.position.x + o.width, y: o.position.y },
+          { x: o.position.x + o.width, y: o.position.y + o.depth },
+          { x: o.position.x, y: o.position.y + o.depth },
+        ].map((point) => roomPoint(point, room)),
+      ) ?? []),
       ...(room?.siteLevels?.map((level) => roomPoint(level.at, room)) ?? []),
       ...(room?.openings.flatMap((opening) => doorSwingEnvelope(room, opening) ?? []) ?? []),
     ]
@@ -183,23 +194,55 @@ export function PlanView({
         {room?.walls.map((wall) => {
           const start = roomPoint(wall.start, room)
           const end = roomPoint(wall.end, room)
-          return <g key={wall.id}>
-            <line data-testid={`plan-wall-${wall.id}`} x1={toSvg(start.x, start.y, start.y).x}
-              y1={toSvg(start.x, start.y, start.y).y} x2={toSvg(end.x, end.y, end.y).x}
-              y2={toSvg(end.x, end.y, end.y).y} className="stroke-foreground" strokeWidth={12} />
-            {room.openings.filter((o) => o.wallId === wall.id).map((opening) => {
-              const length = wallLength(wall)
-              if (length === 0) return null
-              const from = roomPoint({ x: wall.start.x + (wall.end.x - wall.start.x) * opening.offset / length,
-                y: wall.start.y + (wall.end.y - wall.start.y) * opening.offset / length }, room)
-              const to = roomPoint({ x: wall.start.x + (wall.end.x - wall.start.x) * (opening.offset + opening.width) / length,
-                y: wall.start.y + (wall.end.y - wall.start.y) * (opening.offset + opening.width) / length }, room)
-              return <line key={opening.id} data-testid={`plan-opening-${opening.id}`}
-                x1={toSvg(from.x, from.y, from.y).x} y1={toSvg(from.x, from.y, from.y).y}
-                x2={toSvg(to.x, to.y, to.y).x} y2={toSvg(to.x, to.y, to.y).y}
-                className="stroke-background" strokeWidth={16} />
-            })}
-          </g>
+          return (
+            <g key={wall.id}>
+              <line
+                data-testid={`plan-wall-${wall.id}`}
+                x1={toSvg(start.x, start.y, start.y).x}
+                y1={toSvg(start.x, start.y, start.y).y}
+                x2={toSvg(end.x, end.y, end.y).x}
+                y2={toSvg(end.x, end.y, end.y).y}
+                className="stroke-foreground"
+                strokeWidth={12}
+              />
+              {room.openings
+                .filter((o) => o.wallId === wall.id)
+                .map((opening) => {
+                  const length = wallLength(wall)
+                  if (length === 0) return null
+                  const from = roomPoint(
+                    {
+                      x: wall.start.x + ((wall.end.x - wall.start.x) * opening.offset) / length,
+                      y: wall.start.y + ((wall.end.y - wall.start.y) * opening.offset) / length,
+                    },
+                    room,
+                  )
+                  const to = roomPoint(
+                    {
+                      x:
+                        wall.start.x +
+                        ((wall.end.x - wall.start.x) * (opening.offset + opening.width)) / length,
+                      y:
+                        wall.start.y +
+                        ((wall.end.y - wall.start.y) * (opening.offset + opening.width)) / length,
+                    },
+                    room,
+                  )
+                  return (
+                    <line
+                      key={opening.id}
+                      data-testid={`plan-opening-${opening.id}`}
+                      x1={toSvg(from.x, from.y, from.y).x}
+                      y1={toSvg(from.x, from.y, from.y).y}
+                      x2={toSvg(to.x, to.y, to.y).x}
+                      y2={toSvg(to.x, to.y, to.y).y}
+                      className="stroke-background"
+                      strokeWidth={16}
+                    />
+                  )
+                })}
+            </g>
+          )
         })}
         {room?.obstacles.map((obstacle) => {
           const corners = [
@@ -208,26 +251,53 @@ export function PlanView({
             { x: obstacle.position.x + obstacle.width, y: obstacle.position.y + obstacle.depth },
             { x: obstacle.position.x, y: obstacle.position.y + obstacle.depth },
           ].map((point) => roomPoint(point, room))
-          return <polygon key={obstacle.id} data-testid={`plan-obstacle-${obstacle.id}`}
-            points={corners.map((point) => `${toSvg(point.x, point.y, point.y).x},${toSvg(point.x, point.y, point.y).y}`).join(' ')}
-            className="fill-amber-500/20 stroke-amber-600" strokeWidth={3} />
+          return (
+            <polygon
+              key={obstacle.id}
+              data-testid={`plan-obstacle-${obstacle.id}`}
+              points={corners
+                .map(
+                  (point) =>
+                    `${toSvg(point.x, point.y, point.y).x},${toSvg(point.x, point.y, point.y).y}`,
+                )
+                .join(' ')}
+              className="fill-amber-500/20 stroke-amber-600"
+              strokeWidth={3}
+            />
+          )
         })}
         {room?.siteLevels?.map((level) => {
           const point = roomPoint(level.at, room)
           const x = toSvg(point.x, point.y, point.y).x
           const y = toSvg(point.x, point.y, point.y).y
-          return <g key={level.id} data-testid={`plan-level-${level.id}`}>
-            <circle cx={x} cy={y} r={25} className="fill-primary" />
-            <text x={x + 35} y={y - 15} className="fill-foreground" fontSize={40}>
-              {level.name}: {level.elevation.value} ±{level.elevation.uncertainty} mm
-            </text>
-          </g>
+          return (
+            <g key={level.id} data-testid={`plan-level-${level.id}`}>
+              <circle cx={x} cy={y} r={25} className="fill-primary" />
+              <text x={x + 35} y={y - 15} className="fill-foreground" fontSize={40}>
+                {level.name}: {level.elevation.value} ±{level.elevation.uncertainty} mm
+              </text>
+            </g>
+          )
         })}
         {room?.openings.map((opening) => {
           const swing = doorSwingEnvelope(room, opening)
-          return swing && <polygon key={`swing-${opening.id}`} data-testid={`plan-door-swing-${opening.id}`}
-            points={swing.map((point) => `${toSvg(point.x, point.y, point.y).x},${toSvg(point.x, point.y, point.y).y}`).join(' ')}
-            className="fill-amber-500/10 stroke-amber-600" strokeWidth={3} strokeDasharray="12 8" />
+          return (
+            swing && (
+              <polygon
+                key={`swing-${opening.id}`}
+                data-testid={`plan-door-swing-${opening.id}`}
+                points={swing
+                  .map(
+                    (point) =>
+                      `${toSvg(point.x, point.y, point.y).x},${toSvg(point.x, point.y, point.y).y}`,
+                  )
+                  .join(' ')}
+                className="fill-amber-500/10 stroke-amber-600"
+                strokeWidth={3}
+                strokeDasharray="12 8"
+              />
+            )
+          )
         })}
         {runs.map((run, i) => {
           const mine = boxes.filter(({ c }) => run.members.includes(c.id))
@@ -284,6 +354,10 @@ export function PlanView({
                 }
                 strokeWidth={isSelected ? 8 : 3}
                 onClick={() => onSelect(c.id)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Select ${c.label}`}
+                onKeyDown={activateOnKey(() => onSelect(c.id))}
                 onPointerDown={(e) =>
                   setDrag({
                     id: c.id,

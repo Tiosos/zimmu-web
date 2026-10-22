@@ -177,3 +177,48 @@ describe('authenticated catalogue HTTP API', () => {
     expect(audience).not.toBe(designer.objectId)
   })
 })
+
+describe('catalogue server hardening', () => {
+  it('limits each client and spares the health check', async () => {
+    const limited = catalogueServer(store, fixture.verify, { rateLimitPerMinute: 2 })
+    await new Promise<void>((resolve) => limited.listen(0, '127.0.0.1', resolve))
+    const url = `http://127.0.0.1:${(limited.address() as AddressInfo).port}`
+    try {
+      const headers = { Authorization: `Bearer ${await fixture.token()}` }
+      expect((await fetch(url + '/api/catalogue/me', { headers })).status).toBe(200)
+      expect((await fetch(url + '/api/catalogue/me', { headers })).status).toBe(200)
+      const refused = await fetch(url + '/api/catalogue/me', { headers })
+      expect(refused.status).toBe(429)
+      expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0)
+      expect((await fetch(url + '/healthz')).status).toBe(200)
+    } finally {
+      await new Promise<void>((resolve) => limited.close(() => resolve()))
+    }
+  })
+  it('keys the limit on the last forwarded address only when the proxy is trusted', async () => {
+    const run = async (trustProxy: boolean) => {
+      const s = catalogueServer(store, fixture.verify, { rateLimitPerMinute: 1, trustProxy })
+      await new Promise<void>((resolve) => s.listen(0, '127.0.0.1', resolve))
+      const url = `http://127.0.0.1:${(s.address() as AddressInfo).port}/api/catalogue/me`
+      try {
+        const token = await fixture.token()
+        const get = (forwarded: string) =>
+          fetch(url, {
+            headers: { Authorization: `Bearer ${token}`, 'X-Forwarded-For': forwarded },
+          })
+        const first = (await get('9.9.9.9, 10.0.0.1')).status
+        const second = (await get('9.9.9.9, 10.0.0.2')).status
+        return [first, second]
+      } finally {
+        await new Promise<void>((resolve) => s.close(() => resolve()))
+      }
+    }
+    expect(await run(true)).toEqual([200, 200])
+    expect(await run(false)).toEqual([200, 429])
+  })
+  it('bounds how long a request may take', () => {
+    expect(server.requestTimeout).toBe(30_000)
+    expect(server.headersTimeout).toBe(15_000)
+    expect(server.keepAliveTimeout).toBe(5_000)
+  })
+})

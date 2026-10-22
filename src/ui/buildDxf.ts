@@ -1,4 +1,8 @@
-import { fitReferenceLabel, referencedCutLabel, referencedShopNotes } from '../geom/drawingReferences'
+import {
+  fitReferenceLabel,
+  referencedCutLabel,
+  referencedShopNotes,
+} from '../geom/drawingReferences'
 import { CHAR_EM } from '../geom/assembly'
 import { assemblyDimLine } from '../geom/drawing'
 import type {
@@ -37,7 +41,6 @@ function wrapManufacturingNotes(notes: string[], maxChars = 90): string[] {
     return lines
   })
 }
-
 
 // DXF Y-axis is up; SVG Y-axis is down.
 function fy(y: number): number {
@@ -214,20 +217,14 @@ function dxfView(view: DrawingView): string {
     const cl = cutLabels[i]
     if (cl) {
       out.push(
-        dxfReferencedText(
-          px + cl.rect.x + cl.rect.w / 2,
-          py + cl.rect.y + cl.rect.h / 2,
-          cl,
-        ),
+        dxfReferencedText(px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, cl),
       )
     }
   })
 
   out.push(dxfCircles(circles, px, py))
 
-  noteLabels.forEach((nl) =>
-    out.push(dxfReferencedText(px + nl.rect.x, py + nl.rect.y, nl)),
-  )
+  noteLabels.forEach((nl) => out.push(dxfReferencedText(px + nl.rect.x, py + nl.rect.y, nl)))
 
   boardDims.forEach((d: DimLine) => out.push(dxfDimLine(d, px, py)))
   cutPosDims.forEach((d: DimLine) => out.push(dxfDimLine(d, px, py)))
@@ -260,13 +257,9 @@ function dxfDowelView(view: DowelView): string {
   })
 
   cutLabels.forEach((cl) =>
-    out.push(
-      dxfReferencedText(px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, cl),
-    ),
+    out.push(dxfReferencedText(px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, cl)),
   )
-  noteLabels.forEach((nl) =>
-    out.push(dxfReferencedText(px + nl.rect.x, py + nl.rect.y, nl)),
-  )
+  noteLabels.forEach((nl) => out.push(dxfReferencedText(px + nl.rect.x, py + nl.rect.y, nl)))
 
   dims.forEach((d) => out.push(dxfDimLine(d, px, py)))
 
@@ -338,7 +331,9 @@ function dxfTitleBlock(sheet: Extract<DrawingSheet, { kind: 'part' }>): string {
     dxfTextLeft('TEXT', tbX + 4, tbY + 22, 2.5, `Part ID: ${sheet.partId}`),
     dxfText('TEXT', tbX + 100, tbY + 8, 4, `Scale: ${sheet.scaleLabel}`),
     dxfText('TEXT', tbX + 100, tbY + 16, 4, `Date: ${sheet.date}`),
-    ...wrapManufacturingNotes(referencedShopNotes(sheet)).map((line, i) => dxfText('TEXT', tbX + 155, tbY + 4 + i * 2.4, 2, line)),
+    ...wrapManufacturingNotes(referencedShopNotes(sheet)).map((line, i) =>
+      dxfText('TEXT', tbX + 155, tbY + 4 + i * 2.4, 2, line),
+    ),
   ].join('')
 }
 
@@ -394,7 +389,9 @@ function dxfElevationTitleBlock(sheet: Extract<DrawingSheet, { kind: 'elevation'
     dxfRect('TITLE', tbX, tbY, 297 - 2 * MARGIN, 25),
     dxfTextLeft('TITLE', tbX + 4, tbY + 8, 7, `${sheet.roomName} — ${sheet.wallName}`),
     dxfText('TEXT', tbX + 4, tbY + 16, 4, 'Wall elevation'),
-    ...(sheet.verified ? [] : [dxfTextLeft('TEXT', tbX + 4, tbY + 22, 3, 'Wall length not site-verified')]),
+    ...(sheet.verified
+      ? []
+      : [dxfTextLeft('TEXT', tbX + 4, tbY + 22, 3, 'Wall length not site-verified')]),
     dxfText('TEXT', tbX + 140, tbY + 8, 4, `Scale: ${sheet.scaleLabel}`),
     dxfText('TEXT', tbX + 140, tbY + 16, 4, `Date: ${sheet.date}`),
   ].join('')
@@ -498,10 +495,21 @@ export function buildDxf(sheet: DrawingSheet): string {
   if (sheet.kind === 'cover') {
     entities = dxfCoverSheet(sheet)
   } else if (sheet.kind === 'installation') {
-    entities = sheet.lines.map((line) => line.role === 'entry'
-      ? dxfDashedLine(line.a.x, line.a.y, line.b.x, line.b.y)
-      : dxfLine(line.role === 'shelf' ? 'OUTLINE' : 'DIM', line.a.x, line.a.y, line.b.x, line.b.y)
-    ).join('') + sheet.texts.map((text) => dxfText('TEXT', text.x, text.y, text.size, text.text)).join('')
+    entities =
+      sheet.lines
+        .map((line) =>
+          line.role === 'entry'
+            ? dxfDashedLine(line.a.x, line.a.y, line.b.x, line.b.y)
+            : dxfLine(
+                line.role === 'shelf' ? 'OUTLINE' : 'DIM',
+                line.a.x,
+                line.a.y,
+                line.b.x,
+                line.b.y,
+              ),
+        )
+        .join('') +
+      sheet.texts.map((text) => dxfText('TEXT', text.x, text.y, text.size, text.text)).join('')
   } else if (sheet.kind === 'elevation') {
     entities = dxfElevationView(sheet.view, sheet.scale) + dxfElevationTitleBlock(sheet)
   } else if (sheet.kind === 'assembly') {

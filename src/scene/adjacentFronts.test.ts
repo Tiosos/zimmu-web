@@ -58,7 +58,10 @@ function doorSpan(scene: Scene, componentId: string): { x0: number; x1: number }
       p.kind === 'board' && p.parentId === componentId && (p.role?.startsWith('front-') ?? false),
   )
   if (door === undefined) throw new Error(`no front on ${componentId}`)
-  return { x0: parent.position.x + door.position.x, x1: parent.position.x + door.position.x + door.width }
+  return {
+    x0: parent.position.x + door.position.x,
+    x1: parent.position.x + door.position.x + door.width,
+  }
 }
 
 describe('two cabinets standing side by side', () => {

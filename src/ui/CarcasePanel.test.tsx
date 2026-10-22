@@ -424,8 +424,16 @@ describe('CarcasePanel shelving', () => {
         kind: 'split' as const,
         axis: 'vertical' as const,
         children: [
-          { id: `${id}-left`, size: { kind: 'equal' } as const, content: { kind: 'leaf' } as const },
-          { id: `${id}-right`, size: { kind: 'equal' } as const, content: { kind: 'leaf' } as const },
+          {
+            id: `${id}-left`,
+            size: { kind: 'equal' } as const,
+            content: { kind: 'leaf' } as const,
+          },
+          {
+            id: `${id}-right`,
+            size: { kind: 'equal' } as const,
+            content: { kind: 'leaf' } as const,
+          },
         ],
       },
     })
@@ -786,7 +794,9 @@ describe('CarcasePanel — edge banding', () => {
       fireEvent.change(screen.getByLabelText('Edge band thickness (mm)'), {
         target: { value: '2' },
       })
-      expect((screen.getByRole('button', { name: 'Add edge band' }) as HTMLButtonElement).disabled).toBe(true)
+      expect(
+        (screen.getByRole('button', { name: 'Add edge band' }) as HTMLButtonElement).disabled,
+      ).toBe(true)
       expect(screen.getByText(/reserved/i)).toBeTruthy()
     },
   )

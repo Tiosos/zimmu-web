@@ -1,24 +1,25 @@
-import { acceptSlope, type SlopePreview } from './slopedTop'
-import { acceptStockPlan, type StockPreview } from './stockPlanning'
-import { acceptGrainMatch, type GrainMatchPreview } from './grainMatching'
-import { acceptOpeningSettings, type OpeningPreview } from './openingMotion'
+import { useAcceptPreviews } from './useAcceptPreviews'
+import type { SlopePreview } from './slopedTop'
+import type { StockPreview } from './stockPlanning'
+import type { GrainMatchPreview } from './grainMatching'
+import type { OpeningPreview } from './openingMotion'
 import type { ProjectStructure } from './projectStructure'
 import { refreshInstallationSources } from './installationSources'
-import { acceptInstallation, acceptWallFiller, type InstallationPreview, type WallFillerPreview } from './roomInstallation'
-import { acceptCorner, type CornerPreview } from './cornerPanels'
-import { acceptAppliance, type AppliancePreview } from './applianceBays'
-import { acceptService, serviceCutOwned, type ServicePreview } from './serviceMachining'
-import { acceptMaterials, type MaterialsPreview } from './cabinetMaterials'
-import { acceptInteriors, type InteriorsPreview } from './shelvesInteriors'
-import { acceptMotion, type MotionPreview } from './motionHardware'
-import { acceptWorktopMachining, worktopCutOwned, type WorktopMachiningPreview } from './worktopMachining'
-import { acceptRunWorktop, type RunWorktopPreview } from './runWorktops'
-import { acceptPulls, type PullPreview } from './pullLayout'
-import { acceptFronts, type FrontsPreview } from './frontsDrawers'
-import { acceptFinishing, releaseEditedFinishing, type FinishingPreview } from './finishingPanels'
-import { acceptLayout, type LayoutPreview } from './layoutTools'
-import { acceptPlacement, type PlacementPreview } from './placementTools'
-import { acceptRunFit, type RunFitPreview } from './runFit'
+import { type InstallationPreview, type WallFillerPreview } from './roomInstallation'
+import type { CornerPreview } from './cornerPanels'
+import type { AppliancePreview } from './applianceBays'
+import { serviceCutOwned, type ServicePreview } from './serviceMachining'
+import type { MaterialsPreview } from './cabinetMaterials'
+import type { InteriorsPreview } from './shelvesInteriors'
+import type { MotionPreview } from './motionHardware'
+import { worktopCutOwned, type WorktopMachiningPreview } from './worktopMachining'
+import type { RunWorktopPreview } from './runWorktops'
+import type { PullPreview } from './pullLayout'
+import type { FrontsPreview } from './frontsDrawers'
+import { releaseEditedFinishing, type FinishingPreview } from './finishingPanels'
+import type { LayoutPreview } from './layoutTools'
+import type { PlacementPreview } from './placementTools'
+import type { RunFitPreview } from './runFit'
 import { installCataloguePackage, type CataloguePackage } from './cataloguePackage'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import * as THREE from 'three'
@@ -50,7 +51,7 @@ import { isJointOwned } from './cutOwnership'
 import { PRESET_MATERIALS, type CarcasePreset } from './carcasePresets'
 import { catalogueBaseline, catalogueDefinition } from './catalogue'
 import { applyPipeline } from './pipeline'
-import { acceptedRulePreview, type RulePreview } from './ruleFlow'
+import type { RulePreview } from './ruleFlow'
 import { freshSectionIds } from './sectionTree'
 import { componentsById, descendantIds, wouldCycle } from './componentTree'
 import { jointInvolves } from './jointInvolves'
@@ -107,7 +108,13 @@ export interface UseSceneResult {
   onApplyFrontsPreview: (preview: FrontsPreview) => boolean
   onApplyWorktopMachiningPreview: (preview: WorktopMachiningPreview) => boolean
   onApplySlope: (project: ProjectStructure, preview: SlopePreview) => boolean
-  onApplyStockPlan: (project: ProjectStructure, materials: Record<string, MaterialDef>, preview: StockPreview, action: 'save' | 'consume', remnantIds?: string[]) => boolean
+  onApplyStockPlan: (
+    project: ProjectStructure,
+    materials: Record<string, MaterialDef>,
+    preview: StockPreview,
+    action: 'save' | 'consume',
+    remnantIds?: string[],
+  ) => boolean
   onApplyGrainMatchPreview: (project: ProjectStructure, preview: GrainMatchPreview) => boolean
   onApplyOpeningPreview: (project: ProjectStructure, preview: OpeningPreview) => boolean
   syncRoomInstallationSources: (project: ProjectStructure) => void
@@ -159,7 +166,11 @@ export interface UseSceneResult {
   ) => keyof CarcaseParams | null
   onRemoveComponent: (id: ComponentId) => void
   onReparentComponent: (id: ComponentId, newParentId: ComponentId | null) => void
-  onUpdateComponent: (id: ComponentId, updater: (c: Component) => Component, historyLabel?: string) => void
+  onUpdateComponent: (
+    id: ComponentId,
+    updater: (c: Component) => Component,
+    historyLabel?: string,
+  ) => void
   syncComponents: (updater: (components: Component[]) => Component[]) => void
   onUpdateJoint: (jointId: string, updater: (j: Joint) => Joint) => void
   onRemoveJoint: (jointId: string) => void
@@ -375,170 +386,53 @@ export function useScene(): UseSceneResult {
     [push],
   )
 
-  const onInstallCatalogue = useCallback((pkg: CataloguePackage, source: Scene): boolean => {
-    const before = sceneRef.current
-    if (before !== source) return false
-    const after = installCataloguePackage(before, pkg)
-    if (after !== before) {
-      setScene(after)
-      push({ label: 'Import company catalogue', undo: () => setScene(before), redo: () => setScene(after) })
-    }
-    return true
-  }, [push])
-
-  const onApplyPullPreview = useCallback((preview: PullPreview): boolean => {
-    const next = acceptPulls(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Apply cabinet hardware')
-    return true
-  }, [commitReconciled])
-
-  const onApplyFrontsPreview = useCallback((preview: FrontsPreview): boolean => {
-    const next = acceptFronts(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Apply fronts and drawers')
-    return true
-  }, [commitReconciled])
-
-  const onApplyMotionPreview = useCallback((preview: MotionPreview): boolean => {
-    const next = acceptMotion(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Apply hinges and runners')
-    return true
-  }, [commitReconciled])
-
-  const onApplyWorktopMachiningPreview = useCallback((preview: WorktopMachiningPreview): boolean => {
-    const next = acceptWorktopMachining(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Apply worktop machining')
-    return true
-  }, [commitReconciled])
-
-  const onApplySlope = useCallback((project: ProjectStructure, preview: SlopePreview): boolean => {
-    const next = acceptSlope(sceneRef.current, project, preview)
-    if (!next) return false
-    commitReconciled(() => next, preview.draft.enabled ? 'Apply sloped cabinet' : 'Disable sloped cabinet')
-    return true
-  }, [commitReconciled])
-
-  const onApplyStockPlan = useCallback((project: ProjectStructure, materials: Record<string, MaterialDef>, preview: StockPreview, action: 'save' | 'consume', remnantIds: string[] = []): boolean => {
-    const next = acceptStockPlan(sceneRef.current, project, materials, preview, action, remnantIds, `offcut_${crypto.randomUUID()}`)
-    if (!next) return false
-    commitReconciled(() => next, action === 'save' ? 'Save stock settings' : 'Consume stock and save remnants')
-    return true
-  }, [commitReconciled])
-
-  const onApplyGrainMatchPreview = useCallback((project: ProjectStructure, preview: GrainMatchPreview): boolean => {
-    const next = acceptGrainMatch(sceneRef.current, project, preview, `grain_${crypto.randomUUID()}`)
-    if (!next) return false
-    commitReconciled(() => next, preview.action === 'detach' ? 'Detach grain matching group' : 'Apply grain matching group')
-    return true
-  }, [commitReconciled])
-
-  const onApplyOpeningPreview = useCallback((project: ProjectStructure, preview: OpeningPreview): boolean => {
-    const next = acceptOpeningSettings(sceneRef.current, project, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Apply opening motion settings')
-    return true
-  }, [commitReconciled])
+  const onInstallCatalogue = useCallback(
+    (pkg: CataloguePackage, source: Scene): boolean => {
+      const before = sceneRef.current
+      if (before !== source) return false
+      const after = installCataloguePackage(before, pkg)
+      if (after !== before) {
+        setScene(after)
+        push({
+          label: 'Import company catalogue',
+          undo: () => setScene(before),
+          redo: () => setScene(after),
+        })
+      }
+      return true
+    },
+    [push],
+  )
 
   const syncRoomInstallationSources = useCallback((project: ProjectStructure) => {
-    const before = sceneRef.current, next = refreshInstallationSources(before, project)
+    const before = sceneRef.current,
+      next = refreshInstallationSources(before, project)
     if (next !== before) setScene(applyPipeline(next))
   }, [])
 
-  const onApplyInstallationPreview = useCallback((project: ProjectStructure, preview: InstallationPreview): boolean => {
-    const next = acceptInstallation(sceneRef.current, project, preview, `installation_${crypto.randomUUID()}`)
-    if (!next) return false
-    commitReconciled(() => next, preview.action === 'detach' ? 'Detach room installation' : 'Apply room installation')
-    return true
-  }, [commitReconciled])
-
-  const onApplyWallFillerPreview = useCallback((project: ProjectStructure, preview: WallFillerPreview): boolean => {
-    const next = acceptWallFiller(sceneRef.current, project, preview, `board_${crypto.randomUUID()}`)
-    if (!next) return false
-    commitReconciled(() => next, preview.action === 'delete' ? 'Delete wall filler' : preview.action === 'detach' ? 'Detach wall filler' : 'Apply wall filler')
-    return true
-  }, [commitReconciled])
-
-  const onApplyCornerPreview = useCallback((preview: CornerPreview): boolean => {
-    const next = acceptCorner(sceneRef.current, preview, `corner_${crypto.randomUUID()}`)
-    if (!next) return false
-    commitReconciled(() => next, preview.action === 'delete' ? 'Delete corner assembly' : preview.action === 'detach' ? 'Detach corner assembly' : 'Apply corner assembly')
-    return true
-  }, [commitReconciled])
-
-  const onApplyRunWorktopPreview = useCallback((preview: RunWorktopPreview): boolean => {
-    const next = acceptRunWorktop(sceneRef.current, preview, `board_${crypto.randomUUID()}`)
-    if (!next) return false
-    const kind = preview.draft.profile ?? 'worktop'
-    const action = preview.action === 'detach' ? 'Detach' : preview.action === 'delete' ? 'Delete' : preview.targetId ? 'Update' : 'Add'
-    commitReconciled(() => next, `${action} run ${kind}`)
-    return true
-  }, [commitReconciled])
-
-  const onApplyFinishingPreview = useCallback((preview: FinishingPreview): boolean => {
-    const next = acceptFinishing(sceneRef.current, preview, `board_${crypto.randomUUID()}`)
-    if (!next) return false
-    commitReconciled(() => next, preview.action === 'delete' ? 'Delete finishing board' : preview.action === 'detach' ? 'Detach finishing board' : preview.targetId ? 'Update finishing board' : 'Add finishing board')
-    return true
-  }, [commitReconciled])
-
-  const onApplyLayoutPreview = useCallback((preview: LayoutPreview): boolean => {
-    const next = acceptLayout(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Apply cabinet layout')
-    return true
-  }, [commitReconciled])
-
-  const onApplyAppliancePreview = useCallback((preview: AppliancePreview): boolean => {
-    const next = acceptAppliance(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, preview.action === 'delete' ? 'Remove appliance bay' : 'Save appliance bay')
-    return true
-  }, [commitReconciled])
-
-  const onApplyServicePreview = useCallback((preview: ServicePreview): boolean => {
-    const next = acceptService(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Apply service openings')
-    return true
-  }, [commitReconciled])
-
-  const onApplyMaterialsPreview = useCallback((preview: MaterialsPreview): boolean => {
-    const next = acceptMaterials(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, preview.mode === 'materials' ? 'Apply cabinet materials' : 'Apply cabinet edgebanding')
-    return true
-  }, [commitReconciled])
-
-  const onApplyInteriorsPreview = useCallback((preview: InteriorsPreview): boolean => {
-    const next = acceptInteriors(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Apply cabinet interiors')
-    return true
-  }, [commitReconciled])
-
-  const onApplyRunFitPreview = useCallback((preview: RunFitPreview): boolean => {
-    const next = acceptRunFit(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Fit cabinet run')
-    return true
-  }, [commitReconciled])
-
-  const onApplyPlacementPreview = useCallback((preview: PlacementPreview): boolean => {
-    const next = acceptPlacement(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Apply cabinet placement')
-    return true
-  }, [commitReconciled])
-
-  const onApplyRulePreview = useCallback((preview: RulePreview): boolean => {
-    const next = acceptedRulePreview(sceneRef.current, preview)
-    if (!next) return false
-    commitReconciled(() => next, 'Apply cabinet rules')
-    return true
-  }, [commitReconciled])
+  const {
+    onApplyPullPreview,
+    onApplyFrontsPreview,
+    onApplyMotionPreview,
+    onApplyWorktopMachiningPreview,
+    onApplySlope,
+    onApplyStockPlan,
+    onApplyGrainMatchPreview,
+    onApplyOpeningPreview,
+    onApplyInstallationPreview,
+    onApplyWallFillerPreview,
+    onApplyCornerPreview,
+    onApplyRunWorktopPreview,
+    onApplyFinishingPreview,
+    onApplyLayoutPreview,
+    onApplyAppliancePreview,
+    onApplyServicePreview,
+    onApplyMaterialsPreview,
+    onApplyInteriorsPreview,
+    onApplyRunFitPreview,
+    onApplyPlacementPreview,
+    onApplyRulePreview,
+  } = useAcceptPreviews(sceneRef, commitReconciled)
 
   const undo = useCallback(() => {
     const entry = pastRef.current.at(-1)
@@ -683,12 +577,18 @@ export function useScene(): UseSceneResult {
       const color = PART_COLORS[colorIndex.current % PART_COLORS.length]
       let clone: Part
       if (orig.kind === 'board') {
-        const owner = sceneRef.current.components.find(c => c.id === orig.parentId)
+        const owner = sceneRef.current.components.find((c) => c.id === orig.parentId)
         const sloped = owner?.kind === 'carcase' && !!owner.params.slopedTop
         clone = {
           ...orig,
           id: `board_${crypto.randomUUID()}` as PartId,
-          ...((orig.frontPull || orig.hingeLayout || orig.serviceMachining || orig.grainMatch || sloped) ? { driven: false, role: undefined } : {}),
+          ...(orig.frontPull ||
+          orig.hingeLayout ||
+          orig.serviceMachining ||
+          orig.grainMatch ||
+          sloped
+            ? { driven: false, role: undefined }
+            : {}),
           serviceMachining: undefined,
           worktopMachining: undefined,
           cornerPanel: undefined,
@@ -706,8 +606,17 @@ export function useScene(): UseSceneResult {
             .filter((c) => !isJointOwned(c))
             .map((c) =>
               c.kind === 'box'
-                ? { ...c, ...(sloped ? { sourceComponentId: undefined } : {}), id: `cut_${crypto.randomUUID()}` as CutId, pairedCutId: undefined }
-                : { ...c, ...(sloped ? { sourceComponentId: undefined } : {}), id: `cut_${crypto.randomUUID()}` as CutId },
+                ? {
+                    ...c,
+                    ...(sloped ? { sourceComponentId: undefined } : {}),
+                    id: `cut_${crypto.randomUUID()}` as CutId,
+                    pairedCutId: undefined,
+                  }
+                : {
+                    ...c,
+                    ...(sloped ? { sourceComponentId: undefined } : {}),
+                    id: `cut_${crypto.randomUUID()}` as CutId,
+                  },
             ),
         }
       } else {
@@ -785,22 +694,51 @@ export function useScene(): UseSceneResult {
       const beforePart = before.parts.find((p) => p.id === id)
       if (!beforePart) return
       const updatedPart = updater(beforePart)
-      if (beforePart.kind === 'board' && updatedPart.kind === 'board' && beforePart.grainMatch && (beforePart.grain !== updatedPart.grain || beforePart.overrides?.grain !== updatedPart.overrides?.grain)) return
+      if (
+        beforePart.kind === 'board' &&
+        updatedPart.kind === 'board' &&
+        beforePart.grainMatch &&
+        (beforePart.grain !== updatedPart.grain ||
+          beforePart.overrides?.grain !== updatedPart.overrides?.grain)
+      )
+        return
       // Assembly dimensions and treatments are edited atomically in the corner workspace.
       // Normal machining and visibility edits remain available on individual boards.
-      if (beforePart.kind === 'board' && updatedPart.kind === 'board' && (beforePart.cornerPanel || beforePart.wallFiller)) {
-        const owned = (p: BoardPart) => [p.length, p.width, p.thickness, p.position, p.rotation, p.parentId, p.material, p.grain, p.label, p.edgeBanding, p.cornerPanel, p.wallFiller]
+      if (
+        beforePart.kind === 'board' &&
+        updatedPart.kind === 'board' &&
+        (beforePart.cornerPanel || beforePart.wallFiller)
+      ) {
+        const owned = (p: BoardPart) => [
+          p.length,
+          p.width,
+          p.thickness,
+          p.position,
+          p.rotation,
+          p.parentId,
+          p.material,
+          p.grain,
+          p.label,
+          p.edgeBanding,
+          p.cornerPanel,
+          p.wallFiller,
+        ]
         if (JSON.stringify(owned(beforePart)) !== JSON.stringify(owned(updatedPart))) return
       }
-      const afterPart = beforePart.kind === 'board' && updatedPart.kind === 'board'
-        ? releaseEditedFinishing(beforePart, updatedPart) : updatedPart
+      const afterPart =
+        beforePart.kind === 'board' && updatedPart.kind === 'board'
+          ? releaseEditedFinishing(beforePart, updatedPart)
+          : updatedPart
       const label = historyLabel ?? `Update ${afterPart.label}`
       const coalesceKey = historyLabel !== undefined ? undefined : `update-${id}`
       // A driven part's dimensions are owned by its carcase, so an edit to one has to go through
       // the pipeline that regenerates it. Skipping it here would leave the scene in a state where
       // a part disagrees with the parameters that produced it until some unrelated mutation
       // happens to reconcile it — and exports and the geometry cache would capture the disagreement.
-      const needsPipeline = before.joints.some((j) => jointInvolves(j, id)) || beforePart.driven || (beforePart.kind === 'board' && !!beforePart.serviceMachining)
+      const needsPipeline =
+        before.joints.some((j) => jointInvolves(j, id)) ||
+        beforePart.driven ||
+        (beforePart.kind === 'board' && !!beforePart.serviceMachining)
 
       if (needsPipeline) {
         const after = applyPipeline({
@@ -1077,7 +1015,13 @@ export function useScene(): UseSceneResult {
       const cutB = partB.cuts.find((c) => c.id === cutIdB)
       if (!cutA || !cutB) return
       if (cutA.kind !== 'box' || cutB.kind !== 'box') return // linking is box-only
-      if (worktopCutOwned(partA, cutIdA) || worktopCutOwned(partB, cutIdB) || serviceCutOwned(partA, cutIdA) || serviceCutOwned(partB, cutIdB)) return
+      if (
+        worktopCutOwned(partA, cutIdA) ||
+        worktopCutOwned(partB, cutIdB) ||
+        serviceCutOwned(partA, cutIdA) ||
+        serviceCutOwned(partB, cutIdB)
+      )
+        return
       if (isJointOwned(cutA) || isJointOwned(cutB)) return // derived cuts can't be paired
 
       const axesA = faceAxes(cutA.face)
@@ -1438,7 +1382,21 @@ export function useScene(): UseSceneResult {
       const after = applyPipeline({
         ...before,
         parts: before.parts.map((p) =>
-          p.id === id ? { ...(updater ? updater(p) : p), driven: false, role: undefined, ...(p.kind === 'board' ? { finishing: undefined, runWorktop: undefined, cornerPanel: undefined, wallFiller: undefined } : {}) } : p,
+          p.id === id
+            ? {
+                ...(updater ? updater(p) : p),
+                driven: false,
+                role: undefined,
+                ...(p.kind === 'board'
+                  ? {
+                      finishing: undefined,
+                      runWorktop: undefined,
+                      cornerPanel: undefined,
+                      wallFiller: undefined,
+                    }
+                  : {}),
+              }
+            : p,
         ),
       })
       setScene(after)
@@ -1460,10 +1418,18 @@ export function useScene(): UseSceneResult {
 
   const onAddCarcase = useCallback(
     (preset: CarcasePreset) => {
-      const definition = preset.catalogueId && preset.catalogueVersion
-        ? catalogueDefinition(preset.catalogueId, preset.catalogueVersion, sceneRef.current.companyCatalogues) : undefined
+      const definition =
+        preset.catalogueId && preset.catalogueVersion
+          ? catalogueDefinition(
+              preset.catalogueId,
+              preset.catalogueVersion,
+              sceneRef.current.companyCatalogues,
+            )
+          : undefined
       if (preset.catalogueId?.startsWith('company:') && !definition) return
-      const params = definition ? catalogueBaseline(definition, sceneRef.current.cabinetRules) ?? preset.params : preset.params
+      const params = definition
+        ? (catalogueBaseline(definition, sceneRef.current.cabinetRules) ?? preset.params)
+        : preset.params
       const component: CarcaseComponent = {
         kind: 'carcase',
         id: `cmp_${crypto.randomUUID()}`,
@@ -1479,9 +1445,15 @@ export function useScene(): UseSceneResult {
         // `front-{sectionId}-0` boards. Every consumer then needs a cabinet id beside the section id
         // to tell them apart, and the ones that forget are silently wrong rather than broken.
         params: { ...params, section: freshSectionIds(params.section) },
-        ...(preset.catalogueId && preset.catalogueVersion ? {
-          catalogue: { id: preset.catalogueId, version: preset.catalogueVersion, overrides: {} },
-        } : {}),
+        ...(preset.catalogueId && preset.catalogueVersion
+          ? {
+              catalogue: {
+                id: preset.catalogueId,
+                version: preset.catalogueVersion,
+                overrides: {},
+              },
+            }
+          : {}),
       }
       // One undo entry covers the component and every part the pipeline generates from it.
       commitReconciled(
@@ -1606,7 +1578,7 @@ export function useScene(): UseSceneResult {
 
   const onUpdateComponent = useCallback(
     (id: ComponentId, updater: (c: Component) => Component, historyLabel?: string) => {
-      const current = sceneRef.current.components.find(c => c.id === id)
+      const current = sceneRef.current.components.find((c) => c.id === id)
       if (!current) return
       const next = updater(current)
       if (next === current) return
@@ -1622,12 +1594,9 @@ export function useScene(): UseSceneResult {
     [commitReconciled],
   )
 
-  const syncComponents = useCallback(
-    (updater: (components: Component[]) => Component[]) => {
-      setScene((before) => applyPipeline({ ...before, components: updater(before.components) }))
-    },
-    [],
-  )
+  const syncComponents = useCallback((updater: (components: Component[]) => Component[]) => {
+    setScene((before) => applyPipeline({ ...before, components: updater(before.components) }))
+  }, [])
 
   const replaceScene = useCallback((next: Scene) => {
     for (const geo of geometriesRef.current.values()) geo.dispose()

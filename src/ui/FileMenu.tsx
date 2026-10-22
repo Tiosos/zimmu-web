@@ -1,3 +1,4 @@
+import { activateOnKey } from '../lib/a11y'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -158,7 +159,8 @@ export function FileMenu({
             <Separator className="my-1" />
             {menuItem('Save', '⌘S', onSave, isSaveDisabled)}
             {menuItem('Save As…', '⌘⇧S', onSaveAs, !supported)}
-            {onImportCatalogue && menuItem('Import company catalogue…', '', onImportCatalogue, false)}
+            {onImportCatalogue &&
+              menuItem('Import company catalogue…', '', onImportCatalogue, false)}
             {onCompanyCatalogue && menuItem('Company catalogue…', '', onCompanyCatalogue, false)}
             {onProjectStructure && menuItem('Project structure…', '', onProjectStructure, false)}
             {onOpeningMotion && menuItem('Door & Drawer Motion…', '', onOpeningMotion, false)}
@@ -169,7 +171,8 @@ export function FileMenu({
             {menuItem('Cutting List…', '⌘⇧E', onCuttingList, false)}
             {menuItem('Manufacturing readiness…', '', onReadiness, false)}
             {onVerifyPacket && menuItem('Verify production packet…', '', onVerifyPacket, false)}
-            {onComparePackets && menuItem('Compare production packets…', '', onComparePackets, false)}
+            {onComparePackets &&
+              menuItem('Compare production packets…', '', onComparePackets, false)}
             <Separator className="my-1" />
             {menuItem('Export STL…', '', onExportStl, !canExport)}
             {menuItem('Export STEP…', '', onExportStep, !canExport)}
@@ -203,6 +206,7 @@ export function FileMenu({
         {isEditing ? (
           <input
             ref={inputRef}
+            aria-label="Project name"
             defaultValue={projectName}
             onBlur={commitName}
             onKeyDown={(e) => {
@@ -214,6 +218,9 @@ export function FileMenu({
         ) : (
           <span
             onClick={() => setIsEditing(true)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={activateOnKey(() => setIsEditing(true))}
             title="Click to rename"
             className="cursor-text max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs"
           >

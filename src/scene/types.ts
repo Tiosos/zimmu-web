@@ -415,11 +415,7 @@ export interface FaceFrameComponent {
   driven: boolean
 }
 
-export type Component =
-  | GroupComponent
-  | CarcaseComponent
-  | DrawerComponent
-  | FaceFrameComponent
+export type Component = GroupComponent | CarcaseComponent | DrawerComponent | FaceFrameComponent
 
 export type Selection =
   | { kind: 'part'; id: PartId }

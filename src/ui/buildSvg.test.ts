@@ -145,7 +145,9 @@ describe('buildSvg', () => {
       .map((node) => node.textContent ?? '')
     expect(lines.length).toBeGreaterThan(1)
     expect(lines.every((line) => line.length <= 90)).toBe(true)
-    expect(lines.join(' ')).toBe(`Manual instruction [${sheet.manualNoteReferences![0].operationIds.join(', ')}]: ${sheet.manufacturingNotes[0]}`)
+    expect(lines.join(' ')).toBe(
+      `Manual instruction [${sheet.manualNoteReferences![0].operationIds.join(', ')}]: ${sheet.manufacturingNotes[0]}`,
+    )
   })
 
   it('dim text contains the length label', () => {
@@ -559,7 +561,9 @@ describe('buildSvg — elevation sheets', () => {
     const room = {
       ...f.room,
       openings: [],
-      placements: [{ cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } }],
+      placements: [
+        { cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } },
+      ],
     }
     const sheet = buildWallElevationSheets(
       { roomName: 'R', room, scene: wallScene([sunk]), cabinetIds: new Set(['sunk']) },
@@ -572,7 +576,9 @@ describe('buildSvg — elevation sheets', () => {
     const svg = buildSvg(sheet)
     expect(floor).toBeLessThan(bottom)
     expect(svg).toContain(`y1="${floor.toFixed(3)}" x2=`)
-    expect(svg).toContain(`<rect x="${sheet.view.placement.x.toFixed(3)}" y="${(bottom - sheet.view.spans[0].z1 * sheet.scale).toFixed(3)}"`)
+    expect(svg).toContain(
+      `<rect x="${sheet.view.placement.x.toFixed(3)}" y="${(bottom - sheet.view.spans[0].z1 * sheet.scale).toFixed(3)}"`,
+    )
   })
 
   it('draws an opening dashed and a cabinet solid', () => {

@@ -1,3 +1,4 @@
+import { sceneJson } from './sceneJson'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import type {
   Part,
@@ -162,7 +163,9 @@ export function parseFile(text: string): ZimmuFile {
     ...(raw.scene.openingMotion !== undefined ? { openingMotion: raw.scene.openingMotion } : {}),
     ...(raw.scene.installations !== undefined ? { installations: raw.scene.installations } : {}),
     ...(raw.scene.applianceBays !== undefined ? { applianceBays: raw.scene.applianceBays } : {}),
-    ...(raw.scene.companyCatalogues !== undefined ? { companyCatalogues: raw.scene.companyCatalogues } : {}),
+    ...(raw.scene.companyCatalogues !== undefined
+      ? { companyCatalogues: raw.scene.companyCatalogues }
+      : {}),
     ...(raw.scene.cabinetRules !== undefined ? { cabinetRules: raw.scene.cabinetRules } : {}),
     parts: parts.map((p) =>
       p.kind === 'board'
@@ -514,9 +517,10 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     const dirty =
       pendingMigrationRef.current ||
       releasesRef.current !== lastSavedReleasesRef.current ||
-      JSON.stringify(scene) !== lastSavedSceneRef.current ||
+      sceneJson(scene) !== lastSavedSceneRef.current ||
       projectNameRef.current !== lastSavedProjectNameRef.current ||
-      (lastSavedProjectRef.current !== null && JSON.stringify(project) !== lastSavedProjectRef.current)
+      (lastSavedProjectRef.current !== null &&
+        JSON.stringify(project) !== lastSavedProjectRef.current)
     isDirtyRef.current = dirty
     setIsDirty(dirty)
   }, [scene, project])
@@ -613,11 +617,20 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
       const migrating = pendingMigrationRef.current && handleRef.current !== null
       const handle = await window.showSaveFilePicker({
         types: PICKER_TYPES,
-        ...(migrating ? { suggestedName: handleRef.current!.name.replace(/\.zimmu$/i, '') + `-v${FILE_FORMAT_VERSION}.zimmu` } : {}),
+        ...(migrating
+          ? {
+              suggestedName:
+                handleRef.current!.name.replace(/\.zimmu$/i, '') + `-v${FILE_FORMAT_VERSION}.zimmu`,
+            }
+          : {}),
       })
-      if (migrating && handleRef.current &&
+      if (
+        migrating &&
+        handleRef.current &&
         (handle === handleRef.current ||
-          (typeof handle.isSameEntry === 'function' && await handle.isSameEntry(handleRef.current)))) {
+          (typeof handle.isSameEntry === 'function' &&
+            (await handle.isSameEntry(handleRef.current))))
+      ) {
         showError('Choose a different file to preserve the original project')
         return
       }
@@ -777,7 +790,10 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
 
   const setProject = useCallback((value: ProjectStructure) => {
     value = reconcileProject(value, sceneRef.current, activeItemIdRef.current)
-    projectHistoryRef.current = [...projectHistoryRef.current.slice(0, projectHistoryIndexRef.current + 1), value].slice(-50)
+    projectHistoryRef.current = [
+      ...projectHistoryRef.current.slice(0, projectHistoryIndexRef.current + 1),
+      value,
+    ].slice(-50)
     projectHistoryIndexRef.current = projectHistoryRef.current.length - 1
     setProjectHistoryPosition(projectHistoryIndexRef.current)
     setProjectHistorySize(projectHistoryRef.current.length)
@@ -792,7 +808,11 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
     if (index < 0 || index >= projectHistoryRef.current.length) return
     projectHistoryIndexRef.current = index
     setProjectHistoryPosition(index)
-    const value = reconcileProject(projectHistoryRef.current[index], sceneRef.current, activeItemIdRef.current)
+    const value = reconcileProject(
+      projectHistoryRef.current[index],
+      sceneRef.current,
+      activeItemIdRef.current,
+    )
     projectRef.current = value
     setProjectState(value)
     isDirtyRef.current = true
@@ -800,7 +820,12 @@ export function useFile({ scene, getCameraState, onFileLoaded }: UseFileInput): 
   }, [])
 
   const setActiveItemId = useCallback((id: string) => {
-    if (!projectRef.current.areas.some((area) => area.rooms.some((room) => room.items.some((item) => item.id === id)))) return
+    if (
+      !projectRef.current.areas.some((area) =>
+        area.rooms.some((room) => room.items.some((item) => item.id === id)),
+      )
+    )
+      return
     activeItemIdRef.current = id
     setActiveItemIdState(id)
   }, [])

@@ -145,7 +145,10 @@ function buildFinishing(
   }
   try {
     const c = cabinetOf(scene, cabinetId)
-    if (c.params.slopedTop) throw Error('Finishing panels do not support sloped cabinets. Use independent boards with reviewed dimensions.')
+    if (c.params.slopedTop)
+      throw Error(
+        'Finishing panels do not support sloped cabinets. Use independent boards with reviewed dimensions.',
+      )
     if (draft.follow !== undefined && typeof draft.follow !== 'boolean')
       throw Error('Choose whether to follow cabinet dimensions.')
     if (draft.follow) {

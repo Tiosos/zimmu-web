@@ -57,10 +57,7 @@ function countTestFiles(dir) {
 }
 
 function replaceRegion(html, name, value) {
-  const re = new RegExp(
-    `(<!-- AUTOGEN:${name} -->)[\\s\\S]*?(<!-- /AUTOGEN:${name} -->)`,
-    'g',
-  )
+  const re = new RegExp(`(<!-- AUTOGEN:${name} -->)[\\s\\S]*?(<!-- /AUTOGEN:${name} -->)`, 'g')
   if (!re.test(html)) throw new Error(`AUTOGEN region not found: ${name}`)
   return html.replace(re, (_match, open, close) => open + value + close)
 }

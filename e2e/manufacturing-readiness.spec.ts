@@ -66,15 +66,21 @@ test('readiness links to preview and sheet, reports omissions, and leaves export
   expect(drawingIndex.counts.missing).toBe(0)
   expect(drawingIndex.counts.ambiguous).toBe(0)
   expect(Object.keys(files)).toContain('machining/drawing-index.csv')
-  expect(JSON.parse(strFromU8(files['manifest.json'])).drawingReferences.operations).toBe(drawingIndex.counts.operations)
+  expect(JSON.parse(strFromU8(files['manifest.json'])).drawingReferences.operations).toBe(
+    drawingIndex.counts.operations,
+  )
   const review = JSON.parse(strFromU8(files['readiness/review.json']))
   expect(review.counts.unassessed).toBeGreaterThan(0)
   expect(review).toEqual(JSON.parse(strFromU8(files['manifest.json'])).reviewSummary)
-  await expect(report.getByRole('region', { name: 'Production packet review summary' })).toContainText('unassessed')
+  await expect(
+    report.getByRole('region', { name: 'Production packet review summary' }),
+  ).toContainText('unassessed')
   const reconciliation = JSON.parse(strFromU8(files['readiness/machining-reconciliation.json']))
   expect(reconciliation.status).toBe('passed')
   expect(reconciliation.compared).toBeGreaterThan(0)
-  await expect(report.getByRole('region', { name: 'Machining schedule reconciliation' })).toContainText('operations compared')
+  await expect(
+    report.getByRole('region', { name: 'Machining schedule reconciliation' }),
+  ).toContainText('operations compared')
   const machining = JSON.parse(strFromU8(files['machining/schedule.json']))
   expect(machining.units).toBe('mm')
   expect(machining.coordinateFrame).toBe('part-local')

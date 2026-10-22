@@ -371,10 +371,7 @@ export function CarcasePanel({
       content: {
         kind: 'split',
         axis: 'horizontal',
-        children: [
-          lower,
-          leafZone({ kind: 'drawer-front' }, { kind: 'fixed', mm: 140 }),
-        ],
+        children: [lower, leafZone({ kind: 'drawer-front' }, { kind: 'fixed', mm: 140 })],
       },
     })
   }
@@ -795,9 +792,7 @@ export function CarcasePanel({
                   id="carcase-pair-stile"
                   type="checkbox"
                   checked={frame.pairStile === true}
-                  onChange={(e) =>
-                    setParams({ frame: { ...frame, pairStile: e.target.checked } })
-                  }
+                  onChange={(e) => setParams({ frame: { ...frame, pairStile: e.target.checked } })}
                 />
               </div>
               {opening !== undefined && (

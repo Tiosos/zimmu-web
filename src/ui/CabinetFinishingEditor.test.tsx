@@ -3,7 +3,12 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { CabinetFinishingEditor } from './CabinetFinishingEditor'
 import { cabinet, partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 import { PRESET_MATERIALS } from '../scene/carcasePresets'
-import { acceptFinishing, finishingDraft, previewFinishing, type FinishingPreview } from '../scene/finishingPanels'
+import {
+  acceptFinishing,
+  finishingDraft,
+  previewFinishing,
+  type FinishingPreview,
+} from '../scene/finishingPanels'
 import type { Scene } from '../scene/types'
 afterEach(cleanup)
 const sceneOf = (): Scene => ({
@@ -223,7 +228,11 @@ it('supports following height and setback, disables literal fields and allows re
 })
 it('retains the edit target across panel type changes and reports rejected management actions', () => {
   const s = sceneOf()
-  const linked = acceptFinishing(s, previewFinishing(s, cabinet.id, { ...finishingDraft(s, cabinet.id), follow: true }), 'linked')!
+  const linked = acceptFinishing(
+    s,
+    previewFinishing(s, cabinet.id, { ...finishingDraft(s, cabinet.id), follow: true }),
+    'linked',
+  )!
   const reject = vi.fn((_: FinishingPreview) => false)
   render(<CabinetFinishingEditor cabinet={cabinet} scene={linked} onApply={reject} />)
   click('Edit linked panel')
@@ -231,7 +240,10 @@ it('retains the edit target across panel type changes and reports rejected manag
   field('Finishing height source', 'cabinet')
   click('Preview finishing board')
   click('Save finishing board')
-  expect(reject.mock.calls[0][0]).toMatchObject({ targetId: 'linked', draft: { kind: 'right-end', heightMode: 'cabinet' } })
+  expect(reject.mock.calls[0][0]).toMatchObject({
+    targetId: 'linked',
+    draft: { kind: 'right-end', heightMode: 'cabinet' },
+  })
   click('Delete linked panel')
   expect(screen.getByRole('alert').textContent).toContain('Reload the linked panel')
 })

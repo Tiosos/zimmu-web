@@ -75,10 +75,7 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
   const cells: FrontCell[] = []
   const half = g.reveal / 2
 
-  const framedReach = (
-    opening: Rect,
-    side: 'left' | 'right' | 'bottom' | 'top',
-  ): number | null => {
+  const framedReach = (opening: Rect, side: 'left' | 'right' | 'bottom' | 'top'): number | null => {
     const EPS = 1e-6
     const vertical = side === 'left' || side === 'right'
     const edge =
@@ -108,9 +105,7 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
     if (side === 'right' && Math.abs(member.rect.x1 - g.outer.x1) < EPS) return g.outer.x1
     if (side === 'bottom' && Math.abs(member.rect.z0 - g.outer.z0) < EPS) return g.outer.z0
     if (side === 'top' && Math.abs(member.rect.z1 - g.outer.z1) < EPS) return g.outer.z1
-    return vertical
-      ? (member.rect.x0 + member.rect.x1) / 2
-      : (member.rect.z0 + member.rect.z1) / 2
+    return vertical ? (member.rect.x0 + member.rect.x1) / 2 : (member.rect.z0 + member.rect.z1) / 2
   }
 
   const pushFramedOpening = (
@@ -281,8 +276,22 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
               }
             : { ...vertical, x0: center + half, x1: cell.x1 }
         cells.push(
-          { sectionId: section.id, openingId: section.id, leaf: 0, spec, rect: leftRect, hinge: 'left' },
-          { sectionId: section.id, openingId: section.id, leaf: 1, spec, rect: rightRect, hinge: 'right' },
+          {
+            sectionId: section.id,
+            openingId: section.id,
+            leaf: 0,
+            spec,
+            rect: leftRect,
+            hinge: 'left',
+          },
+          {
+            sectionId: section.id,
+            openingId: section.id,
+            leaf: 1,
+            spec,
+            rect: rightRect,
+            hinge: 'right',
+          },
         )
         return
       }
@@ -290,8 +299,22 @@ export function frontCells(root: Section, tree: ResolvedTree, g: FrontGeometry):
       // Legacy pair: no physical member between the doors, only one reveal.
       const mid = (cell.x0 + cell.x1) / 2
       cells.push(
-        { sectionId: section.id, openingId: section.id, leaf: 0, spec, rect: { ...cell, x1: mid - half }, hinge: 'left' },
-        { sectionId: section.id, openingId: section.id, leaf: 1, spec, rect: { ...cell, x0: mid + half }, hinge: 'right' },
+        {
+          sectionId: section.id,
+          openingId: section.id,
+          leaf: 0,
+          spec,
+          rect: { ...cell, x1: mid - half },
+          hinge: 'left',
+        },
+        {
+          sectionId: section.id,
+          openingId: section.id,
+          leaf: 1,
+          spec,
+          rect: { ...cell, x0: mid + half },
+          hinge: 'right',
+        },
       )
       return
     }

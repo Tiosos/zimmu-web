@@ -56,10 +56,7 @@ export const SWEEP: CarcaseParams[] = (['toe-kick', 'ladder', 'legs', 'none'] as
                 hasTop,
                 frontMount,
                 section: seedFronts(
-                  seedInteriors(
-                    legacyToSection(dividers, fixedShelves, 1400, 18),
-                    SWEPT_INTERIOR,
-                  ),
+                  seedInteriors(legacyToSection(dividers, fixedShelves, 1400, 18), SWEPT_INTERIOR),
                 ),
               }),
             ),

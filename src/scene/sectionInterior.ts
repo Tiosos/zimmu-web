@@ -105,11 +105,7 @@ export function setInterior(root: Section, id: SectionId, spec: InteriorSpec): S
 // The mirror of `setInterior` for the other thing a section can carry. `undefined` **deletes** the
 // key rather than storing a spec that means nothing: absence is how the model says "no front", so
 // leaving an empty one behind would give it two ways to say it.
-export function setFrontOn(
-  root: Section,
-  id: SectionId,
-  front: FrontSpec | undefined,
-): Section {
+export function setFrontOn(root: Section, id: SectionId, front: FrontSpec | undefined): Section {
   if (root.id === id) {
     if (front !== undefined) return { ...root, front }
     // Deleted, not set to `undefined`. Both serialise the same, but `'front' in section` tells them
@@ -158,6 +154,9 @@ export function seedInteriors(root: Section, spec: InteriorSpec): Section {
   if (root.content.kind === 'leaf') return { ...root, interior: spec }
   return {
     ...root,
-    content: { ...root.content, children: root.content.children.map((c) => seedInteriors(c, spec)) },
+    content: {
+      ...root.content,
+      children: root.content.children.map((c) => seedInteriors(c, spec)),
+    },
   }
 }

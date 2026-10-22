@@ -13,7 +13,10 @@ import { validateFrameLayout } from './faceFrame'
 // turn fixing three mistakes into three round trips.
 export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickness): string[] {
   const errors: string[] = []
-  if (p.slopedTop) { const error = slopedTopError(p.slopedTop); if (error) return [error] }
+  if (p.slopedTop) {
+    const error = slopedTopError(p.slopedTop)
+    if (error) return [error]
+  }
 
   // `roleThicknessFor` is fatal by design; here it must not be. The parameter panel validates on
   // every keystroke, so a slot whose material cannot say how thick it is has to read back as a
@@ -63,11 +66,30 @@ export function validateCarcaseParams(p: CarcaseParams, thicknessOf: RoleThickne
   if (errors.length > 0) return errors
 
   if (p.slopedTop) {
-    if (!p.hasTop || p.frame || hasAnyFront(p.section) || p.backMode === 'captured') errors.push('Sloped cabinets require a top, open frameless sections and no captured back.')
-    if (![p.width, p.height, p.depth].every(n => Number.isFinite(n) && n > 0 && n <= 100000) || Math.abs(slopeMetrics(p).angle) > 60) errors.push('Cabinet dimensions must be positive and bounded; slope angle must not exceed 60 degrees.')
-    if (lowestRoof(p, top) - floorZ(p) - bottom < p.slopedTop.minClearance) errors.push('The slope leaves less than the minimum clear height.')
+    if (!p.hasTop || p.frame || hasAnyFront(p.section) || p.backMode === 'captured')
+      errors.push('Sloped cabinets require a top, open frameless sections and no captured back.')
+    if (
+      ![p.width, p.height, p.depth].every((n) => Number.isFinite(n) && n > 0 && n <= 100000) ||
+      Math.abs(slopeMetrics(p).angle) > 60
+    )
+      errors.push(
+        'Cabinet dimensions must be positive and bounded; slope angle must not exceed 60 degrees.',
+      )
+    if (lowestRoof(p, top) - floorZ(p) - bottom < p.slopedTop.minClearance)
+      errors.push('The slope leaves less than the minimum clear height.')
     const roof = slopeMetrics(p).roof
-    if (Math.min(roof(-p.slopedTop.left, -p.slopedTop.front), roof(p.width+p.slopedTop.right, p.depth+Math.max(p.slopedTop.back, p.backMode === 'applied' ? back : 0))) - top/slopeMetrics(p).c <= floorZ(p)+bottom) errors.push('Top overhangs extend the roof into the cabinet floor.')
+    if (
+      Math.min(
+        roof(-p.slopedTop.left, -p.slopedTop.front),
+        roof(
+          p.width + p.slopedTop.right,
+          p.depth + Math.max(p.slopedTop.back, p.backMode === 'applied' ? back : 0),
+        ),
+      ) -
+        top / slopeMetrics(p).c <=
+      floorZ(p) + bottom
+    )
+      errors.push('Top overhangs extend the roof into the cabinet floor.')
   }
   if (Math.min(left, right, bottom, top) <= 0) errors.push('thickness must be positive')
   if (p.width <= left + right) errors.push('width must exceed 2 × thickness')

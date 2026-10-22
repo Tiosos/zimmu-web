@@ -225,7 +225,7 @@ describe('regenerateDrawers — component reconciliation', () => {
   // The drawer's own preservation rule, one level down: a board the user detached from a driven
   // drawer is theirs, and it survives the drawer being dropped — re-homed on the carcase, the
   // component the drawer itself hung from, rather than left naming a parent that no longer exists.
-  it("re-homes a board the user detached from the drawer, when the drawer is dropped", () => {
+  it('re-homes a board the user detached from the drawer, when the drawer is dropped', () => {
     const withDrawer = regenerateDrawers(sceneOf(oneDrawer()))
     const drawer = drawersOf(withDrawer)[0]
     const side = boardsOf(withDrawer, drawer.id).find((b) => b.role === 'box-left')!
@@ -436,9 +436,7 @@ describe('regenerateDrawers — the boards', () => {
     const framelessLeft = boardsOf(frameless, drawersOf(frameless)[0].id).find(
       (b) => b.role === 'box-left',
     )!
-    const framedLeft = boardsOf(framed, drawersOf(framed)[0].id).find(
-      (b) => b.role === 'box-left',
-    )!
+    const framedLeft = boardsOf(framed, drawersOf(framed)[0].id).find((b) => b.role === 'box-left')!
 
     expect(framelessLeft.position.y).toBe(18)
     expect(framelessLeft.length).toBe(450)

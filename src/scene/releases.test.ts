@@ -424,9 +424,9 @@ describe('recordRelease', () => {
   })
 
   it('refuses a manifest digest that is not 64 hex characters', async () => {
-    expect(await recordRelease([], await inputFor(SOURCE_A, { packetSourceSha256: 'abc' }))).toEqual(
-      { ok: false, reason: 'invalid-manifest-hash' },
-    )
+    expect(
+      await recordRelease([], await inputFor(SOURCE_A, { packetSourceSha256: 'abc' })),
+    ).toEqual({ ok: false, reason: 'invalid-manifest-hash' })
   })
 
   it('refuses when the live source no longer hashes to the packet manifest', async () => {
@@ -451,7 +451,10 @@ describe('recordRelease', () => {
   })
 
   it('accepts a name of exactly 100 characters', async () => {
-    const result = await recordRelease([], await inputFor(SOURCE_A, { releasedBy: 'x'.repeat(100) }))
+    const result = await recordRelease(
+      [],
+      await inputFor(SOURCE_A, { releasedBy: 'x'.repeat(100) }),
+    )
     expect(result.ok).toBe(true)
   })
 

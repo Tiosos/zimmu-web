@@ -3,7 +3,7 @@ import { grainFixture } from './scene/__fixtures__/grainMatch'
 import { motionScene as openingScene } from './scene/__fixtures__/motion'
 import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, act, cleanup, screen, fireEvent, within } from '@testing-library/react'
+import { render, act, cleanup, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import App from './App'
 import { PRESET_MATERIALS } from './scene/carcasePresets'
 import { cabinet, partsOfBase600, partsOfCarcase } from './geom/__fixtures__/cabinetSheet'
@@ -81,7 +81,9 @@ function makeDefaultSceneReturn() {
     onUpdateMaterial: vi.fn(),
     onUpdateHardware: vi.fn(),
     syncComponents: vi.fn(),
-    onApplySlope: vi.fn(), onApplyStockPlan: vi.fn(), onApplyGrainMatchPreview: vi.fn(() => true),
+    onApplySlope: vi.fn(),
+    onApplyStockPlan: vi.fn(),
+    onApplyGrainMatchPreview: vi.fn(() => true),
     onApplyOpeningPreview: vi.fn(() => true),
     syncRoomInstallationSources: vi.fn(),
     onApplyInstallationPreview: vi.fn(),
@@ -147,9 +149,25 @@ vi.mock('./scene/useFile', () => ({
     releaseIntegrity: releaseSpy.integrity,
     fileName: null,
     projectName: 'Test',
-    project: { id: 'project_test', areas: [{ id: 'area_test', name: 'Area', rooms: [{
-      id: 'room_test', name: 'Room', ...(roomSpy.geometry ? { geometry: roomSpy.geometry } : {}), items: [{ id: 'item_test', name: 'Item', rootComponentIds: ['cmp_1'], rootPartIds: [] }],
-    }] }] },
+    project: {
+      id: 'project_test',
+      areas: [
+        {
+          id: 'area_test',
+          name: 'Area',
+          rooms: [
+            {
+              id: 'room_test',
+              name: 'Room',
+              ...(roomSpy.geometry ? { geometry: roomSpy.geometry } : {}),
+              items: [
+                { id: 'item_test', name: 'Item', rootComponentIds: ['cmp_1'], rootPartIds: [] },
+              ],
+            },
+          ],
+        },
+      ],
+    },
     activeItemId: 'item_test',
     canUndoProject: false,
     canRedoProject: false,
@@ -308,9 +326,11 @@ describe('App BOM integration', () => {
     mockUseScene.mockImplementation(() => {
       const [parts, setParts] = useState<Part[]>([])
       return {
-        onApplySlope: vi.fn(), onApplyStockPlan: vi.fn(), onApplyGrainMatchPreview: vi.fn(() => true),
-    onApplyOpeningPreview: vi.fn(() => true),
-    syncRoomInstallationSources: vi.fn(),
+        onApplySlope: vi.fn(),
+        onApplyStockPlan: vi.fn(),
+        onApplyGrainMatchPreview: vi.fn(() => true),
+        onApplyOpeningPreview: vi.fn(() => true),
+        syncRoomInstallationSources: vi.fn(),
         onApplyInstallationPreview: vi.fn(),
         onApplyWallFillerPreview: vi.fn(),
         scene: { parts, materials: {}, hardware: [], joints: [], components: [] },
@@ -609,6 +629,7 @@ describe('the open cabinet', () => {
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
     fireEvent.click(screen.getByRole('button', { name: '2D Drawings…' }))
+    await waitFor(() => expect(drawingsSpy.sheets.length).toBeGreaterThan(0))
 
     const assemblies = drawingsSpy.sheets.filter((s) => s.kind === 'assembly')
     expect(assemblies).toHaveLength(1)
@@ -624,14 +645,27 @@ describe('the open cabinet', () => {
   it('puts an elevation sheet for each room wall with a site length in the drawings deck', async () => {
     roomSpy.geometry = {
       ...emptyRoomGeometry(),
-      walls: [{ id: 'w', name: 'North', start: { x: 0, y: 0 }, end: { x: 3000, y: 0 },
-        measuredLength: { value: 3000, uncertainty: 5, source: 'Laser', recordedAt: '2026-09-30' } }],
+      walls: [
+        {
+          id: 'w',
+          name: 'North',
+          start: { x: 0, y: 0 },
+          end: { x: 3000, y: 0 },
+          measuredLength: {
+            value: 3000,
+            uncertainty: 5,
+            source: 'Laser',
+            recordedAt: '2026-09-30',
+          },
+        },
+      ],
     }
     try {
       render(<App />)
       await act(async () => {})
       fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
       fireEvent.click(screen.getByRole('button', { name: '2D Drawings…' }))
+      await waitFor(() => expect(drawingsSpy.sheets.length).toBeGreaterThan(0))
       const elevations = drawingsSpy.sheets.filter((s) => s.kind === 'elevation')
       expect(elevations).toHaveLength(1)
       if (elevations[0].kind !== 'elevation') throw new Error('unreachable')
@@ -816,8 +850,8 @@ describe('the release comparison', () => {
     const view = render(<App />)
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: 'Review releases' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Compare first release' }))
-    expect(screen.getByTestId('release-comparison')).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Compare first release' }))
+    expect(await screen.findByTestId('release-comparison')).toBeTruthy()
     const update = async (releases: ReleaseEntry[], integrity: ReleaseIntegrity[] | null) => {
       releaseSpy.releases = releases
       releaseSpy.integrity = integrity
@@ -864,57 +898,88 @@ describe('the release comparison', () => {
   })
 })
 
-it('previews opening poses through viewport overrides and clears them on Escape', () => {
- cleanup();vi.clearAllMocks();mockSnapActive=false;mockCutActive=false
- const scene=openingScene()
- mockUseScene.mockImplementation(()=>({...makeDefaultSceneReturn(),scene}))
- render(<App />)
- fireEvent.click(screen.getByRole('button',{name:'File ▾'}))
- fireEvent.click(screen.getByRole('button',{name:'Door & Drawer Motion…'}))
- fireEvent.click(screen.getByRole('button',{name:'Select supported fronts'}))
- fireEvent.click(screen.getByRole('button',{name:'Open selected'}))
- expect(viewportSpy.previewOnly).toBe(true);expect(viewportSpy.motionCount).toBe(1)
- fireEvent.keyDown(window,{key:'Delete'});expect(mockOnRemove).not.toHaveBeenCalled()
- fireEvent.keyDown(window,{key:'Escape'})
- expect(viewportSpy.previewOnly).toBe(false);expect(viewportSpy.motionCount).toBe(0)
- expect(screen.queryByRole('complementary',{name:'Door and drawer motion workspace'})).toBeNull()
- cleanup()
+it('previews opening poses through viewport overrides and clears them on Escape', async () => {
+  cleanup()
+  vi.clearAllMocks()
+  mockSnapActive = false
+  mockCutActive = false
+  const scene = openingScene()
+  mockUseScene.mockImplementation(() => ({ ...makeDefaultSceneReturn(), scene }))
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Door & Drawer Motion…' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Select supported fronts' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Open selected' }))
+  expect(viewportSpy.previewOnly).toBe(true)
+  expect(viewportSpy.motionCount).toBe(1)
+  fireEvent.keyDown(window, { key: 'Delete' })
+  expect(mockOnRemove).not.toHaveBeenCalled()
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(viewportSpy.previewOnly).toBe(false)
+  expect(viewportSpy.motionCount).toBe(0)
+  expect(
+    screen.queryByRole('complementary', { name: 'Door and drawer motion workspace' }),
+  ).toBeNull()
+  cleanup()
 })
 
-it('opens grain matching from File and closes it with Escape without changing geometry', () => {
- cleanup();vi.clearAllMocks();mockSnapActive=false;mockCutActive=false
- const f=grainFixture();mockUseScene.mockImplementation(()=>({...makeDefaultSceneReturn(),scene:f.scene}))
- render(<App />)
- fireEvent.click(screen.getByRole('button',{name:'File ▾'}));fireEvent.click(screen.getByRole('button',{name:'Front Grain Matching…'}))
- expect(screen.queryByRole('complementary',{name:'Front grain matching workspace'})).not.toBeNull()
- fireEvent.click(screen.getByRole('button',{name:'Add visible fronts'}));fireEvent.click(screen.getByRole('button',{name:'Preview grain matching'}))
- expect(screen.queryByRole('img',{name:'Cutting blank grain matching preview'})).not.toBeNull()
- fireEvent.keyDown(window,{key:'Escape'});expect(screen.queryByRole('complementary',{name:'Front grain matching workspace'})).toBeNull()
- cleanup()
+it('opens grain matching from File and closes it with Escape without changing geometry', async () => {
+  cleanup()
+  vi.clearAllMocks()
+  mockSnapActive = false
+  mockCutActive = false
+  const f = grainFixture()
+  mockUseScene.mockImplementation(() => ({ ...makeDefaultSceneReturn(), scene: f.scene }))
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Front Grain Matching…' }))
+  expect(
+    await screen.findByRole('complementary', { name: 'Front grain matching workspace' }),
+  ).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Add visible fronts' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Preview grain matching' }))
+  expect(screen.queryByRole('img', { name: 'Cutting blank grain matching preview' })).not.toBeNull()
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(screen.queryByRole('complementary', { name: 'Front grain matching workspace' })).toBeNull()
+  cleanup()
 })
 
-
-it('opens the stock workspace from File and closes it with Escape', () => {
- cleanup();vi.clearAllMocks();mockSnapActive=false;mockCutActive=false
- mockUseScene.mockImplementation(()=>makeDefaultSceneReturn())
- render(<App />)
- fireEvent.click(screen.getByRole('button',{name:'File ▾'}))
- fireEvent.click(screen.getByRole('button',{name:'Stock Optimisation…'}))
- expect(screen.queryByRole('complementary',{name:'Stock optimisation workspace'})).not.toBeNull()
- fireEvent.keyDown(window,{key:'Escape'})
- expect(screen.queryByRole('complementary',{name:'Stock optimisation workspace'})).toBeNull()
- cleanup()
+it('opens the stock workspace from File and closes it with Escape', async () => {
+  cleanup()
+  vi.clearAllMocks()
+  mockSnapActive = false
+  mockCutActive = false
+  mockUseScene.mockImplementation(() => makeDefaultSceneReturn())
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Stock Optimisation…' }))
+  expect(
+    await screen.findByRole('complementary', { name: 'Stock optimisation workspace' }),
+  ).toBeTruthy()
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(screen.queryByRole('complementary', { name: 'Stock optimisation workspace' })).toBeNull()
+  cleanup()
 })
 
-
-it('opens the sloped cabinet workspace from File and closes it with Escape', () => {
- cleanup();vi.clearAllMocks();mockSnapActive=false;mockCutActive=false
- const f=slopeFixture();mockUseScene.mockImplementation(()=>({...makeDefaultSceneReturn(),scene:f.scene}))
- render(<App />)
- fireEvent.click(screen.getByRole('button',{name:'File ▾'}));fireEvent.click(screen.getByRole('button',{name:'Sloped-Top Cabinets…'}))
- expect(screen.queryByRole('complementary',{name:'Sloped top cabinet workspace'})).not.toBeNull()
- fireEvent.click(screen.getByLabelText('Enable sloped top'));fireEvent.click(screen.getByRole('button',{name:'Preview sloped cabinet'}))
- expect(screen.queryByRole('img',{name:'Sloped cabinet generated panel projection'})).not.toBeNull()
- fireEvent.keyDown(window,{key:'Escape'});expect(screen.queryByRole('complementary',{name:'Sloped top cabinet workspace'})).toBeNull()
- cleanup()
+it('opens the sloped cabinet workspace from File and closes it with Escape', async () => {
+  cleanup()
+  vi.clearAllMocks()
+  mockSnapActive = false
+  mockCutActive = false
+  const f = slopeFixture()
+  mockUseScene.mockImplementation(() => ({ ...makeDefaultSceneReturn(), scene: f.scene }))
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'File ▾' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Sloped-Top Cabinets…' }))
+  expect(
+    await screen.findByRole('complementary', { name: 'Sloped top cabinet workspace' }),
+  ).toBeTruthy()
+  fireEvent.click(screen.getByLabelText('Enable sloped top'))
+  fireEvent.click(screen.getByRole('button', { name: 'Preview sloped cabinet' }))
+  expect(
+    screen.queryByRole('img', { name: 'Sloped cabinet generated panel projection' }),
+  ).not.toBeNull()
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(screen.queryByRole('complementary', { name: 'Sloped top cabinet workspace' })).toBeNull()
+  cleanup()
 })

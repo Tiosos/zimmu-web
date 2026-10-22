@@ -136,8 +136,14 @@ export function Sidebar({
     if (selectedPart?.kind !== 'board' || !selectedPart.role?.startsWith('adj-shelf-')) return []
     const cabinet = scene.components.find((c) => c.id === selectedPart.parentId)
     if (cabinet?.kind !== 'carcase') return []
-    const thickness = roleThicknessFor(cabinet.params, scene.materials, overridesOf(scene.parts, cabinet.id))
-    return adjustableShelfAccessResults(cabinet.params, thickness).filter((r) => r.role === selectedPart.role)
+    const thickness = roleThicknessFor(
+      cabinet.params,
+      scene.materials,
+      overridesOf(scene.parts, cabinet.id),
+    )
+    return adjustableShelfAccessResults(cabinet.params, thickness).filter(
+      (r) => r.role === selectedPart.role,
+    )
   }, [selectedPart, scene.components, scene.materials, scene.parts])
 
   return (
@@ -278,7 +284,11 @@ export function Sidebar({
         {/* Edit panel for selected part */}
         {selectedPart && shelfAccess.length > 0 && (
           <div className="px-2">
-            <ShelfInsertionPreview key={selectedPart.id} results={shelfAccess} label={selectedPart.label} />
+            <ShelfInsertionPreview
+              key={selectedPart.id}
+              results={shelfAccess}
+              label={selectedPart.label}
+            />
           </div>
         )}
         {selectedPart && (
@@ -341,8 +351,13 @@ export function Sidebar({
           <Select
             value=""
             onValueChange={(name) => {
-              const preset = [...CARCASE_PRESETS, ...installedDefinitions(scene.companyCatalogues)].find((p) =>
-                (p.catalogueId ? `${p.catalogueId}:v${p.catalogueVersion}` : p.name) === name)
+              const preset = [
+                ...CARCASE_PRESETS,
+                ...installedDefinitions(scene.companyCatalogues),
+              ].find(
+                (p) =>
+                  (p.catalogueId ? `${p.catalogueId}:v${p.catalogueVersion}` : p.name) === name,
+              )
               if (preset) onAddCarcase(preset)
             }}
           >
@@ -354,8 +369,14 @@ export function Sidebar({
             </SelectTrigger>
             <SelectContent>
               {[...CARCASE_PRESETS, ...installedDefinitions(scene.companyCatalogues)].map((p) => (
-                <SelectItem key={p.catalogueId ? `${p.catalogueId}:v${p.catalogueVersion}` : p.name} value={p.catalogueId ? `${p.catalogueId}:v${p.catalogueVersion}` : p.name}>
-                  {p.name}{p.catalogueId?.startsWith('company:') ? ` · ${p.catalogueId.split(':')[1]} · v${p.catalogueVersion}` : ''}
+                <SelectItem
+                  key={p.catalogueId ? `${p.catalogueId}:v${p.catalogueVersion}` : p.name}
+                  value={p.catalogueId ? `${p.catalogueId}:v${p.catalogueVersion}` : p.name}
+                >
+                  {p.name}
+                  {p.catalogueId?.startsWith('company:')
+                    ? ` · ${p.catalogueId.split(':')[1]} · v${p.catalogueVersion}`
+                    : ''}
                 </SelectItem>
               ))}
             </SelectContent>

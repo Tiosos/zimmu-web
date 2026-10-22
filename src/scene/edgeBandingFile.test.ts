@@ -113,7 +113,10 @@ describe('a carcase edge material in the file', () => {
       ],
     }
     const env = envelopeFor(s)
-    const item = env.project.areas[0].rooms[0].items[0] as { rootComponentIds: string[]; rootPartIds: string[] }
+    const item = env.project.areas[0].rooms[0].items[0] as {
+      rootComponentIds: string[]
+      rootPartIds: string[]
+    }
     item.rootComponentIds = ['cmp_1']
     item.rootPartIds = []
     return JSON.stringify(env)
@@ -127,11 +130,17 @@ describe('a carcase edge material in the file', () => {
     expect(edgeOf(withEdge('ABS 1mm'))).toBe('ABS 1mm')
   })
 
-  it.each([['an empty name', ''], ['a name the project lacks', 'Ghost']])('accepts %s', (_l, name) => {
+  it.each([
+    ['an empty name', ''],
+    ['a name the project lacks', 'Ghost'],
+  ])('accepts %s', (_l, name) => {
     expect(edgeOf(withEdge(name))).toBe(name)
   })
 
-  it.each([['a number', 5], ['an object', { name: 'ABS 1mm' }]])('rejects %s', (_l, value) => {
+  it.each([
+    ['a number', 5],
+    ['an object', { name: 'ABS 1mm' }],
+  ])('rejects %s', (_l, value) => {
     expect(() => parseFile(withEdge(value))).toThrow(/edgeMaterial/)
   })
 })

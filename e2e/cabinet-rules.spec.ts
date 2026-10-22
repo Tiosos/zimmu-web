@@ -25,6 +25,14 @@ test('project rules require acceptance and retain cabinet overrides', async ({ p
   await page.getByText('Base 600 v1 · item overrides', { exact: true }).click()
   await expect(page.getByText('Front reveal mm: Project', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Preview catalogue update' }).click()
-  await expect(page.getByText(/^0 cabinets with parameter or version changes; 0 part records changed directly\./)).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Update manufacturing impact' }).getByText(/^0 parts added; 0 removed; 0 changed/)).toBeVisible()
+  await expect(
+    page.getByText(
+      /^0 cabinets with parameter or version changes; 0 part records changed directly\./,
+    ),
+  ).toBeVisible()
+  await expect(
+    page
+      .getByRole('region', { name: 'Update manufacturing impact' })
+      .getByText(/^0 parts added; 0 removed; 0 changed/),
+  ).toBeVisible()
 })

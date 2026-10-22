@@ -58,7 +58,13 @@ export function cabinetSpaceBox(
 
   const corners: Vec3[] = []
   const owner = part.parentId ? byId.get(part.parentId) : undefined
-  const shaped = part.kind === 'board' && owner?.kind === 'carcase' && owner.params.slopedTop ? mitredCorners(part, part.cuts.filter((c): c is MitreCut => c.kind === 'mitre')) : null
+  const shaped =
+    part.kind === 'board' && owner?.kind === 'carcase' && owner.params.slopedTop
+      ? mitredCorners(
+          part,
+          part.cuts.filter((c): c is MitreCut => c.kind === 'mitre'),
+        )
+      : null
   for (const x of [lo.x, hi.x]) {
     for (const y of [lo.y, hi.y]) {
       for (const z of [lo.z, hi.z]) {
@@ -439,7 +445,11 @@ function buildDims(view: ViewSpec, p: CarcaseParams, thicknessOf: RoleThickness)
   // Openings are chained only where they divide along one of this view's own axes: nothing divides
   // in y, so the Top view carries overall figures alone.
   if (view.label === 'Front') {
-    const tree = resolveSections(p.section, openingRect(p, thicknessOf), sectionThickness(thicknessOf))
+    const tree = resolveSections(
+      p.section,
+      openingRect(p, thicknessOf),
+      sectionThickness(thicknessOf),
+    )
     const leaves = sectionOpenings(p.section, tree)
     // Read off the RESOLVED rectangles, never re-walked from the tree's percentages: a chain
     // derived from the same rectangles the elevation draws cannot disagree with it.
