@@ -48,6 +48,19 @@ describe('SectionElevation', () => {
     expect(onSelect).toHaveBeenCalledWith(ids[0])
   })
 
+  it('lets the keyboard reach a cell and select it with Enter or Space', async () => {
+    const p = divided()
+    const onSelect = draw(p)
+    const ids = sectionOpenings(p.section, resolvedOf(p)).map((o) => o.sectionId)
+    const second = screen.getByRole('button', { name: 'Select opening 2' })
+    second.focus()
+    expect(document.activeElement).toBe(second)
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard(' ')
+    await userEvent.keyboard('a')
+    expect(onSelect.mock.calls).toEqual([[ids[1]], [ids[1]]])
+  })
+
   it('marks the selected cell and no other', () => {
     const p = divided()
     const [first] = sectionOpenings(p.section, resolvedOf(p))

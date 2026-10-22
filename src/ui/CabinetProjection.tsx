@@ -1,3 +1,4 @@
+import { activateOnKey } from '../lib/a11y'
 import {
   buildAssemblyViews,
   CHAR_EM,
@@ -142,6 +143,10 @@ export function CabinetProjection({
             data-testid={`projection-part-${part.partId}`}
             data-selected={selected}
             onClick={() => onSelect(part.partId)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Select ${part.label}`}
+            onKeyDown={activateOnKey(() => onSelect(part.partId))}
             className="cursor-pointer"
           >
             {part.rects.map((r, i) => (

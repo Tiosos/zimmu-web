@@ -1,3 +1,4 @@
+import { activateOnKey } from '../lib/a11y'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CarcaseComponent, ComponentId, Scene, Vec3 } from '../scene/types'
 import { worldBoundsOf } from '../scene/carcaseWorldBounds'
@@ -353,6 +354,10 @@ export function PlanView({
                 }
                 strokeWidth={isSelected ? 8 : 3}
                 onClick={() => onSelect(c.id)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Select ${c.label}`}
+                onKeyDown={activateOnKey(() => onSelect(c.id))}
                 onPointerDown={(e) =>
                   setDrag({
                     id: c.id,

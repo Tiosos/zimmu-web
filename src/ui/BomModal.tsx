@@ -466,6 +466,9 @@ export function BomModal({
     >
       <div
         data-testid="bom-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Bill of materials"
         onClick={(e) => e.stopPropagation()}
         className="bg-card border border-border rounded-lg flex flex-col min-w-[700px] max-w-[960px] w-[90vw] max-h-[85vh] shadow-2xl text-foreground text-sm"
       >

@@ -1,3 +1,4 @@
+import { activateOnKey } from '../lib/a11y'
 import { useState } from 'react'
 import { carcaseOpenings } from '../scene/carcaseOpenings'
 import type { SectionNode } from '../scene/sectionNodes'
@@ -108,6 +109,9 @@ export function SceneTree({
         )}
         style={{ paddingLeft: ROW_PADDING + depth * INDENT }}
         onClick={() => onSelect({ kind: 'part', id: part.id })}
+        tabIndex={0}
+        aria-current={selection?.kind === 'part' && selection.id === part.id ? 'true' : undefined}
+        onKeyDown={activateOnKey(() => onSelect({ kind: 'part', id: part.id }))}
       >
         {error ? (
           <span title={error} className="text-xs text-destructive-foreground">
@@ -191,6 +195,11 @@ export function SceneTree({
           )}
           style={{ paddingLeft: ROW_PADDING + depth * INDENT }}
           onClick={() => onSelect({ kind: 'component', id: component.id })}
+          tabIndex={0}
+          aria-current={
+            selection?.kind === 'component' && selection.id === component.id ? 'true' : undefined
+          }
+          onKeyDown={activateOnKey(() => onSelect({ kind: 'component', id: component.id }))}
         >
           <Button
             variant="ghost"
@@ -272,6 +281,11 @@ export function SceneTree({
           onClick={() =>
             onSelect({ kind: 'section', cabinetId: component.id, sectionId: node.sectionId })
           }
+          tabIndex={0}
+          aria-current={isSelected ? 'true' : undefined}
+          onKeyDown={activateOnKey(() =>
+            onSelect({ kind: 'section', cabinetId: component.id, sectionId: node.sectionId }),
+          )}
         >
           <Button
             variant="ghost"

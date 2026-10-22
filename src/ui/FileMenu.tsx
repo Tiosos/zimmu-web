@@ -1,3 +1,4 @@
+import { activateOnKey } from '../lib/a11y'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -205,6 +206,7 @@ export function FileMenu({
         {isEditing ? (
           <input
             ref={inputRef}
+            aria-label="Project name"
             defaultValue={projectName}
             onBlur={commitName}
             onKeyDown={(e) => {
@@ -216,6 +218,9 @@ export function FileMenu({
         ) : (
           <span
             onClick={() => setIsEditing(true)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={activateOnKey(() => setIsEditing(true))}
             title="Click to rename"
             className="cursor-text max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs"
           >

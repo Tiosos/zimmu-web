@@ -1,3 +1,4 @@
+import { activateOnKey } from '../lib/a11y'
 import { serviceCutOwned } from '../scene/serviceMachining'
 import { worktopCutOwned } from '../scene/worktopMachining'
 import { useState, useEffect, useRef, useMemo } from 'react'
@@ -147,6 +148,10 @@ function CutRow({
       <div
         className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground py-1 cursor-pointer select-none hover:text-foreground transition-colors"
         onClick={() => setOpen((v) => !v)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={activateOnKey(() => setOpen((v) => !v))}
       >
         <span>{open ? '▾' : '▸'}</span>
         <span className="flex-1">{cut.label}</span>
@@ -300,6 +305,10 @@ function MitreRow({
       <div
         className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground py-1 cursor-pointer select-none hover:text-foreground transition-colors"
         onClick={() => setOpen((v) => !v)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={activateOnKey(() => setOpen((v) => !v))}
       >
         <span>{open ? '▾' : '▸'}</span>
         <span className="flex-1">{cut.label}</span>

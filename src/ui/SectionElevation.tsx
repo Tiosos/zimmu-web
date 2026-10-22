@@ -1,3 +1,4 @@
+import { activateOnKey } from '../lib/a11y'
 import {
   frontGeometryOf,
   openingRect,
@@ -127,7 +128,7 @@ export function SectionElevation({
         onClick={() => onSelect(null)}
       />
 
-      {elevationOpenings.map((o) => {
+      {elevationOpenings.map((o, i) => {
         const { x, y, height, width } = displayOf(o)
         const isSelected = o.sectionId === selected
         return (
@@ -146,6 +147,11 @@ export function SectionElevation({
             }
             strokeWidth={isSelected ? 3 : 1}
             onClick={() => onSelect(o.sectionId)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Select opening ${i + 1}`}
+            aria-pressed={isSelected}
+            onKeyDown={activateOnKey(() => onSelect(o.sectionId))}
           />
         )
       })}
