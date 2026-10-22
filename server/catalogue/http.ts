@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage } from 'node:http'
 import { ApiError, type Principal } from './auth'
 import { object, only, revision, textValue } from './content'
 import { CatalogueStore, type Action } from './store'
+import { rateLimiter } from './rateLimit'
 
 const MAX_BODY = 256 * 1024
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -28,10 +29,22 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
 export function catalogueServer(
   store: CatalogueStore,
   verify: (authorization: string | undefined) => Promise<Principal>,
+  options: { rateLimitPerMinute?: number; trustProxy?: boolean } = {},
 ) {
-  return createServer(async (req, res) => {
-    const respond = (status: number, value: unknown) => {
+  const limited =
+    options.rateLimitPerMinute === undefined ? null : rateLimiter(options.rateLimitPerMinute)
+  // Behind a reverse proxy every socket address is the proxy's, so the client is the entry the
+  // proxy itself appended — the last one; earlier entries are whatever the caller claimed.
+  const clientOf = (req: IncomingMessage): string => {
+    const forwarded = req.headers['x-forwarded-for']
+    if (options.trustProxy && typeof forwarded === 'string')
+      return forwarded.split(',').at(-1)?.trim() || 'unknown'
+    return req.socket.remoteAddress ?? 'unknown'
+  }
+  const server = createServer(async (req, res) => {
+    const respond = (status: number, value: unknown, headers: Record<string, string> = {}) => {
       res.writeHead(status, {
+        ...headers,
         'Content-Type': 'application/json',
         'Cache-Control': 'no-store',
         'X-Content-Type-Options': 'nosniff',
@@ -43,6 +56,16 @@ export function catalogueServer(
       const path = new URL(req.url ?? '/', 'http://localhost').pathname
       if (req.method === 'GET' && path === '/healthz') {
         respond(200, { status: 'ok' })
+        return
+      }
+      const retryAfter = limited?.(clientOf(req)) ?? 0
+      if (retryAfter > 0) {
+        req.resume()
+        respond(
+          429,
+          { error: 'Too many catalogue requests.' },
+          { 'Retry-After': String(retryAfter) },
+        )
         return
       }
       const actor = await verify(req.headers.authorization)
@@ -120,4 +143,10 @@ export function catalogueServer(
       })
     }
   })
+  // A client that opens a request and never finishes it would otherwise hold a socket for Node's
+  // generous defaults; the largest legitimate body is 256 KiB.
+  server.headersTimeout = 15_000
+  server.requestTimeout = 30_000
+  server.keepAliveTimeout = 5_000
+  return server
 }

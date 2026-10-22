@@ -12,7 +12,10 @@ const bindings = () => loadIdentityBindings(config.bindingsPath, config.issuer, 
 bindings() // Refuse startup if the IT identity map is unavailable or invalid.
 mkdirSync(dirname(config.database), { recursive: true, mode: 0o700 })
 const store = new CatalogueStore(config.database, config.companyId)
-const server = catalogueServer(store, keycloakVerifier(config, bindings))
+const server = catalogueServer(store, keycloakVerifier(config, bindings), {
+  rateLimitPerMinute: config.rateLimitPerMinute,
+  trustProxy: config.trustProxy,
+})
 server.listen(config.port, config.host, () => {
   console.info('Company catalogue API is listening.')
 })

@@ -11,6 +11,20 @@ const env = {
   CATALOGUE_DB_PATH: '/var/lib/zimmu/company.sqlite',
 }
 describe('Keycloak catalogue runtime configuration', () => {
+  it('reads rate-limit and proxy settings, rejecting nonsense', () => {
+    expect(catalogueConfig(env)).toMatchObject({ rateLimitPerMinute: 300, trustProxy: false })
+    expect(
+      catalogueConfig({
+        ...env,
+        CATALOGUE_RATE_LIMIT_PER_MINUTE: '60',
+        CATALOGUE_TRUST_PROXY: 'true',
+      }),
+    ).toMatchObject({ rateLimitPerMinute: 60, trustProxy: true })
+    expect(() => catalogueConfig({ ...env, CATALOGUE_RATE_LIMIT_PER_MINUTE: '0' })).toThrow(
+      /RATE_LIMIT/,
+    )
+    expect(() => catalogueConfig({ ...env, CATALOGUE_TRUST_PROXY: 'yes' })).toThrow(/TRUST_PROXY/)
+  })
   it('fails closed without explicit provider, canonical identity and durable files', () => {
     expect(() => catalogueConfig({})).toThrow(/Configure/)
     expect(() => catalogueConfig({ ...env, CATALOGUE_COMPANY_ID: 'company' })).toThrow(/Configure/)
