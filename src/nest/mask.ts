@@ -83,9 +83,12 @@ export function occupancyMask<T extends Pick<BoardPart, 'length' | 'width' | 'th
   const w = Math.ceil(part.length)
   const h = Math.ceil(part.width)
   const bits = new Uint8Array(w * h)
+  // Roof profiles come from rectangular stock; raster slivers cannot become reusable gaps.
+  const generatedProfile = part.cuts.some(c => c.kind === 'mitre' && c.sourceComponentId !== undefined)
+  if (generatedProfile) bits.fill(1)
 
   // `mitreFaceOutline` returns [bl, br, tr, tl] in board-local millimetres with its min corner at
-  // the origin, and only ever moves tr.x or tl.x — so the outline is a trapezoid and each row is a
+  // the origin, and moves only corner x coordinates — so the outline is a trapezoid and each row is a
   // single run. With no flat mitre it is the plain rectangle, which is why this is the only fill.
   // It filters on the 'Face' view's own axis, so passing every mitre is correct and the filter is
   // not duplicated here: a bevel through the thickness leaves the footprint square, and the widest
@@ -95,7 +98,7 @@ export function occupancyMask<T extends Pick<BoardPart, 'length' | 'width' | 'th
     part.cuts.filter((c): c is MitreCut => c.kind === 'mitre'),
     'Face',
   )
-  for (let y = 0; y < h; y++) {
+  for (let y = 0; !generatedProfile && y < h; y++) {
     const t = (y + 0.5) / part.width
     // Inward: a cell is material only if its centre is inside. The opposite rounding to the
     // dimensions above, and the same principle — never claim material the part does not have.
@@ -104,7 +107,7 @@ export function occupancyMask<T extends Pick<BoardPart, 'length' | 'width' | 'th
     if (right > left) bits.fill(1, y * w + Math.max(0, left), y * w + Math.min(w, right))
   }
 
-  for (const c of part.cuts) {
+  for (const c of generatedProfile ? [] : part.cuts) {
     // `face` is not consulted: a box cut is an axis-aligned box in board-local space, so its
     // footprint is its x-y span whichever face it was authored from. Hole arrays never change the
     // outline; mitres are handled by the outline itself.

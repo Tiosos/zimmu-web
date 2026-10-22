@@ -45,7 +45,8 @@ export function carcaseHoleArrays(
   // Empty for a carcase whose parameters do not build, which is what makes every line below safe:
   // nothing here resolves a thickness or a rectangle for a cabinet the validator rejected.
   const generatedRoles = carcaseRoles(p, thicknessOf, kindOf)
-  const panel = generatedRoles.find((r) => r.role === role)?.panel
+  const generated = generatedRoles.find((r) => r.role === role)
+  const panel = generated?.sourcePanel ?? generated?.panel
   if (panel === undefined) return []
 
   const tree = resolveSections(

@@ -1,3 +1,9 @@
+import { slopeFixture } from './__fixtures__/slope'
+import { previewSlope, defaultSlopeDraft } from './slopedTop'
+import { stockFixture, stockOption } from '../nest/__fixtures__/stock'
+import { previewStockPlan } from './stockPlanning'
+import { grainFixture } from './__fixtures__/grainMatch'
+import { previewGrainMatch } from './grainMatching'
 import { defaultProject } from './projectStructure'
 import { motionScene as openingMotionScene } from './__fixtures__/motion'
 import { openingTargets, defaultOpeningSetting, previewOpeningSettings } from './openingMotion'
@@ -3616,4 +3622,67 @@ it('saves opening motion settings in one undo step without changing manufacturin
  act(()=>{expect(result.current.onApplyOpeningPreview(project,request)).toBe(false)})
  act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
  act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+})
+
+it('applies grain groups and detaches in atomic history steps while guarding owned grain and duplication', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const f=grainFixture(),{result}=renderHook(()=>useScene())
+ act(()=>result.current.replaceScene(f.scene))
+ const before=result.current.scene,draft={...f.draft,direction:'horizontal' as const},request=previewGrainMatch(before,f.project,draft)
+ act(()=>{expect(result.current.onApplyGrainMatchPreview(f.project,request)).toBe(true)})
+ const after=result.current.scene,matched=after.parts.filter((p):p is BoardPart=>p.kind==='board'&&!!p.grainMatch)
+ expect(matched).toHaveLength(2);expect(matched.every(p=>p.grain==='width')).toBe(true)
+ expect(after.parts.map(p=>p.position)).toEqual(before.parts.map(p=>p.position));expect(result.current.undoLabel).toBe('Apply grain matching group')
+ act(()=>{expect(result.current.onApplyGrainMatchPreview(f.project,request)).toBe(false)})
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+ act(()=>result.current.onUpdate(matched[0].id,p=>p.kind==='board'?{...p,grain:'free'}:p));expect(result.current.scene).toBe(after)
+ act(()=>result.current.onDuplicate(matched[0].id));const duplicate=result.current.scene.parts.find(p=>!after.parts.some(a=>a.id===p.id)) as BoardPart
+ expect(duplicate.grainMatch).toBeUndefined();expect(duplicate.driven).toBe(false);expect(duplicate.role).toBeUndefined()
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(after)
+ const detach={...previewGrainMatch(after,f.project,draft,after.grainMatches![0].id),action:'detach' as const}
+ act(()=>{expect(result.current.onApplyGrainMatchPreview(f.project,detach)).toBe(true)})
+ expect(result.current.scene.grainMatches).toBeUndefined();expect(result.current.scene.parts.filter((p):p is BoardPart=>p.kind==='board'&&matched.some(m=>m.id===p.id)).every(p=>p.grain==='width'&&!p.grainMatch)).toBe(true)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(after)
+})
+
+
+it('saves and consumes project stock in atomic undo steps and rejects replayed previews', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const f=stockFixture(1),{result}=renderHook(()=>useScene())
+ f.plan.stocks=[stockOption({quantity:2})]
+ act(()=>result.current.replaceScene(f.scene))
+ const before=result.current.scene,p=previewStockPlan(before,f.project,f.scene.materials,f.plan)
+ act(()=>{expect(result.current.onApplyStockPlan(f.project,f.scene.materials,p,'save')).toBe(true)})
+ const saved=result.current.scene;expect(saved.stockPlan).toEqual(f.plan);expect(result.current.undoLabel).toBe('Save stock settings')
+ act(()=>{expect(result.current.onApplyStockPlan(f.project,f.scene.materials,p,'consume')).toBe(false)})
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(saved)
+ const consume=previewStockPlan(saved,f.project,f.scene.materials,f.plan),remnant=consume.result!.remnants[0].id
+ act(()=>{expect(result.current.onApplyStockPlan(f.project,f.scene.materials,consume,'consume',[remnant])).toBe(true)})
+ const after=result.current.scene;expect(after.stockPlan!.stocks[0].quantity).toBe(1);expect(after.stockPlan!.stocks[1].kind).toBe('offcut');expect(after.parts).toEqual(saved.parts);expect(result.current.undoLabel).toBe('Consume stock and save remnants')
+ act(()=>{expect(result.current.onApplyStockPlan(f.project,f.scene.materials,consume,'consume',[remnant])).toBe(false)})
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(saved)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+})
+
+
+it('applies and disables sloped roofs in atomic history steps with stale replay protection', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const f=slopeFixture(),{result}=renderHook(()=>useScene())
+ act(()=>result.current.replaceScene(f.scene));const before=result.current.scene,p=previewSlope(before,f.project,f.draft)
+ act(()=>{expect(result.current.onApplySlope(f.project,p)).toBe(true)})
+ const after=result.current.scene;expect(after.components.find(c=>c.kind==='carcase')!.params.slopedTop).toBeDefined();expect(result.current.undoLabel).toBe('Apply sloped cabinet')
+ act(()=>{expect(result.current.onApplySlope(f.project,p)).toBe(false)})
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+ const source=after.parts.find(p=>p.kind==='board'&&p.role==='top') as BoardPart
+ act(()=>result.current.onDuplicate(source.id))
+ const copy=result.current.scene.parts.find(p=>!after.parts.some(a=>a.id===p.id)) as BoardPart
+ expect(copy.driven).toBe(false);expect(copy.role).toBeUndefined();expect(copy.cuts.every(c=>c.sourceComponentId===undefined)).toBe(true);expect(copy.cuts.filter(c=>c.kind==='mitre')).toHaveLength(2)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(after)
+ const draft=defaultSlopeDraft(after,f.cabinetId);draft.enabled=false
+ act(()=>{expect(result.current.onApplySlope(f.project,previewSlope(after,f.project,draft))).toBe(true)})
+ expect(result.current.scene.components.find(c=>c.kind==='carcase')!.params.slopedTop).toBeUndefined();expect(result.current.undoLabel).toBe('Disable sloped cabinet')
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(after)
 })

@@ -93,7 +93,7 @@ export function carcaseJoints(
   kindOf: RoleJointKind,
   componentId: string,
 ): JointDescriptor[] {
-  if (validateCarcaseParams(p, thicknessOf).length > 0) return []
+  if (p.slopedTop || validateCarcaseParams(p, thicknessOf).length > 0) return []
   if (
     p.jointMethod !== 'dado-rabbet' &&
     p.jointMethod !== 'finger' &&

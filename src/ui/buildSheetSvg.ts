@@ -1,5 +1,5 @@
 import type { ManufacturingLabel } from '../scene/manufacturingLabels'
-import type { Placement, SheetSpec } from '../nest/nest'
+import type { Placement, SheetSpec, MatchBlankPlacement } from '../nest/nest'
 
 // Roughly how wide a character is at a given font size, for deciding whether a label fits its part.
 // A measurement is impossible in a string serialiser and unnecessary: the only decision it feeds is
@@ -24,6 +24,7 @@ export function buildSheetSvg(
   labelOf: (id: string) => string,
   viewportWidth = 600,
   labelDetails?: Map<string, ManufacturingLabel>,
+  blanks?: MatchBlankPlacement[],
 ): string {
   const scale = viewportWidth / sheet.length
   const w = sheet.length * scale
@@ -36,7 +37,11 @@ export function buildSheetSvg(
       const pw = p.w * scale
       const ph = p.h * scale
 
-      const label = labelOf(p.id)
+      const fullLabel = labelOf(p.id)
+      const label =
+        p.grainMatch && fullLabel.length * LABEL_SIZE * CHAR_ASPECT > pw - 4
+          ? `#${p.grainMatch.sequence}`
+          : fullLabel
       const fits = label.length * LABEL_SIZE * CHAR_ASPECT <= pw - 4 && LABEL_SIZE + 2 <= ph
       const text = fits
         ? `<text x="${(px + pw / 2).toFixed(2)}" y="${(py + ph / 2 + LABEL_SIZE / 3).toFixed(2)}" text-anchor="middle" font-size="${LABEL_SIZE}" fill="currentColor" opacity="0.75">${escapeXml(label)}</text>`
@@ -52,6 +57,10 @@ export function buildSheetSvg(
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w.toFixed(2)} ${h.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" role="img">`,
     `<rect data-sheet="1" x="0" y="0" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="1" />`,
+    ...(blanks ?? []).map(
+      (b) =>
+        `<rect data-grain-group="${escapeXml(b.groupId)}" x="${(b.x * scale).toFixed(2)}" y="${((sheet.width - b.y - b.h) * scale).toFixed(2)}" width="${(b.w * scale).toFixed(2)}" height="${(b.h * scale).toFixed(2)}" fill="none" stroke="#8b5cf6" stroke-dasharray="5 3"><title>${escapeXml(b.label)} · matched blank · ${b.rotation} degrees</title></rect>`,
+    ),
     parts,
     `</svg>`,
   ].join('')

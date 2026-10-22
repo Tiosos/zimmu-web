@@ -14,6 +14,9 @@ export interface FileMenuProps {
   onProjectNameChange: (name: string) => void
   onImportCatalogue?: () => void
   onCompanyCatalogue?: () => void
+  onSlopedTop?: () => void
+  onStockOptimisation?: () => void
+  onGrainMatching?: () => void
   onOpeningMotion?: () => void
   onProjectStructure?: () => void
   onCuttingList: () => void
@@ -48,6 +51,9 @@ export function FileMenu({
   onProjectNameChange,
   onImportCatalogue,
   onCompanyCatalogue,
+  onSlopedTop,
+  onStockOptimisation,
+  onGrainMatching,
   onOpeningMotion,
   onProjectStructure,
   onCuttingList,
@@ -156,6 +162,9 @@ export function FileMenu({
             {onCompanyCatalogue && menuItem('Company catalogue…', '', onCompanyCatalogue, false)}
             {onProjectStructure && menuItem('Project structure…', '', onProjectStructure, false)}
             {onOpeningMotion && menuItem('Door & Drawer Motion…', '', onOpeningMotion, false)}
+            {onGrainMatching && menuItem('Front Grain Matching…', '', onGrainMatching, false)}
+            {onStockOptimisation && menuItem('Stock Optimisation…', '', onStockOptimisation, false)}
+            {onSlopedTop && menuItem('Sloped-Top Cabinets…', '', onSlopedTop, false)}
             <Separator className="my-1" />
             {menuItem('Cutting List…', '⌘⇧E', onCuttingList, false)}
             {menuItem('Manufacturing readiness…', '', onReadiness, false)}

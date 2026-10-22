@@ -583,11 +583,17 @@
 │   └── utils.ts
 ├── main.tsx
 ├── nest/
+│   ├── __fixtures__/
+│   │   └── stock.ts
+│   ├── grainRectangle.test.ts
 │   ├── mask.test.ts
 │   ├── mask.ts
 │   ├── nest.test.ts
 │   ├── nest.ts
-│   └── nest.worker.ts
+│   ├── nest.worker.ts
+│   ├── nestJob.ts
+│   ├── stockOptimisation.test.ts
+│   └── stockOptimisation.ts
 ├── render/
 │   ├── shelfInsertionPreview.test.ts
 │   ├── shelfInsertionPreview.ts
@@ -596,6 +602,7 @@
 │   ├── __fixtures__/
 │   │   ├── companyCatalogue.ts
 │   │   ├── corners.ts
+│   │   ├── grainMatch.ts
 │   │   ├── installation.ts
 │   │   ├── interiors.ts
 │   │   ├── machiningProject.ts
@@ -606,6 +613,7 @@
 │   │   ├── release.ts
 │   │   ├── resolve.ts
 │   │   ├── runPanels.ts
+│   │   ├── slope.ts
 │   │   ├── sweep.ts
 │   │   └── worktop.ts
 │   ├── adjacentFronts.test.ts
@@ -694,6 +702,9 @@
 │   ├── frontsDrawers.ts
 │   ├── grain.test.ts
 │   ├── grain.ts
+│   ├── grainMatching.test.ts
+│   ├── grainMatching.ts
+│   ├── grainMatchRecipe.ts
 │   ├── groupSuggestions.test.ts
 │   ├── groupSuggestions.ts
 │   ├── hardwareCatalogue.test.ts
@@ -800,8 +811,14 @@
 │   ├── shelfReadiness.ts
 │   ├── shelvesInteriors.test.ts
 │   ├── shelvesInteriors.ts
+│   ├── slopedPanels.ts
+│   ├── slopedTop.test.ts
+│   ├── slopedTop.ts
+│   ├── slopedTopRecipe.ts
 │   ├── snapMath.test.ts
 │   ├── snapMath.ts
+│   ├── stockPlanning.ts
+│   ├── stockPlanRecipe.ts
 │   ├── suggestionOutline.test.ts
 │   ├── suggestionOutline.ts
 │   ├── suggestJoints.test.ts
@@ -853,6 +870,7 @@
 │   ├── buildDrawingIndex.ts
 │   ├── buildDxf.test.ts
 │   ├── buildDxf.ts
+│   ├── buildGrainMatchCsv.ts
 │   ├── buildMachiningCsv.test.ts
 │   ├── buildMachiningCsv.ts
 │   ├── buildPdf.test.ts
@@ -865,6 +883,8 @@
 │   ├── buildRevisionReviewHtml.ts
 │   ├── buildSheetSvg.test.ts
 │   ├── buildSheetSvg.ts
+│   ├── buildSlopeCsv.ts
+│   ├── buildStockExports.ts
 │   ├── buildSvg.test.ts
 │   ├── buildSvg.ts
 │   ├── CabinetApplianceEditor.test.tsx
@@ -935,6 +955,10 @@
 │   ├── EditPanel.tsx
 │   ├── FileMenu.test.tsx
 │   ├── FileMenu.tsx
+│   ├── grainMatchPacket.test.ts
+│   ├── GrainMatchViews.tsx
+│   ├── GrainMatchWorkspace.test.tsx
+│   ├── GrainMatchWorkspace.tsx
 │   ├── groupHardware.test.ts
 │   ├── groupHardware.ts
 │   ├── HardwareEditPanel.test.tsx
@@ -1028,10 +1052,16 @@
 │   ├── ShelfInsertionPreview.tsx
 │   ├── sidebar.test.tsx
 │   ├── sidebar.tsx
+│   ├── slopedTopPacket.test.ts
+│   ├── SlopedTopViews.tsx
+│   ├── SlopedTopWorkspace.test.tsx
+│   ├── SlopedTopWorkspace.tsx
 │   ├── sourceReviewParts.test.ts
 │   ├── sourceReviewParts.ts
 │   ├── sourceReviewViewPreferences.test.tsx
 │   ├── sourceReviewViewPreferences.ts
+│   ├── StockWorkspace.test.tsx
+│   ├── StockWorkspace.tsx
 │   ├── SuggestionsPanel.test.tsx
 │   ├── SuggestionsPanel.tsx
 │   ├── useDebouncedCallback.test.ts
@@ -1694,7 +1724,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->228<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->237<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1781,6 +1811,7 @@ import { useScene } from './useScene'</code></pre>
 ├── cabinet-corner-assemblies.md
 ├── cabinet-finishing-panels.md
 ├── cabinet-fronts-drawers.md
+├── cabinet-grain-matching.md
 ├── cabinet-hinges-runners.md
 ├── cabinet-layout-reuse.md
 ├── cabinet-layout-tools.md
@@ -1794,6 +1825,8 @@ import { useScene } from './useScene'</code></pre>
 ├── cabinet-run-fit.md
 ├── cabinet-run-worktops.md
 ├── cabinet-shelves-interiors.md
+├── cabinet-sloped-top.md
+├── cabinet-stock-optimisation.md
 ├── cabinet-worktop-machining.md
 ├── company-catalogue-api.md
 ├── drawing-references.md
@@ -1953,9 +1986,12 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-21-worktop-machining-notes.md
     │   ├── 2026-10-22-appliance-services-notes.md
     │   ├── 2026-10-22-corner-assemblies-notes.md
+    │   ├── 2026-10-22-grain-matching-notes.md
     │   ├── 2026-10-22-materials-edges-notes.md
     │   ├── 2026-10-22-opening-motion-notes.md
-    │   └── 2026-10-22-room-installation-notes.md
+    │   ├── 2026-10-22-room-installation-notes.md
+    │   ├── 2026-10-22-stock-optimisation-notes.md
+    │   └── 2026-10-23-sloped-top-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -2038,9 +2074,12 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-21-worktop-machining.md
     │   ├── 2026-10-22-appliance-services.md
     │   ├── 2026-10-22-corner-assemblies.md
+    │   ├── 2026-10-22-grain-matching.md
     │   ├── 2026-10-22-materials-edges.md
     │   ├── 2026-10-22-opening-motion.md
-    │   └── 2026-10-22-room-installation.md
+    │   ├── 2026-10-22-room-installation.md
+    │   ├── 2026-10-22-stock-optimisation.md
+    │   └── 2026-10-23-sloped-top.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -2166,9 +2205,12 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-21-worktop-machining-design.md
         ├── 2026-10-22-appliance-services-design.md
         ├── 2026-10-22-corner-assemblies-design.md
+        ├── 2026-10-22-grain-matching-design.md
         ├── 2026-10-22-materials-edges-design.md
         ├── 2026-10-22-opening-motion-design.md
-        └── 2026-10-22-room-installation-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-10-22-room-installation-design.md
+        ├── 2026-10-22-stock-optimisation-design.md
+        └── 2026-10-23-sloped-top-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
@@ -2213,6 +2255,9 @@ import { useScene } from './useScene'</code></pre>
   </main>
 </div>
 <section><h2>Published company catalogues in CAD</h2><p>The dedicated company window exports authenticated published snapshots without tokens. CAD validates content and dependencies, asks for a trusted source confirmation and installs into scene.companyCatalogues. Company/rule/version-qualified stock avoids material collisions. v27 project files retain installed definitions for offline use. Import and reopening preserve cabinet parameters and parts; the cabinet editor previews an installed product update before explicit acceptance. Offline hashes do not authenticate approval records or release production.</p></section>
+<p>Sloped-top cabinet geometry is derived in carcaseRoles from one roof plane before component machining and exports. Conservative rectangular openings and horizontal shelves remain below the lowest roof underside; top-reaching partitions and the applied back follow the plane. Opposite-long-edge mitres share kernel tools, outlines, profile corners and cache keys. Component drilling/notches are remapped when side board axes change. Preview acceptance is atomic; automatic sloped joinery is omitted with explicit manufacturing review notes.</p>
+<p>The Stock Optimisation workspace stores project-local inventory and job settings in Scene.stockPlan. A separate mixed-stock rectangular planner consumes canonical manufacturing records, keeps matched groups atomic, respects quantity/grain/trim/clearance constraints, and derives disjoint reusable remnants. Preview and exports are read-only; explicit consumption updates finite stock and selected remnants in one history step. It leaves the existing raster nesting path unchanged.</p>
+<p>Front grain matching stores Scene-owned groups and derives board bindings in the final pipeline pass after service openings. The workspace previews installed fronts and shared cutting blanks. The pure nest job validates complete groups, reserves each blank atomically, and expands it back to real panel identities; labels and the sequence CSV share manufacturing records. Broken or unplaceable groups never fall back to independent panel nesting.</p>
 <p>Catalogue and project-rule impact previews use the captured source and pipeline candidate, stable part IDs and composed world transforms. The scene-side manufacturingPart adapter provides physical part records, separate local/BOM axes, edge stock/run lengths and generation/catalogue provenance. BOM, UI-side ruleImpact, sheet nesting and sheet label details share these records and apply current pricing separately. Nesting uses detached local cut footprints and excludes invalid cut sizes; SVG label titles carry stable cabinet/part identity. Shared manufacturingChecks consumes detached stock and requested edge facts, retaining unresolved cabinet edge rules without changing effective banding. It reports advisory stock, dimensions, cut and scoped label findings in the readiness dialog, captured PDF and hashed readiness/manufacturing.json packet file. Drilling and machine compatibility remain explicitly unassessed. RuleImpactDetails exposes exact operations, quantity changes and explicit price coverage before acceptance.</p>
 </body>
 </html>

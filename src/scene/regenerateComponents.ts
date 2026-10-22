@@ -1,3 +1,4 @@
+import { remapSlopeCuts, remapSlopeGrain } from './slopedPanels'
 import { pullPattern } from './pullPattern'
 import { frontCells, frontRoleOf } from './frontCells'
 import { frontGeometryOf } from './carcaseLayout'
@@ -97,11 +98,14 @@ function regenerateOne(
     const existing = byRole.get(r.role)
     if (existing !== undefined && !existing.driven) return existing
 
-    const componentCuts = [
+    const rawComponentCuts = [
       ...carcaseCuts(component.params, thicknessOf, r.role),
       ...carcaseHoleArrays(component.params, thicknessOf, kindOf, r.role),
       ...carcaseMachining(component.params, thicknessOf, kindOf, r.role, drawerFor, (role) => { const p = byRole.get(role); return component.params.frame === undefined && p?.kind === 'board' ? p.hingeLayout : undefined }),
     ].map((c) => ({ ...c, sourceComponentId: component.id }))
+    const componentCuts = [...(r.sourcePanel ? remapSlopeCuts(rawComponentCuts, r.sourcePanel, r.panel) : rawComponentCuts), ...(r.cuts ?? []).map(c => ({ ...c, sourceComponentId: component.id }))]
+    const own = existing?.kind === 'board' ? existing.overrides : undefined
+    const grainOverrides = own?.grain && existing?.kind === 'board' ? { ...own, grain: remapSlopeGrain(own.grain, existing, r.panel) } : own
     const existingCuts = existing?.kind === 'board' ? existing.cuts : []
     const frontCell = cells.get(r.role)
     const frontPull = existing?.kind === 'board' && frontCell ? existing.frontPull : undefined
@@ -126,7 +130,7 @@ function regenerateOne(
       thickness: r.panel.thickness,
       // Inherited grain follows the cabinet; only explicit ownership survives regeneration.
       // A detached part never reaches this line.
-      grain: existing?.kind === 'board' ? (existing.overrides?.grain ?? r.grain) : r.grain,
+      grain: existing?.kind === 'board' ? (grainOverrides?.grain ?? r.grain) : r.grain,
       material: materialForRole(component.params, overrides, r.role),
       color: existing?.color ?? PART_COLORS[i % PART_COLORS.length],
       position: r.panel.position,
@@ -151,7 +155,7 @@ function regenerateOne(
       role: r.role,
       // Carried across the regeneration that read it: an override the pass consumed but did not
       // write back would last exactly one edit.
-      overrides: existing?.kind === 'board' ? existing.overrides : undefined,
+      overrides: grainOverrides,
       ...(existing?.kind === 'board' && existing.serviceMachining !== undefined ? { serviceMachining: existing.serviceMachining } : {}),
       ...(existing?.kind === 'board' && existing.edgeBanding !== undefined
         ? { edgeBanding: existing.edgeBanding }

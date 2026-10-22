@@ -21,8 +21,11 @@ export function manufacturingLabels(records: ManufacturingPart[]): Map<string, M
         {
           id: p.id,
           cabinetId: p.provenance.cabinetId,
-          text: p.label,
-          detail: `${owner}; Cabinet ID ${p.provenance.cabinetId ?? 'none'}; Part ID ${p.id}; ${p.label}; ${p.material}; ${size}`,
+          text:
+            p.kind === 'board' && p.grainMatch
+              ? `${p.label} · ${p.grainMatch.label} #${p.grainMatch.sequence}`
+              : p.label,
+          detail: `${p.kind === 'board' && p.grainMatch ? `Grain group ${p.grainMatch.label} (${p.grainMatch.groupId}); Sequence ${p.grainMatch.sequence}/${p.grainMatch.memberCount}; Source cut ${p.grainMatch.x},${p.grainMatch.y} mm${p.grainMatch.problem ? `; ${p.grainMatch.problem}` : ''}; ` : ''}${owner}; Cabinet ID ${p.provenance.cabinetId ?? 'none'}; Part ID ${p.id}; ${p.label}; ${p.material}; ${size}`,
         },
       ]
     }),

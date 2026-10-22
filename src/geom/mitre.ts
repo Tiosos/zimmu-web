@@ -33,9 +33,13 @@ export function computeMitreTool(board: BoardDims, mitre: MitreCut): MitreTool {
   return {
     boxOrigin: { x: mitre.end === '+X' ? L : -span, y: -BIG, z: -BIG },
     boxSize: { x: span, y: span, z: span },
-    pivot: { x: xEnd, y: 0, z: 0 },
+    pivot: {
+      x: xEnd,
+      y: mitre.flip && mitre.axis === 'Z' ? W : 0,
+      z: mitre.flip && mitre.axis === 'Y' ? T : 0,
+    },
     axisDir: mitre.axis === 'Z' ? { x: 0, y: 0, z: 1 } : { x: 0, y: 1, z: 0 },
-    angleRad: sign * mitre.angle * DEG2RAD,
+    angleRad: sign * (mitre.flip ? -1 : 1) * mitre.angle * DEG2RAD,
   }
 }
 
@@ -66,9 +70,33 @@ export function mitreFaceOutline(
   for (const m of mitres) {
     if (m.axis !== relevantAxis) continue
     const drop = vMax * Math.tan(m.angle * DEG2RAD)
-    if (m.end === '+X') tr.x -= drop
-    else tl.x += drop
+    if (m.end === '+X') {
+      if (m.flip) br.x -= drop
+      else tr.x -= drop
+    } else {
+      if (m.flip) bl.x += drop
+      else tl.x += drop
+    }
   }
 
   return [bl, br, tr, tl]
+}
+
+// Exact corner envelope for the flat/bevel end planes used by generated slope panels.
+export function mitredCorners(board: BoardDims, mitres: MitreCut[]): Vec3[] {
+  return [0, 1].flatMap((end) =>
+    [0, board.width].flatMap((y) =>
+      [0, board.thickness].map((z) => {
+        let x = end ? board.length : 0
+        for (const m of mitres) {
+          if ((m.end === '+X') !== !!end) continue
+          const v = m.axis === 'Z' ? y : z,
+            V = m.axis === 'Z' ? board.width : board.thickness,
+            drop = (m.flip ? V - v : v) * Math.tan(m.angle * DEG2RAD)
+          x += end ? -drop : drop
+        }
+        return { x, y, z }
+      }),
+    ),
+  )
 }

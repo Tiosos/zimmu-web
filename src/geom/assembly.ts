@@ -1,3 +1,4 @@
+import { mitredCorners } from './mitre'
 import { applyInverseToPoint, applyMatrixToPoint, resolveWorldMatrix } from './transform'
 import { EPS, subtractIntervals, type Span } from './hiddenLine'
 import type {
@@ -56,10 +57,13 @@ export function cabinetSpaceBox(
   const { min: lo, max: hi } = localExtent(part)
 
   const corners: Vec3[] = []
+  const owner = part.parentId ? byId.get(part.parentId) : undefined
+  const shaped = part.kind === 'board' && owner?.kind === 'carcase' && owner.params.slopedTop ? mitredCorners(part, part.cuts.filter((c): c is MitreCut => c.kind === 'mitre')) : null
   for (const x of [lo.x, hi.x]) {
     for (const y of [lo.y, hi.y]) {
       for (const z of [lo.z, hi.z]) {
-        const [wx, wy, wz] = applyMatrixToPoint(mPart, x, y, z)
+        const corner = shaped?.[corners.length] ?? { x, y, z }
+        const [wx, wy, wz] = applyMatrixToPoint(mPart, corner.x, corner.y, corner.z)
         const [cx, cy, cz] = applyInverseToPoint(mCabinet, wx, wy, wz)
         corners.push({ x: cx, y: cy, z: cz })
       }

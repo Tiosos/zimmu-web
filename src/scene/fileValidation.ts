@@ -1,3 +1,6 @@
+import { slopedTopError } from './slopedTopRecipe'
+import { stockPlanError } from './stockPlanRecipe'
+import { grainMatchesError, grainMatchBindingError } from './grainMatchRecipe'
 import { openingMotionError } from './openingMotionRecipe'
 import { installationsError, wallFillerLinkError } from './installationRecipe'
 import { cornerLinkError } from './cornerRecipe'
@@ -109,8 +112,13 @@ function validateCuts(value: unknown, path: string): void {
     if (cut.kind !== undefined && typeof cut.kind !== 'string') {
       throw new ZimmuFileValidationError(`${path}[${index}].kind`, 'must be a string')
     }
+    if (cut.kind === 'mitre' && cut.flip !== undefined && typeof cut.flip !== 'boolean') throw new ZimmuFileValidationError(`${path}[${index}].flip`, 'must be a boolean')
     if (cut.id !== undefined) stringAt(cut.id, `${path}[${index}].id`)
   }
+}
+
+function validateSlopeComponent(c: RecordValue, path: string): void {
+  if (c.kind === 'carcase' && isRecord(c.params) && c.params.slopedTop !== undefined) { const error = slopedTopError(c.params.slopedTop); if (error) throw new ZimmuFileValidationError(`${path}.params.slopedTop`, error) }
 }
 
 function validateOperations(value: unknown, path: string): void {
@@ -187,6 +195,7 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
       if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
       if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop') || (isRecord(part.runWorktop) && isRecord(part.runWorktop.draft) && part.runWorktop.draft.profile !== undefined) || (isRecord(part.cornerPanel) && isRecord(part.cornerPanel.draft) && Array.isArray(part.cornerPanel.draft.legs) && isRecord(part.cornerPanel.draft.legs[0]) && isRecord(part.cornerPanel.draft.legs[0].run) && part.cornerPanel.draft.legs[0].run.profile !== undefined)) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
     }
+    if (part.grainMatch !== undefined) { const error = grainMatchBindingError(part.grainMatch); if (error) throw new ZimmuFileValidationError(`${path}.grainMatch`, error) }
     if (part.wallFiller !== undefined) {
       const error = wallFillerLinkError(part.wallFiller)
       if (error) throw new ZimmuFileValidationError(`${path}.wallFiller`, error)
@@ -258,6 +267,8 @@ export function validateLegacyFileInput(value: unknown): ZimmuFile {
   vecAt(camera.target, 'file.camera.target')
 
   const scene = recordAt(root.scene, 'file.scene')
+  if (scene.stockPlan !== undefined) { const error = stockPlanError(scene.stockPlan); if (error) throw new ZimmuFileValidationError('file.scene.stockPlan', error) }
+  if (scene.grainMatches !== undefined) { const error = grainMatchesError(scene.grainMatches); if (error) throw new ZimmuFileValidationError('file.scene.grainMatches', error) }
   if (scene.openingMotion !== undefined) { const error = openingMotionError(scene.openingMotion); if (error) throw new ZimmuFileValidationError('file.scene.openingMotion', error) }
   if (scene.installations !== undefined) { const error = installationsError(scene.installations); if (error) throw new ZimmuFileValidationError('file.scene.installations', error) }
   const bayError = applianceBaysError(scene.applianceBays)
@@ -277,6 +288,7 @@ export function validateLegacyFileInput(value: unknown): ZimmuFile {
   const hardware = optionalRecordArray(scene.hardware, 'file.scene.hardware')
   const joints = optionalRecordArray(scene.joints, 'file.scene.joints')
   const components = optionalRecordArray(scene.components, 'file.scene.components')
+  components.forEach((c, i) => validateSlopeComponent(c, `file.scene.components[${i}]`))
   for (const c of components) if (c.kind === 'drawer' && isRecord(c.params)) validateNominal(c.params.nominal)
 
   // From this point the migration code receives only the container/value categories it reads.
@@ -344,6 +356,7 @@ function validateCurrentPart(part: Part, index: number): void {
       if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
       if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop') || (isRecord(part.runWorktop) && isRecord(part.runWorktop.draft) && part.runWorktop.draft.profile !== undefined) || (isRecord(part.cornerPanel) && isRecord(part.cornerPanel.draft) && Array.isArray(part.cornerPanel.draft.legs) && isRecord(part.cornerPanel.draft.legs[0]) && isRecord(part.cornerPanel.draft.legs[0].run) && part.cornerPanel.draft.legs[0].run.profile !== undefined)) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
     }
+    if (part.grainMatch !== undefined) { const error = grainMatchBindingError(part.grainMatch); if (error) throw new ZimmuFileValidationError(`${path}.grainMatch`, error) }
     if (part.wallFiller !== undefined) {
       const error = wallFillerLinkError(part.wallFiller)
       if (error) throw new ZimmuFileValidationError(`${path}.wallFiller`, error)
@@ -622,8 +635,10 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
 
   if (file.scene.installations !== undefined) { const error = installationsError(file.scene.installations); if (error) throw new ZimmuFileValidationError('file.scene.installations', error) }
   if (file.scene.openingMotion !== undefined) { const error = openingMotionError(file.scene.openingMotion); if (error) throw new ZimmuFileValidationError('file.scene.openingMotion', error) }
+  if (file.scene.grainMatches !== undefined) { const error = grainMatchesError(file.scene.grainMatches); if (error) throw new ZimmuFileValidationError('file.scene.grainMatches', error) }
   const bayError = applianceBaysError(file.scene.applianceBays)
   if (bayError) throw new ZimmuFileValidationError('file.scene.applianceBays', bayError)
+  if (file.scene.stockPlan !== undefined) { const error = stockPlanError(file.scene.stockPlan); if (error) throw new ZimmuFileValidationError('file.scene.stockPlan', error) }
   file.scene.parts.forEach(validateCurrentPart)
   assertUniqueIds(file.scene.parts, 'file.scene.parts')
   validateEdgeFacts(file.scene)
@@ -632,6 +647,7 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
   const componentIds = new Set(file.scene.components.map((component) => component.id))
   for (const [index, component] of file.scene.components.entries()) {
     const path = `file.scene.components[${index}]`
+    validateSlopeComponent(component as unknown as RecordValue, path)
     if (component.kind === 'drawer') validateNominal(component.params?.nominal)
     stringAt(component.id, `${path}.id`)
     stringAt(component.label, `${path}.label`)

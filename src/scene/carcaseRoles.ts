@@ -40,7 +40,7 @@ export function parameterForRole(
   dimension: 'length' | 'width' | 'thickness',
   p: CarcaseParams,
 ): keyof CarcaseParams | null {
-  if (role === undefined || dimension === 'thickness') return null
+  if (p.slopedTop || role === undefined || dimension === 'thickness') return null
 
   // A division — partition or shelf — spans whatever the tree gives it.
   if (role.startsWith('division-')) return null

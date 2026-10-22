@@ -1,3 +1,4 @@
+import { slopeMetrics } from './slopedTopRecipe'
 import type { CarcaseParams, FrameZone } from './types'
 import type { RoleThickness } from './resolveThickness'
 import { hasAnyFront } from './sectionTree'
@@ -52,14 +53,14 @@ export function carcaseBounds(p: CarcaseParams, thicknessOf: RoleThickness): Bou
   const front = frame + door
   const back = p.backMode === 'applied' ? thicknessOf('back') : 0
   return {
-    x0: 0,
-    x1: p.width,
+    x0: 0 - (p.slopedTop?.left ?? 0),
+    x1: p.width + (p.slopedTop?.right ?? 0),
     // Not `-front`: negating a literal 0 produces -0, and Object.is (so `toBe`/`toEqual` in every
     // test here) treats -0 as unequal to 0 — a doorless cabinet's front edge would fail every
     // caller's plain `0` expectation.
-    y0: 0 - front,
-    y1: p.depth + back,
+    y0: 0 - Math.max(front, p.slopedTop?.front ?? 0),
+    y1: p.depth + Math.max(back, p.slopedTop?.back ?? 0),
     z0: 0,
-    z1: p.height,
+    z1: p.slopedTop ? Math.max(slopeMetrics(p).roof(-p.slopedTop.left, -p.slopedTop.front), slopeMetrics(p).roof(p.width + p.slopedTop.right, p.depth + p.slopedTop.back)) : p.height,
   }
 }

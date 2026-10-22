@@ -358,7 +358,7 @@ it('roundtrips settings in format 39 and validates both file boundaries', () => 
     project: f.project,
     camera: { position: { x: 0, y: 0, z: 1000 }, target: { x: 0, y: 0, z: 0 } },
   } as ZimmuFile
-  expect(FILE_FORMAT_VERSION).toBe(39)
+  expect(FILE_FORMAT_VERSION).toBe(42)
   expect(parseFile(JSON.stringify(raw)).scene.openingMotion).toEqual(f.settings)
   for (const validate of [validateCurrentFile, validateLegacyFileInput]) {
     const bad = structuredClone(raw)

@@ -289,7 +289,7 @@ it.each([validateCurrentFile, validateLegacyFileInput])(
   (validate) => {
     const s = add(),
       f = file(s)
-    expect(FILE_FORMAT_VERSION).toBe(39)
+    expect(FILE_FORMAT_VERSION).toBe(42)
     expect(() => validate(f)).not.toThrow()
     expect(panel(parseFile(JSON.stringify(f)).scene).runWorktop).toEqual(panel(s).runWorktop)
     expect(worktopMachiningEligible(panel(s))).toBe(false)

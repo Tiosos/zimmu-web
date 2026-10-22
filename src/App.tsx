@@ -1,3 +1,6 @@
+import { SlopedTopWorkspace } from './ui/SlopedTopWorkspace'
+import { StockWorkspace } from './ui/StockWorkspace'
+import { GrainMatchWorkspace } from './ui/GrainMatchWorkspace'
 import { OpeningMotionWorkspace, type OpeningTransient } from './ui/OpeningMotionWorkspace'
 import { openingSignature } from './scene/openingMotion'
 import { CatalogueImport } from './ui/CatalogueImport'
@@ -74,6 +77,9 @@ function App() {
     onApplyPullPreview,
     onApplyFrontsPreview,
     onApplyFinishingPreview,
+    onApplySlope,
+    onApplyStockPlan,
+    onApplyGrainMatchPreview,
     onApplyOpeningPreview,
     syncRoomInstallationSources,
     onApplyInstallationPreview,
@@ -373,6 +379,9 @@ function App() {
   const [packetVerificationOpen, setPacketVerificationOpen] = useState(false)
   const [packetComparisonOpen, setPacketComparisonOpen] = useState(false)
   const [projectPanelOpen, setProjectPanelOpen] = useState(false)
+  const [slopedTopOpen, setSlopedTopOpen] = useState(false)
+  const [stockOptimisationOpen, setStockOptimisationOpen] = useState(false)
+  const [grainMatchingOpen, setGrainMatchingOpen] = useState(false)
   const [openingMotionOpen, setOpeningMotionOpen] = useState(false)
   const [openingTransient, setOpeningTransient] = useState<OpeningTransient | null>(null)
   const updateOpeningTransient = useCallback((value: OpeningTransient | null) => setOpeningTransient(value), [])
@@ -513,6 +522,9 @@ function App() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (slopedTopOpen) { if (e.key === 'Escape') setSlopedTopOpen(false); return }
+      if (stockOptimisationOpen) { if (e.key === 'Escape') setStockOptimisationOpen(false); return }
+      if (grainMatchingOpen) { if (e.key === 'Escape') setGrainMatchingOpen(false); return }
       if (openingMotionOpen) { if (e.key === 'Escape') { setOpeningMotionOpen(false); setOpeningTransient(null) }; return }
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const mod = e.metaKey || e.ctrlKey
@@ -620,6 +632,9 @@ function App() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [
+    slopedTopOpen,
+    stockOptimisationOpen,
+    grainMatchingOpen,
     openingMotionOpen,
     saveFile,
     saveAsFile,
@@ -665,6 +680,13 @@ function App() {
         overflow: 'hidden',
       }}
     >
+      {slopedTopOpen && <SlopedTopWorkspace scene={scene} project={project} onApply={(p) => onApplySlope(project, p)} onClose={() => setSlopedTopOpen(false)} onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} />}
+      {stockOptimisationOpen && <StockWorkspace scene={scene} project={project} materials={nestMaterials} clearance={clearance}
+        onApply={(preview, action, remnants) => onApplyStockPlan(project, nestMaterials, preview, action, remnants)} onClose={() => setStockOptimisationOpen(false)}
+        onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} />}
+      {grainMatchingOpen && <GrainMatchWorkspace scene={scene} project={project} materials={nestMaterials} clearance={clearance}
+        onApply={(preview) => onApplyGrainMatchPreview(project, preview)} onClose={() => setGrainMatchingOpen(false)}
+        onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} />}
       {openingMotionOpen && <OpeningMotionWorkspace scene={scene} project={project}
         onApply={(preview) => onApplyOpeningPreview(project, preview)} onTransient={updateOpeningTransient}
         onClose={() => { setOpeningMotionOpen(false); setOpeningTransient(null) }}
@@ -705,7 +727,10 @@ function App() {
           )
         }
         onProjectStructure={() => setProjectPanelOpen(true)}
-        onOpeningMotion={() => { setMode('none'); setMainView('model'); setCabinetTab('3d'); setOpeningMotionOpen(true) }}
+        onOpeningMotion={() => { setSlopedTopOpen(false); setStockOptimisationOpen(false); setGrainMatchingOpen(false); setMode('none'); setMainView('model'); setCabinetTab('3d'); setOpeningMotionOpen(true) }}
+        onGrainMatching={() => { setSlopedTopOpen(false); setStockOptimisationOpen(false); setOpeningMotionOpen(false); setOpeningTransient(null); setMode('none'); setMainView('model'); setCabinetTab('3d'); setGrainMatchingOpen(true) }}
+        onStockOptimisation={() => { setSlopedTopOpen(false); setGrainMatchingOpen(false); setOpeningMotionOpen(false); setOpeningTransient(null); setMode('none'); setMainView('model'); setCabinetTab('3d'); setStockOptimisationOpen(true) }}
+        onSlopedTop={() => { setStockOptimisationOpen(false); setGrainMatchingOpen(false); setOpeningMotionOpen(false); setOpeningTransient(null); setMode('none'); setMainView('model'); setCabinetTab('3d'); setSlopedTopOpen(true) }}
         onCuttingList={() => setCuttingListOpen(true)}
         onExportStl={handleExportStl}
         onExportStep={handleExportStep}

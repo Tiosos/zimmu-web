@@ -148,6 +148,7 @@ export function stageMaterials(
     byId = componentsById(scene.components)
   if (patch.material === undefined && patch.grain === undefined)
     throw Error('Choose a material or grain change.')
+  if (patch.grain !== undefined && selected.some(t => t.board.grainMatch)) throw Error('Edit grouped grain in Front Grain Matching, or detach the group first.')
   for (const t of selected) {
     let affected = [t]
     const owner = t.board.parentId ? byId.get(t.board.parentId) : undefined

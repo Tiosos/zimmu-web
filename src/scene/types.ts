@@ -1,3 +1,6 @@
+import type { SlopedTop } from './slopedTopRecipe'
+import type { StockPlan } from './stockPlanRecipe'
+import type { GrainMatchGroup, GrainMatchBinding } from './grainMatchRecipe'
 import type { OpeningMotion } from './openingMotionRecipe'
 import type { InstallationRun, WallFillerLink } from './installationRecipe'
 import type { CornerLink } from './cornerRecipe'
@@ -46,6 +49,8 @@ export interface MitreCut {
   kind: 'mitre'
   id: CutId
   label: string
+  flip?: boolean // opposite transverse edge carries the long point
+  sourceComponentId?: string
   end: '+X' | '-X' // which end face is bevelled
   axis: 'Z' | 'Y' // 'Z' = flat mitre (tilt across width), 'Y' = bevel (tilt through thickness)
   angle: number // degrees from a square cut; 0 = square (no-op), 45 = standard
@@ -151,6 +156,7 @@ export type EdgeKey = 'x0' | 'x1' | 'y0' | 'y1'
 export type EdgeDecisions = Partial<Record<EdgeKey, string | null>>
 
 export interface BoardPart {
+  grainMatch?: GrainMatchBinding
   kind: 'board'
   id: PartId
   label: string
@@ -253,6 +259,7 @@ export interface HardwareItem {
 export type ComponentId = string
 
 export interface CarcaseParams {
+  slopedTop?: SlopedTop
   width: number
   height: number
   depth: number
@@ -529,6 +536,8 @@ export type Joint =
   | ScrewJoint
 
 export interface Scene {
+  stockPlan?: StockPlan
+  grainMatches?: GrainMatchGroup[]
   openingMotion?: OpeningMotion
   installations?: InstallationRun[]
   applianceBays?: ApplianceBay[]

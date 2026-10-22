@@ -47,7 +47,14 @@ export function groupNestRecords(records: ManufacturingPart[]): Group[] {
       groups.set(p.material, group)
     }
     if (p.cut.problem) group.excluded.push({ id: p.id, problem: p.cut.problem })
-    else group.parts.push({ kind: 'board', id: p.id, grain: p.grain, ...p.nesting })
+    else
+      group.parts.push({
+        kind: 'board',
+        id: p.id,
+        grain: p.grain,
+        ...p.nesting,
+        ...(p.grainMatch ? { grainMatch: p.grainMatch } : {}),
+      })
   }
   return [...groups.values()].sort((a, b) => a.material.localeCompare(b.material))
 }
@@ -55,7 +62,7 @@ export function groupNestRecords(records: ManufacturingPart[]): Group[] {
 // Everything a nest depends on, and nothing else. `parts` and `materials` are fresh objects on
 // almost every render — `effectiveMaterials` in BomModal is rebuilt each time — so depending on
 // their identity would re-nest on every render, forever. `shapeKey` already encodes exactly what
-// changes a board's shape, which is exactly what `occupancyMask` reads.
+// changes a board's shape, plus component-mitre ownership encodes the conservative generated-panel footprint policy.
 export function jobSignature(groups: Group[], clearance: number): string {
   return JSON.stringify([
     clearance,
@@ -64,7 +71,7 @@ export function jobSignature(groups: Group[], clearance: number): string {
       g.def.sheet?.length,
       g.def.sheet?.width,
       g.def.hasGrain ?? true,
-      g.parts.map((p) => `${p.id}|${shapeKey(p)}|${p.grain}`),
+      g.parts.map((p) => `${p.id}|${shapeKey(p)}|${p.grain}|${JSON.stringify(p.grainMatch)}|${p.cuts.some(c => c.kind === 'mitre' && c.sourceComponentId !== undefined)}`),
       g.excluded,
     ]),
   ])
