@@ -43,10 +43,20 @@ export default defineConfig({
     format: 'es',
   },
   build: {
-    rollupOptions: {
+    // three.js is ~a third of the entry chunk and changes far less often than the app, so a deploy
+    // that touches only app code should not make returning users re-download it. It cannot get
+    // smaller than ~0.7 MB, so the warning limit sits just above it: a *new* oversized chunk still
+    // warns, the known one does not.
+    chunkSizeWarningLimit: 900,
+    rolldownOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
         companyAuth: path.resolve(__dirname, 'company-auth.html'),
+      },
+      output: {
+        codeSplitting: {
+          groups: [{ name: 'three', test: /node_modules[\\/]three[\\/]/ }],
+        },
       },
     },
   },
