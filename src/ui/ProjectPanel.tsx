@@ -1,7 +1,8 @@
 import type { InstallationPreview, WallFillerPreview } from '../scene/roomInstallation'
 import { RoomInstallationWorkspace } from './RoomInstallationWorkspace'
 import type { ImpactPricing } from './ruleImpact'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { useModalFocus } from '../lib/a11y'
 import type { Scene } from '../scene/types'
 import type { ProjectStructure } from '../scene/projectStructure'
 import { emptyRoomGeometry, moveRootToItem, roomComponentIds } from '../scene/projectStructure'
@@ -54,6 +55,8 @@ export function ProjectPanel({
   canUndoScene,
   canRedoScene,
 }: Props) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useModalFocus(dialogRef)
   const [mode, setMode] = useState<'structure' | 'installation'>('structure')
   const rename = (id: string, name: string) =>
     onChange({
@@ -190,6 +193,8 @@ export function ProjectPanel({
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-label="Project structure"
       aria-modal="true"

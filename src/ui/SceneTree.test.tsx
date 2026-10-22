@@ -118,6 +118,36 @@ describe('SceneTree', () => {
       expect(child.getAttribute('aria-selected')).toBe('true')
     })
 
+    it('is a single tab stop: the selected row, moving to whichever row last took focus', () => {
+      renderTree({
+        components: [makeGroup()],
+        parts: [
+          makeBoard({ id: 'child', label: 'Child', parentId: 'cmp_1' }),
+          makeBoard({ id: 'loose', label: 'Loose', parentId: null }),
+        ],
+        selection: { kind: 'part', id: 'loose' },
+      })
+      const stops = () =>
+        screen
+          .getAllByRole('treeitem')
+          .filter((r) => r.tabIndex === 0)
+          .map((r) => r.getAttribute('data-testid'))
+      expect(stops()).toEqual(['node-loose'])
+      expect(screen.getAllByRole('button').every((b) => b.tabIndex === -1)).toBe(true)
+      screen.getByTestId('node-child').focus()
+      expect(stops()).toEqual(['node-child'])
+    })
+
+    it('falls back to the first row when nothing is selected', () => {
+      grouped()
+      expect(
+        screen
+          .getAllByRole('treeitem')
+          .filter((r) => r.tabIndex === 0)
+          .map((r) => r.getAttribute('data-testid')),
+      ).toEqual(['node-cmp_1'])
+    })
+
     it('collapses a branch with Left and expands it with Right', () => {
       grouped()
       const group = screen.getByTestId('node-cmp_1')

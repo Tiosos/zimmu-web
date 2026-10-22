@@ -54,6 +54,20 @@ describe('FileMenu', () => {
     cleanup()
   })
 
+  it('moves focus to the File button before running an item, so a dialog it opens can return there', () => {
+    let focusedWhenRun: Element | null = null
+    const onCuttingList = vi.fn(() => {
+      focusedWhenRun = document.activeElement
+    })
+    render(<FileMenu {...baseProps} onCuttingList={onCuttingList} />)
+    openMenu()
+    const item = screen.getByText('Cutting List…')
+    item.closest('button')!.focus()
+    fireEvent.click(item)
+    expect(onCuttingList).toHaveBeenCalled()
+    expect(focusedWhenRun).toBe(screen.getByText('File ▾').closest('button'))
+  })
+
   it('renders an Undo button in the dropdown', () => {
     render(<FileMenu {...baseProps} />)
     openMenu()

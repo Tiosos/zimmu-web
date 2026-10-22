@@ -83,4 +83,44 @@ test.describe('keyboard operation', () => {
     await page.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
   })
+
+  test('the scene tree is one tab stop and arrow-focusing a row does not make Delete hit another', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: '+ Board' }).click()
+    await page.getByRole('button', { name: '+ Board' }).click()
+    const rows = page.locator('[role="treeitem"]')
+    const stops = rows.evaluateAll(
+      (els) => els.filter((e) => (e as HTMLElement).tabIndex === 0).length,
+    )
+    await expect.poll(() => stops).toBe(1)
+    const boards = page
+      .locator('[data-testid^="node-board_"]')
+      .filter({ hasNotText: /Side|Top|Bottom|Back|Shelf|Door|Kick/ })
+    const before = await page.locator('[data-testid^="node-board_"]').count()
+    // The newest board is selected; focus the other with the arrow keys and press Delete.
+    const first = boards.first()
+    await first.focus()
+    await expect(first).toBeFocused()
+    await page.keyboard.press('Delete')
+    await expect(page.locator('[data-testid^="node-board_"]')).toHaveCount(before)
+    // The guard is about focus, not about the selection having moved on: the original board stays.
+    await expect(first).toHaveAttribute('aria-selected', 'false')
+    // Enter selects the focused row (the app then moves focus to its name field).
+    await page.keyboard.press('Enter')
+    await expect(first).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('closing a dialog opened from the File menu returns focus to the File button', async ({
+    page,
+  }) => {
+    const file = page.getByRole('button', { name: /^File/ })
+    await file.click()
+    await page.getByRole('button', { name: /Cutting List/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'Bill of materials' })
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+    await expect(file).toBeFocused()
+  })
 })

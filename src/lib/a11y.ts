@@ -26,20 +26,30 @@ function reachable(el: HTMLElement, within: HTMLElement): boolean {
   return true
 }
 
+// Open dialogs, oldest first. Only the newest one traps Tab: two document-level traps would pull
+// focus back and forth on every keypress, leaving the top dialog unreachable by keyboard.
+const openDialogs: object[] = []
+
+type Focusable = HTMLElement | SVGElement
+
 // Moves focus into the dialog, keeps Tab inside it, and gives focus back to whatever opened it. The
 // panel needs tabIndex={-1} to take focus when it holds nothing focusable.
 export function useModalFocus(panel: RefObject<HTMLElement | null>, active = true) {
   useEffect(() => {
     const dialog = panel.current
     if (!active || !dialog) return
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const token = {}
+    const at = document.activeElement
+    const opener: Focusable | null =
+      at instanceof HTMLElement || at instanceof SVGElement ? at : null
+    openDialogs.push(token)
     const controls = () =>
       Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) =>
         reachable(el, dialog),
       )
     if (!dialog.contains(document.activeElement)) (controls()[0] ?? dialog).focus()
     const trap = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== 'Tab') return
+      if (e.key !== 'Tab' || openDialogs.at(-1) !== token) return
       const list = controls()
       if (list.length === 0) {
         e.preventDefault()
@@ -48,14 +58,14 @@ export function useModalFocus(panel: RefObject<HTMLElement | null>, active = tru
       }
       const first = list[0]
       const last = list[list.length - 1]
-      const at = document.activeElement
-      if (!(at instanceof HTMLElement) || !dialog.contains(at)) {
+      const focused = document.activeElement
+      if (!(focused instanceof HTMLElement) || !dialog.contains(focused)) {
         e.preventDefault()
         first.focus()
-      } else if (e.shiftKey && (at === first || at === dialog)) {
+      } else if (e.shiftKey && (focused === first || focused === dialog)) {
         e.preventDefault()
         last.focus()
-      } else if (!e.shiftKey && at === last) {
+      } else if (!e.shiftKey && focused === last) {
         e.preventDefault()
         first.focus()
       }
@@ -63,7 +73,9 @@ export function useModalFocus(panel: RefObject<HTMLElement | null>, active = tru
     document.addEventListener('keydown', trap)
     return () => {
       document.removeEventListener('keydown', trap)
-      if (opener?.isConnected) opener.focus()
+      const wasTop = openDialogs.at(-1) === token
+      openDialogs.splice(openDialogs.indexOf(token), 1)
+      if (wasTop && opener?.isConnected) opener.focus()
     }
   }, [panel, active])
 }
@@ -94,7 +106,9 @@ export function navigateTree(e: KeyboardEvent<HTMLElement>): boolean {
     if (next && Number(next.getAttribute('aria-level')) > level) target = next
   } else return false
   if (!target) return false
+  // The app has window-level shortcuts (Home frames the view); a tree key is the tree's alone.
   e.preventDefault()
+  e.stopPropagation()
   target.focus()
   return true
 }

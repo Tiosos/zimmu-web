@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ProjectPanel } from './ProjectPanel'
 import { defaultProject, type ProjectStructure } from '../scene/projectStructure'
 import { wallScene } from '../geom/__fixtures__/wallElevation'
@@ -44,5 +44,29 @@ describe('ProjectPanel', () => {
     rerender(<ProjectPanel {...props} canUndo />)
     expect(spy.mock.calls.length).toBe(first)
     spy.mockRestore()
+  })
+
+  it('takes focus on open and closes on Escape from inside', () => {
+    const scene = wallScene([])
+    const onClose = vi.fn()
+    render(
+      <ProjectPanel
+        project={defaultProject(scene, 'seed')}
+        scene={scene}
+        projectName="Job"
+        onChange={vi.fn()}
+        activeItemId=""
+        onSelectItem={vi.fn()}
+        canUndo={false}
+        canRedo={false}
+        onUndo={vi.fn()}
+        onRedo={vi.fn()}
+        onClose={onClose}
+      />,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Project structure' })
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
   })
 })

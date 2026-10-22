@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useModalFocus } from '../lib/a11y'
 import type { Component, MaterialDef, Part } from '../scene/types'
 import { buildCsv, groupParts } from './buildCsv'
 import { downloadBlob } from './download'
@@ -86,8 +85,6 @@ export function CuttingList({
   // blur committed an empty value and closed the lot, so a material with more than one row could
   // not be given a rate at all.
   const [openPopover, setOpenPopover] = useState<string | null>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-  useModalFocus(panelRef)
 
   useEffect(() => {
     if (hideExportButtons) return // ESC handled by BomModal when embedded
@@ -246,8 +243,6 @@ export function CuttingList({
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200]"
     >
       <div
-        ref={panelRef}
-        tabIndex={-1}
         data-testid="cl-panel"
         role="dialog"
         aria-modal="true"

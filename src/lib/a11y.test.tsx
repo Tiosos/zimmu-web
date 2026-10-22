@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useRef, useState, type KeyboardEvent } from 'react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { activateOnKey, navigateTree, useModalFocus } from './a11y'
 
@@ -157,5 +157,98 @@ describe('navigateTree', () => {
     row('c').focus()
     await user.keyboard('{ArrowRight}')
     expect(document.activeElement).toBe(row('c'))
+  })
+})
+
+describe('useModalFocus with several dialogs', () => {
+  function Stack({ both }: { both: boolean }) {
+    const lower = useRef<HTMLDivElement>(null)
+    const upper = useRef<HTMLDivElement>(null)
+    useModalFocus(lower)
+    return (
+      <>
+        <div ref={lower} tabIndex={-1} aria-label="lower">
+          <button>lower-a</button>
+          <button>lower-b</button>
+        </div>
+        {both && <Upper upper={upper} />}
+      </>
+    )
+  }
+  function Upper({ upper }: { upper: React.RefObject<HTMLDivElement | null> }) {
+    useModalFocus(upper)
+    return (
+      <div ref={upper} tabIndex={-1} aria-label="upper">
+        <button>upper-a</button>
+        <button>upper-b</button>
+      </div>
+    )
+  }
+  afterEach(cleanup)
+
+  it('lets only the newest dialog trap Tab, then hands back to the one below', async () => {
+    const user = userEvent.setup()
+    const view = render(<Stack both={false} />)
+    expect(document.activeElement).toBe(screen.getByText('lower-a'))
+    view.rerender(<Stack both />)
+    expect(document.activeElement).toBe(screen.getByText('upper-a'))
+    await user.tab()
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByText('upper-a'))
+    await user.tab({ shift: true })
+    expect(document.activeElement).toBe(screen.getByText('upper-b'))
+    view.rerender(<Stack both={false} />)
+    screen.getByText('lower-b').focus()
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByText('lower-a'))
+  })
+
+  it('returns focus to an SVG opener', () => {
+    function Svg() {
+      const [open, setOpen] = useState(false)
+      const ref = useRef<HTMLDivElement>(null)
+      return (
+        <>
+          <svg>
+            <rect tabIndex={0} data-testid="cell" onClick={() => setOpen(!open)} />
+          </svg>
+          {open && <Inner dialog={ref} />}
+        </>
+      )
+    }
+    function Inner({ dialog }: { dialog: React.RefObject<HTMLDivElement | null> }) {
+      useModalFocus(dialog)
+      return (
+        <div ref={dialog} tabIndex={-1}>
+          <button>x</button>
+        </div>
+      )
+    }
+    render(<Svg />)
+    const cell = screen.getByTestId('cell')
+    cell.focus()
+    fireEvent.click(cell)
+    expect(document.activeElement).toBe(screen.getByText('x'))
+    fireEvent.click(cell)
+    expect(document.activeElement).toBe(cell)
+  })
+})
+
+describe('navigateTree and the window', () => {
+  it('keeps a handled key from reaching window-level shortcuts', async () => {
+    const user = userEvent.setup()
+    const seen = vi.fn()
+    window.addEventListener('keydown', seen)
+    render(
+      <div role="tree">
+        <div role="treeitem" aria-level={1} tabIndex={0} data-k="a" onKeyDown={navigateTree} />
+        <div role="treeitem" aria-level={1} tabIndex={0} data-k="b" onKeyDown={navigateTree} />
+      </div>,
+    )
+    document.querySelector<HTMLElement>('[data-k="b"]')!.focus()
+    await user.keyboard('{Home}')
+    expect(document.activeElement).toBe(document.querySelector('[data-k="a"]'))
+    expect(seen).not.toHaveBeenCalled()
+    window.removeEventListener('keydown', seen)
   })
 })

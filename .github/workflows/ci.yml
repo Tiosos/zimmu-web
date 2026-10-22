@@ -8,7 +8,7 @@ on:
 # A PR branch would otherwise run on both the push and the pull_request event for every commit, and
 # a newer push leaves the older run's result meaningless.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

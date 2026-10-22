@@ -203,6 +203,29 @@ describe('App keyboard shortcuts', () => {
     expect(mockOnRemove).toHaveBeenCalledWith('board_test')
   })
 
+  it('ignores Delete, H and Ctrl+D from a tree row that is focused but not selected', async () => {
+    render(<App />)
+    await act(async () => {})
+    const row = document.createElement('div')
+    row.setAttribute('role', 'treeitem')
+    row.setAttribute('aria-selected', 'false')
+    document.body.appendChild(row)
+    const press = (init: KeyboardEventInit) =>
+      act(() => {
+        row.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, ...init }))
+      })
+    press({ key: 'Delete' })
+    press({ key: 'h' })
+    press({ key: 'd', ctrlKey: true })
+    expect(mockOnRemove).not.toHaveBeenCalled()
+    expect(mockOnToggleVisible).not.toHaveBeenCalled()
+    expect(mockOnDuplicate).not.toHaveBeenCalled()
+    row.setAttribute('aria-selected', 'true')
+    press({ key: 'Delete' })
+    expect(mockOnRemove).toHaveBeenCalledWith('board_test')
+    row.remove()
+  })
+
   it('Backspace calls onRemove with the selected part id', async () => {
     render(<App />)
     await act(async () => {})
