@@ -4,11 +4,10 @@ import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'rea
 import { useScene } from './scene/useScene'
 import { useFile } from './scene/useFile'
 import { useInteractionMode } from './scene/useInteractionMode'
-import { suggestJointsFor, suggestJointsForScene, synthHit, pairIdsOf } from './scene/suggestJoints'
-import { suggestionOutlines } from './scene/suggestionOutline'
+import { drawingDeckInputs } from './ui/drawingDeckInputs'
+import { useJointSuggestions } from './ui/useJointSuggestions'
 import { ancestorsOf, componentsById, descendantIds, isNodeVisible } from './scene/componentTree'
 import { carcaseOpenings } from './scene/carcaseOpenings'
-import type { JointSuggestion } from './scene/suggestJoints'
 import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { CabinetEditor, type CabinetTab } from './ui/CabinetEditor'
@@ -31,7 +30,6 @@ import type { DrawingSheet } from './geom/drawing'
 import { captureProductionSource, type ProductionPacketInput } from './ui/captureProductionSource'
 import { ProjectPanel } from './ui/ProjectPanel'
 import { wallPlacementPose } from './scene/roomGeometry'
-import { roomComponentIds } from './scene/projectStructure'
 import { buildShelfInstallationSheets } from './geom/shelfInstallation'
 import { effectiveMaterialsOf } from './scene/effectiveMaterials'
 import type {
@@ -270,60 +268,21 @@ function App() {
     )
   }, [selectedCarcase, selectedSectionId, scene.parts, scene.materials])
 
-  const suggestions = useMemo(
-    () => suggestJointsFor(selectedId, scene.parts, scene.joints, componentMap),
-    [selectedId, scene.parts, scene.joints, componentMap],
-  )
-
-  const sceneSuggestions = useMemo(
-    () => suggestJointsForScene(scene.parts, scene.joints, componentMap),
-    [scene.parts, scene.joints, componentMap],
-  )
-
-  const [hoveredSuggestion, setHoveredSuggestion] = useState<JointSuggestion | null>(null)
-  // Both boards tint, not just the "neighbour": scene rows have no selection to be relative to.
-  // In the per-part panel this changes nothing visible, because the selected board's own cyan
-  // takes precedence over the tint in the viewport.
-  // A done checklist row has no suggestion to preview, so it tints both boards without drawing face
-  // outlines. That is the complete answer for a jointed pair, not a degraded one: there is no
-  // candidate geometry an outline could depict.
-  const [hoveredPair, setHoveredPair] = useState<[PartId, PartId] | null>(null)
-  const highlightedIds = useMemo(
-    () => (hoveredSuggestion ? pairIdsOf(hoveredSuggestion) : hoveredPair),
-    [hoveredSuggestion, hoveredPair],
-  )
-  const hoveredOutlines = useMemo(
-    () =>
-      hoveredSuggestion ? suggestionOutlines(hoveredSuggestion, scene.parts, componentMap) : null,
-    [hoveredSuggestion, scene.parts, componentMap],
-  )
-  const applySuggestion = useCallback(
-    (s: JointSuggestion) => {
-      setHoveredSuggestion(null)
-      switch (s.kind) {
-        case 'halflap':
-          return onAddHalfLap(s.partAId, s.partBId)
-        case 'dado':
-          return onAddJoint(
-            synthHit(s.housingPartId, s.housingFace),
-            synthHit(s.housedPartId, s.housedEnd),
-          )
-        case 'mortise-tenon':
-          return onAddMortiseTenon(
-            synthHit(s.mortisePartId, s.mortiseFace),
-            synthHit(s.tenonPartId, s.tenonEnd),
-          )
-        case 'tongue-groove':
-          return onAddTongueGroove(
-            synthHit(s.groovePartId, s.grooveEdge),
-            synthHit(s.tonguePartId, s.tongueEdge),
-          )
-        case 'finger':
-          return onAddFingerJoint(synthHit(s.partAId, s.endA), synthHit(s.partBId, s.endB))
-      }
-    },
-    [onAddHalfLap, onAddJoint, onAddMortiseTenon, onAddTongueGroove, onAddFingerJoint],
-  )
+  const {
+    suggestions,
+    sceneSuggestions,
+    setHoveredSuggestion,
+    setHoveredPair,
+    highlightedIds,
+    hoveredOutlines,
+    applySuggestion,
+  } = useJointSuggestions(selectedId, scene.parts, scene.joints, componentMap, {
+    onAddHalfLap,
+    onAddJoint,
+    onAddMortiseTenon,
+    onAddTongueGroove,
+    onAddFingerJoint,
+  })
 
   const { library, clearance, saveRate, deleteEntry, setClearance } = useMaterialLibrary()
   const {
@@ -534,39 +493,8 @@ function App() {
   const canExport = visibleParts.length > 0
   const closeDrawings = useCallback(() => setDrawingsOpen(false), [])
 
-  // Every carcase gets an assembly sheet ahead of the part sheets. Its parts are the cabinet's own
-  // descendants — the same set the cabinet editor draws, and so the same sheet its own export
-  // buttons build — rather than `visibleParts`, which is the deck's separate question of which
-  // boards get a sheet of their own.
   const handleOpenDrawings = useCallback(() => {
-    const cabinets = scene.components
-      .filter((c): c is CarcaseComponent => c.kind === 'carcase')
-      .map((cabinet) => {
-        const mine = new Set(descendantIds(cabinet.id, scene.components, scene.parts).partIds)
-        return {
-          cabinet,
-          parts: scene.parts.filter((p) => mine.has(p.id)),
-          materials: scene.materials,
-          byId: componentMap,
-        }
-      })
-    const rooms = project.areas
-      .flatMap((area) => area.rooms)
-      .flatMap((room) =>
-        room.geometry === undefined
-          ? []
-          : [
-              {
-                roomName: room.name,
-                room: room.geometry,
-                scene,
-                cabinetIds: roomComponentIds(
-                  room.items.flatMap((item) => item.rootComponentIds),
-                  scene,
-                ),
-              },
-            ],
-      )
+    const { cabinets, rooms } = drawingDeckInputs(scene, project, componentMap)
     setDrawingSheets(
       buildDrawingSheets(visibleParts, projectName, cabinets, undefined, undefined, rooms, {
         materials: scene.materials,
