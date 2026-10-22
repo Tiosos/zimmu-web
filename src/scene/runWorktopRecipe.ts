@@ -23,17 +23,19 @@ export interface RunWorktopLink {
   version: 1 | 2
   draft: RunWorktopDraft & { follow: true }
 }
-export function runDraftError(value: unknown): string | null {
+export function runDraftError(value: unknown, minimumMembers = 2): string | null {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     return 'Worktop settings must be an object.'
   const d = value as Record<string, unknown>
   if (
     !Array.isArray(d.memberIds) ||
-    d.memberIds.length < 2 ||
+    d.memberIds.length < minimumMembers ||
     d.memberIds.some((id) => typeof id !== 'string' || !id.trim()) ||
     new Set(d.memberIds).size !== d.memberIds.length
   )
-    return 'Select at least two distinct cabinets.'
+    return minimumMembers === 1
+      ? 'Select at least one cabinet for each leg.'
+      : 'Select at least two distinct cabinets.'
   for (const key of ['label', 'material'])
     if (typeof d[key] !== 'string' || !d[key].trim()) return `Complete the worktop ${key}.`
   if (!['stock', 'custom'].includes(d.thicknessMode as string))

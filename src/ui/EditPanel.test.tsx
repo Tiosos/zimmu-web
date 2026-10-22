@@ -1,3 +1,5 @@
+import { defaultServiceFeature } from '../scene/serviceRecipe'
+import { serviceCutId } from '../scene/serviceMachining'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -529,4 +531,10 @@ describe('EditPanel — edge banding', () => {
     expect(select.value).toBe('none')
     expect([...select.options].map((o) => o.textContent)).toEqual(['None', 'ABS 1mm', 'PVC 2mm'])
   })
+})
+
+it('shows recipe-owned service cuts as read-only entries', () => {
+ const feature=defaultServiceFeature('owned-service','rectangle')
+ renderPanel({part:board({serviceMachining:{version:1,features:[feature]},cuts:[{kind:'box',id:serviceCutId(feature.id,0),label:'Service access',face:'+Z',position:{x:50,y:50,z:0},size:{x:80,y:20,z:18}}]})})
+ expect(screen.getByText('Service access (service opening — edit in Service Openings)')).toBeTruthy()
 })

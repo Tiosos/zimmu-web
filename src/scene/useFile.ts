@@ -36,7 +36,7 @@ import {
   type ReleaseIntegrity,
 } from './releases'
 
-export const FILE_FORMAT_VERSION = 34
+export const FILE_FORMAT_VERSION = 37
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 
@@ -157,6 +157,7 @@ export function parseFile(text: string): ZimmuFile {
     ...((raw.scene.materials as Record<string, MaterialDef> | undefined) ?? {}),
   }
   const scene: Scene = {
+    ...(raw.scene.applianceBays !== undefined ? { applianceBays: raw.scene.applianceBays } : {}),
     ...(raw.scene.companyCatalogues !== undefined ? { companyCatalogues: raw.scene.companyCatalogues } : {}),
     ...(raw.scene.cabinetRules !== undefined ? { cabinetRules: raw.scene.cabinetRules } : {}),
     parts: parts.map((p) =>

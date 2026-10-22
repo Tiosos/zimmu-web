@@ -1,3 +1,10 @@
+import type { CornerPreview } from '../scene/cornerPanels'
+import { CabinetApplianceEditor } from './CabinetApplianceEditor'
+import { CabinetServiceEditor } from './CabinetServiceEditor'
+import type { AppliancePreview } from '../scene/applianceBays'
+import type { ServicePreview } from '../scene/serviceMachining'
+import { CabinetMaterialsEditor } from './CabinetMaterialsEditor'
+import type { MaterialsPreview } from '../scene/cabinetMaterials'
 import { CabinetInteriorsEditor } from './CabinetInteriorsEditor'
 import type { InteriorsPreview } from '../scene/shelvesInteriors'
 import type { WorktopMachiningPreview } from '../scene/worktopMachining'
@@ -50,12 +57,16 @@ import type {
 // cabinet. It is hidden rather than unmounted, which is why this component renders nothing for it:
 // `viewport.tsx` builds its renderer, camera and every mesh in a mount-once effect, so swapping it
 // out on a tab change would tear all of that down and rebuild it. `App` owns the showing.
-const TABS = ['section', 'construction', 'placement', 'layout', 'finishing', 'fronts', 'interiors', 'hardware', 'front', 'top', 'end', '3d'] as const
+const TABS = ['section', 'construction', 'placement', 'layout', 'finishing', 'fronts', 'interiors', 'materials', 'edgebanding', 'appliances', 'services', 'hardware', 'front', 'top', 'end', '3d'] as const
 export type CabinetTab = (typeof TABS)[number]
 
 const LABELS: Record<CabinetTab, string> = {
   section: 'Section',
   interiors: 'Shelves & Interiors',
+  materials: 'Materials',
+  edgebanding: 'Edgebanding',
+  appliances: 'Appliance Bays',
+  services: 'Service Openings',
   construction: 'Construction',
   placement: 'Placement',
   layout: 'Layout',
@@ -83,6 +94,9 @@ export function CabinetEditor({
   projectName,
   scene,
   onApplyRulePreview,
+  onApplyAppliancePreview,
+  onApplyServicePreview,
+  onApplyMaterialsPreview,
   onApplyInteriorsPreview,
   onApplyRunFitPreview,
   onApplyPlacementPreview,
@@ -91,6 +105,7 @@ export function CabinetEditor({
   onApplyFrontsPreview,
   onApplyFinishingPreview,
   onApplyWorktopMachiningPreview,
+  onApplyCornerPreview,
   onApplyRunWorktopPreview,
   onApplyLayoutPreview,
   library,
@@ -113,9 +128,13 @@ export function CabinetEditor({
   onApplyPullPreview?: (preview: PullPreview) => boolean
   onApplyFrontsPreview?: (preview: FrontsPreview) => boolean
   onApplyWorktopMachiningPreview?: (preview: WorktopMachiningPreview) => boolean
+  onApplyCornerPreview?: (preview: CornerPreview) => boolean
   onApplyRunWorktopPreview?: (preview: RunWorktopPreview) => boolean
   onApplyFinishingPreview?: (preview: FinishingPreview) => boolean
   onApplyLayoutPreview?: (preview: LayoutPreview) => boolean
+  onApplyAppliancePreview?: (preview: AppliancePreview) => boolean
+  onApplyServicePreview?: (preview: ServicePreview) => boolean
+  onApplyMaterialsPreview?: (preview: MaterialsPreview) => boolean
   onApplyInteriorsPreview?: (preview: InteriorsPreview) => boolean
   onApplyRunFitPreview?: (preview: RunFitPreview) => boolean
   onApplyPlacementPreview?: (preview: PlacementPreview) => boolean
@@ -210,14 +229,20 @@ export function CabinetEditor({
           cover it. */}
       {tab !== '3d' && (
         <div data-testid="cabinet-editor-panel" className="flex-1 min-h-0 overflow-auto p-3">
-          {tab === 'interiors' ? (
+          {tab === 'appliances' ? (
+            scene && onApplyAppliancePreview ? <CabinetApplianceEditor key={component.id} cabinet={component} scene={scene} onApply={onApplyAppliancePreview} /> : <p>Appliance bays require the full project scene.</p>
+          ) : tab === 'services' ? (
+            scene && onApplyServicePreview ? <CabinetServiceEditor key={component.id} cabinet={component} scene={scene} onApply={onApplyServicePreview} /> : <p>Service openings require the full project scene.</p>
+          ) : tab === 'materials' || tab === 'edgebanding' ? (
+            scene && onApplyMaterialsPreview ? <CabinetMaterialsEditor key={`${component.id}-${tab}`} cabinet={component} scene={scene} mode={tab === 'materials' ? 'materials' : 'edges'} onApply={onApplyMaterialsPreview} /> : <p>Materials and edgebanding require the full project scene.</p>
+          ) : tab === 'interiors' ? (
             scene && onApplyInteriorsPreview ? <CabinetInteriorsEditor cabinet={component} scene={scene} onApply={onApplyInteriorsPreview} /> : <p>Interiors require the full project scene.</p>
           ) : tab === 'hardware' ? (
             scene && onApplyPullPreview ? <CabinetHardwareWorkspace cabinet={component} scene={scene} onApply={onApplyPullPreview} onApplyMotion={onApplyMotionPreview} /> : <p>Hardware layout tools require the full project scene.</p>
           ) : tab === 'fronts' ? (
             scene && onApplyFrontsPreview ? <CabinetFrontsEditor cabinet={component} scene={scene} onApply={onApplyFrontsPreview} /> : <p>Fronts and drawers require the full project scene.</p>
           ) : tab === 'finishing' ? (
-            scene && onApplyFinishingPreview ? <CabinetFinishingWorkspace cabinet={component} scene={scene} onApply={onApplyFinishingPreview} onApplyRun={onApplyRunWorktopPreview} onApplyMachining={onApplyWorktopMachiningPreview} /> : <p>Finishing tools require the full project scene.</p>
+            scene && onApplyFinishingPreview ? <CabinetFinishingWorkspace cabinet={component} scene={scene} onApply={onApplyFinishingPreview} onApplyCorner={onApplyCornerPreview} onApplyRun={onApplyRunWorktopPreview} onApplyMachining={onApplyWorktopMachiningPreview} /> : <p>Finishing tools require the full project scene.</p>
           ) : tab === 'layout' ? (
             scene && onApplyLayoutPreview ? <CabinetLayoutWorkspace cabinet={component} scene={scene} onApply={onApplyLayoutPreview} onFit={onApplyRunFitPreview} /> : <p>Layout tools require the full project scene.</p>
           ) : tab === 'placement' ? (

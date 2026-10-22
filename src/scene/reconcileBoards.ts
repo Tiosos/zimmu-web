@@ -15,6 +15,7 @@ export interface GeneratedBoard {
   label: string
   panel: PanelSpec
   grain: Grain
+  material?: string
   // Not `BoxCut[]`: an undermount back carries a hole array rather than a box cut.
   cuts: CutDef[]
   // Non-geometric shop/template work. Kept separate so it never reaches solid subtraction.
@@ -66,8 +67,11 @@ export function reconcileBoards(
       length: b.panel.length,
       width: b.panel.width,
       thickness: b.panel.thickness,
-      grain: b.grain,
-      material,
+      grain: existing?.kind === 'board' ? (existing.overrides?.grain ?? b.grain) : b.grain,
+      material: b.material ?? material,
+      ...(existing?.kind === 'board' && existing.overrides
+        ? { overrides: existing.overrides }
+        : {}),
       color: existing?.color ?? PART_COLORS[i % PART_COLORS.length],
       position: b.panel.position,
       rotation: b.panel.rotation,
@@ -88,6 +92,7 @@ export function reconcileBoards(
       parentId: owner.id,
       driven: true,
       role: b.role,
+      ...(existing?.kind === 'board' && existing.serviceMachining !== undefined ? { serviceMachining: existing.serviceMachining } : {}),
       ...(existing?.kind === 'board' && existing.edgeBanding !== undefined
         ? { edgeBanding: existing.edgeBanding }
         : {}),

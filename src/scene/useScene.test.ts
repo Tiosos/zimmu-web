@@ -1,3 +1,10 @@
+import { cornerScene } from './__fixtures__/corners'
+import { cornerDraft, previewCorner } from './cornerPanels'
+import { defaultApplianceBay } from './applianceRecipe'
+import { applianceOpenings, previewAppliance } from './applianceBays'
+import { defaultServiceFeature } from './serviceRecipe'
+import { previewService, serviceCutId } from './serviceMachining'
+import { previewMaterials, stageMaterials, stageEdges } from './cabinetMaterials'
 import { previewRunWorktop as previewRunPanel, runPanelDraft } from './runWorktops'
 import { interiorTargets, previewInteriors } from './shelvesInteriors'
 import { defaultInterior as interiorDefaults } from './sectionInterior'
@@ -3446,4 +3453,115 @@ it('adds and edits a linked run plinth as independent undo steps with profile-sp
  act(()=>result.current.undo());expect(result.current.scene).toEqual(added)
  act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
  act(()=>result.current.redo());expect(result.current.scene).toEqual(added)
+})
+
+ it.each(['materials', 'edges'] as const)('applies cabinet %s with one independent undo and redo step', (mode) => {
+  mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+  const {result}=renderHook(()=>useScene())
+  act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
+  const before=result.current.scene, p=before.parts.find(p=>p.role==='left-side')!
+  const draft=mode==='materials'?stageMaterials(before,cabinet.id,{},[p.id],{grain:'width'}):stageEdges(before,cabinet.id,{},[p.id],['x0'],null)
+  const preview=previewMaterials(before,cabinet.id,draft,mode)
+  expect(preview.errors).toEqual([])
+  act(()=>{expect(result.current.onApplyMaterialsPreview(preview)).toBe(true)})
+  const after=result.current.scene
+  expect(result.current.undoLabel).toBe(mode==='materials'?'Apply cabinet materials':'Apply cabinet edgebanding')
+  act(()=>{expect(result.current.onApplyMaterialsPreview(preview)).toBe(false)})
+  act(()=>{expect(result.current.onApplyMaterialsPreview(previewMaterials(after,cabinet.id,draft,mode))).toBe(false)})
+  act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+  act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+ })
+
+it('saves and removes appliance bays in independent undo steps and rejects stale previews', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const {result}=renderHook(()=>useScene())
+ act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
+ const c=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
+ const before=result.current.scene, bay=defaultApplianceBay('appliance',c.id,applianceOpenings(before,c.id)[0].id), p=previewAppliance(before,bay)
+ expect(p.errors).toEqual([])
+ act(()=>{expect(result.current.onApplyAppliancePreview(p)).toBe(true)})
+ const after=result.current.scene
+ expect(result.current.undoLabel).toBe('Save appliance bay')
+ act(()=>{expect(result.current.onApplyAppliancePreview(p)).toBe(false)})
+ act(()=>{expect(result.current.onApplyAppliancePreview(previewAppliance(after,bay))).toBe(false)})
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+ act(()=>{expect(result.current.onApplyAppliancePreview(previewAppliance(after,bay,'delete'))).toBe(true)})
+ expect(result.current.scene.applianceBays).toBeUndefined()
+ expect(result.current.undoLabel).toBe('Remove appliance bay')
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(after)
+})
+it('applies service openings atomically, locks cuts, follows resize and duplicates fixed cuts', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const {result}=renderHook(()=>useScene())
+ act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
+ const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!,before=result.current.scene
+ const b=before.parts.find((p):p is BoardPart=>p.kind==='board'&&p.role==='back')!,recipe={version:1 as const,features:[defaultServiceFeature('test-hole'),{...defaultServiceFeature('test-slot','rectangle'),length:20,width:20,x:150}]},p=previewService(before,cabinet.id,b.id,recipe)
+ expect(p.errors).toEqual([])
+ act(()=>{expect(result.current.onApplyServicePreview(p)).toBe(true)})
+ const after=result.current.scene
+ expect(result.current.undoLabel).toBe('Apply service openings')
+ act(()=>{expect(result.current.onApplyServicePreview(p)).toBe(false)})
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+ const id=serviceCutId('test-hole',0)
+ act(()=>result.current.onUpdateCut(b.id,id,c=>({...c,label:'wrong'})))
+ act(()=>result.current.onRemoveCut(b.id,id))
+ act(()=>result.current.onLinkCuts(b.id,id,b.id,id))
+ act(()=>result.current.onLinkCuts(b.id,serviceCutId('test-slot',0),b.id,serviceCutId('test-slot',0)))
+ expect(result.current.scene).toEqual(after)
+ act(()=>result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:c.params.width+100}}:c))
+ const current=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&p.id===b.id)!
+ const cut=current.cuts.find(c=>c.id===id)!,oldCut=after.parts.find(p=>p.id===b.id)!.cuts.find(c=>c.id===id)!
+ expect(cut.kind==='hole-array'&&oldCut.kind==='hole-array'&&cut.start.y-oldCut.start.y).toBe(50)
+ act(()=>result.current.onDuplicate(b.id))
+ const duplicate=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&p.label===b.label&&p.id!==b.id)!
+ expect(duplicate.serviceMachining).toBeUndefined();expect(duplicate.driven).toBe(false);expect(duplicate.role).toBeUndefined()
+ expect(duplicate.cuts.some(c=>c.id===id)).toBe(false)
+ const count=duplicate.cuts.length
+ act(()=>result.current.onUpdate(duplicate.id,p=>p.kind==='board'?{...p,width:p.width+10}:p))
+ expect(result.current.scene.parts.find(p=>p.id===duplicate.id)!.cuts).toHaveLength(count)
+})
+it('rebuilds service cuts when a manual linked panel is edited through normal part tools', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const {result}=renderHook(()=>useScene())
+ act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
+ const c=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!,before=result.current.scene
+ act(()=>{expect(result.current.onApplyFinishingPreview(previewFinishing(before,c.id,{...finishingDraft(before,c.id),follow:true}))).toBe(true)})
+ const part=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&!!p.finishing)!,recipe={version:1 as const,features:[defaultServiceFeature('manual-service')]}
+ act(()=>{expect(result.current.onApplyServicePreview(previewService(result.current.scene,c.id,part.id,recipe))).toBe(true)})
+ const original=result.current.scene.parts.find(p=>p.id===part.id)!.cuts.find(c=>c.id===serviceCutId('manual-service',0))!
+ act(()=>result.current.onUpdate(part.id,p=>p.kind==='board'?{...p,length:p.length+100}:p))
+ const edited=result.current.scene.parts.find(p=>p.id===part.id)!.cuts.find(c=>c.id===original.id)!
+ expect(edited.kind==='hole-array'&&original.kind==='hole-array'&&edited.start.x-original.start.x).toBe(50)
+})
+
+it('applies entire corner assemblies in one undo step and protects owned board fields', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const {result}=renderHook(()=>useScene())
+ act(()=>result.current.replaceScene(cornerScene()))
+ const before=result.current.scene,d=cornerDraft(before,'a');d.legs[1].run.memberIds=['b']
+ const p=previewCorner(before,d)
+ act(()=>{expect(result.current.onApplyCornerPreview(p)).toBe(true)})
+ const applied=result.current.scene,owned=applied.parts.filter((p):p is BoardPart=>p.kind==='board'&&!!p.cornerPanel)
+ expect(owned).toHaveLength(2);expect(result.current.undoLabel).toBe('Apply corner assembly')
+ act(()=>{expect(result.current.onApplyCornerPreview(p)).toBe(false)})
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(applied)
+ for(const change of [{length:999},{label:'wrong'},{material:'wrong'},{grain:'free'},{edgeBanding:{x0:null}}]) {
+  act(()=>result.current.onUpdate(owned[0].id,p=>({...p,...change} as Part)))
+  expect(result.current.scene).toEqual(applied)
+ }
+ act(()=>result.current.onDuplicate(owned[0].id))
+ const duplicate=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&p.id!==owned[0].id&&p.label===owned[0].label)!
+ expect(duplicate.cornerPanel).toBeUndefined();expect(duplicate.driven).toBe(false)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(applied)
+ const current=result.current.scene,request=previewCorner(current,d,owned[0].cornerPanel!.assemblyId)
+ act(()=>{expect(result.current.onApplyCornerPreview({...request,action:'detach'})).toBe(true)})
+ expect(result.current.scene.parts.filter((p)=>p.kind==='board'&&p.cornerPanel)).toHaveLength(0)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(applied)
+ act(()=>{expect(result.current.onApplyCornerPreview({...request,action:'delete'})).toBe(true)})
+ expect(result.current.scene.parts).toHaveLength(before.parts.length)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(applied)
 })

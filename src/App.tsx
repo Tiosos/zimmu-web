@@ -72,9 +72,13 @@ function App() {
     onApplyPullPreview,
     onApplyFrontsPreview,
     onApplyFinishingPreview,
+    onApplyCornerPreview,
     onApplyRunWorktopPreview,
     onApplyWorktopMachiningPreview,
     onApplyLayoutPreview,
+    onApplyAppliancePreview,
+    onApplyServicePreview,
+    onApplyMaterialsPreview,
     onApplyInteriorsPreview,
     onApplyRunFitPreview,
     onApplyPlacementPreview,
@@ -819,9 +823,13 @@ function App() {
             onApplyPullPreview={onApplyPullPreview}
             onApplyFrontsPreview={onApplyFrontsPreview}
             onApplyFinishingPreview={onApplyFinishingPreview}
+            onApplyCornerPreview={onApplyCornerPreview}
             onApplyRunWorktopPreview={onApplyRunWorktopPreview}
             onApplyWorktopMachiningPreview={onApplyWorktopMachiningPreview}
             onApplyLayoutPreview={onApplyLayoutPreview}
+            onApplyAppliancePreview={onApplyAppliancePreview}
+            onApplyServicePreview={onApplyServicePreview}
+            onApplyMaterialsPreview={onApplyMaterialsPreview}
             onApplyInteriorsPreview={onApplyInteriorsPreview}
             onApplyRunFitPreview={onApplyRunFitPreview}
             onApplyPlacementPreview={onApplyPlacementPreview}

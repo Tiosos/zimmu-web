@@ -1,3 +1,5 @@
+import type { CornerPreview } from '../scene/cornerPanels'
+import { CabinetCornerEditor } from './CabinetCornerEditor'
 import { CabinetRunPanelEditor } from './CabinetRunPanelEditor'
 import { WorktopMachiningEditor } from './WorktopMachiningEditor'
 import type { WorktopMachiningPreview } from '../scene/worktopMachining'
@@ -14,15 +16,17 @@ export function CabinetFinishingWorkspace({
   scene,
   onApply,
   onApplyRun,
+  onApplyCorner,
   onApplyMachining,
 }: {
   cabinet: CarcaseComponent
   scene: Scene
   onApply: (preview: FinishingPreview) => boolean
   onApplyMachining?: (preview: WorktopMachiningPreview) => boolean
+  onApplyCorner?: (preview: CornerPreview) => boolean
   onApplyRun?: (preview: RunWorktopPreview) => boolean
 }) {
-  const [mode, setMode] = useState<'single' | 'run' | 'machining' | 'panels'>('single')
+  const [mode, setMode] = useState<'single' | 'run' | 'machining' | 'panels' | 'corner'>('single')
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -61,8 +65,21 @@ export function CabinetFinishingWorkspace({
         >
           Worktop machining
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          aria-pressed={mode === 'corner'}
+          disabled={!onApplyCorner}
+          onClick={() => setMode('corner')}
+        >
+          Corner assemblies
+        </Button>
       </div>
-      {mode === 'single' ? (
+      {mode === 'corner' ? (
+        onApplyCorner && (
+          <CabinetCornerEditor cabinet={cabinet} scene={scene} onApply={onApplyCorner} />
+        )
+      ) : mode === 'single' ? (
         <CabinetFinishingEditor cabinet={cabinet} scene={scene} onApply={onApply} />
       ) : mode === 'panels' ? (
         onApplyRun && <CabinetRunPanelEditor cabinet={cabinet} scene={scene} onApply={onApplyRun} />

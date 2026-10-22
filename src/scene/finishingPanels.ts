@@ -30,6 +30,7 @@ export interface FinishingPreview {
 export function finishingSignature(scene: Scene): string {
   return JSON.stringify({
     placement: placementSignature(scene),
+    applianceBays: scene.applianceBays,
     transforms: scene.components.map((c) => ({
       id: c.id,
       parentId: c.parentId,
@@ -51,7 +52,9 @@ export function finishingSignature(scene: Scene): string {
       cuts: p.cuts,
       operations: p.kind === 'board' ? p.operations : undefined,
       edges: p.kind === 'board' ? p.edgeBanding : undefined,
+      serviceMachining: p.kind === 'board' ? p.serviceMachining : undefined,
       worktopMachining: p.kind === 'board' ? p.worktopMachining : undefined,
+      cornerPanel: p.kind === 'board' ? p.cornerPanel : undefined,
       runWorktop: p.kind === 'board' ? p.runWorktop : undefined,
       hingeLayout: p.kind === 'board' ? p.hingeLayout : undefined,
       frontPull: p.kind === 'board' ? p.frontPull : undefined,

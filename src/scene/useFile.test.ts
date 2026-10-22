@@ -2713,7 +2713,7 @@ describe('v20 face frames', () => {
   // constant itself is asserted. This pin replaces the v19 one: the constant is global, so only the
   // newest value can be asserted.
   it('states the current file format version', () => {
-    expect(FILE_FORMAT_VERSION).toBe(34)
+    expect(FILE_FORMAT_VERSION).toBe(37)
   })
 
   // tsc cannot see this: `base.params` is typed loosely, so a parser that forgot the new slot would
