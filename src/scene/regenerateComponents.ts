@@ -79,10 +79,16 @@ function regenerateOne(
   // cabinet mid-keystroke — the same contract deriveJoint has when it returns null.
   if (roles.length === 0) return { parts, joints }
 
-  const tree = resolveSections(component.params.section, openingRect(component.params, thicknessOf), sectionThickness(thicknessOf))
-  const cells = new Map(frontCells(component.params.section, tree, frontGeometryOf(component.params, tree))
-    .filter((c) => c.spec.kind === 'door' || c.spec.kind === 'drawer-front')
-    .map((c) => [frontRoleOf(c), c]))
+  const tree = resolveSections(
+    component.params.section,
+    openingRect(component.params, thicknessOf),
+    sectionThickness(thicknessOf),
+  )
+  const cells = new Map(
+    frontCells(component.params.section, tree, frontGeometryOf(component.params, tree))
+      .filter((c) => c.spec.kind === 'door' || c.spec.kind === 'drawer-front')
+      .map((c) => [frontRoleOf(c), c]),
+  )
   const wanted = new Set(roles.map((r) => r.role))
 
   const kept: Part[] = []
@@ -101,28 +107,54 @@ function regenerateOne(
     const rawComponentCuts = [
       ...carcaseCuts(component.params, thicknessOf, r.role),
       ...carcaseHoleArrays(component.params, thicknessOf, kindOf, r.role),
-      ...carcaseMachining(component.params, thicknessOf, kindOf, r.role, drawerFor, (role) => { const p = byRole.get(role); return component.params.frame === undefined && p?.kind === 'board' ? p.hingeLayout : undefined }),
+      ...carcaseMachining(component.params, thicknessOf, kindOf, r.role, drawerFor, (role) => {
+        const p = byRole.get(role)
+        return component.params.frame === undefined && p?.kind === 'board'
+          ? p.hingeLayout
+          : undefined
+      }),
     ].map((c) => ({ ...c, sourceComponentId: component.id }))
-    const componentCuts = [...(r.sourcePanel ? remapSlopeCuts(rawComponentCuts, r.sourcePanel, r.panel) : rawComponentCuts), ...(r.cuts ?? []).map(c => ({ ...c, sourceComponentId: component.id }))]
+    const componentCuts = [
+      ...(r.sourcePanel
+        ? remapSlopeCuts(rawComponentCuts, r.sourcePanel, r.panel)
+        : rawComponentCuts),
+      ...(r.cuts ?? []).map((c) => ({ ...c, sourceComponentId: component.id })),
+    ]
     const own = existing?.kind === 'board' ? existing.overrides : undefined
-    const grainOverrides = own?.grain && existing?.kind === 'board' ? { ...own, grain: remapSlopeGrain(own.grain, existing, r.panel) } : own
+    const grainOverrides =
+      own?.grain && existing?.kind === 'board'
+        ? { ...own, grain: remapSlopeGrain(own.grain, existing, r.panel) }
+        : own
     const existingCuts = existing?.kind === 'board' ? existing.cuts : []
     const frontCell = cells.get(r.role)
     const frontPull = existing?.kind === 'board' && frontCell ? existing.frontPull : undefined
     if (frontPull) {
-      const pattern = pullPattern({
-        ...r.panel,
-        cuts: [...componentCuts, ...existingCuts.filter(
-          (c) => !('sourceComponentId' in c && c.sourceComponentId !== undefined),
-        )],
-      }, frontPull, frontCell?.hinge, r.role)
+      const pattern = pullPattern(
+        {
+          ...r.panel,
+          cuts: [
+            ...componentCuts,
+            ...existingCuts.filter(
+              (c) => !('sourceComponentId' in c && c.sourceComponentId !== undefined),
+            ),
+          ],
+        },
+        frontPull,
+        frontCell?.hinge,
+        r.role,
+      )
       if (pattern.cut) componentCuts.push({ ...pattern.cut, sourceComponentId: component.id })
     }
 
     const board: BoardPart = {
       kind: 'board',
       ...(frontPull ? { frontPull } : {}),
-      ...(existing?.kind === 'board' && component.params.frame === undefined && frontCell?.spec.kind === 'door' && existing.hingeLayout ? { hingeLayout: existing.hingeLayout } : {}),
+      ...(existing?.kind === 'board' &&
+      component.params.frame === undefined &&
+      frontCell?.spec.kind === 'door' &&
+      existing.hingeLayout
+        ? { hingeLayout: existing.hingeLayout }
+        : {}),
       id: existing?.id ?? `board_${crypto.randomUUID()}`,
       label: existing?.label ?? r.label,
       length: r.panel.length,
@@ -148,7 +180,8 @@ function regenerateOne(
         ...componentCuts,
       ],
       ...(existing?.kind === 'board' && existing.operations !== undefined
-        ? { operations: existing.operations.filter((op) => op.sourceComponentId === undefined) } : {}),
+        ? { operations: existing.operations.filter((op) => op.sourceComponentId === undefined) }
+        : {}),
       visible: existing?.visible ?? true,
       parentId: component.id,
       driven: true,
@@ -156,7 +189,9 @@ function regenerateOne(
       // Carried across the regeneration that read it: an override the pass consumed but did not
       // write back would last exactly one edit.
       overrides: grainOverrides,
-      ...(existing?.kind === 'board' && existing.serviceMachining !== undefined ? { serviceMachining: existing.serviceMachining } : {}),
+      ...(existing?.kind === 'board' && existing.serviceMachining !== undefined
+        ? { serviceMachining: existing.serviceMachining }
+        : {}),
       ...(existing?.kind === 'board' && existing.edgeBanding !== undefined
         ? { edgeBanding: existing.edgeBanding }
         : {}),

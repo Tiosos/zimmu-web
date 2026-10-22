@@ -4,18 +4,33 @@ import { parseFile, FILE_FORMAT_VERSION } from './useFile'
 import type { Scene } from './types'
 
 const root = (id: string) => ({
-  kind: 'group' as const, id, label: id, parentId: null,
-  position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 },
-  rotationOrder: 'XYZ' as const, visible: true,
+  kind: 'group' as const,
+  id,
+  label: id,
+  parentId: null,
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  rotationOrder: 'XYZ' as const,
+  visible: true,
 })
 const scene = (ids: string[]): Scene => ({
-  parts: [], materials: {}, hardware: [], joints: [], components: ids.map(root),
+  parts: [],
+  materials: {},
+  hardware: [],
+  joints: [],
+  components: ids.map(root),
 })
-const file = (s: Scene) => JSON.stringify({
-  version: 20, name: 'Old project', appVersion: '0.0.0', units: 'mm',
-  createdAt: '2026-01-01', updatedAt: '2026-01-01',
-  camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } }, scene: s,
-})
+const file = (s: Scene) =>
+  JSON.stringify({
+    version: 20,
+    name: 'Old project',
+    appVersion: '0.0.0',
+    units: 'mm',
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+    camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
+    scene: s,
+  })
 
 describe('project structure migration', () => {
   it('gives a legacy scene deterministic editable defaults without changing geometry', () => {
@@ -24,7 +39,8 @@ describe('project structure migration', () => {
     const two = parseFile(text)
     expect(one.project).toEqual(two.project)
     expect(one.project!.areas[0].rooms[0].items[0].rootComponentIds).toEqual([
-      'cabinet-a', 'cabinet-b',
+      'cabinet-a',
+      'cabinet-b',
     ])
     expect(one.scene).toEqual(scene(['cabinet-a', 'cabinet-b']))
     const written = JSON.stringify({ ...one, version: FILE_FORMAT_VERSION })
@@ -35,11 +51,19 @@ describe('project structure migration', () => {
   it('assigns a new root once, removes deleted roots and preserves a moved root', () => {
     const base = defaultProject(scene(['a']), 'fixture')
     const itemId = 'item_second'
-    const withSecond = { ...base, areas: base.areas.map((area) => ({ ...area,
-      rooms: area.rooms.map((room) => ({ ...room, items: [...room.items,
-        { id: itemId, name: 'Pantry', rootComponentIds: [], rootPartIds: [] },
-      ] })),
-    })) }
+    const withSecond = {
+      ...base,
+      areas: base.areas.map((area) => ({
+        ...area,
+        rooms: area.rooms.map((room) => ({
+          ...room,
+          items: [
+            ...room.items,
+            { id: itemId, name: 'Pantry', rootComponentIds: [], rootPartIds: [] },
+          ],
+        })),
+      })),
+    }
     const moved = moveRootToItem(withSecond, 'a', itemId)
     const updated = reconcileProject(moved, scene(['a', 'b']))
     expect(updated.areas[0].rooms[0].items[0].rootComponentIds).toEqual(['b'])
@@ -47,14 +71,19 @@ describe('project structure migration', () => {
     expect(reconcileProject(updated, scene(['a', 'b']))).toBe(updated)
     const active = reconcileProject(updated, scene(['a', 'b', 'c']), itemId)
     expect(active.areas[0].rooms[0].items[1].rootComponentIds).toEqual(['a', 'c'])
-    expect(reconcileProject(updated, scene(['b'])).areas[0].rooms[0].items[1].rootComponentIds).toEqual([])
+    expect(
+      reconcileProject(updated, scene(['b'])).areas[0].rooms[0].items[1].rootComponentIds,
+    ).toEqual([])
   })
 
   it('keeps loose parts with an item when a new cabinet is added', () => {
     const withPart = { ...scene(['a']), parts: [{ id: 'loose', parentId: null }] as Scene['parts'] }
     const project = defaultProject(withPart, 'part-fixture')
     expect(project.areas[0].rooms[0].items[0].rootPartIds).toEqual(['loose'])
-    const updated = reconcileProject(project, { ...withPart, components: [...withPart.components, root('b')] })
+    const updated = reconcileProject(project, {
+      ...withPart,
+      components: [...withPart.components, root('b')],
+    })
     expect(updated.areas[0].rooms[0].items[0].rootPartIds).toEqual(['loose'])
     expect(updated.areas[0].rooms[0].items[0].rootComponentIds).toEqual(['a', 'b'])
   })
@@ -62,13 +91,38 @@ describe('project structure migration', () => {
   it('removes a wall link when its cabinet is deleted or moved to another room', () => {
     const base = defaultProject(scene(['a']), 'room-fixture')
     const room = base.areas[0].rooms[0]
-    room.geometry!.walls.push({ id: 'wall', name: 'Wall', start: { x: 0, y: 0 }, end: { x: 3000, y: 0 } })
-    room.geometry!.placements.push({ cabinetId: 'a', wallId: 'wall', offset: 100, setback: 0, manualOffset: { x: 0, y: 0 } })
+    room.geometry!.walls.push({
+      id: 'wall',
+      name: 'Wall',
+      start: { x: 0, y: 0 },
+      end: { x: 3000, y: 0 },
+    })
+    room.geometry!.placements.push({
+      cabinetId: 'a',
+      wallId: 'wall',
+      offset: 100,
+      setback: 0,
+      manualOffset: { x: 0, y: 0 },
+    })
     expect(reconcileProject(base, scene([])).areas[0].rooms[0].geometry!.placements).toEqual([])
-    const moved = { ...base, areas: [{ ...base.areas[0], rooms: [
-      { ...room, items: [{ ...room.items[0], rootComponentIds: [] }] },
-      { id: 'second', name: 'Second', items: [{ id: 'second-item', name: 'Other', rootComponentIds: ['a'], rootPartIds: [] }] },
-    ] }] }
+    const moved = {
+      ...base,
+      areas: [
+        {
+          ...base.areas[0],
+          rooms: [
+            { ...room, items: [{ ...room.items[0], rootComponentIds: [] }] },
+            {
+              id: 'second',
+              name: 'Second',
+              items: [
+                { id: 'second-item', name: 'Other', rootComponentIds: ['a'], rootPartIds: [] },
+              ],
+            },
+          ],
+        },
+      ],
+    }
     expect(reconcileProject(moved, scene(['a'])).areas[0].rooms[0].geometry!.placements).toEqual([])
   })
 
@@ -88,7 +142,13 @@ describe('project structure migration', () => {
     initial.name = 'Kitchen'
     initial.jid = 'J01'
     initial.cutlistNumber = '000001'
-    const other = { ...initial, id: 'item_pantry', name: 'Pantry', rootComponentIds: ['b'], rootPartIds: [] }
+    const other = {
+      ...initial,
+      id: 'item_pantry',
+      name: 'Pantry',
+      rootComponentIds: ['b'],
+      rootPartIds: [],
+    }
     initial.rootComponentIds = ['a']
     parsed.project!.areas[0].rooms[0].items.push(other)
     const loaded = parseFile(JSON.stringify({ ...parsed, version: FILE_FORMAT_VERSION }))

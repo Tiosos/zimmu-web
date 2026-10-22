@@ -384,7 +384,10 @@ function App() {
   const [grainMatchingOpen, setGrainMatchingOpen] = useState(false)
   const [openingMotionOpen, setOpeningMotionOpen] = useState(false)
   const [openingTransient, setOpeningTransient] = useState<OpeningTransient | null>(null)
-  const updateOpeningTransient = useCallback((value: OpeningTransient | null) => setOpeningTransient(value), [])
+  const updateOpeningTransient = useCallback(
+    (value: OpeningTransient | null) => setOpeningTransient(value),
+    [],
+  )
 
   const [drawingSheets, setDrawingSheets] = useState<DrawingSheet[]>([])
 
@@ -420,12 +423,25 @@ function App() {
     },
   })
 
-  const liveOpeningTransient = openingMotionOpen && openingTransient?.signature === openingSignature(scene, project) ? openingTransient : null
-  const activeRoom = project.areas.flatMap((area) => area.rooms).find((room) =>
-    room.items.some((item) => item.id === activeItemId))
-  const roomCabinetIds = useMemo(() => new Set(activeRoom?.items.flatMap((item) =>
-    item.rootComponentIds.flatMap((id) => [id, ...descendantIds(id, scene.components, scene.parts).componentIds])) ?? []),
-  [activeRoom, scene.components, scene.parts])
+  const liveOpeningTransient =
+    openingMotionOpen && openingTransient?.signature === openingSignature(scene, project)
+      ? openingTransient
+      : null
+  const activeRoom = project.areas
+    .flatMap((area) => area.rooms)
+    .find((room) => room.items.some((item) => item.id === activeItemId))
+  const roomCabinetIds = useMemo(
+    () =>
+      new Set(
+        activeRoom?.items.flatMap((item) =>
+          item.rootComponentIds.flatMap((id) => [
+            id,
+            ...descendantIds(id, scene.components, scene.parts).componentIds,
+          ]),
+        ) ?? [],
+      ),
+    [activeRoom, scene.components, scene.parts],
+  )
 
   useEffect(() => {
     const poses = new Map<string, ReturnType<typeof wallPlacementPose>>()
@@ -434,17 +450,33 @@ function App() {
       for (const placement of room.geometry.placements)
         poses.set(placement.cabinetId, wallPlacementPose(room.geometry, placement))
     }
-    if (!scene.components.some((c) => {
-      const pose = poses.get(c.id)
-      return c.kind === 'carcase' && pose && (c.anchor !== undefined ||
-        Math.abs(c.position.x - pose.position.x) > 0.001 || Math.abs(c.position.y - pose.position.y) > 0.001 ||
-        Math.abs(c.rotation.z - pose.rotation) > 0.001)
-    })) return
-    syncComponents((components) => components.map((c) => {
-      const pose = poses.get(c.id)
-      return c.kind === 'carcase' && pose ? { ...c, anchor: undefined,
-        position: { ...c.position, ...pose.position }, rotation: { ...c.rotation, z: pose.rotation } } : c
-    }))
+    if (
+      !scene.components.some((c) => {
+        const pose = poses.get(c.id)
+        return (
+          c.kind === 'carcase' &&
+          pose &&
+          (c.anchor !== undefined ||
+            Math.abs(c.position.x - pose.position.x) > 0.001 ||
+            Math.abs(c.position.y - pose.position.y) > 0.001 ||
+            Math.abs(c.rotation.z - pose.rotation) > 0.001)
+        )
+      })
+    )
+      return
+    syncComponents((components) =>
+      components.map((c) => {
+        const pose = poses.get(c.id)
+        return c.kind === 'carcase' && pose
+          ? {
+              ...c,
+              anchor: undefined,
+              position: { ...c.position, ...pose.position },
+              rotation: { ...c.rotation, z: pose.rotation },
+            }
+          : c
+      }),
+    )
   }, [project, scene.components, syncComponents])
 
   useEffect(() => {
@@ -452,11 +484,29 @@ function App() {
   }, [project, scene.components, scene.parts, scene.installations, syncRoomInstallationSources])
 
   const detachWallPlacement = (id: string) => {
-    if (!project.areas.some((area) => area.rooms.some((room) => room.geometry?.placements.some((p) => p.cabinetId === id)))) return
-    setProject({ ...project, areas: project.areas.map((area) => ({ ...area, rooms: area.rooms.map((room) =>
-      room.geometry ? { ...room, geometry: { ...room.geometry,
-        placements: room.geometry.placements.filter((p) => p.cabinetId !== id) } } : room,
-    ) })) })
+    if (
+      !project.areas.some((area) =>
+        area.rooms.some((room) => room.geometry?.placements.some((p) => p.cabinetId === id)),
+      )
+    )
+      return
+    setProject({
+      ...project,
+      areas: project.areas.map((area) => ({
+        ...area,
+        rooms: area.rooms.map((room) =>
+          room.geometry
+            ? {
+                ...room,
+                geometry: {
+                  ...room.geometry,
+                  placements: room.geometry.placements.filter((p) => p.cabinetId !== id),
+                },
+              }
+            : room,
+        ),
+      })),
+    })
   }
 
   const visibleParts = scene.parts.filter((p) => isNodeVisible(p, componentMap))
@@ -522,10 +572,25 @@ function App() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (slopedTopOpen) { if (e.key === 'Escape') setSlopedTopOpen(false); return }
-      if (stockOptimisationOpen) { if (e.key === 'Escape') setStockOptimisationOpen(false); return }
-      if (grainMatchingOpen) { if (e.key === 'Escape') setGrainMatchingOpen(false); return }
-      if (openingMotionOpen) { if (e.key === 'Escape') { setOpeningMotionOpen(false); setOpeningTransient(null) }; return }
+      if (slopedTopOpen) {
+        if (e.key === 'Escape') setSlopedTopOpen(false)
+        return
+      }
+      if (stockOptimisationOpen) {
+        if (e.key === 'Escape') setStockOptimisationOpen(false)
+        return
+      }
+      if (grainMatchingOpen) {
+        if (e.key === 'Escape') setGrainMatchingOpen(false)
+        return
+      }
+      if (openingMotionOpen) {
+        if (e.key === 'Escape') {
+          setOpeningMotionOpen(false)
+          setOpeningTransient(null)
+        }
+        return
+      }
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const mod = e.metaKey || e.ctrlKey
 
@@ -662,9 +727,16 @@ function App() {
   // Matched by id rather than identity: recording a release or reopening the file replaces the
   // array and re-verifies it, and unmounting the dialog then would cut its review short.
   const comparisonIndex = comparisonRelease
-    ? releases.findIndex((entry) => isReadable(entry) && entry.id === comparisonRelease.id && entry.sourceSha256 === comparisonRelease.sourceSha256)
+    ? releases.findIndex(
+        (entry) =>
+          isReadable(entry) &&
+          entry.id === comparisonRelease.id &&
+          entry.sourceSha256 === comparisonRelease.sourceSha256,
+      )
     : -1
-  const comparisonOpen = comparisonIndex >= 0 && (releaseIntegrity === null || releaseIntegrity[comparisonIndex] === 'ok')
+  const comparisonOpen =
+    comparisonIndex >= 0 &&
+    (releaseIntegrity === null || releaseIntegrity[comparisonIndex] === 'ok')
   // Closed, not hidden: reopening a file that holds the release must not bring the dialog back.
   if (comparisonRelease && !comparisonOpen) setComparisonRelease(null)
 
@@ -680,18 +752,71 @@ function App() {
         overflow: 'hidden',
       }}
     >
-      {slopedTopOpen && <SlopedTopWorkspace scene={scene} project={project} onApply={(p) => onApplySlope(project, p)} onClose={() => setSlopedTopOpen(false)} onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} />}
-      {stockOptimisationOpen && <StockWorkspace scene={scene} project={project} materials={nestMaterials} clearance={clearance}
-        onApply={(preview, action, remnants) => onApplyStockPlan(project, nestMaterials, preview, action, remnants)} onClose={() => setStockOptimisationOpen(false)}
-        onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} />}
-      {grainMatchingOpen && <GrainMatchWorkspace scene={scene} project={project} materials={nestMaterials} clearance={clearance}
-        onApply={(preview) => onApplyGrainMatchPreview(project, preview)} onClose={() => setGrainMatchingOpen(false)}
-        onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} />}
-      {openingMotionOpen && <OpeningMotionWorkspace scene={scene} project={project}
-        onApply={(preview) => onApplyOpeningPreview(project, preview)} onTransient={updateOpeningTransient}
-        onClose={() => { setOpeningMotionOpen(false); setOpeningTransient(null) }}
-        onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} />}
-      {importCatalogue && <CatalogueImport scene={scene} onInstall={onInstallCatalogue} onClose={() => setImportCatalogue(false)} />}
+      {slopedTopOpen && (
+        <SlopedTopWorkspace
+          scene={scene}
+          project={project}
+          onApply={(p) => onApplySlope(project, p)}
+          onClose={() => setSlopedTopOpen(false)}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+        />
+      )}
+      {stockOptimisationOpen && (
+        <StockWorkspace
+          scene={scene}
+          project={project}
+          materials={nestMaterials}
+          clearance={clearance}
+          onApply={(preview, action, remnants) =>
+            onApplyStockPlan(project, nestMaterials, preview, action, remnants)
+          }
+          onClose={() => setStockOptimisationOpen(false)}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+        />
+      )}
+      {grainMatchingOpen && (
+        <GrainMatchWorkspace
+          scene={scene}
+          project={project}
+          materials={nestMaterials}
+          clearance={clearance}
+          onApply={(preview) => onApplyGrainMatchPreview(project, preview)}
+          onClose={() => setGrainMatchingOpen(false)}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+        />
+      )}
+      {openingMotionOpen && (
+        <OpeningMotionWorkspace
+          scene={scene}
+          project={project}
+          onApply={(preview) => onApplyOpeningPreview(project, preview)}
+          onTransient={updateOpeningTransient}
+          onClose={() => {
+            setOpeningMotionOpen(false)
+            setOpeningTransient(null)
+          }}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+        />
+      )}
+      {importCatalogue && (
+        <CatalogueImport
+          scene={scene}
+          onInstall={onInstallCatalogue}
+          onClose={() => setImportCatalogue(false)}
+        />
+      )}
       <FileMenu
         fileName={fileName}
         projectName={projectName}
@@ -727,10 +852,45 @@ function App() {
           )
         }
         onProjectStructure={() => setProjectPanelOpen(true)}
-        onOpeningMotion={() => { setSlopedTopOpen(false); setStockOptimisationOpen(false); setGrainMatchingOpen(false); setMode('none'); setMainView('model'); setCabinetTab('3d'); setOpeningMotionOpen(true) }}
-        onGrainMatching={() => { setSlopedTopOpen(false); setStockOptimisationOpen(false); setOpeningMotionOpen(false); setOpeningTransient(null); setMode('none'); setMainView('model'); setCabinetTab('3d'); setGrainMatchingOpen(true) }}
-        onStockOptimisation={() => { setSlopedTopOpen(false); setGrainMatchingOpen(false); setOpeningMotionOpen(false); setOpeningTransient(null); setMode('none'); setMainView('model'); setCabinetTab('3d'); setStockOptimisationOpen(true) }}
-        onSlopedTop={() => { setStockOptimisationOpen(false); setGrainMatchingOpen(false); setOpeningMotionOpen(false); setOpeningTransient(null); setMode('none'); setMainView('model'); setCabinetTab('3d'); setSlopedTopOpen(true) }}
+        onOpeningMotion={() => {
+          setSlopedTopOpen(false)
+          setStockOptimisationOpen(false)
+          setGrainMatchingOpen(false)
+          setMode('none')
+          setMainView('model')
+          setCabinetTab('3d')
+          setOpeningMotionOpen(true)
+        }}
+        onGrainMatching={() => {
+          setSlopedTopOpen(false)
+          setStockOptimisationOpen(false)
+          setOpeningMotionOpen(false)
+          setOpeningTransient(null)
+          setMode('none')
+          setMainView('model')
+          setCabinetTab('3d')
+          setGrainMatchingOpen(true)
+        }}
+        onStockOptimisation={() => {
+          setSlopedTopOpen(false)
+          setGrainMatchingOpen(false)
+          setOpeningMotionOpen(false)
+          setOpeningTransient(null)
+          setMode('none')
+          setMainView('model')
+          setCabinetTab('3d')
+          setStockOptimisationOpen(true)
+        }}
+        onSlopedTop={() => {
+          setStockOptimisationOpen(false)
+          setGrainMatchingOpen(false)
+          setOpeningMotionOpen(false)
+          setOpeningTransient(null)
+          setMode('none')
+          setMainView('model')
+          setCabinetTab('3d')
+          setSlopedTopOpen(true)
+        }}
         onCuttingList={() => setCuttingListOpen(true)}
         onExportStl={handleExportStl}
         onExportStep={handleExportStep}
@@ -742,7 +902,12 @@ function App() {
         mainView={mainView}
         onMainViewChange={setMainView}
       />
-      <ReleaseStatus input={packetInputs} releases={releases} integrity={releaseIntegrity} onReview={() => setPacketVerificationOpen(true)} />
+      <ReleaseStatus
+        input={packetInputs}
+        releases={releases}
+        integrity={releaseIntegrity}
+        onReview={() => setPacketVerificationOpen(true)}
+      />
       {projectPanelOpen && (
         <ProjectPanel
           library={library}
@@ -899,7 +1064,9 @@ function App() {
             onTabChange={setCabinetTab}
             selectedSectionId={selectedSectionId}
             onSelectSection={onSelectSection}
-            onUpdate={(updater, historyLabel) => onUpdateComponent(selectedCarcase.id, updater, historyLabel)}
+            onUpdate={(updater, historyLabel) =>
+              onUpdateComponent(selectedCarcase.id, updater, historyLabel)
+            }
             parts={cabinetParts}
             byId={componentMap}
             selectedPartId={selection?.kind === 'part' ? selection.id : null}
@@ -1007,12 +1174,17 @@ function App() {
         />
       )}
       {comparisonRelease && comparisonOpen && (
-        <ReleaseSourceComparison release={comparisonRelease} input={packetInputs} onClose={() => setComparisonRelease(null)} onInspect={(id) => {
-          onSelectPart(id)
-          setCabinetTab('3d')
-          setMainView('model')
-          setComparisonRelease(null)
-        }} />
+        <ReleaseSourceComparison
+          release={comparisonRelease}
+          input={packetInputs}
+          onClose={() => setComparisonRelease(null)}
+          onInspect={(id) => {
+            onSelectPart(id)
+            setCabinetTab('3d')
+            setMainView('model')
+            setComparisonRelease(null)
+          }}
+        />
       )}
       {readinessOpen && (
         <ManufacturingReadiness

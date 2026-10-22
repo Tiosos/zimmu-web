@@ -48,7 +48,13 @@ test('live OCCT kernel builds every board/dowel cut path and exports STEP', asyn
         occt.makeShape(oc, {
           ...board,
           cuts: [
-            { kind: 'box', ...id('c1'), face: '+Z', position: { x: 40, y: 40, z: 5 }, size: { x: 30, y: 30, z: 30 } },
+            {
+              kind: 'box',
+              ...id('c1'),
+              face: '+Z',
+              position: { x: 40, y: 40, z: 5 },
+              size: { x: 30, y: 30, z: 30 },
+            },
           ],
         }),
       ),
@@ -86,7 +92,16 @@ test('live OCCT kernel builds every board/dowel cut path and exports STEP', asyn
       dowelTransverseBore: run(() =>
         occt.makeDowelShape(oc, {
           ...dowel,
-          cuts: [{ kind: 'bore-transverse', ...id('b2'), position: 40, azimuth: 0, diameter: 4, depth: 12 }],
+          cuts: [
+            {
+              kind: 'bore-transverse',
+              ...id('b2'),
+              position: 40,
+              azimuth: 0,
+              diameter: 4,
+              depth: 12,
+            },
+          ],
         }),
       ),
       // writeStep over a board-with-cut + dowel-with-cuts compound
@@ -99,7 +114,13 @@ test('live OCCT kernel builds every board/dowel cut path and exports STEP', asyn
               ...id('B'),
               ...board,
               cuts: [
-                { kind: 'box', ...id('c1'), face: '+Z', position: { x: 40, y: 40, z: 5 }, size: { x: 30, y: 30, z: 30 } },
+                {
+                  kind: 'box',
+                  ...id('c1'),
+                  face: '+Z',
+                  position: { x: 40, y: 40, z: 5 },
+                  size: { x: 30, y: 30, z: 30 },
+                },
               ],
               matrix: m,
             },

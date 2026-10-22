@@ -278,7 +278,10 @@ test('clicking a part in the Front view selects it without closing the editor', 
   await expect(nearest).toHaveAttribute('data-selected', 'true')
 
   // Still on Front, and the sidebar now shows a part rather than the carcase parameters.
-  await expect(page.getByRole('tab', { name: 'Front', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tab', { name: 'Front', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
   await expect(page.getByLabel('L', { exact: true }).first()).toBeVisible()
 })
 

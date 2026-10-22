@@ -34,9 +34,7 @@ export interface FrameGeometry {
   accessOpenings: Map<string, FrameAccessOpening>
 }
 
-export const frameLeafKey = (sectionId: SectionId, leaf: 0 | 1): string =>
-  `${sectionId}|${leaf}`
-
+export const frameLeafKey = (sectionId: SectionId, leaf: 0 | 1): string => `${sectionId}|${leaf}`
 
 const validRect = (rect: Rect): boolean => rect.x1 > rect.x0 && rect.z1 > rect.z0
 
@@ -230,7 +228,9 @@ export function faceFrameGeometry(
   }
 
   if (root.content.kind === 'leaf') {
-    return placeLeaf(root, rootOpening) ? { members, openings, leafOpenings, frontOpenings, accessOpenings } : null
+    return placeLeaf(root, rootOpening)
+      ? { members, openings, leafOpenings, frontOpenings, accessOpenings }
+      : null
   }
 
   const resolved = tree!
@@ -266,9 +266,7 @@ export function faceFrameGeometry(
           if (d === undefined) return false
           const width = vertical ? midStileWidth : midRailWidth
           if (width <= 0) return false
-          const center = vertical
-            ? (d.rect.x0 + d.rect.x1) / 2
-            : (d.rect.z0 + d.rect.z1) / 2
+          const center = vertical ? (d.rect.x0 + d.rect.x1) / 2 : (d.rect.z0 + d.rect.z1) / 2
           const memberLo = center - width / 2
           const memberHi = center + width / 2
           if (memberLo <= cursor || memberHi >= parentHi) return false
@@ -293,9 +291,10 @@ export function faceFrameGeometry(
     return true
   }
 
-  return place(root, rootOpening) ? { members, openings, leafOpenings, frontOpenings, accessOpenings } : null
+  return place(root, rootOpening)
+    ? { members, openings, leafOpenings, frontOpenings, accessOpenings }
+    : null
 }
-
 
 // The stile that physically carries one framed leaf. Geometry, not role naming, is authoritative:
 // outer and nested mid stiles are the same problem once an opening edge is known.

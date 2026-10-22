@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { CABINET_CATALOGUE, catalogueDefinition, catalogueOverrides, catalogueSources, reconcileCatalogue } from './catalogue'
+import {
+  CABINET_CATALOGUE,
+  catalogueDefinition,
+  catalogueOverrides,
+  catalogueSources,
+  reconcileCatalogue,
+} from './catalogue'
 import { freshSectionIds } from './sectionTree'
 import { parseFile, FILE_FORMAT_VERSION } from './useFile'
 import { defaultProject } from './projectStructure'
@@ -8,20 +14,34 @@ import type { CarcaseComponent, Scene, ZimmuFile } from './types'
 
 const definition = CABINET_CATALOGUE[0]
 const cabinet = (): CarcaseComponent => ({
-  kind: 'carcase', id: 'cmp_1', label: definition.name, parentId: null,
-  position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 },
-  rotationOrder: 'XYZ', visible: true,
+  kind: 'carcase',
+  id: 'cmp_1',
+  label: definition.name,
+  parentId: null,
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  rotationOrder: 'XYZ',
+  visible: true,
   params: { ...definition.params, section: freshSectionIds(definition.params.section) },
   catalogue: { id: definition.catalogueId, version: definition.catalogueVersion, overrides: {} },
 })
 const scene = (component = cabinet()): Scene => ({
-  parts: [], components: [component], materials: {}, hardware: [], joints: [],
+  parts: [],
+  components: [component],
+  materials: {},
+  hardware: [],
+  joints: [],
 })
 const envelope = (component = cabinet()): ZimmuFile => ({
-  version: FILE_FORMAT_VERSION, name: 'Test', appVersion: '0', units: 'mm',
-  createdAt: '', updatedAt: '',
+  version: FILE_FORMAT_VERSION,
+  name: 'Test',
+  appVersion: '0',
+  units: 'mm',
+  createdAt: '',
+  updatedAt: '',
   camera: { position: { x: 0, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
-  scene: scene(component), project: defaultProject(scene(component), 'test'),
+  scene: scene(component),
+  project: defaultProject(scene(component), 'test'),
 })
 
 describe('cabinet catalogue', () => {
@@ -29,7 +49,9 @@ describe('cabinet catalogue', () => {
     expect(CABINET_CATALOGUE.map((entry) => entry.category)).toEqual(['base', 'wall', 'tall'])
     expect(new Set(CABINET_CATALOGUE.map((entry) => entry.catalogueId)).size).toBe(3)
     for (const entry of CABINET_CATALOGUE) {
-      expect(catalogueDefinition(entry.catalogueId, entry.catalogueVersion)?.params).toEqual(entry.params)
+      expect(catalogueDefinition(entry.catalogueId, entry.catalogueVersion)?.params).toEqual(
+        entry.params,
+      )
     }
   })
 
@@ -41,7 +63,9 @@ describe('cabinet catalogue', () => {
     expect(reconciled.catalogue?.overrides).toEqual({ width: 750 })
     expect(catalogueSources(reconciled).width).toBe('item')
     expect(catalogueSources(reconciled).height).toBe('catalogue')
-    expect(reconcileCatalogue({ ...reconciled, params: original.params }).catalogue?.overrides).toEqual({})
+    expect(
+      reconcileCatalogue({ ...reconciled, params: original.params }).catalogue?.overrides,
+    ).toEqual({})
   })
 
   it('records a newly added optional frame as an item override', () => {
@@ -54,12 +78,16 @@ describe('cabinet catalogue', () => {
 
   it('keeps saved geometry and overrides when the pinned version is unavailable', () => {
     const base = cabinet()
-    const missing = { ...base, params: { ...base.params, width: 750 },
-      catalogue: { id: definition.catalogueId, version: 99, overrides: { width: 750 } } }
+    const missing = {
+      ...base,
+      params: { ...base.params, width: 750 },
+      catalogue: { id: definition.catalogueId, version: 99, overrides: { width: 750 } },
+    }
     expect(catalogueDefinition(missing.catalogue.id, missing.catalogue.version)).toBeUndefined()
     expect(reconcileCatalogue(missing)).toBe(missing)
     expect(parseFile(JSON.stringify(envelope(missing))).scene.components[0]).toMatchObject({
-      params: missing.params, catalogue: missing.catalogue,
+      params: missing.params,
+      catalogue: missing.catalogue,
     })
   })
 
@@ -73,28 +101,57 @@ describe('cabinet catalogue', () => {
 
   it('refreshes an unresolved override after an edit so it can reopen', () => {
     const original = cabinet()
-    const edited = reconcileCatalogue({ ...original, params: { ...original.params, width: 800 },
-      catalogue: { id: 'unavailable', version: 7, overrides: { width: 700 } } })
+    const edited = reconcileCatalogue({
+      ...original,
+      params: { ...original.params, width: 800 },
+      catalogue: { id: 'unavailable', version: 7, overrides: { width: 700 } },
+    })
     expect(edited.catalogue?.overrides).toEqual({ width: 800 })
-    expect(parseFile(JSON.stringify(envelope(edited))).scene.components[0]).toMatchObject({ params: { width: 800 } })
+    expect(parseFile(JSON.stringify(envelope(edited))).scene.components[0]).toMatchObject({
+      params: { width: 800 },
+    })
   })
 
   it('refreshes instance IDs inside an otherwise unchanged section override', () => {
     const original = cabinet()
-    const section = { ...original.params.section, front: { kind: 'door' as const, leaves: 2 as const, hinge: 'left' as const } }
+    const section = {
+      ...original.params.section,
+      front: { kind: 'door' as const, leaves: 2 as const, hinge: 'left' as const },
+    }
     const overridden = reconcileCatalogue({ ...original, params: { ...original.params, section } })
     const nextSection = freshSectionIds(section)
-    const updated = reconcileCatalogue({ ...overridden, params: { ...overridden.params, section: nextSection } })
+    const updated = reconcileCatalogue({
+      ...overridden,
+      params: { ...overridden.params, section: nextSection },
+    })
     expect(updated.catalogue?.overrides.section).toEqual(nextSection)
     expect(() => parseFile(JSON.stringify(envelope(updated)))).not.toThrow()
   })
 
   it('rejects malformed catalogue references and unknown override fields', () => {
-    expect(() => validateCurrentFile(envelope({ ...cabinet(), catalogue: {
-      id: '', version: 1, overrides: {},
-    } }))).toThrow(/catalogue.id/)
-    expect(() => validateCurrentFile(envelope({ ...cabinet(), catalogue: {
-      id: definition.catalogueId, version: 1, overrides: { nonsense: 1 } as never,
-    } }))).toThrow(/catalogue.overrides.nonsense/)
+    expect(() =>
+      validateCurrentFile(
+        envelope({
+          ...cabinet(),
+          catalogue: {
+            id: '',
+            version: 1,
+            overrides: {},
+          },
+        }),
+      ),
+    ).toThrow(/catalogue.id/)
+    expect(() =>
+      validateCurrentFile(
+        envelope({
+          ...cabinet(),
+          catalogue: {
+            id: definition.catalogueId,
+            version: 1,
+            overrides: { nonsense: 1 } as never,
+          },
+        }),
+      ),
+    ).toThrow(/catalogue.overrides.nonsense/)
   })
 })

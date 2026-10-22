@@ -26,8 +26,7 @@ const zoneHasFront = (zone: FrameZone): boolean =>
   (zone.content.kind === 'split' && zone.content.children.some(zoneHasFront))
 
 const hasAnyPhysicalFront = (p: CarcaseParams): boolean =>
-  hasAnyFront(p.section) ||
-  Object.values(p.frame?.layout ?? {}).some(zoneHasFront)
+  hasAnyFront(p.section) || Object.values(p.frame?.layout ?? {}).some(zoneHasFront)
 
 // What a cabinet OCCUPIES, not its structural shell. Three things fall outside the shell and every
 // one of them matters when two cabinets are butted together:
@@ -61,6 +60,11 @@ export function carcaseBounds(p: CarcaseParams, thicknessOf: RoleThickness): Bou
     y0: 0 - Math.max(front, p.slopedTop?.front ?? 0),
     y1: p.depth + Math.max(back, p.slopedTop?.back ?? 0),
     z0: 0,
-    z1: p.slopedTop ? Math.max(slopeMetrics(p).roof(-p.slopedTop.left, -p.slopedTop.front), slopeMetrics(p).roof(p.width + p.slopedTop.right, p.depth + p.slopedTop.back)) : p.height,
+    z1: p.slopedTop
+      ? Math.max(
+          slopeMetrics(p).roof(-p.slopedTop.left, -p.slopedTop.front),
+          slopeMetrics(p).roof(p.width + p.slopedTop.right, p.depth + p.slopedTop.back),
+        )
+      : p.height,
   }
 }

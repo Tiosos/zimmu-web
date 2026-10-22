@@ -851,14 +851,25 @@ describe('wall elevation sheets', () => {
       })),
     }
     const sheet = buildWallElevationSheets(
-      { roomName: 'R', room, scene: wallScene([base, wall, tall]), cabinetIds: new Set(['base', 'wall', 'tall']) },
+      {
+        roomName: 'R',
+        room,
+        scene: wallScene([base, wall, tall]),
+        cabinetIds: new Set(['base', 'wall', 'tall']),
+      },
       'd',
     )[0]
     if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
-    const widest = Math.max(...sheet.view.dims.filter((d) => d.axis === 'v').map((d) => d.label.length))
+    const widest = Math.max(
+      ...sheet.view.dims.filter((d) => d.axis === 'v').map((d) => d.label.length),
+    )
     expect(sheet.ring).toBeCloseTo(SHEET_FONT * (3.1 + 0.4 + 0.3 + 0.65 * widest))
-    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(297 - 2 * MARGIN - 2 * sheet.ring + 1e-9)
-    expect(sheet.view.bounds.h * sheet.scale).toBeLessThanOrEqual(210 - 2 * MARGIN - TITLE_H - sheet.ring + 1e-9)
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(
+      297 - 2 * MARGIN - 2 * sheet.ring + 1e-9,
+    )
+    expect(sheet.view.bounds.h * sheet.scale).toBeLessThanOrEqual(
+      210 - 2 * MARGIN - TITLE_H - sheet.ring + 1e-9,
+    )
   })
 
   it('drops to 1:50 for a wall too long for 1:20', () => {
@@ -881,7 +892,9 @@ describe('wall elevation sheets', () => {
     )[0]
     if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
     expect(sheet.scaleLabel).toBe('1:500')
-    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(297 - 2 * MARGIN - 2 * sheet.ring + 1e-9)
+    expect(sheet.view.bounds.w * sheet.scale).toBeLessThanOrEqual(
+      297 - 2 * MARGIN - 2 * sheet.ring + 1e-9,
+    )
   })
 
   it('is limited by height on a short, very tall wall', () => {
@@ -891,7 +904,15 @@ describe('wall elevation sheets', () => {
       walls: [{ ...f.room.walls[0], end: { x: 1000, y: 0 } }],
       placements: [],
       openings: [
-        { id: 'shaft', wallId: 'long', kind: 'door' as const, offset: 0, width: 800, sill: 0, height: 6000 },
+        {
+          id: 'shaft',
+          wallId: 'long',
+          kind: 'door' as const,
+          offset: 0,
+          width: 800,
+          sill: 0,
+          height: 6000,
+        },
       ],
     }
     const sheet = buildWallElevationSheets(
@@ -900,7 +921,9 @@ describe('wall elevation sheets', () => {
     )[0]
     if (sheet.kind !== 'elevation') throw new Error('expected an elevation sheet')
     expect(sheet.scaleLabel).toBe('1:50')
-    expect(sheet.view.bounds.h * sheet.scale).toBeLessThanOrEqual(210 - 2 * MARGIN - TITLE_H - sheet.ring + 1e-9)
+    expect(sheet.view.bounds.h * sheet.scale).toBeLessThanOrEqual(
+      210 - 2 * MARGIN - TITLE_H - sheet.ring + 1e-9,
+    )
     expect(sheet.view.bounds.w * sheet.scale).toBeLessThan((297 - 2 * MARGIN - 2 * sheet.ring) / 5)
   })
 

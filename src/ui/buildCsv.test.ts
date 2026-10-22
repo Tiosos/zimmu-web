@@ -303,9 +303,9 @@ describe('finishedDimensions', () => {
   })
 
   it('never moves the thickness, even when it is the largest dimension', () => {
-    expect(finishedDimensions({ ...plywoodPart, length: 40, width: 60, thickness: 100 }).thickness).toBe(
-      100,
-    )
+    expect(
+      finishedDimensions({ ...plywoodPart, length: 40, width: 60, thickness: 100 }).thickness,
+    ).toBe(100)
   })
 
   // A three-bay 900's shelf is stored 285 x 548 and runs its grain along the 285 mm span. Grain
@@ -313,13 +313,25 @@ describe('finishedDimensions', () => {
   // it when grain is unconstrained.
   it('grain decides the length, even when it is the shorter dimension', () => {
     expect(
-      finishedDimensions({ ...plywoodPart, length: 285, width: 548, thickness: 18, grain: 'length' }),
+      finishedDimensions({
+        ...plywoodPart,
+        length: 285,
+        width: 548,
+        thickness: 18,
+        grain: 'length',
+      }),
     ).toEqual({ length: 285, width: 548, thickness: 18 })
   })
 
   it('grain on width swaps the pair', () => {
     expect(
-      finishedDimensions({ ...plywoodPart, length: 560, width: 720, thickness: 18, grain: 'width' }),
+      finishedDimensions({
+        ...plywoodPart,
+        length: 560,
+        width: 720,
+        thickness: 18,
+        grain: 'width',
+      }),
     ).toEqual({ length: 720, width: 560, thickness: 18 })
   })
 
@@ -667,7 +679,10 @@ describe('cutlist edge banding', () => {
   })
 
   describe('float noise in a cut size', () => {
-    const thin: Record<string, MaterialDef> = { ...mats, 'ABS 0.45': { thickness: 0.45, use: 'edge' } }
+    const thin: Record<string, MaterialDef> = {
+      ...mats,
+      'ABS 0.45': { thickness: 0.45, use: 'edge' },
+    }
     const noisy = (id: string, length: number): BoardPart => ({
       ...bottom,
       id,
@@ -708,15 +723,32 @@ describe('cutlist edge banding', () => {
   })
 
   it('does not merge boards with one cut size and edge pattern but different orientation', () => {
-    const a: BoardPart = { ...bottom, id: 'a', length: 600, width: 300, grain: 'length', edgeBanding: { y0: 'ABS 1mm' } }
-    const b: BoardPart = { ...bottom, id: 'b', length: 299, width: 601, grain: 'width', edgeBanding: { y0: 'ABS 1mm' } }
+    const a: BoardPart = {
+      ...bottom,
+      id: 'a',
+      length: 600,
+      width: 300,
+      grain: 'length',
+      edgeBanding: { y0: 'ABS 1mm' },
+    }
+    const b: BoardPart = {
+      ...bottom,
+      id: 'b',
+      length: 299,
+      width: 601,
+      grain: 'width',
+      edgeBanding: { y0: 'ABS 1mm' },
+    }
     const rows = groupParts([a, b], mats, components)
     expect(rows[0].length).toBe(rows[1].length)
     expect(rows[0].width).toBe(rows[1].width)
     expect(rows).toHaveLength(2)
   })
 
-  it.each([['a missing material', 'Ghost'], ['a panel material', 'Plywood']])(
+  it.each([
+    ['a missing material', 'Ghost'],
+    ['a panel material', 'Plywood'],
+  ])(
     'bands nothing and raises no problem when the cabinet edge material is %s',
     (_name, edgeMaterial) => {
       const c = { ...cabinet, params: { ...cabinet.params, edgeMaterial } }
@@ -755,7 +787,11 @@ describe('cutlist edge banding', () => {
 
     it('carries the edge materials as a sorted list beside the printed string', () => {
       const two: BoardPart = { ...bottom, edgeBanding: { x0: 'ABS 2mm', y0: 'ABS 1mm' } }
-      const row = groupParts([two], { ...mats, 'ABS 2mm': { thickness: 2, use: 'edge' } }, components)[0]
+      const row = groupParts(
+        [two],
+        { ...mats, 'ABS 2mm': { thickness: 2, use: 'edge' } },
+        components,
+      )[0]
       expect(row.edgeMaterialList).toEqual(['ABS 1mm', 'ABS 2mm'])
       expect(row.edgeMaterials).toBe('ABS 1mm, ABS 2mm')
     })

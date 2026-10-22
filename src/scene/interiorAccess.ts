@@ -119,9 +119,7 @@ function intersectsAabb(shelf: OrientedShelf, box: LocalBox): boolean {
       shelf.half[1] * Math.abs(dot(shelf.axes[1], axis)) +
       shelf.half[2] * Math.abs(dot(shelf.axes[2], axis))
     const boxRadius =
-      bHalf[0] * Math.abs(axis.x) +
-      bHalf[1] * Math.abs(axis.y) +
-      bHalf[2] * Math.abs(axis.z)
+      bHalf[0] * Math.abs(axis.x) + bHalf[1] * Math.abs(axis.y) + bHalf[2] * Math.abs(axis.z)
     if (Math.abs(dot(delta, axis)) >= shelfRadius + boxRadius - COLLISION_EPSILON) {
       return false
     }
@@ -161,16 +159,21 @@ function clearInterval(
   const enclosure = shelfAt(box, middle)
   const travel = scale(sub(to.center, from.center), 0.5)
   const angle = sub(to.rotation, from.rotation)
-  const rotationTravel = Math.hypot(...enclosure.half) * DEG *
-    (Math.abs(angle.x) + Math.abs(angle.y) + Math.abs(angle.z)) / 2
-  enclosure.half = enclosure.half.map((half, i) =>
-    half + Math.abs(dot(travel, enclosure.axes[i])) + rotationTravel,
+  const rotationTravel =
+    (Math.hypot(...enclosure.half) *
+      DEG *
+      (Math.abs(angle.x) + Math.abs(angle.y) + Math.abs(angle.z))) /
+    2
+  enclosure.half = enclosure.half.map(
+    (half, i) => half + Math.abs(dot(travel, enclosure.axes[i])) + rotationTravel,
   ) as [number, number, number]
   const nearby = obstacles.filter((obstacle) => intersectsAabb(enclosure, obstacle.box))
   if (nearby.length === 0) return true
   if (depth >= 12 || !clearPose(box, middle, nearby)) return false
-  return clearInterval(box, from, middle, nearby, depth + 1) &&
+  return (
+    clearInterval(box, from, middle, nearby, depth + 1) &&
     clearInterval(box, middle, to, nearby, depth + 1)
+  )
 }
 
 function segment(
@@ -232,10 +235,7 @@ export function accessAperturesForSection(
   return framed.length > 0 ? framed : [{ id: sectionId, rect: sectionRect }]
 }
 
-export function frameAccessObstacles(
-  fronts: FrontGeometry,
-  frameDepth: number,
-): AccessObstacle[] {
+export function frameAccessObstacles(fronts: FrontGeometry, frameDepth: number): AccessObstacle[] {
   if (frameDepth <= 0) return []
   return (fronts.frameMembers ?? []).map((member) => ({
     role: member.role,
@@ -264,8 +264,10 @@ export function findShelfInsertionPath(
     // requested height before the aperture centre: a clear straight route must not be declined
     // just because the centre happens to lie on that fixed shelf.
     if (
-      shelfBox.x0 >= aperture.rect.x0 && shelfBox.x1 <= aperture.rect.x1 &&
-      shelfBox.z0 >= aperture.rect.z0 && shelfBox.z1 <= aperture.rect.z1
+      shelfBox.x0 >= aperture.rect.x0 &&
+      shelfBox.x1 <= aperture.rect.x1 &&
+      shelfBox.z0 >= aperture.rect.z0 &&
+      shelfBox.z1 <= aperture.rect.z1
     ) {
       const start: ShelfPose = {
         center: {
@@ -331,9 +333,7 @@ export function findShelfInsertionPath(
       return {
         apertureId: aperture.id,
         kind:
-          Math.abs(rotation.x) < 1e-9 &&
-          Math.abs(rotation.y) < 1e-9 &&
-          Math.abs(rotation.z) < 1e-9
+          Math.abs(rotation.x) < 1e-9 && Math.abs(rotation.y) < 1e-9 && Math.abs(rotation.z) < 1e-9
             ? 'straight'
             : 'rotated',
         poses: [

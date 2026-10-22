@@ -1,11 +1,4 @@
-import type {
-  BoardPart,
-  ComponentId,
-  CutDef,
-  Grain,
-  ManualMachiningOperation,
-  Part,
-} from './types'
+import type { BoardPart, ComponentId, CutDef, Grain, ManualMachiningOperation, Part } from './types'
 import type { PanelSpec } from './carcaseRoles'
 import { PART_COLORS } from './palette'
 
@@ -92,7 +85,9 @@ export function reconcileBoards(
       parentId: owner.id,
       driven: true,
       role: b.role,
-      ...(existing?.kind === 'board' && existing.serviceMachining !== undefined ? { serviceMachining: existing.serviceMachining } : {}),
+      ...(existing?.kind === 'board' && existing.serviceMachining !== undefined
+        ? { serviceMachining: existing.serviceMachining }
+        : {}),
       ...(existing?.kind === 'board' && existing.edgeBanding !== undefined
         ? { edgeBanding: existing.edgeBanding }
         : {}),

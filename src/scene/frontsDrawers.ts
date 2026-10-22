@@ -204,7 +204,12 @@ const number = (raw: string) => {
   return n
 }
 function validatePatch(scene: Scene, p: Partial<DrawerParams>): void {
-  if (p.nominal !== undefined && p.nominal !== null && !(RUNNER_NOMINALS as readonly number[]).includes(p.nominal)) throw Error('Choose a supported runner nominal.')
+  if (
+    p.nominal !== undefined &&
+    p.nominal !== null &&
+    !(RUNNER_NOMINALS as readonly number[]).includes(p.nominal)
+  )
+    throw Error('Choose a supported runner nominal.')
   if (p.family !== undefined && !['side-mount', 'undermount'].includes(p.family))
     throw Error('Unsupported runner family.')
   if (
@@ -235,12 +240,12 @@ export function stageDrawer(
     action.kind === 'nominal'
       ? { nominal: action.value === null ? null : number(action.value) }
       : action.kind === 'family'
-      ? { family: action.value }
-      : action.kind === 'height'
-        ? { boxHeight: action.value === null ? null : number(action.value) }
-        : action.kind === 'offset'
-          ? { runnerOffset: number(action.value) }
-          : { material: action.value }
+        ? { family: action.value }
+        : action.kind === 'height'
+          ? { boxHeight: action.value === null ? null : number(action.value) }
+          : action.kind === 'offset'
+            ? { runnerOffset: number(action.value) }
+            : { material: action.value }
   validatePatch(scene, patch)
   for (const t of targets) {
     if ((draft.fronts[t.id] ?? frontChoice(t.front)) !== 'drawer-front')

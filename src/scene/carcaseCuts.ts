@@ -26,4 +26,3 @@ export function carcaseCuts(p: CarcaseParams, thicknessOf: RoleThickness, role: 
     },
   ]
 }
-

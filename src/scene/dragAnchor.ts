@@ -20,8 +20,7 @@ export type Drop =
   // `rotationZ` is the TARGET's rotation, offered as a UI default. It stays OUT of `Anchor`: an
   // anchor derives position only, and a corner is a cabinet both turned and anchored — two facts,
   // not one. Rotation is always the user's, so this is a suggestion the caller may ignore.
-  | { kind: 'anchor'; anchor: Anchor; rotationZ: number }
-  | { kind: 'free'; position: Vec3 }
+  { kind: 'anchor'; anchor: Anchor; rotationZ: number } | { kind: 'free'; position: Vec3 }
 
 // Flush is the stated default and the common case, so a near-flush drag becomes exactly flush.
 // Past the snap the dragged figure survives untouched, which is what lets a deliberate reveal be

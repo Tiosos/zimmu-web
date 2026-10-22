@@ -236,7 +236,9 @@ export function SceneTree({
     if (groups === null) return renderChildren(component.id, depth)
     return (
       <>
-        {components.filter((c) => c.parentId === component.id).map((c) => renderComponent(c, depth))}
+        {components
+          .filter((c) => c.parentId === component.id)
+          .map((c) => renderComponent(c, depth))}
         {groups.sections.map((node, i) => renderSection(component, node, i, depth))}
         {groups.carcase.map((p) => renderPart(p, depth))}
       </>

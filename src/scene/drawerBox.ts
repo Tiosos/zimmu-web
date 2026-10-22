@@ -113,11 +113,7 @@ export interface DrawerContext {
 // for it cannot disagree about length. It belongs on this side of that pair because the dependency
 // runs one way: the carcase generator reads this module for a box's geometry, and a rule about a
 // box kept in `carcaseRoles` would make this module read it back.
-export function frontIntrusion(
-  frontThickness: number,
-  inset: boolean,
-  frameDepth: number,
-): number {
+export function frontIntrusion(frontThickness: number, inset: boolean, frameDepth: number): number {
   return inset ? Math.max(0, frontThickness - frameDepth) : 0
 }
 
@@ -150,9 +146,14 @@ export function drawerBoxMetrics(
 ): DrawerBoxMetrics | null {
   // The nominal is recovered from the key rather than chosen here, so the box and the hardware
   // quote cannot pick different runners for the same cabinet.
-  const runnerKey = runnerKeyFor(boxDepth(ctx.clearDepth, ctx.frontThickness, ctx.inset, ctx.frameDepth ?? 0))
+  const runnerKey = runnerKeyFor(
+    boxDepth(ctx.clearDepth, ctx.frontThickness, ctx.inset, ctx.frameDepth ?? 0),
+  )
   const available = boxDepth(ctx.clearDepth, ctx.frontThickness, ctx.inset, ctx.frameDepth ?? 0)
-  const depth = params.nominal == null ? RUNNER_NOMINALS.find((n) => `runner-${n}` === runnerKey) : RUNNER_NOMINALS.find((n) => n === params.nominal && n <= available)
+  const depth =
+    params.nominal == null
+      ? RUNNER_NOMINALS.find((n) => `runner-${n}` === runnerKey)
+      : RUNNER_NOMINALS.find((n) => n === params.nominal && n <= available)
   if (depth === undefined) return null
 
   const openingHeight = opening.z1 - opening.z0

@@ -5,7 +5,13 @@ import { dadoDepthFor } from '../geom/dado'
 import { grainAxisOf, grainFieldFor } from './grain'
 import type { RoleThickness } from './resolveThickness'
 import type { CarcaseJointKind, RoleJointKind } from './resolveJointKind'
-import { resolveSections, type FrontSpec, type ResolvedDivision, type ResolvedTree, type SectionId } from './sectionTree'
+import {
+  resolveSections,
+  type FrontSpec,
+  type ResolvedDivision,
+  type ResolvedTree,
+  type SectionId,
+} from './sectionTree'
 import { sectionInteriors } from './sectionInterior'
 import { frontCells, frontRoleOf, type FrontCell } from './frontCells'
 import {
@@ -349,7 +355,10 @@ export function carcaseBoxes(
         // An inset front stands in the first FT millimetres of the opening, so the shelf starts
         // behind it plus the same clearance it keeps from every other panel. An overlay front is
         // in front of y = 0 and costs nothing. The constant is the floor, never the answer.
-        y0: Math.max(SHELF_FRONT_SETBACK, insetDepthOf(sectionId) + ADJUSTABLE_SHELF_SIDE_CLEARANCE),
+        y0: Math.max(
+          SHELF_FRONT_SETBACK,
+          insetDepthOf(sectionId) + ADJUSTABLE_SHELF_SIDE_CLEARANCE,
+        ),
         y1: shelfBackY - ADJUSTABLE_SHELF_SIDE_CLEARANCE,
         z0,
         z1: z0 + shelfThickness,
@@ -358,13 +367,15 @@ export function carcaseBoxes(
       // must witness a collision-free path; a frame-only stile is never allowed to resize the
       // manufactured shelf merely to make the access test pass.
       const apertures = accessAperturesForSection(sectionId, rect, fronts)
-      const path = findShelfInsertionPath(
+      const path = findShelfInsertionPath(shelfBox, apertures, shelfAccessObstacles, frameDepth)
+      onShelfAccess?.({
+        sectionId,
+        role,
         shelfBox,
+        obstacles: shelfAccessObstacles,
         apertures,
-        shelfAccessObstacles,
-        frameDepth,
-      )
-      onShelfAccess?.({ sectionId, role, shelfBox, obstacles: shelfAccessObstacles, apertures, path })
+        path,
+      })
       if (path === null) return
 
       seated += 1
@@ -474,13 +485,17 @@ export function carcaseRoles(
     extendToward(housed.box, housing.box, ax, extensionFor(d.kind, thickness))
   }
 
-  return slopedRoles(p, boxes.map((b) => ({
-    role: b.role,
-    label: b.label,
-    panel: orientedPanel(b.box, b.thicknessAxis),
-    grain: grainFieldFor(
-      b.thicknessAxis,
-      grainAxisOf(b.role, b.thicknessAxis === 'x' ? 'vertical' : 'horizontal'),
-    ),
-  })), thicknessOf)
+  return slopedRoles(
+    p,
+    boxes.map((b) => ({
+      role: b.role,
+      label: b.label,
+      panel: orientedPanel(b.box, b.thicknessAxis),
+      grain: grainFieldFor(
+        b.thicknessAxis,
+        grainAxisOf(b.role, b.thicknessAxis === 'x' ? 'vertical' : 'horizontal'),
+      ),
+    })),
+    thicknessOf,
+  )
 }

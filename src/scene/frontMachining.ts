@@ -79,8 +79,15 @@ export function cupRow(
   layout?: HingeLayout,
 ): HoleArrayCut | null {
   if (panel.thickness < depth + MIN_FACE_BEHIND_CUP) return null
-  const row = layout ? hingeLayoutRow(panel.length, layout, hingeCount(panel.length)) : hingePositions(panel.length)
-  if (!row || (layout && (panel.width < CUP_EDGE_DISTANCE + CUP_DIAMETER / 2 || !Number.isFinite(panel.thickness)))) return null
+  const row = layout
+    ? hingeLayoutRow(panel.length, layout, hingeCount(panel.length))
+    : hingePositions(panel.length)
+  if (
+    !row ||
+    (layout &&
+      (panel.width < CUP_EDGE_DISTANCE + CUP_DIAMETER / 2 || !Number.isFinite(panel.thickness)))
+  )
+    return null
   return {
     kind: 'hole-array',
     id: `cups_${frontRole}`,
@@ -146,7 +153,12 @@ export function slideScrewRow(
     axis: 'U',
     start: { x: first, y: height, z: face === '+Z' ? panel.thickness : 0 },
     pitch: SLIDE_SCREW_PITCH,
-    count: span ? Math.max(2, Math.floor((span.end - first - PLATE_SCREW_DIAMETER / 2) / SLIDE_SCREW_PITCH) + 1) : Math.max(2, Math.floor(runnable / SLIDE_SCREW_PITCH)),
+    count: span
+      ? Math.max(
+          2,
+          Math.floor((span.end - first - PLATE_SCREW_DIAMETER / 2) / SLIDE_SCREW_PITCH) + 1,
+        )
+      : Math.max(2, Math.floor(runnable / SLIDE_SCREW_PITCH)),
     diameter: PLATE_SCREW_DIAMETER,
     depth: blindDepth(PLATE_SCREW_DEPTH, panel.thickness),
   }

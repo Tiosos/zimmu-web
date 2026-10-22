@@ -75,22 +75,31 @@ describe('buildDxf', () => {
   it('prints manual machining without adding CUTS geometry', () => {
     const baseline = buildDxf(buildDrawingSheets([makeBoard()], 'Test')[1])
     const withOperation = buildDxf(
-      buildDrawingSheets([makeBoard({ operations: [{
-      kind: 'manual-machining' as const,
-      id: 'op1',
-      label: 'Blum inset adapter 1',
-      hardwareKey: 'hinge-blum-clip-inset-175h5030-21',
-      face: '-Z' as const,
-      at: { x: 100, y: 28, z: 0 },
-      diameter: 3,
-      pitch: 32,
-      count: 2,
-      angle: 12,
-      edgeOffset: 10,
-      template: 'Blum PLATEMATE',
-      instruction:
-        'Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
-    }] })], 'Test')[1],
+      buildDrawingSheets(
+        [
+          makeBoard({
+            operations: [
+              {
+                kind: 'manual-machining' as const,
+                id: 'op1',
+                label: 'Blum inset adapter 1',
+                hardwareKey: 'hinge-blum-clip-inset-175h5030-21',
+                face: '-Z' as const,
+                at: { x: 100, y: 28, z: 0 },
+                diameter: 3,
+                pitch: 32,
+                count: 2,
+                angle: 12,
+                edgeOffset: 10,
+                template: 'Blum PLATEMATE',
+                instruction:
+                  'Fit 175H5030.21 with PLATEMATE/template; drill two Ø3 pilots at 32 mm spacing using the documented 12° installation geometry.',
+              },
+            ],
+          }),
+        ],
+        'Test',
+      )[1],
     )
     expect(withOperation).toContain('175H5030.21')
     expect(withOperation).toContain('12°')
@@ -100,9 +109,9 @@ describe('buildDxf', () => {
         .split('\n0\n')
         .filter((e) => e.startsWith(`${type}\n`))
     expect(entities(withOperation, 'CIRCLE')).toHaveLength(entities(baseline, 'CIRCLE').length)
-    expect(
-      entities(withOperation, 'LINE').filter((e) => e.includes('\n8\nCUTS\n')),
-    ).toHaveLength(entities(baseline, 'LINE').filter((e) => e.includes('\n8\nCUTS\n')).length)
+    expect(entities(withOperation, 'LINE').filter((e) => e.includes('\n8\nCUTS\n'))).toHaveLength(
+      entities(baseline, 'LINE').filter((e) => e.includes('\n8\nCUTS\n')).length,
+    )
   })
 
   it('contains TEXT entity with the length label', () => {
@@ -475,7 +484,9 @@ describe('buildDxf — elevation sheets', () => {
     const room = {
       ...f.room,
       openings: [],
-      placements: [{ cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } }],
+      placements: [
+        { cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } },
+      ],
     }
     const s = buildWallElevationSheets(
       { roomName: 'R', room, scene: wallScene([sunk]), cabinetIds: new Set(['sunk']) },

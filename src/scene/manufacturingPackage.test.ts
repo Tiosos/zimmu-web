@@ -157,7 +157,11 @@ describe('golden manufacturing package', () => {
     expect(cabinet).toBeDefined()
 
     const frames = frameBoards(scene)
-    expect(frames.some((p) => p.role?.startsWith('stile-') && p.role !== 'stile-left' && p.role !== 'stile-right')).toBe(true)
+    expect(
+      frames.some(
+        (p) => p.role?.startsWith('stile-') && p.role !== 'stile-left' && p.role !== 'stile-right',
+      ),
+    ).toBe(true)
 
     const manual = frames.flatMap((p) => p.operations ?? [])
     expect(manual.length).toBeGreaterThan(0)
@@ -227,7 +231,8 @@ describe('golden manufacturing package', () => {
     expect(frameRoles).toContain('stile-zone-lower-0')
 
     const fronts = scene.parts.filter(
-      (part): part is BoardPart => part.kind === 'board' && part.role?.startsWith('front-') === true,
+      (part): part is BoardPart =>
+        part.kind === 'board' && part.role?.startsWith('front-') === true,
     )
     expect(fronts).toHaveLength(3)
     expect(fronts.every((part) => part.role?.includes('|'))).toBe(true)

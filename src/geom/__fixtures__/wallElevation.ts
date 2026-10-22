@@ -24,7 +24,11 @@ export function wallCabinet(
     rotationOrder: 'XYZ',
     params: {
       ...base,
-      section: setFrontOn(base.section, base.section.id, { kind: 'door', leaves: 1, hinge: 'left' }),
+      section: setFrontOn(base.section, base.section.id, {
+        kind: 'door',
+        leaves: 1,
+        hinge: 'left',
+      }),
       ...params,
     },
   }
@@ -57,10 +61,24 @@ export function kitchenWall(measuredLength?: SiteMeasurement) {
       },
     ],
     openings: [
-      { id: 'window', wallId: 'long', kind: 'window', offset: 1800, width: 1200, sill: 900, height: 1100 },
+      {
+        id: 'window',
+        wallId: 'long',
+        kind: 'window',
+        offset: 1800,
+        width: 1200,
+        sill: 900,
+        height: 1100,
+      },
     ],
     placements: [
-      { cabinetId: cabinet.id, wallId: 'long', offset: 1000, setback: 0, manualOffset: { x: 0, y: 0 } },
+      {
+        cabinetId: cabinet.id,
+        wallId: 'long',
+        offset: 1000,
+        setback: 0,
+        manualOffset: { x: 0, y: 0 },
+      },
     ],
   }
   return { room, cabinet, scene: wallScene([cabinet]), cabinetIds: new Set([cabinet.id]) }

@@ -44,8 +44,7 @@ export function shapeToMeshData(
   // Pass embind enum objects directly — unwrapping to a plain number silently
   // makes Init() match zero faces.
   const faceEnum = oc.TopAbs_ShapeEnum.TopAbs_FACE
-  const shapeEnum = (oc.TopAbs_ShapeEnum as unknown as Record<string, unknown>)
-    .TopAbs_SHAPE
+  const shapeEnum = (oc.TopAbs_ShapeEnum as unknown as Record<string, unknown>).TopAbs_SHAPE
 
   const explorer = new oc.TopExp_Explorer_1()
   explorer.Init(shape, faceEnum, shapeEnum)

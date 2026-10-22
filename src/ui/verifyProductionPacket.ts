@@ -144,7 +144,8 @@ const WIN_ANSI_HIGH =
   '\u0090\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u009D\u017E\u0178'
 function decodeWinAnsi(bytes: Uint8Array): string {
   let out = ''
-  for (const b of bytes) out += b >= 0x80 && b <= 0x9f ? WIN_ANSI_HIGH[b - 0x80] : String.fromCharCode(b)
+  for (const b of bytes)
+    out += b >= 0x80 && b <= 0x9f ? WIN_ANSI_HIGH[b - 0x80] : String.fromCharCode(b)
   return out
 }
 

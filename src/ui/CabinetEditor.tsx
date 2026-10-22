@@ -57,7 +57,24 @@ import type {
 // cabinet. It is hidden rather than unmounted, which is why this component renders nothing for it:
 // `viewport.tsx` builds its renderer, camera and every mesh in a mount-once effect, so swapping it
 // out on a tab change would tear all of that down and rebuild it. `App` owns the showing.
-const TABS = ['section', 'construction', 'placement', 'layout', 'finishing', 'fronts', 'interiors', 'materials', 'edgebanding', 'appliances', 'services', 'hardware', 'front', 'top', 'end', '3d'] as const
+const TABS = [
+  'section',
+  'construction',
+  'placement',
+  'layout',
+  'finishing',
+  'fronts',
+  'interiors',
+  'materials',
+  'edgebanding',
+  'appliances',
+  'services',
+  'hardware',
+  'front',
+  'top',
+  'end',
+  '3d',
+] as const
 export type CabinetTab = (typeof TABS)[number]
 
 const LABELS: Record<CabinetTab, string> = {
@@ -140,7 +157,13 @@ export function CabinetEditor({
   onApplyPlacementPreview?: (preview: PlacementPreview) => boolean
   onApplyRulePreview?: (preview: RulePreview) => boolean
 } & ImpactPricing) {
-  const definition = component.catalogue && catalogueDefinition(component.catalogue.id, component.catalogue.version, scene?.companyCatalogues)
+  const definition =
+    component.catalogue &&
+    catalogueDefinition(
+      component.catalogue.id,
+      component.catalogue.version,
+      scene?.companyCatalogues,
+    )
   const sources = catalogueSources(component, scene?.cabinetRules, scene?.companyCatalogues)
   const [version, setVersion] = useState(component.catalogue?.version ?? 1)
   const [preview, setPreview] = useState<RulePreview | null>(null)
@@ -165,31 +188,105 @@ export function CabinetEditor({
         {component.catalogue && (
           <details className="text-xs text-muted-foreground mr-4 relative">
             <summary className="cursor-pointer">
-              {definition ? `${definition.name} v${definition.catalogueVersion}` :
-                `Catalogue ${component.catalogue.id} v${component.catalogue.version} unavailable`}
+              {definition
+                ? `${definition.name} v${definition.catalogueVersion}`
+                : `Catalogue ${component.catalogue.id} v${component.catalogue.version} unavailable`}
               {definition && Object.values(sources).includes('item') ? ' · item overrides' : ''}
             </summary>
-            <div className={`z-20 bg-background border border-border rounded p-3 overflow-auto shadow-md ${preview ? 'fixed inset-x-4 top-24 mx-auto max-w-3xl max-h-[min(70vh,calc(100dvh-7rem))]' : 'absolute max-h-64 min-w-44'}`}>
-              {definition && Object.keys(sources).length ? Object.entries(sources).map(([key, source]) =>
-                <div key={key}>{RULE_LABELS[key as RuleKey] ?? key}: {{ item: 'Item override', catalogue: 'Catalogue', company: 'Company', project: 'Project' }[source]}</div>) :
-                'Saved cabinet geometry is preserved; the catalogue or company rule version cannot be resolved.'}
-              {scene && onApplyRulePreview && <div className="space-y-2 mt-2 border-t pt-2">
-                {definition?.companyLabel && <p>Pinned company rules: {definition.companyLabel}</p>}
-                <label>Installed version <select aria-label="Catalogue update version" value={version}
-                  onChange={(event) => { setVersion(Number(event.target.value)); setPreview(null); setUpdateError('') }}>
-                  {catalogueDefinitions(scene?.companyCatalogues).filter((entry) => entry.catalogueId === component.catalogue?.id).map((entry) =>
-                    <option key={entry.catalogueVersion} value={entry.catalogueVersion}>v{entry.catalogueVersion}</option>)}
-                </select></label>
-                <p>{definition?.companyLabel ? 'Company publication records' : 'Starter examples'}. Preview before accepting an installed version.</p>
-                <Button size="sm" variant="outline" onClick={() => { setPreview(previewCatalogueUpdate(scene, component.id, version)); setUpdateError('') }}>Preview catalogue update</Button>
-                {preview && <><Button size="sm" variant="outline" onClick={() => { setPreview(null); setUpdateError('') }}>Close impact review</Button><RulePreviewDetails preview={preview} library={library} hardwareLibrary={hardwareLibrary} />
-                  <Button size="sm" disabled={preview.errors.length > 0} onClick={() => {
-                    if (onApplyRulePreview(preview)) { setPreview(null); setUpdateError('') }
-                    else setUpdateError('The design changed after preview. Preview again before applying.')
-                  }}>Apply catalogue update</Button></>}
-                {updateError && <p role="alert">{updateError}</p>}
-              </div>}
-
+            <div
+              className={`z-20 bg-background border border-border rounded p-3 overflow-auto shadow-md ${preview ? 'fixed inset-x-4 top-24 mx-auto max-w-3xl max-h-[min(70vh,calc(100dvh-7rem))]' : 'absolute max-h-64 min-w-44'}`}
+            >
+              {definition && Object.keys(sources).length
+                ? Object.entries(sources).map(([key, source]) => (
+                    <div key={key}>
+                      {RULE_LABELS[key as RuleKey] ?? key}:{' '}
+                      {
+                        {
+                          item: 'Item override',
+                          catalogue: 'Catalogue',
+                          company: 'Company',
+                          project: 'Project',
+                        }[source]
+                      }
+                    </div>
+                  ))
+                : 'Saved cabinet geometry is preserved; the catalogue or company rule version cannot be resolved.'}
+              {scene && onApplyRulePreview && (
+                <div className="space-y-2 mt-2 border-t pt-2">
+                  {definition?.companyLabel && (
+                    <p>Pinned company rules: {definition.companyLabel}</p>
+                  )}
+                  <label>
+                    Installed version{' '}
+                    <select
+                      aria-label="Catalogue update version"
+                      value={version}
+                      onChange={(event) => {
+                        setVersion(Number(event.target.value))
+                        setPreview(null)
+                        setUpdateError('')
+                      }}
+                    >
+                      {catalogueDefinitions(scene?.companyCatalogues)
+                        .filter((entry) => entry.catalogueId === component.catalogue?.id)
+                        .map((entry) => (
+                          <option key={entry.catalogueVersion} value={entry.catalogueVersion}>
+                            v{entry.catalogueVersion}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <p>
+                    {definition?.companyLabel ? 'Company publication records' : 'Starter examples'}.
+                    Preview before accepting an installed version.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setPreview(previewCatalogueUpdate(scene, component.id, version))
+                      setUpdateError('')
+                    }}
+                  >
+                    Preview catalogue update
+                  </Button>
+                  {preview && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setPreview(null)
+                          setUpdateError('')
+                        }}
+                      >
+                        Close impact review
+                      </Button>
+                      <RulePreviewDetails
+                        preview={preview}
+                        library={library}
+                        hardwareLibrary={hardwareLibrary}
+                      />
+                      <Button
+                        size="sm"
+                        disabled={preview.errors.length > 0}
+                        onClick={() => {
+                          if (onApplyRulePreview(preview)) {
+                            setPreview(null)
+                            setUpdateError('')
+                          } else
+                            setUpdateError(
+                              'The design changed after preview. Preview again before applying.',
+                            )
+                        }}
+                      >
+                        Apply catalogue update
+                      </Button>
+                    </>
+                  )}
+                  {updateError && <p role="alert">{updateError}</p>}
+                </div>
+              )}
             </div>
           </details>
         )}
@@ -214,41 +311,136 @@ export function CabinetEditor({
 
       {/* A projection is a drawing, so it can be exported as one. Section is an editor and 3D is
           the viewport; neither is what `buildDrawingSheets` would put on a sheet. */}
-      {tab !== '3d' && tab !== 'section' && tab !== 'construction' && tab !== 'placement' && tab !== 'layout' && tab !== 'finishing' && tab !== 'fronts' && tab !== 'hardware' && tab !== 'interiors' && (
-        <div className="flex gap-2 px-3 pt-2">
-          <Button variant="outline" size="sm" onClick={() => exportSheet('svg')}>
-            SVG
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => exportSheet('dxf')}>
-            DXF
-          </Button>
-        </div>
-      )}
+      {tab !== '3d' &&
+        tab !== 'section' &&
+        tab !== 'construction' &&
+        tab !== 'placement' &&
+        tab !== 'layout' &&
+        tab !== 'finishing' &&
+        tab !== 'fronts' &&
+        tab !== 'hardware' &&
+        tab !== 'interiors' && (
+          <div className="flex gap-2 px-3 pt-2">
+            <Button variant="outline" size="sm" onClick={() => exportSheet('svg')}>
+              SVG
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => exportSheet('dxf')}>
+              DXF
+            </Button>
+          </div>
+        )}
 
       {/* Nothing for 3D: the viewport is behind this component, shown by App. A panel here would
           cover it. */}
       {tab !== '3d' && (
         <div data-testid="cabinet-editor-panel" className="flex-1 min-h-0 overflow-auto p-3">
           {tab === 'appliances' ? (
-            scene && onApplyAppliancePreview ? <CabinetApplianceEditor key={component.id} cabinet={component} scene={scene} onApply={onApplyAppliancePreview} /> : <p>Appliance bays require the full project scene.</p>
+            scene && onApplyAppliancePreview ? (
+              <CabinetApplianceEditor
+                key={component.id}
+                cabinet={component}
+                scene={scene}
+                onApply={onApplyAppliancePreview}
+              />
+            ) : (
+              <p>Appliance bays require the full project scene.</p>
+            )
           ) : tab === 'services' ? (
-            scene && onApplyServicePreview ? <CabinetServiceEditor key={component.id} cabinet={component} scene={scene} onApply={onApplyServicePreview} /> : <p>Service openings require the full project scene.</p>
+            scene && onApplyServicePreview ? (
+              <CabinetServiceEditor
+                key={component.id}
+                cabinet={component}
+                scene={scene}
+                onApply={onApplyServicePreview}
+              />
+            ) : (
+              <p>Service openings require the full project scene.</p>
+            )
           ) : tab === 'materials' || tab === 'edgebanding' ? (
-            scene && onApplyMaterialsPreview ? <CabinetMaterialsEditor key={`${component.id}-${tab}`} cabinet={component} scene={scene} mode={tab === 'materials' ? 'materials' : 'edges'} onApply={onApplyMaterialsPreview} /> : <p>Materials and edgebanding require the full project scene.</p>
+            scene && onApplyMaterialsPreview ? (
+              <CabinetMaterialsEditor
+                key={`${component.id}-${tab}`}
+                cabinet={component}
+                scene={scene}
+                mode={tab === 'materials' ? 'materials' : 'edges'}
+                onApply={onApplyMaterialsPreview}
+              />
+            ) : (
+              <p>Materials and edgebanding require the full project scene.</p>
+            )
           ) : tab === 'interiors' ? (
-            scene && onApplyInteriorsPreview ? <CabinetInteriorsEditor cabinet={component} scene={scene} onApply={onApplyInteriorsPreview} /> : <p>Interiors require the full project scene.</p>
+            scene && onApplyInteriorsPreview ? (
+              <CabinetInteriorsEditor
+                cabinet={component}
+                scene={scene}
+                onApply={onApplyInteriorsPreview}
+              />
+            ) : (
+              <p>Interiors require the full project scene.</p>
+            )
           ) : tab === 'hardware' ? (
-            scene && onApplyPullPreview ? <CabinetHardwareWorkspace cabinet={component} scene={scene} onApply={onApplyPullPreview} onApplyMotion={onApplyMotionPreview} /> : <p>Hardware layout tools require the full project scene.</p>
+            scene && onApplyPullPreview ? (
+              <CabinetHardwareWorkspace
+                cabinet={component}
+                scene={scene}
+                onApply={onApplyPullPreview}
+                onApplyMotion={onApplyMotionPreview}
+              />
+            ) : (
+              <p>Hardware layout tools require the full project scene.</p>
+            )
           ) : tab === 'fronts' ? (
-            scene && onApplyFrontsPreview ? <CabinetFrontsEditor cabinet={component} scene={scene} onApply={onApplyFrontsPreview} /> : <p>Fronts and drawers require the full project scene.</p>
+            scene && onApplyFrontsPreview ? (
+              <CabinetFrontsEditor
+                cabinet={component}
+                scene={scene}
+                onApply={onApplyFrontsPreview}
+              />
+            ) : (
+              <p>Fronts and drawers require the full project scene.</p>
+            )
           ) : tab === 'finishing' ? (
-            scene && onApplyFinishingPreview ? <CabinetFinishingWorkspace cabinet={component} scene={scene} onApply={onApplyFinishingPreview} onApplyCorner={onApplyCornerPreview} onApplyRun={onApplyRunWorktopPreview} onApplyMachining={onApplyWorktopMachiningPreview} /> : <p>Finishing tools require the full project scene.</p>
+            scene && onApplyFinishingPreview ? (
+              <CabinetFinishingWorkspace
+                cabinet={component}
+                scene={scene}
+                onApply={onApplyFinishingPreview}
+                onApplyCorner={onApplyCornerPreview}
+                onApplyRun={onApplyRunWorktopPreview}
+                onApplyMachining={onApplyWorktopMachiningPreview}
+              />
+            ) : (
+              <p>Finishing tools require the full project scene.</p>
+            )
           ) : tab === 'layout' ? (
-            scene && onApplyLayoutPreview ? <CabinetLayoutWorkspace cabinet={component} scene={scene} onApply={onApplyLayoutPreview} onFit={onApplyRunFitPreview} /> : <p>Layout tools require the full project scene.</p>
+            scene && onApplyLayoutPreview ? (
+              <CabinetLayoutWorkspace
+                cabinet={component}
+                scene={scene}
+                onApply={onApplyLayoutPreview}
+                onFit={onApplyRunFitPreview}
+              />
+            ) : (
+              <p>Layout tools require the full project scene.</p>
+            )
           ) : tab === 'placement' ? (
-            scene && onApplyPlacementPreview ? <CabinetPlacementEditor cabinet={component} scene={scene} onApply={onApplyPlacementPreview} /> : <p>Placement tools require the full project scene.</p>
+            scene && onApplyPlacementPreview ? (
+              <CabinetPlacementEditor
+                cabinet={component}
+                scene={scene}
+                onApply={onApplyPlacementPreview}
+              />
+            ) : (
+              <p>Placement tools require the full project scene.</p>
+            )
           ) : tab === 'construction' ? (
-            <CabinetConstructionEditor cabinet={component} materials={materials} parts={parts} components={scene?.components ?? []} onUpdate={onUpdate} />
+            <CabinetConstructionEditor
+              cabinet={component}
+              materials={materials}
+              parts={parts}
+              components={scene?.components ?? []}
+              onUpdate={onUpdate}
+            />
           ) : tab === 'section' ? (
             <div className="h-full flex gap-3 min-h-0">
               <div className="flex-1 min-w-0">
@@ -272,9 +464,15 @@ export function CabinetEditor({
                   onSelect={onSelectSection}
                   onUpdate={onUpdate}
                 />
-                <CabinetLayoutLibrary cabinet={component} materials={materials} parts={parts}
-                  components={scene?.components ?? []} selected={selectedSectionId}
-                  onUpdate={onUpdate} onSelect={onSelectSection} />
+                <CabinetLayoutLibrary
+                  cabinet={component}
+                  materials={materials}
+                  parts={parts}
+                  components={scene?.components ?? []}
+                  selected={selectedSectionId}
+                  onUpdate={onUpdate}
+                  onSelect={onSelectSection}
+                />
               </div>
             </div>
           ) : (

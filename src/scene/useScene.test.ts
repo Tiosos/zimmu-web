@@ -9,7 +9,12 @@ import { motionScene as openingMotionScene } from './__fixtures__/motion'
 import { openingTargets, defaultOpeningSetting, previewOpeningSettings } from './openingMotion'
 import { defaultOpeningMotion } from './openingMotionRecipe'
 import { installationFixture } from './__fixtures__/installation'
-import { installationDraft, previewInstallation, wallFillerDraft, previewWallFiller } from './roomInstallation'
+import {
+  installationDraft,
+  previewInstallation,
+  wallFillerDraft,
+  previewWallFiller,
+} from './roomInstallation'
 import { cornerScene } from './__fixtures__/corners'
 import { cornerDraft, previewCorner } from './cornerPanels'
 import { defaultApplianceBay } from './applianceRecipe'
@@ -28,7 +33,13 @@ import { defaultWorktopFeature } from './worktopMachiningRecipe'
 import { previewRunWorktop, runWorktopDraft } from './runWorktops'
 import { pullTargets, previewPulls, stagePull } from './pullLayout'
 import { defaultPull } from './pullPattern'
-import { frontTargets, emptyFrontsDraft, stageFront, stageDrawer, previewFronts } from './frontsDrawers'
+import {
+  frontTargets,
+  emptyFrontsDraft,
+  stageFront,
+  stageDrawer,
+  previewFronts,
+} from './frontsDrawers'
 import { finishingDraft, previewFinishing } from './finishingPanels'
 import { layoutDraft, stageLayout, previewLayout } from './layoutTools'
 import { placementDraft, previewPlacement } from './placementTools'
@@ -138,37 +149,62 @@ describe('useScene', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
     const original = result.current.scene
-    const preview = previewProjectRules(original, { ...DEFAULT_CABINET_RULES, project: { frontReveal: 5 } })
+    const preview = previewProjectRules(original, {
+      ...DEFAULT_CABINET_RULES,
+      project: { frontReveal: 5 },
+    })
     expect(preview.errors).toEqual([])
-    act(() => { expect(result.current.onApplyRulePreview(preview)).toBe(true) })
+    act(() => {
+      expect(result.current.onApplyRulePreview(preview)).toBe(true)
+    })
     expect(result.current.undoLabel).toBe('Apply cabinet rules')
-    expect((result.current.scene.components.find((c) => c.kind === 'carcase') as CarcaseComponent).params.frontReveal).toBe(5)
+    expect(
+      (result.current.scene.components.find((c) => c.kind === 'carcase') as CarcaseComponent).params
+        .frontReveal,
+    ).toBe(5)
     act(() => result.current.undo())
     expect(result.current.scene).toEqual(original)
     act(() => result.current.redo())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[1]))
-    const cabinets = result.current.scene.components.filter((c): c is CarcaseComponent => c.kind === 'carcase')
+    const cabinets = result.current.scene.components.filter(
+      (c): c is CarcaseComponent => c.kind === 'carcase',
+    )
     expect(cabinets.map((c) => c.params.frontReveal)).toEqual([5, 5])
     expect(cabinets.map((c) => c.catalogue?.overrides)).toEqual([{}, {}])
-    act(() => { expect(result.current.onApplyRulePreview(preview)).toBe(false) })
+    act(() => {
+      expect(result.current.onApplyRulePreview(preview)).toBe(false)
+    })
   })
 
   it('pins a placed catalogue cabinet and tracks edits through undo and redo', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-    const placed = result.current.scene.components.find((c): c is CarcaseComponent => c.kind === 'carcase')!
+    const placed = result.current.scene.components.find(
+      (c): c is CarcaseComponent => c.kind === 'carcase',
+    )!
     expect(placed.catalogue).toEqual({ id: 'starter.base-600', version: 1, overrides: {} })
     const originalPartCount = result.current.scene.parts.length
-    act(() => result.current.onUpdateComponent(placed.id, (c) => c.kind === 'carcase'
-      ? { ...c, params: { ...c.params, width: 750 } } : c))
-    const edited = result.current.scene.components.find((c): c is CarcaseComponent => c.kind === 'carcase')!
+    act(() =>
+      result.current.onUpdateComponent(placed.id, (c) =>
+        c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 750 } } : c,
+      ),
+    )
+    const edited = result.current.scene.components.find(
+      (c): c is CarcaseComponent => c.kind === 'carcase',
+    )!
     expect(edited.catalogue?.overrides).toEqual({ width: 750 })
     expect(edited.params.width).toBe(750)
     expect(result.current.scene.parts.length).toBe(originalPartCount)
     act(() => result.current.undo())
-    expect((result.current.scene.components.find((c) => c.id === placed.id) as CarcaseComponent).catalogue?.overrides).toEqual({})
+    expect(
+      (result.current.scene.components.find((c) => c.id === placed.id) as CarcaseComponent)
+        .catalogue?.overrides,
+    ).toEqual({})
     act(() => result.current.redo())
-    expect((result.current.scene.components.find((c) => c.id === placed.id) as CarcaseComponent).catalogue?.overrides).toEqual({ width: 750 })
+    expect(
+      (result.current.scene.components.find((c) => c.id === placed.id) as CarcaseComponent)
+        .catalogue?.overrides,
+    ).toEqual({ width: 750 })
   })
 
   it('does not add a scene undo entry for derived wall positioning', () => {
@@ -176,8 +212,11 @@ describe('useScene', () => {
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
     expect(result.current.canUndo).toBe(true)
     const id = result.current.scene.components.find((c) => c.kind === 'carcase')!.id
-    act(() => result.current.syncComponents((components) => components.map((c) => c.id === id
-      ? { ...c, position: { ...c.position, x: 1000 } } : c)))
+    act(() =>
+      result.current.syncComponents((components) =>
+        components.map((c) => (c.id === id ? { ...c, position: { ...c.position, x: 1000 } } : c)),
+      ),
+    )
     expect(result.current.scene.components.find((c) => c.id === id)?.position.x).toBe(1000)
     act(() => result.current.undo())
     expect(result.current.scene.components.find((c) => c.id === id)).toBeUndefined()
@@ -3081,13 +3120,14 @@ describe('applyPipeline placement stage', () => {
   })
 })
 
-
 describe('project-local catalogue installation', () => {
   it('imports without regenerating geometry, places pinned products and supports undo/redo', () => {
     const { result } = renderHook(() => useScene())
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
     const before = result.current.scene
-    act(() => { expect(result.current.onInstallCatalogue(packageFixture(), before)).toBe(true) })
+    act(() => {
+      expect(result.current.onInstallCatalogue(packageFixture(), before)).toBe(true)
+    })
     expect(result.current.scene.parts).toBe(before.parts)
     expect(result.current.scene.components).toBe(before.components)
     const installed = result.current.scene
@@ -3116,16 +3156,20 @@ describe('project-local catalogue installation', () => {
     const original = result.current.scene
     act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
     const changed = result.current.scene
-    act(() => { expect(result.current.onInstallCatalogue(packageFixture(), original)).toBe(false) })
+    act(() => {
+      expect(result.current.onInstallCatalogue(packageFixture(), original)).toBe(false)
+    })
     expect(result.current.scene).toBe(changed)
-    act(() => { result.current.onInstallCatalogue(packageFixture(), changed) })
+    act(() => {
+      result.current.onInstallCatalogue(packageFixture(), changed)
+    })
     const imported = result.current.scene
-    const bad = packageFixture(); bad.versions[0].publishedAt = '2026-10-03T12:00:00Z'
+    const bad = packageFixture()
+    bad.versions[0].publishedAt = '2026-10-03T12:00:00Z'
     expect(() => result.current.onInstallCatalogue(bad, imported)).toThrow(/immutable version/)
     expect(result.current.scene).toBe(imported)
   })
 })
-
 
 it('keeps opening layout applications as separate undo steps and ignores stale or missing component edits', () => {
   mockBuildPart.mockResolvedValue({
@@ -3134,27 +3178,53 @@ it('keeps opening layout applications as separate undo steps and ignores stale o
   })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-  const cabinet = result.current.scene.components.find((component): component is CarcaseComponent => component.kind === 'carcase')!
+  const cabinet = result.current.scene.components.find(
+    (component): component is CarcaseComponent => component.kind === 'carcase',
+  )!
   const id = cabinet.id
-  act(() => result.current.onUpdateComponent(id, c => c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 700 } } : c))
+  act(() =>
+    result.current.onUpdateComponent(id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 700 } } : c,
+    ),
+  )
   const resized = result.current.scene
-  act(() => result.current.onUpdateComponent(id, c => c.kind === 'carcase' ? { ...c, params: openingLayout(c.params, c.params.section.id, 'drawers') } : c, 'Apply opening layout'))
-  expect(result.current.scene.components.filter(c => c.kind === 'drawer')).toHaveLength(3)
+  act(() =>
+    result.current.onUpdateComponent(
+      id,
+      (c) =>
+        c.kind === 'carcase'
+          ? { ...c, params: openingLayout(c.params, c.params.section.id, 'drawers') }
+          : c,
+      'Apply opening layout',
+    ),
+  )
+  expect(result.current.scene.components.filter((c) => c.kind === 'drawer')).toHaveLength(3)
   const drawers = result.current.scene
-  act(() => result.current.onUpdateComponent(id, c => c.kind === 'carcase' ? { ...c, params: openingLayout(c.params, c.params.section.id, 'double-door') } : c, 'Apply opening layout'))
-  expect(result.current.scene.components.filter(c => c.kind === 'drawer')).toHaveLength(0)
+  act(() =>
+    result.current.onUpdateComponent(
+      id,
+      (c) =>
+        c.kind === 'carcase'
+          ? { ...c, params: openingLayout(c.params, c.params.section.id, 'double-door') }
+          : c,
+      'Apply opening layout',
+    ),
+  )
+  expect(result.current.scene.components.filter((c) => c.kind === 'drawer')).toHaveLength(0)
   act(() => result.current.undo())
   expect(result.current.scene).toEqual(drawers)
   act(() => result.current.undo())
   expect(result.current.scene).toEqual(resized)
   act(() => result.current.undo())
-  expect((result.current.scene.components.find(c => c.id === id) as CarcaseComponent).params.width).toBe(600)
+  expect(
+    (result.current.scene.components.find((c) => c.id === id) as CarcaseComponent).params.width,
+  ).toBe(600)
   act(() => result.current.redo())
   act(() => result.current.redo())
   expect(result.current.scene).toEqual(drawers)
   const before = result.current.scene
   const label = result.current.undoLabel
-  act(() => result.current.onUpdateComponent(id, c => c, 'No-op'))
+  act(() => result.current.onUpdateComponent(id, (c) => c, 'No-op'))
   const missing = vi.fn(() => ({ ...cabinet, label: 'Unexpected' }))
   act(() => result.current.onUpdateComponent('missing', missing, 'Missing'))
   expect(missing).not.toHaveBeenCalled()
@@ -3169,520 +3239,1146 @@ it('applies cabinet placement as its own undo step and refuses stale/no-op previ
   })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-  const cabinet = result.current.scene.components.find((c): c is CarcaseComponent => c.kind === 'carcase')!
-  act(() => result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
+  const cabinet = result.current.scene.components.find(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )!
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 700 } } : c,
+    ),
+  )
   const resized = result.current.scene
-  const first = previewPlacement(resized,cabinet.id,{...placementDraft(cabinet),x:'100'})
-  act(() => { expect(result.current.onApplyPlacementPreview(first)).toBe(true) })
+  const first = previewPlacement(resized, cabinet.id, { ...placementDraft(cabinet), x: '100' })
+  act(() => {
+    expect(result.current.onApplyPlacementPreview(first)).toBe(true)
+  })
   const placed = result.current.scene
-  expect(placed.components.find(c=>c.id===cabinet.id)?.position.x).toBe(100)
+  expect(placed.components.find((c) => c.id === cabinet.id)?.position.x).toBe(100)
   expect(result.current.undoLabel).toBe('Apply cabinet placement')
-  act(() => { expect(result.current.onApplyPlacementPreview(first)).toBe(false) })
+  act(() => {
+    expect(result.current.onApplyPlacementPreview(first)).toBe(false)
+  })
   expect(result.current.scene).toBe(placed)
-  const current=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
-  const noop=previewPlacement(placed,current.id,placementDraft(current))
-  act(() => { expect(result.current.onApplyPlacementPreview(noop)).toBe(false) })
+  const current = result.current.scene.components.find(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )!
+  const noop = previewPlacement(placed, current.id, placementDraft(current))
+  act(() => {
+    expect(result.current.onApplyPlacementPreview(noop)).toBe(false)
+  })
   act(() => result.current.undo())
   expect(result.current.scene).toEqual(resized)
   act(() => result.current.undo())
-  expect((result.current.scene.components.find(c=>c.id===cabinet.id) as CarcaseComponent).params.width).toBe(600)
+  expect(
+    (result.current.scene.components.find((c) => c.id === cabinet.id) as CarcaseComponent).params
+      .width,
+  ).toBe(600)
   act(() => result.current.redo())
   act(() => result.current.redo())
   expect(result.current.scene).toEqual(placed)
 })
 
-
 it('applies a multi-cabinet layout as one undo step and refuses stale or noop acceptance', () => {
-  mockBuildPart.mockResolvedValue({ positions: new Float32Array([0,0,0,1,0,0,0,1,0]), normals: new Float32Array([0,0,1,0,0,1,0,0,1]) })
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-  const cabinets=result.current.scene.components.filter((c):c is CarcaseComponent=>c.kind==='carcase')
-  act(() => result.current.onUpdateComponent(cabinets[0].id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
-  const resized=result.current.scene
-  const ids=cabinets.map(c=>c.id)
-  const draft=stageLayout(resized,layoutDraft(resized,ids),{kind:'run',axis:'x',gap:'25'})
-  const preview=previewLayout(resized,draft)
-  act(() => { expect(result.current.onApplyLayoutPreview(preview)).toBe(true) })
-  const arranged=result.current.scene
-  expect(arranged.components.find(c=>c.id===ids[1])?.position.x).toBe(725)
+  const cabinets = result.current.scene.components.filter(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )
+  act(() =>
+    result.current.onUpdateComponent(cabinets[0].id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 700 } } : c,
+    ),
+  )
+  const resized = result.current.scene
+  const ids = cabinets.map((c) => c.id)
+  const draft = stageLayout(resized, layoutDraft(resized, ids), {
+    kind: 'run',
+    axis: 'x',
+    gap: '25',
+  })
+  const preview = previewLayout(resized, draft)
+  act(() => {
+    expect(result.current.onApplyLayoutPreview(preview)).toBe(true)
+  })
+  const arranged = result.current.scene
+  expect(arranged.components.find((c) => c.id === ids[1])?.position.x).toBe(725)
   expect(result.current.undoLabel).toBe('Apply cabinet layout')
-  act(() => { expect(result.current.onApplyLayoutPreview(preview)).toBe(false) })
+  act(() => {
+    expect(result.current.onApplyLayoutPreview(preview)).toBe(false)
+  })
   expect(result.current.scene).toBe(arranged)
-  act(() => { expect(result.current.onApplyLayoutPreview(previewLayout(arranged,layoutDraft(arranged,ids)))).toBe(false) })
-  act(() => result.current.undo());expect(result.current.scene).toEqual(resized)
-  act(() => result.current.undo());expect((result.current.scene.components.find(c=>c.id===ids[0]) as CarcaseComponent).params.width).toBe(600)
-  act(() => result.current.redo());act(() => result.current.redo());expect(result.current.scene).toEqual(arranged)
+  act(() => {
+    expect(
+      result.current.onApplyLayoutPreview(previewLayout(arranged, layoutDraft(arranged, ids))),
+    ).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(resized)
+  act(() => result.current.undo())
+  expect(
+    (result.current.scene.components.find((c) => c.id === ids[0]) as CarcaseComponent).params.width,
+  ).toBe(600)
+  act(() => result.current.redo())
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(arranged)
 })
-
 
 it('adds a finishing board as a separate undo step, retains it after resizing and rejects stale previews', () => {
-  mockBuildPart.mockResolvedValue({ positions: new Float32Array([0,0,0,1,0,0,0,1,0]), normals: new Float32Array([0,0,1,0,0,1,0,0,1]) })
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-  const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
-  act(() => result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
-  const resized=result.current.scene
-  const preview=previewFinishing(resized,cabinet.id,finishingDraft(resized,cabinet.id))
-  act(() => { expect(result.current.onApplyFinishingPreview(preview)).toBe(true) })
-  const added=result.current.scene
-  const manual=added.parts.find(p=>p.parentId===cabinet.id&&!p.driven)!
-  expect(manual.kind).toBe('board');expect(manual.length).toBe(700)
+  const cabinet = result.current.scene.components.find(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )!
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 700 } } : c,
+    ),
+  )
+  const resized = result.current.scene
+  const preview = previewFinishing(resized, cabinet.id, finishingDraft(resized, cabinet.id))
+  act(() => {
+    expect(result.current.onApplyFinishingPreview(preview)).toBe(true)
+  })
+  const added = result.current.scene
+  const manual = added.parts.find((p) => p.parentId === cabinet.id && !p.driven)!
+  expect(manual.kind).toBe('board')
+  expect(manual.length).toBe(700)
   expect(result.current.undoLabel).toBe('Add finishing board')
-  act(() => { expect(result.current.onApplyFinishingPreview(preview)).toBe(false) })
+  act(() => {
+    expect(result.current.onApplyFinishingPreview(preview)).toBe(false)
+  })
   expect(result.current.scene).toBe(added)
-  act(() => result.current.undo());expect(result.current.scene).toEqual(resized)
-  act(() => result.current.undo());expect((result.current.scene.components.find(c=>c.id===cabinet.id) as CarcaseComponent).params.width).toBe(600)
-  act(() => result.current.redo());act(() => result.current.redo());expect(result.current.scene).toEqual(added)
-  act(() => result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:800}}:c))
-  expect(result.current.scene.parts.find(p=>p.id===manual.id)).toEqual(manual)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(resized)
+  act(() => result.current.undo())
+  expect(
+    (result.current.scene.components.find((c) => c.id === cabinet.id) as CarcaseComponent).params
+      .width,
+  ).toBe(600)
+  act(() => result.current.redo())
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(added)
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 800 } } : c,
+    ),
+  )
+  expect(result.current.scene.parts.find((p) => p.id === manual.id)).toEqual(manual)
 })
 
-
 it('applies coordinated fronts and drawers in one separate undo step and refuses stale previews', () => {
-  mockBuildPart.mockResolvedValue({ positions: new Float32Array([0,0,0,1,0,0,0,1,0]), normals: new Float32Array([0,0,1,0,0,1,0,0,1]) })
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-  const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
-  act(() => result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
-  const resized=result.current.scene,ids=frontTargets(resized,cabinet.id).map(t=>t.id)
-  let draft=stageFront(resized,cabinet.id,emptyFrontsDraft(),ids,'drawer-front')
-  draft=stageDrawer(resized,cabinet.id,draft,ids,{kind:'height',value:'100'})
-  const preview=previewFronts(resized,cabinet.id,draft)
-  act(() => { expect(result.current.onApplyFrontsPreview(preview)).toBe(true) })
-  const changed=result.current.scene
-  expect(changed.components.some(c=>c.kind==='drawer'&&c.params.boxHeight===100)).toBe(true)
+  const cabinet = result.current.scene.components.find(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )!
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 700 } } : c,
+    ),
+  )
+  const resized = result.current.scene,
+    ids = frontTargets(resized, cabinet.id).map((t) => t.id)
+  let draft = stageFront(resized, cabinet.id, emptyFrontsDraft(), ids, 'drawer-front')
+  draft = stageDrawer(resized, cabinet.id, draft, ids, { kind: 'height', value: '100' })
+  const preview = previewFronts(resized, cabinet.id, draft)
+  act(() => {
+    expect(result.current.onApplyFrontsPreview(preview)).toBe(true)
+  })
+  const changed = result.current.scene
+  expect(changed.components.some((c) => c.kind === 'drawer' && c.params.boxHeight === 100)).toBe(
+    true,
+  )
   expect(result.current.undoLabel).toBe('Apply fronts and drawers')
-  act(() => { expect(result.current.onApplyFrontsPreview(preview)).toBe(false) });expect(result.current.scene).toBe(changed)
-  act(() => result.current.undo());expect(result.current.scene).toEqual(resized)
-  act(() => result.current.undo());expect((result.current.scene.components.find(c=>c.id===cabinet.id) as CarcaseComponent).params.width).toBe(600)
-  act(() => result.current.redo());act(() => result.current.redo());expect(result.current.scene).toEqual(changed)
+  act(() => {
+    expect(result.current.onApplyFrontsPreview(preview)).toBe(false)
+  })
+  expect(result.current.scene).toBe(changed)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(resized)
+  act(() => result.current.undo())
+  expect(
+    (result.current.scene.components.find((c) => c.id === cabinet.id) as CarcaseComponent).params
+      .width,
+  ).toBe(600)
+  act(() => result.current.redo())
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(changed)
 })
 
 it('keeps linked finishing creation, resize, edit, detach and delete in separate undo steps', () => {
-  mockBuildPart.mockReset().mockResolvedValue({ positions: new Float32Array([0,0,0,1,0,0,0,1,0]), normals: new Float32Array([0,0,1,0,0,1,0,0,1]) })
+  mockBuildPart
+    .mockReset()
+    .mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-  const cabinet = result.current.scene.components.find((c): c is CarcaseComponent => c.kind === 'carcase')!
+  const cabinet = result.current.scene.components.find(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )!
   const s = result.current.scene
-  act(() => { expect(result.current.onApplyFinishingPreview(previewFinishing(s, cabinet.id, { ...finishingDraft(s, cabinet.id), follow: true }))).toBe(true) })
-  const linked = result.current.scene.parts.find((p): p is BoardPart => p.kind === 'board' && !!p.finishing)!
-  act(() => result.current.onUpdateComponent(cabinet.id, c => c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 800 } } : c))
+  act(() => {
+    expect(
+      result.current.onApplyFinishingPreview(
+        previewFinishing(s, cabinet.id, { ...finishingDraft(s, cabinet.id), follow: true }),
+      ),
+    ).toBe(true)
+  })
+  const linked = result.current.scene.parts.find(
+    (p): p is BoardPart => p.kind === 'board' && !!p.finishing,
+  )!
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 800 } } : c,
+    ),
+  )
   const resized = result.current.scene
-  expect(resized.parts.find(p => p.id === linked.id)?.length).toBe(800)
-  const edit = previewFinishing(resized, cabinet.id, { ...linked.finishing!.draft, right: '20' }, linked.id)
-  act(() => { expect(result.current.onApplyFinishingPreview(edit)).toBe(true) })
+  expect(resized.parts.find((p) => p.id === linked.id)?.length).toBe(800)
+  const edit = previewFinishing(
+    resized,
+    cabinet.id,
+    { ...linked.finishing!.draft, right: '20' },
+    linked.id,
+  )
+  act(() => {
+    expect(result.current.onApplyFinishingPreview(edit)).toBe(true)
+  })
   expect(result.current.undoLabel).toBe('Update finishing board')
-  expect(result.current.scene.parts.find(p => p.id === linked.id)?.length).toBe(820)
-  act(() => result.current.undo()); expect(result.current.scene).toEqual(resized)
+  expect(result.current.scene.parts.find((p) => p.id === linked.id)?.length).toBe(820)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(resized)
   act(() => result.current.redo())
   const edited = result.current.scene
   const request = previewFinishing(edited, cabinet.id, linked.finishing!.draft, linked.id)
-  act(() => { expect(result.current.onApplyFinishingPreview({ ...request, action: 'detach' })).toBe(true) })
+  act(() => {
+    expect(result.current.onApplyFinishingPreview({ ...request, action: 'detach' })).toBe(true)
+  })
   expect(result.current.undoLabel).toBe('Detach finishing board')
-  expect((result.current.scene.parts.find(p => p.id === linked.id) as BoardPart).finishing).toBeUndefined()
-  act(() => result.current.undo()); expect(result.current.scene).toEqual(edited)
-  act(() => { expect(result.current.onApplyFinishingPreview({ ...request, action: 'delete' })).toBe(true) })
+  expect(
+    (result.current.scene.parts.find((p) => p.id === linked.id) as BoardPart).finishing,
+  ).toBeUndefined()
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(edited)
+  act(() => {
+    expect(result.current.onApplyFinishingPreview({ ...request, action: 'delete' })).toBe(true)
+  })
   expect(result.current.undoLabel).toBe('Delete finishing board')
-  expect(result.current.scene.parts.some(p => p.id === linked.id)).toBe(false)
-  act(() => result.current.undo()); expect(result.current.scene).toEqual(edited)
-  act(() => result.current.onUpdate(linked.id, p => ({ ...p, length: 100 })))
-  expect((result.current.scene.parts.find(p => p.id === linked.id) as BoardPart).finishing).toBeUndefined()
-  act(() => result.current.undo()); expect((result.current.scene.parts.find(p => p.id === linked.id) as BoardPart).finishing).toBeDefined()
+  expect(result.current.scene.parts.some((p) => p.id === linked.id)).toBe(false)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(edited)
+  act(() => result.current.onUpdate(linked.id, (p) => ({ ...p, length: 100 })))
+  expect(
+    (result.current.scene.parts.find((p) => p.id === linked.id) as BoardPart).finishing,
+  ).toBeUndefined()
+  act(() => result.current.undo())
+  expect(
+    (result.current.scene.parts.find((p) => p.id === linked.id) as BoardPart).finishing,
+  ).toBeDefined()
   act(() => result.current.onRemoveComponent(cabinet.id))
-  const promoted = result.current.scene.parts.find(p => p.id === linked.id) as BoardPart
-  expect(promoted.parentId).toBeNull(); expect(promoted.finishing).toBeUndefined()
-  act(() => result.current.undo()); expect(result.current.scene).toEqual(edited)
+  const promoted = result.current.scene.parts.find((p) => p.id === linked.id) as BoardPart
+  expect(promoted.parentId).toBeNull()
+  expect(promoted.finishing).toBeUndefined()
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(edited)
   act(() => result.current.onDuplicate(linked.id))
-  const duplicate = result.current.scene.parts.find((p): p is BoardPart => p.kind === 'board' && !p.driven && p.id !== linked.id)!
+  const duplicate = result.current.scene.parts.find(
+    (p): p is BoardPart => p.kind === 'board' && !p.driven && p.id !== linked.id,
+  )!
   expect(duplicate.finishing).toBeUndefined()
 })
 
-
 it('applies, undoes and redoes pull drilling as one step, keeps stable IDs and copies fixed geometry', () => {
-  mockBuildPart.mockReset().mockResolvedValue({ positions: new Float32Array([0,0,0,1,0,0,0,1,0]), normals: new Float32Array([0,0,1,0,0,1,0,0,1]) })
+  mockBuildPart
+    .mockReset()
+    .mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-  const cabinet = result.current.scene.components.find((c): c is CarcaseComponent => c.kind === 'carcase')!
-  const s = result.current.scene, ids = pullTargets(s, cabinet.id).map(t => t.id)
+  const cabinet = result.current.scene.components.find(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )!
+  const s = result.current.scene,
+    ids = pullTargets(s, cabinet.id).map((t) => t.id)
   const p = previewPulls(s, cabinet.id, stagePull(s, cabinet.id, {}, ids, defaultPull()))
-  act(() => { expect(result.current.onApplyPullPreview(p)).toBe(true) })
+  act(() => {
+    expect(result.current.onApplyPullPreview(p)).toBe(true)
+  })
   const added = result.current.scene
   expect(result.current.undoLabel).toBe('Apply cabinet hardware')
-  expect(pullTargets(added, cabinet.id).map(t => t.id)).toEqual(ids)
-  act(() => { expect(result.current.onApplyPullPreview(p)).toBe(false) })
-  act(() => result.current.undo()); expect(result.current.scene).toEqual(s)
-  act(() => result.current.redo()); expect(result.current.scene).toEqual(added)
-  act(() => result.current.onUpdateComponent(cabinet.id,c => c.kind === 'carcase' ? { ...c,params: { ...c.params,width:800 } } : c))
-  expect(pullTargets(result.current.scene,cabinet.id)[0].part.frontPull).toEqual(defaultPull())
+  expect(pullTargets(added, cabinet.id).map((t) => t.id)).toEqual(ids)
+  act(() => {
+    expect(result.current.onApplyPullPreview(p)).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(s)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(added)
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 800 } } : c,
+    ),
+  )
+  expect(pullTargets(result.current.scene, cabinet.id)[0].part.frontPull).toEqual(defaultPull())
   act(() => result.current.onDuplicate(ids[0]))
-  const clone = result.current.scene.parts.find(p=>p.kind==='board'&&p.id!==ids[0]&&!p.driven) as BoardPart
+  const clone = result.current.scene.parts.find(
+    (p) => p.kind === 'board' && p.id !== ids[0] && !p.driven,
+  ) as BoardPart
   expect(clone).toBeDefined()
-  expect(clone.frontPull).toBeUndefined(); expect(clone.role).toBeUndefined()
-  act(() => result.current.onUpdateComponent(cabinet.id,c => c.kind === 'carcase' ? { ...c,params: { ...c.params,width:900 } } : c))
-  expect(result.current.scene.parts.find(p=>p.id===clone.id)).toEqual(clone)
-  expect(pullTargets(result.current.scene,cabinet.id)[0].part.id).toBe(ids[0])
+  expect(clone.frontPull).toBeUndefined()
+  expect(clone.role).toBeUndefined()
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 900 } } : c,
+    ),
+  )
+  expect(result.current.scene.parts.find((p) => p.id === clone.id)).toEqual(clone)
+  expect(pullTargets(result.current.scene, cabinet.id)[0].part.id).toBe(ids[0])
 })
 
-it('keeps run worktop creation, source resize, edit, detach and deletion in separate undo steps',()=>{
- mockBuildPart.mockReset().mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const {result}=renderHook(()=>useScene())
- act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]));act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
- const cabinets=result.current.scene.components.filter((c):c is CarcaseComponent=>c.kind==='carcase'),[a,b]=cabinets
- act(()=>result.current.onUpdateComponent(b.id,c=>({...c,position:{x:600,y:0,z:0},anchor:{to:a.id,face:'right',gap:0,offset:{u:0,v:0}}})))
- const before=result.current.scene,d={...runWorktopDraft(before,a.id),memberIds:[a.id,b.id]}
- act(()=>{expect(result.current.onApplyRunWorktopPreview(previewRunWorktop(before,d))).toBe(true)})
- const top=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&!!p.runWorktop)!
- expect(top).toBeDefined();expect(result.current.undoLabel).toBe('Add run worktop')
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo())
- act(()=>result.current.onUpdateComponent(a.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:800}}:c))
- expect(result.current.scene.parts.find(p=>p.id===top.id)?.length).toBe(1400)
- const resized=result.current.scene
- act(()=>{expect(result.current.onApplyRunWorktopPreview(previewRunWorktop(resized,{...d,left:'20'},top.id))).toBe(true)})
- expect(result.current.undoLabel).toBe('Update run worktop')
- expect(result.current.scene.parts.find(p=>p.id===top.id)?.length).toBe(1420)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(resized)
- const request=previewRunWorktop(resized,d,top.id)
- act(()=>{expect(result.current.onApplyRunWorktopPreview({...request,action:'detach'})).toBe(true)})
- expect((result.current.scene.parts.find(p=>p.id===top.id) as BoardPart).runWorktop).toBeUndefined()
- act(()=>result.current.undo());expect(result.current.scene).toEqual(resized)
- act(()=>{expect(result.current.onApplyRunWorktopPreview({...request,action:'delete'})).toBe(true)})
- expect(result.current.scene.parts.some(p=>p.id===top.id)).toBe(false)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(resized)
- act(()=>result.current.onDuplicate(top.id))
- expect(result.current.scene.parts.filter((p):p is BoardPart=>p.kind==='board'&&!p.driven&&p.id!==top.id).every(p=>!p.runWorktop)).toBe(true)
- act(()=>result.current.undo())
- act(()=>result.current.onUpdate(top.id,p=>({...p,length:100})))
- expect((result.current.scene.parts.find(p=>p.id===top.id) as BoardPart).runWorktop).toBeUndefined()
-})
-
-it('applies worktop machining in one step, locks derived cuts, revalidates size and duplicates fixed geometry',()=>{
- mockBuildPart.mockReset().mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const {result}=renderHook(()=>useScene())
- act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
- const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
- const s=result.current.scene
- act(()=>{expect(result.current.onApplyFinishingPreview(previewFinishing(s,cabinet.id,{...finishingDraft(s,cabinet.id),follow:true}))).toBe(true)})
- const top=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&!!p.finishing)!,before=result.current.scene
- const recipe={version:1 as const,features:[defaultWorktopFeature('opening')]}
- act(()=>{expect(result.current.onApplyWorktopMachiningPreview(previewWorktopMachining(before,top.id,recipe))).toBe(true)})
- const applied=result.current.scene;expect(result.current.undoLabel).toBe('Apply worktop machining')
- expect(applied.parts.find(p=>p.id===top.id)?.cuts).toHaveLength(1)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(applied)
- act(()=>result.current.onUpdateCut(top.id,'wm_opening',c=>({...c,label:'forged'})))
- act(()=>result.current.onRemoveCut(top.id,'wm_opening'))
- act(()=>result.current.onLinkCuts(top.id,'wm_opening',top.id,'wm_opening'))
- expect(result.current.scene).toEqual(applied)
- act(()=>result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:150}}:c))
- expect(result.current.scene.parts.find(p=>p.id===top.id)?.cuts).toEqual([])
- expect((result.current.scene.parts.find(p=>p.id===top.id) as BoardPart).worktopMachining).toBeDefined()
- act(()=>result.current.undo());expect(result.current.scene).toEqual(applied)
- act(()=>result.current.onDuplicate(top.id))
- const duplicate=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&!p.driven&&p.id!==top.id)!
- expect(duplicate.worktopMachining).toBeUndefined();expect(duplicate.cuts).toHaveLength(1)
- expect(duplicate.cuts[0].id).not.toBe('wm_opening')
-})
-
-it('applies hinge/runner settings as one step, follows resize and duplicates fixed front geometry',()=>{
- mockBuildPart.mockReset().mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const {result}=renderHook(()=>useScene())
- act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
- const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
- act(()=>result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,section:{...c.params.section,front:{kind:'door',leaves:1,hinge:'left'}}}}:c))
- const before=result.current.scene,id=motionDoors(before,cabinet.id)[0].id
- const draft=stageHinges(before,cabinet.id,emptyMotionDraft(),[id],{...defaultHingeLayout(),countMode:'manual',count:3})
- act(()=>{expect(result.current.onApplyMotionPreview(previewMotion(before,cabinet.id,draft))).toBe(true)})
- const applied=result.current.scene
- expect(result.current.undoLabel).toBe('Apply hinges and runners')
- expect((applied.parts.find(p=>p.id===id) as BoardPart).hingeLayout?.count).toBe(3)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(applied)
- act(()=>result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,height:1000}}:c))
- const resized=result.current.scene,front=resized.parts.find(p=>p.id===id)!
- expect(front.cuts.some(c=>c.kind==='hole-array'&&c.id.startsWith('cups_')&&c.count===3)).toBe(true)
- act(()=>result.current.onDuplicate(id))
- const clone=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&p.id!==id&&!p.driven)!
- expect(clone).toBeDefined();expect(clone.hingeLayout).toBeUndefined();expect(clone.role).toBeUndefined()
- act(()=>result.current.undo());expect(result.current.scene).toEqual(resized)
-})
-
-
-it('fits cabinet widths and placements in one independent undo step', () => {
-  mockBuildPart.mockResolvedValue({ positions: new Float32Array([0,0,0,1,0,0,0,1,0]), normals: new Float32Array([0,0,1,0,0,1,0,0,1]) })
+it('keeps run worktop creation, source resize, edit, detach and deletion in separate undo steps', () => {
+  mockBuildPart
+    .mockReset()
+    .mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
   const { result } = renderHook(() => useScene())
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
   act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
-  const ids=result.current.scene.components.filter(c=>c.kind==='carcase').map(c=>c.id)
-  act(() => result.current.onUpdateComponent(ids[0],c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
-  const before=result.current.scene
-  const preview=previewRunFit(before,{...runFitDraft(ids),target:'1800',detach:true})
+  const cabinets = result.current.scene.components.filter(
+      (c): c is CarcaseComponent => c.kind === 'carcase',
+    ),
+    [a, b] = cabinets
+  act(() =>
+    result.current.onUpdateComponent(b.id, (c) => ({
+      ...c,
+      position: { x: 600, y: 0, z: 0 },
+      anchor: { to: a.id, face: 'right', gap: 0, offset: { u: 0, v: 0 } },
+    })),
+  )
+  const before = result.current.scene,
+    d = { ...runWorktopDraft(before, a.id), memberIds: [a.id, b.id] }
+  act(() => {
+    expect(result.current.onApplyRunWorktopPreview(previewRunWorktop(before, d))).toBe(true)
+  })
+  const top = result.current.scene.parts.find(
+    (p): p is BoardPart => p.kind === 'board' && !!p.runWorktop,
+  )!
+  expect(top).toBeDefined()
+  expect(result.current.undoLabel).toBe('Add run worktop')
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  act(() =>
+    result.current.onUpdateComponent(a.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 800 } } : c,
+    ),
+  )
+  expect(result.current.scene.parts.find((p) => p.id === top.id)?.length).toBe(1400)
+  const resized = result.current.scene
+  act(() => {
+    expect(
+      result.current.onApplyRunWorktopPreview(
+        previewRunWorktop(resized, { ...d, left: '20' }, top.id),
+      ),
+    ).toBe(true)
+  })
+  expect(result.current.undoLabel).toBe('Update run worktop')
+  expect(result.current.scene.parts.find((p) => p.id === top.id)?.length).toBe(1420)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(resized)
+  const request = previewRunWorktop(resized, d, top.id)
+  act(() => {
+    expect(result.current.onApplyRunWorktopPreview({ ...request, action: 'detach' })).toBe(true)
+  })
+  expect(
+    (result.current.scene.parts.find((p) => p.id === top.id) as BoardPart).runWorktop,
+  ).toBeUndefined()
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(resized)
+  act(() => {
+    expect(result.current.onApplyRunWorktopPreview({ ...request, action: 'delete' })).toBe(true)
+  })
+  expect(result.current.scene.parts.some((p) => p.id === top.id)).toBe(false)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(resized)
+  act(() => result.current.onDuplicate(top.id))
+  expect(
+    result.current.scene.parts
+      .filter((p): p is BoardPart => p.kind === 'board' && !p.driven && p.id !== top.id)
+      .every((p) => !p.runWorktop),
+  ).toBe(true)
+  act(() => result.current.undo())
+  act(() => result.current.onUpdate(top.id, (p) => ({ ...p, length: 100 })))
+  expect(
+    (result.current.scene.parts.find((p) => p.id === top.id) as BoardPart).runWorktop,
+  ).toBeUndefined()
+})
+
+it('applies worktop machining in one step, locks derived cuts, revalidates size and duplicates fixed geometry', () => {
+  mockBuildPart
+    .mockReset()
+    .mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const cabinet = result.current.scene.components.find(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )!
+  const s = result.current.scene
+  act(() => {
+    expect(
+      result.current.onApplyFinishingPreview(
+        previewFinishing(s, cabinet.id, { ...finishingDraft(s, cabinet.id), follow: true }),
+      ),
+    ).toBe(true)
+  })
+  const top = result.current.scene.parts.find(
+      (p): p is BoardPart => p.kind === 'board' && !!p.finishing,
+    )!,
+    before = result.current.scene
+  const recipe = { version: 1 as const, features: [defaultWorktopFeature('opening')] }
+  act(() => {
+    expect(
+      result.current.onApplyWorktopMachiningPreview(
+        previewWorktopMachining(before, top.id, recipe),
+      ),
+    ).toBe(true)
+  })
+  const applied = result.current.scene
+  expect(result.current.undoLabel).toBe('Apply worktop machining')
+  expect(applied.parts.find((p) => p.id === top.id)?.cuts).toHaveLength(1)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(applied)
+  act(() => result.current.onUpdateCut(top.id, 'wm_opening', (c) => ({ ...c, label: 'forged' })))
+  act(() => result.current.onRemoveCut(top.id, 'wm_opening'))
+  act(() => result.current.onLinkCuts(top.id, 'wm_opening', top.id, 'wm_opening'))
+  expect(result.current.scene).toEqual(applied)
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 150 } } : c,
+    ),
+  )
+  expect(result.current.scene.parts.find((p) => p.id === top.id)?.cuts).toEqual([])
+  expect(
+    (result.current.scene.parts.find((p) => p.id === top.id) as BoardPart).worktopMachining,
+  ).toBeDefined()
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(applied)
+  act(() => result.current.onDuplicate(top.id))
+  const duplicate = result.current.scene.parts.find(
+    (p): p is BoardPart => p.kind === 'board' && !p.driven && p.id !== top.id,
+  )!
+  expect(duplicate.worktopMachining).toBeUndefined()
+  expect(duplicate.cuts).toHaveLength(1)
+  expect(duplicate.cuts[0].id).not.toBe('wm_opening')
+})
+
+it('applies hinge/runner settings as one step, follows resize and duplicates fixed front geometry', () => {
+  mockBuildPart
+    .mockReset()
+    .mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const cabinet = result.current.scene.components.find(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )!
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase'
+        ? {
+            ...c,
+            params: {
+              ...c.params,
+              section: { ...c.params.section, front: { kind: 'door', leaves: 1, hinge: 'left' } },
+            },
+          }
+        : c,
+    ),
+  )
+  const before = result.current.scene,
+    id = motionDoors(before, cabinet.id)[0].id
+  const draft = stageHinges(before, cabinet.id, emptyMotionDraft(), [id], {
+    ...defaultHingeLayout(),
+    countMode: 'manual',
+    count: 3,
+  })
+  act(() => {
+    expect(result.current.onApplyMotionPreview(previewMotion(before, cabinet.id, draft))).toBe(true)
+  })
+  const applied = result.current.scene
+  expect(result.current.undoLabel).toBe('Apply hinges and runners')
+  expect((applied.parts.find((p) => p.id === id) as BoardPart).hingeLayout?.count).toBe(3)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(applied)
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, height: 1000 } } : c,
+    ),
+  )
+  const resized = result.current.scene,
+    front = resized.parts.find((p) => p.id === id)!
+  expect(
+    front.cuts.some((c) => c.kind === 'hole-array' && c.id.startsWith('cups_') && c.count === 3),
+  ).toBe(true)
+  act(() => result.current.onDuplicate(id))
+  const clone = result.current.scene.parts.find(
+    (p): p is BoardPart => p.kind === 'board' && p.id !== id && !p.driven,
+  )!
+  expect(clone).toBeDefined()
+  expect(clone.hingeLayout).toBeUndefined()
+  expect(clone.role).toBeUndefined()
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(resized)
+})
+
+it('fits cabinet widths and placements in one independent undo step', () => {
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const ids = result.current.scene.components.filter((c) => c.kind === 'carcase').map((c) => c.id)
+  act(() =>
+    result.current.onUpdateComponent(ids[0], (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 700 } } : c,
+    ),
+  )
+  const before = result.current.scene
+  const preview = previewRunFit(before, { ...runFitDraft(ids), target: '1800', detach: true })
   expect(preview.errors).toEqual([])
-  act(()=>{expect(result.current.onApplyRunFitPreview(preview)).toBe(true)})
-  const after=result.current.scene
+  act(() => {
+    expect(result.current.onApplyRunFitPreview(preview)).toBe(true)
+  })
+  const after = result.current.scene
   expect(result.current.undoLabel).toBe('Fit cabinet run')
-  expect((after.components.find(c=>c.id===ids[1]) as CarcaseComponent).params.width).toBeCloseTo(900)
-  act(()=>{expect(result.current.onApplyRunFitPreview(preview)).toBe(false)})
-  act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
-  act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+  expect(
+    (after.components.find((c) => c.id === ids[1]) as CarcaseComponent).params.width,
+  ).toBeCloseTo(900)
+  act(() => {
+    expect(result.current.onApplyRunFitPreview(preview)).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(after)
 })
 
 it('applies cabinet interiors in one independent undo step and refuses stale or unchanged previews', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const {result}=renderHook(()=>useScene())
- act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
- const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
- act(()=>result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:700}}:c))
- const before=result.current.scene,id=interiorTargets(before,cabinet.id)[0].id
- const preview=previewInteriors(before,cabinet.id,{[id]:interiorDefaults(2)})
- expect(preview.errors).toEqual([])
- act(()=>{expect(result.current.onApplyInteriorsPreview(preview)).toBe(true)})
- const after=result.current.scene
- expect(result.current.undoLabel).toBe('Apply cabinet interiors')
- act(()=>{expect(result.current.onApplyInteriorsPreview(preview)).toBe(false)})
- const noop=previewInteriors(after,cabinet.id,{[id]:interiorDefaults(2)})
- act(()=>{expect(result.current.onApplyInteriorsPreview(noop)).toBe(false)})
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const cabinet = result.current.scene.components.find(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )!
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: 700 } } : c,
+    ),
+  )
+  const before = result.current.scene,
+    id = interiorTargets(before, cabinet.id)[0].id
+  const preview = previewInteriors(before, cabinet.id, { [id]: interiorDefaults(2) })
+  expect(preview.errors).toEqual([])
+  act(() => {
+    expect(result.current.onApplyInteriorsPreview(preview)).toBe(true)
+  })
+  const after = result.current.scene
+  expect(result.current.undoLabel).toBe('Apply cabinet interiors')
+  act(() => {
+    expect(result.current.onApplyInteriorsPreview(preview)).toBe(false)
+  })
+  const noop = previewInteriors(after, cabinet.id, { [id]: interiorDefaults(2) })
+  act(() => {
+    expect(result.current.onApplyInteriorsPreview(noop)).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(after)
 })
 
 it('adds and edits a linked run plinth as independent undo steps with profile-specific labels', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const {result}=renderHook(()=>useScene())
- act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]));act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
- const ids=result.current.scene.components.filter(c=>c.kind==='carcase').map(c=>c.id)
- act(()=>result.current.onUpdateComponent(ids[1],c=>({...c,position:{x:600,y:0,z:0},anchor:{to:ids[0],face:'right',gap:0,offset:{u:0,v:0}}})))
- const before=result.current.scene
- const d={...runPanelDraft(before,ids[0]),memberIds:ids},p=previewRunPanel(before,d)
- expect(p.errors).toEqual([])
- act(()=>{expect(result.current.onApplyRunWorktopPreview(p)).toBe(true)})
- expect(result.current.undoLabel).toBe('Add run plinth')
- const added=result.current.scene,board=added.parts.find(p=>p.kind==='board'&&p.runWorktop?.draft.profile==='plinth')!
- const edit=previewRunPanel(added,{...d,label:'New plinth'},board.id)
- act(()=>{expect(result.current.onApplyRunWorktopPreview(edit)).toBe(true)})
- expect(result.current.undoLabel).toBe('Update run plinth')
- act(()=>result.current.undo());expect(result.current.scene).toEqual(added)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(added)
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const ids = result.current.scene.components.filter((c) => c.kind === 'carcase').map((c) => c.id)
+  act(() =>
+    result.current.onUpdateComponent(ids[1], (c) => ({
+      ...c,
+      position: { x: 600, y: 0, z: 0 },
+      anchor: { to: ids[0], face: 'right', gap: 0, offset: { u: 0, v: 0 } },
+    })),
+  )
+  const before = result.current.scene
+  const d = { ...runPanelDraft(before, ids[0]), memberIds: ids },
+    p = previewRunPanel(before, d)
+  expect(p.errors).toEqual([])
+  act(() => {
+    expect(result.current.onApplyRunWorktopPreview(p)).toBe(true)
+  })
+  expect(result.current.undoLabel).toBe('Add run plinth')
+  const added = result.current.scene,
+    board = added.parts.find((p) => p.kind === 'board' && p.runWorktop?.draft.profile === 'plinth')!
+  const edit = previewRunPanel(added, { ...d, label: 'New plinth' }, board.id)
+  act(() => {
+    expect(result.current.onApplyRunWorktopPreview(edit)).toBe(true)
+  })
+  expect(result.current.undoLabel).toBe('Update run plinth')
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(added)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(added)
 })
 
- it.each(['materials', 'edges'] as const)('applies cabinet %s with one independent undo and redo step', (mode) => {
-  mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
-  const {result}=renderHook(()=>useScene())
-  act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
-  const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
-  const before=result.current.scene, p=before.parts.find(p=>p.role==='left-side')!
-  const draft=mode==='materials'?stageMaterials(before,cabinet.id,{},[p.id],{grain:'width'}):stageEdges(before,cabinet.id,{},[p.id],['x0'],null)
-  const preview=previewMaterials(before,cabinet.id,draft,mode)
-  expect(preview.errors).toEqual([])
-  act(()=>{expect(result.current.onApplyMaterialsPreview(preview)).toBe(true)})
-  const after=result.current.scene
-  expect(result.current.undoLabel).toBe(mode==='materials'?'Apply cabinet materials':'Apply cabinet edgebanding')
-  act(()=>{expect(result.current.onApplyMaterialsPreview(preview)).toBe(false)})
-  act(()=>{expect(result.current.onApplyMaterialsPreview(previewMaterials(after,cabinet.id,draft,mode))).toBe(false)})
-  act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
-  act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
- })
+it.each(['materials', 'edges'] as const)(
+  'applies cabinet %s with one independent undo and redo step',
+  (mode) => {
+    mockBuildPart.mockResolvedValue({
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+    })
+    const { result } = renderHook(() => useScene())
+    act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+    const cabinet = result.current.scene.components.find(
+      (c): c is CarcaseComponent => c.kind === 'carcase',
+    )!
+    const before = result.current.scene,
+      p = before.parts.find((p) => p.role === 'left-side')!
+    const draft =
+      mode === 'materials'
+        ? stageMaterials(before, cabinet.id, {}, [p.id], { grain: 'width' })
+        : stageEdges(before, cabinet.id, {}, [p.id], ['x0'], null)
+    const preview = previewMaterials(before, cabinet.id, draft, mode)
+    expect(preview.errors).toEqual([])
+    act(() => {
+      expect(result.current.onApplyMaterialsPreview(preview)).toBe(true)
+    })
+    const after = result.current.scene
+    expect(result.current.undoLabel).toBe(
+      mode === 'materials' ? 'Apply cabinet materials' : 'Apply cabinet edgebanding',
+    )
+    act(() => {
+      expect(result.current.onApplyMaterialsPreview(preview)).toBe(false)
+    })
+    act(() => {
+      expect(
+        result.current.onApplyMaterialsPreview(previewMaterials(after, cabinet.id, draft, mode)),
+      ).toBe(false)
+    })
+    act(() => result.current.undo())
+    expect(result.current.scene).toEqual(before)
+    act(() => result.current.redo())
+    expect(result.current.scene).toEqual(after)
+  },
+)
 
 it('saves and removes appliance bays in independent undo steps and rejects stale previews', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const {result}=renderHook(()=>useScene())
- act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
- const c=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!
- const before=result.current.scene, bay=defaultApplianceBay('appliance',c.id,applianceOpenings(before,c.id)[0].id), p=previewAppliance(before,bay)
- expect(p.errors).toEqual([])
- act(()=>{expect(result.current.onApplyAppliancePreview(p)).toBe(true)})
- const after=result.current.scene
- expect(result.current.undoLabel).toBe('Save appliance bay')
- act(()=>{expect(result.current.onApplyAppliancePreview(p)).toBe(false)})
- act(()=>{expect(result.current.onApplyAppliancePreview(previewAppliance(after,bay))).toBe(false)})
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
- act(()=>{expect(result.current.onApplyAppliancePreview(previewAppliance(after,bay,'delete'))).toBe(true)})
- expect(result.current.scene.applianceBays).toBeUndefined()
- expect(result.current.undoLabel).toBe('Remove appliance bay')
- act(()=>result.current.undo());expect(result.current.scene).toEqual(after)
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const c = result.current.scene.components.find(
+    (c): c is CarcaseComponent => c.kind === 'carcase',
+  )!
+  const before = result.current.scene,
+    bay = defaultApplianceBay('appliance', c.id, applianceOpenings(before, c.id)[0].id),
+    p = previewAppliance(before, bay)
+  expect(p.errors).toEqual([])
+  act(() => {
+    expect(result.current.onApplyAppliancePreview(p)).toBe(true)
+  })
+  const after = result.current.scene
+  expect(result.current.undoLabel).toBe('Save appliance bay')
+  act(() => {
+    expect(result.current.onApplyAppliancePreview(p)).toBe(false)
+  })
+  act(() => {
+    expect(result.current.onApplyAppliancePreview(previewAppliance(after, bay))).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(after)
+  act(() => {
+    expect(result.current.onApplyAppliancePreview(previewAppliance(after, bay, 'delete'))).toBe(
+      true,
+    )
+  })
+  expect(result.current.scene.applianceBays).toBeUndefined()
+  expect(result.current.undoLabel).toBe('Remove appliance bay')
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(after)
 })
 it('applies service openings atomically, locks cuts, follows resize and duplicates fixed cuts', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const {result}=renderHook(()=>useScene())
- act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
- const cabinet=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!,before=result.current.scene
- const b=before.parts.find((p):p is BoardPart=>p.kind==='board'&&p.role==='back')!,recipe={version:1 as const,features:[defaultServiceFeature('test-hole'),{...defaultServiceFeature('test-slot','rectangle'),length:20,width:20,x:150}]},p=previewService(before,cabinet.id,b.id,recipe)
- expect(p.errors).toEqual([])
- act(()=>{expect(result.current.onApplyServicePreview(p)).toBe(true)})
- const after=result.current.scene
- expect(result.current.undoLabel).toBe('Apply service openings')
- act(()=>{expect(result.current.onApplyServicePreview(p)).toBe(false)})
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
- const id=serviceCutId('test-hole',0)
- act(()=>result.current.onUpdateCut(b.id,id,c=>({...c,label:'wrong'})))
- act(()=>result.current.onRemoveCut(b.id,id))
- act(()=>result.current.onLinkCuts(b.id,id,b.id,id))
- act(()=>result.current.onLinkCuts(b.id,serviceCutId('test-slot',0),b.id,serviceCutId('test-slot',0)))
- expect(result.current.scene).toEqual(after)
- act(()=>result.current.onUpdateComponent(cabinet.id,c=>c.kind==='carcase'?{...c,params:{...c.params,width:c.params.width+100}}:c))
- const current=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&p.id===b.id)!
- const cut=current.cuts.find(c=>c.id===id)!,oldCut=after.parts.find(p=>p.id===b.id)!.cuts.find(c=>c.id===id)!
- expect(cut.kind==='hole-array'&&oldCut.kind==='hole-array'&&cut.start.y-oldCut.start.y).toBe(50)
- act(()=>result.current.onDuplicate(b.id))
- const duplicate=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&p.label===b.label&&p.id!==b.id)!
- expect(duplicate.serviceMachining).toBeUndefined();expect(duplicate.driven).toBe(false);expect(duplicate.role).toBeUndefined()
- expect(duplicate.cuts.some(c=>c.id===id)).toBe(false)
- const count=duplicate.cuts.length
- act(()=>result.current.onUpdate(duplicate.id,p=>p.kind==='board'?{...p,width:p.width+10}:p))
- expect(result.current.scene.parts.find(p=>p.id===duplicate.id)!.cuts).toHaveLength(count)
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const cabinet = result.current.scene.components.find(
+      (c): c is CarcaseComponent => c.kind === 'carcase',
+    )!,
+    before = result.current.scene
+  const b = before.parts.find((p): p is BoardPart => p.kind === 'board' && p.role === 'back')!,
+    recipe = {
+      version: 1 as const,
+      features: [
+        defaultServiceFeature('test-hole'),
+        { ...defaultServiceFeature('test-slot', 'rectangle'), length: 20, width: 20, x: 150 },
+      ],
+    },
+    p = previewService(before, cabinet.id, b.id, recipe)
+  expect(p.errors).toEqual([])
+  act(() => {
+    expect(result.current.onApplyServicePreview(p)).toBe(true)
+  })
+  const after = result.current.scene
+  expect(result.current.undoLabel).toBe('Apply service openings')
+  act(() => {
+    expect(result.current.onApplyServicePreview(p)).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(after)
+  const id = serviceCutId('test-hole', 0)
+  act(() => result.current.onUpdateCut(b.id, id, (c) => ({ ...c, label: 'wrong' })))
+  act(() => result.current.onRemoveCut(b.id, id))
+  act(() => result.current.onLinkCuts(b.id, id, b.id, id))
+  act(() =>
+    result.current.onLinkCuts(
+      b.id,
+      serviceCutId('test-slot', 0),
+      b.id,
+      serviceCutId('test-slot', 0),
+    ),
+  )
+  expect(result.current.scene).toEqual(after)
+  act(() =>
+    result.current.onUpdateComponent(cabinet.id, (c) =>
+      c.kind === 'carcase' ? { ...c, params: { ...c.params, width: c.params.width + 100 } } : c,
+    ),
+  )
+  const current = result.current.scene.parts.find(
+    (p): p is BoardPart => p.kind === 'board' && p.id === b.id,
+  )!
+  const cut = current.cuts.find((c) => c.id === id)!,
+    oldCut = after.parts.find((p) => p.id === b.id)!.cuts.find((c) => c.id === id)!
+  expect(
+    cut.kind === 'hole-array' && oldCut.kind === 'hole-array' && cut.start.y - oldCut.start.y,
+  ).toBe(50)
+  act(() => result.current.onDuplicate(b.id))
+  const duplicate = result.current.scene.parts.find(
+    (p): p is BoardPart => p.kind === 'board' && p.label === b.label && p.id !== b.id,
+  )!
+  expect(duplicate.serviceMachining).toBeUndefined()
+  expect(duplicate.driven).toBe(false)
+  expect(duplicate.role).toBeUndefined()
+  expect(duplicate.cuts.some((c) => c.id === id)).toBe(false)
+  const count = duplicate.cuts.length
+  act(() =>
+    result.current.onUpdate(duplicate.id, (p) =>
+      p.kind === 'board' ? { ...p, width: p.width + 10 } : p,
+    ),
+  )
+  expect(result.current.scene.parts.find((p) => p.id === duplicate.id)!.cuts).toHaveLength(count)
 })
 it('rebuilds service cuts when a manual linked panel is edited through normal part tools', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const {result}=renderHook(()=>useScene())
- act(()=>result.current.onAddCarcase(CARCASE_PRESETS[0]))
- const c=result.current.scene.components.find((c):c is CarcaseComponent=>c.kind==='carcase')!,before=result.current.scene
- act(()=>{expect(result.current.onApplyFinishingPreview(previewFinishing(before,c.id,{...finishingDraft(before,c.id),follow:true}))).toBe(true)})
- const part=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&!!p.finishing)!,recipe={version:1 as const,features:[defaultServiceFeature('manual-service')]}
- act(()=>{expect(result.current.onApplyServicePreview(previewService(result.current.scene,c.id,part.id,recipe))).toBe(true)})
- const original=result.current.scene.parts.find(p=>p.id===part.id)!.cuts.find(c=>c.id===serviceCutId('manual-service',0))!
- act(()=>result.current.onUpdate(part.id,p=>p.kind==='board'?{...p,length:p.length+100}:p))
- const edited=result.current.scene.parts.find(p=>p.id===part.id)!.cuts.find(c=>c.id===original.id)!
- expect(edited.kind==='hole-array'&&original.kind==='hole-array'&&edited.start.x-original.start.x).toBe(50)
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.onAddCarcase(CARCASE_PRESETS[0]))
+  const c = result.current.scene.components.find(
+      (c): c is CarcaseComponent => c.kind === 'carcase',
+    )!,
+    before = result.current.scene
+  act(() => {
+    expect(
+      result.current.onApplyFinishingPreview(
+        previewFinishing(before, c.id, { ...finishingDraft(before, c.id), follow: true }),
+      ),
+    ).toBe(true)
+  })
+  const part = result.current.scene.parts.find(
+      (p): p is BoardPart => p.kind === 'board' && !!p.finishing,
+    )!,
+    recipe = { version: 1 as const, features: [defaultServiceFeature('manual-service')] }
+  act(() => {
+    expect(
+      result.current.onApplyServicePreview(
+        previewService(result.current.scene, c.id, part.id, recipe),
+      ),
+    ).toBe(true)
+  })
+  const original = result.current.scene.parts
+    .find((p) => p.id === part.id)!
+    .cuts.find((c) => c.id === serviceCutId('manual-service', 0))!
+  act(() =>
+    result.current.onUpdate(part.id, (p) =>
+      p.kind === 'board' ? { ...p, length: p.length + 100 } : p,
+    ),
+  )
+  const edited = result.current.scene.parts
+    .find((p) => p.id === part.id)!
+    .cuts.find((c) => c.id === original.id)!
+  expect(
+    edited.kind === 'hole-array' &&
+      original.kind === 'hole-array' &&
+      edited.start.x - original.start.x,
+  ).toBe(50)
 })
 
 it('applies entire corner assemblies in one undo step and protects owned board fields', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const {result}=renderHook(()=>useScene())
- act(()=>result.current.replaceScene(cornerScene()))
- const before=result.current.scene,d=cornerDraft(before,'a');d.legs[1].run.memberIds=['b']
- const p=previewCorner(before,d)
- act(()=>{expect(result.current.onApplyCornerPreview(p)).toBe(true)})
- const applied=result.current.scene,owned=applied.parts.filter((p):p is BoardPart=>p.kind==='board'&&!!p.cornerPanel)
- expect(owned).toHaveLength(2);expect(result.current.undoLabel).toBe('Apply corner assembly')
- act(()=>{expect(result.current.onApplyCornerPreview(p)).toBe(false)})
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(applied)
- for(const change of [{length:999},{label:'wrong'},{material:'wrong'},{grain:'free'},{edgeBanding:{x0:null}}]) {
-  act(()=>result.current.onUpdate(owned[0].id,p=>({...p,...change} as Part)))
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const { result } = renderHook(() => useScene())
+  act(() => result.current.replaceScene(cornerScene()))
+  const before = result.current.scene,
+    d = cornerDraft(before, 'a')
+  d.legs[1].run.memberIds = ['b']
+  const p = previewCorner(before, d)
+  act(() => {
+    expect(result.current.onApplyCornerPreview(p)).toBe(true)
+  })
+  const applied = result.current.scene,
+    owned = applied.parts.filter((p): p is BoardPart => p.kind === 'board' && !!p.cornerPanel)
+  expect(owned).toHaveLength(2)
+  expect(result.current.undoLabel).toBe('Apply corner assembly')
+  act(() => {
+    expect(result.current.onApplyCornerPreview(p)).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
   expect(result.current.scene).toEqual(applied)
- }
- act(()=>result.current.onDuplicate(owned[0].id))
- const duplicate=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&p.id!==owned[0].id&&p.label===owned[0].label)!
- expect(duplicate.cornerPanel).toBeUndefined();expect(duplicate.driven).toBe(false)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(applied)
- const current=result.current.scene,request=previewCorner(current,d,owned[0].cornerPanel!.assemblyId)
- act(()=>{expect(result.current.onApplyCornerPreview({...request,action:'detach'})).toBe(true)})
- expect(result.current.scene.parts.filter((p)=>p.kind==='board'&&p.cornerPanel)).toHaveLength(0)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(applied)
- act(()=>{expect(result.current.onApplyCornerPreview({...request,action:'delete'})).toBe(true)})
- expect(result.current.scene.parts).toHaveLength(before.parts.length)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(applied)
+  for (const change of [
+    { length: 999 },
+    { label: 'wrong' },
+    { material: 'wrong' },
+    { grain: 'free' },
+    { edgeBanding: { x0: null } },
+  ]) {
+    act(() => result.current.onUpdate(owned[0].id, (p) => ({ ...p, ...change }) as Part))
+    expect(result.current.scene).toEqual(applied)
+  }
+  act(() => result.current.onDuplicate(owned[0].id))
+  const duplicate = result.current.scene.parts.find(
+    (p): p is BoardPart => p.kind === 'board' && p.id !== owned[0].id && p.label === owned[0].label,
+  )!
+  expect(duplicate.cornerPanel).toBeUndefined()
+  expect(duplicate.driven).toBe(false)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(applied)
+  const current = result.current.scene,
+    request = previewCorner(current, d, owned[0].cornerPanel!.assemblyId)
+  act(() => {
+    expect(result.current.onApplyCornerPreview({ ...request, action: 'detach' })).toBe(true)
+  })
+  expect(
+    result.current.scene.parts.filter((p) => p.kind === 'board' && p.cornerPanel),
+  ).toHaveLength(0)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(applied)
+  act(() => {
+    expect(result.current.onApplyCornerPreview({ ...request, action: 'delete' })).toBe(true)
+  })
+  expect(result.current.scene.parts).toHaveLength(before.parts.length)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(applied)
 })
 
 it('applies room runs and wall fillers in single scene history steps without changing project history', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const f=installationFixture(),projectBefore=JSON.stringify(f.project),{result}=renderHook(()=>useScene())
- act(()=>result.current.replaceScene(f.scene))
- const before=result.current.scene,d={...installationDraft(f.project,before),memberIds:['a','b'],from:'end' as const},preview=previewInstallation(before,f.project,d)
- expect(preview.errors).toEqual([])
- act(()=>{expect(result.current.onApplyInstallationPreview(f.project,preview)).toBe(true)})
- const installed=result.current.scene
- expect(result.current.undoLabel).toBe('Apply room installation');expect(installed.installations).toHaveLength(1)
- act(()=>{expect(result.current.onApplyInstallationPreview(f.project,preview)).toBe(false)})
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(installed)
- f.room.geometry!.walls[0].end.x=4000
- act(()=>result.current.syncRoomInstallationSources(f.project))
- const moved=result.current.scene,cab=(s:Scene)=>s.components.find((c)=>c.id==='a')!
- expect(cab(moved).position.x-cab(installed).position.x).toBeCloseTo(1000);expect(result.current.undoLabel).toBe('Apply room installation')
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- const filler=previewWallFiller(before,f.project,{...wallFillerDraft(f.project,before),wallId:'left'})
- expect(filler.errors).toEqual([])
- act(()=>{expect(result.current.onApplyWallFillerPreview(f.project,filler)).toBe(true)})
- const filled=result.current.scene,part=filled.parts.find((p):p is BoardPart=>p.kind==='board'&&!!p.wallFiller)!
- expect(part.width).toBe(98);expect(result.current.undoLabel).toBe('Apply wall filler')
- act(()=>result.current.onUpdate(part.id,p=>p.kind==='board'?{...p,width:999}:p));expect(result.current.scene).toEqual(filled)
- act(()=>result.current.onDuplicate(part.id));const duplicate=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&p.id!==part.id&&p.label===part.label)!
- expect(duplicate.wallFiller).toBeUndefined();expect(duplicate.driven).toBe(false)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(filled)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(filled)
- expect(JSON.stringify(f.project)).not.toBe(projectBefore) // Only the deliberate wall edit above changed project data.
- expect(f.project.areas[0].rooms[0].geometry!.walls[0].end.x).toBe(4000)
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const f = installationFixture(),
+    projectBefore = JSON.stringify(f.project),
+    { result } = renderHook(() => useScene())
+  act(() => result.current.replaceScene(f.scene))
+  const before = result.current.scene,
+    d = { ...installationDraft(f.project, before), memberIds: ['a', 'b'], from: 'end' as const },
+    preview = previewInstallation(before, f.project, d)
+  expect(preview.errors).toEqual([])
+  act(() => {
+    expect(result.current.onApplyInstallationPreview(f.project, preview)).toBe(true)
+  })
+  const installed = result.current.scene
+  expect(result.current.undoLabel).toBe('Apply room installation')
+  expect(installed.installations).toHaveLength(1)
+  act(() => {
+    expect(result.current.onApplyInstallationPreview(f.project, preview)).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(installed)
+  f.room.geometry!.walls[0].end.x = 4000
+  act(() => result.current.syncRoomInstallationSources(f.project))
+  const moved = result.current.scene,
+    cab = (s: Scene) => s.components.find((c) => c.id === 'a')!
+  expect(cab(moved).position.x - cab(installed).position.x).toBeCloseTo(1000)
+  expect(result.current.undoLabel).toBe('Apply room installation')
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  const filler = previewWallFiller(before, f.project, {
+    ...wallFillerDraft(f.project, before),
+    wallId: 'left',
+  })
+  expect(filler.errors).toEqual([])
+  act(() => {
+    expect(result.current.onApplyWallFillerPreview(f.project, filler)).toBe(true)
+  })
+  const filled = result.current.scene,
+    part = filled.parts.find((p): p is BoardPart => p.kind === 'board' && !!p.wallFiller)!
+  expect(part.width).toBe(98)
+  expect(result.current.undoLabel).toBe('Apply wall filler')
+  act(() =>
+    result.current.onUpdate(part.id, (p) => (p.kind === 'board' ? { ...p, width: 999 } : p)),
+  )
+  expect(result.current.scene).toEqual(filled)
+  act(() => result.current.onDuplicate(part.id))
+  const duplicate = result.current.scene.parts.find(
+    (p): p is BoardPart => p.kind === 'board' && p.id !== part.id && p.label === part.label,
+  )!
+  expect(duplicate.wallFiller).toBeUndefined()
+  expect(duplicate.driven).toBe(false)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(filled)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(filled)
+  expect(JSON.stringify(f.project)).not.toBe(projectBefore) // Only the deliberate wall edit above changed project data.
+  expect(f.project.areas[0].rooms[0].geometry!.walls[0].end.x).toBe(4000)
 })
 
 it('saves opening motion settings in one undo step without changing manufacturing poses', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const s=openingMotionScene(),project=defaultProject(s,'Motion'),{result}=renderHook(()=>useScene())
- act(()=>result.current.replaceScene(s))
- const before=result.current.scene,settings={...defaultOpeningMotion(),entries:openingTargets(before).map(defaultOpeningSetting)},request=previewOpeningSettings(before,project,settings)
- act(()=>{expect(result.current.onApplyOpeningPreview(project,request)).toBe(true)})
- const after=result.current.scene
- expect(after.openingMotion).toEqual(settings);expect(after.parts).toEqual(before.parts);expect(after.components).toEqual(before.components)
- expect(result.current.undoLabel).toBe('Apply opening motion settings')
- act(()=>{expect(result.current.onApplyOpeningPreview(project,request)).toBe(false)})
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const s = openingMotionScene(),
+    project = defaultProject(s, 'Motion'),
+    { result } = renderHook(() => useScene())
+  act(() => result.current.replaceScene(s))
+  const before = result.current.scene,
+    settings = {
+      ...defaultOpeningMotion(),
+      entries: openingTargets(before).map(defaultOpeningSetting),
+    },
+    request = previewOpeningSettings(before, project, settings)
+  act(() => {
+    expect(result.current.onApplyOpeningPreview(project, request)).toBe(true)
+  })
+  const after = result.current.scene
+  expect(after.openingMotion).toEqual(settings)
+  expect(after.parts).toEqual(before.parts)
+  expect(after.components).toEqual(before.components)
+  expect(result.current.undoLabel).toBe('Apply opening motion settings')
+  act(() => {
+    expect(result.current.onApplyOpeningPreview(project, request)).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(after)
 })
 
 it('applies grain groups and detaches in atomic history steps while guarding owned grain and duplication', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const f=grainFixture(),{result}=renderHook(()=>useScene())
- act(()=>result.current.replaceScene(f.scene))
- const before=result.current.scene,draft={...f.draft,direction:'horizontal' as const},request=previewGrainMatch(before,f.project,draft)
- act(()=>{expect(result.current.onApplyGrainMatchPreview(f.project,request)).toBe(true)})
- const after=result.current.scene,matched=after.parts.filter((p):p is BoardPart=>p.kind==='board'&&!!p.grainMatch)
- expect(matched).toHaveLength(2);expect(matched.every(p=>p.grain==='width')).toBe(true)
- expect(after.parts.map(p=>p.position)).toEqual(before.parts.map(p=>p.position));expect(result.current.undoLabel).toBe('Apply grain matching group')
- act(()=>{expect(result.current.onApplyGrainMatchPreview(f.project,request)).toBe(false)})
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
- act(()=>result.current.onUpdate(matched[0].id,p=>p.kind==='board'?{...p,grain:'free'}:p));expect(result.current.scene).toBe(after)
- act(()=>result.current.onDuplicate(matched[0].id));const duplicate=result.current.scene.parts.find(p=>!after.parts.some(a=>a.id===p.id)) as BoardPart
- expect(duplicate.grainMatch).toBeUndefined();expect(duplicate.driven).toBe(false);expect(duplicate.role).toBeUndefined()
- act(()=>result.current.undo());expect(result.current.scene).toEqual(after)
- const detach={...previewGrainMatch(after,f.project,draft,after.grainMatches![0].id),action:'detach' as const}
- act(()=>{expect(result.current.onApplyGrainMatchPreview(f.project,detach)).toBe(true)})
- expect(result.current.scene.grainMatches).toBeUndefined();expect(result.current.scene.parts.filter((p):p is BoardPart=>p.kind==='board'&&matched.some(m=>m.id===p.id)).every(p=>p.grain==='width'&&!p.grainMatch)).toBe(true)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(after)
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const f = grainFixture(),
+    { result } = renderHook(() => useScene())
+  act(() => result.current.replaceScene(f.scene))
+  const before = result.current.scene,
+    draft = { ...f.draft, direction: 'horizontal' as const },
+    request = previewGrainMatch(before, f.project, draft)
+  act(() => {
+    expect(result.current.onApplyGrainMatchPreview(f.project, request)).toBe(true)
+  })
+  const after = result.current.scene,
+    matched = after.parts.filter((p): p is BoardPart => p.kind === 'board' && !!p.grainMatch)
+  expect(matched).toHaveLength(2)
+  expect(matched.every((p) => p.grain === 'width')).toBe(true)
+  expect(after.parts.map((p) => p.position)).toEqual(before.parts.map((p) => p.position))
+  expect(result.current.undoLabel).toBe('Apply grain matching group')
+  act(() => {
+    expect(result.current.onApplyGrainMatchPreview(f.project, request)).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(after)
+  act(() =>
+    result.current.onUpdate(matched[0].id, (p) =>
+      p.kind === 'board' ? { ...p, grain: 'free' } : p,
+    ),
+  )
+  expect(result.current.scene).toBe(after)
+  act(() => result.current.onDuplicate(matched[0].id))
+  const duplicate = result.current.scene.parts.find(
+    (p) => !after.parts.some((a) => a.id === p.id),
+  ) as BoardPart
+  expect(duplicate.grainMatch).toBeUndefined()
+  expect(duplicate.driven).toBe(false)
+  expect(duplicate.role).toBeUndefined()
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(after)
+  const detach = {
+    ...previewGrainMatch(after, f.project, draft, after.grainMatches![0].id),
+    action: 'detach' as const,
+  }
+  act(() => {
+    expect(result.current.onApplyGrainMatchPreview(f.project, detach)).toBe(true)
+  })
+  expect(result.current.scene.grainMatches).toBeUndefined()
+  expect(
+    result.current.scene.parts
+      .filter((p): p is BoardPart => p.kind === 'board' && matched.some((m) => m.id === p.id))
+      .every((p) => p.grain === 'width' && !p.grainMatch),
+  ).toBe(true)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(after)
 })
-
 
 it('saves and consumes project stock in atomic undo steps and rejects replayed previews', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const f=stockFixture(1),{result}=renderHook(()=>useScene())
- f.plan.stocks=[stockOption({quantity:2})]
- act(()=>result.current.replaceScene(f.scene))
- const before=result.current.scene,p=previewStockPlan(before,f.project,f.scene.materials,f.plan)
- act(()=>{expect(result.current.onApplyStockPlan(f.project,f.scene.materials,p,'save')).toBe(true)})
- const saved=result.current.scene;expect(saved.stockPlan).toEqual(f.plan);expect(result.current.undoLabel).toBe('Save stock settings')
- act(()=>{expect(result.current.onApplyStockPlan(f.project,f.scene.materials,p,'consume')).toBe(false)})
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(saved)
- const consume=previewStockPlan(saved,f.project,f.scene.materials,f.plan),remnant=consume.result!.remnants[0].id
- act(()=>{expect(result.current.onApplyStockPlan(f.project,f.scene.materials,consume,'consume',[remnant])).toBe(true)})
- const after=result.current.scene;expect(after.stockPlan!.stocks[0].quantity).toBe(1);expect(after.stockPlan!.stocks[1].kind).toBe('offcut');expect(after.parts).toEqual(saved.parts);expect(result.current.undoLabel).toBe('Consume stock and save remnants')
- act(()=>{expect(result.current.onApplyStockPlan(f.project,f.scene.materials,consume,'consume',[remnant])).toBe(false)})
- act(()=>result.current.undo());expect(result.current.scene).toEqual(saved)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const f = stockFixture(1),
+    { result } = renderHook(() => useScene())
+  f.plan.stocks = [stockOption({ quantity: 2 })]
+  act(() => result.current.replaceScene(f.scene))
+  const before = result.current.scene,
+    p = previewStockPlan(before, f.project, f.scene.materials, f.plan)
+  act(() => {
+    expect(result.current.onApplyStockPlan(f.project, f.scene.materials, p, 'save')).toBe(true)
+  })
+  const saved = result.current.scene
+  expect(saved.stockPlan).toEqual(f.plan)
+  expect(result.current.undoLabel).toBe('Save stock settings')
+  act(() => {
+    expect(result.current.onApplyStockPlan(f.project, f.scene.materials, p, 'consume')).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(saved)
+  const consume = previewStockPlan(saved, f.project, f.scene.materials, f.plan),
+    remnant = consume.result!.remnants[0].id
+  act(() => {
+    expect(
+      result.current.onApplyStockPlan(f.project, f.scene.materials, consume, 'consume', [remnant]),
+    ).toBe(true)
+  })
+  const after = result.current.scene
+  expect(after.stockPlan!.stocks[0].quantity).toBe(1)
+  expect(after.stockPlan!.stocks[1].kind).toBe('offcut')
+  expect(after.parts).toEqual(saved.parts)
+  expect(result.current.undoLabel).toBe('Consume stock and save remnants')
+  act(() => {
+    expect(
+      result.current.onApplyStockPlan(f.project, f.scene.materials, consume, 'consume', [remnant]),
+    ).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(saved)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(after)
 })
 
-
 it('applies and disables sloped roofs in atomic history steps with stale replay protection', () => {
- mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
- const f=slopeFixture(),{result}=renderHook(()=>useScene())
- act(()=>result.current.replaceScene(f.scene));const before=result.current.scene,p=previewSlope(before,f.project,f.draft)
- act(()=>{expect(result.current.onApplySlope(f.project,p)).toBe(true)})
- const after=result.current.scene;expect(after.components.find(c=>c.kind==='carcase')!.params.slopedTop).toBeDefined();expect(result.current.undoLabel).toBe('Apply sloped cabinet')
- act(()=>{expect(result.current.onApplySlope(f.project,p)).toBe(false)})
- act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
- act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
- const source=after.parts.find(p=>p.kind==='board'&&p.role==='top') as BoardPart
- act(()=>result.current.onDuplicate(source.id))
- const copy=result.current.scene.parts.find(p=>!after.parts.some(a=>a.id===p.id)) as BoardPart
- expect(copy.driven).toBe(false);expect(copy.role).toBeUndefined();expect(copy.cuts.every(c=>c.sourceComponentId===undefined)).toBe(true);expect(copy.cuts.filter(c=>c.kind==='mitre')).toHaveLength(2)
- act(()=>result.current.undo());expect(result.current.scene).toEqual(after)
- const draft=defaultSlopeDraft(after,f.cabinetId);draft.enabled=false
- act(()=>{expect(result.current.onApplySlope(f.project,previewSlope(after,f.project,draft))).toBe(true)})
- expect(result.current.scene.components.find(c=>c.kind==='carcase')!.params.slopedTop).toBeUndefined();expect(result.current.undoLabel).toBe('Disable sloped cabinet')
- act(()=>result.current.undo());expect(result.current.scene).toEqual(after)
+  mockBuildPart.mockResolvedValue({
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  })
+  const f = slopeFixture(),
+    { result } = renderHook(() => useScene())
+  act(() => result.current.replaceScene(f.scene))
+  const before = result.current.scene,
+    p = previewSlope(before, f.project, f.draft)
+  act(() => {
+    expect(result.current.onApplySlope(f.project, p)).toBe(true)
+  })
+  const after = result.current.scene
+  expect(after.components.find((c) => c.kind === 'carcase')!.params.slopedTop).toBeDefined()
+  expect(result.current.undoLabel).toBe('Apply sloped cabinet')
+  act(() => {
+    expect(result.current.onApplySlope(f.project, p)).toBe(false)
+  })
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(before)
+  act(() => result.current.redo())
+  expect(result.current.scene).toEqual(after)
+  const source = after.parts.find((p) => p.kind === 'board' && p.role === 'top') as BoardPart
+  act(() => result.current.onDuplicate(source.id))
+  const copy = result.current.scene.parts.find(
+    (p) => !after.parts.some((a) => a.id === p.id),
+  ) as BoardPart
+  expect(copy.driven).toBe(false)
+  expect(copy.role).toBeUndefined()
+  expect(copy.cuts.every((c) => c.sourceComponentId === undefined)).toBe(true)
+  expect(copy.cuts.filter((c) => c.kind === 'mitre')).toHaveLength(2)
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(after)
+  const draft = defaultSlopeDraft(after, f.cabinetId)
+  draft.enabled = false
+  act(() => {
+    expect(result.current.onApplySlope(f.project, previewSlope(after, f.project, draft))).toBe(true)
+  })
+  expect(
+    result.current.scene.components.find((c) => c.kind === 'carcase')!.params.slopedTop,
+  ).toBeUndefined()
+  expect(result.current.undoLabel).toBe('Disable sloped cabinet')
+  act(() => result.current.undo())
+  expect(result.current.scene).toEqual(after)
 })

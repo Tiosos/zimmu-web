@@ -48,11 +48,19 @@ test('dowel cuts remove the correct material in the correct place', async ({ pag
 
     return {
       plain: measure(build([])),
-      endCut: measure(build([{ kind: 'end', ...id('e'), end: '+Z', offset: 5, angle: 30, azimuth: 0 }])),
-      notch: measure(build([{ kind: 'notch', ...id('n'), position: 50, width: 10, depth: 4, azimuth: 0 }])),
-      axialBore: measure(build([{ kind: 'bore-axial', ...id('b'), end: '+Z', diameter: 4, depth: 20 }])),
+      endCut: measure(
+        build([{ kind: 'end', ...id('e'), end: '+Z', offset: 5, angle: 30, azimuth: 0 }]),
+      ),
+      notch: measure(
+        build([{ kind: 'notch', ...id('n'), position: 50, width: 10, depth: 4, azimuth: 0 }]),
+      ),
+      axialBore: measure(
+        build([{ kind: 'bore-axial', ...id('b'), end: '+Z', diameter: 4, depth: 20 }]),
+      ),
       transverseBore: measure(
-        build([{ kind: 'bore-transverse', ...id('t'), position: 50, azimuth: 0, diameter: 4, depth: 12 }]),
+        build([
+          { kind: 'bore-transverse', ...id('t'), position: 50, azimuth: 0, diameter: 4, depth: 12 },
+        ]),
       ),
     }
   })

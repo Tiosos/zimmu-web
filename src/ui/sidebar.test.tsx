@@ -951,10 +951,13 @@ describe('Sidebar — carcase', () => {
     render(<Sidebar {...props({ onAddCarcase, scene })} />)
     await userEvent.click(screen.getByLabelText('Add cabinet'))
     await userEvent.click(screen.getByRole('option', { name: /Company base.*v1/ }))
-    expect(onAddCarcase).toHaveBeenCalledWith(expect.objectContaining({
-      catalogueId: 'company:11111111-1111-1111-1111-111111111111:company.base', catalogueVersion: 1,
-      params: expect.objectContaining({ width: 610 }),
-    }))
+    expect(onAddCarcase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        catalogueId: 'company:11111111-1111-1111-1111-111111111111:company.base',
+        catalogueVersion: 1,
+        params: expect.objectContaining({ width: 610 }),
+      }),
+    )
   })
 
   it('shows the carcase panel when a carcase is selected', () => {

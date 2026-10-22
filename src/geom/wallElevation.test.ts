@@ -15,7 +15,8 @@ describe('buildWallElevation', () => {
     const segments = chain(view)
     expect(segments.map((s) => s.label)).toEqual(['1000', '600', '200', '1200', '983'])
     expect(segments[0].start).toBe(0)
-    for (let i = 1; i < segments.length; i++) expect(segments[i].start).toBeCloseTo(segments[i - 1].end)
+    for (let i = 1; i < segments.length; i++)
+      expect(segments[i].start).toBeCloseTo(segments[i - 1].end)
     expect(segments.reduce((sum, s) => sum + (s.end - s.start), 0)).toBeCloseTo(3983)
     expect(segments.every((s) => s.side === 'below')).toBe(true)
   })
@@ -30,7 +31,12 @@ describe('buildWallElevation', () => {
   it('states the overall length once, on ring 2, with its provenance in the label', () => {
     const overall = build().dims.filter((d) => d.axis === 'h' && d.ring === 2)
     expect(overall).toHaveLength(1)
-    expect(overall[0]).toMatchObject({ side: 'below', start: 0, end: 3983, label: '3983 drawn — unverified' })
+    expect(overall[0]).toMatchObject({
+      side: 'below',
+      start: 0,
+      end: 3983,
+      label: '3983 drawn — unverified',
+    })
   })
 
   it.each([
@@ -38,7 +44,12 @@ describe('buildWallElevation', () => {
     ['measured, exactly on the tolerance', { ...SITE, value: 3978 }, '3978 ±5 (site)', true],
     ['measured, outside tolerance', { ...SITE, value: 3950 }, 'drawn 3983 / site 3950 ±5', false],
     ['drawn only', undefined, '3983 drawn — unverified', false],
-    ['fractional uncertainty', { ...SITE, value: 3983, uncertainty: 0.5 }, '3983 ±0.5 (site)', true],
+    [
+      'fractional uncertainty',
+      { ...SITE, value: 3983, uncertainty: 0.5 },
+      '3983 ±0.5 (site)',
+      true,
+    ],
   ])('labels the wall length when %s', (_name, measured, label, verified) => {
     const view = build(kitchenWall(measured))
     expect(lengthLabel(view.length)).toBe(label)
@@ -93,7 +104,12 @@ describe('buildWallElevation', () => {
         manualOffset: { x: 0, y: 0 },
       })),
     }
-    const view = buildWallElevation(room, room.walls[0], wallScene([a, b, tall]), new Set(['a', 'b', 'tall']))
+    const view = buildWallElevation(
+      room,
+      room.walls[0],
+      wallScene([a, b, tall]),
+      new Set(['a', 'b', 'tall']),
+    )
     const left = view.dims.filter((d) => d.side === 'left')
     expect(left).toHaveLength(2)
     expect(left.map((d) => d.ring).sort()).toEqual([1, 2])
@@ -103,7 +119,10 @@ describe('buildWallElevation', () => {
     for (const a of dims)
       for (const b of dims) {
         if (a === b || a.ring !== b.ring) continue
-        expect(a.end <= b.start || b.end <= a.start, `${a.label} and ${b.label} share ring ${a.ring}`).toBe(true)
+        expect(
+          a.end <= b.start || b.end <= a.start,
+          `${a.label} and ${b.label} share ring ${a.ring}`,
+        ).toBe(true)
       }
     for (const d of dims) expect(d.label).toBe(String(Math.round(d.end - d.start)))
   }
@@ -123,7 +142,12 @@ describe('buildWallElevation', () => {
         manualOffset: { x: 0, y: 0 },
       })),
     }
-    const view = buildWallElevation(room, room.walls[0], wallScene([base, wall, tall]), new Set(['base', 'wall', 'tall']))
+    const view = buildWallElevation(
+      room,
+      room.walls[0],
+      wallScene([base, wall, tall]),
+      new Set(['base', 'wall', 'tall']),
+    )
     const left = view.dims.filter((d) => d.side === 'left')
     expectNoSharedRing(left)
     expect(left.find((d) => d.label === '2100')?.ring).toBe(3)
@@ -135,8 +159,24 @@ describe('buildWallElevation', () => {
       ...f.room,
       placements: [],
       openings: [
-        { id: 'a', wallId: 'long', kind: 'window', offset: 100, width: 1000, sill: 900, height: 1100 },
-        { id: 'b', wallId: 'long', kind: 'window', offset: 1500, width: 1000, sill: 1000, height: 800 },
+        {
+          id: 'a',
+          wallId: 'long',
+          kind: 'window',
+          offset: 100,
+          width: 1000,
+          sill: 900,
+          height: 1100,
+        },
+        {
+          id: 'b',
+          wallId: 'long',
+          kind: 'window',
+          offset: 1500,
+          width: 1000,
+          sill: 1000,
+          height: 800,
+        },
         { id: 'd', wallId: 'long', kind: 'door', offset: 3000, width: 800, sill: 0, height: 2000 },
       ],
     }
@@ -148,7 +188,11 @@ describe('buildWallElevation', () => {
 
   it('projects onto the wall, not the world x axis (rotated wall, turned cabinet)', () => {
     const straight = build()
-    const c = { ...wallCabinet('kitchen', 0), position: { x: 0, y: 1000, z: 0 }, rotation: { x: 0, y: 0, z: 90 } }
+    const c = {
+      ...wallCabinet('kitchen', 0),
+      position: { x: 0, y: 1000, z: 0 },
+      rotation: { x: 0, y: 0, z: 90 },
+    }
     const room: RoomGeometry = {
       ...kitchenWall().room,
       walls: [{ id: 'long', name: 'Kitchen', start: { x: 0, y: 0 }, end: { x: 0, y: 3983 } }],
@@ -167,7 +211,11 @@ describe('buildWallElevation', () => {
     const origin = { x: 5000, y: 2000 }
     const c = {
       ...wallCabinet('moved', 0),
-      position: { x: origin.x + 500 * Math.cos(radians), y: origin.y + 500 * Math.sin(radians), z: 0 },
+      position: {
+        x: origin.x + 500 * Math.cos(radians),
+        y: origin.y + 500 * Math.sin(radians),
+        z: 0,
+      },
       rotation: { x: 0, y: 0, z: turned },
     }
     const room: RoomGeometry = {
@@ -175,7 +223,15 @@ describe('buildWallElevation', () => {
       origin,
       rotation: turned,
       openings: [],
-      placements: [{ cabinetId: 'moved', wallId: 'long', offset: 500, setback: 0, manualOffset: { x: 0, y: 0 } }],
+      placements: [
+        {
+          cabinetId: 'moved',
+          wallId: 'long',
+          offset: 500,
+          setback: 0,
+          manualOffset: { x: 0, y: 0 },
+        },
+      ],
     }
     const view = buildWallElevation(room, room.walls[0], wallScene([c]), new Set(['moved']))
     expect(view.spans).toHaveLength(1)
@@ -188,7 +244,15 @@ describe('buildWallElevation', () => {
     const room: RoomGeometry = {
       ...kitchenWall().room,
       openings: [],
-      placements: [{ cabinetId: 'over', wallId: 'long', offset: 3700, setback: 0, manualOffset: { x: 0, y: 0 } }],
+      placements: [
+        {
+          cabinetId: 'over',
+          wallId: 'long',
+          offset: 3700,
+          setback: 0,
+          manualOffset: { x: 0, y: 0 },
+        },
+      ],
     }
     const end = buildWallElevation(room, room.walls[0], wallScene([over]), new Set(['over']))
     expect(end.bounds.w).toBeGreaterThan(3983)
@@ -199,9 +263,22 @@ describe('buildWallElevation', () => {
     const before = wallCabinet('before', -200)
     const room2: RoomGeometry = {
       ...room,
-      placements: [{ cabinetId: 'before', wallId: 'long', offset: -200, setback: 0, manualOffset: { x: 0, y: 0 } }],
+      placements: [
+        {
+          cabinetId: 'before',
+          wallId: 'long',
+          offset: -200,
+          setback: 0,
+          manualOffset: { x: 0, y: 0 },
+        },
+      ],
     }
-    const start = buildWallElevation(room2, room2.walls[0], wallScene([before]), new Set(['before']))
+    const start = buildWallElevation(
+      room2,
+      room2.walls[0],
+      wallScene([before]),
+      new Set(['before']),
+    )
     const overall2 = start.dims.find((d) => d.ring === 2 && d.axis === 'h')!
     expect([overall2.start, overall2.end]).toEqual([200, 4183])
     expect(start.bounds.x).toBe(0)
@@ -213,7 +290,9 @@ describe('buildWallElevation', () => {
     const room: RoomGeometry = {
       ...kitchenWall().room,
       openings: [],
-      placements: [{ cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } }],
+      placements: [
+        { cabinetId: 'sunk', wallId: 'long', offset: 0, setback: 0, manualOffset: { x: 0, y: 0 } },
+      ],
     }
     const view = buildWallElevation(room, room.walls[0], wallScene([sunk]), new Set(['sunk']))
     const span = view.spans[0]

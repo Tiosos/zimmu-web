@@ -1,5 +1,18 @@
-import type { CarcaseComponent, Component, ComponentId, FaceFrameComponent, Part, Scene } from './types'
-import { frontGeometryOf, openingRect, orientedPanel, sectionThickness, validateCarcaseParams } from './carcaseRoles'
+import type {
+  CarcaseComponent,
+  Component,
+  ComponentId,
+  FaceFrameComponent,
+  Part,
+  Scene,
+} from './types'
+import {
+  frontGeometryOf,
+  openingRect,
+  orientedPanel,
+  sectionThickness,
+  validateCarcaseParams,
+} from './carcaseRoles'
 import { faceFrameGeometry, frameOverlay, hingedFrameMember } from './faceFrame'
 import { frontCells, frontRoleOf } from './frontCells'
 import { cupRow } from './frontMachining'
@@ -21,7 +34,9 @@ const LABEL: Record<string, string> = {
 // list is different: the cabinet resolved, but this configuration has no buildable frame, so it declines.
 function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] | null {
   const p = cabinet.params
-  const frameId = scene.components.find((c) => c.kind === 'faceFrame' && c.parentId === cabinet.id)?.id
+  const frameId = scene.components.find(
+    (c) => c.kind === 'faceFrame' && c.parentId === cabinet.id,
+  )?.id
   const materialOverrides = overridesOf(scene.parts, frameId ?? cabinet.id)
   const thicknessOf = roleThicknessFor(p, scene.materials, overridesOf(scene.parts, cabinet.id))
   // Safe to read thicknesses below only after this: the validator asks the frame material through

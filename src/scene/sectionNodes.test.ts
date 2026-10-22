@@ -11,7 +11,11 @@ import { partsOfCarcase } from '../geom/__fixtures__/cabinetSheet'
 // is what allows that, so a future read of `.section` fails here at runtime rather than at
 // compile time. Filling it in would assert against fields this module never looks at.
 const opening = (sectionId: string): SectionOpening =>
-  ({ sectionId, rect: { x0: 0, x1: 0, z0: 0, z1: 0 }, spec: undefined }) as unknown as SectionOpening
+  ({
+    sectionId,
+    rect: { x0: 0, x1: 0, z0: 0, z1: 0 },
+    spec: undefined,
+  }) as unknown as SectionOpening
 
 // REAL section ids, uuid-shaped and full of hyphens. A fixture using `sec_a` cannot fail: every
 // plausible way of getting the parse wrong still works on an id with no hyphen in it — the same
@@ -105,7 +109,6 @@ describe('sectionNodes', () => {
     expect(carcase.map((p) => p.id)).toEqual(['board_1'])
   })
 
-
   // The spec's second invariant, and the one this module cannot enforce on its own: an unrecognised
   // role falls to `carcase`, silently and by design. That is right for a divider and wrong for a
   // family nobody has classified yet — a `drawer-box-{sectionId}-{n}` would belong to its opening
@@ -147,7 +150,9 @@ describe('sectionNodes', () => {
     expect(unclassified).toEqual([])
 
     // And the two halves are disjoint: a family cannot be claimed by an opening and by the carcase.
-    const both = [...roles].filter((r) => OWNED.some((p) => p.test(r)) && CARCASE.some((p) => p.test(r)))
+    const both = [...roles].filter(
+      (r) => OWNED.some((p) => p.test(r)) && CARCASE.some((p) => p.test(r)),
+    )
     expect(both).toEqual([])
   })
 

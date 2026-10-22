@@ -36,7 +36,12 @@ const twoInARun = () =>
     cab('cmp_b', 450, 500, { to: 'cmp_a', face: 'right', gap: 0, offset: { u: 0, v: 0 } }),
   ])
 
-const draw = (scene: Scene, selected: string | null = null, onSelect = vi.fn(), onDrop = vi.fn()) => {
+const draw = (
+  scene: Scene,
+  selected: string | null = null,
+  onSelect = vi.fn(),
+  onDrop = vi.fn(),
+) => {
   render(
     <PlanView
       scene={scene}
@@ -49,7 +54,6 @@ const draw = (scene: Scene, selected: string | null = null, onSelect = vi.fn(), 
   )
   return { onSelect, onDrop }
 }
-
 
 // happy-dom gives every element a zero rect, so the component cannot know its own scale. Pin one
 // so the pixel-to-millimetre conversion is exercised at a known ratio.
@@ -153,41 +157,128 @@ describe('PlanView', () => {
   })
 
   it('draws a measured room wall, opening and obstacle with no cabinets', () => {
-    render(<PlanView scene={sceneOf([])} selectedId={null} onSelect={vi.fn()} onDrop={vi.fn()}
-      onTurn={vi.fn()} warnings={[]} room={{ ...emptyRoomGeometry(), walls: [{
-        id: 'wall-a', name: 'Wall', start: { x: 0, y: 0 }, end: { x: 3000, y: 0 },
-      }], openings: [{ id: 'door-a', wallId: 'wall-a', kind: 'door', offset: 500, width: 900, sill: 0, height: 2100 }],
-      obstacles: [{ id: 'column-a', name: 'Column', position: { x: 100, y: 100 }, width: 200, depth: 200, height: 2500 }],
-    }} />)
+    render(
+      <PlanView
+        scene={sceneOf([])}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onDrop={vi.fn()}
+        onTurn={vi.fn()}
+        warnings={[]}
+        room={{
+          ...emptyRoomGeometry(),
+          walls: [
+            {
+              id: 'wall-a',
+              name: 'Wall',
+              start: { x: 0, y: 0 },
+              end: { x: 3000, y: 0 },
+            },
+          ],
+          openings: [
+            {
+              id: 'door-a',
+              wallId: 'wall-a',
+              kind: 'door',
+              offset: 500,
+              width: 900,
+              sill: 0,
+              height: 2100,
+            },
+          ],
+          obstacles: [
+            {
+              id: 'column-a',
+              name: 'Column',
+              position: { x: 100, y: 100 },
+              width: 200,
+              depth: 200,
+              height: 2500,
+            },
+          ],
+        }}
+      />,
+    )
     expect(screen.getByTestId('plan-wall-wall-a')).toBeTruthy()
     expect(screen.getByTestId('plan-opening-door-a')).toBeTruthy()
     expect(screen.getByTestId('plan-obstacle-column-a')).toBeTruthy()
   })
 
   it('shows only cabinets belonging to the active room', () => {
-    render(<PlanView scene={sceneOf([cab('kitchen', 600, 560), cab('pantry', 450, 500)])}
-      selectedId={null} onSelect={vi.fn()} onDrop={vi.fn()} onTurn={vi.fn()} warnings={[]}
-      cabinetIds={new Set(['kitchen'])} />)
+    render(
+      <PlanView
+        scene={sceneOf([cab('kitchen', 600, 560), cab('pantry', 450, 500)])}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onDrop={vi.fn()}
+        onTurn={vi.fn()}
+        warnings={[]}
+        cabinetIds={new Set(['kitchen'])}
+      />,
+    )
     expect(screen.getByTestId('plan-cabinet-kitchen')).toBeTruthy()
     expect(screen.queryByTestId('plan-cabinet-pantry')).toBeNull()
   })
 
   it('shows a recorded site level on the plan without treating it as cabinet geometry', () => {
-    render(<PlanView scene={sceneOf([])} selectedId={null} onSelect={vi.fn()} onDrop={vi.fn()}
-      onTurn={vi.fn()} warnings={[]} room={{ ...emptyRoomGeometry(), siteLevels: [{
-        id: 'floor', name: 'Floor', at: { x: 100, y: 200 },
-        elevation: { value: -12, uncertainty: 2, source: 'Laser', recordedAt: '2026-09-29' },
-      }] }} />)
+    render(
+      <PlanView
+        scene={sceneOf([])}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onDrop={vi.fn()}
+        onTurn={vi.fn()}
+        warnings={[]}
+        room={{
+          ...emptyRoomGeometry(),
+          siteLevels: [
+            {
+              id: 'floor',
+              name: 'Floor',
+              at: { x: 100, y: 200 },
+              elevation: { value: -12, uncertainty: 2, source: 'Laser', recordedAt: '2026-09-29' },
+            },
+          ],
+        }}
+      />,
+    )
     expect(screen.getByTestId('plan-level-floor')).toBeTruthy()
   })
 
   it('draws an explicitly assessed room-door swing envelope', () => {
-    render(<PlanView scene={sceneOf([])} selectedId={null} onSelect={vi.fn()} onDrop={vi.fn()}
-      onTurn={vi.fn()} warnings={[]} room={{ ...emptyRoomGeometry(), walls: [{
-        id: 'wall', name: 'Entry', start: { x: 0, y: 0 }, end: { x: 3000, y: 0 },
-      }], openings: [{ id: 'door', wallId: 'wall', kind: 'door', offset: 500,
-        width: 900, sill: 0, height: 2100, swing: { hinge: 'start', side: 'left', radius: 900 },
-      }] }} />)
+    render(
+      <PlanView
+        scene={sceneOf([])}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onDrop={vi.fn()}
+        onTurn={vi.fn()}
+        warnings={[]}
+        room={{
+          ...emptyRoomGeometry(),
+          walls: [
+            {
+              id: 'wall',
+              name: 'Entry',
+              start: { x: 0, y: 0 },
+              end: { x: 3000, y: 0 },
+            },
+          ],
+          openings: [
+            {
+              id: 'door',
+              wallId: 'wall',
+              kind: 'door',
+              offset: 500,
+              width: 900,
+              sill: 0,
+              height: 2100,
+              swing: { hinge: 'start', side: 'left', radius: 900 },
+            },
+          ],
+        }}
+      />,
+    )
     expect(screen.getByTestId('plan-door-swing-door')).toBeTruthy()
   })
 

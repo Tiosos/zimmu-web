@@ -79,8 +79,15 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
     const fronts = frontGeometryOf(cabinet.params, resolved.tree)
     for (const cell of frontCells(cabinet.params.section, resolved.tree, fronts)) {
       if (cell.spec.kind !== 'drawer-front') continue
-      const drawer = scene.components.find(c => c.kind === 'drawer' && c.parentId === cabinet.id && c.sectionId === cell.sectionId && (c.frameOpeningId ?? c.sectionId) === cell.openingId)
-      if (drawer?.kind === 'drawer' && drawer.params.nominal != null) runnerNominal.set(`${cabinet.id} ${frontRoleOf(cell)}`, drawer.params.nominal)
+      const drawer = scene.components.find(
+        (c) =>
+          c.kind === 'drawer' &&
+          c.parentId === cabinet.id &&
+          c.sectionId === cell.sectionId &&
+          (c.frameOpeningId ?? c.sectionId) === cell.openingId,
+      )
+      if (drawer?.kind === 'drawer' && drawer.params.nominal != null)
+        runnerNominal.set(`${cabinet.id} ${frontRoleOf(cell)}`, drawer.params.nominal)
     }
     if (cabinet.params.frame === undefined) continue
     const frame = faceFrameGeometry(
@@ -118,11 +125,18 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
       if (cut.kind !== 'hole-array') continue
 
       const pull = part.frontPull
-      if (!countedPull && pull && !pullSpecError(pull) && cut.id.startsWith('pull_') &&
-          cut.count === (pull.kind === 'knob' ? 1 : 2) && cut.diameter === pull.diameter &&
-          cut.face === '+Z' && cut.depth === part.thickness &&
-          cut.pitch === (pull.kind === 'knob' ? 1 : pull.pitch) &&
-          cut.axis === (pull.orientation === 'vertical' ? 'U' : 'V')) {
+      if (
+        !countedPull &&
+        pull &&
+        !pullSpecError(pull) &&
+        cut.id.startsWith('pull_') &&
+        cut.count === (pull.kind === 'knob' ? 1 : 2) &&
+        cut.diameter === pull.diameter &&
+        cut.face === '+Z' &&
+        cut.depth === part.thickness &&
+        cut.pitch === (pull.kind === 'knob' ? 1 : pull.pitch) &&
+        cut.axis === (pull.orientation === 'vertical' ? 'U' : 'V')
+      ) {
         const key = pullHardwareKey(pull)
         pullKeys.add(key)
         add(owner, key, 1)
@@ -169,7 +183,13 @@ export function carcaseHardware(scene: Scene): HardwareLine[] {
           frameDepth.get(owner) ?? 0,
         )
         const chosen = runnerNominal.get(`${owner} ${cut.id.slice('slide_'.length)}`)
-        const key = runnerKeyFor(chosen === undefined ? usable : (RUNNER_NOMINALS as readonly number[]).includes(chosen) && chosen <= usable ? chosen : 0)
+        const key = runnerKeyFor(
+          chosen === undefined
+            ? usable
+            : (RUNNER_NOMINALS as readonly number[]).includes(chosen) && chosen <= usable
+              ? chosen
+              : 0,
+        )
         if (key !== null) add(owner, key, 1)
         continue
       }

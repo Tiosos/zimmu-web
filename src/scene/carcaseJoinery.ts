@@ -1,7 +1,12 @@
 import type { CarcaseParams, Face } from './types'
 import type { RoleThickness } from './resolveThickness'
 import type { CarcaseJointKind, RoleJointKind } from './resolveJointKind'
-import { resolveSections, type Bound, type ResolvedDivision, type SectionBounds } from './sectionTree'
+import {
+  resolveSections,
+  type Bound,
+  type ResolvedDivision,
+  type SectionBounds,
+} from './sectionTree'
 import { sectionInteriors } from './sectionInterior'
 import { ladderMidRails, openingRect, sectionThickness } from './carcaseLayout'
 import { validateCarcaseParams } from './carcaseValidation'
@@ -199,4 +204,3 @@ export function carcaseJoints(
 
   return out
 }
-

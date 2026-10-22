@@ -225,11 +225,13 @@ describe('frontCells on a face frame', () => {
   it('sizes an inset pair around an independent centre stile', () => {
     const root = leaf('a', { kind: 'door', leaves: 2, hinge: 'left' })
     const tree = resolveSections(root, OPENING, () => 18)
-    const frame = faceFrameGeometry(
-      root,
-      OUTER,
-      { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38, pairStile: true },
-    )!
+    const frame = faceFrameGeometry(root, OUTER, {
+      stileWidth: 44,
+      railWidth: 32,
+      midStileWidth: 56,
+      midRailWidth: 38,
+      pairStile: true,
+    })!
     const cells = frontCells(
       root,
       tree,
@@ -250,11 +252,13 @@ describe('frontCells on a face frame', () => {
   it('makes an overlay pair meet over the independent stile centreline', () => {
     const root = leaf('a', { kind: 'door', leaves: 2, hinge: 'left' })
     const tree = resolveSections(root, OPENING, () => 18)
-    const frame = faceFrameGeometry(
-      root,
-      OUTER,
-      { stileWidth: 44, railWidth: 32, midStileWidth: 56, midRailWidth: 38, pairStile: true },
-    )!
+    const frame = faceFrameGeometry(root, OUTER, {
+      stileWidth: 44,
+      railWidth: 32,
+      midStileWidth: 56,
+      midRailWidth: 38,
+      pairStile: true,
+    })!
     const cells = frontCells(
       root,
       tree,
@@ -323,11 +327,7 @@ describe('frontCells on a face frame', () => {
         frameFrontOpenings: frame.frontOpenings,
       }),
     )
-    expect(cells.map((cell) => cell.openingId)).toEqual([
-      'left-door',
-      'right-door',
-      'top-drawer',
-    ])
+    expect(cells.map((cell) => cell.openingId)).toEqual(['left-door', 'right-door', 'top-drawer'])
     expect(cells.map((cell) => cell.sectionId)).toEqual(['one', 'one', 'one'])
     expect(cells.map((cell) => cell.rect)).toEqual([
       { x0: 1.5, x1: 298.5, z0: 101.5, z1: 527.5 },

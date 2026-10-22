@@ -364,9 +364,7 @@ describe('zimmu file validation boundary', () => {
         components: [],
       },
     }) as unknown as ZimmuFile
-    expect(() => validateCurrentFile(current)).toThrow(
-      'file.scene.parts[1].id duplicates id "dup"',
-    )
+    expect(() => validateCurrentFile(current)).toThrow('file.scene.parts[1].id duplicates id "dup"')
   })
 
   it('accepts a valid current file end to end', () => {

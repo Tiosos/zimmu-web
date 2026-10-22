@@ -598,7 +598,9 @@ export function Viewport({
         // what normally raises matrixWorldNeedsUpdate — so each assignment must raise it itself or
         // matrixWorld (which the raycaster reads) goes stale.
         mesh.matrixAutoUpdate = false
-        mesh.matrix.fromArray(motionMatrices?.get(part.id) ?? resolveWorldMatrix(part, componentMap))
+        mesh.matrix.fromArray(
+          motionMatrices?.get(part.id) ?? resolveWorldMatrix(part, componentMap),
+        )
         mesh.matrixWorldNeedsUpdate = true
         scene.add(mesh)
         meshes.current.set(part.id, mesh)
@@ -619,7 +621,9 @@ export function Viewport({
           el.geometry.dispose()
           el.geometry = new THREE.EdgesGeometry(geo, 15)
         }
-        existing.matrix.fromArray(motionMatrices?.get(part.id) ?? resolveWorldMatrix(part, componentMap))
+        existing.matrix.fromArray(
+          motionMatrices?.get(part.id) ?? resolveWorldMatrix(part, componentMap),
+        )
         existing.matrixWorldNeedsUpdate = true
         const el = edgeLines.current.get(part.id)!
         el.matrix.copy(existing.matrix)

@@ -70,7 +70,7 @@ const compact = (choice: CompactChoice): BlumFaceFrameHinge => {
     nominalOverlay: choice.overlay,
     cupDepth: choice.cupDepth,
     // The wraparound hinge fixes to the face-frame edge. The catalogue states a 1/8 in pilot.
-    plate: { kind: 'wraparound', pilotDiameter: 1 / 8 * INCH },
+    plate: { kind: 'wraparound', pilotDiameter: (1 / 8) * INCH },
   }
 }
 
@@ -111,7 +111,7 @@ export function blumFaceFrameHingeFor(
       cupDepth: 11,
       plate: {
         kind: 'face-mount',
-        pilotDiameter: 5 / 64 * INCH,
+        pilotDiameter: (5 / 64) * INCH,
         pitch: 40,
         innerEdgeOffset: overlay - 35 + 9,
       },
@@ -129,7 +129,6 @@ export function blumFaceFrameHingeFor(
   }
   return best === null ? null : compact(best)
 }
-
 
 // Every concrete SKU/application this selector can return. HardwareCatalogue consumes this list so
 // a selection can never produce a key the BOM table forgot to name.

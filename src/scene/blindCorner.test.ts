@@ -99,19 +99,27 @@ describe('blindWidthOf', () => {
 describe('cornerWarnings', () => {
   it('says nothing when the blind portion is wide enough', () => {
     const blind = cab('cmp_blind', blindParams(1200))
-    const ret = cab('cmp_ret', { ...base, depth: 400 }, {
-      rotation: { x: 0, y: 0, z: 90 },
-      anchor: frontAnchor('cmp_blind'),
-    })
+    const ret = cab(
+      'cmp_ret',
+      { ...base, depth: 400 },
+      {
+        rotation: { x: 0, y: 0, z: 90 },
+        anchor: frontAnchor('cmp_blind'),
+      },
+    )
     expect(warn([blind, ret])).toEqual([])
   })
 
   it('flags a blind portion narrower than the return depth', () => {
     const blind = cab('cmp_blind', blindParams(700))
-    const ret = cab('cmp_ret', { ...base, depth: 560 }, {
-      rotation: { x: 0, y: 0, z: 90 },
-      anchor: frontAnchor('cmp_blind'),
-    })
+    const ret = cab(
+      'cmp_ret',
+      { ...base, depth: 560 },
+      {
+        rotation: { x: 0, y: 0, z: 90 },
+        anchor: frontAnchor('cmp_blind'),
+      },
+    )
     const w = warn([blind, ret])
     expect(w).toHaveLength(1)
     expect(w[0].cabinetId).toBe('cmp_ret')
@@ -121,9 +129,13 @@ describe('cornerWarnings', () => {
 
   it('ignores a left or right anchor — a straight run has no blind portion', () => {
     const blind = cab('cmp_blind', blindParams(700))
-    const ret = cab('cmp_ret', { ...base, depth: 560 }, {
-      anchor: { ...frontAnchor('cmp_blind'), face: 'right' },
-    })
+    const ret = cab(
+      'cmp_ret',
+      { ...base, depth: 560 },
+      {
+        anchor: { ...frontAnchor('cmp_blind'), face: 'right' },
+      },
+    )
     expect(warn([blind, ret])).toEqual([])
   })
 
@@ -141,10 +153,14 @@ describe('cornerWarnings', () => {
       }),
     }
     const target = cab('cmp_t', allDoors)
-    const ret = cab('cmp_ret', { ...base, depth: 560 }, {
-      rotation: { x: 0, y: 0, z: 90 },
-      anchor: frontAnchor('cmp_t'),
-    })
+    const ret = cab(
+      'cmp_ret',
+      { ...base, depth: 560 },
+      {
+        rotation: { x: 0, y: 0, z: 90 },
+        anchor: frontAnchor('cmp_t'),
+      },
+    )
     const w = warn([target, ret])
     expect(w).toHaveLength(1)
     expect(w[0].available).toBe(0)
@@ -154,10 +170,14 @@ describe('cornerWarnings', () => {
   // depth cannot tell the two apart, so the return is deliberately shallower than its target.
   it('measures the return cabinet depth, not the target depth', () => {
     const blind = cab('cmp_blind', { ...blindParams(700), depth: 900 })
-    const shallow = cab('cmp_ret', { ...base, depth: 300 }, {
-      rotation: { x: 0, y: 0, z: 90 },
-      anchor: frontAnchor('cmp_blind'),
-    })
+    const shallow = cab(
+      'cmp_ret',
+      { ...base, depth: 300 },
+      {
+        rotation: { x: 0, y: 0, z: 90 },
+        anchor: frontAnchor('cmp_blind'),
+      },
+    )
     expect(warn([blind, shallow])).toEqual([])
   })
 

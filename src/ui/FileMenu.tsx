@@ -158,7 +158,8 @@ export function FileMenu({
             <Separator className="my-1" />
             {menuItem('Save', '⌘S', onSave, isSaveDisabled)}
             {menuItem('Save As…', '⌘⇧S', onSaveAs, !supported)}
-            {onImportCatalogue && menuItem('Import company catalogue…', '', onImportCatalogue, false)}
+            {onImportCatalogue &&
+              menuItem('Import company catalogue…', '', onImportCatalogue, false)}
             {onCompanyCatalogue && menuItem('Company catalogue…', '', onCompanyCatalogue, false)}
             {onProjectStructure && menuItem('Project structure…', '', onProjectStructure, false)}
             {onOpeningMotion && menuItem('Door & Drawer Motion…', '', onOpeningMotion, false)}
@@ -169,7 +170,8 @@ export function FileMenu({
             {menuItem('Cutting List…', '⌘⇧E', onCuttingList, false)}
             {menuItem('Manufacturing readiness…', '', onReadiness, false)}
             {onVerifyPacket && menuItem('Verify production packet…', '', onVerifyPacket, false)}
-            {onComparePackets && menuItem('Compare production packets…', '', onComparePackets, false)}
+            {onComparePackets &&
+              menuItem('Compare production packets…', '', onComparePackets, false)}
             <Separator className="my-1" />
             {menuItem('Export STL…', '', onExportStl, !canExport)}
             {menuItem('Export STEP…', '', onExportStep, !canExport)}

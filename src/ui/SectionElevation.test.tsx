@@ -181,8 +181,8 @@ describe('SectionElevation', () => {
     const p: CarcaseParams = { ...base, section: asymmetric, frame: DEFAULT_FRAME }
     const openings = sectionOpenings(p.section, resolvedOf(p))
     draw(p)
-    const labels = openings.map((o) =>
-      screen.getByTestId(`section-opening-dimension-${o.sectionId}`).textContent,
+    const labels = openings.map(
+      (o) => screen.getByTestId(`section-opening-dimension-${o.sectionId}`).textContent,
     )
     expect(labels).toHaveLength(2)
     expect(labels[0]).not.toBe(labels[1])
@@ -251,9 +251,7 @@ describe('SectionElevation', () => {
     }
     draw(p)
 
-    const labels = [
-      ...screen.getByRole('img').querySelectorAll('text[data-kind="section-number"]'),
-    ]
+    const labels = [...screen.getByRole('img').querySelectorAll('text[data-kind="section-number"]')]
     expect(labels).toHaveLength(3)
     // Each number is read off the cell it lands in, never off document order: cells numbered
     // backwards still read 1, 2, 3 down the DOM.

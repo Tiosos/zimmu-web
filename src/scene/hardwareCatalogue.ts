@@ -30,9 +30,7 @@ export const RUNNER_NOMINALS = [250, 300, 350, 400, 450, 500, 550, 600]
 export const HARDWARE_CATALOGUE: Record<string, HardwareDef> = {
   [HINGE_OVERLAY_KEY]: { name: '110° hinge c/w plate', unit: 'pcs' },
   [HINGE_INSET_KEY]: { name: '110° inset hinge c/w plate', unit: 'pcs' },
-  ...Object.fromEntries(
-    BLUM_FACE_FRAME_HINGES.map((h) => [h.key, { name: h.name, unit: 'pcs' }]),
-  ),
+  ...Object.fromEntries(BLUM_FACE_FRAME_HINGES.map((h) => [h.key, { name: h.name, unit: 'pcs' }])),
   ...Object.fromEntries(
     RUNNER_NOMINALS.map((n) => [`runner-${n}`, { name: `${n} mm drawer runner`, unit: 'pair' }]),
   ),

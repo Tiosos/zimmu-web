@@ -84,7 +84,9 @@ export function occupancyMask<T extends Pick<BoardPart, 'length' | 'width' | 'th
   const h = Math.ceil(part.width)
   const bits = new Uint8Array(w * h)
   // Roof profiles come from rectangular stock; raster slivers cannot become reusable gaps.
-  const generatedProfile = part.cuts.some(c => c.kind === 'mitre' && c.sourceComponentId !== undefined)
+  const generatedProfile = part.cuts.some(
+    (c) => c.kind === 'mitre' && c.sourceComponentId !== undefined,
+  )
   if (generatedProfile) bits.fill(1)
 
   // `mitreFaceOutline` returns [bl, br, tr, tl] in board-local millimetres with its min corner at

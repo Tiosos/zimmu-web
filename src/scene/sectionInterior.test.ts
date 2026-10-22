@@ -169,7 +169,10 @@ describe('sectionOpenings', () => {
   })
 
   const openingsOf = (root: Section) =>
-    sectionOpenings(root, resolveSections(root, OPENING, () => 18))
+    sectionOpenings(
+      root,
+      resolveSections(root, OPENING, () => 18),
+    )
 
   // The difference from `sectionInteriors`, and the whole reason this exists: an opening with no
   // shelving is exactly the one a user wants to give some.

@@ -156,8 +156,14 @@ export async function buildProductionPacket(input: ProductionPacketInput): Promi
       ),
     ),
   }
-  if (records.some(p => p.kind === 'board' && p.grainMatch)) files['lists/grain-matching.csv'] = strToU8(buildGrainMatchCsv(records))
-  if (records.some(p => p.kind === 'board' && p.cuts.some(c => c.kind === 'mitre' && c.sourceComponentId))) files['lists/sloped-panels.csv'] = strToU8(buildSlopeCsv(records))
+  if (records.some((p) => p.kind === 'board' && p.grainMatch))
+    files['lists/grain-matching.csv'] = strToU8(buildGrainMatchCsv(records))
+  if (
+    records.some(
+      (p) => p.kind === 'board' && p.cuts.some((c) => c.kind === 'mitre' && c.sourceComponentId),
+    )
+  )
+    files['lists/sloped-panels.csv'] = strToU8(buildSlopeCsv(records))
   const entries = await Promise.all(
     Object.entries(files).map(async ([path, bytes]) => ({
       path,

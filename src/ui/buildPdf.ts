@@ -1,4 +1,8 @@
-import { fitReferenceLabel, referencedCutLabel, referencedShopNotes } from '../geom/drawingReferences'
+import {
+  fitReferenceLabel,
+  referencedCutLabel,
+  referencedShopNotes,
+} from '../geom/drawingReferences'
 import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from 'pdf-lib'
 import { assemblyDimLine } from '../geom/drawing'
 import type {
@@ -150,7 +154,9 @@ function renderPdfView(page: PDFPage, view: DrawingView, font: PDFFont): void {
       const cx = px + cl.rect.x + cl.rect.w / 2
       const cy = py + cl.rect.y + cl.rect.h / 2
       const text = referencedCutLabel(cl)
-      const layout = cl.operationId ? fitReferenceLabel(cx, font.widthOfTextAtSize(text, pt(2.5)) / pt(1)) : { centerX: cx, fontSize: 2.5 }
+      const layout = cl.operationId
+        ? fitReferenceLabel(cx, font.widthOfTextAtSize(text, pt(2.5)) / pt(1))
+        : { centerX: cx, fontSize: 2.5 }
       const fs = pt(layout.fontSize)
       page.drawText(text, {
         x: pt(layout.centerX) - font.widthOfTextAtSize(text, fs) / 2,
@@ -164,8 +170,17 @@ function renderPdfView(page: PDFPage, view: DrawingView, font: PDFFont): void {
 
   view.noteLabels.forEach((label) => {
     const text = referencedCutLabel(label)
-    const layout = fitReferenceLabel(px + label.rect.x, font.widthOfTextAtSize(text, pt(2.5)) / pt(1))
-    page.drawText(text, { x: pt(layout.centerX) - font.widthOfTextAtSize(text, pt(layout.fontSize)) / 2, y: yflip(py + label.rect.y), size: pt(layout.fontSize), font, color: C_DARK_GRAY })
+    const layout = fitReferenceLabel(
+      px + label.rect.x,
+      font.widthOfTextAtSize(text, pt(2.5)) / pt(1),
+    )
+    page.drawText(text, {
+      x: pt(layout.centerX) - font.widthOfTextAtSize(text, pt(layout.fontSize)) / 2,
+      y: yflip(py + label.rect.y),
+      size: pt(layout.fontSize),
+      font,
+      color: C_DARK_GRAY,
+    })
   })
   boardDims.forEach((d) => renderPdfDimLine(page, d, px, py, font))
   cutPosDims.forEach((d) => renderPdfDimLine(page, d, px, py, font))
@@ -225,7 +240,9 @@ function renderPdfDowelView(page: PDFPage, view: DowelView, font: PDFFont): void
   })
 
   const drawCenteredLabel = (text: string, cx: number, cy: number, referenced = false) => {
-    const layout = referenced ? fitReferenceLabel(cx, font.widthOfTextAtSize(text, pt(2.5)) / pt(1)) : { centerX: cx, fontSize: 2.5 }
+    const layout = referenced
+      ? fitReferenceLabel(cx, font.widthOfTextAtSize(text, pt(2.5)) / pt(1))
+      : { centerX: cx, fontSize: 2.5 }
     const fs = pt(layout.fontSize)
     page.drawText(text, {
       x: pt(layout.centerX) - font.widthOfTextAtSize(text, fs) / 2,
@@ -236,9 +253,16 @@ function renderPdfDowelView(page: PDFPage, view: DowelView, font: PDFFont): void
     })
   }
   cutLabels.forEach((cl) =>
-    drawCenteredLabel(referencedCutLabel(cl), px + cl.rect.x + cl.rect.w / 2, py + cl.rect.y + cl.rect.h / 2, !!cl.operationId),
+    drawCenteredLabel(
+      referencedCutLabel(cl),
+      px + cl.rect.x + cl.rect.w / 2,
+      py + cl.rect.y + cl.rect.h / 2,
+      !!cl.operationId,
+    ),
   )
-  noteLabels.forEach((nl) => drawCenteredLabel(referencedCutLabel(nl), px + nl.rect.x, py + nl.rect.y, !!nl.operationId))
+  noteLabels.forEach((nl) =>
+    drawCenteredLabel(referencedCutLabel(nl), px + nl.rect.x, py + nl.rect.y, !!nl.operationId),
+  )
 
   dims.forEach((d) => renderPdfDimLine(page, d, px, py, font))
 }
@@ -481,7 +505,13 @@ function renderPdfTitleBlock(
     font,
     color: C_DARK_GRAY,
   })
-  page.drawText(`Part ID: ${sheet.partId}`, { x: pt(tbX + 4), y: yflip(tbY + 22), size: pt(2.5), font, color: C_DARK_GRAY })
+  page.drawText(`Part ID: ${sheet.partId}`, {
+    x: pt(tbX + 4),
+    y: yflip(tbY + 22),
+    size: pt(2.5),
+    font,
+    color: C_DARK_GRAY,
+  })
   page.drawText(`Scale: ${sheet.scaleLabel}`, {
     x: pt(tbX + 100),
     y: yflip(tbY + 8),
@@ -618,17 +648,24 @@ export async function buildPdf(sheets: DrawingSheet[]): Promise<Uint8Array> {
     if (sheet.kind === 'cover') {
       renderPdfCoverSheet(page, sheet, font, fontBold)
     } else if (sheet.kind === 'installation') {
-      sheet.lines.forEach((line) => page.drawLine({
-        start: { x: pt(line.a.x), y: yflip(line.a.y) },
-        end: { x: pt(line.b.x), y: yflip(line.b.y) },
-        thickness: pt(line.role === 'structure' ? 0.15 : 0.4),
-        color: line.role === 'structure' ? C_LIGHT_GRAY : C_BLACK,
-        ...(line.role === 'entry' ? { dashArray: [pt(1.2), pt(0.8)] } : {}),
-      }))
-      sheet.texts.forEach((text) => page.drawText(text.text, {
-        x: pt(text.x) - font.widthOfTextAtSize(text.text, pt(text.size)) / 2,
-        y: yflip(text.y), size: pt(text.size), font, color: C_BLACK,
-      }))
+      sheet.lines.forEach((line) =>
+        page.drawLine({
+          start: { x: pt(line.a.x), y: yflip(line.a.y) },
+          end: { x: pt(line.b.x), y: yflip(line.b.y) },
+          thickness: pt(line.role === 'structure' ? 0.15 : 0.4),
+          color: line.role === 'structure' ? C_LIGHT_GRAY : C_BLACK,
+          ...(line.role === 'entry' ? { dashArray: [pt(1.2), pt(0.8)] } : {}),
+        }),
+      )
+      sheet.texts.forEach((text) =>
+        page.drawText(text.text, {
+          x: pt(text.x) - font.widthOfTextAtSize(text.text, pt(text.size)) / 2,
+          y: yflip(text.y),
+          size: pt(text.size),
+          font,
+          color: C_BLACK,
+        }),
+      )
     } else if (sheet.kind === 'elevation') {
       renderPdfElevationView(page, sheet.view, sheet.scale, font)
       renderPdfElevationTitleBlock(page, sheet, font, fontBold)

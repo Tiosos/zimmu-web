@@ -21,11 +21,25 @@ const frameAround = (
   },
   {
     role: 'frame-bottom',
-    box: { x0: aperture.rect.x0, x1: aperture.rect.x1, y0: -depth, y1: 0, z0: outer.z0, z1: aperture.rect.z0 },
+    box: {
+      x0: aperture.rect.x0,
+      x1: aperture.rect.x1,
+      y0: -depth,
+      y1: 0,
+      z0: outer.z0,
+      z1: aperture.rect.z0,
+    },
   },
   {
     role: 'frame-top',
-    box: { x0: aperture.rect.x0, x1: aperture.rect.x1, y0: -depth, y1: 0, z0: aperture.rect.z1, z1: outer.z1 },
+    box: {
+      x0: aperture.rect.x0,
+      x1: aperture.rect.x1,
+      y0: -depth,
+      y1: 0,
+      z0: aperture.rect.z1,
+      z1: outer.z1,
+    },
   },
 ]
 
@@ -92,12 +106,7 @@ describe('rigid shelf insertion', () => {
     const aperture = { id: 'tiny', rect: { x0: 40, x1: 80, z0: 40, z1: 80 } }
     const shelf: LocalBox = { x0: 10, x1: 110, y0: 10, y1: 110, z0: 50, z1: 60 }
     expect(
-      findShelfInsertionPath(
-        shelf,
-        [aperture],
-        [...cabinetAround(), ...frameAround(aperture)],
-        20,
-      ),
+      findShelfInsertionPath(shelf, [aperture], [...cabinetAround(), ...frameAround(aperture)], 20),
     ).toBeNull()
   })
 
@@ -134,11 +143,13 @@ describe('rigid shelf insertion', () => {
       role: 'thin-barrier',
       box: { x0: -20, x1: 140, y0: 50, y1: 50.1, z0: -20, z1: 140 },
     }
-    expect(findShelfInsertionPath(
-      shelf,
-      [aperture],
-      [...cabinetAround(), ...frameAround(aperture), barrier],
-      20,
-    )).toBeNull()
+    expect(
+      findShelfInsertionPath(
+        shelf,
+        [aperture],
+        [...cabinetAround(), ...frameAround(aperture), barrier],
+        20,
+      ),
+    ).toBeNull()
   })
 })

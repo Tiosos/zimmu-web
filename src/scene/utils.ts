@@ -14,7 +14,7 @@ export function shapeKey<
           ? `b:${c.position.x},${c.position.y},${c.position.z}|${c.size.x},${c.size.y},${c.size.z}`
           : c.kind === 'hole-array'
             ? `h:${c.face}|${c.axis}|${c.start.x},${c.start.y},${c.start.z}|${c.pitch}|${c.count}|${c.diameter}|${c.depth}`
-            : `m:${c.end}|${c.axis}|${c.angle}${c.flip ? "|flip" : ""}`,
+            : `m:${c.end}|${c.axis}|${c.angle}${c.flip ? '|flip' : ''}`,
       )
       .join(';')
     return `board|${part.length}|${part.width}|${part.thickness}|${cutKey}`

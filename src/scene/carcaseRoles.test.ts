@@ -249,9 +249,9 @@ describe('validateCarcaseParams', () => {
     })
 
     it('allows half-overlay on a framed cabinet', () => {
-      expect(
-        validateCarcaseParams({ ...base, frame: FRAME, frontMount: 'half-overlay' }),
-      ).toEqual([])
+      expect(validateCarcaseParams({ ...base, frame: FRAME, frontMount: 'half-overlay' })).toEqual(
+        [],
+      )
     })
 
     it('refuses a frame whose stiles leave no opening', () => {
@@ -264,9 +264,9 @@ describe('validateCarcaseParams', () => {
     // rails of 300 leave 720 − 100 − 600 = 20 mm — an opening — while 311 leaves none. A check
     // that forgot the kick would still see 720 − 622 = 98 mm and pass the cabinet.
     it('measures the rails from the carcase floor', () => {
-      expect(
-        validateCarcaseParams({ ...base, frame: { ...FRAME, railWidth: 300 } }),
-      ).not.toContain('the face frame leaves no opening')
+      expect(validateCarcaseParams({ ...base, frame: { ...FRAME, railWidth: 300 } })).not.toContain(
+        'the face frame leaves no opening',
+      )
       expect(validateCarcaseParams({ ...base, frame: { ...FRAME, railWidth: 311 } })).toContain(
         'the face frame leaves no opening',
       )
@@ -2052,8 +2052,16 @@ describe('adjustable shelves', () => {
         kind: 'split' as const,
         axis: 'vertical' as const,
         children: [
-          { id: `${id}-left`, size: { kind: 'equal' } as const, content: { kind: 'leaf' } as const },
-          { id: `${id}-right`, size: { kind: 'equal' } as const, content: { kind: 'leaf' } as const },
+          {
+            id: `${id}-left`,
+            size: { kind: 'equal' } as const,
+            content: { kind: 'leaf' } as const,
+          },
+          {
+            id: `${id}-right`,
+            size: { kind: 'equal' } as const,
+            content: { kind: 'leaf' } as const,
+          },
         ],
       },
     })

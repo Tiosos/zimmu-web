@@ -76,7 +76,9 @@ export function materialTargets(scene: Scene, id: string): MaterialTarget[] {
     .filter(
       (p): p is BoardPart =>
         p.kind === 'board' &&
-        (nearestCarcase(p, byId)?.id === id || !!p.runWorktop?.draft.memberIds.includes(id) || !!p.cornerPanel?.draft.legs.some((l) => l.run.memberIds.includes(id))),
+        (nearestCarcase(p, byId)?.id === id ||
+          !!p.runWorktop?.draft.memberIds.includes(id) ||
+          !!p.cornerPanel?.draft.legs.some((l) => l.run.memberIds.includes(id))),
     )
     .map((board) => {
       const owner = board.parentId ? byId.get(board.parentId) : undefined
@@ -90,7 +92,8 @@ export function materialTargets(scene: Scene, id: string): MaterialTarget[] {
         family: boardFamily(board),
         opening: n < 0 ? 'Cabinet / run' : `Opening ${n + 1}`,
         locked:
-          !!board.cornerPanel || !!board.wallFiller ||
+          !!board.cornerPanel ||
+          !!board.wallFiller ||
           (!board.driven && board.role !== undefined) ||
           ((owner?.kind === 'drawer' || owner?.kind === 'faceFrame') && !owner.driven),
         shared: !!board.runWorktop || !!board.cornerPanel,
@@ -148,7 +151,8 @@ export function stageMaterials(
     byId = componentsById(scene.components)
   if (patch.material === undefined && patch.grain === undefined)
     throw Error('Choose a material or grain change.')
-  if (patch.grain !== undefined && selected.some(t => t.board.grainMatch)) throw Error('Edit grouped grain in Front Grain Matching, or detach the group first.')
+  if (patch.grain !== undefined && selected.some((t) => t.board.grainMatch))
+    throw Error('Edit grouped grain in Front Grain Matching, or detach the group first.')
   for (const t of selected) {
     let affected = [t]
     const owner = t.board.parentId ? byId.get(t.board.parentId) : undefined

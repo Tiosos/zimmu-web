@@ -11,8 +11,8 @@ export function sheetFilename(sheet: DrawingSheet, projectName: string, ext: str
         ? `${projectName}-${sheet.cabinetLabel}-assembly`
         : sheet.kind === 'elevation'
           ? `${projectName}-${sheet.roomName}-${sheet.wallName}-elevation`
-        : sheet.kind === 'installation'
-          ? `${projectName}-${sheet.cabinetLabel}-${sheet.cabinetId}-${sheet.shelfRole}-installation`
-        : `${projectName}-${sheet.partLabel}`
+          : sheet.kind === 'installation'
+            ? `${projectName}-${sheet.cabinetLabel}-${sheet.cabinetId}-${sheet.shelfRole}-installation`
+            : `${projectName}-${sheet.partLabel}`
   return base.toLowerCase().replace(/\s+/g, '-') + '.' + ext
 }

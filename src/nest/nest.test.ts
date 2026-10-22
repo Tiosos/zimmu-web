@@ -247,10 +247,7 @@ describe('nestSheets — the six properties, over a six-cabinet job', () => {
           const b = sheet[j]
           const gapX = Math.max(a.x - (b.x + b.w), b.x - (a.x + a.w))
           const gapY = Math.max(a.y - (b.y + b.h), b.y - (a.y + a.h))
-          expect(
-            Math.max(gapX, gapY),
-            `${a.id} vs ${b.id}`,
-          ).toBeGreaterThanOrEqual(CLEARANCE - 1)
+          expect(Math.max(gapX, gapY), `${a.id} vs ${b.id}`).toBeGreaterThanOrEqual(CLEARANCE - 1)
         }
       }
     }

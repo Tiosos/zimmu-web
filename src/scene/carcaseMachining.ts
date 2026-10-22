@@ -7,7 +7,15 @@ import { sectionInteriors } from './sectionInterior'
 import { frontCells, frontRoleOf } from './frontCells'
 import { cupRow, plateScrewRows, slideScrewRow } from './frontMachining'
 import { drawerBoxMetrics, type DrawerParams } from './drawerBox'
-import { clearDepth, frontGeometryOf, openingRect, PIN_DIAMETER, pinRow, sectionThickness, usableInteriorRect } from './carcaseLayout'
+import {
+  clearDepth,
+  frontGeometryOf,
+  openingRect,
+  PIN_DIAMETER,
+  pinRow,
+  sectionThickness,
+  usableInteriorRect,
+} from './carcaseLayout'
 import { carcaseRoles } from './carcaseParts'
 import { faceFrameGeometry, frameOverlay, hingedFrameMember } from './faceFrame'
 import { blumFaceFrameHingeFor } from './faceFrameHardware'
@@ -225,9 +233,18 @@ export function carcaseMachining(
       // opening. A slide row beside a box the drawer generator refused to build is screws for a
       // runner nobody ordered.
       if (metrics === null) continue
-      cuts.push(slideScrewRow(panel, face, metrics.runnerZ - panel.position.z, frontRole, drawer.params.nominal == null ? undefined : { start: metrics.box.y0 - panel.position.y, end: metrics.box.y1 - panel.position.y }))
+      cuts.push(
+        slideScrewRow(
+          panel,
+          face,
+          metrics.runnerZ - panel.position.z,
+          frontRole,
+          drawer.params.nominal == null
+            ? undefined
+            : { start: metrics.box.y0 - panel.position.y, end: metrics.box.y1 - panel.position.y },
+        ),
+      )
     }
   }
   return cuts
 }
-
