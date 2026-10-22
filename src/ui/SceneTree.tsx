@@ -1,5 +1,5 @@
-import { activateOnKey } from '../lib/a11y'
-import { useState } from 'react'
+import { activateOnKey, navigateTree } from '../lib/a11y'
+import { useState, type KeyboardEvent } from 'react'
 import { carcaseOpenings } from '../scene/carcaseOpenings'
 import type { SectionNode } from '../scene/sectionNodes'
 import type {
@@ -70,6 +70,24 @@ function VisibilityButton({ visible, onToggle }: { visible: boolean; onToggle: (
   )
 }
 
+// Enter/Space select; arrows move between rows. Left/Right on a branch collapse and expand it, which
+// only the tree knows how to do, so the toggle comes in from the row.
+const rowKeys =
+  (select: () => void, branch?: { open: boolean; toggle: () => void }) =>
+  (e: KeyboardEvent<HTMLElement>) => {
+    activateOnKey(select)(e)
+    if (e.target !== e.currentTarget) return
+    if (
+      branch &&
+      ((e.key === 'ArrowLeft' && branch.open) || (e.key === 'ArrowRight' && !branch.open))
+    ) {
+      e.preventDefault()
+      branch.toggle()
+      return
+    }
+    navigateTree(e)
+  }
+
 export function SceneTree({
   components,
   parts,
@@ -109,9 +127,11 @@ export function SceneTree({
         )}
         style={{ paddingLeft: ROW_PADDING + depth * INDENT }}
         onClick={() => onSelect({ kind: 'part', id: part.id })}
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-selected={selection?.kind === 'part' && selection.id === part.id}
         tabIndex={0}
-        aria-current={selection?.kind === 'part' && selection.id === part.id ? 'true' : undefined}
-        onKeyDown={activateOnKey(() => onSelect({ kind: 'part', id: part.id }))}
+        onKeyDown={rowKeys(() => onSelect({ kind: 'part', id: part.id }))}
       >
         {error ? (
           <span title={error} className="text-xs text-destructive-foreground">
@@ -195,11 +215,15 @@ export function SceneTree({
           )}
           style={{ paddingLeft: ROW_PADDING + depth * INDENT }}
           onClick={() => onSelect({ kind: 'component', id: component.id })}
+          role="treeitem"
+          aria-level={depth + 1}
+          aria-expanded={open}
+          aria-selected={selection?.kind === 'component' && selection.id === component.id}
           tabIndex={0}
-          aria-current={
-            selection?.kind === 'component' && selection.id === component.id ? 'true' : undefined
-          }
-          onKeyDown={activateOnKey(() => onSelect({ kind: 'component', id: component.id }))}
+          onKeyDown={rowKeys(() => onSelect({ kind: 'component', id: component.id }), {
+            open,
+            toggle: () => toggleCollapsed(component.id),
+          })}
         >
           <Button
             variant="ghost"
@@ -281,10 +305,14 @@ export function SceneTree({
           onClick={() =>
             onSelect({ kind: 'section', cabinetId: component.id, sectionId: node.sectionId })
           }
+          role="treeitem"
+          aria-level={depth + 1}
+          aria-expanded={open}
+          aria-selected={isSelected}
           tabIndex={0}
-          aria-current={isSelected ? 'true' : undefined}
-          onKeyDown={activateOnKey(() =>
-            onSelect({ kind: 'section', cabinetId: component.id, sectionId: node.sectionId }),
+          onKeyDown={rowKeys(
+            () => onSelect({ kind: 'section', cabinetId: component.id, sectionId: node.sectionId }),
+            { open, toggle: () => toggleCollapsed(node.sectionId) },
           )}
         >
           <Button
@@ -314,5 +342,9 @@ export function SceneTree({
     </>
   )
 
-  return renderChildren(null, 0)
+  return (
+    <div role="tree" aria-label="Scene">
+      {renderChildren(null, 0)}
+    </div>
+  )
 }

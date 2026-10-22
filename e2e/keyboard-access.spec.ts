@@ -41,8 +41,46 @@ test.describe('keyboard operation', () => {
       .first()
     await row.focus()
     await expect(row).toBeFocused()
-    await expect(row).not.toHaveAttribute('aria-current', 'true')
+    await expect(row).toHaveAttribute('aria-selected', 'false')
     await page.keyboard.press('Enter')
-    await expect(row).toHaveAttribute('aria-current', 'true')
+    await expect(row).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('the scene tree moves with the arrow keys and folds with Left and Right', async ({
+    page,
+  }) => {
+    const cabinet = page
+      .locator('[data-testid^="node-cmp_"]')
+      .filter({ hasText: 'Base 600' })
+      .first()
+    await cabinet.focus()
+    await expect(cabinet).toHaveAttribute('aria-expanded', 'true')
+    await page.keyboard.press('ArrowDown')
+    const second = page.locator(':focus')
+    await expect(second).toHaveAttribute('role', 'treeitem')
+    await expect(second).not.toHaveText(/Base 600/)
+    await page.keyboard.press('ArrowUp')
+    await expect(cabinet).toBeFocused()
+    await page.keyboard.press('ArrowLeft')
+    await expect(cabinet).toHaveAttribute('aria-expanded', 'false')
+    await page.keyboard.press('ArrowRight')
+    await expect(cabinet).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  test('the cutting list traps Tab inside the dialog and Escape closes it', async ({ page }) => {
+    await page.getByRole('button', { name: /^File/ }).click()
+    await page.getByRole('button', { name: /Cutting List/ }).click()
+    const dialog = page.getByRole('dialog', { name: 'Bill of materials' })
+    await expect(dialog).toBeVisible()
+    const inside = () => dialog.evaluate((d) => d.contains(document.activeElement))
+    await expect.poll(inside).toBe(true)
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.press('Tab')
+      expect(await inside()).toBe(true)
+    }
+    await page.keyboard.press('Shift+Tab')
+    expect(await inside()).toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
   })
 })

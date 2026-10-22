@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useModalFocus } from '../lib/a11y'
 import { Button } from '@/components/ui/button'
 import type { DrawingSheet } from '../geom/drawing'
 import { buildSvg } from './buildSvg'
@@ -28,6 +29,8 @@ function printSheets(sheetList: DrawingSheet[]): void {
 
 export function DrawingViewer({ open, onClose, sheets, projectName }: DrawingViewerProps) {
   const [idx, setIdx] = useState(0)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalFocus(panelRef, open && sheets.length > 0)
 
   const prevOpenRef = useRef(open)
   useEffect(() => {
@@ -79,7 +82,14 @@ export function DrawingViewer({ open, onClose, sheets, projectName }: DrawingVie
             : `Part ${partSheets.indexOf(sheet) + 1} of ${partSheets.length} — ${sheet.partLabel}`
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+    <div
+      ref={panelRef}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      aria-label="2D Drawings"
+      className="fixed inset-0 z-50 flex flex-col bg-background"
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0">
         <span className="font-semibold text-sm">2D Drawings</span>

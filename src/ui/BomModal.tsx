@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useModalFocus } from '../lib/a11y'
 import type {
   Component,
   HardwareItem,
@@ -380,6 +381,8 @@ export function BomModal({
   onDeleteHardwareEntry,
 }: BomModalProps) {
   const [tab, setTab] = useState<Tab>('boards')
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalFocus(panelRef)
 
   const derivedHardware = useMemo(
     () => groupHardware(hardwareLines, hardwareLibrary),
@@ -465,6 +468,8 @@ export function BomModal({
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200]"
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
         data-testid="bom-panel"
         role="dialog"
         aria-modal="true"
