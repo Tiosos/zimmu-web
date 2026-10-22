@@ -1,5 +1,7 @@
+import type { InstallationPreview, WallFillerPreview } from '../scene/roomInstallation'
+import { RoomInstallationWorkspace } from './RoomInstallationWorkspace'
 import type { ImpactPricing } from './ruleImpact'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Scene } from '../scene/types'
 import type { ProjectStructure } from '../scene/projectStructure'
 import { emptyRoomGeometry, moveRootToItem, roomComponentIds } from '../scene/projectStructure'
@@ -10,6 +12,12 @@ import { CabinetRulesPanel } from './CabinetRulesPanel'
 import type { RulePreview } from '../scene/ruleFlow'
 
 interface Props extends ImpactPricing {
+  onApplyInstallationPreview?: (preview: InstallationPreview) => boolean
+  onApplyWallFillerPreview?: (preview: WallFillerPreview) => boolean
+  onUndoScene?: () => void
+  onRedoScene?: () => void
+  canUndoScene?: boolean
+  canRedoScene?: boolean
   onApplyRulePreview?: (preview: RulePreview) => boolean
   project: ProjectStructure
   scene: Scene
@@ -25,7 +33,8 @@ interface Props extends ImpactPricing {
 }
 
 export function ProjectPanel({ project, scene, projectName, onChange, activeItemId, onSelectItem, onApplyRulePreview,
-  canUndo, canRedo, onUndo, onRedo, onClose, library, hardwareLibrary }: Props) {
+  canUndo, canRedo, onUndo, onRedo, onClose, library, hardwareLibrary, onApplyInstallationPreview, onApplyWallFillerPreview, onUndoScene, onRedoScene, canUndoScene, canRedoScene }: Props) {
+  const [mode, setMode] = useState<'structure' | 'installation'>('structure')
   const rename = (id: string, name: string) => onChange({ ...project, areas: project.areas.map((area) => ({
     ...area, name: area.id === id ? name : area.name,
     rooms: area.rooms.map((room) => ({ ...room, name: room.id === id ? name : room.name,
@@ -76,10 +85,17 @@ export function ProjectPanel({ project, scene, projectName, onChange, activeItem
     <div className="bg-card text-foreground border border-border rounded-lg p-5 w-full max-w-2xl max-h-[85vh] overflow-y-auto space-y-4">
       <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">Project structure</h2>
         <div className="flex gap-1">
-          <Button variant="outline" size="sm" disabled={!canUndo} onClick={onUndo}>Undo</Button>
-          <Button variant="outline" size="sm" disabled={!canRedo} onClick={onRedo}>Redo</Button>
+          <Button variant="outline" size="sm" disabled={mode === 'installation' || !canUndo} onClick={onUndo}>Undo</Button>
+          <Button variant="outline" size="sm" disabled={mode === 'installation' || !canRedo} onClick={onRedo}>Redo</Button>
           <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
         </div></div>
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" aria-pressed={mode === 'structure'} onClick={() => setMode('structure')}>Room and item settings</Button>
+        <Button size="sm" variant="outline" aria-pressed={mode === 'installation'} disabled={!onApplyInstallationPreview || !onApplyWallFillerPreview} onClick={() => setMode('installation')}>Room installation</Button>
+      </div>
+      {mode === 'installation' && onApplyInstallationPreview && onApplyWallFillerPreview ? (
+        <RoomInstallationWorkspace scene={scene} project={project} onApplyRun={onApplyInstallationPreview} onApplyFiller={onApplyWallFillerPreview} onUndo={onUndoScene} onRedo={onRedoScene} canUndo={canUndoScene} canRedo={canRedoScene} />
+      ) : <>
       <p className="text-xs text-muted-foreground">Names are editable; IDs remain stable. Assign each top-level assembly to one item.</p>
       {onApplyRulePreview && <CabinetRulesPanel key={JSON.stringify(scene.cabinetRules)} scene={scene} onApply={onApplyRulePreview} library={library} hardwareLibrary={hardwareLibrary} />}
       {project.areas.map((area) => <section key={area.id} className="border border-border rounded p-3 space-y-2">
@@ -129,6 +145,7 @@ export function ProjectPanel({ project, scene, projectName, onChange, activeItem
           </select>
         </label>)}
       </section>}
+      </>}
     </div>
   </div>
 }

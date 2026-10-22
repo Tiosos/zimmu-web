@@ -577,7 +577,7 @@ describe('appliance/service project files', () => {
         byId: componentsById(after.components),
       }).cuts.some((c) => c.id === serviceCutId('hole', 0)),
     ).toBe(true)
-    expect(FILE_FORMAT_VERSION).toBe(37)
+    expect(FILE_FORMAT_VERSION).toBe(39)
     expect(componentsById(after.components).has('cab')).toBe(true)
   })
   it('rejects malformed bay and service data at both file boundaries', () => {

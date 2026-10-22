@@ -31,6 +31,7 @@ export function finishingSignature(scene: Scene): string {
   return JSON.stringify({
     placement: placementSignature(scene),
     applianceBays: scene.applianceBays,
+    installations: scene.installations,
     transforms: scene.components.map((c) => ({
       id: c.id,
       parentId: c.parentId,
@@ -54,6 +55,7 @@ export function finishingSignature(scene: Scene): string {
       edges: p.kind === 'board' ? p.edgeBanding : undefined,
       serviceMachining: p.kind === 'board' ? p.serviceMachining : undefined,
       worktopMachining: p.kind === 'board' ? p.worktopMachining : undefined,
+      wallFiller: p.kind === 'board' ? p.wallFiller : undefined,
       cornerPanel: p.kind === 'board' ? p.cornerPanel : undefined,
       runWorktop: p.kind === 'board' ? p.runWorktop : undefined,
       hingeLayout: p.kind === 'board' ? p.hingeLayout : undefined,

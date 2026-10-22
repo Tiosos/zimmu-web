@@ -1,3 +1,5 @@
+import { openingMotionError } from './openingMotionRecipe'
+import { installationsError, wallFillerLinkError } from './installationRecipe'
 import { cornerLinkError } from './cornerRecipe'
 import { applianceBaysError } from './applianceRecipe'
 import { serviceMachiningError } from './serviceRecipe'
@@ -185,6 +187,12 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
       if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
       if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop') || (isRecord(part.runWorktop) && isRecord(part.runWorktop.draft) && part.runWorktop.draft.profile !== undefined) || (isRecord(part.cornerPanel) && isRecord(part.cornerPanel.draft) && Array.isArray(part.cornerPanel.draft.legs) && isRecord(part.cornerPanel.draft.legs[0]) && isRecord(part.cornerPanel.draft.legs[0].run) && part.cornerPanel.draft.legs[0].run.profile !== undefined)) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
     }
+    if (part.wallFiller !== undefined) {
+      const error = wallFillerLinkError(part.wallFiller)
+      if (error) throw new ZimmuFileValidationError(`${path}.wallFiller`, error)
+      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.runWorktop !== undefined || part.cornerPanel !== undefined || part.frontPull !== undefined || part.worktopMachining !== undefined)
+        throw new ZimmuFileValidationError(`${path}.wallFiller`, 'must exclusively own a role-free manual filler board')
+    }
     if (part.cornerPanel !== undefined) {
       const error = cornerLinkError(part.cornerPanel)
       if (error) throw new ZimmuFileValidationError(`${path}.cornerPanel`, error)
@@ -250,6 +258,8 @@ export function validateLegacyFileInput(value: unknown): ZimmuFile {
   vecAt(camera.target, 'file.camera.target')
 
   const scene = recordAt(root.scene, 'file.scene')
+  if (scene.openingMotion !== undefined) { const error = openingMotionError(scene.openingMotion); if (error) throw new ZimmuFileValidationError('file.scene.openingMotion', error) }
+  if (scene.installations !== undefined) { const error = installationsError(scene.installations); if (error) throw new ZimmuFileValidationError('file.scene.installations', error) }
   const bayError = applianceBaysError(scene.applianceBays)
   if (bayError) throw new ZimmuFileValidationError('file.scene.applianceBays', bayError)
   if (scene.companyCatalogues !== undefined) validateInstalledCatalogues(scene.companyCatalogues)
@@ -333,6 +343,12 @@ function validateCurrentPart(part: Part, index: number): void {
       const error = worktopMachiningError(part.worktopMachining)
       if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
       if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop') || (isRecord(part.runWorktop) && isRecord(part.runWorktop.draft) && part.runWorktop.draft.profile !== undefined) || (isRecord(part.cornerPanel) && isRecord(part.cornerPanel.draft) && Array.isArray(part.cornerPanel.draft.legs) && isRecord(part.cornerPanel.draft.legs[0]) && isRecord(part.cornerPanel.draft.legs[0].run) && part.cornerPanel.draft.legs[0].run.profile !== undefined)) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+    }
+    if (part.wallFiller !== undefined) {
+      const error = wallFillerLinkError(part.wallFiller)
+      if (error) throw new ZimmuFileValidationError(`${path}.wallFiller`, error)
+      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.runWorktop !== undefined || part.cornerPanel !== undefined || part.frontPull !== undefined || part.worktopMachining !== undefined)
+        throw new ZimmuFileValidationError(`${path}.wallFiller`, 'must exclusively own a role-free manual filler board')
     }
     if (part.cornerPanel !== undefined) {
       const error = cornerLinkError(part.cornerPanel)
@@ -604,6 +620,8 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
     throw new ZimmuFileValidationError('file.scene.components', 'must be an array')
   }
 
+  if (file.scene.installations !== undefined) { const error = installationsError(file.scene.installations); if (error) throw new ZimmuFileValidationError('file.scene.installations', error) }
+  if (file.scene.openingMotion !== undefined) { const error = openingMotionError(file.scene.openingMotion); if (error) throw new ZimmuFileValidationError('file.scene.openingMotion', error) }
   const bayError = applianceBaysError(file.scene.applianceBays)
   if (bayError) throw new ZimmuFileValidationError('file.scene.applianceBays', bayError)
   file.scene.parts.forEach(validateCurrentPart)

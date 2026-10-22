@@ -90,7 +90,7 @@ export function materialTargets(scene: Scene, id: string): MaterialTarget[] {
         family: boardFamily(board),
         opening: n < 0 ? 'Cabinet / run' : `Opening ${n + 1}`,
         locked:
-          !!board.cornerPanel ||
+          !!board.cornerPanel || !!board.wallFiller ||
           (!board.driven && board.role !== undefined) ||
           ((owner?.kind === 'drawer' || owner?.kind === 'faceFrame') && !owner.driven),
         shared: !!board.runWorktop || !!board.cornerPanel,

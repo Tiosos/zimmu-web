@@ -14,6 +14,7 @@ export interface FileMenuProps {
   onProjectNameChange: (name: string) => void
   onImportCatalogue?: () => void
   onCompanyCatalogue?: () => void
+  onOpeningMotion?: () => void
   onProjectStructure?: () => void
   onCuttingList: () => void
   onExportStl: () => void
@@ -47,6 +48,7 @@ export function FileMenu({
   onProjectNameChange,
   onImportCatalogue,
   onCompanyCatalogue,
+  onOpeningMotion,
   onProjectStructure,
   onCuttingList,
   onExportStl,
@@ -153,6 +155,7 @@ export function FileMenu({
             {onImportCatalogue && menuItem('Import company catalogue…', '', onImportCatalogue, false)}
             {onCompanyCatalogue && menuItem('Company catalogue…', '', onCompanyCatalogue, false)}
             {onProjectStructure && menuItem('Project structure…', '', onProjectStructure, false)}
+            {onOpeningMotion && menuItem('Door & Drawer Motion…', '', onOpeningMotion, false)}
             <Separator className="my-1" />
             {menuItem('Cutting List…', '⌘⇧E', onCuttingList, false)}
             {menuItem('Manufacturing readiness…', '', onReadiness, false)}

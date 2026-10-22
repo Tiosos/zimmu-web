@@ -1,3 +1,5 @@
+import type { OpeningMotion } from './openingMotionRecipe'
+import type { InstallationRun, WallFillerLink } from './installationRecipe'
 import type { CornerLink } from './cornerRecipe'
 import type { ApplianceBay } from './applianceRecipe'
 import type { ServiceMachining } from './serviceRecipe'
@@ -172,6 +174,7 @@ export interface BoardPart {
   finishing?: FinishingLink
   serviceMachining?: ServiceMachining
   worktopMachining?: WorktopMachining
+  wallFiller?: WallFillerLink
   cornerPanel?: CornerLink
   runWorktop?: RunWorktopLink
   visible: boolean
@@ -526,6 +529,8 @@ export type Joint =
   | ScrewJoint
 
 export interface Scene {
+  openingMotion?: OpeningMotion
+  installations?: InstallationRun[]
   applianceBays?: ApplianceBay[]
   parts: Part[]
   materials: Record<string, MaterialDef> // keyed by material name string

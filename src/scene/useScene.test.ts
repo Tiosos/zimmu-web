@@ -1,3 +1,9 @@
+import { defaultProject } from './projectStructure'
+import { motionScene as openingMotionScene } from './__fixtures__/motion'
+import { openingTargets, defaultOpeningSetting, previewOpeningSettings } from './openingMotion'
+import { defaultOpeningMotion } from './openingMotionRecipe'
+import { installationFixture } from './__fixtures__/installation'
+import { installationDraft, previewInstallation, wallFillerDraft, previewWallFiller } from './roomInstallation'
 import { cornerScene } from './__fixtures__/corners'
 import { cornerDraft, previewCorner } from './cornerPanels'
 import { defaultApplianceBay } from './applianceRecipe'
@@ -3564,4 +3570,50 @@ it('applies entire corner assemblies in one undo step and protects owned board f
  act(()=>{expect(result.current.onApplyCornerPreview({...request,action:'delete'})).toBe(true)})
  expect(result.current.scene.parts).toHaveLength(before.parts.length)
  act(()=>result.current.undo());expect(result.current.scene).toEqual(applied)
+})
+
+it('applies room runs and wall fillers in single scene history steps without changing project history', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const f=installationFixture(),projectBefore=JSON.stringify(f.project),{result}=renderHook(()=>useScene())
+ act(()=>result.current.replaceScene(f.scene))
+ const before=result.current.scene,d={...installationDraft(f.project,before),memberIds:['a','b'],from:'end' as const},preview=previewInstallation(before,f.project,d)
+ expect(preview.errors).toEqual([])
+ act(()=>{expect(result.current.onApplyInstallationPreview(f.project,preview)).toBe(true)})
+ const installed=result.current.scene
+ expect(result.current.undoLabel).toBe('Apply room installation');expect(installed.installations).toHaveLength(1)
+ act(()=>{expect(result.current.onApplyInstallationPreview(f.project,preview)).toBe(false)})
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(installed)
+ f.room.geometry!.walls[0].end.x=4000
+ act(()=>result.current.syncRoomInstallationSources(f.project))
+ const moved=result.current.scene,cab=(s:Scene)=>s.components.find((c)=>c.id==='a')!
+ expect(cab(moved).position.x-cab(installed).position.x).toBeCloseTo(1000);expect(result.current.undoLabel).toBe('Apply room installation')
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ const filler=previewWallFiller(before,f.project,{...wallFillerDraft(f.project,before),wallId:'left'})
+ expect(filler.errors).toEqual([])
+ act(()=>{expect(result.current.onApplyWallFillerPreview(f.project,filler)).toBe(true)})
+ const filled=result.current.scene,part=filled.parts.find((p):p is BoardPart=>p.kind==='board'&&!!p.wallFiller)!
+ expect(part.width).toBe(98);expect(result.current.undoLabel).toBe('Apply wall filler')
+ act(()=>result.current.onUpdate(part.id,p=>p.kind==='board'?{...p,width:999}:p));expect(result.current.scene).toEqual(filled)
+ act(()=>result.current.onDuplicate(part.id));const duplicate=result.current.scene.parts.find((p):p is BoardPart=>p.kind==='board'&&p.id!==part.id&&p.label===part.label)!
+ expect(duplicate.wallFiller).toBeUndefined();expect(duplicate.driven).toBe(false)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(filled)
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(filled)
+ expect(JSON.stringify(f.project)).not.toBe(projectBefore) // Only the deliberate wall edit above changed project data.
+ expect(f.project.areas[0].rooms[0].geometry!.walls[0].end.x).toBe(4000)
+})
+
+it('saves opening motion settings in one undo step without changing manufacturing poses', () => {
+ mockBuildPart.mockResolvedValue({positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])})
+ const s=openingMotionScene(),project=defaultProject(s,'Motion'),{result}=renderHook(()=>useScene())
+ act(()=>result.current.replaceScene(s))
+ const before=result.current.scene,settings={...defaultOpeningMotion(),entries:openingTargets(before).map(defaultOpeningSetting)},request=previewOpeningSettings(before,project,settings)
+ act(()=>{expect(result.current.onApplyOpeningPreview(project,request)).toBe(true)})
+ const after=result.current.scene
+ expect(after.openingMotion).toEqual(settings);expect(after.parts).toEqual(before.parts);expect(after.components).toEqual(before.components)
+ expect(result.current.undoLabel).toBe('Apply opening motion settings')
+ act(()=>{expect(result.current.onApplyOpeningPreview(project,request)).toBe(false)})
+ act(()=>result.current.undo());expect(result.current.scene).toEqual(before)
+ act(()=>result.current.redo());expect(result.current.scene).toEqual(after)
 })
