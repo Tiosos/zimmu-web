@@ -278,7 +278,7 @@ it('round trips format 37 and refuses malformed or competing ownership at both v
       scene: s,
       camera: { position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } },
     } as unknown as ZimmuFile
-  expect(FILE_FORMAT_VERSION).toBe(37)
+  expect(FILE_FORMAT_VERSION).toBe(39)
   expect(own(parseFile(JSON.stringify(file)).scene)).toEqual(JSON.parse(JSON.stringify(own(s))))
   for (const validate of [validateCurrentFile, validateLegacyFileInput]) {
     const bad = structuredClone(file)

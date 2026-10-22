@@ -17,6 +17,8 @@ import { resolveWorldMatrix } from '../geom/transform'
 import { isNodeVisible } from '../scene/componentTree'
 
 interface ViewportProps {
+  motionMatrices?: Map<PartId, Float64Array>
+  previewOnly?: boolean
   parts: Part[]
   componentMap: Map<ComponentId, Component>
   geometries: Map<PartId, THREE.BufferGeometry>
@@ -67,6 +69,8 @@ const emptyGeo = () => {
 }
 
 export function Viewport({
+  motionMatrices,
+  previewOnly = false,
   parts,
   componentMap,
   geometries,
@@ -99,6 +103,7 @@ export function Viewport({
   const mouseDown = useRef<{ x: number; y: number } | null>(null)
   const onClickRef = useRef(onPartClick)
   const partsRef = useRef<Part[]>(parts)
+  const previewOnlyRef = useRef(previewOnly)
   const interactionActiveRef = useRef(interactionActive)
   const onFaceClickRef = useRef(onFaceClick)
   const onFaceHoverRef = useRef(onFaceHover)
@@ -117,6 +122,7 @@ export function Viewport({
   const selectedIdRef = useRef<PartId | null>(selectedId)
 
   useLayoutEffect(() => {
+    previewOnlyRef.current = previewOnly
     onClickRef.current = onPartClick
     partsRef.current = parts
     interactionActiveRef.current = interactionActive
@@ -396,6 +402,7 @@ export function Viewport({
     const handleClick = (e: MouseEvent) => {
       // A drag that ends within handleClick's 4-pixel threshold would otherwise deselect the very
       // cabinet it just moved.
+      if (previewOnlyRef.current) return
       if (draggingRef.current) return
       if (!mouseDown.current) return
       if (Math.hypot(e.clientX - mouseDown.current.x, e.clientY - mouseDown.current.y) > 4) return
@@ -433,7 +440,7 @@ export function Viewport({
       lastMouseRef.current = { x: e.clientX, y: e.clientY }
       cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = requestAnimationFrame(() => {
-        if (!interactionActiveRef.current) return
+        if (previewOnlyRef.current || !interactionActiveRef.current) return
         const { x, y } = lastMouseRef.current
         const rect = renderer.domElement.getBoundingClientRect()
         const nx = ((x - rect.left) / rect.width) * 2 - 1
@@ -591,7 +598,7 @@ export function Viewport({
         // what normally raises matrixWorldNeedsUpdate — so each assignment must raise it itself or
         // matrixWorld (which the raycaster reads) goes stale.
         mesh.matrixAutoUpdate = false
-        mesh.matrix.fromArray(resolveWorldMatrix(part, componentMap))
+        mesh.matrix.fromArray(motionMatrices?.get(part.id) ?? resolveWorldMatrix(part, componentMap))
         mesh.matrixWorldNeedsUpdate = true
         scene.add(mesh)
         meshes.current.set(part.id, mesh)
@@ -612,7 +619,7 @@ export function Viewport({
           el.geometry.dispose()
           el.geometry = new THREE.EdgesGeometry(geo, 15)
         }
-        existing.matrix.fromArray(resolveWorldMatrix(part, componentMap))
+        existing.matrix.fromArray(motionMatrices?.get(part.id) ?? resolveWorldMatrix(part, componentMap))
         existing.matrixWorldNeedsUpdate = true
         const el = edgeLines.current.get(part.id)!
         el.matrix.copy(existing.matrix)
@@ -639,7 +646,7 @@ export function Viewport({
         id === selectedId ? 0x222244 : 0x000000,
       )
     }
-  }, [parts, componentMap, geometries, selectedId, highlightedIds, selectedIds])
+  }, [parts, componentMap, geometries, selectedId, highlightedIds, selectedIds, motionMatrices])
 
   // Snap highlight update — rebuilds LineLoop geometry when faces change
   useEffect(() => {

@@ -1,3 +1,5 @@
+import { OpeningMotionWorkspace, type OpeningTransient } from './ui/OpeningMotionWorkspace'
+import { openingSignature } from './scene/openingMotion'
 import { CatalogueImport } from './ui/CatalogueImport'
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useScene } from './scene/useScene'
@@ -72,6 +74,10 @@ function App() {
     onApplyPullPreview,
     onApplyFrontsPreview,
     onApplyFinishingPreview,
+    onApplyOpeningPreview,
+    syncRoomInstallationSources,
+    onApplyInstallationPreview,
+    onApplyWallFillerPreview,
     onApplyCornerPreview,
     onApplyRunWorktopPreview,
     onApplyWorktopMachiningPreview,
@@ -367,6 +373,10 @@ function App() {
   const [packetVerificationOpen, setPacketVerificationOpen] = useState(false)
   const [packetComparisonOpen, setPacketComparisonOpen] = useState(false)
   const [projectPanelOpen, setProjectPanelOpen] = useState(false)
+  const [openingMotionOpen, setOpeningMotionOpen] = useState(false)
+  const [openingTransient, setOpeningTransient] = useState<OpeningTransient | null>(null)
+  const updateOpeningTransient = useCallback((value: OpeningTransient | null) => setOpeningTransient(value), [])
+
   const [drawingSheets, setDrawingSheets] = useState<DrawingSheet[]>([])
 
   const {
@@ -401,6 +411,7 @@ function App() {
     },
   })
 
+  const liveOpeningTransient = openingMotionOpen && openingTransient?.signature === openingSignature(scene, project) ? openingTransient : null
   const activeRoom = project.areas.flatMap((area) => area.rooms).find((room) =>
     room.items.some((item) => item.id === activeItemId))
   const roomCabinetIds = useMemo(() => new Set(activeRoom?.items.flatMap((item) =>
@@ -426,6 +437,10 @@ function App() {
         position: { ...c.position, ...pose.position }, rotation: { ...c.rotation, z: pose.rotation } } : c
     }))
   }, [project, scene.components, syncComponents])
+
+  useEffect(() => {
+    syncRoomInstallationSources(project)
+  }, [project, scene.components, scene.parts, scene.installations, syncRoomInstallationSources])
 
   const detachWallPlacement = (id: string) => {
     if (!project.areas.some((area) => area.rooms.some((room) => room.geometry?.placements.some((p) => p.cabinetId === id)))) return
@@ -498,6 +513,7 @@ function App() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (openingMotionOpen) { if (e.key === 'Escape') { setOpeningMotionOpen(false); setOpeningTransient(null) }; return }
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const mod = e.metaKey || e.ctrlKey
 
@@ -604,6 +620,7 @@ function App() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [
+    openingMotionOpen,
     saveFile,
     saveAsFile,
     openFile,
@@ -648,6 +665,10 @@ function App() {
         overflow: 'hidden',
       }}
     >
+      {openingMotionOpen && <OpeningMotionWorkspace scene={scene} project={project}
+        onApply={(preview) => onApplyOpeningPreview(project, preview)} onTransient={updateOpeningTransient}
+        onClose={() => { setOpeningMotionOpen(false); setOpeningTransient(null) }}
+        onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} />}
       {importCatalogue && <CatalogueImport scene={scene} onInstall={onInstallCatalogue} onClose={() => setImportCatalogue(false)} />}
       <FileMenu
         fileName={fileName}
@@ -684,6 +705,7 @@ function App() {
           )
         }
         onProjectStructure={() => setProjectPanelOpen(true)}
+        onOpeningMotion={() => { setMode('none'); setMainView('model'); setCabinetTab('3d'); setOpeningMotionOpen(true) }}
         onCuttingList={() => setCuttingListOpen(true)}
         onExportStl={handleExportStl}
         onExportStep={handleExportStep}
@@ -700,6 +722,12 @@ function App() {
         <ProjectPanel
           library={library}
           hardwareLibrary={hardwareLibrary}
+          onApplyInstallationPreview={(preview) => onApplyInstallationPreview(project, preview)}
+          onApplyWallFillerPreview={(preview) => onApplyWallFillerPreview(project, preview)}
+          onUndoScene={undo}
+          onRedoScene={redo}
+          canUndoScene={canUndo}
+          canRedoScene={canRedo}
           onApplyRulePreview={onApplyRulePreview}
           project={project}
           scene={scene}
@@ -734,7 +762,9 @@ function App() {
           }}
         >
           <Viewport
-            parts={cabinetParts}
+            parts={openingMotionOpen ? scene.parts : cabinetParts}
+            motionMatrices={liveOpeningTransient?.matrices}
+            previewOnly={openingMotionOpen}
             componentMap={componentMap}
             geometries={geometries}
             selectedId={selectedId}
@@ -749,10 +779,10 @@ function App() {
             hoveredFace={mode.hoveredFace}
             snapPhase={mode.snapPhase}
             flashTarget={flashTarget}
-            highlightedIds={highlightedIds}
+            highlightedIds={liveOpeningTransient?.highlightedIds ?? highlightedIds}
             selectedIds={selectedIds}
             suggestionOutlines={hoveredOutlines}
-            gizmoTarget={gizmoTarget}
+            gizmoTarget={openingMotionOpen ? null : gizmoTarget}
             onGizmoDrop={(id, centre) => {
               const dragged = scene.components.find((c) => c.id === id)
               if (dragged === undefined || dragged.kind !== 'carcase') return

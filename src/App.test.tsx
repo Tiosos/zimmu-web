@@ -1,3 +1,4 @@
+import { motionScene as openingScene } from './scene/__fixtures__/motion'
 import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, act, cleanup, screen, fireEvent, within } from '@testing-library/react'
@@ -78,6 +79,10 @@ function makeDefaultSceneReturn() {
     onUpdateMaterial: vi.fn(),
     onUpdateHardware: vi.fn(),
     syncComponents: vi.fn(),
+    onApplyOpeningPreview: vi.fn(() => true),
+    syncRoomInstallationSources: vi.fn(),
+    onApplyInstallationPreview: vi.fn(),
+    onApplyWallFillerPreview: vi.fn(),
     canUndo: true,
     canRedo: false,
     undoLabel: 'Add Board 1',
@@ -88,6 +93,8 @@ function makeDefaultSceneReturn() {
 }
 
 const viewportSpy = vi.hoisted(() => ({
+  motionCount: 0,
+  previewOnly: false,
   fitRequest: 0,
   selectedIds: [] as readonly PartId[],
   gizmoTarget: null as { id: string; centre: { x: number; y: number; z: number } } | null,
@@ -98,10 +105,14 @@ const viewportSpy = vi.hoisted(() => ({
 // and the only handle on it is its child.
 vi.mock('./render/viewport', () => ({
   Viewport: (props: {
+    motionMatrices?: Map<string, Float64Array>
+    previewOnly?: boolean
     fitRequest: number
     selectedIds: readonly PartId[]
     gizmoTarget: { id: string; centre: { x: number; y: number; z: number } } | null
   }) => {
+    viewportSpy.motionCount = props.motionMatrices?.size ?? 0
+    viewportSpy.previewOnly = !!props.previewOnly
     viewportSpy.fitRequest = props.fitRequest
     viewportSpy.selectedIds = props.selectedIds
     viewportSpy.gizmoTarget = props.gizmoTarget
@@ -294,6 +305,10 @@ describe('App BOM integration', () => {
     mockUseScene.mockImplementation(() => {
       const [parts, setParts] = useState<Part[]>([])
       return {
+        onApplyOpeningPreview: vi.fn(() => true),
+    syncRoomInstallationSources: vi.fn(),
+        onApplyInstallationPreview: vi.fn(),
+        onApplyWallFillerPreview: vi.fn(),
         scene: { parts, materials: {}, hardware: [], joints: [], components: [] },
         geometries: new Map(),
         errors: new Map(),
@@ -843,4 +858,21 @@ describe('the release comparison', () => {
     await reopened.update([release], ['corrupted'])
     expect(screen.queryByTestId('release-comparison')).toBeNull()
   })
+})
+
+it('previews opening poses through viewport overrides and clears them on Escape', () => {
+ cleanup();vi.clearAllMocks();mockSnapActive=false;mockCutActive=false
+ const scene=openingScene()
+ mockUseScene.mockImplementation(()=>({...makeDefaultSceneReturn(),scene}))
+ render(<App />)
+ fireEvent.click(screen.getByRole('button',{name:'File ▾'}))
+ fireEvent.click(screen.getByRole('button',{name:'Door & Drawer Motion…'}))
+ fireEvent.click(screen.getByRole('button',{name:'Select supported fronts'}))
+ fireEvent.click(screen.getByRole('button',{name:'Open selected'}))
+ expect(viewportSpy.previewOnly).toBe(true);expect(viewportSpy.motionCount).toBe(1)
+ fireEvent.keyDown(window,{key:'Delete'});expect(mockOnRemove).not.toHaveBeenCalled()
+ fireEvent.keyDown(window,{key:'Escape'})
+ expect(viewportSpy.previewOnly).toBe(false);expect(viewportSpy.motionCount).toBe(0)
+ expect(screen.queryByRole('complementary',{name:'Door and drawer motion workspace'})).toBeNull()
+ cleanup()
 })

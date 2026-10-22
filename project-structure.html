@@ -596,6 +596,7 @@
 │   ├── __fixtures__/
 │   │   ├── companyCatalogue.ts
 │   │   ├── corners.ts
+│   │   ├── installation.ts
 │   │   ├── interiors.ts
 │   │   ├── machiningProject.ts
 │   │   ├── manufacturingCsv.json
@@ -700,6 +701,9 @@
 │   ├── hingeLayout.ts
 │   ├── idb.test.ts
 │   ├── idb.ts
+│   ├── installationRecipe.test.ts
+│   ├── installationRecipe.ts
+│   ├── installationSources.ts
 │   ├── interiorAccess.test.ts
 │   ├── interiorAccess.ts
 │   ├── jointChecklist.test.ts
@@ -729,6 +733,9 @@
 │   ├── obbOverlap.ts
 │   ├── openingLayouts.test.ts
 │   ├── openingLayouts.ts
+│   ├── openingMotion.test.ts
+│   ├── openingMotion.ts
+│   ├── openingMotionRecipe.ts
 │   ├── openingReuse.test.ts
 │   ├── openingReuse.ts
 │   ├── palette.ts
@@ -769,6 +776,8 @@
 │   ├── roomAssessment.ts
 │   ├── roomGeometry.test.ts
 │   ├── roomGeometry.ts
+│   ├── roomInstallation.test.ts
+│   ├── roomInstallation.ts
 │   ├── ruleFlow.test.ts
 │   ├── ruleFlow.ts
 │   ├── runFit.test.ts
@@ -943,6 +952,9 @@
 │   ├── ManufacturingReadiness.test.tsx
 │   ├── ManufacturingReadiness.tsx
 │   ├── NumberField.tsx
+│   ├── OpeningMotionViews.tsx
+│   ├── OpeningMotionWorkspace.test.tsx
+│   ├── OpeningMotionWorkspace.tsx
 │   ├── OpeningReuseTools.tsx
 │   ├── outputReconciliation.test.ts
 │   ├── outputReconciliation.ts
@@ -990,6 +1002,9 @@
 │   ├── RoomAssessmentPanel.tsx
 │   ├── RoomGeometryPanel.test.tsx
 │   ├── RoomGeometryPanel.tsx
+│   ├── RoomInstallationViews.tsx
+│   ├── RoomInstallationWorkspace.test.tsx
+│   ├── RoomInstallationWorkspace.tsx
 │   ├── ruleImpact.test.ts
 │   ├── ruleImpact.ts
 │   ├── RuleImpactDetails.test.tsx
@@ -1407,8 +1422,9 @@ interface FaceHit {
         <div class="flow-box">useScene (undo entry)</div>
       </div>
 
+      <p style="color:var(--muted);font-size:13px">Door/drawer opening motion lives in <code>scene/openingMotion.ts</code> and the nonmodal <code>ui/OpeningMotionWorkspace.tsx</code>. Validated settings save in Scene; current open fractions and mesh/edge matrix overrides are transient. Manufacturing geometry and exports retain closed poses. Conservative path checks compare moving boards with scene boards and member-room walls/obstacles.</p>
       <h3>Regenerate → reconcile pipeline</h3>
-      <p style="color:var(--muted);font-size:13px;margin-bottom:8px">Every scene mutation flows through <code>applyPipeline</code> in <code>scene/pipeline.ts</code> before it becomes state: catalogue metadata, placement, face frames, drawers, carcases, then joint reconciliation. Rule/update previews use the same pure pipeline and apply only against their unchanged source scene. A carcase parameter change re-emits its driven parts — the shell, the divisions its section tree resolves, the 32&nbsp;mm shelf-pin <code>hole-array</code> cuts each opening asks for, and the loose shelves seated on those pins — and its driven joints; a detached (<code>driven: false</code>) part is preserved untouched.</p>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:8px">Every scene mutation flows through <code>applyPipeline</code> in <code>scene/pipeline.ts</code> before it becomes state: catalogue metadata, linked room installations, placement, face frames, drawers, carcases, finishing boards and linked wall fillers, run worktops and corners, worktop machining, joint reconciliation and service machining. Room installation previews bind to both the scene and project; minimal cached wall inputs refresh from ProjectStructure without adding a scene history entry. Rule/update previews use the same pure pipeline and apply only against their unchanged source scene. A carcase parameter change re-emits its driven parts — the shell, the divisions its section tree resolves, the 32&nbsp;mm shelf-pin <code>hole-array</code> cuts each opening asks for, and the loose shelves seated on those pins — and its driven joints; a detached (<code>driven: false</code>) part is preserved untouched.</p>
       <div class="flow">
         <div class="flow-box">mutation<br><span style="color:var(--muted);font-size:11px">param edit, drop preset, detach</span></div>
         <div class="flow-arrow">→</div>
@@ -1678,7 +1694,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->223<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->228<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
@@ -1770,8 +1786,10 @@ import { useScene } from './useScene'</code></pre>
 ├── cabinet-layout-tools.md
 ├── cabinet-materials-edgebanding.md
 ├── cabinet-opening-layouts.md
+├── cabinet-opening-motion.md
 ├── cabinet-placement-tools.md
 ├── cabinet-pull-layout.md
+├── cabinet-room-installation.md
 ├── cabinet-run-finishing.md
 ├── cabinet-run-fit.md
 ├── cabinet-run-worktops.md
@@ -1935,7 +1953,9 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-21-worktop-machining-notes.md
     │   ├── 2026-10-22-appliance-services-notes.md
     │   ├── 2026-10-22-corner-assemblies-notes.md
-    │   └── 2026-10-22-materials-edges-notes.md
+    │   ├── 2026-10-22-materials-edges-notes.md
+    │   ├── 2026-10-22-opening-motion-notes.md
+    │   └── 2026-10-22-room-installation-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -2018,7 +2038,9 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-21-worktop-machining.md
     │   ├── 2026-10-22-appliance-services.md
     │   ├── 2026-10-22-corner-assemblies.md
-    │   └── 2026-10-22-materials-edges.md
+    │   ├── 2026-10-22-materials-edges.md
+    │   ├── 2026-10-22-opening-motion.md
+    │   └── 2026-10-22-room-installation.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -2144,7 +2166,9 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-21-worktop-machining-design.md
         ├── 2026-10-22-appliance-services-design.md
         ├── 2026-10-22-corner-assemblies-design.md
-        └── 2026-10-22-materials-edges-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-10-22-materials-edges-design.md
+        ├── 2026-10-22-opening-motion-design.md
+        └── 2026-10-22-room-installation-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->

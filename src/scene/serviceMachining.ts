@@ -93,6 +93,7 @@ export function resolveServices(
     finishing: undefined,
     runWorktop: undefined,
     cornerPanel: undefined,
+    wallFiller: undefined,
     frontPull: undefined,
   }
   for (const f of recipe.features) {

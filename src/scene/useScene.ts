@@ -1,3 +1,7 @@
+import { acceptOpeningSettings, type OpeningPreview } from './openingMotion'
+import type { ProjectStructure } from './projectStructure'
+import { refreshInstallationSources } from './installationSources'
+import { acceptInstallation, acceptWallFiller, type InstallationPreview, type WallFillerPreview } from './roomInstallation'
 import { acceptCorner, type CornerPreview } from './cornerPanels'
 import { acceptAppliance, type AppliancePreview } from './applianceBays'
 import { acceptService, serviceCutOwned, type ServicePreview } from './serviceMachining'
@@ -99,6 +103,10 @@ export interface UseSceneResult {
   onApplyPullPreview: (preview: PullPreview) => boolean
   onApplyFrontsPreview: (preview: FrontsPreview) => boolean
   onApplyWorktopMachiningPreview: (preview: WorktopMachiningPreview) => boolean
+  onApplyOpeningPreview: (project: ProjectStructure, preview: OpeningPreview) => boolean
+  syncRoomInstallationSources: (project: ProjectStructure) => void
+  onApplyInstallationPreview: (project: ProjectStructure, preview: InstallationPreview) => boolean
+  onApplyWallFillerPreview: (project: ProjectStructure, preview: WallFillerPreview) => boolean
   onApplyCornerPreview: (preview: CornerPreview) => boolean
   onApplyRunWorktopPreview: (preview: RunWorktopPreview) => boolean
   onApplyFinishingPreview: (preview: FinishingPreview) => boolean
@@ -400,6 +408,32 @@ export function useScene(): UseSceneResult {
     return true
   }, [commitReconciled])
 
+  const onApplyOpeningPreview = useCallback((project: ProjectStructure, preview: OpeningPreview): boolean => {
+    const next = acceptOpeningSettings(sceneRef.current, project, preview)
+    if (!next) return false
+    commitReconciled(() => next, 'Apply opening motion settings')
+    return true
+  }, [commitReconciled])
+
+  const syncRoomInstallationSources = useCallback((project: ProjectStructure) => {
+    const before = sceneRef.current, next = refreshInstallationSources(before, project)
+    if (next !== before) setScene(applyPipeline(next))
+  }, [])
+
+  const onApplyInstallationPreview = useCallback((project: ProjectStructure, preview: InstallationPreview): boolean => {
+    const next = acceptInstallation(sceneRef.current, project, preview, `installation_${crypto.randomUUID()}`)
+    if (!next) return false
+    commitReconciled(() => next, preview.action === 'detach' ? 'Detach room installation' : 'Apply room installation')
+    return true
+  }, [commitReconciled])
+
+  const onApplyWallFillerPreview = useCallback((project: ProjectStructure, preview: WallFillerPreview): boolean => {
+    const next = acceptWallFiller(sceneRef.current, project, preview, `board_${crypto.randomUUID()}`)
+    if (!next) return false
+    commitReconciled(() => next, preview.action === 'delete' ? 'Delete wall filler' : preview.action === 'detach' ? 'Detach wall filler' : 'Apply wall filler')
+    return true
+  }, [commitReconciled])
+
   const onApplyCornerPreview = useCallback((preview: CornerPreview): boolean => {
     const next = acceptCorner(sceneRef.current, preview, `corner_${crypto.randomUUID()}`)
     if (!next) return false
@@ -629,6 +663,7 @@ export function useScene(): UseSceneResult {
           serviceMachining: undefined,
           worktopMachining: undefined,
           cornerPanel: undefined,
+          wallFiller: undefined,
           runWorktop: undefined,
           hingeLayout: undefined,
           frontPull: undefined,
@@ -722,8 +757,8 @@ export function useScene(): UseSceneResult {
       const updatedPart = updater(beforePart)
       // Assembly dimensions and treatments are edited atomically in the corner workspace.
       // Normal machining and visibility edits remain available on individual boards.
-      if (beforePart.kind === 'board' && updatedPart.kind === 'board' && beforePart.cornerPanel) {
-        const owned = (p: BoardPart) => [p.length, p.width, p.thickness, p.position, p.rotation, p.parentId, p.material, p.grain, p.label, p.edgeBanding, p.cornerPanel]
+      if (beforePart.kind === 'board' && updatedPart.kind === 'board' && (beforePart.cornerPanel || beforePart.wallFiller)) {
+        const owned = (p: BoardPart) => [p.length, p.width, p.thickness, p.position, p.rotation, p.parentId, p.material, p.grain, p.label, p.edgeBanding, p.cornerPanel, p.wallFiller]
         if (JSON.stringify(owned(beforePart)) !== JSON.stringify(owned(updatedPart))) return
       }
       const afterPart = beforePart.kind === 'board' && updatedPart.kind === 'board'
@@ -1372,7 +1407,7 @@ export function useScene(): UseSceneResult {
       const after = applyPipeline({
         ...before,
         parts: before.parts.map((p) =>
-          p.id === id ? { ...(updater ? updater(p) : p), driven: false, role: undefined, ...(p.kind === 'board' ? { finishing: undefined, runWorktop: undefined, cornerPanel: undefined } : {}) } : p,
+          p.id === id ? { ...(updater ? updater(p) : p), driven: false, role: undefined, ...(p.kind === 'board' ? { finishing: undefined, runWorktop: undefined, cornerPanel: undefined, wallFiller: undefined } : {}) } : p,
         ),
       })
       setScene(after)
@@ -1610,6 +1645,10 @@ export function useScene(): UseSceneResult {
     onApplyPullPreview,
     onApplyFrontsPreview,
     onApplyWorktopMachiningPreview,
+    onApplyOpeningPreview,
+    syncRoomInstallationSources,
+    onApplyInstallationPreview,
+    onApplyWallFillerPreview,
     onApplyCornerPreview,
     onApplyRunWorktopPreview,
     onApplyFinishingPreview,

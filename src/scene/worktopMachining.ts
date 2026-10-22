@@ -16,6 +16,7 @@ export function worktopMachiningEligible(part: BoardPart): boolean {
     part.role === undefined &&
     !part.frontPull &&
     !part.runWorktop?.draft.profile &&
+    !part.wallFiller &&
     !part.cornerPanel?.draft.legs[0].run.profile &&
     (!part.finishing || part.finishing.draft.kind === 'worktop')
   )
