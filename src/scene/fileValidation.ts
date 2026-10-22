@@ -1,3 +1,6 @@
+import { cornerLinkError } from './cornerRecipe'
+import { applianceBaysError } from './applianceRecipe'
+import { serviceMachiningError } from './serviceRecipe'
 import { hingeLayoutError } from './hingeLayout'
 import { RUNNER_NOMINALS } from './hardwareCatalogue'
 import { worktopMachiningError } from './worktopMachiningRecipe'
@@ -133,6 +136,19 @@ function validateOperations(value: unknown, path: string): void {
   }
 }
 
+function validateBoardOverrides(value: unknown, path: string): void {
+  if (value === undefined) return
+  const own = recordAt(value, path)
+  if (own.grain !== undefined && !['length', 'width', 'free'].includes(own.grain as string))
+    throw new ZimmuFileValidationError(`${path}.grain`, 'must be free, length, or width')
+  if (own.material !== undefined) stringAt(own.material, `${path}.material`)
+  if (own.thickness !== undefined) {
+    finiteNumberAt(own.thickness, `${path}.thickness`)
+    if ((own.thickness as number) <= 0)
+      throw new ZimmuFileValidationError(`${path}.thickness`, 'must be positive')
+  }
+}
+
 function validateLegacyPart(value: unknown, path: string): Part | null {
   const part = recordAt(value, path)
   const kind = stringAt(part.kind, `${path}.kind`)
@@ -150,9 +166,16 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
   vecAt(part.position, `${path}.position`)
   vecAt(part.rotation, `${path}.rotation`)
   validateCuts(part.cuts, `${path}.cuts`)
-  if (kind === 'board') validateOperations(part.operations, `${path}.operations`)
+  if (kind === 'board') {
+    validateOperations(part.operations, `${path}.operations`)
+    validateBoardOverrides(part.overrides, `${path}.overrides`)
+  }
 
   if (kind === 'board') {
+    if (part.serviceMachining !== undefined) {
+      const error = serviceMachiningError(part.serviceMachining)
+      if (error) throw new ZimmuFileValidationError(`${path}.serviceMachining`, error)
+    }
     if (part.hingeLayout !== undefined) {
       const error = hingeLayoutError(part.hingeLayout)
       if (error) throw new ZimmuFileValidationError(`${path}.hingeLayout`, error)
@@ -160,7 +183,13 @@ function validateLegacyPart(value: unknown, path: string): Part | null {
     if (part.worktopMachining !== undefined) {
       const error = worktopMachiningError(part.worktopMachining)
       if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
-      if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop') || (isRecord(part.runWorktop) && isRecord(part.runWorktop.draft) && part.runWorktop.draft.profile !== undefined)) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+      if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop') || (isRecord(part.runWorktop) && isRecord(part.runWorktop.draft) && part.runWorktop.draft.profile !== undefined) || (isRecord(part.cornerPanel) && isRecord(part.cornerPanel.draft) && Array.isArray(part.cornerPanel.draft.legs) && isRecord(part.cornerPanel.draft.legs[0]) && isRecord(part.cornerPanel.draft.legs[0].run) && part.cornerPanel.draft.legs[0].run.profile !== undefined)) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+    }
+    if (part.cornerPanel !== undefined) {
+      const error = cornerLinkError(part.cornerPanel)
+      if (error) throw new ZimmuFileValidationError(`${path}.cornerPanel`, error)
+      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.runWorktop !== undefined || part.frontPull !== undefined)
+        throw new ZimmuFileValidationError(`${path}.cornerPanel`, 'must own a role-free manual board exclusively')
     }
     if (part.runWorktop !== undefined) {
       const error = runWorktopLinkError(part.runWorktop)
@@ -221,6 +250,8 @@ export function validateLegacyFileInput(value: unknown): ZimmuFile {
   vecAt(camera.target, 'file.camera.target')
 
   const scene = recordAt(root.scene, 'file.scene')
+  const bayError = applianceBaysError(scene.applianceBays)
+  if (bayError) throw new ZimmuFileValidationError('file.scene.applianceBays', bayError)
   if (scene.companyCatalogues !== undefined) validateInstalledCatalogues(scene.companyCatalogues)
   const parts = (scene.parts === undefined ? [] : arrayAt(scene.parts, 'file.scene.parts'))
     .map((part, index) => validateLegacyPart(part, `file.scene.parts[${index}]`))
@@ -284,9 +315,16 @@ function validateCurrentPart(part: Part, index: number): void {
   }
   stringAt(part.material, `${path}.material`)
   validateCuts(part.cuts, `${path}.cuts`)
-  if (part.kind === 'board') validateOperations(part.operations, `${path}.operations`)
+  if (part.kind === 'board') {
+    validateOperations(part.operations, `${path}.operations`)
+    validateBoardOverrides(part.overrides, `${path}.overrides`)
+  }
 
   if (part.kind === 'board') {
+    if (part.serviceMachining !== undefined) {
+      const error = serviceMachiningError(part.serviceMachining)
+      if (error) throw new ZimmuFileValidationError(`${path}.serviceMachining`, error)
+    }
     if (part.hingeLayout !== undefined) {
       const error = hingeLayoutError(part.hingeLayout)
       if (error) throw new ZimmuFileValidationError(`${path}.hingeLayout`, error)
@@ -294,7 +332,13 @@ function validateCurrentPart(part: Part, index: number): void {
     if (part.worktopMachining !== undefined) {
       const error = worktopMachiningError(part.worktopMachining)
       if (error) throw new ZimmuFileValidationError(`${path}.worktopMachining`, error)
-      if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop') || (isRecord(part.runWorktop) && isRecord(part.runWorktop.draft) && part.runWorktop.draft.profile !== undefined)) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+      if (part.driven || part.role !== undefined || part.frontPull !== undefined || (isRecord(part.finishing) && isRecord(part.finishing.draft) && part.finishing.draft.kind !== 'worktop') || (isRecord(part.runWorktop) && isRecord(part.runWorktop.draft) && part.runWorktop.draft.profile !== undefined) || (isRecord(part.cornerPanel) && isRecord(part.cornerPanel.draft) && Array.isArray(part.cornerPanel.draft.legs) && isRecord(part.cornerPanel.draft.legs[0]) && isRecord(part.cornerPanel.draft.legs[0].run) && part.cornerPanel.draft.legs[0].run.profile !== undefined)) throw new ZimmuFileValidationError(`${path}.worktopMachining`, 'requires a role-free manual board')
+    }
+    if (part.cornerPanel !== undefined) {
+      const error = cornerLinkError(part.cornerPanel)
+      if (error) throw new ZimmuFileValidationError(`${path}.cornerPanel`, error)
+      if (part.driven || part.role !== undefined || part.finishing !== undefined || part.runWorktop !== undefined || part.frontPull !== undefined)
+        throw new ZimmuFileValidationError(`${path}.cornerPanel`, 'must own a role-free manual board exclusively')
     }
     if (part.runWorktop !== undefined) {
       const error = runWorktopLinkError(part.runWorktop)
@@ -560,6 +604,8 @@ export function validateCurrentFile(file: ZimmuFile): ZimmuFile {
     throw new ZimmuFileValidationError('file.scene.components', 'must be an array')
   }
 
+  const bayError = applianceBaysError(file.scene.applianceBays)
+  if (bayError) throw new ZimmuFileValidationError('file.scene.applianceBays', bayError)
   file.scene.parts.forEach(validateCurrentPart)
   assertUniqueIds(file.scene.parts, 'file.scene.parts')
   validateEdgeFacts(file.scene)

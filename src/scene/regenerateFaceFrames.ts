@@ -5,7 +5,7 @@ import { frontCells, frontRoleOf } from './frontCells'
 import { cupRow } from './frontMachining'
 import { blumFaceFrameHingeFor } from './faceFrameHardware'
 import { grainAxisOf, grainFieldFor } from './grain'
-import { overridesOf, roleThicknessFor } from './resolveThickness'
+import { materialForRole, overridesOf, roleThicknessFor } from './resolveThickness'
 import { reconcileBoards, type GeneratedBoard } from './reconcileBoards'
 import { resolveSections } from './sectionTree'
 
@@ -21,6 +21,8 @@ const LABEL: Record<string, string> = {
 // list is different: the cabinet resolved, but this configuration has no buildable frame, so it declines.
 function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] | null {
   const p = cabinet.params
+  const frameId = scene.components.find((c) => c.kind === 'faceFrame' && c.parentId === cabinet.id)?.id
+  const materialOverrides = overridesOf(scene.parts, frameId ?? cabinet.id)
   const thicknessOf = roleThicknessFor(p, scene.materials, overridesOf(scene.parts, cabinet.id))
   // Safe to read thicknesses below only after this: the validator asks the frame material through
   // the same resolver and reports a missing one as a message rather than a throw.
@@ -163,6 +165,7 @@ function frameBoards(cabinet: CarcaseComponent, scene: Scene): GeneratedBoard[] 
       label,
       panel: orientedPanel(box, 'y'),
       grain: grainFieldFor('y', grainAxisOf(m.role)),
+      material: materialForRole(p, materialOverrides, m.role),
       cuts: cutsByRole.get(m.role) ?? [],
       operations: operationsByRole.get(m.role) ?? [],
     }

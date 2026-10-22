@@ -1,3 +1,6 @@
+import type { CornerLink } from './cornerRecipe'
+import type { ApplianceBay } from './applianceRecipe'
+import type { ServiceMachining } from './serviceRecipe'
 import type { HingeLayout } from './hingeLayout'
 import type { WorktopMachining } from './worktopMachiningRecipe'
 import type { RunWorktopLink } from './runWorktopRecipe'
@@ -167,7 +170,9 @@ export interface BoardPart {
   frontPull?: PullSpec
   // Opt-in, role-free finishing geometry owned by the immediate carcase parent.
   finishing?: FinishingLink
+  serviceMachining?: ServiceMachining
   worktopMachining?: WorktopMachining
+  cornerPanel?: CornerLink
   runWorktop?: RunWorktopLink
   visible: boolean
   parentId: ComponentId | null
@@ -521,6 +526,7 @@ export type Joint =
   | ScrewJoint
 
 export interface Scene {
+  applianceBays?: ApplianceBay[]
   parts: Part[]
   materials: Record<string, MaterialDef> // keyed by material name string
   hardware: HardwareItem[]

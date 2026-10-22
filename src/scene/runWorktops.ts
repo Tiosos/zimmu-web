@@ -97,11 +97,12 @@ function targetOf(scene: Scene, id?: string): BoardPart | undefined {
     throw Error('The linked worktop is unavailable or no longer owned by this tool.')
   return target
 }
-function build(
+export function buildRunWorktop(
   scene: Scene,
   draft: RunWorktopDraft,
+  minimumMembers = 2,
 ): Pick<RunWorktopPreview, 'part' | 'bounds' | 'members'> {
-  const error = runDraftError(draft)
+  const error = runDraftError(draft, minimumMembers)
   if (error) throw Error(error)
   if (!finishingMaterials(scene).includes(draft.material))
     throw Error('Choose an existing panel material with positive stock thickness.')
@@ -328,7 +329,7 @@ export function previewRunWorktop(
   }
   try {
     const target = targetOf(scene, targetId),
-      built = build(scene, draft)
+      built = buildRunWorktop(scene, draft)
     if (target && !!target.runWorktop?.draft.profile !== !!draft.profile)
       throw Error('Edit this board in its matching run workspace.')
     if (draft.profile && target?.worktopMachining)
@@ -351,7 +352,7 @@ export function runWorktopIssues(scene: Scene, part: BoardPart): string[] {
   const malformed = runWorktopLinkError(part.runWorktop)
   if (malformed) return [malformed]
   try {
-    build(scene, part.runWorktop.draft)
+    buildRunWorktop(scene, part.runWorktop.draft)
     return []
   } catch (cause) {
     return [cause instanceof Error ? cause.message : 'Run worktop could not be built.']
@@ -370,7 +371,7 @@ export function regenerateRunWorktops(scene: Scene): Scene {
       )
         return detached(part)
       try {
-        return merge(part, build(scene, part.runWorktop.draft).part!)
+        return merge(part, buildRunWorktop(scene, part.runWorktop.draft).part!)
       } catch {
         return part
       }

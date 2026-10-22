@@ -1,8 +1,9 @@
-import type { ComponentId, MaterialDef, Part } from './types'
+import type { ComponentId, Grain, MaterialDef, Part } from './types'
 
 export interface PartOverrides {
   thickness?: number
   material?: string
+  grain?: Grain
 }
 
 export interface MaterialSlots {

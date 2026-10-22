@@ -1,0 +1,8 @@
+# Implementation plan
+
+1. Add bounded recipe validation and reusable single-leg build support without relaxing public straight-run recipes. Test malformed inputs and single/multiple member legs.
+2. Resolve two legs in their common frame; validate upright perpendicular geometry and planes, locate end-to-end corner, trim/extend explicit endpoints by selected through direction and clearance. Generate board-local transforms with orientedPanel; keep deterministic slot identities and optional vertical end returns. Verify absolute dimensions, left/right returns, rotations, parents and impossibility cases.
+3. Add exact-signature preview, conflict/coverage/machining/appliance diagnostics, acceptance, atomic edit/detach/delete and regeneration. Verify no-op/stale/tampered previews and missing group members. Preserve cuts and ownership. Apply regeneration before machining passes.
+4. Add a finishing workspace mode with leg selection, all dimension/material/grain/edge fields, profile choice, joint settings, returns, saved assembly management and SVG preview. Draft changes do not mutate scene; stale drafts require reset/reload. Wire one undoable hook through App and CabinetEditor.
+5. Validate new links on raw and current file reads, increment format and update pinned tests. Protect new ownership through normal edits/duplicates and eligibility checks. Verify save/reopen, history and output identity.
+6. Run focused tests, meaningful guard mutations with exact backup restoration and AssertionError failures; then typecheck/lint/full units sequentially, both builds and Chromium flows. Freeze source during broad checks. Update living notes and structure index. Commit only after passing required checks.

@@ -1,0 +1,11 @@
+# Cabinet Materials & Edgebanding
+
+Two staged cabinet workspaces implement the approved 50-task batch. Materials lists boards by role and opening, supports search/material filters and multi-selection, assignments, inheritance restoration, grain and copying. Edgebanding selects board-local or cabinet-facing edges and stages assignment, explicit bare or inheritance, role presets and compatible copying. Existing manual edge decisions are protected by default. Both show real pipeline results, quantities and errors and commit one undo step.
+
+Ownership: driven carcase and face-frame boards use per-role material overrides; grain becomes a persisted optional PartOverrides field. Drawer material changes expand to all five driven boards through drawer.params.material because one box thickness owns joinery; detached drawer/boards block that change. Detached role boards remain visible and locked. Role-free manual finishing boards edit directly; linked finishing/run boards update recipes and preserve links/custom thickness. Run boards shared by the current cabinet are explicitly identified.
+
+Edges use existing EdgeDecisions (missing=inherited, null=bare, string=stock), edgesOf and cutSizeOf. No invented tape width metadata: compatibility covers resolvable positive stock thickness, rectangular unmitred edges and positive resulting cut sizes; actual tape width/adhesive compatibility remains unassessed. Cabinet-facing edges use resolved transforms rather than assuming local axes equal cabinet axes. Copying requires matching dimensions and orientation for edges.
+
+Acceptance recomputes the proposal against an exact scene signature, rejects stale/no-op/invalid inputs, never trusts a cached scene. Preview validates source and proposed geometry bounds, openings/drawers, generated-board retention and linked recipe rebuilds. No automatic detachment, geometry loss or catalogue adoption. Save format 35 adds optional grain ownership; old files have no grain override.
+
+Tests: pure ownership/transform/fit/edge-output and file round trips; UI staging/cancel/stale/protected overrides; hook undo/redo; browser materials and edge flows. Guard mutations must fail by assertion. Required full typecheck/lint/unit and both builds precede browser verification; source frozen during full suites.

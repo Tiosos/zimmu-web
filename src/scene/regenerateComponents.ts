@@ -124,9 +124,9 @@ function regenerateOne(
       length: r.panel.length,
       width: r.panel.width,
       thickness: r.panel.thickness,
-      // Not `existing?.grain ?? r.grain`: a driven part's grain belongs to its cabinet, exactly as
-      // its material does. A detached part never reaches this line.
-      grain: r.grain,
+      // Inherited grain follows the cabinet; only explicit ownership survives regeneration.
+      // A detached part never reaches this line.
+      grain: existing?.kind === 'board' ? (existing.overrides?.grain ?? r.grain) : r.grain,
       material: materialForRole(component.params, overrides, r.role),
       color: existing?.color ?? PART_COLORS[i % PART_COLORS.length],
       position: r.panel.position,
@@ -152,6 +152,7 @@ function regenerateOne(
       // Carried across the regeneration that read it: an override the pass consumed but did not
       // write back would last exactly one edit.
       overrides: existing?.kind === 'board' ? existing.overrides : undefined,
+      ...(existing?.kind === 'board' && existing.serviceMachining !== undefined ? { serviceMachining: existing.serviceMachining } : {}),
       ...(existing?.kind === 'board' && existing.edgeBanding !== undefined
         ? { edgeBanding: existing.edgeBanding }
         : {}),
