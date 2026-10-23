@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ProductionReleaseGate, type ReleaseRecording } from './ProductionReleaseGate'
-import * as release from './productionReleaseGate'
+import * as release from './productionReleaseAssessment'
 import { sha256Hex, type RecordRefusal } from '../scene/releases'
 import {
   readyAssessment,

@@ -15,7 +15,7 @@ import {
   captureProductionSource,
   productionPacketFilename,
 } from './buildProductionPacket'
-import { packetSourceSha256 } from './productionReleaseGate'
+import { packetSourceSha256 } from './productionReleaseAssessment'
 import { machiningProject } from '../scene/__fixtures__/machiningProject'
 import { manufacturingParts } from '../scene/manufacturingPart'
 import { buildMachiningSchedule } from '../scene/machiningSchedule'

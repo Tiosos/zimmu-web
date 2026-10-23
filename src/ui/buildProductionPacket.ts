@@ -1,7 +1,7 @@
 import { captureInput, type ProductionPacketInput } from './captureProductionSource'
 import { buildSlopeCsv } from './buildSlopeCsv'
 import { buildGrainMatchCsv } from './buildGrainMatchCsv'
-import { PRODUCTION_RELEASE_POLICY } from './productionReleaseGate'
+import { PRODUCTION_RELEASE_POLICY } from './productionReleaseAssessment'
 import { buildPacketPartInventory, packetInventoryJson } from './packetPartInventory'
 import { buildDrawingIndex, buildDrawingIndexCsv } from './buildDrawingIndex'
 import { buildProductionReview } from '../scene/productionReview'
