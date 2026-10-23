@@ -106,9 +106,24 @@ test.describe('keyboard operation', () => {
     await expect(page.locator('[data-testid^="node-board_"]')).toHaveCount(before)
     // The guard is about focus, not about the selection having moved on: the original board stays.
     await expect(first).toHaveAttribute('aria-selected', 'false')
-    // Enter selects the focused row (the app then moves focus to its name field).
+    // Enter selects the focused row and leaves focus on it, so the shortcuts now act on it.
     await page.keyboard.press('Enter')
     await expect(first).toHaveAttribute('aria-selected', 'true')
+    await expect(first).toBeFocused()
+    await page.keyboard.press('Delete')
+    await expect(page.locator('[data-testid^="node-board_"]')).toHaveCount(before - 1)
+  })
+
+  test('selecting a row with the mouse still moves focus to the name field', async ({ page }) => {
+    await page.getByRole('button', { name: '+ Board' }).click()
+    await page.getByRole('button', { name: '+ Board' }).click()
+    const first = page
+      .locator('[data-testid^="node-board_"]')
+      .filter({ hasNotText: /Side|Top|Bottom|Back|Shelf|Door|Kick/ })
+      .first()
+    await first.click()
+    await expect(first).toHaveAttribute('aria-selected', 'true')
+    await expect(page.locator('input:focus')).toHaveCount(1)
   })
 
   test('closing a dialog opened from the File menu returns focus to the File button', async ({
