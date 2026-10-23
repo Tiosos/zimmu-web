@@ -112,3 +112,17 @@ export function navigateTree(e: KeyboardEvent<HTMLElement>): boolean {
   target.focus()
   return true
 }
+
+// Whether the last thing the user did was press a key rather than point. Selecting a part moves
+// focus to its name field so a mouse user can rename it at once; for a keyboard user that same jump
+// takes them out of the list they were moving through, so it is skipped. Defaults to pointer, which
+// is what the app did unconditionally before.
+let keyboardLast = false
+export const usedKeyboardLast = () => keyboardLast
+export const resetInputModality = () => {
+  keyboardLast = false
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('keydown', () => (keyboardLast = true), true)
+  document.addEventListener('pointerdown', () => (keyboardLast = false), true)
+}

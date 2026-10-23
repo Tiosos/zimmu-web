@@ -42,7 +42,7 @@ The scene tree is one tab stop (the selected row, or the row you last focused). 
 | `ArrowLeft` | Collapse an expanded branch; otherwise focus the parent row |
 | `Enter` / `Space` | Select the focused row |
 
-Moving focus does not select. `Delete`, `Backspace`, `H` and `Ctrl+D` act on the **selected** part, so they are ignored while a different row has focus — press `Enter` on the row first. Selecting a part moves focus to its name field in the edit panel.
+Moving focus does not select. `Delete`, `Backspace`, `H` and `Ctrl+D` act on the **selected** part, so they are ignored while a different row has focus — press `Enter` on the row first. Selecting a part with the mouse moves focus to its name field in the edit panel so it can be renamed at once; selecting with the keyboard leaves focus on the row, so the arrow keys and these shortcuts keep working.
 
 ## Dialogs
 

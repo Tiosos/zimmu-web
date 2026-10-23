@@ -1,4 +1,4 @@
-import { activateOnKey } from '../lib/a11y'
+import { activateOnKey, usedKeyboardLast } from '../lib/a11y'
 import { serviceCutOwned } from '../scene/serviceMachining'
 import { worktopCutOwned } from '../scene/worktopMachining'
 import { useState, useEffect, useRef, useMemo } from 'react'
@@ -491,12 +491,18 @@ export function EditPanel({
   const [rotOpen, setRotOpen] = useState(true)
   const [labelValue, setLabelValue] = useState(part.label)
   const labelFocused = useRef(false)
+  const labelInput = useRef<HTMLInputElement>(null)
   const linkedHardware = scene.hardware.filter((h) => h.linkedPartIds.includes(part.id))
   const blankFallbackLabel = part.kind === 'board' ? nextLabel : 'Dowel'
 
   useEffect(() => {
     if (!labelFocused.current) setLabelValue(part.label)
   }, [part.label])
+
+  // Mount-only: the panel is keyed by part, so this runs once per selection.
+  useEffect(() => {
+    if (!usedKeyboardLast()) labelInput.current?.focus()
+  }, [])
 
   // A driven part's dimensions belong to its cabinet, so an edit here is a question, not a
   // command: push it up to the parameter, or take ownership of the part. Holding the value
@@ -610,7 +616,7 @@ export function EditPanel({
       {/* Label input + delete */}
       <div className="mb-2 flex gap-1">
         <Input
-          autoFocus
+          ref={labelInput}
           value={labelValue}
           onChange={(e) => {
             setLabelValue(e.target.value)

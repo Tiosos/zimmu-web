@@ -105,6 +105,40 @@ async function typeLength(value: string) {
   await userEvent.type(field, value)
 }
 
+describe('EditPanel — name field focus on selection', () => {
+  afterEach(cleanup)
+  const nameField = () => screen.getAllByRole('textbox')[0]
+
+  it('focuses the name field after a pointer selection, as it always did', () => {
+    document.dispatchEvent(new Event('pointerdown'))
+    renderPanel()
+    expect(document.activeElement).toBe(nameField())
+  })
+
+  it('focuses it when nothing has been pressed yet', () => {
+    renderPanel()
+    expect(document.activeElement).toBe(nameField())
+  })
+
+  it('leaves focus where it was when the selection came from the keyboard', () => {
+    const row = document.createElement('div')
+    row.tabIndex = 0
+    document.body.appendChild(row)
+    row.focus()
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    renderPanel()
+    expect(document.activeElement).toBe(row)
+    row.remove()
+  })
+
+  it('goes back to focusing once the user points again', () => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    document.dispatchEvent(new Event('pointerdown'))
+    renderPanel()
+    expect(document.activeElement).toBe(nameField())
+  })
+})
+
 describe('EditPanel — editing a driven part', () => {
   afterEach(cleanup)
 
