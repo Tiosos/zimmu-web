@@ -83,13 +83,30 @@ export { applyPipeline } from './pipeline'
 
 // Lazy singleton — not instantiated at module load so vi.stubGlobal('Worker') works in tests
 let _occt: ReturnType<typeof wrap<OcctWorkerApi>> | null = null
+let _worker: Worker | null = null
+const workerFailureListeners = new Set<(message: string) => void>()
 function getOcct() {
   if (!_occt) {
     const w = new Worker(new URL('../geom/occt.worker.ts', import.meta.url), { type: 'module' })
+    // A worker that fails to load or throws at start never answers, so its pending calls would hang
+    // rather than reject; this is the only signal that the engine is not coming.
+    w.onerror = (e) => {
+      for (const listener of workerFailureListeners)
+        listener(e.message || 'The geometry engine could not start.')
+    }
+    _worker = w
     _occt = wrap<OcctWorkerApi>(w)
   }
   return _occt
 }
+// Drops the worker so the next call starts a fresh one; used when retrying after a failure.
+function resetOcct() {
+  _worker?.terminate()
+  _worker = null
+  _occt = null
+}
+
+const errorMessage = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
 function buildGeometry(data: {
   positions: Float32Array
@@ -138,6 +155,9 @@ export interface UseSceneResult {
   selectedId: PartId | null
   selection: Selection | null
   occtReady: boolean
+  // Why the geometry engine is not coming, or null. Cleared when a build succeeds or on retry.
+  occtFailure: string | null
+  retryOcct: () => void
   nextLabel: string
   onAdd: (kind: 'board' | 'cylinder') => void
   onRemove: (id: PartId) => void
@@ -215,6 +235,8 @@ export function useScene(): UseSceneResult {
   const [selection, setSelection] = useState<Selection | null>(null)
   const selectedId = selection?.kind === 'part' ? selection.id : null
   const [occtReady, setOcctReady] = useState(false)
+  const [occtFailure, setOcctFailure] = useState<string | null>(null)
+  const [retryNonce, setRetryNonce] = useState(0)
 
   const prevShapeKeys = useRef<Map<PartId, string>>(new Map())
   const buildSeq = useRef<Map<PartId, number>>(new Map())
@@ -264,6 +286,16 @@ export function useScene(): UseSceneResult {
   // Readiness is the kernel having built something. A scene that starts empty has no part to
   // build, so without this the add buttons would stay disabled until a file was opened.
   useEffect(() => {
+    const onFailure = (message: string) => {
+      if (isMounted.current) setOcctFailure(message)
+    }
+    workerFailureListeners.add(onFailure)
+    return () => {
+      workerFailureListeners.delete(onFailure)
+    }
+  }, [])
+
+  useEffect(() => {
     if (sceneRef.current.parts.length > 0) return
     getOcct()
       .buildPart({ kind: 'board', length: 1, width: 1, thickness: 1, cuts: [] })
@@ -271,9 +303,12 @@ export function useScene(): UseSceneResult {
         if (!isMounted.current || occtReadyRef.current) return
         occtReadyRef.current = true
         setOcctReady(true)
+        setOcctFailure(null)
       })
-      .catch(() => {})
-  }, [])
+      .catch((err: unknown) => {
+        if (isMounted.current && !occtReadyRef.current) setOcctFailure(errorMessage(err))
+      })
+  }, [retryNonce])
 
   useEffect(() => {
     const partIds = new Set(scene.parts.map((p) => p.id))
@@ -299,6 +334,7 @@ export function useScene(): UseSceneResult {
             occtReadyRef.current = true
             setOcctReady(true)
           }
+          setOcctFailure(null)
           setErrors((prev) => {
             const m = new Map(prev)
             m.delete(part.id)
@@ -318,9 +354,10 @@ export function useScene(): UseSceneResult {
             s.delete(part.id)
             return s
           })
-          setErrors((prev) =>
-            new Map(prev).set(part.id, err instanceof Error ? err.message : String(err)),
-          )
+          setErrors((prev) => new Map(prev).set(part.id, errorMessage(err)))
+          // Before anything has built, a part's failure is the engine's: say so where the add
+          // buttons are, not only on a row that may be scrolled out of sight.
+          if (!occtReadyRef.current) setOcctFailure(errorMessage(err))
         })
     }
 
@@ -352,7 +389,17 @@ export function useScene(): UseSceneResult {
         return next
       })
     }
-  }, [scene])
+  }, [scene, retryNonce])
+
+  const retryOcct = useCallback(() => {
+    resetOcct()
+    setOcctFailure(null)
+    // A part that failed, or was still waiting on a worker that never answered, is remembered as
+    // built at its current shape. Forget that so the build effect submits it again.
+    for (const id of errors.keys()) prevShapeKeys.current.delete(id)
+    for (const id of pendingIds) prevShapeKeys.current.delete(id)
+    setRetryNonce((n) => n + 1)
+  }, [errors, pendingIds])
 
   const push = useCallback((entry: HistoryEntry) => {
     const last = pastRef.current.at(-1)
@@ -1669,6 +1716,8 @@ export function useScene(): UseSceneResult {
     selectedId,
     selection,
     occtReady,
+    occtFailure,
+    retryOcct,
     nextLabel: `Board ${labelCounter + 1}`,
     onAdd,
     onRemove,

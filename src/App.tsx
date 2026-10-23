@@ -86,6 +86,8 @@ function App() {
     selectedId,
     selection,
     occtReady,
+    occtFailure,
+    retryOcct,
     nextLabel,
     onAdd,
     onAddComponent,
@@ -1048,6 +1050,8 @@ function App() {
         <Sidebar
           scene={scene}
           occtReady={occtReady}
+          occtFailure={occtFailure}
+          onRetryOcct={retryOcct}
           errors={errors}
           pendingIds={pendingIds}
           nextLabel={nextLabel}
