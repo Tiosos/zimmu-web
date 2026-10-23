@@ -1,5 +1,5 @@
 import { sha256Hex, type ProductionRelease } from '../releases'
-import type { ProductionReleaseRecord, ReleaseFinding } from '../../ui/productionReleaseGate'
+import type { ProductionReleaseRecord, ReleaseFinding } from '../../ui/productionReleaseAssessment'
 
 export const readyAssessment = (packetSha256: string): ProductionReleaseRecord => ({
   schemaVersion: 1,

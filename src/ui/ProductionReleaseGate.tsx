@@ -4,7 +4,7 @@ import {
   assessProductionRelease,
   packetSourceSha256,
   type ProductionReleaseRecord,
-} from './productionReleaseGate'
+} from './productionReleaseAssessment'
 import {
   sha256Hex,
   type RecordRefusal,

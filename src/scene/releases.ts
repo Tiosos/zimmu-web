@@ -1,4 +1,4 @@
-import type { ProductionReleaseRecord } from '../ui/productionReleaseGate'
+import type { ProductionReleaseRecord } from '../ui/productionReleaseAssessment'
 
 export const MAX_RELEASE_SOURCE_BYTES = 16 * 1024 * 1024
 export const MAX_RELEASED_BY_LENGTH = 100

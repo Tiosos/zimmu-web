@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ProductionReleaseGate } from './ProductionReleaseGate'
-import * as release from './productionReleaseGate'
+import * as release from './productionReleaseAssessment'
 import * as downloads from './download'
 
 afterEach(() => {

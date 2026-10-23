@@ -92,6 +92,7 @@ pnpm test         # vitest run (all unit tests, no browser)
 pnpm test:watch   # vitest in watch mode
 pnpm typecheck    # tsc -b --noEmit
 pnpm lint         # eslint .
+pnpm check:file-casing  # rejects two tracked files that differ only by case
 pnpm build        # tsc + vite build (output: dist/)
 pnpm coverage     # vitest coverage report
 ```
@@ -102,7 +103,7 @@ Run a single test file:
 pnpm vitest run src/scene/useScene.test.ts
 ```
 
-Run `pnpm typecheck && pnpm lint && pnpm test` before every commit. A pre-commit hook enforces typecheck automatically.
+Run `pnpm typecheck && pnpm lint && pnpm check:file-casing && pnpm test` before every commit. A pre-commit hook enforces typecheck automatically.
 
 ## Automated Hooks
 
