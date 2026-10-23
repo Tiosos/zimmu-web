@@ -34,6 +34,8 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 interface SidebarProps {
   scene: Scene
   occtReady: boolean
+  occtFailure: string | null
+  onRetryOcct: () => void
   errors: Map<PartId, string>
   pendingIds: Set<PartId>
   nextLabel: string
@@ -81,6 +83,8 @@ interface SidebarProps {
 export function Sidebar({
   scene,
   occtReady,
+  occtFailure,
+  onRetryOcct,
   errors,
   pendingIds,
   nextLabel,
@@ -329,6 +333,24 @@ export function Sidebar({
         />
 
         {/* Add part footer */}
+        {occtFailure !== null ? (
+          <div
+            role="alert"
+            className="mx-2 mb-1 rounded border border-destructive/50 bg-destructive/10 p-2 text-xs"
+          >
+            <p>The geometry engine could not load, so parts cannot be added or shown.</p>
+            <p className="mt-1 break-words opacity-70">{occtFailure}</p>
+            <Button onClick={onRetryOcct} variant="outline" size="sm" className="mt-2 text-xs">
+              Retry
+            </Button>
+          </div>
+        ) : (
+          !occtReady && (
+            <p role="status" className="px-2 pb-1 text-xs text-muted-foreground">
+              Loading geometry engine…
+            </p>
+          )
+        )}
         <div className="p-2 border-t border-border flex gap-1">
           <Button
             onClick={() => onAdd('board')}

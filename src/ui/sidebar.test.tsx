@@ -1,7 +1,7 @@
 import { packageFixture } from '../scene/__fixtures__/companyCatalogue'
 import { installCataloguePackage } from '../scene/cataloguePackage'
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { Sidebar } from './sidebar'
 import type { BoardPart, BoxCut, CutId, CylinderPart, Part, PartId } from '../scene/types'
 import { PART_COLORS } from '../scene/palette'
@@ -68,6 +68,8 @@ function props(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
   return {
     scene: { parts: [makeBoard()], materials: {}, hardware: [], joints: [], components: [] },
     occtReady: true,
+    occtFailure: null as string | null,
+    onRetryOcct: vi.fn(),
     errors: new Map<PartId, string>(),
     pendingIds: new Set<PartId>(),
     nextLabel: 'Board 2',
@@ -148,6 +150,31 @@ describe('Sidebar', () => {
     render(<Sidebar {...props({ onAdd })} />)
     fireEvent.click(screen.getByText('+ Board'))
     expect(onAdd).toHaveBeenCalledWith('board')
+  })
+
+  it('says the engine is loading while it is not ready, and nothing once it is', () => {
+    const { rerender } = render(<Sidebar {...props({ occtReady: false })} />)
+    expect(screen.getByRole('status').textContent).toMatch(/Loading geometry engine/)
+    rerender(<Sidebar {...props({ occtReady: true })} />)
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('reports a failed engine load with its reason and a Retry that calls back', () => {
+    const onRetryOcct = vi.fn()
+    render(
+      <Sidebar {...props({ occtReady: false, occtFailure: 'Failed to fetch', onRetryOcct })} />,
+    )
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toMatch(/could not load/)
+    expect(alert.textContent).toMatch(/Failed to fetch/)
+    expect(screen.queryByRole('status')).toBeNull()
+    fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+    expect(onRetryOcct).toHaveBeenCalledOnce()
+  })
+
+  it('shows no alert when the engine is fine', () => {
+    render(<Sidebar {...props()} />)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('+ Board button is disabled when occtReady is false', () => {

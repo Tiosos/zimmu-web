@@ -85,7 +85,9 @@ vi.mock('comlink', () => ({
 
 vi.stubGlobal(
   'Worker',
-  vi.fn(function MockWorker() {}),
+  vi.fn(function MockWorker(this: { terminate: () => void }) {
+    this.terminate = vi.fn()
+  }),
 )
 
 import { useScene, buildSpecForPart, applyPipeline } from './useScene'
@@ -4371,4 +4373,71 @@ it('applies and disables sloped roofs in atomic history steps with stale replay 
   expect(result.current.undoLabel).toBe('Disable sloped cabinet')
   act(() => result.current.undo())
   expect(result.current.scene).toEqual(after)
+})
+
+describe('useScene — geometry engine failure', () => {
+  const okBuild = {
+    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+  }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockBuildPart.mockResolvedValue(okBuild)
+  })
+
+  it('reports a failed start-up instead of staying silent, and recovers on retry', async () => {
+    mockBuildPart.mockRejectedValueOnce(new Error('Failed to fetch'))
+    const { result } = renderHook(() => useScene())
+    await waitFor(() => expect(result.current.occtFailure).toBe('Failed to fetch'))
+    expect(result.current.occtReady).toBe(false)
+
+    act(() => result.current.retryOcct())
+    expect(result.current.occtFailure).toBeNull()
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    expect(result.current.occtFailure).toBeNull()
+  })
+
+  it('reports a first part build that fails, and rebuilds that part on retry', async () => {
+    // The start-up call never settles, so only the part's own failure can be what reports it.
+    mockBuildPart.mockReturnValueOnce(new Promise(() => {}))
+    mockBuildPart.mockRejectedValue(new Error('WASM instantiate failed'))
+    const { result } = renderSeeded()
+    const id = result.current.scene.parts[0].id
+    await waitFor(() => expect(result.current.occtFailure).toBe('WASM instantiate failed'))
+    expect(result.current.errors.get(id)).toBe('WASM instantiate failed')
+    expect(result.current.geometries.has(id)).toBe(false)
+
+    mockBuildPart.mockResolvedValue(okBuild)
+    act(() => result.current.retryOcct())
+    await waitFor(() => expect(result.current.geometries.has(id)).toBe(true))
+    expect(result.current.occtReady).toBe(true)
+    expect(result.current.occtFailure).toBeNull()
+    expect(result.current.errors.has(id)).toBe(false)
+  })
+
+  it('does not call a single part failure an engine failure once the engine has worked', async () => {
+    const { result } = renderSeeded()
+    await waitFor(() => expect(result.current.occtReady).toBe(true))
+    mockBuildPart.mockRejectedValueOnce(new Error('cut is outside the board'))
+    act(() => {
+      result.current.onAdd('board')
+    })
+    await waitFor(() => expect(result.current.errors.size).toBe(1))
+    expect(result.current.occtFailure).toBeNull()
+  })
+
+  it('reports a worker that fails to load, which would otherwise hang its calls forever', async () => {
+    // Neither resolves nor rejects, as a worker that never started would.
+    mockBuildPart.mockReturnValue(new Promise(() => {}))
+    const { result } = renderHook(() => useScene())
+    // Force a fresh worker so this test owns the instance whose onerror is set.
+    act(() => result.current.retryOcct())
+    const workers = vi.mocked(Worker).mock.instances as unknown as {
+      onerror: (e: ErrorEvent) => void
+    }[]
+    const worker = workers.at(-1)!
+    act(() => worker.onerror({ message: 'Failed to load module script' } as ErrorEvent))
+    expect(result.current.occtFailure).toBe('Failed to load module script')
+    expect(result.current.occtReady).toBe(false)
+  })
 })

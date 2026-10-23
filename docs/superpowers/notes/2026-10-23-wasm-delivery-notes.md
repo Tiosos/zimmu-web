@@ -1,7 +1,8 @@
 # Geometry engine (WASM) delivery — findings and open questions
 
-Recorded 2026-10-23, during the review follow-up PRs (#155–#157). Nothing here is implemented yet.
-Plan: none yet; a plan should follow once the questions below are answered.
+Recorded 2026-10-23, during the review follow-up PRs (#155–#157). Option 1 below is implemented;
+options 2 and 3 are not.
+Plan: none; options 2 and 3 should get one once questions 1 and 2 are answered.
 
 ## What was measured
 
@@ -41,6 +42,24 @@ any real deployment.
    Emscripten, which works against the project note not to change how opencascade.js loads its WASM.
    Not recommended unless users are on slow links (see question 2).
 
+## Implemented: option 1 (surface the state and the failure)
+
+- `useScene` returns `occtFailure` (a message, or `null`) and `retryOcct()`. The failure is set when
+  the start-up build rejects, when a part's build rejects before the engine has ever built anything,
+  or when the worker's `onerror` fires (a worker that fails to load never answers, so its calls hang
+  rather than reject). A successful build clears it. It is *not* set by a single part failing once the
+  engine has worked; that stays a per-part error.
+- `Sidebar` shows `Loading geometry engine…` (`role="status"`) while loading and a `role="alert"` with
+  the reason and a **Retry** button on failure, above the add buttons. It replaces the hover tooltip
+  as the only signal.
+- Retry terminates the worker and starts a fresh one, and re-submits parts that failed or were left
+  waiting on the dead worker.
+- Checked against the real kernel by blocking the `.wasm` request in `e2e/engine-failure.spec.ts`.
+- **Not needed, and removed:** `initOCCT` in `occt.ts` caches its promise, including a rejected one.
+  A first draft reset it on failure. It turned out to be dead code, because Retry replaces the worker
+  and the cache lives in the worker's own module scope (with the reset removed the real-browser
+  Retry test still passes). Reusing a worker after a failure would bring it back.
+
 ## Open questions
 
 Each stays open until someone answers it here.
@@ -57,11 +76,13 @@ Each stays open until someone answers it here.
 
 3. **What should a load failure look like?** A banner, or a message in the toolbar next to the
    disabled buttons; and whether it offers a retry.
-   *Answer:* _open_
+   *Answer:* provisional — built as an alert with a Retry in the sidebar, next to the disabled add
+   buttons, because the question was unanswered when the work was asked for. Say if a banner is
+   wanted instead.
 
 4. **Sequencing.** (a) Merge #157 before starting option 1: **decided** — merge was requested on
-   2026-10-23. (b) Do option 1 as its own PR afterwards: _open_.
-   *Answer:* (a) yes; (b) _open_
+   2026-10-23. (b) Do option 1 as its own PR afterwards: **decided and done** (see above).
+   *Answer:* (a) yes; (b) yes
 
 ## Related, not part of these questions
 
