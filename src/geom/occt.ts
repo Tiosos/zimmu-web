@@ -38,8 +38,7 @@ export function makeCylinder(
   // BRepPrimAPI_MakeCylinder_1(R, H): default axis +Z, base circle centered at
   // origin. The _2 overload is (R, H, Angle) — 3 args — and throws at runtime if
   // called with 2 (confirmed against opencascade.js v1.1.1, 2026-06-27).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const builder = new (oc as any).BRepPrimAPI_MakeCylinder_1(radius, height)
+  const builder = new oc.BRepPrimAPI_MakeCylinder_1(radius, height)
   const shape = builder.Shape()
   builder.delete()
   return shape
@@ -51,28 +50,23 @@ export function makeCut(
   position: Vec3,
   size: Vec3,
 ): TopoDS_Shape {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const builder = new (oc as any).BRepPrimAPI_MakeBox_1(size.x, size.y, size.z)
+  const builder = new oc.BRepPrimAPI_MakeBox_1(size.x, size.y, size.z)
   const toolShape = builder.Shape()
   builder.delete()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const trsf = new (oc as any).gp_Trsf_1()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const vec = new (oc as any).gp_Vec_4(position.x, position.y, position.z)
+  const trsf = new oc.gp_Trsf_1()
+  const vec = new oc.gp_Vec_4(position.x, position.y, position.z)
   trsf.SetTranslation_1(vec)
   vec.delete()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const xform = new (oc as any).BRepBuilderAPI_Transform_2(toolShape, trsf, false)
+  const xform = new oc.BRepBuilderAPI_Transform_2(toolShape, trsf, false)
   trsf.delete()
   const movedTool = xform.Shape()
 
   // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor (IsDone/Shape are
   // valid immediately). The progress-range overloads are unusable: Message_ProgressRange
   // is absent in opencascade.js v1.1.1 (see 2026-06-05-3d-export-notes.md).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const op = new (oc as any).BRepAlgoAPI_Cut_3(shape, movedTool)
+  const op = new oc.BRepAlgoAPI_Cut_3(shape, movedTool)
 
   if (!op.IsDone()) {
     console.warn('makeCut: BRepAlgoAPI_Cut did not complete — returning input shape')
@@ -101,39 +95,37 @@ export function makeMitreCut(
   board: { length: number; width: number; thickness: number },
   mitre: MitreCut,
 ): TopoDS_Shape {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
   const tool = computeMitreTool(board, mitre)
 
-  const builder = new O.BRepPrimAPI_MakeBox_1(tool.boxSize.x, tool.boxSize.y, tool.boxSize.z)
+  const builder = new oc.BRepPrimAPI_MakeBox_1(tool.boxSize.x, tool.boxSize.y, tool.boxSize.z)
   const boxShape = builder.Shape()
   builder.delete()
 
   // Translate the box to its pre-rotation origin.
-  const tTrsf = new O.gp_Trsf_1()
-  const tVec = new O.gp_Vec_4(tool.boxOrigin.x, tool.boxOrigin.y, tool.boxOrigin.z)
+  const tTrsf = new oc.gp_Trsf_1()
+  const tVec = new oc.gp_Vec_4(tool.boxOrigin.x, tool.boxOrigin.y, tool.boxOrigin.z)
   tTrsf.SetTranslation_1(tVec)
   tVec.delete()
-  const tXform = new O.BRepBuilderAPI_Transform_2(boxShape, tTrsf, false)
+  const tXform = new oc.BRepBuilderAPI_Transform_2(boxShape, tTrsf, false)
   tTrsf.delete()
   const translated = tXform.Shape()
 
   // Rotate about the pivot edge to tilt the inner face into the board.
-  const rTrsf = new O.gp_Trsf_1()
-  const pnt = new O.gp_Pnt_3(tool.pivot.x, tool.pivot.y, tool.pivot.z)
-  const dir = new O.gp_Dir_4(tool.axisDir.x, tool.axisDir.y, tool.axisDir.z)
-  const ax1 = new O.gp_Ax1_2(pnt, dir)
+  const rTrsf = new oc.gp_Trsf_1()
+  const pnt = new oc.gp_Pnt_3(tool.pivot.x, tool.pivot.y, tool.pivot.z)
+  const dir = new oc.gp_Dir_4(tool.axisDir.x, tool.axisDir.y, tool.axisDir.z)
+  const ax1 = new oc.gp_Ax1_2(pnt, dir)
   rTrsf.SetRotation_1(ax1, tool.angleRad)
   pnt.delete()
   dir.delete()
   ax1.delete()
-  const rXform = new O.BRepBuilderAPI_Transform_2(translated, rTrsf, false)
+  const rXform = new oc.BRepBuilderAPI_Transform_2(translated, rTrsf, false)
   rTrsf.delete()
   const movedTool = rXform.Shape()
 
   // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor; Message_ProgressRange
   // is absent in opencascade.js v1.1.1, so the progress-range overloads are unusable.
-  const op = new O.BRepAlgoAPI_Cut_3(shape, movedTool)
+  const op = new oc.BRepAlgoAPI_Cut_3(shape, movedTool)
 
   const cleanup = () => {
     op.delete()
@@ -162,35 +154,33 @@ export function makeBoxCutAt(
   shape: TopoDS_Shape,
   tool: BoxToolDescriptor,
 ): TopoDS_Shape {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
-  const builder = new O.BRepPrimAPI_MakeBox_1(tool.boxSize.x, tool.boxSize.y, tool.boxSize.z)
+  const builder = new oc.BRepPrimAPI_MakeBox_1(tool.boxSize.x, tool.boxSize.y, tool.boxSize.z)
   const boxShape = builder.Shape()
   builder.delete()
 
-  const tTrsf = new O.gp_Trsf_1()
-  const tVec = new O.gp_Vec_4(tool.boxOrigin.x, tool.boxOrigin.y, tool.boxOrigin.z)
+  const tTrsf = new oc.gp_Trsf_1()
+  const tVec = new oc.gp_Vec_4(tool.boxOrigin.x, tool.boxOrigin.y, tool.boxOrigin.z)
   tTrsf.SetTranslation_1(tVec)
   tVec.delete()
-  const tXform = new O.BRepBuilderAPI_Transform_2(boxShape, tTrsf, false)
+  const tXform = new oc.BRepBuilderAPI_Transform_2(boxShape, tTrsf, false)
   tTrsf.delete()
   const translated = tXform.Shape()
 
-  const rTrsf = new O.gp_Trsf_1()
-  const pnt = new O.gp_Pnt_3(tool.pivot.x, tool.pivot.y, tool.pivot.z)
-  const dir = new O.gp_Dir_4(tool.axisDir.x, tool.axisDir.y, tool.axisDir.z)
-  const ax1 = new O.gp_Ax1_2(pnt, dir)
+  const rTrsf = new oc.gp_Trsf_1()
+  const pnt = new oc.gp_Pnt_3(tool.pivot.x, tool.pivot.y, tool.pivot.z)
+  const dir = new oc.gp_Dir_4(tool.axisDir.x, tool.axisDir.y, tool.axisDir.z)
+  const ax1 = new oc.gp_Ax1_2(pnt, dir)
   rTrsf.SetRotation_1(ax1, tool.angleRad)
   pnt.delete()
   dir.delete()
   ax1.delete()
-  const rXform = new O.BRepBuilderAPI_Transform_2(translated, rTrsf, false)
+  const rXform = new oc.BRepBuilderAPI_Transform_2(translated, rTrsf, false)
   rTrsf.delete()
   const movedTool = rXform.Shape()
 
   // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor; Message_ProgressRange
   // is absent in opencascade.js v1.1.1, so the progress-range overloads are unusable.
-  const op = new O.BRepAlgoAPI_Cut_3(shape, movedTool)
+  const op = new oc.BRepAlgoAPI_Cut_3(shape, movedTool)
 
   const cleanup = () => {
     op.delete()
@@ -219,12 +209,10 @@ export function makeCylinderCut(
   shape: TopoDS_Shape,
   tool: CylinderToolDescriptor,
 ): TopoDS_Shape {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
-  const pnt = new O.gp_Pnt_3(tool.basePoint.x, tool.basePoint.y, tool.basePoint.z)
-  const dir = new O.gp_Dir_4(tool.dir.x, tool.dir.y, tool.dir.z)
-  const ax2 = new O.gp_Ax2_3(pnt, dir)
-  const builder = new O.BRepPrimAPI_MakeCylinder_3(ax2, tool.radius, tool.height)
+  const pnt = new oc.gp_Pnt_3(tool.basePoint.x, tool.basePoint.y, tool.basePoint.z)
+  const dir = new oc.gp_Dir_4(tool.dir.x, tool.dir.y, tool.dir.z)
+  const ax2 = new oc.gp_Ax2_3(pnt, dir)
+  const builder = new oc.BRepPrimAPI_MakeCylinder_3(ax2, tool.radius, tool.height)
   const toolShape = builder.Shape()
   builder.delete()
   ax2.delete()
@@ -233,7 +221,7 @@ export function makeCylinderCut(
 
   // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor; Message_ProgressRange
   // is absent in opencascade.js v1.1.1, so the progress-range overloads are unusable.
-  const op = new O.BRepAlgoAPI_Cut_3(shape, toolShape)
+  const op = new oc.BRepAlgoAPI_Cut_3(shape, toolShape)
 
   const cleanup = () => {
     op.delete()
@@ -350,30 +338,28 @@ export function makeHoleArrayCut(
   cut: HoleArrayCut,
 ): TopoDS_Shape {
   if (cut.count <= 0 || cut.diameter <= 0 || cut.depth <= 0) return shape
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
 
   const { axis: drillAxis, sign } = faceDrillAxis(cut.face)
   const step = stepVector(cut.face, cut.axis, cut.pitch)
 
-  const builder = new O.BRep_Builder()
-  const compound = new O.TopoDS_Compound()
+  const builder = new oc.BRep_Builder()
+  const compound = new oc.TopoDS_Compound()
   builder.MakeCompound(compound)
 
   const tools: TopoDS_Shape[] = []
   for (let i = 0; i < cut.count; i++) {
-    const dir = new O.gp_Dir_4(
+    const dir = new oc.gp_Dir_4(
       drillAxis === 'x' ? sign : 0,
       drillAxis === 'y' ? sign : 0,
       drillAxis === 'z' ? sign : 0,
     )
-    const origin = new O.gp_Pnt_3(
+    const origin = new oc.gp_Pnt_3(
       cut.start.x + step.x * i,
       cut.start.y + step.y * i,
       cut.start.z + step.z * i,
     )
-    const ax2 = new O.gp_Ax2_3(origin, dir)
-    const cylinder = new O.BRepPrimAPI_MakeCylinder_3(ax2, cut.diameter / 2, cut.depth)
+    const ax2 = new oc.gp_Ax2_3(origin, dir)
+    const cylinder = new oc.BRepPrimAPI_MakeCylinder_3(ax2, cut.diameter / 2, cut.depth)
     const tool: TopoDS_Shape = cylinder.Shape()
     builder.Add(compound, tool)
     tools.push(tool)
@@ -385,7 +371,7 @@ export function makeHoleArrayCut(
 
   // BRepAlgoAPI_Cut_3(S1, S2) runs the boolean in its constructor; Message_ProgressRange
   // is absent in opencascade.js v1.1.1, so the progress-range overloads are unusable.
-  const op = new O.BRepAlgoAPI_Cut_3(shape, compound)
+  const op = new oc.BRepAlgoAPI_Cut_3(shape, compound)
 
   const cleanup = () => {
     op.delete()
@@ -432,8 +418,6 @@ export function makeShape(
 }
 
 function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS_Shape {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
   let shape: TopoDS_Shape
   switch (spec.kind) {
     case 'board':
@@ -447,12 +431,12 @@ function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS
       throw new Error(`unknown export spec kind: ${(_exhaustive as { kind: string }).kind}`)
     }
   }
-  const trsf = new O.gp_Trsf_1()
+  const trsf = new oc.gp_Trsf_1()
   // gp_Trsf.SetValues expects row-major 3x4 (a11..a14, a21..a24, a31..a34).
   // spec.matrix is column-major: m[col*4 + row].
   const m = spec.matrix
   trsf.SetValues(m[0], m[4], m[8], m[12], m[1], m[5], m[9], m[13], m[2], m[6], m[10], m[14])
-  const xform = new O.BRepBuilderAPI_Transform_2(shape, trsf, false)
+  const xform = new oc.BRepBuilderAPI_Transform_2(shape, trsf, false)
   const moved = xform.Shape()
   shape.delete()
   trsf.delete()
@@ -468,12 +452,10 @@ function makeTransformedShape(oc: OpenCascadeInstance, spec: ExportSpec): TopoDS
 // range). Solids are not individually named. See 2026-06-05-3d-export-notes.md
 // "Live spike findings".
 export function writeStep(oc: OpenCascadeInstance, specs: ExportSpec[]): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const O = oc as any
-  O.Interface_Static.SetCVal('write.step.unit', 'MM')
+  oc.Interface_Static.SetCVal('write.step.unit', 'MM')
 
-  const builder = new O.BRep_Builder()
-  const compound = new O.TopoDS_Compound()
+  const builder = new oc.BRep_Builder()
+  const compound = new oc.TopoDS_Compound()
   builder.MakeCompound(compound)
   const moved: TopoDS_Shape[] = []
   for (const spec of specs) {
@@ -482,12 +464,11 @@ export function writeStep(oc: OpenCascadeInstance, specs: ExportSpec[]): string 
     moved.push(shape)
   }
 
-  const writer = new O.STEPControl_Writer_1()
-  writer.Transfer(compound, O.STEPControl_StepModelType.STEPControl_AsIs, true)
+  const writer = new oc.STEPControl_Writer_1()
+  writer.Transfer(compound, oc.STEPControl_StepModelType.STEPControl_AsIs, true)
   writer.Write('out.step')
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const text: string = (oc as any).FS.readFile('out.step', { encoding: 'utf8' })
+  const text = oc.FS.readFile('out.step', { encoding: 'utf8' })
   for (const s of moved) s.delete()
   compound.delete()
   builder.delete()

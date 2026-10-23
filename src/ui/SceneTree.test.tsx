@@ -96,6 +96,87 @@ function renderTree(overrides: Partial<Parameters<typeof SceneTree>[0]> = {}) {
 describe('SceneTree', () => {
   afterEach(cleanup)
 
+  describe('as a tree', () => {
+    const grouped = (selection: Selection | null = null) =>
+      renderTree({
+        components: [makeGroup()],
+        parts: [makeBoard({ id: 'child', label: 'Child', parentId: 'cmp_1' })],
+        selection,
+      })
+
+    it('exposes levels, expansion and the selected row', () => {
+      grouped({ kind: 'part', id: 'child' })
+      expect(screen.getByRole('tree', { name: 'Scene' })).toBeTruthy()
+      const group = screen.getByTestId('node-cmp_1')
+      const child = screen.getByTestId('node-child')
+      expect(group.getAttribute('role')).toBe('treeitem')
+      expect(group.getAttribute('aria-level')).toBe('1')
+      expect(group.getAttribute('aria-expanded')).toBe('true')
+      expect(group.getAttribute('aria-selected')).toBe('false')
+      expect(child.getAttribute('aria-level')).toBe('2')
+      expect(child.getAttribute('aria-expanded')).toBeNull()
+      expect(child.getAttribute('aria-selected')).toBe('true')
+    })
+
+    it('is a single tab stop: the selected row, moving to whichever row last took focus', () => {
+      renderTree({
+        components: [makeGroup()],
+        parts: [
+          makeBoard({ id: 'child', label: 'Child', parentId: 'cmp_1' }),
+          makeBoard({ id: 'loose', label: 'Loose', parentId: null }),
+        ],
+        selection: { kind: 'part', id: 'loose' },
+      })
+      const stops = () =>
+        screen
+          .getAllByRole('treeitem')
+          .filter((r) => r.tabIndex === 0)
+          .map((r) => r.getAttribute('data-testid'))
+      expect(stops()).toEqual(['node-loose'])
+      expect(screen.getAllByRole('button').every((b) => b.tabIndex === -1)).toBe(true)
+      screen.getByTestId('node-child').focus()
+      expect(stops()).toEqual(['node-child'])
+    })
+
+    it('falls back to the first row when nothing is selected', () => {
+      grouped()
+      expect(
+        screen
+          .getAllByRole('treeitem')
+          .filter((r) => r.tabIndex === 0)
+          .map((r) => r.getAttribute('data-testid')),
+      ).toEqual(['node-cmp_1'])
+    })
+
+    it('collapses a branch with Left and expands it with Right', () => {
+      grouped()
+      const group = screen.getByTestId('node-cmp_1')
+      group.focus()
+      fireEvent.keyDown(group, { key: 'ArrowLeft' })
+      expect(screen.queryByTestId('node-child')).toBeNull()
+      expect(group.getAttribute('aria-expanded')).toBe('false')
+      fireEvent.keyDown(group, { key: 'ArrowRight' })
+      expect(screen.getByTestId('node-child')).toBeTruthy()
+    })
+
+    it('moves between rows with the arrow keys and selects with Enter', () => {
+      const handler = vi.fn()
+      renderTree({
+        components: [makeGroup()],
+        parts: [makeBoard({ id: 'child', label: 'Child', parentId: 'cmp_1' })],
+        onSelect: handler,
+      })
+      const group = screen.getByTestId('node-cmp_1')
+      group.focus()
+      fireEvent.keyDown(group, { key: 'ArrowDown' })
+      expect(document.activeElement).toBe(screen.getByTestId('node-child'))
+      fireEvent.keyDown(document.activeElement!, { key: 'Enter' })
+      expect(handler).toHaveBeenCalledWith({ kind: 'part', id: 'child' })
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+      expect(document.activeElement).toBe(group)
+    })
+  })
+
   it('renders a part inside the subtree of its parent component', () => {
     renderTree({
       components: [makeGroup()],

@@ -77,6 +77,7 @@ export function FileMenu({
   onRedo,
 }: FileMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const [isEditing, setIsEditing] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -121,6 +122,9 @@ export function FileMenu({
         disabled
           ? undefined
           : () => {
+              // The item unmounts with the menu; a dialog it opens would otherwise remember <body> as the
+              // opener and have nowhere to hand focus back to.
+              triggerRef.current?.focus()
               onClick()
               setIsOpen(false)
             }
@@ -142,6 +146,7 @@ export function FileMenu({
       {/* File dropdown */}
       <div ref={menuRef} className="relative">
         <Button
+          ref={triggerRef}
           variant="ghost"
           size="sm"
           onClick={() => setIsOpen((o) => !o)}

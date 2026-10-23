@@ -30,6 +30,24 @@
 | `Ctrl+D` | Duplicate selected part |
 | `Ctrl+Shift+E` | Open cutting list |
 
+## Scene tree
+
+The scene tree is one tab stop (the selected row, or the row you last focused). Move inside it with the arrow keys; Tab leaves it.
+
+| Key | Action |
+|-----|--------|
+| `ArrowDown` / `ArrowUp` | Focus the next / previous visible row |
+| `Home` / `End` | Focus the first / last row. In the tree, `Home` moves focus and does **not** frame the view |
+| `ArrowRight` | Expand a collapsed branch; on an expanded one, focus its first child |
+| `ArrowLeft` | Collapse an expanded branch; otherwise focus the parent row |
+| `Enter` / `Space` | Select the focused row |
+
+Moving focus does not select. `Delete`, `Backspace`, `H` and `Ctrl+D` act on the **selected** part, so they are ignored while a different row has focus — press `Enter` on the row first. Selecting a part moves focus to its name field in the edit panel.
+
+## Dialogs
+
+The cutting list, 2D drawings and project structure dialogs move focus inside when they open, keep `Tab` / `Shift+Tab` within them (wrapping at either end), and return focus to the control that opened them when they close. With several open, only the newest traps `Tab`. `Escape` closes the dialog.
+
 ## Source change review dialog
 
 | Key | Action |

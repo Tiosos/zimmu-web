@@ -543,6 +543,17 @@ function App() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const mod = e.metaKey || e.ctrlKey
 
+      // Delete, H and Ctrl+D act on the *selection*. Arrow keys in the scene tree move focus without
+      // selecting, so a focused row that is not the selected one would otherwise have its neighbour
+      // removed, hidden or duplicated. Enter on the row selects it first.
+      const row = e.target instanceof Element ? e.target.closest('[role="treeitem"]') : null
+      const key = e.key.toLowerCase()
+      if (
+        row?.getAttribute('aria-selected') === 'false' &&
+        (e.key === 'Delete' || e.key === 'Backspace' || key === 'h' || (mod && key === 'd'))
+      )
+        return
+
       // Non-modifier shortcuts
       if (!mod) {
         if (e.key.toLowerCase() === 'f') {

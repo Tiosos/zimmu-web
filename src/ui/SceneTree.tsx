@@ -1,5 +1,5 @@
-import { activateOnKey } from '../lib/a11y'
-import { useState } from 'react'
+import { activateOnKey, navigateTree } from '../lib/a11y'
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { carcaseOpenings } from '../scene/carcaseOpenings'
 import type { SectionNode } from '../scene/sectionNodes'
 import type {
@@ -70,6 +70,24 @@ function VisibilityButton({ visible, onToggle }: { visible: boolean; onToggle: (
   )
 }
 
+// Enter/Space select; arrows move between rows. Left/Right on a branch collapse and expand it, which
+// only the tree knows how to do, so the toggle comes in from the row.
+const rowKeys =
+  (select: () => void, branch?: { open: boolean; toggle: () => void }) =>
+  (e: KeyboardEvent<HTMLElement>) => {
+    activateOnKey(select)(e)
+    if (e.target !== e.currentTarget) return
+    if (
+      branch &&
+      ((e.key === 'ArrowLeft' && branch.open) || (e.key === 'ArrowRight' && !branch.open))
+    ) {
+      e.preventDefault()
+      branch.toggle()
+      return
+    }
+    navigateTree(e)
+  }
+
 export function SceneTree({
   components,
   parts,
@@ -84,6 +102,25 @@ export function SceneTree({
 }: SceneTreeProps) {
   // Section ids share this set with component ids: a `sec_` id can never equal a `cmp_` one.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  // One tab stop for the whole tree: the row last focused, else the selected row, else the first.
+  // Arrow keys move between rows, so a six-cabinet scene is not 200 presses of Tab. This is set on
+  // the DOM rather than as a prop because the stop depends on which rows this render produced, and
+  // React never writes `tabindex` itself here, so nothing overwrites it between renders.
+  const treeRef = useRef<HTMLDivElement>(null)
+  const stopRef = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const tree = treeRef.current
+    if (!tree) return
+    const rows = Array.from(tree.querySelectorAll<HTMLElement>('[role="treeitem"]'))
+    const stop =
+      rows.find((r) => r === stopRef.current) ??
+      rows.find((r) => r.getAttribute('aria-selected') === 'true') ??
+      rows[0]
+    for (const row of rows) row.tabIndex = row === stop ? 0 : -1
+    for (const button of tree.querySelectorAll<HTMLElement>('[role="treeitem"] button'))
+      button.tabIndex = -1
+  })
 
   const toggleCollapsed = (id: string) =>
     setCollapsed((prev) => {
@@ -109,9 +146,10 @@ export function SceneTree({
         )}
         style={{ paddingLeft: ROW_PADDING + depth * INDENT }}
         onClick={() => onSelect({ kind: 'part', id: part.id })}
-        tabIndex={0}
-        aria-current={selection?.kind === 'part' && selection.id === part.id ? 'true' : undefined}
-        onKeyDown={activateOnKey(() => onSelect({ kind: 'part', id: part.id }))}
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-selected={selection?.kind === 'part' && selection.id === part.id}
+        onKeyDown={rowKeys(() => onSelect({ kind: 'part', id: part.id }))}
       >
         {error ? (
           <span title={error} className="text-xs text-destructive-foreground">
@@ -195,11 +233,14 @@ export function SceneTree({
           )}
           style={{ paddingLeft: ROW_PADDING + depth * INDENT }}
           onClick={() => onSelect({ kind: 'component', id: component.id })}
-          tabIndex={0}
-          aria-current={
-            selection?.kind === 'component' && selection.id === component.id ? 'true' : undefined
-          }
-          onKeyDown={activateOnKey(() => onSelect({ kind: 'component', id: component.id }))}
+          role="treeitem"
+          aria-level={depth + 1}
+          aria-expanded={open}
+          aria-selected={selection?.kind === 'component' && selection.id === component.id}
+          onKeyDown={rowKeys(() => onSelect({ kind: 'component', id: component.id }), {
+            open,
+            toggle: () => toggleCollapsed(component.id),
+          })}
         >
           <Button
             variant="ghost"
@@ -281,10 +322,13 @@ export function SceneTree({
           onClick={() =>
             onSelect({ kind: 'section', cabinetId: component.id, sectionId: node.sectionId })
           }
-          tabIndex={0}
-          aria-current={isSelected ? 'true' : undefined}
-          onKeyDown={activateOnKey(() =>
-            onSelect({ kind: 'section', cabinetId: component.id, sectionId: node.sectionId }),
+          role="treeitem"
+          aria-level={depth + 1}
+          aria-expanded={open}
+          aria-selected={isSelected}
+          onKeyDown={rowKeys(
+            () => onSelect({ kind: 'section', cabinetId: component.id, sectionId: node.sectionId }),
+            { open, toggle: () => toggleCollapsed(node.sectionId) },
           )}
         >
           <Button
@@ -314,5 +358,20 @@ export function SceneTree({
     </>
   )
 
-  return renderChildren(null, 0)
+  return (
+    <div
+      ref={treeRef}
+      role="tree"
+      aria-label="Scene"
+      onFocus={(e) => {
+        const row = e.target instanceof Element ? e.target.closest('[role="treeitem"]') : null
+        if (!(row instanceof HTMLElement) || row === stopRef.current) return
+        for (const other of e.currentTarget.querySelectorAll<HTMLElement>('[role="treeitem"]'))
+          other.tabIndex = other === row ? 0 : -1
+        stopRef.current = row
+      }}
+    >
+      {renderChildren(null, 0)}
+    </div>
+  )
 }
