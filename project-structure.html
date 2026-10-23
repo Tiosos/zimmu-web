@@ -580,6 +580,9 @@
 │   └── wallElevation.ts
 ├── index.css
 ├── lib/
+│   ├── a11y.test.tsx
+│   ├── a11y.ts
+│   ├── lazyNamed.ts
 │   └── utils.ts
 ├── main.tsx
 ├── nest/
@@ -687,6 +690,8 @@
 │   ├── faceFrame.ts
 │   ├── faceFrameHardware.test.ts
 │   ├── faceFrameHardware.ts
+│   ├── fileFormatHistory.test.ts
+│   ├── fileFormatHistory.ts
 │   ├── fileValidation.test.ts
 │   ├── fileValidation.ts
 │   ├── finishingPanels.test.ts
@@ -799,6 +804,8 @@
 │   ├── runWorktopRecipe.ts
 │   ├── runWorktops.test.ts
 │   ├── runWorktops.ts
+│   ├── sceneJson.test.ts
+│   ├── sceneJson.ts
 │   ├── sectionInterior.test.ts
 │   ├── sectionInterior.ts
 │   ├── sectionNodes.test.ts
@@ -826,6 +833,7 @@
 │   ├── turnCabinet.test.ts
 │   ├── turnCabinet.ts
 │   ├── types.ts
+│   ├── useAcceptPreviews.ts
 │   ├── useAddCut.test.ts
 │   ├── useAddCut.ts
 │   ├── useAddFingerJoint.test.ts
@@ -928,6 +936,7 @@
 │   ├── CabinetServiceEditor.tsx
 │   ├── canonicalJson.test.ts
 │   ├── canonicalJson.ts
+│   ├── captureProductionSource.ts
 │   ├── CarcasePanel.test.tsx
 │   ├── CarcasePanel.tsx
 │   ├── CatalogueImport.test.tsx
@@ -948,6 +957,7 @@
 │   ├── DowelList.tsx
 │   ├── download.test.ts
 │   ├── download.ts
+│   ├── drawingDeckInputs.ts
 │   ├── drawingReferences.test.ts
 │   ├── DrawingViewer.test.tsx
 │   ├── DrawingViewer.tsx
@@ -1067,6 +1077,7 @@
 │   ├── useDebouncedCallback.test.ts
 │   ├── useDebouncedCallback.test.tsx
 │   ├── useDebouncedCallback.ts
+│   ├── useJointSuggestions.ts
 │   ├── useLocalChangeReview.ts
 │   ├── useSourceReviewView.ts
 │   ├── verifyProductionPacket.test.ts
@@ -1724,7 +1735,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->237<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->240<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
     </section>
 
     <!-- HOOKS -->
