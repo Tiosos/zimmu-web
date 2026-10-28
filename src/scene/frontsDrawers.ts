@@ -12,6 +12,7 @@ import { finishingMaterials, finishingSignature } from './finishingPanels'
 import { applyPipeline } from './pipeline'
 import { carcaseHardware } from './carcaseHardware'
 import { defaultDrawerParams } from './drawerBox'
+import { isPieceOf, shakerIssues, type FrontStyle } from './frontStyle'
 
 export const FRONT_CHOICES = [
   ['left-door', 'Left-hinged door'],
@@ -35,6 +36,9 @@ export interface FrontTarget {
 export interface FrontsDraft {
   fronts: Record<string, FrontChoice>
   drawers: Record<string, Partial<DrawerParams>>
+  // The style staged per opening. Absent means "leave whatever the front already wears", which is
+  // what lets a user change a hinge without restating the door's construction.
+  styles?: Record<string, FrontStyle>
 }
 export interface FrontsPreview {
   signature: string
@@ -62,7 +66,25 @@ export function frontChoice(front?: FrontSpec): FrontChoice {
           : 'right-door'
       : front.kind
 }
-const specOf = (choice: FrontChoice): FrontSpec | undefined =>
+// The style a front wears now. A false front and a cover panel have none: only a door and a drawer
+// front are made in pieces.
+export function frontStyle(front?: FrontSpec): FrontStyle | undefined {
+  return front?.kind === 'door' || front?.kind === 'drawer-front' ? front.style : undefined
+}
+
+// Two styles are the same when they would build the same boards.
+export function sameStyle(a: FrontStyle | undefined, b: FrontStyle | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b
+  if (a.kind !== b.kind) return false
+  if (a.kind === 'slab' || b.kind === 'slab') return true
+  return (
+    a.frameWidth === b.frameWidth &&
+    a.panelRecess === b.panelRecess &&
+    a.panelThickness === b.panelThickness
+  )
+}
+
+const specOf = (choice: FrontChoice, style?: FrontStyle): FrontSpec | undefined =>
   choice === 'none'
     ? undefined
     : choice === 'left-door' || choice === 'right-door' || choice === 'double-door'
@@ -70,12 +92,16 @@ const specOf = (choice: FrontChoice): FrontSpec | undefined =>
           kind: 'door',
           leaves: choice === 'double-door' ? 2 : 1,
           hinge: choice === 'right-door' ? 'right' : 'left',
+          ...(style === undefined ? {} : { style }),
         }
-      : { kind: choice }
-export const emptyFrontsDraft = (): FrontsDraft => ({ fronts: {}, drawers: {} })
+      : choice === 'drawer-front'
+        ? { kind: 'drawer-front', ...(style === undefined ? {} : { style }) }
+        : { kind: choice }
+export const emptyFrontsDraft = (): FrontsDraft => ({ fronts: {}, drawers: {}, styles: {} })
 const copy = (d: FrontsDraft): FrontsDraft => ({
   fronts: { ...d.fronts },
   drawers: Object.fromEntries(Object.entries(d.drawers).map(([id, p]) => [id, { ...p }])),
+  styles: { ...(d.styles ?? {}) },
 })
 export function frontsSignature(scene: Scene): string {
   return JSON.stringify({
@@ -189,6 +215,44 @@ export function stageFront(
   for (const t of targets) {
     next.fronts[t.id] = choice
     if (choice !== 'drawer-front') delete next.drawers[t.id]
+    // A cover panel and a false front are single boards, so a staged style would be a setting with
+    // nowhere to go. Dropping it here keeps the draft honest about what it can build.
+    if (choice !== 'left-door' && choice !== 'right-door' && choice !== 'double-door' && choice !== 'drawer-front') {
+      if (next.styles !== undefined) delete next.styles[t.id]
+    }
+  }
+  return next
+}
+
+// Stage a door's construction. `null` returns the opening to a flat slab; a style on a cover panel
+// or a false front is refused rather than silently ignored, because it could never be built.
+export function stageFrontStyle(
+  scene: Scene,
+  cabinetId: string,
+  draft: FrontsDraft,
+  ids: string[],
+  style: FrontStyle | null,
+): FrontsDraft {
+  const targets = selected(scene, cabinetId, ids),
+    next = copy(draft)
+  const thickness =
+    scene.materials[cabinetOf(scene, cabinetId).params.frontMaterial]?.thickness ?? 0
+  for (const t of targets) {
+    const choice = next.fronts[t.id] ?? frontChoice(t.front)
+    if (choice !== 'left-door' && choice !== 'right-door' && choice !== 'double-door' && choice !== 'drawer-front') {
+      throw Error('Only a door or a drawer front can be made in pieces.')
+    }
+    // Refused here, at the gesture, rather than at Preview: a frame that cannot be built is a
+    // setting with no valid value, and the user is standing on the control that set it.
+    if (style !== null && style.kind === 'shaker') {
+      const issues = shakerIssues(style, t.rect.x1 - t.rect.x0, t.rect.z1 - t.rect.z0, thickness)
+      if (issues.length) throw Error(issues.join('; '))
+    }
+    if (style === null || style.kind === 'slab') {
+      if (next.styles !== undefined) delete next.styles[t.id]
+    } else {
+      next.styles = { ...(next.styles ?? {}), [t.id]: style }
+    }
   }
   return next
 }
@@ -319,7 +383,13 @@ export function previewFronts(scene: Scene, cabinetId: string, draft: FrontsDraf
   }
   try {
     const original = cabinetOf(scene, cabinetId),
-      ids = [...new Set([...Object.keys(draft.fronts), ...Object.keys(draft.drawers)])]
+      ids = [
+        ...new Set([
+          ...Object.keys(draft.fronts),
+          ...Object.keys(draft.drawers),
+          ...Object.keys(draft.styles ?? {}),
+        ]),
+      ]
     if (!ids.length) {
       result.scene = scene
       return result
@@ -333,12 +403,20 @@ export function previewFronts(scene: Scene, cabinetId: string, draft: FrontsDraf
     const targets = selected(scene, cabinetId, ids)
     let params = original.params
     for (const t of targets) {
-      const choice = draft.fronts[t.id]
-      if (choice === undefined) continue
+      const choice = draft.fronts[t.id] ?? frontChoice(t.front)
       if (!FRONT_CHOICES.some(([value]) => value === choice))
         throw Error('Choose a supported front.')
-      if (choice === frontChoice(t.front)) continue
-      const front = specOf(choice)
+      const style = draft.styles?.[t.id] ?? frontStyle(t.front)
+      if (choice === frontChoice(t.front) && sameStyle(style, frontStyle(t.front))) continue
+      // A style the cabinet cannot build is refused here, with the reason, rather than emitted as a
+      // flat door: the generator's fallback exists so a stored file still opens, not so a staged
+      // edit can quietly become something else.
+      if (style !== undefined && style.kind === 'shaker') {
+        const thickness = scene.materials[original.params.frontMaterial]?.thickness ?? 0
+        const issues = shakerIssues(style, t.rect.x1 - t.rect.x0, t.rect.z1 - t.rect.z0, thickness)
+        if (issues.length) throw Error(issues.join('; '))
+      }
+      const front = specOf(choice, style)
       params = t.frame
         ? {
             ...params,
@@ -452,11 +530,36 @@ export function previewFronts(scene: Scene, cabinetId: string, draft: FrontsDraf
           !cells.length ||
           cells.some(
             (cell) =>
-              !proposed.parts.some((p) => p.parentId === cabinetId && p.role === frontRoleOf(cell)),
+              !proposed.parts.some(
+                (p) =>
+                  p.parentId === cabinetId &&
+                  (p.role === frontRoleOf(cell) || isPieceOf(frontRoleOf(cell), p.role)),
+              ),
           )
         )
           throw Error('The selected front does not fit this opening.')
       }
+    }
+    // A staged style the cabinet could not build is reported rather than quietly flattened. The
+    // generator emits a flat door when a style does not fit, so the absence of the five pieces is
+    // the signal — and it is read off the resolved cells, because an inset front is smaller than
+    // the opening it was staged against.
+    const styledOwn = cabinetOf(proposed, cabinetId)
+    const styledResolved = resolveCarcase(styledOwn, proposed.parts, proposed.materials)!
+    const styledFronts = frontGeometryOf(params, styledResolved.tree)
+    for (const t of targets) {
+      if (draft.styles?.[t.id]?.kind !== 'shaker') continue
+      const cells = frontCells(params.section, styledResolved.tree, styledFronts).filter(
+        (c) => c.sectionId === t.sectionId && c.openingId === t.openingId,
+      )
+      const built =
+        cells.length > 0 &&
+        cells.every((cell) =>
+          proposed.parts.some(
+            (p) => p.parentId === cabinetId && isPieceOf(frontRoleOf(cell), p.role),
+          ),
+        )
+      if (!built) throw Error('The shaker frame does not fit this front.')
     }
     const all = proposed.parts.filter(
       (p) =>

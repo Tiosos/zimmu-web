@@ -37,7 +37,7 @@ import {
   type ReleaseIntegrity,
 } from './releases'
 
-export const FILE_FORMAT_VERSION = 42
+export const FILE_FORMAT_VERSION = 43
 
 const PICKER_TYPES = [{ description: 'Zimmu Project', accept: { 'application/json': ['.zimmu'] } }]
 

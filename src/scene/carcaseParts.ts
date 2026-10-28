@@ -14,6 +14,7 @@ import {
 } from './sectionTree'
 import { sectionInteriors } from './sectionInterior'
 import { frontCells, frontRoleOf, type FrontCell } from './frontCells'
+import { pieceRole, madeFront, shakerPieces } from './frontStyle'
 import {
   clearDepth,
   floorZ,
@@ -393,22 +394,60 @@ export function carcaseBoxes(
   // Fronts last: the build order runs shell, then what divides it, then what sits inside, then what
   // covers it. A front is housed in nothing, so no joint descriptor names it and the extension pass
   // in `carcaseRoles` passes it through face-to-face sized.
+  //
+  // A front with a style is made in pieces: the same cell becomes a frame and a panel instead of one
+  // board. The cell's rectangle is untouched — the reveals `frontCells` took are the door's outer
+  // size either way — so a cabinet's visible gaps do not change when its doors change style. A style
+  // the cabinet cannot build (frame too wide for the opening, cup no longer fitting the stile)
+  // emits that front as a plain slab and is reported by `shakerIssues`, never as a half-built
+  // assembly.
   let faced = 0
   for (const cell of cells) {
     const role = frontRoleOf(cell)
     const FT = thicknessOf(role)
     faced += 1
+    // Inset sits in the opening, overlay in front of the carcase face. Both are measured from
+    // y = 0, which is the cabinet's front throughout the generator — or, on a face frame, from
+    // the frame's face: an inset door flush with it, an overlaying one standing on it.
+    const y0 = p.frontMount === 'inset' ? -frameDepth : -frameDepth - FT
+    const y1 = p.frontMount === 'inset' ? -frameDepth + FT : -frameDepth
+    const label = FRONT_LABEL[cell.spec.kind]
+
+    const style = madeFront(
+      cell.spec,
+      cell.rect.x1 - cell.rect.x0,
+      cell.rect.z1 - cell.rect.z0,
+      FT,
+    )
+    if (style !== null) {
+      // One ordinal per piece, so the cutting list can tell a left stile from a right one and the
+      // five rows of one door do not read as five doors.
+      for (const piece of shakerPieces(cell.rect, style, y0, y1)) {
+        boxes.push({
+          role: pieceRole(role, piece.piece),
+          label: `${label} ${faced} ${piece.piece}`,
+          box: {
+            x0: piece.rect.x0,
+            x1: piece.rect.x1,
+            y0: piece.y0,
+            y1: piece.y1,
+            z0: piece.rect.z0,
+            z1: piece.rect.z1,
+          },
+          thicknessAxis: 'y',
+        })
+      }
+      continue
+    }
+
     boxes.push({
       role,
-      label: `${FRONT_LABEL[cell.spec.kind]} ${faced}`,
+      label: `${label} ${faced}`,
       box: {
         x0: cell.rect.x0,
         x1: cell.rect.x1,
-        // Inset sits in the opening, overlay in front of the carcase face. Both are measured from
-        // y = 0, which is the cabinet's front throughout the generator — or, on a face frame, from
-        // the frame's face: an inset door flush with it, an overlaying one standing on it.
-        y0: p.frontMount === 'inset' ? -frameDepth : -frameDepth - FT,
-        y1: p.frontMount === 'inset' ? -frameDepth + FT : -frameDepth,
+        y0,
+        y1,
         z0: cell.rect.z0,
         z1: cell.rect.z1,
       },

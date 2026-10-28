@@ -323,7 +323,7 @@ it('roundtrips format 42, rejects malformed optional fields on both boundaries a
       project: f.project,
       camera: { position: { x: 0, y: 0, z: 1000 }, target: { x: 0, y: 0, z: 0 } },
     } as ZimmuFile
-  expect(FILE_FORMAT_VERSION).toBe(42)
+  expect(FILE_FORMAT_VERSION).toBe(43)
   expect(cab(parseFile(JSON.stringify(raw)).scene).params.slopedTop).toEqual(
     cab(s).params.slopedTop,
   )

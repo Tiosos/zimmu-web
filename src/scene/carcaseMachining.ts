@@ -17,6 +17,7 @@ import {
   usableInteriorRect,
 } from './carcaseLayout'
 import { carcaseRoles } from './carcaseParts'
+import { hingePiece, madeFront, pieceRole } from './frontStyle'
 import { faceFrameGeometry, frameOverlay, hingedFrameMember } from './faceFrame'
 import { blumFaceFrameHingeFor } from './faceFrameHardware'
 
@@ -152,9 +153,22 @@ export function carcaseMachining(
   const cuts: HoleArrayCut[] = []
   for (const cell of cells) {
     const frontRole = frontRoleOf(cell)
+    // A made front bores its cups into the stile it is hung on: there is no single door board to
+    // bore. The decision is `madeFront`'s, so this pass cannot disagree with the one that emitted
+    // the boards — and where the style was refused, the front is a slab and the base role is right.
+    const made = madeFront(
+      cell.spec,
+      cell.rect.x1 - cell.rect.x0,
+      cell.rect.z1 - cell.rect.z0,
+      thicknessOf(frontRole),
+    )
+    const hingeRole =
+      made !== null && cell.spec.kind === 'door' && cell.hinge !== undefined
+        ? pieceRole(frontRole, hingePiece(cell.hinge))
+        : frontRole
 
     // On the front itself: only a door, and only its cups.
-    if (role === frontRole) {
+    if (role === hingeRole) {
       if (cell.spec.kind !== 'door' || cell.hinge === undefined) continue
       if (fronts.frameOpenings?.has(cell.sectionId)) {
         // A framed cup is still on the door, but its depth belongs to the actual Blum application
@@ -166,11 +180,11 @@ export function carcaseMachining(
         const overlay = frameOverlay(member, cell.rect, cell.hinge, p.frontMount)
         const hardware = blumFaceFrameHingeFor(p.frontMount, overlay)
         if (hardware === null) continue
-        const cup = cupRow(panel, cell.hinge, frontRole, hardware.cupDepth)
+        const cup = cupRow(panel, cell.hinge, hingeRole, hardware.cupDepth)
         if (cup !== null) cuts.push(cup)
         continue
       }
-      const cup = cupRow(panel, cell.hinge, frontRole, undefined, hingeFor(frontRole))
+      const cup = cupRow(panel, cell.hinge, hingeRole, undefined, hingeFor(frontRole))
       if (cup !== null) cuts.push(cup)
       continue
     }
@@ -192,9 +206,9 @@ export function carcaseMachining(
       // fixed for pin rows, one family further out. A two-leaf pair is hinged at both outer edges,
       // so each leaf claims its own side and between them they claim both.
       if (cell.hinge !== side) continue
-      const door = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === frontRole)?.panel
+      const door = carcaseRoles(p, thicknessOf, kindOf).find((r) => r.role === hingeRole)?.panel
       if (door === undefined) continue
-      const cup = cupRow(door, cell.hinge, frontRole, undefined, hingeFor(frontRole))
+      const cup = cupRow(door, cell.hinge, hingeRole, undefined, hingeFor(frontRole))
       if (cup === null) continue
       // Carried across through *carcase* space, reading each panel's own origin: board x on the
       // door runs the carcase height from the door's bottom edge, board y on the upright runs it
@@ -205,7 +219,7 @@ export function carcaseMachining(
         { length: cup.count },
         (_, i) => door.position.z + cup.start.x + cup.pitch * i - panel.position.z,
       )
-      cuts.push(...plateScrewRows(panel, face, heights, frontRole))
+      cuts.push(...plateScrewRows(panel, face, heights, hingeRole))
       continue
     }
 

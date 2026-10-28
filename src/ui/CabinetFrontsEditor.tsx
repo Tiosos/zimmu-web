@@ -8,16 +8,19 @@ import {
   FRONT_CHOICES,
   emptyFrontsDraft,
   frontChoice,
+  frontStyle,
   frontTargets,
   frontsSignature,
   previewFronts,
   stageDrawer,
   stageFront,
+  stageFrontStyle,
   type DrawerAction,
   type FrontsDraft,
   type FrontsPreview,
   type FrontTarget,
 } from '../scene/frontsDrawers'
+import { DEFAULT_SHAKER } from '../scene/frontStyle'
 
 export function CabinetFrontsEditor({
   cabinet,
@@ -35,6 +38,9 @@ export function CabinetFrontsEditor({
   const [height, setHeight] = useState('120')
   const [offset, setOffset] = useState('32')
   const [material, setMaterial] = useState('')
+  const [frameWidth, setFrameWidth] = useState(String(DEFAULT_SHAKER.frameWidth))
+  const [panelRecess, setPanelRecess] = useState(String(DEFAULT_SHAKER.panelRecess))
+  const [panelThickness, setPanelThickness] = useState(String(DEFAULT_SHAKER.panelThickness))
   const [preview, setPreview] = useState<FrontsPreview | null>(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -82,10 +88,16 @@ export function CabinetFrontsEditor({
     setHeight('120')
     setOffset('32')
     setMaterial('')
+    setFrameWidth(String(DEFAULT_SHAKER.frameWidth))
+    setPanelRecess(String(DEFAULT_SHAKER.panelRecess))
+    setPanelThickness(String(DEFAULT_SHAKER.panelThickness))
     clearPreview()
   }
   const staged = targets.filter(
-    (t) => draft.fronts[t.id] !== undefined || draft.drawers[t.id] !== undefined,
+    (t) =>
+      draft.fronts[t.id] !== undefined ||
+      draft.drawers[t.id] !== undefined ||
+      draft.styles?.[t.id] !== undefined,
   )
   const byId = new Map(preview?.scene?.components.map((c) => [c.id, c]) ?? [])
   const proposed = preview?.scene?.components.find(
@@ -203,6 +215,87 @@ export function CabinetFrontsEditor({
         </div>
       </fieldset>
       <fieldset disabled={disabled || !selected.length} className="border rounded p-3 space-y-3">
+        <legend>Stage door and drawer-front construction</legend>
+        <p>
+          A shaker front is five boards — two stiles, two rails and a panel set back between them.
+          The frames and the panel keep the front material&apos;s depth; the panel is the thinner
+          board. A frame too narrow for the hinge cup, or too wide for the opening, is refused rather
+          than quietly made flat.
+        </p>
+        <div className="flex flex-wrap gap-2 items-end">
+          <label>
+            Frame width (mm)
+            <input
+              aria-label="Front draft shaker frame width"
+              type="number"
+              step="any"
+              min="0"
+              value={frameWidth}
+              onChange={(e) => {
+                setFrameWidth(e.target.value)
+                clearPreview()
+              }}
+              className="block border rounded p-1"
+            />
+          </label>
+          <label>
+            Panel recess (mm)
+            <input
+              aria-label="Front draft shaker panel recess"
+              type="number"
+              step="any"
+              min="0"
+              value={panelRecess}
+              onChange={(e) => {
+                setPanelRecess(e.target.value)
+                clearPreview()
+              }}
+              className="block border rounded p-1"
+            />
+          </label>
+          <label>
+            Panel thickness (mm)
+            <input
+              aria-label="Front draft shaker panel thickness"
+              type="number"
+              step="any"
+              min="0"
+              value={panelThickness}
+              onChange={(e) => {
+                setPanelThickness(e.target.value)
+                clearPreview()
+              }}
+              className="block border rounded p-1"
+            />
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              perform(() =>
+                stageFrontStyle(scene, cabinet.id, draft, selected, {
+                  kind: 'shaker',
+                  frameWidth: Number(frameWidth),
+                  panelRecess: Number(panelRecess),
+                  panelThickness: Number(panelThickness),
+                }),
+              )
+            }
+          >
+            Stage shaker fronts
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => perform(() => stageFrontStyle(scene, cabinet.id, draft, selected, null))}
+          >
+            Stage flat fronts
+          </Button>
+        </div>
+      </fieldset>
+      <fieldset disabled={disabled || !selected.length} className="border rounded p-3 space-y-3">
         <legend>Stage drawer settings</legend>
         <p>
           Every selected opening must carry a current or staged drawer front. Settings apply only
@@ -315,6 +408,12 @@ export function CabinetFrontsEditor({
             {staged.map((t) => (
               <li key={t.id}>
                 Opening {targets.indexOf(t) + 1}: {choice(t)}
+                {(() => {
+                  const style = draft.styles?.[t.id] ?? frontStyle(t.front)
+                  return style === undefined || style.kind === 'slab'
+                    ? ''
+                    : ` — shaker ${style.frameWidth} / ${style.panelRecess} / ${style.panelThickness}`
+                })()}
                 {draft.drawers[t.id]
                   ? ` — ${Object.entries(draft.drawers[t.id])
                       .map(

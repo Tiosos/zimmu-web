@@ -86,6 +86,25 @@ export function carcaseContactPairs(
       pairs.push([f.role, b.role])
     }
   }
+
+  // A made front is one front and five boards to cut. Its pieces touch along the frame's rebate and
+  // the panel's edges, and a pair the generator does not name is an unjoined pair on the checklist
+  // forever — the same defect the shelf clearance rule exists to avoid. Declared as contacts rather
+  // than joints: how a door is put together is a `jointMethod` question, exactly as a face frame's
+  // stiles and rails are.
+  const madeDoors = new Map<string, string[]>()
+  for (const b of boxes) {
+    const made = /^(.+-\d+)-(?:stile-l|stile-r|rail-t|rail-b|panel)$/.exec(b.role)
+    if (made === null) continue
+    const pieces = madeDoors.get(made[1])
+    if (pieces === undefined) madeDoors.set(made[1], [b.role])
+    else pieces.push(b.role)
+  }
+  for (const pieces of madeDoors.values()) {
+    for (let i = 0; i < pieces.length; i++) {
+      for (let j = i + 1; j < pieces.length; j++) pairs.push([pieces[i], pieces[j]])
+    }
+  }
   return pairs
 }
 

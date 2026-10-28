@@ -56,4 +56,9 @@ export const FILE_FORMAT_HISTORY: readonly FileFormatStep[] = [
     summary: 'front grain matching, stock optimisation, sloped cabinets',
     commit: 'bae06a7',
   },
+  {
+    first: 43,
+    last: 43,
+    summary: 'shaker five-piece doors and drawer fronts',
+  },
 ]

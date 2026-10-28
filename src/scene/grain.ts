@@ -37,6 +37,11 @@ export function grainAxisOf(role: string, splitAxis?: 'vertical' | 'horizontal')
   // Grain runs vertical on every front, and a front is a thickness-on-y panel exactly like the
   // back — so it joins that branch verbatim and `grainFieldFor('y', 'z')` resolves it to 'length'
   // through the existing GRAIN_IN_PLANE map. No new map entry.
+  //
+  // A made front's rail is the exception, and the reason the piece suffix is read here: a rail runs
+  // across the door, and "every front runs vertically" would give a 60 mm-high rail its grain the
+  // wrong way. The stiles and the panel follow the door and need no entry.
+  if (role.endsWith('-rail-t') || role.endsWith('-rail-b')) return 'x'
   if (role.startsWith('front-')) return 'z'
   // A frame member carries its grain along its own length: a stile stands, a rail lies. Families
   // rather than names, so stage 2's mid members need no new entry here.

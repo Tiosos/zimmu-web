@@ -293,7 +293,7 @@ it('roundtrips format 42, rejects malformed inventory on both boundaries and loa
       project: f.project,
       camera: { position: { x: 0, y: 0, z: 1000 }, target: { x: 0, y: 0, z: 0 } },
     } as ZimmuFile
-  expect(FILE_FORMAT_VERSION).toBe(42)
+  expect(FILE_FORMAT_VERSION).toBe(43)
   expect(parseFile(JSON.stringify(raw)).scene.stockPlan).toEqual(f.plan)
   for (const validate of [validateCurrentFile, validateLegacyFileInput]) {
     const bad = structuredClone(raw)

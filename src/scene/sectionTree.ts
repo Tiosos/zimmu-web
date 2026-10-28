@@ -30,14 +30,21 @@ export interface InteriorSpec {
   adjustable: AdjustableSpec
 }
 
+import type { FrontStyle } from './frontStyle'
+
 // What covers a section. Absent means nothing does — the same convention `interior` uses, so the
 // model has one way to say "no front" rather than a field and a union member that both mean it.
 //
 // `hinge` is read only when `leaves === 1`: a pair of doors is hinged at both outer edges, and a
 // field that is meaningless half the time is a field that will be set wrong.
+//
+// `style` is optional and absent means a flat slab. Only a door and a drawer front are made as a
+// five-piece assembly; a false front and a cover panel stay single boards. Keeping it optional is
+// what makes an older file — which cannot have the field — read as a slab rather than as a file
+// that needs migrating.
 export type FrontSpec =
-  | { kind: 'door'; leaves: 1 | 2; hinge: 'left' | 'right' }
-  | { kind: 'drawer-front' }
+  | { kind: 'door'; leaves: 1 | 2; hinge: 'left' | 'right'; style?: FrontStyle }
+  | { kind: 'drawer-front'; style?: FrontStyle }
   | { kind: 'false-front' }
   | { kind: 'panel' }
 

@@ -59,8 +59,34 @@ it('filters staged choices, retains staged edits when selection clears, and appl
     ),
   ).toBe(true)
 })
-it('exposes all front actions, filters uncovered fronts and reports noop previews', () => {
+it('stages a shaker door, previews it and applies five boards per opening', () => {
+  const s = sceneOf()
+  const apply = vi.fn((_: FrontsPreview) => true)
+  render(<CabinetFrontsEditor cabinet={own} scene={s} onApply={apply} />)
+  click('Select door openings')
+  click('Stage shaker fronts')
+  expect(region('Staged front and drawer edits').textContent).toContain('shaker 60 / 6 / 6')
+  click('Preview fronts and drawers')
+  expect(region('Proposed front elevation').querySelector('svg')).not.toBeNull()
+  click('Apply fronts and drawers')
+  expect(apply).toHaveBeenCalledTimes(1)
+  const applied = acceptFronts(s, apply.mock.lastCall![0])!
+  const pieces = applied.parts.filter((p) => /-(?:stile-l|stile-r|rail-t|rail-b|panel)$/.test(p.role ?? ''))
+  expect(pieces).toHaveLength(5)
+  const panel = pieces.find((p) => p.role!.endsWith('-panel'))!
+  if (panel.kind !== 'board') throw new Error('a panel is a board')
+  expect(panel.thickness).toBe(6)
+})
+
+it('refuses a shaker frame the hinge cup cannot fit into, and stages nothing', () => {
   render(<CabinetFrontsEditor cabinet={own} scene={sceneOf()} onApply={() => true} />)
+  click('Select door openings')
+  field('Front draft shaker frame width', '20')
+  click('Stage shaker fronts')
+  expect(screen.getByRole('alert').textContent).toMatch(/hinge cup/)
+})
+
+it('exposes all front actions, filters uncovered fronts and reports noop previews', () => {  render(<CabinetFrontsEditor cabinet={own} scene={sceneOf()} onApply={() => true} />)
   click('Select all openings')
   click('Left-hinged door')
   click('Preview fronts and drawers')

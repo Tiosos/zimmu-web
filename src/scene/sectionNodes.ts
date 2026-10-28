@@ -17,7 +17,11 @@ export interface SectionNode {
 
 // A leading capture of the family, then the section id. `division-` is deliberately absent: it
 // names the section that was SPLIT, which is always an internal node and so never an opening.
-const FRONT_OWNER = /^front-([^|]+)(?:\|.+)?-\d+$/
+//
+// A made front carries a piece suffix after its leaf: `front-<section>-0-panel`. The suffix is
+// matched rather than allowed to fall through, so a role whose tail is anything else is still
+// carcase — and the section id is captured before the leaf, never from the suffix.
+const FRONT_OWNER = /^front-([^|]+)(?:\|.+)?-\d+(?:-(?:stile-l|stile-r|rail-t|rail-b|panel))?$/
 const INTERIOR_OWNER = /^(?:adj-shelf|fixed-shelf)-(.+)-\d+$/
 
 export function sectionNodes(

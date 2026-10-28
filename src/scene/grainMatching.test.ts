@@ -359,7 +359,7 @@ it('roundtrips format 42 with structural validators and restores derived binding
       project: f.project,
       camera: { position: { x: 0, y: 0, z: 1000 }, target: { x: 0, y: 0, z: 0 } },
     } as ZimmuFile
-  expect(FILE_FORMAT_VERSION).toBe(42)
+  expect(FILE_FORMAT_VERSION).toBe(43)
   const parsed = parseFile(JSON.stringify(raw))
   expect(parsed.scene.grainMatches).toEqual(scene.grainMatches)
   expect(boards(applyPipeline(parsed.scene))).toHaveLength(2)
