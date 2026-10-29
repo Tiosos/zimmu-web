@@ -33,20 +33,26 @@ test('stages, previews and applies a shaker door as five boards', async ({ page 
   await expect(changes).toContainText('rail-t')
   await expect(changes).toContainText('rail-b')
   await expect(changes).toContainText('panel')
-  // The opening still wears one door: the pieces are its construction, not extra openings.
-  await expect(page.locator('[data-testid^="section-cell-"]')).toHaveCount(1)
+  // The opening still wears one door: the pieces are its construction, not extra openings. Read
+  // that off the opening selection the editor itself lists — the section elevation belongs to the
+  // Section tab, so its cells are not on screen here.
+  await expect(editor.getByRole('checkbox')).toHaveCount(1)
 
   await editor.getByRole('button', { name: 'Apply fronts and drawers' }).click()
   await expect(editor.getByRole('alert')).toHaveCount(0)
 
-  // Undo puts the flat door back, one board again, and the applied draft is gone.
+  // Undo puts the flat door back. The editor then guards its draft: the cabinet changed under it, so
+  // it asks for a Reset before any further staging — that guard is the behaviour worth pinning here.
   await page.getByRole('button', { name: 'File ▾', exact: true }).click()
   await page.getByRole('button', { name: /Undo "Apply fronts and drawers"/ }).click()
-  await editor.getByRole('button', { name: 'Select door openings', exact: true }).click()
-  await editor.getByRole('button', { name: 'Preview fronts and drawers' }).click()
-  await expect(
-    editor.getByRole('region', { name: 'Fronts and drawers preview' }),
-  ).toContainText('No design changes to apply.')
+  await expect(editor.getByRole('alert')).toContainText('Reset the front draft')
+  await editor.getByRole('button', { name: 'Reset front draft', exact: true }).click()
+  // The draft is empty again, so there is nothing left to apply and the opening is back to a door.
+  await expect(editor.getByRole('region', { name: 'Staged front and drawer edits' })).toContainText(
+    'No staged edits.',
+  )
+  await expect(editor.getByRole('button', { name: 'Apply fronts and drawers' })).toBeDisabled()
+  await expect(editor.getByRole('checkbox')).toHaveCount(1)
 })
 
 test('refuses a shaker frame that leaves no room for the hinge cup', async ({ page }) => {
