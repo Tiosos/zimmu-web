@@ -230,16 +230,19 @@
       </p>
       <p>
         The current codebase is the <strong>browser prototype (Phase 0 / 0.5)</strong>, validating
-        the geometry seam, UX, and file format before a Rust/Tauri production shell is built.
+        the geometry seam, UX, and file format. The approved direction keeps the browser prototype
+        as the delivery vehicle and assesses any desktop/native migration against measured
+        constraints.
         It runs entirely in the browser: OCCT geometry via WebAssembly, Comlink-bridged Web Worker,
         File System Access API for persistence.
       </p>
 
       <div class="card-grid">
         <div class="card">
-          <h4>Production target (Phase 1+)</h4>
+          <h4>Desktop shell (undecided)</h4>
           <p style="color:var(--muted);font-size:13px">
-            OpenCASCADE · Rust/Tauri shell · Three.js + WebGPU · Custom <code>.zmu</code> format
+            The browser prototype stays the delivery vehicle until a native shell is justified by
+            measured constraints
           </p>
         </div>
         <div class="card">
@@ -1259,7 +1262,7 @@
       <h2>Data model</h2>
       <p>The scene types live in <code>src/scene/types.ts</code> and the project hierarchy in <code>src/scene/projectStructure.ts</code>. The file format serializes a <code>ZimmuFile</code> to <code>.zimmu</code> (flat JSON).</p>
 
-      <pre><code>// File format (FILE_FORMAT_VERSION = 24)
+      <pre><code>// File format (FILE_FORMAT_VERSION = 43)
 interface ZimmuFile {
   version: number       // older versions migrate on read
   name: string
@@ -1269,7 +1272,7 @@ interface ZimmuFile {
   updatedAt: string
   camera: CameraState   // { position: Vec3, target: Vec3 }
   scene: Scene
-  project?: ProjectStructure // required on newly saved v24 files
+  project?: ProjectStructure // required on newly saved files since v21
 }
 
 // Project → Area → Room → Joinery Item. An item owns root component and
@@ -1555,7 +1558,7 @@ interface FaceHit {
           </tr>
           <tr>
             <td><strong>ZimmuFile float precision</strong></td>
-            <td>Serialization rounds floats to 6 decimal places. <code>FILE_FORMAT_VERSION = 18</code> in <code>useFile.ts</code> (v11 added the component tree; v12 the carcase <code>backSetback</code>; v13 replaced <code>dividers</code>/<code>fixedShelves</code> with the section tree; v14 moved panel thickness onto the material; v15 added the <code>screw</code> joint kind; v16 moved <code>adjustableShelves</code> onto each section's <code>interior</code>; v17 added the front slot, <code>Section.front</code> and <code>interior.fixedShelves</code>; v18 added the drawer component). Unrelated to the IDB <code>DB_VERSION</code>, which is separately 4.</td>
+            <td>Serialization rounds floats to 6 decimal places. <code>FILE_FORMAT_VERSION = 43</code> in <code>useFile.ts</code>. The authoritative version-by-version list is <code>src/scene/fileFormatHistory.ts</code>; bumping the constant without extending that list fails <code>fileFormatHistory.test.ts</code>. Unrelated to the IDB <code>DB_VERSION</code>, which is separately 4.</td>
           </tr>
           <tr>
             <td><strong>IDB schema bumps</strong></td>
@@ -1737,7 +1740,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->241<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-09-14 the full Vitest run is 1912 passing (10 skipped) across 95 files (the 95th, <code>e2e/canvas.test.ts</code>, sits outside <code>src/</code>); 104 test files total including 9 Playwright specs in <code>e2e/</code>, which run 25 tests.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->241<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-10-23: 248 Vitest files running 4449 tests, and 46 Playwright specs in <code>e2e/</code> running 112 tests. CI is the authority on the current pass/skip counts.</p>
     </section>
 
     <!-- HOOKS -->
@@ -2257,8 +2260,8 @@ import { useScene } from './useScene'</code></pre>
           v14 (panel thickness moves onto <code>MaterialDef</code>) → v15 (the <code>screw</code> joint kind) →
         v16 (<code>adjustableShelves</code> moves onto each section's <code>interior</code>; <code>startHeight</code> is dropped) →
         v17 (fronts: <code>frontMaterial</code> / <code>frontMount</code> / <code>frontReveal</code>, <code>Section.front</code>, and <code>interior.fixedShelves</code>) →
-        v18 (the drawer component) → v19 (carcase anchors) → v20 (face frames) → v21 (project hierarchy and item ownership) → v22 (room geometry and wall placement) → v23 (site levels and clearance assumptions) → v24 (edge banding).
-        Now at <code>FILE_FORMAT_VERSION = 24</code>.
+        v18 (the drawer component) → v19 (carcase anchors) → v20 (face frames) → v21 (project hierarchy and item ownership) → v22 (room geometry and wall placement) → v23 (site levels and clearance assumptions) → v24 (edge banding) → v25 (pinned catalogue references and item overrides) → v26 (pinned construction rules and sparse project rules) → v27–v43 (the shared manufacturing record, production releases, finishing panels, machining, worktops, hinges and runners, run finishing, room installation, appliance services, corner assemblies, grain matching, stock optimisation, sloped cabinets and shaker fronts).
+        Now at <code>FILE_FORMAT_VERSION = 43</code>; <code>src/scene/fileFormatHistory.ts</code> is the authoritative per-version list.
         Migration logic lives in <code>useFile.ts</code>; a missing <code>parentId</code> loads as top-level, a dangling one is promoted.
       </p>
 

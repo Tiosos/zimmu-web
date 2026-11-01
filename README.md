@@ -4,9 +4,11 @@
 > built woodwork. Produces buildable, dimensioned models with a parametric
 > joint library — without the engineering-CAD overhead.
 
-**Current state:** Phase 0 / 0.5 browser prototype — validating geometry,
-UX, and file format before the production Rust/Tauri build begins.
-Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
+**Current state:** Browser prototype (Phase 0 / 0.5). The approved direction is a
+room-to-production design product, delivered in stages; desktop/native migration
+is assessed later against measured constraints.
+Strategic plan (historical): [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
+· Current direction: [`design-to-manufacturing architecture`](docs/superpowers/specs/2026-09-29-design-to-manufacturing-architecture-design.md)
 · Full architecture reference: [`project-structure.html`](project-structure.html)
 
 ---
@@ -35,7 +37,7 @@ Strategic plan: [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 ### File I/O
 - Save / Save As / Open / New via File System Access API (Chrome/Edge)
 - Graceful degradation message + disabled menus on Firefox/Safari
-- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 27`), with stable project/area/room/item IDs, room geometry, site/clearance assessments, edge banding and optional pinned cabinet catalogue references
+- `.zimmu` flat-JSON project format (`FILE_FORMAT_VERSION = 43`), with stable project/area/room/item IDs, room geometry, site/clearance assessments, edge banding and optional pinned cabinet catalogue references
 - Auto-reopen last file on startup (IndexedDB handle persistence)
 - Dirty tracking (`isDirty`, tab title `•` indicator)
 
@@ -126,6 +128,7 @@ pnpm test         # vitest run (all unit tests)
 pnpm test:watch   # vitest watch mode
 pnpm typecheck    # tsc -b --noEmit
 pnpm lint         # eslint .
+pnpm check:file-casing  # rejects two tracked files that differ only by case
 pnpm build        # production bundle → dist/
 pnpm coverage     # vitest coverage report
 
@@ -133,7 +136,7 @@ pnpm coverage     # vitest coverage report
 pnpm vitest run src/scene/useScene.test.ts
 
 # Full check suite (run before every commit)
-pnpm typecheck && pnpm lint && pnpm test
+pnpm typecheck && pnpm lint && pnpm check:file-casing && pnpm test
 ```
 
 ---
@@ -141,15 +144,15 @@ pnpm typecheck && pnpm lint && pnpm test
 ## File format
 
 Projects are saved as `.zimmu` files — flat JSON, UTF-8, floats rounded to
-6 decimal places. `FILE_FORMAT_VERSION = 27`. The v21 envelope adds a `project` hierarchy around
+6 decimal places. `FILE_FORMAT_VERSION = 43`. The v21 envelope adds a `project` hierarchy around
 the existing `scene`; v22 adds optional room geometry and wall placements; v23 adds signed site
 levels, explicit front projection assumptions and optional room-door swings; v24 adds edge banding;
-v25 adds optional pinned cabinet catalogue references and item overrides. v26 adds pinned starter construction rules and sparse project rules. Project rules and installed catalogue updates require preview and acceptance; item edits are preserved. Older files load with editable defaults. Their first save uses Save As to preserve
+v25 adds optional pinned cabinet catalogue references and item overrides. v26 adds pinned starter construction rules and sparse project rules. v27–v43 add the shared manufacturing record, production releases, finishing panels, machining, worktops, hinges and runners, run finishing, room installation, appliance services, corner assemblies, grain matching, stock optimisation, sloped cabinets and shaker fronts; the authoritative per-version list is `src/scene/fileFormatHistory.ts`. Project rules and installed catalogue updates require preview and acceptance; item edits are preserved. Older files load with editable defaults. Their first save uses Save As to preserve
 the original file.
 
 ```json
 {
-  "version": 25,
+  "version": 43,
   "name": "My Cabinet",
   "appVersion": "0.0.0",
   "units": "mm",
@@ -197,7 +200,7 @@ import { useScene } from './useScene'
 ## Contributing
 
 - Branch from `main`; open a PR when ready
-- Run `pnpm typecheck && pnpm lint && pnpm test` — the pre-commit hook
+- Run `pnpm typecheck && pnpm lint && pnpm check:file-casing && pnpm test` — the pre-commit hook
   enforces typecheck automatically
 - Match existing style; touch only what the task requires
 - See `CLAUDE.md` for full code conventions used in this repo
