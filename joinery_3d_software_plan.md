@@ -2,38 +2,22 @@
 
 **Document type:** Founding product & technical plan
 **Audience:** Product owner, future contractors, prospective contributors
-**Status:** v0.1 — working document, expected to evolve
-**Date:** May 2026 · **Last updated:** June 2026
+**Status:** Historical — see the note below
+**Date:** May 2026
 
 ---
 
-## Current state — June 2026
+## Status
 
-> This box summarises where the project actually stands. The sections below
-> describe the full vision; refer here when you need the ground truth.
-
-**Prototype:** Phase 0 ✅ and Phase 0.5 ✅ are both complete as a browser
-prototype. The Rust/Tauri production build (Phase 1) has not started.
-
-**What's working in the browser today:**
-- Board parts with dimensions, material, color, position, rotation, visibility
-- Snap/align mode and boolean joinery cuts with cut pairing (linked cuts)
-- 50-entry undo/redo with dimension-edit coalescing
-- File save/open/new via FSAPI (Chrome/Edge); graceful degradation on other browsers
-- Parametric joint engine: dado (plain/rabbeted/stopped), half-lap, mortise & tenon, box/finger, tongue & groove — each generated from a first-class `Joint` and kept in sync as dimensions change; auto-suggested from part adjacency and tracked in a joint checklist
-- Nestable component tree (`Scene.components`) with a parametric carcase generator: drop a Base/Wall/Tall preset and its side/back/shelf/toe-kick parts and joints regenerate from carcase parameters; a detached (`driven: false`) part is never touched by regeneration; 32 mm shelf-pin hole arrays
-- `.zimmu` flat-JSON project format — `FILE_FORMAT_VERSION = 18` (v11 added the component tree; v12 added `backSetback`; includes `materials`, `hardware`, `joints`, `components`)
-- Auto-reopen last file via IndexedDB; dirty tracking
-- Three-tab BOM modal: Boards cutting list (with per-material cost, grouped per cabinet), Hardware BOM (with linked-part checkboxes), Library (persistent material rates in IDB)
-- Part duplication, removal (keyboard `Delete`/`Backspace`), visibility toggle
-- STL + STEP 3D export; SVG + DXF 2D shop drawings (Face/Edge/End orthographic views)
-- shadcn/ui + Radix primitives throughout; Tailwind v4
-- 1105 tests passing (10 skipped) across 60 Vitest files; 68 test files total including 8 Playwright specs (Vitest + happy-dom + @testing-library/react + Playwright)
-
-**Still pending from Phase 0.5 original scope:**
-- `.zimmu` → `.zmu` file format migration utility (not yet written)
-
-**Next milestone:** Rust geometry engineer hire; begin Phase 1 (Rust/Tauri core modeller).
+> **Historical document (May–June 2026).** This is the founding product and
+> technical plan. Its positioning, naming, licensing and monetisation sections
+> still stand; its data model, file-format and roadmap sections describe June
+> 2026 and are out of date. The approved direction is
+> [`docs/superpowers/specs/2026-09-29-design-to-manufacturing-architecture-design.md`](docs/superpowers/specs/2026-09-29-design-to-manufacturing-architecture-design.md);
+> what exists today is in the [README](README.md) and [CLAUDE.md](CLAUDE.md).
+> Every figure below dates from May–August 2026 — in particular file format v18,
+> 1105 tests across 60 Vitest files and 8 Playwright specs — and none of them is
+> a current claim.
 
 ---
 
