@@ -158,7 +158,11 @@ describe('drilling intersections', () => {
   })
   it('treats a box cut with any size at or below 0.1 mm as absent', () => {
     const board = boardOf()
-    board.cuts = [hole(), box({ size: { x: 60, y: 0.05, z: 6 } })]
+    board.cuts = [
+      hole({ count: 1, pitch: 0 }),
+      // The thin box must straddle the hole, or the test would pass without the size skip.
+      box({ position: { x: 202, y: 379.975, z: 12 }, size: { x: 60, y: 0.05, z: 6 } }),
+    ]
     expect(drillingIntersections(board, new Set())).toEqual([])
   })
   it('skips cuts whose volume is undefined', () => {
@@ -172,7 +176,7 @@ describe('drilling intersections', () => {
     const issues = drillingIntersections(board, new Set())
     expect(issues).toHaveLength(1)
     expect(issues[0].detail).toBe(
-      'holes 8–9 of 1000000000 intersect cut "Shelf dado" [dado]; the opening is broken.',
+      'holes 9–10 of 1000000000 intersect cut "Shelf dado" [dado]; the opening is broken.',
     )
   })
   it('still intersects a row that is out of bounds', () => {
@@ -340,7 +344,7 @@ Append to `drillingIntersections.test.ts`:
 ```ts
 it('reports a hole that lies wholly inside a cut instead of a collision', () => {
   const board = boardOf()
-  board.cuts = [hole(), box({ id: 'pocket', label: 'Pocket', position: { x: 240, y: 330, z: 6 }, size: { x: 60, y: 100, z: 12 } })]
+  board.cuts = [hole(), box({ id: 'pocket', label: 'Pocket', position: { x: 250, y: 330, z: 6 }, size: { x: 32, y: 100, z: 12 } })]
   expect(drillingIntersections(board, new Set()).map((i) => [i.code, i.detail])).toEqual([
     ['drilling-redundant', 'hole 3 of 5 lies entirely inside cut "Pocket" [pocket]; no hole will remain.'],
   ])
@@ -575,7 +579,7 @@ In `drillingChecks.test.ts`, add:
 it('carries drilling intersections into the manufacturing record with their operation', () => {
   const scene = sceneOf()
   boardOf(scene).cuts = [
-    hole(),
+    hole({ start: { x: 200, y: 380, z: 18 }, count: 5 }),
     {
       kind: 'box',
       id: 'dado',
@@ -592,7 +596,7 @@ it('carries drilling intersections into the manufacturing record with their oper
 it('keeps an out-of-bounds drill intersected as well as out of bounds', () => {
   const scene = sceneOf()
   boardOf(scene).cuts = [
-    hole({ count: 1000 }),
+    hole({ start: { x: 200, y: 380, z: 18 }, count: 1000 }),
     {
       kind: 'box',
       id: 'dado',
@@ -681,7 +685,13 @@ it('does not treat a square end trim as a collision', () => {
 })
 it('measures a bore from the trimmed cap', () => {
   const round = roundOf()
-  round.cuts = [trim(), axial({ end: '+Z', depth: 50 })]
+  // The finished cap is at z = 490. The bore therefore stops at 490 and clears the transverse
+  // bore at 495; measured from the untrimmed cap it would reach 500 and collide.
+  round.cuts = [
+    trim(),
+    axial({ end: '+Z', depth: 50 }),
+    cross({ position: 495, depth: 4 }),
+  ]
   expect(drillingIntersections(round, new Set())).toEqual([])
 })
 it('blocks an axial bore that breaks into a transverse bore', () => {
