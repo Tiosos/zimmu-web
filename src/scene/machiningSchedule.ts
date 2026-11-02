@@ -37,7 +37,16 @@ export type MachiningEntry = EntryBase &
 export function buildMachiningSchedule(records: ManufacturingPart[]) {
   const entries: MachiningEntry[] = []
   for (const p of records) {
-    const invalidDrilling = new Set(drillingChecks(p).map((issue) => issue.operation.id))
+    const invalidDrilling = new Set(
+      drillingChecks(p)
+        .filter(
+          (issue) =>
+            issue.code !== 'drilling-intersection' &&
+            issue.code !== 'drilling-redundant' &&
+            issue.code !== 'drilling-overlap-review',
+        )
+        .map((issue) => issue.operation.id),
+    )
     const part: EntryBase['part'] = {
       id: p.id,
       label: p.label,
@@ -102,7 +111,7 @@ export function buildMachiningSchedule(records: ManufacturingPart[]) {
     scope:
       'All parts, including hidden items. One row per cut or manual instruction; hole arrays are not expanded. Row order is not an execution sequence. Definitions describe nominal stock, not tool paths or machine readiness.',
     unassessed: [
-      'Interactions between cuts',
+      'Interactions between cuts other than board drilling',
       'Manual machining geometry',
       'Machine compatibility and tool access',
     ],

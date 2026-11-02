@@ -167,7 +167,7 @@ describe('manufacturing drilling checks', () => {
     expect(reportOf(scene).unassessed).toEqual(
       expect.arrayContaining([
         'Manual machining geometry',
-        'Drilling intersections with other cuts',
+        'Drilling intersections with round stock',
         'Machine operation compatibility',
       ]),
     )
