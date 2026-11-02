@@ -125,4 +125,48 @@ describe('drilling intersections', () => {
       'drilling-intersection',
     ])
   })
+  it('reports redundant then clipped runs when holes are voided on both sides', () => {
+    const board = boardOf()
+    board.cuts = [
+      hole(),
+      box({
+        id: 'pocket',
+        label: 'Pocket',
+        position: { x: 231, y: 330, z: 6 },
+        size: { x: 96, y: 100, z: 12 },
+      }),
+    ]
+    expect(drillingIntersections(board, new Set()).map((i) => [i.code, i.detail])).toEqual([
+      [
+        'drilling-redundant',
+        'holes 3–4 of 5 lie entirely inside cut "Pocket" [pocket]; no hole will remain.',
+      ],
+      [
+        'drilling-intersection',
+        'hole 2 of 5 intersects cut "Pocket" [pocket]; the opening is broken.',
+      ],
+      [
+        'drilling-intersection',
+        'hole 5 of 5 intersects cut "Pocket" [pocket]; the opening is broken.',
+      ],
+    ])
+  })
+  it('words a single fully voided hole in the singular', () => {
+    const board = boardOf()
+    board.cuts = [
+      hole({ count: 1, pitch: 0 }),
+      box({
+        id: 'pocket',
+        label: 'Pocket',
+        position: { x: 196, y: 376, z: 6 },
+        size: { x: 8, y: 8, z: 12 },
+      }),
+    ]
+    expect(drillingIntersections(board, new Set()).map((i) => [i.code, i.detail])).toEqual([
+      [
+        'drilling-redundant',
+        'the hole lies entirely inside cut "Pocket" [pocket]; no hole will remain.',
+      ],
+    ])
+  })
 })
