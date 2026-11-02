@@ -8,9 +8,9 @@
 // bounds keeps its nominal volume and is still intersected — suppressing it would hide a collision
 // that survives the bounds fix.
 //
-// A hole that falls wholly inside a cut's void currently reports here as an intersection too;
-// classifying fully voided holes as `drilling-redundant` is a separate pass over the same
-// drill volumes and index ranges.
+// A hole a cut removes entirely is voided, not clipped: the wholly-inside holes take their
+// `drilling-redundant` verdict first, and the collision ranges are computed only over the indices
+// that verdict did not claim, so a hole is never reported twice for one pair.
 import type { ManufacturingBoard, ManufacturingPart } from './manufacturingPart'
 import { faceAxes } from './snapMath'
 import { MIN_CUT_SIZE_MM } from '../geom/cutLimits'
@@ -165,9 +165,45 @@ export function drillingIntersections(
       const drill = rowDrillOf(part, row)
       const obstacle = boxVolumeOf(boxCut)
       if (obstacle === null) continue
+      // One verdict per hole, voided before clipped: a cylinder whose axial interval sits inside
+      // the box's depth interval and whose disc sits inside the cross-section rectangle — both
+      // boundary-inclusive at the same tolerance, so a hole tangent to an edge counts as inside —
+      // leaves nothing to drill and reports `drilling-redundant`, never a collision.
+      const axialInside =
+        drill.axialLo >= obstacle.min[drill.depth] - tolerance &&
+        drill.axialHi <= obstacle.max[drill.depth] + tolerance
+      const discInside =
+        drill.acrossAt - obstacle.min[drill.across] >= drill.radius - tolerance &&
+        obstacle.max[drill.across] - drill.acrossAt >= drill.radius - tolerance
+      // Both containment edges are monotone in the hole index along the run axis, so the voided
+      // range still comes out of the same bisection helpers as any affected range.
+      const voidedLo = obstacle.min[drill.run] + drill.radius - tolerance
+      const voidedHi = obstacle.max[drill.run] - drill.radius + tolerance
+      let voided: [number, number] | null = null
+      if (axialInside && discInside) {
+        voided = affectedRange(
+          drill.count,
+          (k) => drill.origin + k * drill.pitch >= voidedLo,
+          (k) => drill.origin + k * drill.pitch <= voidedHi,
+        )
+      }
+      if (voided !== null) {
+        const [voidedFirst, voidedLast] = voided
+        issues.push({
+          code: 'drilling-redundant',
+          cut: row,
+          detail: `${spanOf(drill.count, voidedFirst, voidedLast)} ${
+            drill.count === 1 || voidedFirst === voidedLast ? 'lies' : 'lie'
+          } entirely inside cut "${boxCut.label}" [${boxCut.id}]; no hole will remain.`,
+        })
+      }
       // Cylinder against axis-aligned box, exact: the axial intervals must overlap by more than the
       // tolerance, and the circle-to-rectangle distance in the cross-section plane must beat the
       // radius by more than it. Tangency and overlaps no thicker than the tolerance are allowed.
+      // The collision ranges cover only what the voided range left — the whole row when nothing is
+      // voided, else the runs on either side of it, one finding per run — so no hole is ever part
+      // of two findings for this pair. Distance to a convex obstacle is convex in the run
+      // coordinate, so each window still holds one contiguous range.
       const axialOverlap =
         Math.min(drill.axialHi, obstacle.max[drill.depth]) -
         Math.max(drill.axialLo, obstacle.min[drill.depth])
@@ -180,20 +216,32 @@ export function drillingIntersections(
       const reachSq = (drill.radius - tolerance) ** 2 - acrossGap * acrossGap
       if (!(reachSq > 0)) continue
       const reach = Math.sqrt(reachSq)
-      const range = affectedRange(
-        drill.count,
-        (k) => drill.origin + k * drill.pitch > obstacle.min[drill.run] - reach,
-        (k) => drill.origin + k * drill.pitch < obstacle.max[drill.run] + reach,
-      )
-      if (range === null) continue
-      const [firstHole, lastHole] = range
-      issues.push({
-        code: 'drilling-intersection',
-        cut: row,
-        detail: `${spanOf(drill.count, firstHole, lastHole)} ${
-          drill.count === 1 || firstHole === lastHole ? 'intersects' : 'intersect'
-        } cut "${boxCut.label}" [${boxCut.id}]; the opening is broken.`,
-      })
+      const reachLo = obstacle.min[drill.run] - reach
+      const reachHi = obstacle.max[drill.run] + reach
+      const windows: Array<[number, number]> =
+        voided === null
+          ? [[0, drill.count - 1]]
+          : [
+              [0, voided[0] - 1],
+              [voided[1] + 1, drill.count - 1],
+            ]
+      for (const [lo, hi] of windows) {
+        if (hi < lo) continue
+        const range = affectedRange(
+          hi - lo + 1,
+          (k) => drill.origin + (lo + k) * drill.pitch > reachLo,
+          (k) => drill.origin + (lo + k) * drill.pitch < reachHi,
+        )
+        if (range === null) continue
+        const [firstHole, lastHole] = [range[0] + lo, range[1] + lo]
+        issues.push({
+          code: 'drilling-intersection',
+          cut: row,
+          detail: `${spanOf(drill.count, firstHole, lastHole)} ${
+            drill.count === 1 || firstHole === lastHole ? 'intersects' : 'intersect'
+          } cut "${boxCut.label}" [${boxCut.id}]; the opening is broken.`,
+        })
+      }
     }
   }
   return issues

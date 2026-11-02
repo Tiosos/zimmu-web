@@ -91,4 +91,38 @@ describe('drilling intersections', () => {
     board.cuts = [hole({ count: 1000 }), box()]
     expect(drillingIntersections(board, new Set())).toHaveLength(1)
   })
+  it('reports a hole that lies wholly inside a cut instead of a collision', () => {
+    const board = boardOf()
+    board.cuts = [
+      hole(),
+      box({
+        id: 'pocket',
+        label: 'Pocket',
+        position: { x: 250, y: 330, z: 6 },
+        size: { x: 32, y: 100, z: 12 },
+      }),
+    ]
+    expect(drillingIntersections(board, new Set()).map((i) => [i.code, i.detail])).toEqual([
+      [
+        'drilling-redundant',
+        'hole 3 of 5 lies entirely inside cut "Pocket" [pocket]; no hole will remain.',
+      ],
+    ])
+  })
+  it('splits a partly voided, partly clipped row into redundant then clipped', () => {
+    const board = boardOf()
+    board.cuts = [
+      hole({ pitch: 20, count: 5, diameter: 10 }),
+      box({
+        id: 'pocket',
+        label: 'Pocket',
+        position: { x: 240, y: 330, z: 6 },
+        size: { x: 50, y: 100, z: 12 },
+      }),
+    ]
+    expect(drillingIntersections(board, new Set()).map((i) => i.code)).toEqual([
+      'drilling-redundant',
+      'drilling-intersection',
+    ])
+  })
 })
