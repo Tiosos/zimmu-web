@@ -226,8 +226,8 @@ of n and others` when the affected set is not contiguous. A single-hole array om
 ### One verdict per hole
 
 A hole can match more than one row of the tables above, and a row can have some holes fully voided
-and others only clipped. Classify each hole once, in this order, and emit at most one finding per
-(operation, obstacle, verdict) so no hole is reported twice:
+and others only clipped. Classify each hole once, in this order, and emit at most one finding for
+any hole, so no hole is reported twice:
 
 **Board drilling × board drilling**
 
@@ -267,9 +267,11 @@ Pair ordering and de-duplication:
 - Drills are processed in `part.cuts` order; obstacles in the same order.
 - A drill–drill pair is reported once, on the earlier drill.
 - A drill's own volume is never compared with itself.
-- Each hole produces at most one finding against a given obstacle. A row colliding with three
-  obstacles produces at least three findings, one per obstacle; a partly voided, partly clipped row
-  produces two against that obstacle, redundant first.
+- Each hole produces at most one finding against a given obstacle, and one finding is emitted per
+  contiguous run of holes sharing a verdict. A row colliding with three obstacles produces at least
+  three findings, one per obstacle; a partly voided, partly clipped row produces two against that
+  obstacle, redundant first; a row clipped on both sides of a voided middle produces three, one
+  redundant run and two clipped runs.
 - Findings are appended after the existing per-cut `drillingChecks` findings for that part, so
   `M<n>` references stay positional and deterministic.
 
