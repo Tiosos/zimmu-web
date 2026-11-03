@@ -232,13 +232,18 @@ any hole, so no hole is reported twice:
 **Board drilling × board drilling**
 
 1. Coaxial (same axis line and the same centre on the face) with the same diameter and depth →
-   **review** (rows 3 and 5, and the identical two-sided case), whichever faces they enter from.
+   **review** (rows 3 and 5) when both enter from the same face, or from opposite faces and their
+   volumes meet. Identical blind bores from opposite ends that leave solid stock between them are
+   two separate features → **allow**.
 2. Coaxial, same face, different diameter or depth → **allow** — a counterbore or stepped hole
    (row 4).
 3. Coaxial, opposite faces, different diameter or depth, volumes overlap → **block** (row 7).
 4. Coaxial, opposite faces, different diameter or depth, no overlap → **allow**.
 5. Non-coaxial, volumes overlap → **block** (rows 6 and 8).
 6. Otherwise → **allow**.
+
+The distinction in rule 1 matters in practice: a back panel is commonly fixed with edge screws
+from both ends, so every cabinet would otherwise report its own screw pilots as duplicates.
 
 **Drilling × box cut**
 

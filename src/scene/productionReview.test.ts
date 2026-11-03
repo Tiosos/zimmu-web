@@ -167,4 +167,15 @@ describe('production packet review', () => {
       unassessed: 2,
     })
   })
+  it('treats repeated drilling as advisory and intersections as corrections', () => {
+    const input = inputOf()
+    input.manufacturing.findings = [
+      { reference: 'M1', code: 'drilling-overlap-review', message: 'Repeat', targets: [] },
+      { reference: 'M2', code: 'drilling-intersection', message: 'Breaks in', targets: [] },
+      { reference: 'M3', code: 'drilling-redundant', message: 'Voided', targets: [] },
+    ]
+    expect(buildProductionReview(input)).toMatchObject({
+      counts: { needsCorrection: 2, advisory: 1 },
+    })
+  })
 })

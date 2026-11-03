@@ -169,4 +169,90 @@ describe('drilling intersections', () => {
       ],
     ])
   })
+
+  const one = (overrides: Partial<HoleArrayCut> = {}) => hole({ count: 1, pitch: 0, ...overrides })
+
+  it('allows a stepped coaxial pair and reviews an identical one', () => {
+    const stepped = boardOf()
+    stepped.cuts = [one(), one({ id: 'cup', label: 'Cup', depth: 8 })]
+    expect(drillingIntersections(stepped, new Set())).toEqual([])
+
+    const duplicate = boardOf()
+    duplicate.cuts = [one(), one({ id: 'cup', label: 'Cup' })]
+    expect(drillingIntersections(duplicate, new Set()).map((i) => [i.code, i.detail])).toEqual([
+      [
+        'drilling-overlap-review',
+        'the hole repeats drilling "Cup" [cup] at the same position and diameter; verify this is intended.',
+      ],
+    ])
+  })
+  it('reviews identical drills from opposite faces and blocks unequal ones that meet', () => {
+    const identical = boardOf()
+    identical.cuts = [one({ depth: 9 }), one({ id: 'back', label: 'Back', face: '-Z', depth: 9 })]
+    expect(drillingIntersections(identical, new Set()).map((i) => i.code)).toEqual([
+      'drilling-overlap-review',
+    ])
+
+    const meeting = boardOf()
+    meeting.cuts = [one({ depth: 12 }), one({ id: 'back', label: 'Back', face: '-Z', depth: 8 })]
+    expect(drillingIntersections(meeting, new Set()).map((i) => i.code)).toEqual([
+      'drilling-intersection',
+    ])
+  })
+  it('leaves two identical blind bores from opposite ends as separate features', () => {
+    const board = boardOf()
+    board.cuts = [one({ depth: 4 }), one({ id: 'back', label: 'Back', face: '-Z', depth: 4 })]
+    expect(drillingIntersections(board, new Set())).toEqual([])
+  })
+  it('blocks holes from adjacent faces that meet at a corner', () => {
+    const board = boardOf()
+    board.cuts = [
+      one({ id: 'edge', label: 'Edge', face: '+X', start: { x: 560, y: 4, z: 4 } }),
+      one({ id: 'face', label: 'Face', depth: 18, start: { x: 555, y: 4, z: 18 } }),
+    ]
+    expect(drillingIntersections(board, new Set()).map((i) => i.code)).toEqual([
+      'drilling-intersection',
+    ])
+
+    const missing = boardOf()
+    missing.cuts = [
+      one({ id: 'edge', label: 'Edge', face: '+X', start: { x: 560, y: 4, z: 4 } }),
+      one({ id: 'face', label: 'Face', depth: 18, start: { x: 540, y: 4, z: 18 } }),
+    ]
+    expect(drillingIntersections(missing, new Set())).toEqual([])
+  })
+  it('reviews crossing rows that share an identical hole position', () => {
+    const board = boardOf()
+    board.cuts = [
+      hole({ id: 'a', label: 'Row A', start: { x: 204, y: 300, z: 18 }, count: 4 }),
+      hole({ id: 'b', label: 'Row B', axis: 'V', start: { x: 300, y: 108, z: 18 }, count: 7 }),
+    ]
+    expect(drillingIntersections(board, new Set()).map((i) => i.detail)).toEqual([
+      'hole 4 of 4 repeats drilling "Row B" [b] at the same position and diameter; verify this is intended.',
+    ])
+  })
+  it('blocks adjacent holes in one row whose openings merge', () => {
+    const board = boardOf()
+    board.cuts = [hole({ pitch: 4, count: 3, diameter: 5 })]
+    expect(drillingIntersections(board, new Set()).map((i) => [i.code, i.detail])).toEqual([
+      [
+        'drilling-intersection',
+        'adjacent holes overlap (pitch 4 mm, diameter 5 mm); the openings merge into a continuous slot.',
+      ],
+    ])
+  })
+  it('answers two huge rows without enumerating either', () => {
+    const board = boardOf()
+    board.cuts = [
+      hole({ id: 'a', label: 'Row A', start: { x: 204, y: 300, z: 18 }, count: 1_000_000_000 }),
+      hole({
+        id: 'b',
+        label: 'Row B',
+        axis: 'V',
+        start: { x: 300, y: 108, z: 18 },
+        count: 1_000_000_000,
+      }),
+    ]
+    expect(drillingIntersections(board, new Set())).toHaveLength(1)
+  })
 })
