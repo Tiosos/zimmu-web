@@ -49,16 +49,18 @@ the lists below.
 |---|---|---|---|
 | 1 | Adjacent holes in one row overlap (`pitch < diameter`) | Block | `drilling-intersection` |
 | 2 | One row with `pitch = 0` and `count > 1` | unchanged: `drilling-array` | — |
-| 3 | Two drills coaxial, same centre/diameter/depth (a repeat definition) | Review | `drilling-overlap-review` |
+| 3 | Two drills coaxial with the same centre/diameter/depth (a repeat definition): same face, or opposite faces whose volumes meet | Review | `drilling-overlap-review` |
 | 4 | Two drills coaxial, different diameter or depth (counterbore/stepped hole) | Allow | — |
 | 5 | Two rows cross at a shared hole position; identical drills | Review | `drilling-overlap-review` |
 | 6 | Two drills same face, non-concentric partial overlap | Block | `drilling-intersection` |
-| 7 | Blind holes from opposite faces whose depths meet or overlap (`d1 + d2 ≥ T`) | Block | `drilling-intersection` |
+| 7 | Blind holes of different diameter or depth from opposite faces whose depths meet or overlap (`d1 + d2 ≥ T`) | Block | `drilling-intersection` |
 | 8 | Holes from adjacent faces intersect at a corner | Block | `drilling-intersection` |
 | 9 | Holes do not intersect but leave a thin web of material | Allow (not checked; named in unassessed) | — |
 
 Rows 3–5 are one behaviour: a coaxial repeat is reviewed, a stepped coaxial pair is allowed. A
-crossing row pair is judged per shared position by the same rule.
+crossing row pair is judged per shared position by the same rule. "Repeat" requires the two drills
+to be the same hole: same face, or opposite faces whose volumes meet. Two identical blind bores
+from opposite ends with solid stock between them are separate features and are allowed.
 
 ### Board drilling × box cut (dado, groove, notch, pocket, slot)
 

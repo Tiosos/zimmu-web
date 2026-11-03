@@ -231,6 +231,32 @@ describe('drilling intersections', () => {
       'hole 4 of 4 repeats drilling "Row B" [b] at the same position and diameter; verify this is intended.',
     ])
   })
+  it('answers a dense row pair with one conservative finding instead of per-hole work', () => {
+    const board = boardOf()
+    board.cuts = [
+      hole({
+        id: 'a',
+        label: 'Row A',
+        start: { x: 300, y: 300, z: 18 },
+        count: 1000,
+        pitch: 0.005,
+      }),
+      hole({
+        id: 'b',
+        label: 'Row B',
+        axis: 'V',
+        start: { x: 300, y: 300, z: 18 },
+        count: 1000,
+        pitch: 0.005,
+      }),
+    ]
+    const issues = drillingIntersections(board, new Set())
+    expect(issues.map((i) => i.cut.id)).toEqual(['a', 'b', 'a'])
+    expect(issues[1].detail).toContain('adjacent holes overlap (pitch 0.005 mm, diameter 5 mm)')
+    expect(issues[2].detail).toBe(
+      'holes 1–1000 of 1000 break into drilling "Row B" [b]; the opening is broken.',
+    )
+  })
   it('blocks adjacent holes in one row whose openings merge', () => {
     const board = boardOf()
     board.cuts = [hole({ pitch: 4, count: 3, diameter: 5 })]

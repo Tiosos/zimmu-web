@@ -191,10 +191,11 @@ function perpendicularOverlap(a: RowDrill, ka: number, b: RowDrill, kb: number):
 }
 
 // One pair of holes, one from each row, classified once by the design's precedence list: coaxial
-// with the same diameter and depth is a review (before any volume test, whatever the faces);
-// coaxial and stepped from the same face is an ordinary counterbore (allowed); coaxial and stepped
-// from opposite faces whose volumes overlap breaks the stock; non-coaxial volumes that overlap
-// always do. Tangency and overlaps no thicker than the tolerance are allowed.
+// with the same diameter and depth is a repeat (reviewed) when both enter from the same face or
+// from opposite faces whose volumes meet; coaxial and stepped from the same face is an ordinary
+// counterbore (allowed); coaxial and stepped from opposite faces whose volumes overlap breaks the
+// stock; non-coaxial volumes that overlap always do. Tangency and overlaps no thicker than the
+// tolerance are allowed.
 function holePairVerdict(
   a: RowDrill,
   ka: number,
@@ -252,9 +253,11 @@ function candidateRange(row: RowDrill, other: RowDrill): [number, number] | null
   )
 }
 
-// Upper bound on holes classified inside a candidate window per row. Windows wider than this come
-// from lattice pitches under about a millimetre, where per-hole work stops paying for itself; such
-// a dense row is treated as one affected run instead (conservative, never a miss).
+// Upper bound on holes classified inside a candidate window per row. Real cabinet drilling never
+// reaches it: a perpendicular window is only as wide as the summed radii over the pitch, and a
+// parallel window is the other row's run span over the pitch — hundreds of holes at millimetre
+// spacing. Past the cap the window is treated as one affected run (conservative, never a miss),
+// because per-hole work would otherwise scale with two window widths.
 const maxExactCandidates = 512
 
 // Two drilling rows against each other. Candidate windows are bounded by geometry on both sides
@@ -273,17 +276,14 @@ function rowPairIssues(
   const [firstHole, lastHole] = windowA
   const target = ` drilling "${second.label}" [${second.id}]`
   const issues: DrillingIntersectionIssue[] = []
+  // One verdict covers a run of holes, so the verb agrees with the run it spans.
+  const blocked = (from: number, to: number) =>
+    `${spanOf(a.count, from, to)} ${a.count === 1 || from === to ? 'breaks' : 'break'} into${target}; the opening is broken.`
   if (
     lastHole - firstHole + 1 > maxExactCandidates ||
     windowB[1] - windowB[0] + 1 > maxExactCandidates
   ) {
-    issues.push({
-      code: 'drilling-intersection',
-      cut: first,
-      detail: `${spanOf(a.count, firstHole, lastHole)} ${
-        a.count === 1 || firstHole === lastHole ? 'breaks' : 'break'
-      } into${target}; the opening is broken.`,
-    })
+    issues.push({ code: 'drilling-intersection', cut: first, detail: blocked(firstHole, lastHole) })
     return issues
   }
   const verdicts: Array<'review' | 'block' | 'allow'> = new Array(lastHole - firstHole + 1).fill(
@@ -318,9 +318,7 @@ function rowPairIssues(
           ? `${spanOf(a.count, k, last)} ${
               a.count === 1 || k === last ? 'repeats' : 'repeat'
             }${target} at the same position and diameter; verify this is intended.`
-          : `${spanOf(a.count, k, last)} ${
-              a.count === 1 || k === last ? 'breaks' : 'break'
-            } into${target}; the opening is broken.`,
+          : blocked(k, last),
     })
     k = last + 1
   }
