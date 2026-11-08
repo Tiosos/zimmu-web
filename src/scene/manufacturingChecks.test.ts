@@ -43,6 +43,10 @@ describe('shared record manufacturing checks', () => {
     expect(reportOf(scene)).toEqual(before)
     expect(before.checkedParts).toBe(scene.parts.length)
     expect(before.unassessed).toContain('Machine operation compatibility')
+    expect(before.unassessed).toContain(
+      'Drilling intersections with bevelled edges (mitre and angled end cuts)',
+    )
+    expect(before.unassessed).not.toContain('Drilling intersections with round stock')
     boardOf(scene).width = NaN
     expect(codes(scene)).toContain('part-size')
     expect(codes(scene)).toContain('cut-size')

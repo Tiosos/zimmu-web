@@ -52,6 +52,8 @@ describe('shared machining schedule', () => {
     expect(manual).not.toHaveProperty('depthMode')
     expect(schedule.coordinateFrame).toBe('part-local')
     expect(schedule.unassessed).toContain('Machine compatibility and tool access')
+    expect(schedule.unassessed).toContain('Interactions between cuts other than drilling')
+    expect(schedule.unassessed).not.toContain('Interactions between cuts other than board drilling')
   })
   it.each([
     ['+X', 560],

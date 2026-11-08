@@ -167,10 +167,11 @@ describe('manufacturing drilling checks', () => {
     expect(reportOf(scene).unassessed).toEqual(
       expect.arrayContaining([
         'Manual machining geometry',
-        'Drilling intersections with round stock',
+        'Drilling intersections with bevelled edges (mitre and angled end cuts)',
         'Machine operation compatibility',
       ]),
     )
+    expect(reportOf(scene).unassessed).not.toContain('Drilling intersections with round stock')
   })
   it('accepts blind and through axial bores from either cap, but rejects bores consuming the full stock diameter', () => {
     const scene = sceneOf()

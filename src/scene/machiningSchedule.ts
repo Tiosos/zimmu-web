@@ -111,7 +111,7 @@ export function buildMachiningSchedule(records: ManufacturingPart[]) {
     scope:
       'All parts, including hidden items. One row per cut or manual instruction; hole arrays are not expanded. Row order is not an execution sequence. Definitions describe nominal stock, not tool paths or machine readiness.',
     unassessed: [
-      'Interactions between cuts other than board drilling',
+      'Interactions between cuts other than drilling',
       'Manual machining geometry',
       'Machine compatibility and tool access',
     ],

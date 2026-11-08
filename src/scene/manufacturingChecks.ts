@@ -115,7 +115,6 @@ export function manufacturingChecks(records: ManufacturingPart[]) {
     checkedParts: records.length,
     findings,
     unassessed: [
-      'Drilling intersections with round stock',
       'Drilling intersections with bevelled edges (mitre and angled end cuts)',
       'Drilling that breaks into a different part',
       'Minimum remaining material between cuts',
