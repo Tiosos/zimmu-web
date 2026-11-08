@@ -269,4 +269,39 @@ describe('manufacturing drilling checks', () => {
     expect(finding.operation?.id).toBe('row-1')
     expect(finding.targets[0].label).toBe('Manual panel')
   })
+  it('carries drilling intersections into the manufacturing record with their operation', () => {
+    const scene = sceneOf()
+    boardOf(scene).cuts = [
+      hole({ start: { x: 200, y: 380, z: 18 }, count: 5 }),
+      {
+        kind: 'box',
+        id: 'dado',
+        label: 'Shelf dado',
+        face: '+Z',
+        position: { x: 230, y: 330, z: 12 },
+        size: { x: 60, y: 100, z: 6 },
+      },
+    ]
+    const finding = reportOf(scene).findings.find((f) => f.code === 'drilling-intersection')!
+    expect(finding.operation).toMatchObject({ id: 'row-1', kind: 'hole-array' })
+    expect(finding.targets.map((t) => t.id)).toEqual(['manual-board'])
+  })
+  it('keeps an out-of-bounds drill intersected as well as out of bounds', () => {
+    const scene = sceneOf()
+    boardOf(scene).cuts = [
+      hole({ start: { x: 200, y: 380, z: 18 }, count: 1000 }),
+      {
+        kind: 'box',
+        id: 'dado',
+        label: 'Shelf dado',
+        face: '+Z',
+        position: { x: 230, y: 330, z: 12 },
+        size: { x: 60, y: 100, z: 6 },
+      },
+    ]
+    expect(drillingOf(scene).map((f) => f.code)).toEqual([
+      'drilling-bounds',
+      'drilling-intersection',
+    ])
+  })
 })
