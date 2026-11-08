@@ -370,8 +370,6 @@ interface TransverseBore {
   azimuth: number // radians
   surface: number // stock radius the bore enters from
   height: number // radial depth actually removed, clipped at the stock diameter
-  diameter: number
-  depth: number
 }
 
 type Bore = AxialBore | TransverseBore
@@ -414,8 +412,6 @@ function transverseBoreOf(cut: DowelBoreTransverse, stockRadius: number): Transv
     azimuth: cut.azimuth * DEG2RAD,
     surface: stockRadius,
     height: Math.min(cut.depth, 2 * stockRadius),
-    diameter: cut.diameter,
-    depth: cut.depth,
   }
 }
 

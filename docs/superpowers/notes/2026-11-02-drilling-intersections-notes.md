@@ -54,10 +54,9 @@ These are deliberate, and each is either named in `unassessed` or recorded here:
 - **The 512-candidate cap.** Windows wider than 512 holes are reported as one conservative run
   instead of per-hole. It over-reports (a block where a hole may be clear) and never misses; real
   cabinet drilling stays far below it.
-- **Parallel rows can claim a hole that sits in a gap** between the other row's holes, because the
-  spec's rule is to solve the predicate at the ends of the other row's expanded run span. Again
-  conservative in the blocking direction, and reachable only when the pitch exceeds the summed
-  radii while the rows are nearly concentric.
+- **Parallel rows do not falsely claim a hole in a gap** when the window is exact: every candidate
+  pair is classified, so a gap hole is allowed. The exception is the 512-candidate cap, which
+  reports the whole window as one blocking run; it is conservative in the blocking direction.
 - **Skew transverse pairs on round stock** use the minimum distance between the two finite axis
   segments. It cannot miss an intersection, but it can report a near miss at the capped ends; the
   design accepts that for a review-facing safety check.

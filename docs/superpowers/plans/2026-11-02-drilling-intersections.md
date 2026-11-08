@@ -49,11 +49,13 @@ geometry kernel, no world transforms, no enumeration of a hole array's `count`.
    error does not silently reveal (or hide) a collision.
 
 ---
+
 ## Stage 1 — boards
 
 ### Task 1: Drill × box intersection
 
 **Files:**
+
 - Create: `src/geom/cutLimits.ts`
 - Modify: `src/geom/occt.ts:407`
 - Create: `src/scene/drillingIntersections.ts`
@@ -65,6 +67,7 @@ geometry kernel, no world transforms, no enumeration of a hole array's `count`.
 - Modify: `src/ui/buildReadinessPdf.test.ts:86`
 
 **Interfaces:**
+
 - Consumes: `ManufacturingPart` from `./manufacturingPart`; `faceAxes` from `./snapMath`;
   `HoleArrayCut`, `DowelBoreAxial`, `DowelBoreTransverse` from `./types`.
 - Produces:
@@ -172,7 +175,10 @@ describe('drilling intersections', () => {
   })
   it('answers a huge row by arithmetic, not by enumerating it', () => {
     const board = boardOf()
-    board.cuts = [hole({ count: 1_000_000_000, pitch: 32, diameter: 3, start: { x: 0, y: 380, z: 18 } }), box()]
+    board.cuts = [
+      hole({ count: 1_000_000_000, pitch: 32, diameter: 3, start: { x: 0, y: 380, z: 18 } }),
+      box(),
+    ]
     const issues = drillingIntersections(board, new Set())
     expect(issues).toHaveLength(1)
     expect(issues[0].detail).toBe(
@@ -220,11 +226,7 @@ export const MIN_CUT_SIZE_MM = 0.1
 In `src/geom/occt.ts`, import it and change line 407 to:
 
 ```ts
-if (
-  cut.size.x <= MIN_CUT_SIZE_MM ||
-  cut.size.y <= MIN_CUT_SIZE_MM ||
-  cut.size.z <= MIN_CUT_SIZE_MM
-)
+if (cut.size.x <= MIN_CUT_SIZE_MM || cut.size.y <= MIN_CUT_SIZE_MM || cut.size.z <= MIN_CUT_SIZE_MM)
   continue
 ```
 
@@ -329,10 +331,12 @@ git commit -m "feat: report drilling that breaks into a box cut"
 ### Task 2: Fully voided holes
 
 **Files:**
+
 - Modify: `src/scene/drillingIntersections.ts`
 - Modify: `src/scene/drillingIntersections.test.ts`
 
 **Interfaces:**
+
 - Consumes: everything from Task 1.
 - Produces: `drilling-redundant` issues; a partly voided, partly clipped row can produce two issues
   for the same pair, redundant first.
@@ -344,16 +348,32 @@ Append to `drillingIntersections.test.ts`:
 ```ts
 it('reports a hole that lies wholly inside a cut instead of a collision', () => {
   const board = boardOf()
-  board.cuts = [hole(), box({ id: 'pocket', label: 'Pocket', position: { x: 250, y: 330, z: 6 }, size: { x: 32, y: 100, z: 12 } })]
+  board.cuts = [
+    hole(),
+    box({
+      id: 'pocket',
+      label: 'Pocket',
+      position: { x: 250, y: 330, z: 6 },
+      size: { x: 32, y: 100, z: 12 },
+    }),
+  ]
   expect(drillingIntersections(board, new Set()).map((i) => [i.code, i.detail])).toEqual([
-    ['drilling-redundant', 'hole 3 of 5 lies entirely inside cut "Pocket" [pocket]; no hole will remain.'],
+    [
+      'drilling-redundant',
+      'hole 3 of 5 lies entirely inside cut "Pocket" [pocket]; no hole will remain.',
+    ],
   ])
 })
 it('splits a partly voided, partly clipped row into redundant then clipped', () => {
   const board = boardOf()
   board.cuts = [
     hole({ pitch: 20, count: 5, diameter: 10 }),
-    box({ id: 'pocket', label: 'Pocket', position: { x: 240, y: 330, z: 6 }, size: { x: 50, y: 100, z: 12 } }),
+    box({
+      id: 'pocket',
+      label: 'Pocket',
+      position: { x: 240, y: 330, z: 6 },
+      size: { x: 50, y: 100, z: 12 },
+    }),
   ]
   expect(drillingIntersections(board, new Set()).map((i) => i.code)).toEqual([
     'drilling-redundant',
@@ -397,12 +417,14 @@ git commit -m "feat: report holes that a cut removes entirely"
 ### Task 3: Drill × drill on boards
 
 **Files:**
+
 - Modify: `src/scene/drillingIntersections.ts`
 - Modify: `src/scene/drillingIntersections.test.ts`
 - Modify: `src/scene/productionReview.ts:97-98,223`
 - Modify: `src/scene/productionReview.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1's drill family and bisection helper.
 - Produces: `drilling-overlap-review` issues for repeated or two-sided coaxial holes;
   `drilling-intersection` for every other overlapping pair; the advisory mapping in
@@ -448,7 +470,9 @@ it('blocks holes from adjacent faces that meet at a corner', () => {
     one({ id: 'edge', label: 'Edge', face: '+X', start: { x: 560, y: 4, z: 4 } }),
     one({ id: 'face', label: 'Face', depth: 18, start: { x: 555, y: 4, z: 18 } }),
   ]
-  expect(drillingIntersections(board, new Set()).map((i) => i.code)).toEqual(['drilling-intersection'])
+  expect(drillingIntersections(board, new Set()).map((i) => i.code)).toEqual([
+    'drilling-intersection',
+  ])
 
   const missing = boardOf()
   missing.cuts = [
@@ -471,14 +495,23 @@ it('blocks adjacent holes in one row whose openings merge', () => {
   const board = boardOf()
   board.cuts = [hole({ pitch: 4, count: 3, diameter: 5 })]
   expect(drillingIntersections(board, new Set()).map((i) => [i.code, i.detail])).toEqual([
-    ['drilling-intersection', 'adjacent holes overlap (pitch 4 mm, diameter 5 mm); the openings merge into a continuous slot.'],
+    [
+      'drilling-intersection',
+      'adjacent holes overlap (pitch 4 mm, diameter 5 mm); the openings merge into a continuous slot.',
+    ],
   ])
 })
 it('answers two huge rows without enumerating either', () => {
   const board = boardOf()
   board.cuts = [
     hole({ id: 'a', label: 'Row A', start: { x: 204, y: 300, z: 18 }, count: 1_000_000_000 }),
-    hole({ id: 'b', label: 'Row B', axis: 'V', start: { x: 300, y: 108, z: 18 }, count: 1_000_000_000 }),
+    hole({
+      id: 'b',
+      label: 'Row B',
+      axis: 'V',
+      start: { x: 300, y: 108, z: 18 },
+      count: 1_000_000_000,
+    }),
   ]
   expect(drillingIntersections(board, new Set())).toHaveLength(1)
 })
@@ -512,10 +545,11 @@ In `drillingIntersections.ts`:
 - Two drills are **coaxial** when their axis lines coincide: same depth axis and the same position on
   the two in-plane axes, within `1e-6`.
 - Apply the precedence of the spec's "One verdict per hole":
-  1. coaxial, same diameter and depth → review (whatever the faces), detail
+  1. coaxial, same face, same diameter and depth → review (a repeat), detail
      `… repeats drilling "<label>" [<id>] at the same position and diameter; verify this is intended.`
-  2. coaxial, same face, different diameter or depth → allow.
-  3. coaxial, opposite faces, different diameter or depth, volumes overlap → block, detail
+  2. coaxial, same face, different diameter or depth → allow (a counterbore or stepped hole).
+  3. coaxial, opposite faces, same diameter and depth, volumes meet → review; different diameter or
+     depth, volumes overlap → block, detail
      `… breaks into drilling "<label>" [<id>]; the opening is broken.`
   4. non-coaxial, volumes overlap → block with the same detail.
   5. otherwise → allow.
@@ -561,12 +595,14 @@ git commit -m "feat: detect intersecting and repeated drilling on boards"
 ### Task 4: Stage 1 integration and notes
 
 **Files:**
+
 - Modify: `src/scene/drillingChecks.test.ts` (finding-level assertions)
 - Modify: `src/scene/manufacturingChecks.test.ts`
 - Modify: `src/ui/ManufacturingReadiness.test.tsx`
 - Create: `docs/superpowers/notes/2026-11-02-drilling-intersections-notes.md`
 
 **Interfaces:**
+
 - Consumes: Tasks 1–3.
 - Produces: end-to-end proof that a collision reaches the release record with the operation
   reference and the right severity.
@@ -647,12 +683,14 @@ git commit -m "test: cover drilling intersections end to end"
 ### Task 5: Round-stock bores, notches and the finished extent
 
 **Files:**
+
 - Modify: `src/scene/drillingIntersections.ts`
 - Modify: `src/scene/drillingIntersections.test.ts`
 - Modify: `src/scene/__fixtures__/machiningProject.ts:55`
 - Modify: `src/scene/machiningSchedule.test.ts` (fixture-shape assertions only, if any)
 
 **Interfaces:**
+
 - Consumes: Task 1's bisection helper and issue type.
 - Produces: round-stock verdicts (rows 19–24); the `part.kind !== 'board'` guard is removed.
 
@@ -666,16 +704,40 @@ Add to `drillingIntersections.test.ts` (extend the imports with
 const roundOf = (): ManufacturingRoundStock => {
   const scene = manufacturingProject()
   scene.parts = scene.parts.filter((p) => p.id === 'manual-round')
-  return manufacturingParts(scene.parts, scene.materials, scene.components)[0] as ManufacturingRoundStock
+  return manufacturingParts(
+    scene.parts,
+    scene.materials,
+    scene.components,
+  )[0] as ManufacturingRoundStock
 }
 const axial = (overrides: Partial<DowelBoreAxial> = {}): DowelBoreAxial => ({
-  kind: 'bore-axial', id: 'axial', label: 'Axial', end: '-Z', diameter: 3, depth: 500, ...overrides,
+  kind: 'bore-axial',
+  id: 'axial',
+  label: 'Axial',
+  end: '-Z',
+  diameter: 3,
+  depth: 500,
+  ...overrides,
 })
 const cross = (overrides: Partial<DowelBoreTransverse> = {}): DowelBoreTransverse => ({
-  kind: 'bore-transverse', id: 'cross', label: 'Cross', position: 100, azimuth: 90, diameter: 3, depth: 2, ...overrides,
+  kind: 'bore-transverse',
+  id: 'cross',
+  label: 'Cross',
+  position: 100,
+  azimuth: 90,
+  diameter: 3,
+  depth: 2,
+  ...overrides,
 })
 const trim = (overrides: Partial<DowelEndCut> = {}): DowelEndCut => ({
-  kind: 'end', id: 'trim', label: 'Trim', end: '+Z', offset: 10, angle: 0, azimuth: 0, ...overrides,
+  kind: 'end',
+  id: 'trim',
+  label: 'Trim',
+  end: '+Z',
+  offset: 10,
+  angle: 0,
+  azimuth: 0,
+  ...overrides,
 })
 
 it('does not treat a square end trim as a collision', () => {
@@ -687,22 +749,22 @@ it('measures a bore from the trimmed cap', () => {
   const round = roundOf()
   // The finished cap is at z = 490. The bore therefore stops at 490 and clears the transverse
   // bore at 495; measured from the untrimmed cap it would reach 500 and collide.
-  round.cuts = [
-    trim(),
-    axial({ end: '+Z', depth: 50 }),
-    cross({ position: 495, depth: 4 }),
-  ]
+  round.cuts = [trim(), axial({ end: '+Z', depth: 50 }), cross({ position: 495, depth: 4 })]
   expect(drillingIntersections(round, new Set())).toEqual([])
 })
 it('blocks an axial bore that breaks into a transverse bore', () => {
   const round = roundOf()
   round.cuts = [axial(), cross({ depth: 4 })]
-  expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual(['drilling-intersection'])
+  expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual([
+    'drilling-intersection',
+  ])
 })
 it('blocks two transverse bores that intersect', () => {
   const round = roundOf()
   round.cuts = [cross(), cross({ id: 'cross2', label: 'Cross 2', azimuth: 0 })]
-  expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual(['drilling-intersection'])
+  expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual([
+    'drilling-intersection',
+  ])
 })
 it('blocks a bore that breaks into a notch', () => {
   const round = roundOf()
@@ -710,12 +772,16 @@ it('blocks a bore that breaks into a notch', () => {
     cross({ position: 50, azimuth: 0, depth: 4 }),
     { kind: 'notch', id: 'notch', label: 'Notch', position: 50, width: 10, depth: 2, azimuth: 0 },
   ]
-  expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual(['drilling-intersection'])
+  expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual([
+    'drilling-intersection',
+  ])
 })
 it('reviews opposite-end axial bores that meet', () => {
   const round = roundOf()
   round.cuts = [axial({ depth: 260 }), axial({ id: 'back', label: 'Back', end: '+Z', depth: 260 })]
-  expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual(['drilling-overlap-review'])
+  expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual([
+    'drilling-overlap-review',
+  ])
 })
 it('leaves an angled end cut unassessed', () => {
   const round = roundOf()
@@ -774,12 +840,14 @@ git commit -m "feat: detect intersecting drilling on round stock"
 ### Task 6: Stage 2 unassessed lists and close-out
 
 **Files:**
+
 - Modify: `src/scene/manufacturingChecks.ts:117-123`
 - Modify: `src/scene/machiningSchedule.ts:104-108`
 - Modify: `src/scene/machiningSchedule.test.ts:54`
 - Modify: `docs/superpowers/notes/2026-11-02-drilling-intersections-notes.md`
 
 **Interfaces:**
+
 - Consumes: Task 5.
 - Produces: the final unassessed lists and a green full suite.
 

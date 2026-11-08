@@ -1,9 +1,8 @@
 # Drilling intersection checks
 
 **Date:** 2026-11-01
-**Status:** Proposed — behaviour selected by the user on 2026-11-01, then checked by an independent
-builder pass that raised six ambiguities; those are resolved in "Resolved calls". Implementation
-waits for approval of this document.
+**Status:** Accepted; implemented on 2026-11-02. Delivery notes:
+`docs/superpowers/notes/2026-11-02-drilling-intersections-notes.md`.
 **Related:** `src/scene/drillingChecks.ts`, `src/scene/manufacturingChecks.ts`,
 `src/scene/machiningSchedule.ts`, `src/scene/productionReview.ts`
 
@@ -45,17 +44,17 @@ the lists below.
 
 ### Board drilling × board drilling
 
-| # | Situation | Verdict | Code |
-|---|---|---|---|
-| 1 | Adjacent holes in one row overlap (`pitch < diameter`) | Block | `drilling-intersection` |
-| 2 | One row with `pitch = 0` and `count > 1` | unchanged: `drilling-array` | — |
-| 3 | Two drills coaxial with the same centre/diameter/depth (a repeat definition): same face, or opposite faces whose volumes meet | Review | `drilling-overlap-review` |
-| 4 | Two drills coaxial, different diameter or depth (counterbore/stepped hole) | Allow | — |
-| 5 | Two rows cross at a shared hole position; identical drills | Review | `drilling-overlap-review` |
-| 6 | Two drills same face, non-concentric partial overlap | Block | `drilling-intersection` |
-| 7 | Blind holes of different diameter or depth from opposite faces whose depths meet or overlap (`d1 + d2 ≥ T`) | Block | `drilling-intersection` |
-| 8 | Holes from adjacent faces intersect at a corner | Block | `drilling-intersection` |
-| 9 | Holes do not intersect but leave a thin web of material | Allow (not checked; named in unassessed) | — |
+| #   | Situation                                                                                                                     | Verdict                                  | Code                      |
+| --- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------------------------- |
+| 1   | Adjacent holes in one row overlap (`pitch < diameter`)                                                                        | Block                                    | `drilling-intersection`   |
+| 2   | One row with `pitch = 0` and `count > 1`                                                                                      | unchanged: `drilling-array`              | —                         |
+| 3   | Two drills coaxial with the same centre/diameter/depth (a repeat definition): same face, or opposite faces whose volumes meet | Review                                   | `drilling-overlap-review` |
+| 4   | Two drills coaxial, different diameter or depth (counterbore/stepped hole)                                                    | Allow                                    | —                         |
+| 5   | Two rows cross at a shared hole position; identical drills                                                                    | Review                                   | `drilling-overlap-review` |
+| 6   | Two drills same face, non-concentric partial overlap                                                                          | Block                                    | `drilling-intersection`   |
+| 7   | Blind holes of different diameter or depth from opposite faces whose depths meet or overlap (`d1 + d2 ≥ T`)                   | Block                                    | `drilling-intersection`   |
+| 8   | Holes from adjacent faces intersect at a corner                                                                               | Block                                    | `drilling-intersection`   |
+| 9   | Holes do not intersect but leave a thin web of material                                                                       | Allow (not checked; named in unassessed) | —                         |
 
 Rows 3–5 are one behaviour: a coaxial repeat is reviewed, a stepped coaxial pair is allowed. A
 crossing row pair is judged per shared position by the same rule. "Repeat" requires the two drills
@@ -64,60 +63,60 @@ from opposite ends with solid stock between them are separate features and are a
 
 ### Board drilling × box cut (dado, groove, notch, pocket, slot)
 
-| # | Situation | Verdict | Code |
-|---|---|---|---|
-| 10 | The whole drill volume lies inside the cut's void | Block | `drilling-redundant` |
-| 11 | The opening crosses the cut boundary (opening is not circular) | Block | `drilling-intersection` |
-| 12 | The drill wall breaks into the cut's side wall | Block | `drilling-intersection` |
-| 13 | The drill crosses a through-slot and is split into two segments | Block | `drilling-intersection` |
-| 14 | The entry face is removed locally by a pocket (drill starts in air) | Block | `drilling-intersection` |
-| 15 | Tangent contact only, or overlap within the tolerance | Allow | — |
-| 16 | Drill and cut do not intersect but leave a thin web | Allow (not checked; named in unassessed) | — |
+| #   | Situation                                                           | Verdict                                  | Code                    |
+| --- | ------------------------------------------------------------------- | ---------------------------------------- | ----------------------- |
+| 10  | The whole drill volume lies inside the cut's void                   | Block                                    | `drilling-redundant`    |
+| 11  | The opening crosses the cut boundary (opening is not circular)      | Block                                    | `drilling-intersection` |
+| 12  | The drill wall breaks into the cut's side wall                      | Block                                    | `drilling-intersection` |
+| 13  | The drill crosses a through-slot and is split into two segments     | Block                                    | `drilling-intersection` |
+| 14  | The entry face is removed locally by a pocket (drill starts in air) | Block                                    | `drilling-intersection` |
+| 15  | Tangent contact only, or overlap within the tolerance               | Allow                                    | —                       |
+| 16  | Drill and cut do not intersect but leave a thin web                 | Allow (not checked; named in unassessed) | —                       |
 
 Row 14 is not caught by `drilling-position`: the entry coordinate still sits on the nominal stock
 face, but the face no longer exists there.
 
 ### Drilling × bevel
 
-| # | Situation | Verdict |
-|---|---|---|
-| 17 | Hole opening in a mitre's removed wedge | Unassessed |
-| 18 | Hole wall through the mitre plane | Unassessed |
+| #   | Situation                               | Verdict    |
+| --- | --------------------------------------- | ---------- |
+| 17  | Hole opening in a mitre's removed wedge | Unassessed |
+| 18  | Hole wall through the mitre plane       | Unassessed |
 
 An angled end cut on round stock (row 25) is the same shape of problem and is deferred the same
 way.
 
 ### Round stock
 
-| # | Situation | Verdict | Code |
-|---|---|---|---|
-| 19 | Same-end axial bores, identical | Review | `drilling-overlap-review` |
-| 20 | Same-end axial bores, stepped (different diameter/depth) | Allow | — |
-| 21 | Axial bores from opposite ends meet or overlap inside the stock | Review | `drilling-overlap-review` |
-| 22 | Axial bore × transverse bore | Block | `drilling-intersection` |
-| 23 | Two transverse bores intersect (same position, different azimuths, or overlapping volumes) | Block | `drilling-intersection` |
-| 24 | Bore × notch | Block | `drilling-intersection` |
-| 25 | Bore × angled end cut | Unassessed | — |
+| #   | Situation                                                                                  | Verdict    | Code                      |
+| --- | ------------------------------------------------------------------------------------------ | ---------- | ------------------------- |
+| 19  | Same-end axial bores, identical                                                            | Review     | `drilling-overlap-review` |
+| 20  | Same-end axial bores, stepped (different diameter/depth)                                   | Allow      | —                         |
+| 21  | Axial bores from opposite ends meet or overlap inside the stock                            | Review     | `drilling-overlap-review` |
+| 22  | Axial bore × transverse bore                                                               | Block      | `drilling-intersection`   |
+| 23  | Two transverse bores intersect (same position, different azimuths, or overlapping volumes) | Block      | `drilling-intersection`   |
+| 24  | Bore × notch                                                                               | Block      | `drilling-intersection`   |
+| 25  | Bore × angled end cut                                                                      | Unassessed | —                         |
 
 Square end cuts (`end`, `angle = 0`) are **not obstacles**: they shorten the stock and move the
 datum of a bore drilled from that end. See "Resolved calls — a square end cut moves the datum".
 
 ### Not assessable from the recorded geometry
 
-| # | Situation | Verdict |
-|---|---|---|
-| 26 | Drill × `manual-machining` instruction (text only) | Unassessed |
-| 27 | Drill that leaves this part and enters another part | Unassessed |
-| 28 | Box cut × box cut | Out of scope (its own change) |
+| #   | Situation                                           | Verdict                       |
+| --- | --------------------------------------------------- | ----------------------------- |
+| 26  | Drill × `manual-machining` instruction (text only)  | Unassessed                    |
+| 27  | Drill that leaves this part and enters another part | Unassessed                    |
+| 28  | Box cut × box cut                                   | Out of scope (its own change) |
 
 ### Reporting and implementation choices
 
-| # | Question | Decision |
-|---|---|---|
-| 29 | Granularity | One finding per drilling operation and other cut, splitting a partly voided row into a redundant run and a clipped run. A row that collides in several holes is still one finding per verdict, with the affected index range in the message. |
-| 30 | Huge arrays | Never enumerate `count`. Every query is interval arithmetic; candidate windows are bounded by geometry (radius, pitch), not by the hole count. |
-| 31 | Tolerance | `1e-6` mm, the same constant the existing boundary checks use. Contact or overlap no thicker than that is not reported. |
-| 32 | Codes | `drilling-intersection` (block), `drilling-redundant` (block), `drilling-overlap-review` (advisory). Three codes, not two — see "Resolved calls". |
+| #   | Question    | Decision                                                                                                                                                                                                                                                                                                                                       |
+| --- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 29  | Granularity | One finding per drilling operation and other cut, splitting a partly voided row into a redundant run and a clipped run. A row that collides in several holes is still one finding per verdict, with the affected index range in the message.                                                                                                   |
+| 30  | Huge arrays | Never enumerate `count`. Every query is interval arithmetic; candidate windows are bounded by geometry (radius, pitch), not by the hole count. A window wider than 512 holes is reported as one conservative blocking run instead of per-hole: it can over-report, never miss, and keeps a pair from costing the product of two window widths. |
+| 31  | Tolerance   | `1e-6` mm, the same constant the existing boundary checks use. Contact or overlap no thicker than that is not reported.                                                                                                                                                                                                                        |
+| 32  | Codes       | `drilling-intersection` (block), `drilling-redundant` (block), `drilling-overlap-review` (advisory). Three codes, not two — see "Resolved calls".                                                                                                                                                                                              |
 
 ## Geometry model
 
@@ -133,7 +132,7 @@ length and diameter.
 **Finished extent (round stock only).** Every square end cut (`angle = 0`, `offset > 0`) shortens
 the stock. The finished axial extent is `[offsetMinus, L − offsetPlus]`, where `offsetPlus` is the
 largest square-end offset on `+Z` and `offsetMinus` the largest on `-Z` (several cuts on one end
-are cumulative in effect; the innermost wins). All bore volumes are referenced to the *finished*
+are cumulative in effect; the innermost wins). All bore volumes are referenced to the _finished_
 caps: a `bore-axial` with `end: '+Z'` starts at `L − offsetPlus`, and one with `end: '-Z'` starts at
 `offsetMinus`. A bore whose recorded depth reaches or passes the far finished cap is a through
 bore, not a defect. An extent that is empty or reversed is a stock problem the existing checks
@@ -186,7 +185,7 @@ tolerance:
   cylinder. For a cylinder with axis unit vector `a`, base `b`, height `h`, radius `r`, and a
   linear function `n·P`, the range is
   `[min(n·b, n·(b+ha)) − r√(1−(n·a)²), max(n·b, n·(b+ha)) + r√(1−(n·a)²)]`.
-  A slab intersects when the ranges overlap by more than `eps`. A notch is the *conjunction* of a
+  A slab intersects when the ranges overlap by more than `eps`. A notch is the _conjunction_ of a
   depth half-space and a width slab, so it intersects only when both ranges overlap; testing each
   separately is conservative for the corner where they meet.
 - A drill whose volume is **undefined** — non-finite or non-positive `diameter`/`depth`, a
@@ -201,8 +200,10 @@ tolerance:
 the affected indices are a contiguous interval in the run coordinate, obtained by solving the
 predicate at the interval ends (no per-hole scan). With two non-parallel rows, only indices inside
 the other row's expanded run window are candidates; that window is `(2·(r1+r2)/pitch)+2` wide, not
-the row length. The implementation must never allocate or iterate proportionally to `count`; a
-test with `count = 1_000_000_000` pins this.
+the row length. Every candidate pair inside the window is classified exactly. Per-hole work is
+capped at 512 candidate holes per row: a wider window is reported as one conservative blocking run
+for the whole window instead, which can over-report but never misses. The implementation must never
+allocate or iterate proportionally to `count`; a test with `count = 1_000_000_000` pins this.
 
 ## Findings
 
@@ -288,9 +289,7 @@ Pair ordering and de-duplication:
 `label-duplicate` as `needs-correction`. Add `drilling-overlap-review` to the advisory condition:
 
 ```ts
-f.code === 'label-empty' ||
-f.code === 'label-duplicate' ||
-f.code === 'drilling-overlap-review'
+f.code === 'label-empty' || f.code === 'label-duplicate' || f.code === 'drilling-overlap-review'
   ? 'advisory'
   : 'needs-correction'
 ```
@@ -302,17 +301,17 @@ No schema version changes: findings are additive, and the release policy's shape
 
 ## Integration points
 
-| File | Change |
-|---|---|
+| File                                       | Change                                                                                                                                                               |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/scene/drillingIntersections.ts` (new) | Pure geometry: build drill volumes and obstacle volumes, evaluate the predicates, return findings with code/message/operation id. No React, no clock, no randomness. |
-| `src/scene/drillingChecks.ts` | Extend `DrillingCheckCode`; call the new module after per-cut validation; append its issues. Malformed cuts are still rejected before the intersection pass. |
-| `src/scene/manufacturingChecks.ts` | Remove `'Drilling intersections with other cuts'` from `unassessed`; add the remaining gaps (bevels, cross-part, thin webs, and — in stage 1 only — round stock). |
-| `src/scene/machiningSchedule.ts` | Narrow its `unassessed` entry to interactions other than drilling; **do not** mark a depth mode `unassessed` because of an intersection finding (see below). |
-| `src/scene/productionReview.ts` | Advisory mapping and policy sentence. |
-| `src/geom/cutLimits.ts` (new) | `MIN_CUT_SIZE_MM = 0.1`, the one constant the exporter and the check share so both agree on which box cuts exist. |
-| `src/geom/occt.ts` | Import `MIN_CUT_SIZE_MM` instead of the inline `0.1` in `makeShape`. Behaviour unchanged. |
-| Tests | New geometry unit tests; integration assertions in the existing readiness/review tests. |
-| Docs | `docs/superpowers/notes/2026-11-01-drilling-intersections-notes.md` after implementation; `CLAUDE.md` only if a new invariant is worth recording. |
+| `src/scene/drillingChecks.ts`              | Extend `DrillingCheckCode`; call the new module after per-cut validation; append its issues. Malformed cuts are still rejected before the intersection pass.         |
+| `src/scene/manufacturingChecks.ts`         | Remove `'Drilling intersections with other cuts'` from `unassessed`; add the remaining gaps (bevels, cross-part, thin webs, and — in stage 1 only — round stock).    |
+| `src/scene/machiningSchedule.ts`           | Narrow its `unassessed` entry to interactions other than drilling; **do not** mark a depth mode `unassessed` because of an intersection finding (see below).         |
+| `src/scene/productionReview.ts`            | Advisory mapping and policy sentence.                                                                                                                                |
+| `src/geom/cutLimits.ts` (new)              | `MIN_CUT_SIZE_MM = 0.1`, the one constant the exporter and the check share so both agree on which box cuts exist.                                                    |
+| `src/geom/occt.ts`                         | Import `MIN_CUT_SIZE_MM` instead of the inline `0.1` in `makeShape`. Behaviour unchanged.                                                                            |
+| Tests                                      | New geometry unit tests; integration assertions in the existing readiness/review tests.                                                                              |
+| Docs                                       | `docs/superpowers/notes/2026-11-02-drilling-intersections-notes.md` after implementation; `CLAUDE.md` only if a new invariant is worth recording.                    |
 
 **Machining-schedule side effect (must be handled).** `buildMachiningSchedule` builds
 `invalidDrilling` — a set of operation IDs — from every issue returned by `drillingChecks`, and
@@ -323,10 +322,11 @@ whitelisting the old ones:
 ```ts
 const invalidDrilling = new Set(
   drillingChecks(p)
-    .filter((issue) =>
-      issue.code !== 'drilling-intersection' &&
-      issue.code !== 'drilling-redundant' &&
-      issue.code !== 'drilling-overlap-review',
+    .filter(
+      (issue) =>
+        issue.code !== 'drilling-intersection' &&
+        issue.code !== 'drilling-redundant' &&
+        issue.code !== 'drilling-overlap-review',
     )
     .map((issue) => issue.operation.id),
 )
@@ -466,7 +466,7 @@ selection left a detail open. Each is settled here so the builder does not have 
 - **A square end cut moves the datum, it is not an obstacle.** Choice 25 deferred angled end cuts
   only, which left the square trim open. A square `end` cut on round stock is a stock-length
   adjustment, and the exporter builds its tool at the nominal offset, so treating the removed slab
-  as an obstacle would flag a perfectly ordinary *through-drilled, then trimmed* dowel — the shape
+  as an obstacle would flag a perfectly ordinary _through-drilled, then trimmed_ dowel — the shape
   of the `manual-round` fixture. It is therefore handled as a datum: the finished extent shrinks,
   bores from that end are measured from the new cap, and reaching the far finished cap is a through
   bore. The `occt` exporter still builds its tool from the nominal stock length; reconciling that
