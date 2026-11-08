@@ -1,8 +1,7 @@
 import type { ManufacturingPart } from './manufacturingPart'
-import type { DowelBoreAxial, DowelBoreTransverse, HoleArrayCut } from './types'
+import { drillingIntersections, type DrillingCut } from './drillingIntersections'
 import { faceAxes } from './snapMath'
 
-type DrillingCut = HoleArrayCut | DowelBoreAxial | DowelBoreTransverse
 export interface ManufacturingOperationReference {
   id: string
   label: string
@@ -16,6 +15,9 @@ export type DrillingCheckCode =
   | 'drilling-position'
   | 'drilling-bounds'
   | 'drilling-unassessed'
+  | 'drilling-intersection'
+  | 'drilling-redundant'
+  | 'drilling-overlap-review'
 interface DrillingIssue {
   code: DrillingCheckCode
   message: string
@@ -31,6 +33,9 @@ const fits = (centre: number, radius: number, extent: number) =>
 // Array endpoints suffice for a straight, constant-pitch row; never enumerate arbitrary counts.
 export function drillingChecks(part: ManufacturingPart): DrillingIssue[] {
   const issues: DrillingIssue[] = []
+  // Cuts whose geometry cannot be built are excluded from the intersection pass: a volume that does
+  // not exist has nothing to intersect. Bounds and entry-face failures keep their nominal volume.
+  const undefinedVolume = new Set<string>()
   const add = (cut: DrillingCut, code: DrillingCheckCode, message: string) => {
     const operation = {
       id: cut.id,
@@ -45,6 +50,7 @@ export function drillingChecks(part: ManufacturingPart): DrillingIssue[] {
     if (cut.kind !== 'hole-array' && cut.kind !== 'bore-axial' && cut.kind !== 'bore-transverse')
       continue
     if (!positive(cut.diameter) || !positive(cut.depth)) {
+      undefinedVolume.add(cut.id)
       add(cut, 'drilling-size', 'Diameter and depth must be finite and positive.')
       continue
     }
@@ -56,6 +62,7 @@ export function drillingChecks(part: ManufacturingPart): DrillingIssue[] {
         cut.pitch < 0 ||
         (cut.count > 1 && cut.pitch === 0)
       ) {
+        undefinedVolume.add(cut.id)
         add(
           cut,
           'drilling-array',
@@ -67,14 +74,17 @@ export function drillingChecks(part: ManufacturingPart): DrillingIssue[] {
         !['+X', '-X', '+Y', '-Y', '+Z', '-Z'].includes(cut.face) ||
         !['U', 'V'].includes(cut.axis)
       ) {
+        undefinedVolume.add(cut.id)
         add(cut, 'drilling-unassessed', 'Unsupported face or row axis; geometry was not assessed.')
         continue
       }
       if (![cut.start.x, cut.start.y, cut.start.z].every(Number.isFinite)) {
+        undefinedVolume.add(cut.id)
         add(cut, 'drilling-position', 'Entry coordinates must be finite.')
         continue
       }
       if (!Object.values(part.local).every(positive)) {
+        undefinedVolume.add(cut.id)
         add(
           cut,
           'drilling-unassessed',
@@ -104,6 +114,7 @@ export function drillingChecks(part: ManufacturingPart): DrillingIssue[] {
         )
     } else if (part.kind === 'cylinder' && cut.kind !== 'hole-array') {
       if (!positive(part.length) || !positive(part.diameter)) {
+        undefinedVolume.add(cut.id)
         add(
           cut,
           'drilling-unassessed',
@@ -118,6 +129,7 @@ export function drillingChecks(part: ManufacturingPart): DrillingIssue[] {
           add(cut, 'drilling-unassessed', 'Unsupported bore end; entry was not assessed.')
       } else {
         if (!Number.isFinite(cut.position) || !Number.isFinite(cut.azimuth)) {
+          undefinedVolume.add(cut.id)
           add(cut, 'drilling-position', 'Transverse bore position and azimuth must be finite.')
           continue
         }
@@ -130,5 +142,8 @@ export function drillingChecks(part: ManufacturingPart): DrillingIssue[] {
       }
     }
   }
+  // The intersection pass runs after every per-cut finding, so M references stay positional.
+  for (const issue of drillingIntersections(part, undefinedVolume))
+    add(issue.cut, issue.code, issue.detail)
   return issues
 }

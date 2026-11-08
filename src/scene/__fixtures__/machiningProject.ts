@@ -52,7 +52,7 @@ export function machiningProject() {
       position: 100,
       azimuth: 90,
       diameter: 3,
-      depth: 4,
+      depth: 2,
     },
   )
   return scene

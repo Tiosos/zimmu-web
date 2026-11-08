@@ -95,7 +95,11 @@ export function buildProductionReview(input: ProductionReviewInput) {
       source: 'manufacturing',
       sourceReference: f.reference,
       category:
-        f.code === 'label-empty' || f.code === 'label-duplicate' ? 'advisory' : 'needs-correction',
+        f.code === 'label-empty' ||
+        f.code === 'label-duplicate' ||
+        f.code === 'drilling-overlap-review'
+          ? 'advisory'
+          : 'needs-correction',
       code: f.code,
       message: f.message,
       targets: f.targets.map((t) => ({ kind: 'part', id: t.id, label: t.label })),
@@ -220,7 +224,7 @@ export function buildProductionReview(input: ProductionReviewInput) {
     scope:
       'Manufacturing records, production readiness, machining reconciliation and shelf access, including hidden items. Counts are review items, not unique physical defects. Exports remain available. This summary is not fabrication approval; unassessed checks require separate review.',
     classification:
-      'Invalid manufacturing definitions, missing parts and output mismatches need correction. Labels, joinery reminders and angled insertion are advisory. Skipped checks, assessment limits and unverified installation are unassessed.',
+      'Invalid manufacturing definitions, missing parts and output mismatches need correction. Labels, joinery reminders, angled insertion and repeated or meeting drilling are advisory. Skipped checks, assessment limits and unverified installation are unassessed.',
     items,
   }
 }

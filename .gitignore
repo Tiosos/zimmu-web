@@ -26,6 +26,9 @@ dist-ssr
 # Visual brainstorming session files
 .superpowers/
 
+# Git worktrees used for isolated task branches
+.worktrees/
+
 # Playwright
 test-results
 playwright-report

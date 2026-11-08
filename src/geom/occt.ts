@@ -1,6 +1,7 @@
 import type { OpenCascadeInstance, TopoDS_Shape } from 'opencascade.js'
 import type { CutDef, DowelCut, Face, HoleArrayCut, MitreCut, Vec3 } from '../scene/types'
 import { computeMitreTool } from './mitre'
+import { MIN_CUT_SIZE_MM } from './cutLimits'
 import {
   computeEndTool,
   computeNotchTool,
@@ -404,7 +405,12 @@ export function makeShape(
   for (const cut of sorted) {
     const prev = current
     if (cut.kind === 'box') {
-      if (cut.size.x <= 0.1 || cut.size.y <= 0.1 || cut.size.z <= 0.1) continue
+      if (
+        cut.size.x <= MIN_CUT_SIZE_MM ||
+        cut.size.y <= MIN_CUT_SIZE_MM ||
+        cut.size.z <= MIN_CUT_SIZE_MM
+      )
+        continue
       current = makeCut(oc, current, cut.position, cut.size)
     } else if (cut.kind === 'hole-array') {
       current = makeHoleArrayCut(oc, current, cut)
