@@ -384,6 +384,7 @@ function finishedExtentOf(part: ManufacturingRoundStock): { lo: number; hi: numb
   for (const cut of part.cuts) {
     if (cut.kind !== 'end' || cut.angle !== 0 || !(cut.offset > 0)) continue
     if (cut.end === '+Z') plus = Math.max(plus, cut.offset)
+    // `DowelEndCut.end` is exactly '+Z' | '-Z'; anything else would be a malformed record.
     else minus = Math.max(minus, cut.offset)
   }
   const hi = part.length - plus

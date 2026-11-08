@@ -415,4 +415,41 @@ describe('round-stock intersections', () => {
     round.cuts = [trim({ angle: 45 }), axial()]
     expect(drillingIntersections(round, new Set())).toEqual([])
   })
+  it('blocks parallel and skew transverse bores that come within the summed radii', () => {
+    const parallel = roundOf()
+    parallel.cuts = [
+      cross({ depth: 4 }),
+      cross({ id: 'cross2', label: 'Cross 2', position: 101.5 }),
+    ]
+    expect(drillingIntersections(parallel, new Set()).map((i) => i.code)).toEqual([
+      'drilling-intersection',
+    ])
+
+    const skew = roundOf()
+    skew.cuts = [
+      cross({ depth: 4 }),
+      cross({ id: 'cross2', label: 'Cross 2', position: 100.5, azimuth: 45 }),
+    ]
+    expect(drillingIntersections(skew, new Set()).map((i) => i.code)).toEqual([
+      'drilling-intersection',
+    ])
+  })
+  it('skips a part whose finished extent is empty or reversed', () => {
+    const empty = roundOf()
+    empty.cuts = [
+      trim({ offset: 500 }),
+      axial({ depth: 40 }),
+      axial({ id: 'again', label: 'Again' }),
+    ]
+    expect(drillingIntersections(empty, new Set())).toEqual([])
+
+    const reversed = roundOf()
+    reversed.cuts = [trim({ offset: 600 }), axial()]
+    expect(drillingIntersections(reversed, new Set())).toEqual([])
+  })
+  it('does not intersect a bore whose volume is undefined', () => {
+    const round = roundOf()
+    round.cuts = [axial({ depth: 40 }), axial({ id: 'again', label: 'Again', depth: 40 })]
+    expect(drillingIntersections(round, new Set(['again']))).toEqual([])
+  })
 })
