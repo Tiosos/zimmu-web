@@ -1,6 +1,9 @@
-// Intersections between board drilling and other material removals, in part-local millimetres —
-// the same frame the per-cut drilling checks use. Visibility, world placement, grain and rates
-// cannot reach this answer: only the recorded cut definitions and the recorded stock do.
+// Intersections between drilling and other material removals, in part-local millimetres — the same
+// frame the per-cut drilling checks use. Visibility, world placement, grain and rates cannot reach
+// this answer: only the recorded cut definitions and the recorded stock do. Boards carry hole
+// arrays against box cuts, other rows and themselves; round stock carries axial and transverse
+// bores against each other and against notches, with square end cuts moving the datum rather than
+// acting as obstacles.
 //
 // Findings are appended after the per-cut findings, so a row that is both out of bounds and
 // crossing a cut reports `drilling-bounds` first, then `drilling-intersection`. A drill whose
@@ -11,10 +14,21 @@
 // A hole a cut removes entirely is voided, not clipped: the wholly-inside holes take their
 // `drilling-redundant` verdict first, and the collision ranges are computed only over the indices
 // that verdict did not claim, so a hole is never reported twice for one pair.
-import type { ManufacturingBoard, ManufacturingPart } from './manufacturingPart'
+import type {
+  ManufacturingBoard,
+  ManufacturingPart,
+  ManufacturingRoundStock,
+} from './manufacturingPart'
 import { faceAxes } from './snapMath'
 import { MIN_CUT_SIZE_MM } from '../geom/cutLimits'
-import type { BoxCut, DowelBoreAxial, DowelBoreTransverse, HoleArrayCut, Vec3 } from './types'
+import type {
+  BoxCut,
+  DowelBoreAxial,
+  DowelBoreTransverse,
+  DowelNotch,
+  HoleArrayCut,
+  Vec3,
+} from './types'
 
 export type DrillingCut = HoleArrayCut | DowelBoreAxial | DowelBoreTransverse
 export type DrillingIntersectionCode =
@@ -325,11 +339,319 @@ function rowPairIssues(
   return issues
 }
 
+// --- Round stock -------------------------------------------------------------------------------
+//
+// A cylinder part's material is r <= D/2 over the finished extent [offsetMinus, L - offsetPlus].
+// A square end cut moves that datum; it is not an obstacle. A bore is a cylinder; a notch is the
+// conjunction of a radial half-space and a width slab. Axial x transverse reuses the board's exact
+// two-circle feasibility after a rotation that puts the transverse bore on x. Transverse x
+// transverse uses the minimum distance between the two finite axis segments, which is conservative:
+// it cannot miss an intersection but may report a near miss at the capped ends, as the design
+// records.
+
+const DEG2RAD = Math.PI / 180
+
+interface AxialBore {
+  kind: 'bore-axial'
+  cut: DowelBoreAxial
+  radius: number
+  axialLo: number
+  axialHi: number
+  end: '+Z' | '-Z'
+  diameter: number // recorded, unclipped: the identity a same-end repeat is judged on
+  depth: number // recorded, unclipped
+}
+
+interface TransverseBore {
+  kind: 'bore-transverse'
+  cut: DowelBoreTransverse
+  radius: number
+  position: number // z along the stock
+  azimuth: number // radians
+  surface: number // stock radius the bore enters from
+  height: number // radial depth actually removed, clipped at the stock diameter
+  diameter: number
+  depth: number
+}
+
+type Bore = AxialBore | TransverseBore
+
+// A square end cut shortens the stock; several on one end get the innermost offset. An extent that
+// is empty or reversed is a stock problem the per-cut checks cannot express, so the part is skipped.
+function finishedExtentOf(part: ManufacturingRoundStock): { lo: number; hi: number } | null {
+  let plus = 0
+  let minus = 0
+  for (const cut of part.cuts) {
+    if (cut.kind !== 'end' || cut.angle !== 0 || !(cut.offset > 0)) continue
+    if (cut.end === '+Z') plus = Math.max(plus, cut.offset)
+    else minus = Math.max(minus, cut.offset)
+  }
+  const hi = part.length - plus
+  return hi > minus ? { lo: minus, hi } : null
+}
+
+function axialBoreOf(cut: DowelBoreAxial, extent: { lo: number; hi: number }): AxialBore {
+  const height = Math.min(cut.depth, extent.hi - extent.lo)
+  return {
+    kind: 'bore-axial',
+    cut,
+    radius: cut.diameter / 2,
+    axialLo: cut.end === '+Z' ? extent.hi - height : extent.lo,
+    axialHi: cut.end === '+Z' ? extent.hi : extent.lo + height,
+    end: cut.end,
+    diameter: cut.diameter,
+    depth: cut.depth,
+  }
+}
+
+function transverseBoreOf(cut: DowelBoreTransverse, stockRadius: number): TransverseBore {
+  return {
+    kind: 'bore-transverse',
+    cut,
+    radius: cut.diameter / 2,
+    position: cut.position,
+    azimuth: cut.azimuth * DEG2RAD,
+    surface: stockRadius,
+    height: Math.min(cut.depth, 2 * stockRadius),
+    diameter: cut.diameter,
+    depth: cut.depth,
+  }
+}
+
+interface CylinderVolume {
+  base: Vec3
+  axis: Vec3 // unit vector along the finite segment
+  height: number
+  radius: number
+}
+
+// The nominal removed volume of a bore as a finite cylinder. Axial bores run along z from the
+// finished cap; transverse bores run radially inward from the stock surface.
+function cylinderOfBore(bore: Bore): CylinderVolume {
+  if (bore.kind === 'bore-axial')
+    return {
+      base: { x: 0, y: 0, z: bore.axialLo },
+      axis: { x: 0, y: 0, z: 1 },
+      height: bore.axialHi - bore.axialLo,
+      radius: bore.radius,
+    }
+  const cos = Math.cos(bore.azimuth)
+  const sin = Math.sin(bore.azimuth)
+  return {
+    base: { x: bore.surface * cos, y: bore.surface * sin, z: bore.position },
+    axis: { x: -cos, y: -sin, z: 0 },
+    height: bore.height,
+    radius: bore.radius,
+  }
+}
+
+// Same-end bores start from one cap: an identical pair is a repeat, a stepped pair is an ordinary
+// counterbore. Opposite-end bores that meet or overlap inside the stock leave no web, so they are
+// reviewed rather than blocked — the design treats the duplication as the defect worth naming.
+function axialPairVerdict(a: AxialBore, b: AxialBore): 'repeat' | 'meet' | 'allow' {
+  if (a.end === b.end)
+    return Math.abs(a.diameter - b.diameter) <= tolerance &&
+      Math.abs(a.depth - b.depth) <= tolerance
+      ? 'repeat'
+      : 'allow'
+  const overlap = Math.min(a.axialHi, b.axialHi) - Math.max(a.axialLo, b.axialLo)
+  return overlap >= -tolerance ? 'meet' : 'allow'
+}
+
+// The transverse bore's axis passes through the stock axis, so in a frame rotated to put it on x
+// both axes meet at (0, 0) and the spec's two-circle feasibility reduces to the two reaches at the
+// clamped coordinates. The radial window [surface - height, surface] and the axial z interval are
+// the feasible windows; a bore too shallow to reach the axial bore's wall is separated by stock.
+function axialTransverseOverlap(axial: AxialBore, transverse: TransverseBore): boolean {
+  const ra = axial.radius
+  const rb = transverse.radius
+  const xLo = Math.max(transverse.surface - transverse.height, -ra)
+  const xHi = Math.min(transverse.surface, ra)
+  if (xHi < xLo) return false
+  const zLo = Math.max(axial.axialLo, transverse.position - rb)
+  const zHi = Math.min(axial.axialHi, transverse.position + rb)
+  if (zHi < zLo) return false
+  const x = Math.min(Math.max(0, xLo), xHi) // axial axis is at x = 0
+  const z = Math.min(Math.max(transverse.position, zLo), zHi) // transverse axis is at z = position
+  const reachA = Math.sqrt(Math.max(ra * ra - x * x, 0))
+  const reachB = Math.sqrt(Math.max(rb * rb - (z - transverse.position) ** 2, 0))
+  return reachA + reachB > tolerance
+}
+
+// Minimum distance between two finite segments, clamped at both ends.
+function segmentDistance(p1: Vec3, q1: Vec3, p2: Vec3, q2: Vec3): number {
+  const d1 = { x: q1.x - p1.x, y: q1.y - p1.y, z: q1.z - p1.z }
+  const d2 = { x: q2.x - p2.x, y: q2.y - p2.y, z: q2.z - p2.z }
+  const r = { x: p1.x - p2.x, y: p1.y - p2.y, z: p1.z - p2.z }
+  const a = d1.x * d1.x + d1.y * d1.y + d1.z * d1.z
+  const e = d2.x * d2.x + d2.y * d2.y + d2.z * d2.z
+  const f = d2.x * r.x + d2.y * r.y + d2.z * r.z
+  const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1)
+  const tiny = tolerance * tolerance // squared length below which a segment is a point
+  let s: number
+  let t: number
+  if (a <= tiny && e <= tiny) {
+    s = 0
+    t = 0
+  } else if (a <= tiny) {
+    s = 0
+    t = clamp01(f / e)
+  } else {
+    const c = d1.x * r.x + d1.y * r.y + d1.z * r.z
+    if (e <= tiny) {
+      t = 0
+      s = clamp01(-c / a)
+    } else {
+      const b = d1.x * d2.x + d1.y * d2.y + d1.z * d2.z
+      const denom = a * e - b * b
+      s = denom > 0 ? clamp01((b * f - c * e) / denom) : 0
+      t = (b * s + f) / e
+      if (t < 0) {
+        t = 0
+        s = clamp01(-c / a)
+      } else if (t > 1) {
+        t = 1
+        s = clamp01((b - c) / a)
+      }
+    }
+  }
+  const c1 = { x: p1.x + d1.x * s, y: p1.y + d1.y * s, z: p1.z + d1.z * s }
+  const c2 = { x: p2.x + d2.x * t, y: p2.y + d2.y * t, z: p2.z + d2.z * t }
+  return Math.hypot(c1.x - c2.x, c1.y - c2.y, c1.z - c2.z)
+}
+
+// The radial segment each transverse bore removes, from the surface to its capped inner end.
+function transverseSegment(bore: TransverseBore): [Vec3, Vec3] {
+  const cos = Math.cos(bore.azimuth)
+  const sin = Math.sin(bore.azimuth)
+  return [
+    { x: bore.surface * cos, y: bore.surface * sin, z: bore.position },
+    {
+      x: (bore.surface - bore.height) * cos,
+      y: (bore.surface - bore.height) * sin,
+      z: bore.position,
+    },
+  ]
+}
+
+function transversePairOverlap(a: TransverseBore, b: TransverseBore): boolean {
+  const [p1, q1] = transverseSegment(a)
+  const [p2, q2] = transverseSegment(b)
+  return segmentDistance(p1, q1, p2, q2) < a.radius + b.radius - tolerance
+}
+
+// The range of a linear function n·P over a finite cylinder: the segment's end values, widened by
+// the disc's reach perpendicular to n. Exact, and the spec's slab predicate.
+function linearRange(cylinder: CylinderVolume, n: Vec3): [number, number] {
+  const atBase = n.x * cylinder.base.x + n.y * cylinder.base.y + n.z * cylinder.base.z
+  const tip = {
+    x: cylinder.base.x + cylinder.axis.x * cylinder.height,
+    y: cylinder.base.y + cylinder.axis.y * cylinder.height,
+    z: cylinder.base.z + cylinder.axis.z * cylinder.height,
+  }
+  const atTip = n.x * tip.x + n.y * tip.y + n.z * tip.z
+  const along = Math.abs(n.x * cylinder.axis.x + n.y * cylinder.axis.y + n.z * cylinder.axis.z)
+  const spread = cylinder.radius * Math.sqrt(Math.max(1 - along * along, 0))
+  return [Math.min(atBase, atTip) - spread, Math.max(atBase, atTip) + spread]
+}
+
+// A notch is the conjunction of the radial half-space n·P >= R - depth and the width slab
+// z in [position ± width/2]. Both must overlap the bore's range; testing each separately is
+// conservative only at the corner where the two meet, as the design records.
+function boreNotchOverlap(bore: Bore, notch: DowelNotch, stockRadius: number): boolean {
+  const cylinder = cylinderOfBore(bore)
+  const azimuth = notch.azimuth * DEG2RAD
+  const radial = { x: Math.cos(azimuth), y: Math.sin(azimuth), z: 0 }
+  const [radialLo, radialHi] = linearRange(cylinder, radial)
+  if (radialHi - Math.max(radialLo, stockRadius - notch.depth) <= tolerance) return false
+  const [zLo, zHi] = linearRange(cylinder, { x: 0, y: 0, z: 1 })
+  return (
+    Math.min(zHi, notch.position + notch.width / 2) -
+      Math.max(zLo, notch.position - notch.width / 2) >
+    tolerance
+  )
+}
+
+const isBoreCut = (cut: { kind: string }): boolean =>
+  cut.kind === 'bore-axial' || cut.kind === 'bore-transverse'
+
+type BorePairVerdict = 'block' | 'repeat' | 'meet' | 'allow'
+
+function borePairVerdict(a: Bore, b: Bore): BorePairVerdict {
+  if (a.kind === 'bore-axial' && b.kind === 'bore-axial') return axialPairVerdict(a, b)
+  if (a.kind === 'bore-axial' && b.kind === 'bore-transverse')
+    return axialTransverseOverlap(a, b) ? 'block' : 'allow'
+  if (a.kind === 'bore-transverse' && b.kind === 'bore-axial')
+    return axialTransverseOverlap(b, a) ? 'block' : 'allow'
+  return a.kind === 'bore-transverse' && b.kind === 'bore-transverse' && transversePairOverlap(a, b)
+    ? 'block'
+    : 'allow'
+}
+
+function roundStockIssues(
+  part: ManufacturingRoundStock,
+  undefinedVolume: ReadonlySet<string>,
+): DrillingIntersectionIssue[] {
+  const extent = finishedExtentOf(part)
+  if (extent === null) return []
+  const stockRadius = part.diameter / 2
+  // One volume per cut, aligned with `cuts`. A null entry is not a drill: it is an end cut, a
+  // notch, an undefined volume, or an unsupported bore end. Pair roles come from the cut kinds, so
+  // the same pair is formed whatever order the records are stored in.
+  const volumes = part.cuts.map((cut): Bore | null => {
+    if (undefinedVolume.has(cut.id)) return null
+    if (cut.kind === 'bore-axial')
+      return cut.end === '+Z' || cut.end === '-Z' ? axialBoreOf(cut, extent) : null
+    if (cut.kind === 'bore-transverse') return transverseBoreOf(cut, stockRadius)
+    return null
+  })
+  const issues: DrillingIntersectionIssue[] = []
+  const subject = 'the bore'
+  for (let i = 0; i < part.cuts.length; i++) {
+    for (let j = i + 1; j < part.cuts.length; j++) {
+      const first = part.cuts[i]
+      const second = part.cuts[j]
+      const firstBore = volumes[i]
+      const secondBore = volumes[j]
+      // Drill x drill: reported once, on the earlier cut, with the later cut's identity in the
+      // message. A repeat never masks a collision; the verdict is one per pair.
+      if (isBoreCut(first) && isBoreCut(second)) {
+        if (firstBore === null || secondBore === null) continue
+        const verdict = borePairVerdict(firstBore, secondBore)
+        if (verdict === 'allow') continue
+        const other = secondBore.cut
+        issues.push({
+          code: verdict === 'block' ? 'drilling-intersection' : 'drilling-overlap-review',
+          cut: firstBore.cut,
+          detail:
+            verdict === 'repeat'
+              ? `${subject} repeats drilling "${other.label}" [${other.id}] at the same position and diameter; verify this is intended.`
+              : verdict === 'meet'
+                ? `${subject} meets drilling "${other.label}" [${other.id}] inside the stock; verify this is intended.`
+                : `${subject} breaks into drilling "${other.label}" [${other.id}]; the opening is broken.`,
+        })
+        continue
+      }
+      // Bore x notch: the finding attaches to the drill, whichever comes first.
+      const bore = isBoreCut(first) ? firstBore : isBoreCut(second) ? secondBore : null
+      const notch = first.kind === 'notch' ? first : second.kind === 'notch' ? second : null
+      if (bore === null || notch === null) continue
+      if (boreNotchOverlap(bore, notch, stockRadius))
+        issues.push({
+          code: 'drilling-intersection',
+          cut: bore.cut,
+          detail: `${subject} intersects cut "${notch.label}" [${notch.id}]; the opening is broken.`,
+        })
+    }
+  }
+  return issues
+}
+
 export function drillingIntersections(
   part: ManufacturingPart,
   undefinedVolume: ReadonlySet<string>, // ids of cuts whose volume is undefined; skip them
 ): DrillingIntersectionIssue[] {
-  if (part.kind !== 'board') return [] // boards only in this stage; rows on round stock stay unassessed.
+  if (part.kind === 'cylinder') return roundStockIssues(part, undefinedVolume)
   const issues: DrillingIntersectionIssue[] = []
   const cuts = part.cuts
   // Adjacent holes of one row are a single verdict for the whole operation: either every opening

@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { drillingIntersections } from './drillingIntersections'
-import { manufacturingParts, type ManufacturingBoard } from './manufacturingPart'
+import {
+  manufacturingParts,
+  type ManufacturingBoard,
+  type ManufacturingRoundStock,
+} from './manufacturingPart'
 import { manufacturingProject } from './__fixtures__/manufacturingProject'
-import type { BoxCut, HoleArrayCut } from './types'
+import type {
+  BoxCut,
+  DowelBoreAxial,
+  DowelBoreTransverse,
+  DowelEndCut,
+  HoleArrayCut,
+} from './types'
 
 const boardOf = (): ManufacturingBoard => {
   const scene = manufacturingProject()
@@ -280,5 +290,129 @@ describe('drilling intersections', () => {
       }),
     ]
     expect(drillingIntersections(board, new Set())).toHaveLength(1)
+  })
+})
+
+const roundOf = (): ManufacturingRoundStock => {
+  const scene = manufacturingProject()
+  scene.parts = scene.parts.filter((p) => p.id === 'manual-round')
+  return manufacturingParts(
+    scene.parts,
+    scene.materials,
+    scene.components,
+  )[0] as ManufacturingRoundStock
+}
+const axial = (overrides: Partial<DowelBoreAxial> = {}): DowelBoreAxial => ({
+  kind: 'bore-axial',
+  id: 'axial',
+  label: 'Axial',
+  end: '-Z',
+  diameter: 3,
+  depth: 500,
+  ...overrides,
+})
+const cross = (overrides: Partial<DowelBoreTransverse> = {}): DowelBoreTransverse => ({
+  kind: 'bore-transverse',
+  id: 'cross',
+  label: 'Cross',
+  position: 100,
+  azimuth: 90,
+  diameter: 3,
+  depth: 2,
+  ...overrides,
+})
+const trim = (overrides: Partial<DowelEndCut> = {}): DowelEndCut => ({
+  kind: 'end',
+  id: 'trim',
+  label: 'Trim',
+  end: '+Z',
+  offset: 10,
+  angle: 0,
+  azimuth: 0,
+  ...overrides,
+})
+
+describe('round-stock intersections', () => {
+  it('does not treat a square end trim as a collision', () => {
+    const round = roundOf()
+    round.cuts = [trim(), axial()]
+    expect(drillingIntersections(round, new Set())).toEqual([])
+  })
+  it('measures a bore from the trimmed cap', () => {
+    const round = roundOf()
+    // The finished cap is at z = 490. The bore therefore stops at 490 and clears the transverse
+    // bore at 495; measured from the untrimmed cap it would reach 500 and collide.
+    round.cuts = [trim(), axial({ end: '+Z', depth: 50 }), cross({ position: 495, depth: 4 })]
+    expect(drillingIntersections(round, new Set())).toEqual([])
+  })
+  it('blocks an axial bore that breaks into a transverse bore', () => {
+    const round = roundOf()
+    round.cuts = [axial(), cross({ depth: 4 })]
+    expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual([
+      'drilling-intersection',
+    ])
+  })
+  it('blocks two transverse bores that intersect', () => {
+    const round = roundOf()
+    round.cuts = [cross(), cross({ id: 'cross2', label: 'Cross 2', azimuth: 0 })]
+    expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual([
+      'drilling-intersection',
+    ])
+  })
+  it('blocks a bore that breaks into a notch', () => {
+    const round = roundOf()
+    round.cuts = [
+      cross({ position: 50, azimuth: 0, depth: 4 }),
+      { kind: 'notch', id: 'notch', label: 'Notch', position: 50, width: 10, depth: 2, azimuth: 0 },
+    ]
+    expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual([
+      'drilling-intersection',
+    ])
+  })
+  it('reviews opposite-end axial bores that meet', () => {
+    const round = roundOf()
+    round.cuts = [
+      axial({ depth: 260 }),
+      axial({ id: 'back', label: 'Back', end: '+Z', depth: 260 }),
+    ]
+    expect(drillingIntersections(round, new Set()).map((i) => i.code)).toEqual([
+      'drilling-overlap-review',
+    ])
+  })
+  it('reviews an identical same-end axial pair and allows a stepped one', () => {
+    const repeated = roundOf()
+    repeated.cuts = [axial({ depth: 40 }), axial({ id: 'again', label: 'Again', depth: 40 })]
+    expect(drillingIntersections(repeated, new Set()).map((i) => i.code)).toEqual([
+      'drilling-overlap-review',
+    ])
+
+    const stepped = roundOf()
+    stepped.cuts = [axial({ depth: 40 }), axial({ id: 'step', label: 'Step', depth: 30 })]
+    expect(drillingIntersections(stepped, new Set())).toEqual([])
+  })
+  it('allows opposite-end axial bores separated by solid stock', () => {
+    const round = roundOf()
+    round.cuts = [
+      axial({ depth: 100 }),
+      axial({ id: 'back', label: 'Back', end: '+Z', depth: 100 }),
+    ]
+    expect(drillingIntersections(round, new Set())).toEqual([])
+  })
+  it('allows bores that stop short of each other and of a notch', () => {
+    const shortCross = roundOf()
+    shortCross.cuts = [axial(), cross({ depth: 2 })]
+    expect(drillingIntersections(shortCross, new Set())).toEqual([])
+
+    const shortNotch = roundOf()
+    shortNotch.cuts = [
+      axial(),
+      { kind: 'notch', id: 'notch', label: 'Notch', position: 50, width: 10, depth: 2, azimuth: 0 },
+    ]
+    expect(drillingIntersections(shortNotch, new Set())).toEqual([])
+  })
+  it('leaves an angled end cut unassessed', () => {
+    const round = roundOf()
+    round.cuts = [trim({ angle: 45 }), axial()]
+    expect(drillingIntersections(round, new Set())).toEqual([])
   })
 })
