@@ -81,6 +81,10 @@ These are deliberate, and each is either named in `unassessed` or recorded here:
   both, bounds first.
 - `src/scene/productionReview.test.ts` — the advisory mapping.
 
+The suite sweep found no stale assertions: the removed `'Drilling intersections with other cuts'`
+string appears nowhere in `src`, and `ManufacturingReadiness.test.tsx` reads its unassessed count
+from live data rather than a literal, so no header or count needed changing.
+
 Full suite on this host: 249 files, 4471 passed, 10 skipped
 (`pnpm vitest run --maxWorkers=4 --testTimeout=15000 --exclude server/catalogue/http.test.ts`).
 
