@@ -1,13 +1,11 @@
-import type { ManufacturingPart } from './manufacturingPart'
+import type { ManufacturingOperationReference, ManufacturingPart } from './manufacturingPart'
 import { isNestable } from './manufacturingPart'
-import {
-  drillingChecks,
-  type DrillingCheckCode,
-  type ManufacturingOperationReference,
-} from './drillingChecks'
+import { drillingChecks, type DrillingCheckCode } from './drillingChecks'
+import { cutIntersections, type CutIntersectionCode } from './cutIntersections'
 
 export type ManufacturingCheckCode =
   | DrillingCheckCode
+  | CutIntersectionCode
   | 'stock-unresolved'
   | 'stock-thickness'
   | 'stock-use'
@@ -53,6 +51,7 @@ export function manufacturingChecks(records: ManufacturingPart[]) {
   const labels = new Map<string, ManufacturingPart[]>()
   for (const p of records) {
     for (const issue of drillingChecks(p)) add(issue.code, issue.message, [p], issue.operation)
+    for (const issue of cutIntersections(p)) add(issue.code, issue.message, [p], issue.operation)
     const label = p.label.trim()
     if (!label) add('label-empty', 'Part label is empty; use the part ID to identify it.', [p])
     else {
@@ -115,8 +114,9 @@ export function manufacturingChecks(records: ManufacturingPart[]) {
     checkedParts: records.length,
     findings,
     unassessed: [
-      'Drilling intersections with bevelled edges (mitre and angled end cuts)',
+      'Cut interactions involving bevelled edges or round-stock notches',
       'Drilling that breaks into a different part',
+      'Non-finite box cut geometry',
       'Minimum remaining material between cuts',
       'Manual machining geometry',
       'Machine operation compatibility',

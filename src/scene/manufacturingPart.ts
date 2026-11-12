@@ -113,6 +113,15 @@ export interface ManufacturingContext {
   byId: Map<ComponentId, Component>
   materials: Record<string, MaterialDef>
 }
+// Which operation a manufacturing finding is about. Drilling and box cuts both need one, so the
+// reference lives with the records rather than with the drilling checks.
+export interface ManufacturingOperationReference {
+  id: string
+  label: string
+  kind: CutDef['kind'] | DowelCut['kind']
+  sourceComponentId: string | null
+  sourceJointId: string | null
+}
 function stockOf(material?: MaterialDef): ManufacturingStock {
   return {
     resolved: material !== undefined,

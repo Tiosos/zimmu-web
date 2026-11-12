@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { manufacturingChecks } from './manufacturingChecks'
 import { manufacturingParts, type ManufacturingBoard } from './manufacturingPart'
 import { manufacturingProject } from './__fixtures__/manufacturingProject'
+import { machiningProject } from './__fixtures__/machiningProject'
 import { createReadinessSnapshot } from './readinessSnapshot'
 import { FILE_FORMAT_VERSION, parseFile } from './useFile'
 import { defaultProject } from './projectStructure'
@@ -44,6 +45,10 @@ describe('shared record manufacturing checks', () => {
     expect(before.checkedParts).toBe(scene.parts.length)
     expect(before.unassessed).toContain('Machine operation compatibility')
     expect(before.unassessed).toContain(
+      'Cut interactions involving bevelled edges or round-stock notches',
+    )
+    expect(before.unassessed).toContain('Non-finite box cut geometry')
+    expect(before.unassessed).not.toContain(
       'Drilling intersections with bevelled edges (mitre and angled end cuts)',
     )
     expect(before.unassessed).not.toContain('Drilling intersections with round stock')
@@ -217,5 +222,123 @@ describe('shared record manufacturing checks', () => {
     expect(report.checkedParts).toBe(205)
     expect(report.findings.length).toBeGreaterThan(200)
     expect(report.findings.at(-1)?.reference).toBe(`M${report.findings.length}`)
+  })
+
+  it('reports an overlapping box pair with its operation provenance', () => {
+    const scene = sceneOf()
+    const board = boardOf(scene)
+    board.cuts = [
+      {
+        kind: 'box',
+        id: 'shelf',
+        label: 'Shelf dado',
+        face: '+Z',
+        position: { x: 100, y: 100, z: 12 },
+        size: { x: 60, y: 200, z: 6 },
+        sourceJointId: 'joint-shelf',
+      },
+      {
+        kind: 'box',
+        id: 'bottom',
+        label: 'Bottom dado',
+        face: '+Z',
+        position: { x: 130, y: 100, z: 12 },
+        size: { x: 60, y: 200, z: 6 },
+        sourceComponentId: 'component-bottom',
+      },
+    ]
+    const report = reportOf(scene)
+    expect(report.findings).toHaveLength(1)
+    expect(report.findings[0]).toMatchObject({
+      code: 'cut-intersection-review',
+      message:
+        'Cut "Shelf dado" [shelf]: shares removed material with cut "Bottom dado" [bottom]; verify this is intended.',
+      operation: {
+        id: 'shelf',
+        label: 'Shelf dado',
+        kind: 'box',
+        sourceComponentId: null,
+        sourceJointId: 'joint-shelf',
+      },
+      targets: [{ id: board.id, label: board.label, cabinetId: null, parentId: null }],
+    })
+  })
+
+  it('appends cut findings after drilling findings for the same part', () => {
+    const scene = sceneOf()
+    const board = boardOf(scene)
+    board.cuts = [
+      {
+        kind: 'box',
+        id: 'shelf',
+        label: 'Shelf dado',
+        face: '+Z',
+        position: { x: 230, y: 330, z: 12 },
+        size: { x: 60, y: 100, z: 6 },
+      },
+      {
+        kind: 'box',
+        id: 'bottom',
+        label: 'Bottom dado',
+        face: '+Z',
+        position: { x: 230, y: 400, z: 12 },
+        size: { x: 60, y: 100, z: 6 },
+      },
+      {
+        kind: 'hole-array',
+        id: 'pins',
+        label: 'Shelf pins',
+        face: '+Z',
+        axis: 'U',
+        start: { x: 200, y: 380, z: 18 },
+        pitch: 32,
+        count: 3,
+        diameter: 5,
+        depth: 12,
+      },
+    ]
+    expect(reportOf(scene).findings.map((f) => f.code)).toEqual([
+      'drilling-intersection',
+      'cut-intersection-review',
+    ])
+  })
+
+  it('keeps cut findings independent of visibility, placement and material rates', () => {
+    const scene = sceneOf()
+    const board = boardOf(scene)
+    board.cuts = [
+      {
+        kind: 'box',
+        id: 'a',
+        label: 'A',
+        face: '+Z',
+        position: { x: 100, y: 100, z: 12 },
+        size: { x: 60, y: 200, z: 6 },
+      },
+      {
+        kind: 'box',
+        id: 'b',
+        label: 'B',
+        face: '+Z',
+        position: { x: 130, y: 100, z: 12 },
+        size: { x: 60, y: 200, z: 6 },
+      },
+    ]
+    const before = reportOf(scene)
+    scene.parts.forEach((p) => {
+      p.visible = false
+      p.position.x += 1000
+    })
+    scene.materials['18mm Ply'].costPerM2 = 999
+    expect(reportOf(scene)).toEqual(before)
+  })
+
+  it('reports no cut interference in the representative fixtures', () => {
+    for (const scene of [manufacturingProject(), machiningProject()]) {
+      const report = manufacturingChecks(
+        manufacturingParts(scene.parts, scene.materials, scene.components),
+      )
+      expect(report.findings.filter((f) => f.code.startsWith('cut-'))).toEqual([])
+    }
   })
 })

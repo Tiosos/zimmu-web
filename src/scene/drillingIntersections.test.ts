@@ -291,6 +291,18 @@ describe('drilling intersections', () => {
     ]
     expect(drillingIntersections(board, new Set())).toHaveLength(1)
   })
+  it('skips a non-finite box obstacle instead of reporting a redundancy', () => {
+    const board = boardOf()
+    board.cuts = [
+      hole(),
+      box({
+        id: 'infinite',
+        position: { x: 0, y: 0, z: 0 },
+        size: { x: Infinity, y: 720, z: 18 },
+      }),
+    ]
+    expect(drillingIntersections(board, new Set())).toEqual([])
+  })
 })
 
 const roundOf = (): ManufacturingRoundStock => {
