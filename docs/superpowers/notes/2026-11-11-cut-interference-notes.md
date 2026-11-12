@@ -155,3 +155,36 @@ value. It is not imported from `drillingIntersections`, so the two modules stay 
   a redundancy and an intersection for the same pair.
 - Attachment is the inner cut for containment and the later cut for a repeat, so `M<n>` references
   and the operation identity point at the cut that removes nothing.
+
+### Task 6 — Wire the findings into the manufacturing record
+
+**Commit:** `923560e feat: surface cut overlaps in readiness`
+
+1. Added `import { machiningProject } from './__fixtures__/machiningProject'` and four tests:
+   - overlapping pair with operation provenance and the board target;
+   - cut findings appended after `drilling-intersection` for the same part
+     (`['drilling-intersection', 'cut-intersection-review']`);
+   - independence from `visible`, world `position.x` and `costPerM2`;
+   - both representative fixtures produce no `cut-*` finding.
+2. Red run: **19 tests, 2 failed, 17 passed**. Only the two overlap tests failed, which is the
+   correct red state — the independence and fixture tests are expected to pass before the wiring.
+3. Wired it in:
+   ```ts
+   for (const issue of drillingChecks(p)) add(issue.code, issue.message, [p], issue.operation)
+   for (const issue of cutIntersections(p)) add(issue.code, issue.message, [p], issue.operation)
+   ```
+   and added `CutIntersectionCode` to `ManufacturingCheckCode`.
+4. Green: **19 passed**. Also re-ran `productionReview.test.ts`, `machiningSchedule.test.ts`
+   (**20 passed**) to check the widened union did not disturb the existing classification.
+   `pnpm typecheck` exit 0, `pnpm lint` exit 0.
+
+**Integration checks recorded**
+
+- The target assertion passes with `cabinetId: null, parentId: null`, confirming the manual-board
+  provenance the design assumed.
+- The ordering test proves `M<n>` references stay positional: drilling first, cuts second, for the
+  same part.
+- `sourceJointId` survives on the reference (`joint-shelf`) while `sourceComponentId` stays `null`,
+  so the operation identity is the cut's own provenance, not the pair's.
+- The fixtures stay finding-free after wiring — the check is live, not inert, and the default
+  catalogue still emits no overlapping box pair.
