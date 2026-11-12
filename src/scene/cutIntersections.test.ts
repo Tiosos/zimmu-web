@@ -233,6 +233,24 @@ describe('cut intersections', () => {
     expect(cutIntersections(board).map((i) => i.code)).toEqual(['cut-redundant-review'])
   })
 
+  it('treats a sub-tolerance overhang as contained', () => {
+    const board = boardOf()
+    for (const inner of [
+      box({ id: 'inner', position: { x: 100, y: 0, z: 0 }, size: { x: 100 + 5e-7, y: 200, z: 18 } }),
+      box({
+        id: 'inner',
+        position: { x: -5e-7, y: 0, z: 0 },
+        size: { x: 200 + 5e-7, y: 200, z: 18 },
+      }),
+    ]) {
+      board.cuts = [
+        box({ id: 'outer', position: { x: 0, y: 0, z: 0 }, size: { x: 200, y: 200, z: 18 } }),
+        inner,
+      ]
+      expect(cutIntersections(board).map((i) => i.code)).toEqual(['cut-redundant-review'])
+    }
+  })
+
   it('reports a box that pokes out beyond the tolerance as an overlap', () => {
     const board = boardOf()
     board.cuts = [
