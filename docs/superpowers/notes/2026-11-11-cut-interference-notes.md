@@ -209,3 +209,41 @@ value. It is not imported from `drillingIntersections`, so the two modules stay 
 - A grep for the old sentence fragment found no other assertion depending on the exact wording.
 - This is the whole severity decision the design calls out: no policy gate was added, only the
   classification of two codes.
+
+### Task 8 — Narrow the unassessed lists and update the docs
+
+**Commit:** `4e06df3 docs: name the cut interactions that remain unassessed`
+
+1. **Source strings.** `manufacturingChecks.ts` now names
+   `'Cut interactions involving bevelled edges or round-stock notches'`,
+   `'Drilling that breaks into a different part'`, `'Non-finite box cut geometry'`, then the
+   unchanged minimum-web, manual-machining, compatibility, hardware and installation lines.
+   `machiningSchedule.ts` uses the same combined interaction line, replacing
+   `'Interactions between cuts other than drilling'`.
+2. **Assertions.** Updated `manufacturingChecks.test.ts` (new line present, non-finite line present,
+   old drilling-bevelled line absent), `drillingChecks.test.ts` (combined line present, old absent),
+   `buildReadinessPdf.test.ts` (new line rendered, old absent), and `machiningSchedule.test.ts`
+   (combined line present, old broad line absent).
+3. **`depthMode` guard.** Added
+   `keeps a colliding but valid bore depth mode when cut interference also exists`: a colliding
+   `hole-array` plus two overlapping dados must still report `depthMode: 'blind'`. This works because
+   `machiningSchedule` excludes `drilling-intersection` from `invalidDrilling`; the cut finding is
+   not consulted at all.
+4. **Docs.** `README.md` readiness bullet now says overlapping or redundant box cuts are advisory
+   and lists the remaining gaps. `docs/production-review.md` advisory list now names repeated or
+   meeting drilling and overlapping or redundant cuts.
+5. **Verification:**
+   `pnpm vitest run src/scene/manufacturingChecks.test.ts src/scene/drillingChecks.test.ts src/scene/machiningSchedule.test.ts src/ui/buildReadinessPdf.test.ts`
+   → 4 files, **72 passed**. `pnpm typecheck` exit 0, `pnpm lint` exit 0.
+   Follow-up regression check: `buildProductionPacket.test.ts`, `ManufacturingReadiness.test.tsx`
+   and `productionReview.test.ts` → 3 files, **38 passed**.
+
+**Recorded decisions**
+
+- The non-finite line sits immediately after the cross-part drilling line, matching the design's
+  ordered list. No other unassessed item moved.
+- `'Minimum remaining material between cuts'` is deliberately untouched; stage 2 owns it.
+- No test asserts the list length, only membership, so adding the eighth item did not require a
+  count update in the readiness dialog tests.
+- The PDF absence assertion is the important one: it proves the generated document no longer
+  advertises a gap that stage 1 now covers (partly), rather than only that new text appears.
