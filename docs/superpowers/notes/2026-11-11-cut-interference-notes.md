@@ -46,3 +46,30 @@ change that is otherwise invisible.
 **Deviation:** this notes file was created during Task 1 at the user's request ("do the record"),
 where the plan has Task 9 create it. Task 9 becomes "update the notes" and still owns the final
 template sections (What changed / Why advisory / Known limits / Test coverage / Verification).
+
+### Task 2 — Move the operation reference to the manufacturing record
+
+**Commit:** `fbdaf13 refactor: share the manufacturing operation reference`
+
+Type-only move, no runtime shape change.
+
+1. Added `ManufacturingOperationReference` to `manufacturingPart.ts`, immediately after
+   `ManufacturingContext`, with `kind: CutDef['kind'] | DowelCut['kind']` — wider than the drilling
+   version's `DrillingCut['kind']`, so a box cut can be the subject of a finding.
+2. `drillingChecks.ts` now imports the type and re-exports it:
+   `import type { ManufacturingOperationReference, ManufacturingPart } from './manufacturingPart'`
+   plus `export type { ManufacturingOperationReference } from './manufacturingPart'`. The local
+   interface is gone. `DrillingCut` is still imported and still used by the internal `add` helper.
+3. `manufacturingChecks.ts` imports the type directly from `manufacturingPart` and keeps
+   `drillingChecks` for the function and `DrillingCheckCode` only.
+
+**Verification:** `pnpm typecheck` exit 0; `pnpm lint` exit 0;
+`pnpm vitest run src/scene/drillingChecks.test.ts src/scene/manufacturingChecks.test.ts` → 2 files,
+**48 passed**.
+
+**Decision:** `drillingChecks.ts` keeps the re-export even though `manufacturingChecks` no longer
+needs it, because `productionReview` and existing tests import the type from the drilling module.
+Removing the re-export would be a wider, unnecessary break in this task.
+
+**Check:** the widened `kind` is a superset of the old one, so every existing assignment stays
+valid; no cast was needed anywhere.
