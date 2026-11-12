@@ -1,14 +1,8 @@
-import type { ManufacturingPart } from './manufacturingPart'
+import type { ManufacturingOperationReference, ManufacturingPart } from './manufacturingPart'
+export type { ManufacturingOperationReference } from './manufacturingPart'
 import { drillingIntersections, type DrillingCut } from './drillingIntersections'
 import { faceAxes } from './snapMath'
 
-export interface ManufacturingOperationReference {
-  id: string
-  label: string
-  kind: DrillingCut['kind']
-  sourceComponentId: string | null
-  sourceJointId: string | null
-}
 export type DrillingCheckCode =
   | 'drilling-size'
   | 'drilling-array'

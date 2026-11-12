@@ -1,10 +1,6 @@
-import type { ManufacturingPart } from './manufacturingPart'
+import type { ManufacturingOperationReference, ManufacturingPart } from './manufacturingPart'
 import { isNestable } from './manufacturingPart'
-import {
-  drillingChecks,
-  type DrillingCheckCode,
-  type ManufacturingOperationReference,
-} from './drillingChecks'
+import { drillingChecks, type DrillingCheckCode } from './drillingChecks'
 
 export type ManufacturingCheckCode =
   | DrillingCheckCode
