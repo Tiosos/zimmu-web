@@ -52,7 +52,10 @@ describe('shared machining schedule', () => {
     expect(manual).not.toHaveProperty('depthMode')
     expect(schedule.coordinateFrame).toBe('part-local')
     expect(schedule.unassessed).toContain('Machine compatibility and tool access')
-    expect(schedule.unassessed).toContain('Interactions between cuts other than drilling')
+    expect(schedule.unassessed).toContain(
+      'Cut interactions involving bevelled edges or round-stock notches',
+    )
+    expect(schedule.unassessed).not.toContain('Interactions between cuts other than drilling')
     expect(schedule.unassessed).not.toContain('Interactions between cuts other than board drilling')
   })
   it.each([
@@ -206,5 +209,42 @@ describe('shared machining schedule', () => {
       manualInstructions: 0,
     })
     expect(empty.entries).toEqual([])
+  })
+  it('keeps a colliding but valid bore depth mode when cut interference also exists', () => {
+    const scene = machiningProject()
+    const p = scene.parts[0] as BoardPart
+    p.cuts = [
+      {
+        kind: 'box',
+        id: 'dado',
+        label: 'Dado',
+        face: '+Z',
+        position: { x: 0, y: 0, z: 12 },
+        size: { x: 30, y: 30, z: 6 },
+      },
+      {
+        kind: 'box',
+        id: 'dado-2',
+        label: 'Dado 2',
+        face: '+Z',
+        position: { x: 20, y: 0, z: 12 },
+        size: { x: 30, y: 30, z: 6 },
+      },
+      {
+        kind: 'hole-array',
+        id: 'row',
+        label: 'Row',
+        face: '+Z',
+        axis: 'U',
+        start: { x: 10, y: 10, z: 18 },
+        pitch: 0,
+        count: 1,
+        diameter: 5,
+        depth: 12,
+      },
+    ]
+    expect(scheduleOf(scene).entries.find((e) => e.operation.id === 'row')).toMatchObject({
+      depthMode: 'blind',
+    })
   })
 })

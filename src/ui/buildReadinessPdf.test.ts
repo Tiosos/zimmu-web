@@ -83,7 +83,8 @@ describe('readiness PDF', () => {
     expect(text).toContain('source component: source-pdf')
     expect(text).toContain(part.id)
     expect(text).not.toContain('later-id')
-    expect(text).toContain('Drilling intersections with bevelled edges (mitre and angled end cuts)')
+    expect(text).toContain('Cut interactions involving bevelled edges or round-stock notches')
+    expect(text).not.toContain('Drilling intersections with bevelled edges (mitre and angled end cuts)')
   })
 
   it('exports all manufacturing findings and captures their targets before awaiting', async () => {

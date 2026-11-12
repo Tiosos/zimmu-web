@@ -114,8 +114,9 @@ export function manufacturingChecks(records: ManufacturingPart[]) {
     checkedParts: records.length,
     findings,
     unassessed: [
-      'Drilling intersections with bevelled edges (mitre and angled end cuts)',
+      'Cut interactions involving bevelled edges or round-stock notches',
       'Drilling that breaks into a different part',
+      'Non-finite box cut geometry',
       'Minimum remaining material between cuts',
       'Manual machining geometry',
       'Machine operation compatibility',

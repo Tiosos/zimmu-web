@@ -45,6 +45,10 @@ describe('shared record manufacturing checks', () => {
     expect(before.checkedParts).toBe(scene.parts.length)
     expect(before.unassessed).toContain('Machine operation compatibility')
     expect(before.unassessed).toContain(
+      'Cut interactions involving bevelled edges or round-stock notches',
+    )
+    expect(before.unassessed).toContain('Non-finite box cut geometry')
+    expect(before.unassessed).not.toContain(
       'Drilling intersections with bevelled edges (mitre and angled end cuts)',
     )
     expect(before.unassessed).not.toContain('Drilling intersections with round stock')

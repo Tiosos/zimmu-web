@@ -167,9 +167,12 @@ describe('manufacturing drilling checks', () => {
     expect(reportOf(scene).unassessed).toEqual(
       expect.arrayContaining([
         'Manual machining geometry',
-        'Drilling intersections with bevelled edges (mitre and angled end cuts)',
+        'Cut interactions involving bevelled edges or round-stock notches',
         'Machine operation compatibility',
       ]),
+    )
+    expect(reportOf(scene).unassessed).not.toContain(
+      'Drilling intersections with bevelled edges (mitre and angled end cuts)',
     )
     expect(reportOf(scene).unassessed).not.toContain('Drilling intersections with round stock')
   })
