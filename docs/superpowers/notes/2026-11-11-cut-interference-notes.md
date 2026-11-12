@@ -188,3 +188,24 @@ value. It is not imported from `drillingIntersections`, so the two modules stay 
   so the operation identity is the cut's own provenance, not the pair's.
 - The fixtures stay finding-free after wiring — the check is live, not inert, and the default
   catalogue still emits no overlapping box pair.
+
+### Task 7 — Classify both codes as advisory
+
+**Commit:** `8b4fd18 feat: classify cut overlaps as advisory`
+
+1. Added the test `treats overlapping and redundant cuts as advisory`: one `cut-size` plus one of
+   each new code must give `needsCorrection: 1, advisory: 2`, and the classification sentence must
+   contain `overlapping or redundant cuts`.
+2. Red run: **9 tests, 1 failed, 8 passed** — both new codes were `needs-correction` and the
+   sentence did not name them.
+3. Added both codes to the advisory condition and extended the sentence to
+   "…repeated or meeting drilling, and overlapping or redundant cuts are advisory."
+4. Green: **9 passed**. `pnpm typecheck` exit 0, `pnpm lint` exit 0.
+
+**Checks recorded**
+
+- `cut-size` remains `needs-correction` in the same test, so the mapping is additive and does not
+  weaken an existing blocking code.
+- A grep for the old sentence fragment found no other assertion depending on the exact wording.
+- This is the whole severity decision the design calls out: no policy gate was added, only the
+  classification of two codes.
