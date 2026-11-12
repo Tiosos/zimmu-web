@@ -95,3 +95,33 @@ the test deliberately exercises the union.
 **Note:** `cutIntersections` takes the finished `ManufacturingPart`, so no React, clock or world
 transform can reach it. The module has no import from `drillingChecks`, which keeps the schedule
 coupling impossible to reintroduce by accident.
+
+### Task 4 — Report shared box volume
+
+**Commit:** `50ac8af feat: report overlapping box cuts`
+
+1. Appended 10 test cases to `cutIntersections.test.ts`: partial overlap with the full message and
+   operation, a three-case `it.each` tolerance table (`0` and `1e-7` silent, `1e-3` reported),
+   thickness separation in both input orders, an edge-touch pair, a corner-touch pair, two
+   full-thickness crossing boxes, a three-box cluster, and the non-finite skip.
+2. Red run: **14 tests, 5 failed, 9 passed**. The five failures were exactly the predicted ones —
+   the partial overlap, the `1e-3` tolerance case, the crossing pair, the cluster and the
+   non-finite skip. The silent cases already passed because the previous module returned `[]`.
+3. Implemented `sharedExtent` (axis overlap = `min(max) - max(min)`), `operationOf`,
+   `intersectionIssue`, and the `i < j` pair loop. A pair is skipped if **any** axis extent is
+   `<= 1e-6`.
+4. Green: **14 passed**. `pnpm typecheck` exit 0, `pnpm lint` exit 0.
+
+**Geometry checks recorded**
+
+- Edge versus corner: the edge pair shares `z` (`z = 12`, same thickness) while the corner pair
+  differs in `z` (`12` vs `18`), so the corner case leaves no shared extent at all. The earlier
+  design draft had these conflated; the split is now explicit.
+- Thickness separation is tested in both input orders because attachment follows input order; a
+  one-order test would not catch an ordering bug in the allowance branch.
+- `boxVolumeOf` still filters non-finite boxes before the pair loop, so the skip test proves the
+  remaining finite pair is still compared — not merely that the broken box is ignored.
+- The message attaches to the earlier cut and names the later one, matching decision 25.
+
+**Kept from the plan:** the tolerance constant is local to this module and equal to the drilling
+value. It is not imported from `drillingIntersections`, so the two modules stay independent.
