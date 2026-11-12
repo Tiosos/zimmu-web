@@ -27,6 +27,16 @@ function sharedExtent(a: BoxVolume, b: BoxVolume, axis: Axis): number {
   return Math.min(a.max[axis], b.max[axis]) - Math.max(a.min[axis], b.min[axis])
 }
 
+// A box lies inside another when every face is on or within the other's at the tolerance. The
+// boundary is inclusive: a box ending exactly on the container's face is contained.
+function containedBy(outer: BoxVolume, inner: BoxVolume): boolean {
+  return axes.every(
+    (axis) =>
+      inner.min[axis] >= outer.min[axis] - tolerance &&
+      inner.max[axis] <= outer.max[axis] + tolerance,
+  )
+}
+
 function operationOf(cut: BoxCut): ManufacturingOperationReference {
   return {
     id: cut.id,
@@ -45,6 +55,21 @@ function intersectionIssue(first: BoxCut, second: BoxCut): CutIntersectionIssue 
   }
 }
 
+function redundantIssue(
+  inner: BoxCut,
+  outer: BoxCut,
+  kind: 'inside' | 'repeat',
+): CutIntersectionIssue {
+  return {
+    code: 'cut-redundant-review',
+    message:
+      kind === 'inside'
+        ? `Cut "${inner.label}" [${inner.id}]: lies entirely inside cut "${outer.label}" [${outer.id}]; it removes no additional material.`
+        : `Cut "${inner.label}" [${inner.id}]: repeats cut "${outer.label}" [${outer.id}] at the same volume; one of the two can be removed.`,
+    operation: operationOf(inner),
+  }
+}
+
 export function cutIntersections(part: ManufacturingPart): CutIntersectionIssue[] {
   if (part.kind !== 'board') return []
   const boxes: { cut: BoxCut; volume: BoxVolume }[] = []
@@ -60,7 +85,13 @@ export function cutIntersections(part: ManufacturingPart): CutIntersectionIssue[
       const second = boxes[j]
       if (axes.some((axis) => sharedExtent(first.volume, second.volume, axis) <= tolerance))
         continue
-      issues.push(intersectionIssue(first.cut, second.cut))
+      const firstInSecond = containedBy(second.volume, first.volume)
+      const secondInFirst = containedBy(first.volume, second.volume)
+      if (firstInSecond && secondInFirst)
+        issues.push(redundantIssue(second.cut, first.cut, 'repeat'))
+      else if (firstInSecond) issues.push(redundantIssue(first.cut, second.cut, 'inside'))
+      else if (secondInFirst) issues.push(redundantIssue(second.cut, first.cut, 'inside'))
+      else issues.push(intersectionIssue(first.cut, second.cut))
     }
   }
   return issues

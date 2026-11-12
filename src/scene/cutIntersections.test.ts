@@ -158,4 +158,96 @@ describe('cut intersections', () => {
     ]
     expect(cutIntersections(board).map((i) => i.operation.id)).toEqual(['a'])
   })
+
+  it('reports a box that lies entirely inside another, on the contained cut', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({
+        id: 'outer',
+        label: 'Sink cut-out',
+        position: { x: 0, y: 0, z: 0 },
+        size: { x: 200, y: 200, z: 18 },
+      }),
+      box({
+        id: 'inner',
+        label: 'Tap hole pocket',
+        position: { x: 50, y: 50, z: 0 },
+        size: { x: 20, y: 20, z: 18 },
+      }),
+    ]
+    expect(cutIntersections(board)).toEqual([
+      {
+        code: 'cut-redundant-review',
+        message:
+          'Cut "Tap hole pocket" [inner]: lies entirely inside cut "Sink cut-out" [outer]; it removes no additional material.',
+        operation: {
+          id: 'inner',
+          label: 'Tap hole pocket',
+          kind: 'box',
+          sourceComponentId: null,
+          sourceJointId: null,
+        },
+      },
+    ])
+  })
+
+  it('reports an identical repeat on the later cut', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'first', label: 'Pocket' }),
+      box({ id: 'second', label: 'Pocket' }),
+    ]
+    expect(cutIntersections(board)).toEqual([
+      {
+        code: 'cut-redundant-review',
+        message:
+          'Cut "Pocket" [second]: repeats cut "Pocket" [first] at the same volume; one of the two can be removed.',
+        operation: {
+          id: 'second',
+          label: 'Pocket',
+          kind: 'box',
+          sourceComponentId: null,
+          sourceJointId: null,
+        },
+      },
+    ])
+  })
+
+  it('treats a 1e-7 size difference as an identical pair', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'first', label: 'Pocket' }),
+      box({ id: 'second', label: 'Pocket', size: { x: 60 + 1e-7, y: 200, z: 6 } }),
+    ]
+    expect(cutIntersections(board).map((i) => [i.code, i.operation.id])).toEqual([
+      ['cut-redundant-review', 'second'],
+    ])
+  })
+
+  it('treats a box ending on the other face as contained', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'outer', position: { x: 0, y: 0, z: 0 }, size: { x: 200, y: 200, z: 18 } }),
+      box({ id: 'inner', position: { x: 100, y: 0, z: 0 }, size: { x: 100, y: 200, z: 18 } }),
+    ]
+    expect(cutIntersections(board).map((i) => i.code)).toEqual(['cut-redundant-review'])
+  })
+
+  it('reports a box that pokes out beyond the tolerance as an overlap', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'outer', position: { x: 0, y: 0, z: 0 }, size: { x: 200, y: 200, z: 18 } }),
+      box({ id: 'inner', position: { x: 100, y: 0, z: 0 }, size: { x: 100.001, y: 200, z: 18 } }),
+    ]
+    expect(cutIntersections(board).map((i) => i.code)).toEqual(['cut-intersection-review'])
+  })
+
+  it('reports a contained pair once, as a redundancy', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'outer', position: { x: 0, y: 0, z: 0 }, size: { x: 200, y: 200, z: 18 } }),
+      box({ id: 'inner', position: { x: 50, y: 50, z: 0 }, size: { x: 20, y: 20, z: 18 } }),
+    ]
+    expect(cutIntersections(board).map((i) => i.code)).toEqual(['cut-redundant-review'])
+  })
 })
