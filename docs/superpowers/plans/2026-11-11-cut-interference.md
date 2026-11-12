@@ -811,7 +811,7 @@ Replace the body of the pair loop's `if` with the precedence order:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm vitest run src/scene/cutIntersections.test.ts`
-Expected: PASS — 20 tests.
+Expected: PASS — 21 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1279,11 +1279,11 @@ NODE_OPTIONS=--no-experimental-webstorage pnpm vitest run --maxWorkers=4 --testT
 pnpm check:file-casing
 ```
 
-Expected: all four exit 0, and the suite reports **249 files, 4484 passed, 10 skipped** plus the new
-tests added by this plan. `NODE_OPTIONS=--no-experimental-webstorage` is required on this Windows
-host: without it, Node 26's experimental `localStorage` global fails 138 baseline tests with
-`TypeError: Cannot read properties of undefined (reading 'clear')`. CI runs Node 22 and can use bare
-`pnpm test`.
+Expected: all four exit 0, and the suite reports **251 files, 4514 passed, 10 skipped** before the
+mutation-testing step adds one case; the final run reports **4515 passed**. `NODE_OPTIONS=--no-experimental-webstorage`
+is required on this Windows host: without it, Node 26's experimental `localStorage` global fails 138
+baseline tests with `TypeError: Cannot read properties of undefined (reading 'clear')`. CI runs
+Node 22 and can use bare `pnpm test`.
 
 `pnpm check:file-casing` needs Git on `PATH`; if it reports `spawnSync git ENOENT`, prepend
 `C:\Program Files\Git\cmd` to `PATH` for that command.
@@ -1292,8 +1292,8 @@ Record the exact counts from this run for the notes.
 
 - [ ] **Step 2: Write the delivery notes**
 
-Create `docs/superpowers/notes/2026-11-11-cut-interference-notes.md` with these sections and
-content:
+Update `docs/superpowers/notes/2026-11-11-cut-interference-notes.md` (created incrementally during
+Task 1 at the user's request) with these sections and content:
 
 ```markdown
 # Cut interference checks — notes
@@ -1384,12 +1384,12 @@ copy and re-run green.
 
 | Mutation                                             | File                       | Must fail                                    |
 | ---------------------------------------------------- | -------------------------- | -------------------------------------------- |
-| `sharedExtent` returns `null` on contact (`<= 0`)     | `cutIntersections.ts`      | the tolerance-`1e-6` overlap test             |
-| containment `<=` → `<` on one bound                  | `cutIntersections.ts`      | the box-ending-on-the-face containment test   |
-| visit `j < i` instead of pairs once, or report both  | `cutIntersections.ts`      | precedence and identical-pair tests           |
-| skip the `i < j` order and report from `j`           | `cutIntersections.ts`      | identity/order test                           |
-| `Number.isFinite` → `true` in `boxVolumeOf`          | `cutVolumes.ts`            | the non-finite test in both files             |
-| drop the `MIN_CUT_SIZE_MM` exclusion                 | `cutVolumes.ts`            | the exporter-minimum test                     |
+| tolerance gate `<= tolerance` → `<= 0`               | `cutIntersections.ts`      | the tolerance-`1e-6` overlap test             |
+| containment bounds lose `± tolerance`                | `cutIntersections.ts`      | the sub-tolerance overhang test               |
+| report both a redundancy and an intersection         | `cutIntersections.ts`      | the contained-pair-reported-once test         |
+| attach intersections to the later cut                | `cutIntersections.ts`      | the partial-overlap identity test             |
+| remove both non-finite guards in `boxVolumeOf`       | `cutVolumes.ts`            | the non-finite test in both files             |
+| `MIN_CUT_SIZE_MM` → `0`                              | `cutVolumes.ts`            | the exporter-minimum test                     |
 
 Expected each time: an `AssertionError` naming the rule, not a compile error or `no tests`.
 
@@ -1436,9 +1436,10 @@ git commit -m "docs: record the cut-interference delivery"
   rates and finding-free representative fixtures (Task 6), the colliding-but-valid `depthMode` guard
   (Task 8), and absence assertions for every replaced string in the schedule, drilling and PDF tests
   (Task 8).
-- **Expected counts:** `cutIntersections.test.ts` is 14 tests after Task 4 and 20 after Task 5;
-  `cutVolumes.test.ts` is 3 tests. Failure expectations name the predicted failing test, not a bare
-  "FAIL".
+- **Expected counts:** `cutIntersections.test.ts` is 14 tests after Task 4 and 21 after Task 5
+  (20 from the plan plus the sub-tolerance overhang case that mutation testing showed was
+  unpinned); `cutVolumes.test.ts` is 3 tests. Failure expectations name the predicted failing test,
+  not a bare "FAIL".
 - **Placeholders:** one deliberate one — the `## Verification` counts line in the notes, filled from
   Task 9 step 1 before the final commit. Nothing else is unfilled.
 - **Type consistency:** `CutIntersectionIssue` carries `code`, `message`, `operation`;
@@ -1446,5 +1447,9 @@ git commit -m "docs: record the cut-interference delivery"
   `boxVolumeOf` returns `BoxVolume | null` and both callers handle the null.
 - **Unassessed gap:** the manufacturing list names `'Non-finite box cut geometry'`, because this pass
   skips a non-finite box while `makeShape` does not; the design and Task 8 agree.
-- **Test counts in the notes:** Task 9 expects 249 files / 4484 passed / 10 skipped at baseline, plus
-  the new tests; the notes record the actual run, not the baseline.
+- **Test counts in the notes:** Task 9 records **251 files / 4515 passed / 10 skipped**, the actual
+  final run (baseline was 249 / 4484 / 10). The one extra test over the plan comes from the mutation
+  step, not from a weakened expectation.
+- **Mutation result:** five planned mutations were killed. The plan's "`<=` → `<`" containment
+  mutation was *equivalent* because of the tolerance; the real mutation (removing `± tolerance`)
+  killed the new sub-tolerance test. That is recorded rather than hidden.

@@ -3,6 +3,90 @@
 Design: `docs/superpowers/specs/2026-11-11-cut-interference-design.md`
 Plan: `docs/superpowers/plans/2026-11-11-cut-interference.md`
 
+## What changed
+
+`src/scene/cutVolumes.ts` is the one statement of what a box cut removes; `boxVolumeOf` moved
+there from `drillingIntersections.ts`, and both passes now import it. `src/scene/cutIntersections.ts`
+compares every pair of box cuts on a board and reports two new advisory codes:
+
+| Code                      | Severity | Meaning                                                              |
+| ------------------------- | -------- | -------------------------------------------------------------------- |
+| `cut-intersection-review` | advisory | two boxes share removed material                                     |
+| `cut-redundant-review`    | advisory | one box lies wholly inside another, or repeats it at the same volume |
+
+`manufacturingChecks()` appends these after the drilling findings for the same part, so `M<n>`
+references stay positional. `productionReview` classifies both as advisory and the policy sentence
+names "overlapping or redundant cuts". No schema version changes.
+
+## Why advisory, not blocking
+
+The generator can run one housing into another when a housing joint method is selected: a back-panel
+groove into the bottom housing, a shelf housing into the toe-kick notch, two joint housings into each
+other at a corner. `sourceJointId` says which joint emitted a cut, not whether the meeting was
+intended, so a blocking verdict would fail ordinary cabinets. The precedent is
+`drilling-overlap-review`.
+
+The probe behind that decision: the default `butt-screw` catalogue emits 6 box cuts and 0 overlaps;
+`dado-rabbet` emits 44 overlapping pairs across 52 boxes; `finger` 44 across 168. Advisory is
+therefore essential for housing methods, and the default project stays finding-free.
+
+## Known limits
+
+- Bevelled edges (mitre and angled end cuts) are still unassessed, for box cuts as for drilling.
+- Round-stock notch × notch is still unassessed.
+- Minimum remaining material between cuts is stage 2; it is still named in the list.
+- A cluster of three mutually overlapping boxes produces three findings, one per pair.
+- A box with non-finite geometry is skipped; no per-cut box validity check exists, so the gap is
+  named as `'Non-finite box cut geometry'` in the manufacturing unassessed list.
+
+## Test coverage
+
+- `src/scene/cutVolumes.test.ts` — the volume, the exporter minimum, non-finite geometry.
+- `src/scene/drillingIntersections.test.ts` — the non-finite-box regression for the shared builder.
+- `src/scene/cutIntersections.test.ts` — 21 tests: no-op cases, partial overlap, tolerance, thickness
+  separation in both orders, edge and corner contact, through-cuts, containment, identical repeats,
+  precedence, clusters, order, the non-finite skip, and the sub-tolerance overhang.
+- `src/scene/manufacturingChecks.test.ts` — operation provenance, targets, drilling-before-cut
+  ordering, independence from visibility/placement/material rates, the finding-free representative
+  fixtures, and the narrowed unassessed list.
+- `src/scene/productionReview.test.ts` — both codes advisory, classification sentence.
+- `src/scene/machiningSchedule.test.ts` — the narrowed unassessed list and the `depthMode` guard.
+- `src/ui/buildReadinessPdf.test.ts` — the new unassessed line in the PDF, and the old line's absence.
+
+## Verification
+
+Full suite on this Windows host, 2026-11-12:
+
+```bash
+NODE_OPTIONS=--no-experimental-webstorage pnpm vitest run --maxWorkers=4 --testTimeout=15000 --exclude server/catalogue/http.test.ts
+```
+
+**251 files, 4515 passed, 10 skipped.** `pnpm typecheck`, `pnpm lint` and `pnpm check:file-casing`
+all exit 0 (file-casing needs `C:\Program Files\Git\cmd` on `PATH`).
+
+Mutation testing — five mutations killed, one plan mutation found to be *equivalent*:
+
+| Mutation                                              | Observed failure                                                        |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- |
+| tolerance gate `<= tolerance` → `<= 0`                | `1e-7` contact reports a finding                                        |
+| containment bounds lose `± tolerance`                 | sub-tolerance overhang becomes an intersection (test added for this)    |
+| emit redundancy *and* intersection for a contained pair | contained pair yields two findings                                    |
+| attach intersections to the later cut                 | partial-overlap message/identity test fails                             |
+| remove both non-finite guards in `boxVolumeOf`        | `cutVolumes` and the drilling regression both fail                      |
+| `MIN_CUT_SIZE_MM` → `0`                               | `0.05`/`0.1` boxes stop being absent                                    |
+
+The plan's original "`<=` → `<` on one containment bound" survived because `200 < 200.000001` still
+holds — an equivalent mutation, not a gap in the test. It did reveal that no test pinned the
+sub-tolerance overhang the epsilon exists to allow, so `cutIntersections.test.ts` gained one case
+(20 → 21).
+
+## Behaviour change to record
+
+`boxVolumeOf` now rejects a non-finite position or size, where the local builder in
+`drillingIntersections` could treat an infinite-size box as covering everything. That box is no
+longer a drilling obstacle, so the old `drilling-redundant` finding for it disappears. The
+regression in `drillingIntersections.test.ts` pins this.
+
 ## Progress log
 
 ### Task 1 — Extract the box-volume builder
@@ -247,3 +331,32 @@ value. It is not imported from `drillingIntersections`, so the two modules stay 
   count update in the readiness dialog tests.
 - The PDF absence assertion is the important one: it proves the generated document no longer
   advertises a gap that stage 1 now covers (partly), rather than only that new text appears.
+
+### Task 9 — Full verification, notes, invariant and mutations
+
+**Commits:** `test: pin the sub-tolerance containment boundary` and
+`docs: record the cut-interference delivery`
+
+1. Full suite with the pinned host command: **251 files, 4514 passed, 10 skipped** before the
+   mutation step (baseline was 249 / 4484 / 10; the delta is the 30 new tests).
+   `pnpm typecheck`, `pnpm lint` and `pnpm check:file-casing` all exit 0 (Git on `PATH` for the
+   last one).
+2. Completed the delivery notes: What changed, Why advisory, Known limits, Test coverage,
+   Verification and Behaviour change. The progress log below is the per-task record.
+3. Added the `CLAUDE.md` invariant immediately after the joint-owned-cut invariant.
+4. Mutation testing: five mutations killed. The plan's containment `<=` → `<` mutation was
+   **equivalent** (`200 < 200.000001` is still true), so it survived for the right reason. The real
+   mutation — removing `± tolerance` from both containment bounds — exposed an unpinned guard: no
+   test covered a sub-tolerance overhang. Added
+   `treats a sub-tolerance overhang as contained` (both the overhang and underhang directions),
+   which the real mutation kills. `cutIntersections.test.ts` is therefore 21 tests, not 20.
+5. Re-ran the full suite after the added test: **251 files, 4515 passed, 10 skipped**.
+6. Ran `node scripts/update-structure-html.mjs`; it regenerated the trees and reported
+   `No RELEASE_TAG set — regenerated trees only, left version/date untouched`.
+7. Updated the plan's counts (21 instead of 20), its mutation table (the real mutations, not the
+   equivalent one) and its Task 9 step 2 wording (the notes are updated, not created, because they
+   were started in Task 1).
+
+**Recorded decision:** the extra test is a genuine coverage fix discovered by mutation testing, not
+a relaxed expectation. It is committed separately from the delivery docs so the history shows why it
+exists.
