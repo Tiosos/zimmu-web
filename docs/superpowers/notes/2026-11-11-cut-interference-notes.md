@@ -73,3 +73,25 @@ Removing the re-export would be a wider, unnecessary break in this task.
 
 **Check:** the widened `kind` is a superset of the old one, so every existing assignment stays
 valid; no cast was needed anywhere.
+
+### Task 3 — Create the cut-intersection module with its no-op cases
+
+**Commit:** `bd4f1cd feat: add the cut-intersection seam`
+
+1. Created `src/scene/cutIntersections.test.ts` with the shared `boardOf` / `box` / `hole` helpers
+   (same shapes as the drilling tests) and four no-op cases: only a hole array, a single box,
+   box × drilling (the drilling pass owns it), and round stock.
+2. Ran `pnpm vitest run src/scene/cutIntersections.test.ts` → 1 file failed, no tests:
+   `Failed to resolve import "./cutIntersections" from "src/scene/cutIntersections.test.ts"`.
+3. Created `src/scene/cutIntersections.ts` with the module comment, `CutIntersectionCode`,
+   `CutIntersectionIssue`, and `cutIntersections` returning `[]` (and `[]` immediately for
+   non-boards).
+4. Re-ran: 1 file, **4 passed**. `pnpm typecheck` exit 0; `pnpm lint` exit 0.
+
+**Decision:** the round-stock test passes the `ManufacturingRoundStock` record directly, not a
+`ManufacturingBoard` cast. The early `part.kind !== 'board'` guard is the behaviour under test, so
+the test deliberately exercises the union.
+
+**Note:** `cutIntersections` takes the finished `ManufacturingPart`, so no React, clock or world
+transform can reach it. The module has no import from `drillingChecks`, which keeps the schedule
+coupling impossible to reintroduce by accident.
