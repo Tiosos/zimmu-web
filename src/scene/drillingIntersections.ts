@@ -20,9 +20,8 @@ import type {
   ManufacturingRoundStock,
 } from './manufacturingPart'
 import { faceAxes } from './snapMath'
-import { MIN_CUT_SIZE_MM } from '../geom/cutLimits'
+import { boxVolumeOf } from './cutVolumes'
 import type {
-  BoxCut,
   DowelBoreAxial,
   DowelBoreTransverse,
   DowelNotch,
@@ -91,23 +90,6 @@ function rowDrillOf(board: ManufacturingBoard, row: HoleArrayCut): RowDrill {
     nominalDiameter: row.diameter,
     nominalDepth: row.depth,
   }
-}
-
-// A box cut removes [position, position + size]. A box with any size at or below the exporter's
-// minimum is absent: makeShape skips it, so the packet never manufactures it either.
-function boxVolumeOf(box: BoxCut): { min: Vec3; max: Vec3 } | null {
-  return box.size.x > MIN_CUT_SIZE_MM &&
-    box.size.y > MIN_CUT_SIZE_MM &&
-    box.size.z > MIN_CUT_SIZE_MM
-    ? {
-        min: box.position,
-        max: {
-          x: box.position.x + box.size.x,
-          y: box.position.y + box.size.y,
-          z: box.position.z + box.size.z,
-        },
-      }
-    : null
 }
 
 // Distance from a coordinate to a closed interval: 0 inside it, otherwise the nearest end.
