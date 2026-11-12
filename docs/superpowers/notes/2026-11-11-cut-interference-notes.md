@@ -125,3 +125,33 @@ coupling impossible to reintroduce by accident.
 
 **Kept from the plan:** the tolerance constant is local to this module and equal to the drilling
 value. It is not imported from `drillingIntersections`, so the two modules stay independent.
+
+### Task 5 — Report redundant box cuts
+
+**Commit:** `9dab687 feat: report redundant box cuts`
+
+1. Appended six tests: contained-on-the-inner-cut, identical-on-the-later-cut, `1e-7` identical,
+   containment ending exactly on the container face, a `1e-3` poke-out (must stay an intersection),
+   and a contained pair reported once as a redundancy.
+2. Red run: **20 tests, 5 failed, 15 passed**. The five failures were the five containment cases
+   reporting `cut-intersection-review`; the poke-out case already passed because it expects an
+   intersection.
+3. Added `containedBy(outer, inner)` with inclusive bounds at `1e-6`, and `redundantIssue(inner,
+   outer, 'inside' | 'repeat')` carrying the two message templates.
+4. Replaced the loop tail with the decision-25 order: identical → repeat on the later cut; first
+   inside second → redundancy on the first; second inside first → redundancy on the second;
+   otherwise an intersection on the earlier cut.
+5. Green: **20 passed**. `pnpm typecheck` exit 0, `pnpm lint` exit 0.
+
+**Precedence checks recorded**
+
+- The tolerance gate runs **before** containment, so a pair that touches on any axis is allowed,
+  never promoted to a redundancy. That order is what makes edge-touch and a face-flush containment
+  different questions.
+- `identical` is tested as "each contains the other" rather than by comparing positions and sizes,
+  so a `1e-7` size difference is still identical. The `1e-3` poke-out test is the counterpart: it
+  proves the inclusive bound is not simply accepting everything.
+- A contained pair emits exactly one finding; the "reported once" test guards against emitting both
+  a redundancy and an intersection for the same pair.
+- Attachment is the inner cut for containment and the later cut for a repeat, so `M<n>` references
+  and the operation identity point at the cut that removes nothing.
