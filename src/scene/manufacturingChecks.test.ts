@@ -48,6 +48,7 @@ describe('shared record manufacturing checks', () => {
       'Cut interactions involving bevelled edges or round-stock notches',
     )
     expect(before.unassessed).not.toContain('Non-finite box cut geometry')
+    expect(before.unassessed).toHaveLength(7)
     expect(before.unassessed).not.toContain(
       'Drilling intersections with bevelled edges (mitre and angled end cuts)',
     )

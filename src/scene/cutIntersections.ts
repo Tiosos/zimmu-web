@@ -1,8 +1,9 @@
-// Overlaps between non-drilling cuts on one board, in part-local millimetres. Drilling is handled
-// by drillingIntersections; this module answers only the question the schedule names: do two box
-// cuts claim the same material, and does one of them remove nothing at all? Both verdicts are
-// advisory because a housing that runs into another housing (or into a toe-kick notch) is ordinary
-// joinery, and the recorded geometry cannot tell that from a mistake.
+// Findings for non-drilling cuts on one board, in part-local millimetres. Drilling is handled by
+// drillingIntersections; this module answers three questions: do two box cuts claim the same
+// material, does one of them remove nothing at all, and can a cut describe a volume? All three are
+// advisory — a housing that runs into another housing (or into a toe-kick notch) is ordinary
+// joinery the recorded geometry cannot distinguish from a mistake, a redundant cut is wasteful but
+// harmless, and a non-finite cut is a record a designer is still editing.
 import type {
   ManufacturingOperationReference,
   ManufacturingPart,

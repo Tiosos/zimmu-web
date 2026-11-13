@@ -178,7 +178,7 @@ describe('production packet review', () => {
       counts: { needsCorrection: 2, advisory: 1 },
     })
   })
-  it('treats invalid, overlapping and redundant cuts as advisory', () => {
+  it('treats non-finite, overlapping and redundant cuts as advisory', () => {
     const input = inputOf()
     input.manufacturing.findings = [
       { reference: 'M1', code: 'cut-intersection-review', message: 'Overlap', targets: [] },
