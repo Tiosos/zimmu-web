@@ -116,7 +116,6 @@ export function manufacturingChecks(records: ManufacturingPart[]) {
     unassessed: [
       'Cut interactions involving bevelled edges or round-stock notches',
       'Drilling that breaks into a different part',
-      'Non-finite box cut geometry',
       'Minimum remaining material between cuts',
       'Manual machining geometry',
       'Machine operation compatibility',

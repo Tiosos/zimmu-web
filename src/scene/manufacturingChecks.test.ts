@@ -47,7 +47,7 @@ describe('shared record manufacturing checks', () => {
     expect(before.unassessed).toContain(
       'Cut interactions involving bevelled edges or round-stock notches',
     )
-    expect(before.unassessed).toContain('Non-finite box cut geometry')
+    expect(before.unassessed).not.toContain('Non-finite box cut geometry')
     expect(before.unassessed).not.toContain(
       'Drilling intersections with bevelled edges (mitre and angled end cuts)',
     )
@@ -262,6 +262,39 @@ describe('shared record manufacturing checks', () => {
       },
       targets: [{ id: board.id, label: board.label, cabinetId: null, parentId: null }],
     })
+  })
+
+  it('reports invalid box geometry with the cut operation and drops the unassessed gap', () => {
+    const scene = sceneOf()
+    const board = boardOf(scene)
+    board.cuts = [
+      {
+        kind: 'box',
+        id: 'broken',
+        label: 'Broken pocket',
+        face: '+Z',
+        position: { x: NaN, y: 100, z: 12 },
+        size: { x: 60, y: 200, z: 6 },
+        sourceJointId: 'joint-broken',
+      },
+    ]
+    const report = reportOf(scene)
+    expect(report.findings).toHaveLength(1)
+    expect(report.findings[0]).toMatchObject({
+      reference: 'M1',
+      code: 'cut-geometry-review',
+      message:
+        'Cut "Broken pocket" [broken]: has a non-finite position or size, so its removed volume is undefined; correct the geometry before machining.',
+      operation: {
+        id: 'broken',
+        label: 'Broken pocket',
+        kind: 'box',
+        sourceComponentId: null,
+        sourceJointId: 'joint-broken',
+      },
+      targets: [{ id: board.id, label: board.label, cabinetId: null, parentId: null }],
+    })
+    expect(report.unassessed).not.toContain('Non-finite box cut geometry')
   })
 
   it('appends cut findings after drilling findings for the same part', () => {

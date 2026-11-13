@@ -178,15 +178,18 @@ describe('production packet review', () => {
       counts: { needsCorrection: 2, advisory: 1 },
     })
   })
-  it('treats overlapping and redundant cuts as advisory', () => {
+  it('treats invalid, overlapping and redundant cuts as advisory', () => {
     const input = inputOf()
     input.manufacturing.findings = [
       { reference: 'M1', code: 'cut-intersection-review', message: 'Overlap', targets: [] },
       { reference: 'M2', code: 'cut-redundant-review', message: 'Redundant', targets: [] },
-      { reference: 'M3', code: 'cut-size', message: 'Invalid', targets: [] },
+      { reference: 'M3', code: 'cut-geometry-review', message: 'Invalid', targets: [] },
+      { reference: 'M4', code: 'cut-size', message: 'Invalid', targets: [] },
     ]
     const review = buildProductionReview(input)
-    expect(review.counts).toMatchObject({ needsCorrection: 1, advisory: 2 })
-    expect(review.classification).toContain('overlapping or redundant cuts')
+    expect(review.counts).toMatchObject({ needsCorrection: 1, advisory: 3 })
+    expect(review.classification).toContain(
+      'box cuts that are non-finite, overlapping or redundant',
+    )
   })
 })

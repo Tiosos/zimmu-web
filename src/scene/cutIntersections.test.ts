@@ -149,14 +149,65 @@ describe('cut intersections', () => {
     ])
   })
 
-  it('skips a non-finite box and still compares the finite boxes', () => {
+  it('reports a non-finite box and still compares the finite boxes', () => {
     const board = boardOf()
     board.cuts = [
-      box({ id: 'broken', position: { x: NaN, y: 100, z: 12 } }),
+      box({ id: 'broken', label: 'Broken pocket', position: { x: NaN, y: 100, z: 12 } }),
       box({ id: 'a' }),
       box({ id: 'b', position: { x: 130, y: 100, z: 12 } }),
     ]
-    expect(cutIntersections(board).map((i) => i.operation.id)).toEqual(['a'])
+    expect(cutIntersections(board)).toEqual([
+      {
+        code: 'cut-geometry-review',
+        message:
+          'Cut "Broken pocket" [broken]: has a non-finite position or size, so its removed volume is undefined; correct the geometry before machining.',
+        operation: {
+          id: 'broken',
+          label: 'Broken pocket',
+          kind: 'box',
+          sourceComponentId: null,
+          sourceJointId: null,
+        },
+      },
+      {
+        code: 'cut-intersection-review',
+        message:
+          'Cut "Shelf dado" [a]: shares removed material with cut "Shelf dado" [b]; verify this is intended.',
+        operation: {
+          id: 'a',
+          label: 'Shelf dado',
+          kind: 'box',
+          sourceComponentId: null,
+          sourceJointId: null,
+        },
+      },
+    ])
+  })
+
+  it('reports a non-finite size as invalid geometry', () => {
+    const board = boardOf()
+    board.cuts = [box({ id: 'broken', size: { x: Infinity, y: 200, z: 6 } })]
+    expect(cutIntersections(board).map((i) => [i.code, i.operation.id])).toEqual([
+      ['cut-geometry-review', 'broken'],
+    ])
+  })
+
+  it('reports each invalid box once in cut order', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'first', position: { x: NaN, y: 100, z: 12 } }),
+      box({ id: 'second', size: { x: 60, y: -Infinity, z: 6 } }),
+    ]
+    expect(cutIntersections(board).map((i) => i.operation.id)).toEqual(['first', 'second'])
+  })
+
+  it('leaves a sub-minimum box silent and out of the pair pass', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'rank', size: { x: 0.05, y: 200, z: 6 } }),
+      box({ id: 'ill', size: { x: 0.1, y: 200, z: 6 } }),
+    ]
+    expect(cutIntersections(board)).toEqual([])
   })
 
   it('reports a box that lies entirely inside another, on the contained cut', () => {

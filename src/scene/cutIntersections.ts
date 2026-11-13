@@ -7,10 +7,13 @@ import type {
   ManufacturingOperationReference,
   ManufacturingPart,
 } from './manufacturingPart'
-import { boxVolumeOf, type BoxVolume } from './cutVolumes'
+import { boxGeometryIsFinite, boxVolumeOf, type BoxVolume } from './cutVolumes'
 import type { BoxCut } from './types'
 
-export type CutIntersectionCode = 'cut-intersection-review' | 'cut-redundant-review'
+export type CutIntersectionCode =
+  | 'cut-intersection-review'
+  | 'cut-redundant-review'
+  | 'cut-geometry-review'
 export interface CutIntersectionIssue {
   code: CutIntersectionCode
   message: string
@@ -70,15 +73,24 @@ function redundantIssue(
   }
 }
 
+function geometryIssue(cut: BoxCut): CutIntersectionIssue {
+  return {
+    code: 'cut-geometry-review',
+    message: `Cut "${cut.label}" [${cut.id}]: has a non-finite position or size, so its removed volume is undefined; correct the geometry before machining.`,
+    operation: operationOf(cut),
+  }
+}
+
 export function cutIntersections(part: ManufacturingPart): CutIntersectionIssue[] {
   if (part.kind !== 'board') return []
   const boxes: { cut: BoxCut; volume: BoxVolume }[] = []
+  const issues: CutIntersectionIssue[] = []
   for (const cut of part.cuts) {
     if (cut.kind !== 'box') continue
     const volume = boxVolumeOf(cut)
     if (volume !== null) boxes.push({ cut, volume })
+    else if (!boxGeometryIsFinite(cut)) issues.push(geometryIssue(cut))
   }
-  const issues: CutIntersectionIssue[] = []
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
       const first = boxes[i]
