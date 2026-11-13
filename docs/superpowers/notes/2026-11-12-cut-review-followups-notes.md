@@ -91,3 +91,47 @@ an overlap on an earlier cut. Task 3's anchor sort replaces this. Do not ship at
 
 **Deviation recorded:** the plan's exact policy sentence was improved during review; the plan was
 updated to the delivered wording.
+
+### Task 3 — Overlap clusters and ordering
+
+**Commits:**
+
+- `8ff7368 feat: report an overlap cluster once`
+- `55918ad test: pin the cut finding ordering`
+- `f3f647a refactor: clarify cut-cluster membership and ordering`
+
+Plain box-cut intersections are grouped into connected components via union-find and emitted
+once per component at its first cut (the anchor), naming all other members in cut order:
+`Cut "<anchor>" [<anchorId>]: forms one connected group of overlapping cuts with "<other1>" [<id1>]... and "<otherN>" [<idN>]; verify this is intended.`.
+Two-cut isolated intersections continue to emit the existing pairwise message.
+
+Contained cuts (`cut-redundant-review` inside) and repeated cuts remain separate findings attached
+to the cut that removes no additional material. Containment joins cuts in the union-find component
+so connected chains through containment are preserved, while only plain pairs trigger cluster review.
+
+All findings (geometry, cluster, redundancy) are stably sorted by `anchor` (index in `part.cuts`),
+ensuring `M<n>` references and findings follow cut order across the part.
+
+**TDD evidence:**
+
+| File | Red | Green |
+| --- | --- | --- |
+| `cutIntersections.test.ts` | 6 failed / 24 passed (30) | 30 passed |
+
+**Verification:**
+`pnpm vitest run src/scene/cutVolumes.test.ts src/scene/cutIntersections.test.ts src/scene/drillingIntersections.test.ts src/scene/manufacturingChecks.test.ts src/scene/productionReview.test.ts src/scene/machiningSchedule.test.ts`
+→ 6 files, 108 tests passed.
+`pnpm typecheck` and `pnpm lint` exit 0.
+
+**Reviews:**
+
+- Spec compliance: ✅. Grouped reporting for plain overlaps, 2-cut pairwise wording preserved for
+  isolated pairs, multi-cut wording with natural language listing, contained cuts excluded from
+  clusters, anchor-based ordering.
+- Code quality: approved after clarifications and hardenings:
+  1. Header comment updated to document group clustering and cut-order sorting.
+  2. Redundant single-item branch in `clusterIssue` removed since it is only invoked when `others.length >= 2`.
+  3. Renamed `plain` to `plainPairs` with explicit comment on containment edges.
+  4. Pinned ascending cut-order anchor selection with defensive check on component lookup.
+  5. Added explicit ordering tests pinning late invalid cuts and same-anchor redundancy ties.
+
