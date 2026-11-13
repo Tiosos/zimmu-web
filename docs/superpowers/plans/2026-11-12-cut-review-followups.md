@@ -728,7 +728,7 @@ git commit -m "feat: report an overlap cluster once"
 - Modify: `README.md:45`
 - Modify: `docs/production-review.md:8`
 - Modify: `CLAUDE.md:379`
-- Create: `docs/superpowers/notes/2026-11-12-cut-review-followups-notes.md`
+- Modify: `docs/superpowers/notes/2026-11-12-cut-review-followups-notes.md` (started in Task 1)
 - Regenerate: `project-structure.html`
 
 - [ ] **Step 1: Update the README readiness paragraph**
@@ -761,9 +761,11 @@ Replace the existing box-cut invariant sentence with:
 - **Box cuts may meet on purpose; their overlap is advisory.** A back-panel groove runs into the bottom housing, a shelf housing runs into the toe-kick notch, and two joint housings meet at a corner. `sourceJointId` says which joint emitted a cut but not whether the meeting was intended, so `cutIntersections.ts` reviews every shared box volume (`cut-intersection-review`) instead of blocking it, attaches a wholly contained or repeated cut (`cut-redundant-review`) to the cut that removes nothing, reports a connected group of plain overlaps once at its first cut, and names a box whose position or size is non-finite as `cut-geometry-review` instead of skipping it in silence. The broad "interactions between cuts" gap is narrowed to bevelled edges and round-stock notches, not claimed covered; thin webs remain a separate check.
 ```
 
-- [ ] **Step 4: Write the delivery notes**
+- [ ] **Step 4: Complete the delivery notes**
 
-Create `docs/superpowers/notes/2026-11-12-cut-review-followups-notes.md`:
+Update `docs/superpowers/notes/2026-11-12-cut-review-followups-notes.md`, which was created in
+Task 1 so every task is recorded as it lands. Add the delivery sections above the progress log and
+append the Task 4 entry:
 
 ```markdown
 # Cut-review follow-ups — delivery notes
