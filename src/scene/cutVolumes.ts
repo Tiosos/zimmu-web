@@ -8,9 +8,9 @@ export interface BoxVolume {
 
 const isFiniteVec = (v: Vec3) => [v.x, v.y, v.z].every(Number.isFinite)
 
-// True when the record can describe a volume: every position and size component is finite. A box
-// that fails this is invalid — the record is wrong. A finite box at or below MIN_CUT_SIZE_MM is a
-// different thing: merely absent from the solid. Only the first is reported.
+// True when every position and size component is finite. A box that fails this is an invalid
+// record. A finite box at or below MIN_CUT_SIZE_MM is a different thing: valid geometry that is
+// merely absent from the solid. This predicate flags only the first.
 export function boxGeometryIsFinite(box: BoxCut): boolean {
   return isFiniteVec(box.position) && isFiniteVec(box.size)
 }
@@ -18,7 +18,8 @@ export function boxGeometryIsFinite(box: BoxCut): boolean {
 // A box cut removes [position, position + size]. A box with any size at or below the exporter's
 // minimum is absent from the solid: makeShape skips it. The machining schedule still lists the
 // definition, so "absent" means solid-absent, not packet-absent. A non-finite position or size
-// cannot describe a volume, so it is absent for the same reason; makeShape does not skip it.
+// cannot describe a volume either, so no volume is returned; that is a different case from a box
+// the exporter skips.
 export function boxVolumeOf(box: BoxCut): BoxVolume | null {
   if (!boxGeometryIsFinite(box)) return null
   const { x, y, z } = box.size
