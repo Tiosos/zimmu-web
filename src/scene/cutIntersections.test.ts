@@ -242,33 +242,44 @@ describe('cut intersections', () => {
     ])
   })
 
-  it('orders geometry, cluster and redundancy findings by cut', () => {
+  it('orders a late invalid cut after an earlier cluster', () => {
     const board = boardOf()
     board.cuts = [
+      box({ id: 'a', label: 'A' }),
+      box({ id: 'b', label: 'B', position: { x: 150, y: 100, z: 12 } }),
       box({ id: 'broken', label: 'Broken', position: { x: NaN, y: 100, z: 12 } }),
+    ]
+    expect(cutIntersections(board).map((i) => i.code)).toEqual([
+      'cut-intersection-review',
+      'cut-geometry-review',
+    ])
+  })
+
+  it('keeps a redundancy before a cluster at the same anchor', () => {
+    const board = boardOf()
+    board.cuts = [
       box({
-        id: 'outer',
-        label: 'Outer',
+        id: 'a',
+        label: 'A',
         position: { x: 0, y: 0, z: 0 },
-        size: { x: 200, y: 200, z: 18 },
-      }),
-      box({
-        id: 'poke',
-        label: 'Poke',
-        position: { x: 150, y: 0, z: 0 },
-        size: { x: 100, y: 200, z: 18 },
-      }),
-      box({
-        id: 'pocket',
-        label: 'Pocket',
-        position: { x: 20, y: 20, z: 0 },
         size: { x: 20, y: 20, z: 18 },
+      }),
+      box({
+        id: 'b',
+        label: 'B',
+        position: { x: 0, y: 0, z: 0 },
+        size: { x: 100, y: 100, z: 18 },
+      }),
+      box({
+        id: 'c',
+        label: 'C',
+        position: { x: 10, y: 0, z: 0 },
+        size: { x: 100, y: 20, z: 18 },
       }),
     ]
     expect(cutIntersections(board).map((i) => i.code)).toEqual([
-      'cut-geometry-review',
-      'cut-intersection-review',
       'cut-redundant-review',
+      'cut-intersection-review',
     ])
   })
 
