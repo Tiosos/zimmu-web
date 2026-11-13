@@ -4,8 +4,71 @@ Date: 2026-11-13
 Design: `docs/superpowers/specs/2026-11-12-cut-review-followups-design.md`
 Plan: `docs/superpowers/plans/2026-11-12-cut-review-followups.md`
 
-This file is written task by task as the plan is executed. The delivery sections (What changed,
-Why advisory, Known limits, Test coverage, Verification) are added in Task 4, above this log.
+## What changed
+
+`boxGeometryIsFinite` in `cutVolumes.ts` now distinguishes a record that cannot describe a volume
+(non-finite position or size) from a box that is merely absent from the solid (size at or below
+`MIN_CUT_SIZE_MM`). `boxVolumeOf` delegates to it, so the finiteness rule has one home.
+
+`cutIntersections.ts` reports the first case as `cut-geometry-review`, anchored on the cut, and
+excludes the box from the pair pass. It also unions the qualifying pairs into connected components:
+plain intersections are reported once per component at its first cut, naming every member; contained
+and repeated cuts stay one finding each. Every finding is sorted by the cut it is anchored on, so
+`M<n>` references follow cut order.
+
+`manufacturingChecks().unassessed` loses `'Non-finite box cut geometry'` (eight items to seven).
+`productionReview` classifies the new code as advisory and names non-finite, overlapping or redundant
+box cuts in its policy sentence. No schema or file-format change.
+
+## Why advisory
+
+A non-finite box is a defect, but the blocking `cut-size` code covers the part's cut envelope, and a
+designer meets this finding mid-edit. The finding names the part, cut and label, so the reviewer can
+act; promoting it to `needs-correction` is a one-line change if such cuts reach packets.
+
+Cluster de-duplication changes the count of a finding, not its meaning. It inherits the stage-1
+reasoning: the generator can emit legitimate meetings, so the verdict stays advisory.
+
+## Known limits
+
+- A box at or below `MIN_CUT_SIZE_MM` stays silent. It removes no solid material but is not a
+  record defect; reporting it would fire on legitimate rank and ill cuts.
+- A containment chain (A contains B contains C) still reports C twice, once inside A and once inside
+  B. Collapsing to the outermost container is a separate decision.
+- `drilling-overlap-review` remains pairwise per hole range; only box cuts are clustered.
+- Bevelled edges, round-stock notches and minimum remaining material remain unassessed. The last is
+  stage 2 of the cut-interference design and the next plan.
+
+## Test coverage
+
+- `cutVolumes.test.ts` — the validity predicate, including that a sub-minimum box is valid geometry.
+- `cutIntersections.test.ts` — invalid position and size, one finding per invalid box in cut order,
+  sub-minimum silence, three-cut cluster, four-cut chain, disjoint clusters, contained cuts kept
+  separate, mixed cluster, and anchor ordering.
+- `manufacturingChecks.test.ts` — the new code carries `M1`, the cut operation with joint provenance
+  and the board target; the unassessed list no longer names the gap.
+- `productionReview.test.ts` — `cut-geometry-review` is advisory and the policy sentence names it.
+
+## Verification
+
+Full suite on this Windows host, 2026-11-13:
+
+```bash
+NODE_OPTIONS=--no-experimental-webstorage pnpm vitest run --maxWorkers=4 --testTimeout=15000 --exclude server/catalogue/http.test.ts
+```
+
+**251 files, 4525 passed, 10 skipped.** `pnpm typecheck`, `pnpm lint` and `pnpm check:file-casing`
+all exit 0 (file-casing needs `C:\Program Files\Git\cmd` on `PATH`).
+
+Mutation testing:
+
+| Mutation | Observed failure |
+| --- | --- |
+| drop the geometry report | the invalid-box tests see no finding |
+| report an absent box as invalid | the sub-minimum silence test fails |
+| fold redundancies into the cluster | the contained-cuts test loses a finding |
+| anchor a cluster on its last member | cluster message and ordering tests fail |
+| remove the anchor sort | the ordering test returns pair order |
 
 ## Progress log
 
@@ -134,4 +197,12 @@ ensuring `M<n>` references and findings follow cut order across the part.
   3. Renamed `plain` to `plainPairs` with explicit comment on containment edges.
   4. Pinned ascending cut-order anchor selection with defensive check on component lookup.
   5. Added explicit ordering tests pinning late invalid cuts and same-anchor redundancy ties.
+
+### Task 4 — Documentation and verification
+
+**Commit:** `docs: record the cut-review follow-ups`
+
+README, `docs/production-review.md`, `CLAUDE.md`, these notes, the structure HTML and the full
+verification.
+
 
