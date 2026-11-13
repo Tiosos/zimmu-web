@@ -403,7 +403,7 @@ In `src/scene/productionReview.ts`, add the code to the advisory condition:
 Replace the policy sentence on line 229 with:
 
 ```ts
-      'Invalid manufacturing definitions, missing parts and output mismatches need correction. Labels, joinery reminders, angled insertion, repeated or meeting drilling, and box cuts that are non-finite, overlapping or redundant are advisory. Skipped checks, assessment limits and unverified installation are unassessed.',
+      'Invalid part, stock and cut-envelope definitions, missing parts and output mismatches need correction. Labels, joinery reminders, angled insertion, repeated or meeting drilling, and box cuts that are non-finite, overlapping or redundant are advisory. Skipped checks, assessment limits and unverified installation are unassessed.',
 ```
 
 - [ ] **Step 12: Run the three affected files**
@@ -745,12 +745,13 @@ remaining material, manual machining geometry and machine compatibility remain u
 
 - [ ] **Step 2: Update the review policy doc**
 
-In `docs/production-review.md`, replace the Advisory bullet with:
+In `docs/production-review.md`, scope the Needs correction bullet and extend the Advisory bullet
+the same way the code policy sentence is scoped, so a non-finite box cut is not called both a
+correction and an advisory:
 
 ```markdown
-- **Advisory:** empty/duplicate part labels, repeated or meeting drilling, joinery reminders, angled
-  shelf insertion, non-finite box-cut geometry, and overlapping or redundant cuts. IDs remain
-  authoritative; recorded joints do not certify geometry.
+- **Needs correction:** invalid part, stock and cut-envelope definitions, missing generated parts/shelves, and missing, duplicated or mismatched machining output facts.
+- **Advisory:** empty/duplicate part labels, repeated or meeting drilling, joinery reminders, angled shelf insertion, non-finite box-cut geometry, and overlapping or redundant cuts. IDs remain authoritative; recorded joints do not certify geometry.
 ```
 
 - [ ] **Step 3: Extend the `CLAUDE.md` invariant**
