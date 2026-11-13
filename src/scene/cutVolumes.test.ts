@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boxVolumeOf } from './cutVolumes'
+import { boxGeometryIsFinite, boxVolumeOf } from './cutVolumes'
 import type { BoxCut } from './types'
 
 const box = (overrides: Partial<BoxCut> = {}): BoxCut => ({
@@ -29,5 +29,13 @@ describe('box cut volumes', () => {
   it('treats a non-finite position or size as absent', () => {
     expect(boxVolumeOf(box({ position: { x: NaN, y: 20, z: 12 } }))).toBeNull()
     expect(boxVolumeOf(box({ size: { x: Infinity, y: 100, z: 6 } }))).toBeNull()
+  })
+
+  it('separates invalid geometry from an absent box', () => {
+    expect(boxGeometryIsFinite(box())).toBe(true)
+    expect(boxGeometryIsFinite(box({ position: { x: NaN, y: 20, z: 12 } }))).toBe(false)
+    expect(boxGeometryIsFinite(box({ size: { x: Infinity, y: 100, z: 6 } }))).toBe(false)
+    expect(boxGeometryIsFinite(box({ size: { x: -Infinity, y: 100, z: 6 } }))).toBe(false)
+    expect(boxGeometryIsFinite(box({ size: { x: 0.05, y: 100, z: 6 } }))).toBe(true)
   })
 })
