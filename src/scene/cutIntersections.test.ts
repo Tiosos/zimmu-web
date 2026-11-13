@@ -135,17 +135,140 @@ describe('cut intersections', () => {
     expect(cutIntersections(board)).toHaveLength(1)
   })
 
-  it('reports one finding per overlapping pair in input order', () => {
+  it('reports one finding for a three-cut cluster, at the first cut', () => {
     const board = boardOf()
     board.cuts = [
-      box({ id: 'a' }),
-      box({ id: 'b', position: { x: 150, y: 100, z: 12 } }),
-      box({ id: 'c', position: { x: 140, y: 100, z: 12 } }),
+      box({ id: 'a', label: 'A' }),
+      box({ id: 'b', label: 'B', position: { x: 150, y: 100, z: 12 } }),
+      box({ id: 'c', label: 'C', position: { x: 140, y: 100, z: 12 } }),
+    ]
+    expect(cutIntersections(board)).toEqual([
+      {
+        code: 'cut-intersection-review',
+        message:
+          'Cut "A" [a]: forms one connected group of overlapping cuts with "B" [b] and "C" [c]; verify this is intended.',
+        operation: {
+          id: 'a',
+          label: 'A',
+          kind: 'box',
+          sourceComponentId: null,
+          sourceJointId: null,
+        },
+      },
+    ])
+  })
+
+  it('reports a chain of four overlaps once, naming every member', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'a', label: 'A' }),
+      box({ id: 'b', label: 'B', position: { x: 150, y: 100, z: 12 } }),
+      box({ id: 'c', label: 'C', position: { x: 200, y: 100, z: 12 } }),
+      box({ id: 'd', label: 'D', position: { x: 250, y: 100, z: 12 } }),
     ]
     expect(cutIntersections(board).map((i) => i.message)).toEqual([
-      'Cut "Shelf dado" [a]: shares removed material with cut "Shelf dado" [b]; verify this is intended.',
-      'Cut "Shelf dado" [a]: shares removed material with cut "Shelf dado" [c]; verify this is intended.',
-      'Cut "Shelf dado" [b]: shares removed material with cut "Shelf dado" [c]; verify this is intended.',
+      'Cut "A" [a]: forms one connected group of overlapping cuts with "B" [b], "C" [c] and "D" [d]; verify this is intended.',
+    ])
+  })
+
+  it('reports two disjoint clusters separately', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'a1', label: 'A1' }),
+      box({ id: 'a2', label: 'A2', position: { x: 150, y: 100, z: 12 } }),
+      box({ id: 'a3', label: 'A3', position: { x: 140, y: 100, z: 12 } }),
+      box({ id: 'b1', label: 'B1', position: { x: 400, y: 100, z: 12 } }),
+      box({ id: 'b2', label: 'B2', position: { x: 450, y: 100, z: 12 } }),
+      box({ id: 'b3', label: 'B3', position: { x: 440, y: 100, z: 12 } }),
+    ]
+    expect(cutIntersections(board).map((i) => [i.operation.id, i.message])).toEqual([
+      [
+        'a1',
+        'Cut "A1" [a1]: forms one connected group of overlapping cuts with "A2" [a2] and "A3" [a3]; verify this is intended.',
+      ],
+      [
+        'b1',
+        'Cut "B1" [b1]: forms one connected group of overlapping cuts with "B2" [b2] and "B3" [b3]; verify this is intended.',
+      ],
+    ])
+  })
+
+  it('keeps contained cuts as separate redundancies', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'outer', position: { x: 0, y: 0, z: 0 }, size: { x: 200, y: 200, z: 18 } }),
+      box({ id: 'p1', position: { x: 20, y: 20, z: 0 }, size: { x: 20, y: 20, z: 18 } }),
+      box({ id: 'p2', position: { x: 120, y: 120, z: 0 }, size: { x: 20, y: 20, z: 18 } }),
+    ]
+    expect(cutIntersections(board).map((i) => [i.code, i.operation.id])).toEqual([
+      ['cut-redundant-review', 'p1'],
+      ['cut-redundant-review', 'p2'],
+    ])
+  })
+
+  it('reports a mixed cluster once and its redundancy separately, in cut order', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({
+        id: 'outer',
+        label: 'Outer',
+        position: { x: 0, y: 0, z: 0 },
+        size: { x: 200, y: 200, z: 18 },
+      }),
+      box({
+        id: 'pocket',
+        label: 'Pocket',
+        position: { x: 20, y: 20, z: 0 },
+        size: { x: 20, y: 20, z: 18 },
+      }),
+      box({
+        id: 'poke',
+        label: 'Poke',
+        position: { x: 150, y: 0, z: 0 },
+        size: { x: 100, y: 200, z: 18 },
+      }),
+    ]
+    expect(cutIntersections(board).map((i) => [i.code, i.operation.id, i.message])).toEqual([
+      [
+        'cut-intersection-review',
+        'outer',
+        'Cut "Outer" [outer]: forms one connected group of overlapping cuts with "Pocket" [pocket] and "Poke" [poke]; verify this is intended.',
+      ],
+      [
+        'cut-redundant-review',
+        'pocket',
+        'Cut "Pocket" [pocket]: lies entirely inside cut "Outer" [outer]; it removes no additional material.',
+      ],
+    ])
+  })
+
+  it('orders geometry, cluster and redundancy findings by cut', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ id: 'broken', label: 'Broken', position: { x: NaN, y: 100, z: 12 } }),
+      box({
+        id: 'outer',
+        label: 'Outer',
+        position: { x: 0, y: 0, z: 0 },
+        size: { x: 200, y: 200, z: 18 },
+      }),
+      box({
+        id: 'poke',
+        label: 'Poke',
+        position: { x: 150, y: 0, z: 0 },
+        size: { x: 100, y: 200, z: 18 },
+      }),
+      box({
+        id: 'pocket',
+        label: 'Pocket',
+        position: { x: 20, y: 20, z: 0 },
+        size: { x: 20, y: 20, z: 18 },
+      }),
+    ]
+    expect(cutIntersections(board).map((i) => i.code)).toEqual([
+      'cut-geometry-review',
+      'cut-intersection-review',
+      'cut-redundant-review',
     ])
   })
 

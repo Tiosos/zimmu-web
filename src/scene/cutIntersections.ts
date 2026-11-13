@@ -21,6 +21,11 @@ export interface CutIntersectionIssue {
   operation: ManufacturingOperationReference
 }
 
+interface AnchoredIssue {
+  anchor: number
+  issue: CutIntersectionIssue
+}
+
 const tolerance = 1e-6 // mm; the same boundary tolerance the drilling checks apply.
 const axes = ['x', 'y', 'z'] as const
 type Axis = (typeof axes)[number]
@@ -82,30 +87,87 @@ function geometryIssue(cut: BoxCut): CutIntersectionIssue {
   }
 }
 
+function findRoot(parent: number[], i: number): number {
+  while (parent[i] !== i) {
+    parent[i] = parent[parent[i]]
+    i = parent[i]
+  }
+  return i
+}
+
+function union(parent: number[], a: number, b: number): void {
+  const rootA = findRoot(parent, a)
+  const rootB = findRoot(parent, b)
+  if (rootA !== rootB) parent[rootB] = rootA
+}
+
+function clusterIssue(anchor: BoxCut, others: BoxCut[]): CutIntersectionIssue {
+  const names = others.map((cut) => `"${cut.label}" [${cut.id}]`)
+  const list =
+    names.length === 1
+      ? names[0]
+      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+  return {
+    code: 'cut-intersection-review',
+    message: `Cut "${anchor.label}" [${anchor.id}]: forms one connected group of overlapping cuts with ${list}; verify this is intended.`,
+    operation: operationOf(anchor),
+  }
+}
+
 export function cutIntersections(part: ManufacturingPart): CutIntersectionIssue[] {
   if (part.kind !== 'board') return []
-  const boxes: { cut: BoxCut; volume: BoxVolume }[] = []
-  const issues: CutIntersectionIssue[] = []
-  for (const cut of part.cuts) {
-    if (cut.kind !== 'box') continue
+  const boxes: { cut: BoxCut; volume: BoxVolume; at: number }[] = []
+  const anchored: AnchoredIssue[] = []
+  part.cuts.forEach((cut, at) => {
+    if (cut.kind !== 'box') return
     const volume = boxVolumeOf(cut)
-    if (volume !== null) boxes.push({ cut, volume })
-    else if (!boxGeometryIsFinite(cut)) issues.push(geometryIssue(cut))
-  }
+    if (volume !== null) boxes.push({ cut, volume, at })
+    else if (!boxGeometryIsFinite(cut)) anchored.push({ anchor: at, issue: geometryIssue(cut) })
+  })
+
+  const parent = boxes.map((_, i) => i)
+  const plain: [number, number][] = []
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
       const first = boxes[i]
       const second = boxes[j]
       if (axes.some((axis) => sharedExtent(first.volume, second.volume, axis) <= tolerance))
         continue
+      union(parent, i, j)
       const firstInSecond = containedBy(second.volume, first.volume)
       const secondInFirst = containedBy(first.volume, second.volume)
       if (firstInSecond && secondInFirst)
-        issues.push(redundantIssue(second.cut, first.cut, 'repeat'))
-      else if (firstInSecond) issues.push(redundantIssue(first.cut, second.cut, 'inside'))
-      else if (secondInFirst) issues.push(redundantIssue(second.cut, first.cut, 'inside'))
-      else issues.push(intersectionIssue(first.cut, second.cut))
+        anchored.push({
+          anchor: second.at,
+          issue: redundantIssue(second.cut, first.cut, 'repeat'),
+        })
+      else if (firstInSecond)
+        anchored.push({ anchor: first.at, issue: redundantIssue(first.cut, second.cut, 'inside') })
+      else if (secondInFirst)
+        anchored.push({ anchor: second.at, issue: redundantIssue(second.cut, first.cut, 'inside') })
+      else plain.push([i, j])
     }
   }
-  return issues
+
+  const components = new Map<number, number[]>()
+  for (let i = 0; i < boxes.length; i++) {
+    const root = findRoot(parent, i)
+    const members = components.get(root)
+    if (members) members.push(i)
+    else components.set(root, [i])
+  }
+  for (const root of new Set(plain.map(([i]) => findRoot(parent, i)))) {
+    const members = components.get(root)!
+    const anchor = boxes[members[0]]
+    const others = members.slice(1).map((i) => boxes[i].cut)
+    anchored.push({
+      anchor: anchor.at,
+      issue:
+        others.length === 1
+          ? intersectionIssue(anchor.cut, others[0])
+          : clusterIssue(anchor.cut, others),
+    })
+  }
+
+  return anchored.sort((a, b) => a.anchor - b.anchor).map((entry) => entry.issue)
 }
