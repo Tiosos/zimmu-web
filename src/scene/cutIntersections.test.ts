@@ -193,6 +193,36 @@ describe('cut intersections', () => {
     ])
   })
 
+  it('anchors a cluster on its first cut, not on the union root', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({
+        id: 'a',
+        label: 'A',
+        position: { x: 0, y: 0, z: 0 },
+        size: { x: 20, y: 20, z: 18 },
+      }),
+      box({
+        id: 'b',
+        label: 'B',
+        position: { x: 100, y: 0, z: 0 },
+        size: { x: 20, y: 20, z: 18 },
+      }),
+      box({
+        id: 'c',
+        label: 'C',
+        position: { x: 10, y: 0, z: 0 },
+        size: { x: 100, y: 20, z: 18 },
+      }),
+    ]
+    expect(cutIntersections(board).map((i) => [i.operation.id, i.message])).toEqual([
+      [
+        'a',
+        'Cut "A" [a]: forms one connected group of overlapping cuts with "B" [b] and "C" [c]; verify this is intended.',
+      ],
+    ])
+  })
+
   it('keeps contained cuts as separate redundancies', () => {
     const board = boardOf()
     board.cuts = [
@@ -255,6 +285,8 @@ describe('cut intersections', () => {
     ])
   })
 
+  // Both findings are already emitted in this order, so this pins the tie rule, not the sort;
+  // the mixed and late-invalid tests pin the sort itself.
   it('keeps a redundancy before a cluster at the same anchor', () => {
     const board = boardOf()
     board.cuts = [
