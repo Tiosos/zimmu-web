@@ -44,20 +44,21 @@ reasoning: the generator can emit legitimate meetings, so the verdict stays advi
 - `cutVolumes.test.ts` — the validity predicate, including that a sub-minimum box is valid geometry.
 - `cutIntersections.test.ts` — invalid position and size, one finding per invalid box in cut order,
   sub-minimum silence, three-cut cluster, four-cut chain, disjoint clusters, contained cuts kept
-  separate, mixed cluster, and anchor ordering.
+  separate, mixed cluster, anchor ordering, and a cluster anchored on its first cut when the
+  union-find root is a later member.
 - `manufacturingChecks.test.ts` — the new code carries `M1`, the cut operation with joint provenance
   and the board target; the unassessed list no longer names the gap.
 - `productionReview.test.ts` — `cut-geometry-review` is advisory and the policy sentence names it.
 
 ## Verification
 
-Full suite on this Windows host, 2026-11-13:
+Full suite on this Windows host, 2026-11-16 (after the cluster-anchor follow-up):
 
 ```bash
 NODE_OPTIONS=--no-experimental-webstorage pnpm vitest run --maxWorkers=4 --testTimeout=15000 --exclude server/catalogue/http.test.ts
 ```
 
-**251 files, 4525 passed, 10 skipped.** `pnpm typecheck`, `pnpm lint` and `pnpm check:file-casing`
+**251 files, 4527 passed, 10 skipped.** `pnpm typecheck`, `pnpm lint` and `pnpm check:file-casing`
 all exit 0 (file-casing needs `C:\Program Files\Git\cmd` on `PATH`).
 
 Mutation testing:
@@ -162,6 +163,7 @@ updated to the delivered wording.
 - `8ff7368 feat: report an overlap cluster once`
 - `55918ad test: pin the cut finding ordering`
 - `f3f647a refactor: clarify cut-cluster membership and ordering`
+- `27a6486 test: pin the cluster anchor to the first cut` (follow-up, after the review closed)
 
 Plain box-cut intersections are grouped into connected components via union-find and emitted
 once per component at its first cut (the anchor), naming all other members in cut order:
@@ -180,10 +182,11 @@ ensuring `M<n>` references and findings follow cut order across the part.
 | File | Red | Green |
 | --- | --- | --- |
 | `cutIntersections.test.ts` | 6 failed / 24 passed (30) | 30 passed |
+| `cutIntersections.test.ts` (anchor follow-up) | 1 failed / 30 skipped under the `boxes[root]` mutation | 31 passed |
 
 **Verification:**
 `pnpm vitest run src/scene/cutVolumes.test.ts src/scene/cutIntersections.test.ts src/scene/drillingIntersections.test.ts src/scene/manufacturingChecks.test.ts src/scene/productionReview.test.ts src/scene/machiningSchedule.test.ts`
-→ 6 files, 108 tests passed.
+→ 6 files, 109 tests passed.
 `pnpm typecheck` and `pnpm lint` exit 0.
 
 **Reviews:**
@@ -195,14 +198,26 @@ ensuring `M<n>` references and findings follow cut order across the part.
   1. Header comment updated to document group clustering and cut-order sorting.
   2. Redundant single-item branch in `clusterIssue` removed since it is only invoked when `others.length >= 2`.
   3. Renamed `plain` to `plainPairs` with explicit comment on containment edges.
-  4. Pinned ascending cut-order anchor selection with defensive check on component lookup.
+  4. Component lookup guarded instead of asserted, with a comment that members are built in ascending
+     cut order.
   5. Added explicit ordering tests pinning late invalid cuts and same-anchor redundancy ties.
+  6. One required finding was **not** closed when the task was first marked done: no test had the
+     union-find root differ from the component's first member, so `boxes[root]` would have passed
+     all 30 tests while anchoring on the wrong cut. `27a6486` adds that fixture (two pockets joined
+     by a later groove spanning both, root `1`, anchor `0`) and pins the message. The mutation
+     `boxes[findRoot(parent, members[0])]` fails it with `b` instead of `a`.
 
 ### Task 4 — Documentation and verification
 
-**Commit:** `docs: record the cut-review follow-ups`
+**Commit:** `b394907 docs: record the cut-review follow-ups`
 
-README, `docs/production-review.md`, `CLAUDE.md`, these notes, the structure HTML and the full
-verification.
+- `docs/production-review.md` — the Needs-correction bullet is scoped to "part, stock and cut-envelope
+  definitions" and the Advisory bullet names non-finite box-cut geometry, mirroring the code's policy
+  sentence so a non-finite cut is not both a correction and an advisory.
+- `README.md` — the readiness paragraph names the once-per-cluster report and the advisory non-finite
+  geometry, and removes non-finite geometry from the unassessed list.
+- `CLAUDE.md` — the box-cut invariant names cluster reporting and `cut-geometry-review`.
+- `project-structure.html` — regenerated from the tree.
+- Full suite, typecheck, lint and file-casing verified as recorded under Verification above.
 
 
