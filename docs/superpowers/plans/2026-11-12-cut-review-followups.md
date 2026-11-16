@@ -18,7 +18,7 @@
 - `pnpm check:file-casing` needs `C:\Program Files\Git\cmd` on `PATH`.
 - Branch: `fix/cut-review-followups`, created from `main` before Task 1.
 - Baseline before this plan: **251 test files, 4515 passed, 10 skipped**.
-- Expected after this plan: **251 test files, 4525 passed, 10 skipped**.
+- Expected after this plan: **251 test files, 4527 passed, 10 skipped**.
 - No file-format or schema version changes.
 
 ---
@@ -703,7 +703,7 @@ still pushes one redundancy, and only the remaining plain intersections join a c
 pnpm vitest run src/scene/cutIntersections.test.ts
 ```
 
-Expected: PASS — **29 tests**.
+Expected: PASS — **31 tests**.
 
 - [ ] **Step 6: Run the adjacent suites**
 
@@ -828,7 +828,7 @@ Full suite on this Windows host, 2026-11-13:
 NODE_OPTIONS=--no-experimental-webstorage pnpm vitest run --maxWorkers=4 --testTimeout=15000 --exclude server/catalogue/http.test.ts
 ```
 
-**251 files, 4525 passed, 10 skipped.** `pnpm typecheck`, `pnpm lint` and `pnpm check:file-casing`
+**251 files, 4527 passed, 10 skipped.** `pnpm typecheck`, `pnpm lint` and `pnpm check:file-casing`
 all exit 0 (file-casing needs `C:\Program Files\Git\cmd` on `PATH`).
 
 Mutation testing:
@@ -878,7 +878,7 @@ verification.
 $env:NODE_OPTIONS='--no-experimental-webstorage'; pnpm vitest run --maxWorkers=4 --testTimeout=15000 --exclude server/catalogue/http.test.ts
 ```
 
-Expected: **251 test files, 4525 passed, 10 skipped**. If a file count changed, a test file was
+Expected: **251 test files, 4527 passed, 10 skipped**. If a file count changed, a test file was
 created or deleted by mistake; this plan adds no test files.
 
 - [ ] **Step 6: Run typecheck, lint and file casing**
@@ -910,7 +910,8 @@ the predicate):
 | Report absent as invalid | change `else if (!boxGeometryIsFinite(cut))` to `else` | `leaves a sub-minimum box silent and out of the pair pass` |
 | Fold redundancies into clusters | replace the classification block (`const firstInSecond` through `else plain.push([i, j])`) with `plain.push([i, j])` | `keeps contained cuts as separate redundancies` |
 | Anchor on the last member | change `const anchor = boxes[members[0]]` to `boxes[members[members.length - 1]]` | `reports a mixed cluster once...` and the ordering test |
-| Remove the sort | return `anchored.map((entry) => entry.issue)` | `orders geometry, cluster and redundancy findings by cut` |
+| Anchor on the union root | change `const anchor = boxes[members[0]]` to `boxes[findRoot(parent, members[0])]` | `anchors a cluster on its first cut, not on the union root` |
+| Remove the sort | return `anchored.map((entry) => entry.issue)` | `orders a late invalid cut after an earlier cluster` |
 
 After the last mutation, restore both files and confirm:
 
@@ -919,7 +920,7 @@ Select-String -Path src/scene/cutIntersections.ts -Pattern 'anchored.sort|member
 pnpm vitest run src/scene/cutVolumes.test.ts src/scene/cutIntersections.test.ts
 ```
 
-Expected: the restored lines are present and **33 tests** pass (4 volume + 29 intersection).
+Expected: the restored lines are present and **35 tests** pass (4 volume + 31 intersection).
 
 - [ ] **Step 8: Regenerate the structure HTML**
 
