@@ -44,8 +44,11 @@ Strategic plan (historical): [`joinery_3d_software_plan.md`](joinery_3d_software
 ### Bill of Materials
 - Manufacturing readiness adds advisory shared-record checks for unresolved stock, invalid sheet/part/cut dimensions, thickness and edge stock, duplicate labels, and drilling sizes, rows and nominal-stock boundaries. Finite through-hole depths remain valid. Drilling findings retain part/cut IDs and component/joint ownership in the dialog, PDF and packet checks JSON, which is hashed in the manifest. Overlapping or redundant board box cuts are reviewed as advisory, and a connected group of overlaps
 is reported once at its first cut; a box cut with non-finite geometry is reported as advisory instead
-of being silently skipped. Cut interactions involving bevelled edges or round-stock notches, minimum
-remaining material, manual machining geometry and machine compatibility remain unassessed.
+of being silently skipped. Two cuts that leave less than `MIN_REMAINING_WEB_MM` (3 mm) of solid
+material between them are reported as advisory thin webs, for two boxes, a box and a drilling row,
+and two drilling rows alike. Cut interactions involving bevelled edges or round-stock notches,
+minimum remaining material on round stock, manual machining geometry and machine compatibility
+remain unassessed.
 - BOM, catalogue-update previews, sheet nesting and sheet part labels share transient manufacturing records: stable part/cabinet provenance, local and BOM dimensions, grain/edges, geometric cuts and separate manual instructions. Nesting uses board-local cut footprints, excludes invalid cut sizes with reasons, and retains part IDs. Sheet label details carry cabinet/part references and shared sizes. Prices remain separate; existing CSV schemas and saved-file format are preserved.
 - Three-tab BOM modal (`Ctrl+Shift+E`): **Boards**, **Hardware**, **Library**
 - Boards tab: grouped cutting list with per-material cost popover; CSV copy + download

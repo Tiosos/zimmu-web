@@ -2,10 +2,12 @@ import type { ManufacturingOperationReference, ManufacturingPart } from './manuf
 import { isNestable } from './manufacturingPart'
 import { drillingChecks, type DrillingCheckCode } from './drillingChecks'
 import { cutIntersections, type CutIntersectionCode } from './cutIntersections'
+import { cutWebs, type CutWebCode } from './cutWebs'
 
 export type ManufacturingCheckCode =
   | DrillingCheckCode
   | CutIntersectionCode
+  | CutWebCode
   | 'stock-unresolved'
   | 'stock-thickness'
   | 'stock-use'
@@ -52,6 +54,7 @@ export function manufacturingChecks(records: ManufacturingPart[]) {
   for (const p of records) {
     for (const issue of drillingChecks(p)) add(issue.code, issue.message, [p], issue.operation)
     for (const issue of cutIntersections(p)) add(issue.code, issue.message, [p], issue.operation)
+    for (const issue of cutWebs(p)) add(issue.code, issue.message, [p], issue.operation)
     const label = p.label.trim()
     if (!label) add('label-empty', 'Part label is empty; use the part ID to identify it.', [p])
     else {
@@ -116,7 +119,7 @@ export function manufacturingChecks(records: ManufacturingPart[]) {
     unassessed: [
       'Cut interactions involving bevelled edges or round-stock notches',
       'Drilling that breaks into a different part',
-      'Minimum remaining material between cuts',
+      'Minimum remaining material on round stock',
       'Manual machining geometry',
       'Machine operation compatibility',
       'Hardware suitability',

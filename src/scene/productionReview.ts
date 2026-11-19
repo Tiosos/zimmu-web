@@ -100,7 +100,8 @@ export function buildProductionReview(input: ProductionReviewInput) {
         f.code === 'drilling-overlap-review' ||
         f.code === 'cut-intersection-review' ||
         f.code === 'cut-redundant-review' ||
-        f.code === 'cut-geometry-review'
+        f.code === 'cut-geometry-review' ||
+        f.code === 'cut-web-review'
           ? 'advisory'
           : 'needs-correction',
       code: f.code,
@@ -227,7 +228,7 @@ export function buildProductionReview(input: ProductionReviewInput) {
     scope:
       'Manufacturing records, production readiness, machining reconciliation and shelf access, including hidden items. Counts are review items, not unique physical defects. Exports remain available. This summary is not fabrication approval; unassessed checks require separate review.',
     classification:
-      'Invalid part, stock and cut-envelope definitions, missing parts and output mismatches need correction. Labels, joinery reminders, angled insertion, repeated or meeting drilling, and box cuts that are non-finite, overlapping or redundant are advisory. Skipped checks, assessment limits and unverified installation are unassessed.',
+      'Invalid part, stock and cut-envelope definitions, missing parts and output mismatches need correction. Labels, joinery reminders, angled insertion, repeated or meeting drilling, and box cuts that are non-finite, overlapping, redundant or leave a thin web are advisory. Skipped checks, assessment limits and unverified installation are unassessed.',
     items,
   }
 }

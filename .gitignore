@@ -29,6 +29,12 @@ dist-ssr
 # Git worktrees used for isolated task branches
 .worktrees/
 
+# Serena MCP tool local data
+.serena/
+
+# WorkBuddy project data
+.workbuddy-ai/
+
 # Playwright
 test-results
 playwright-report

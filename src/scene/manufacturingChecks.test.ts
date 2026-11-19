@@ -298,6 +298,49 @@ describe('shared record manufacturing checks', () => {
     expect(report.unassessed).not.toContain('Non-finite box cut geometry')
   })
 
+  it('reports a thin web with the cut operation, the board target and the narrowed unassessed list', () => {
+    const scene = sceneOf()
+    const board = boardOf(scene)
+    board.cuts = [
+      {
+        kind: 'box',
+        id: 'shelf',
+        label: 'Shelf dado',
+        face: '+Z',
+        position: { x: 100, y: 100, z: 12 },
+        size: { x: 60, y: 200, z: 6 },
+        sourceJointId: 'joint-shelf',
+      },
+      {
+        kind: 'box',
+        id: 'bottom',
+        label: 'Bottom dado',
+        face: '+Z',
+        position: { x: 162, y: 100, z: 12 },
+        size: { x: 60, y: 200, z: 6 },
+      },
+    ]
+    const report = reportOf(scene)
+    expect(report.findings).toHaveLength(1)
+    expect(report.findings[0]).toMatchObject({
+      reference: 'M1',
+      code: 'cut-web-review',
+      message:
+        'Cut "Shelf dado" [shelf]: leaves a web of 2.00 mm with cut "Bottom dado" [bottom], thinner than the 3.00 mm minimum; verify this is intended.',
+      operation: {
+        id: 'shelf',
+        label: 'Shelf dado',
+        kind: 'box',
+        sourceComponentId: null,
+        sourceJointId: 'joint-shelf',
+      },
+      targets: [{ id: board.id, label: board.label, cabinetId: null, parentId: null }],
+    })
+    expect(report.unassessed).toContain('Minimum remaining material on round stock')
+    expect(report.unassessed).not.toContain('Minimum remaining material between cuts')
+    expect(report.unassessed).toHaveLength(7)
+  })
+
   it('appends cut findings after drilling findings for the same part', () => {
     const scene = sceneOf()
     const board = boardOf(scene)

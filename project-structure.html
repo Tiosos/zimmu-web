@@ -679,11 +679,15 @@
 │   ├── cutOwnership.ts
 │   ├── cutVolumes.test.ts
 │   ├── cutVolumes.ts
+│   ├── cutWebs.test.ts
+│   ├── cutWebs.ts
 │   ├── defaultJoint.ts
 │   ├── dragAnchor.test.ts
 │   ├── dragAnchor.ts
 │   ├── drawerBox.test.ts
 │   ├── drawerBox.ts
+│   ├── drillGeometry.test.ts
+│   ├── drillGeometry.ts
 │   ├── drillingChecks.test.ts
 │   ├── drillingChecks.ts
 │   ├── drillingIntersections.test.ts
@@ -1747,7 +1751,7 @@ vi.stubGlobal('Worker', vi.fn(function MockWorker() {}))
 import { useScene } from './useScene'</code></pre>
 
       <h3>Current test suite</h3>
-      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->244<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-10-23: 248 Vitest files running 4449 tests, and 46 Playwright specs in <code>e2e/</code> running 112 tests. CI is the authority on the current pass/skip counts.</p>
+      <p style="color:var(--muted);font-size:13px"><!-- AUTOGEN:test-file-count -->246<!-- /AUTOGEN:test-file-count --> co-located <code>*.test.ts</code> / <code>*.test.tsx</code> files under <code>src/</code>; live-OCCT specs skipped in Node. Measured 2026-10-23: 248 Vitest files running 4449 tests, and 46 Playwright specs in <code>e2e/</code> running 112 tests. CI is the authority on the current pass/skip counts.</p>
     </section>
 
     <!-- HOOKS -->
@@ -2020,7 +2024,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-23-wasm-delivery-notes.md
     │   ├── 2026-11-02-drilling-intersections-notes.md
     │   ├── 2026-11-11-cut-interference-notes.md
-    │   └── 2026-11-12-cut-review-followups-notes.md
+    │   ├── 2026-11-12-cut-review-followups-notes.md
+    │   └── 2026-11-14-minimum-remaining-material-notes.md
     ├── plans/
     │   ├── 2026-05-29-save-load.md
     │   ├── 2026-05-29-scene-model.md
@@ -2111,7 +2116,8 @@ import { useScene } from './useScene'</code></pre>
     │   ├── 2026-10-23-sloped-top.md
     │   ├── 2026-11-02-drilling-intersections.md
     │   ├── 2026-11-11-cut-interference.md
-    │   └── 2026-11-12-cut-review-followups.md
+    │   ├── 2026-11-12-cut-review-followups.md
+    │   └── 2026-11-14-minimum-remaining-material.md
     └── specs/
         ├── 2026-05-29-save-load-design.md
         ├── 2026-05-29-scene-model-design.md
@@ -2245,7 +2251,8 @@ import { useScene } from './useScene'</code></pre>
         ├── 2026-10-23-sloped-top-design.md
         ├── 2026-11-01-drilling-intersections-design.md
         ├── 2026-11-11-cut-interference-design.md
-        └── 2026-11-12-cut-review-followups-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
+        ├── 2026-11-12-cut-review-followups-design.md
+        └── 2026-11-14-minimum-remaining-material-design.md<!-- /AUTOGEN:docs-tree --></code></pre>
     </section>
 
     <!-- FILE FORMAT -->
