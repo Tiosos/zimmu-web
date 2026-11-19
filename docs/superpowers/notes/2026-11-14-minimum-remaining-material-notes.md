@@ -4,6 +4,85 @@ Date: 2026-11-14
 Design: `docs/superpowers/specs/2026-11-14-minimum-remaining-material-design.md`
 Plan: `docs/superpowers/plans/2026-11-14-minimum-remaining-material.md`
 
+## What changed
+
+`src/geom/cutLimits.ts` gains `MIN_REMAINING_WEB_MM = 3.0`.
+
+`src/scene/drillGeometry.ts` (new) owns the drill geometry both passes share: `RowDrill`,
+`rowDrillOf`, `holeSegment`, the bisection helpers, `candidateRange` (now with a `margin`) and
+`segmentDistance`, moved out of `drillingIntersections.ts`. `rowDrillOf` returns `null` for a row
+that cannot describe a lattice — a precondition, not a verdict; `drillingChecks` still reports which
+one failed.
+
+`src/scene/cutWebs.ts` (new) reports `cut-web-review` for two cuts on one board that leave less than
+the threshold between them. `manufacturingChecks` runs it after `cutIntersections`, so `M<n>`
+references stay in cut order, and `unassessed` narrows to `'Minimum remaining material on round
+stock'` (still seven items). `productionReview` classifies the code advisory and names thin webs in
+its policy sentence. No schema or file-format change.
+
+## Why advisory
+
+The model cannot know grain density, fastener length or screw gauge, and legitimate joinery puts
+features close together on purpose — a hinge cup beside a door groove, a runner pilot hole beside a
+bottom rebate. The finding names both cuts and the measured web so a reviewer can act; promoting it
+to `needs-correction` is a one-line change if thin webs reach packets.
+
+## Known limits
+
+- Round stock is unassessed; the unassessed item says so.
+- Bevelled edges (mitre and angled end cuts) are skipped entirely.
+- A pair whose closest approach is within 1e-6 mm is silent as a *pair*: one touching hole pair
+  suppresses the web verdict for the rest of that row pair. Per-hole yielding was rejected because
+  it reports two codes for one physical meeting.
+- The cylinder-to-capsule substitution under-reports by the end-cap geometry: a capsule contains the
+  cylinder, so the distance between two capsules is no greater than the distance between the two
+  solids, and the printed web is no thicker than the real one. The error is a fraction of a
+  millimetre and always in the conservative direction.
+- Box × drilling evaluates the two holes flanking the box, relying on web thickness being monotone
+  in the distance from it. A flanking hole that touches the box silences that side; its outward
+  neighbour would have to be within the same 3 mm for a web to be missed, which needs a pitch
+  smaller than about 6 mm.
+- Drilling × drilling is capped at `maxExactCandidates` per window; past the cap the window's first
+  pair is reported instead. Real cabinet drilling never reaches it.
+
+## Test coverage
+
+- `drillGeometry.test.ts` — the clipped axial interval (blind, through, negative face), the `null`
+  preconditions, `holeSegment` endpoints, and `segmentDistance`'s parallel, skew, perpendicular and
+  degenerate branches.
+- `cutWebs.test.ts` — box × box (thin, threshold boundary, touching, diagonal, truncation,
+  sub-minimum, non-finite), box × drilling (plane, axial, stock clamp, either order, meeting,
+  unbuildable row, a touching hole that must not silence its neighbour), drilling × drilling
+  (parallel, perpendicular, meeting, a meeting that must silence the whole pair, too far, own row,
+  huge row), ordering and operation provenance.
+- `manufacturingChecks.test.ts` — `cut-web-review` carries `M1`, the cut operation with joint
+  provenance and the board target; the unassessed list narrows.
+- `productionReview.test.ts` — the new code is advisory and the policy sentence names it.
+- `buildReadinessPdf.test.ts` — the new unassessed wording renders.
+
+## Verification
+
+Full suite on this Windows host, 2026-11-20: **253 files, 4559 passed, 10 skipped.**
+`pnpm typecheck`, `pnpm lint` and `pnpm check:file-casing` all exit 0.
+
+Mutation testing:
+
+| Mutation | Observed failure |
+| --- | --- |
+| round the web instead of truncating | the 2.999 mm display test |
+| drop the lower threshold gate | the touching-dados test |
+| drop the upper threshold gate | the at-threshold test |
+| measure one axis only | the diagonal test |
+| anchor on the later cut | the ordering test |
+| rebuild the axial interval from `row.depth` | the through-hole stock-clamp test |
+| evaluate only the left flank | the far-hole-beyond-a-touching-hole test |
+| drop the radius from the plane gap | the box × drilling plane test |
+| drop the axial term | the blind-hole-over-groove test |
+| compare centrelines, not surfaces | the parallel-rows test |
+| skip touching pairs instead of yielding the pair | the meeting-drives-the-minimum test |
+| forget the web margin in the window | the perpendicular-rows test |
+| enumerate the whole row | the huge-row test (times out) |
+
 ## Progress log
 
 ### Task 0 — Baseline
@@ -19,59 +98,29 @@ cannot describe a lattice, and `holeSegment(drill, k)` states a hole's finite ce
 `candidateRange` gained a `margin` parameter, defaulting to 0 so the intersection pass is unchanged.
 Commit: `refactor: share the drill geometry`.
 
-### Task 2 — Threshold and box × box webs
+### Task 2 — Threshold and box × box
 
-Added `MIN_REMAINING_WEB_MM = 3.0` to `src/geom/cutLimits.ts` and a new `src/scene/cutWebs.ts`
-that reports the solid material left between two box cuts on a board. Each axis contributes its
-gap (zero where the intervals overlap); the three compose as a Euclidean distance. A pair is
-reported only when its web is greater than the geometry `tolerance` (a closer pair is a meeting,
-already owned by the overlap passes) and less than the 3 mm minimum. The value is truncated to two
-decimals so a 2.999 mm web never reads as "3.00 mm … thinner than the 3.00 mm minimum". Findings
-anchor on the earlier cut, walked in (i, j) order, and are advisory only. Bevelled edges stay
-unassessed; boxes with non-finite geometry or at or below the exporter minimum are left to the
-geometry review. Eleven tests cover the gates, truncation, ordering and provenance; all five
-planned mutations (rounding, both gates, single-axis distance, later-cut anchor) were caught.
-Baseline after merge: 254 files, 4553 passed, 10 skipped.
-Commit: `feat: review the web between two box cuts`.
+`MIN_REMAINING_WEB_MM`; `cutWebs` with box × box, the two gates, the truncating formatter and
+anchor ordering. Commit: `feat: review the web between two box cuts`.
 
-### Task 3 — Box × drilling webs
+### Task 3 — Box × drilling
 
-`pairWeb` now takes the board and pairs a box with a hole row. `holeBoxWeb` composes the axial gap
-(clipped interval from `rowDrillOf`, never rebuilt from nominal depth) and the in-plane gap
-(centre-to-rectangle distance minus the radius) as a Euclidean distance. `flankingHoles` evaluates
-only the two holes bracketing the box on the run axis, clamped into the row, so a billion-hole row
-costs the same as five; `rowBoxWeb` takes the thinnest web over holes that do not touch, and a
-touching neighbour no longer suppresses a farther hole's web. The shared bisection and interval
-helpers come from `drillGeometry` — `intervalGap` is imported, not copied. Seven tests bring the
-suite to 18; all five planned mutations (nominal-depth rebuild, one flank, no radius, no axial term,
-per-pair instead of per-hole skip) were caught. Baseline: 254 files, 4560 passed, 10 skipped.
-Commit: `feat: review the web between a box cut and a drilling row`.
+`holeBoxWeb` composes the axial gap with the in-plane disc-to-rectangle gap; `flankingHoles` answers
+a row of any count in two evaluations. Commit: `feat: review the web between a box cut and a
+drilling row`.
 
-### Task 4 — Drilling × drilling webs
+### Task 4 — Drilling × drilling
 
-`pairWeb` now pairs two hole rows via `rowRowWeb`. `holeHoleWeb` measures the shortest distance
-between the two holes' clipped centrelines less the summed radii; treating flat-ended cylinders as
-capsules can only overstate the web slightly, never miss one. `rowRowWeb` bounds each row to a
-geometry-derived candidate window expanded by MIN_REMAINING_WEB_MM — never by `count` — and falls
-back to the window's first pair past `maxExactCandidates`, so a billion-hole row answers by
-arithmetic. Touching candidate pairs are measured too: any touch drives the minimum to 0 and yields
-the whole row pair to the drilling pass, since webs beside a crossing are a pitch artefact. The hole
-× hole branch sits before the box × drilling extraction in `pairWeb`, where a tail branch would be
-unreachable. Seven tests bring the suite to 25; all four planned mutations (surfaces vs centrelines,
-missing margin, per-hole instead of per-pair skip, full enumeration) were caught — the enumeration
-mutation needed both the window and the cap removed to be observable, confirming each guard is
-necessary. Baseline: 254 files, 4567 passed, 10 skipped.
-Commit: `feat: review the web between two drilling rows`.
+`holeHoleWeb` is the segment distance less both radii; `rowRowWeb` windows by `candidateRange` with
+the web margin and caps at `maxExactCandidates`. Commit: `feat: review the web between two drilling
+rows`.
 
-### Task 5 — Wiring into readiness, review and PDF
+### Task 5 — Readiness, review and PDF
 
-`manufacturingChecks` now runs `cutWebs` for every board and includes `CutWebCode` in
-`ManufacturingCheckCode`; the previously unassessed "Minimum remaining material between cuts" gap
-is replaced by "Minimum remaining material on round stock" (list stays at seven). `productionReview`
-classifies `cut-web-review` as advisory and its policy sentence now reads "...redundant or leave a
-thin web are advisory". The readiness PDF inherits the narrowed unassessed wording. An integration
-test pins the full finding (M1 reference, operation provenance, board target, narrowed list); the
-advisory test now includes a `cut-web-review` finding. Generated cabinet fixtures were confirmed
-finding-free — the 3 mm threshold does not trip on real projects. Baseline: 254 files, 4568 passed,
-10 skipped.
-Commit: `feat: report thin webs in manufacturing readiness`.
+Code added to `ManufacturingCheckCode`, run after `cutIntersections`, unassessed narrowed, advisory
+classification and policy sentence. Commit: `feat: report thin webs in manufacturing readiness`.
+
+### Task 6 — Documentation and verification
+
+README, `docs/production-review.md`, `CLAUDE.md`, these notes, the structure HTML, the full suite
+and the mutation table. Commit: `docs: record the minimum remaining material`.

@@ -5,7 +5,7 @@ Readiness combines manufacturing record checks, production readiness, machining 
 Classification:
 
 - **Needs correction:** invalid part, stock and cut-envelope definitions, missing generated parts/shelves, and missing, duplicated or mismatched machining output facts.
-- **Advisory:** empty/duplicate part labels, repeated or meeting drilling, joinery reminders, angled shelf insertion, non-finite box-cut geometry, and overlapping or redundant cuts. IDs remain authoritative; recorded joints do not certify geometry.
+- **Advisory:** empty/duplicate part labels, repeated or meeting drilling, joinery reminders, angled shelf insertion, non-finite box-cut geometry, overlapping or redundant cuts, and webs of solid material thinner than 3 mm between two non-touching cuts. IDs remain authoritative; recorded joints do not certify geometry.
 - **Unassessed:** source assessment limits, skipped checks, incomplete joinery scans, unverified shelf installation and cabinet shelf assessment issues. No assessed machining operations remains unassessed, never a passed check.
 
 `status` prioritizes `needs-correction`, then `review-required` when unassessed items remain, then `advisory-review`, otherwise `no-reported-findings`. None of these statuses approves fabrication or disables exports. The dialog groups findings by classification and shows at most 200 per category. PDF/JSON/manifest include every returned review item, but cannot recover checks skipped by source engines.
