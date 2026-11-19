@@ -46,3 +46,19 @@ helpers come from `drillGeometry` — `intervalGap` is imported, not copied. Sev
 suite to 18; all five planned mutations (nominal-depth rebuild, one flank, no radius, no axial term,
 per-pair instead of per-hole skip) were caught. Baseline: 254 files, 4560 passed, 10 skipped.
 Commit: `feat: review the web between a box cut and a drilling row`.
+
+### Task 4 — Drilling × drilling webs
+
+`pairWeb` now pairs two hole rows via `rowRowWeb`. `holeHoleWeb` measures the shortest distance
+between the two holes' clipped centrelines less the summed radii; treating flat-ended cylinders as
+capsules can only overstate the web slightly, never miss one. `rowRowWeb` bounds each row to a
+geometry-derived candidate window expanded by MIN_REMAINING_WEB_MM — never by `count` — and falls
+back to the window's first pair past `maxExactCandidates`, so a billion-hole row answers by
+arithmetic. Touching candidate pairs are measured too: any touch drives the minimum to 0 and yields
+the whole row pair to the drilling pass, since webs beside a crossing are a pitch artefact. The hole
+× hole branch sits before the box × drilling extraction in `pairWeb`, where a tail branch would be
+unreachable. Seven tests bring the suite to 25; all four planned mutations (surfaces vs centrelines,
+missing margin, per-hole instead of per-pair skip, full enumeration) were caught — the enumeration
+mutation needed both the window and the cap removed to be observable, confirming each guard is
+necessary. Baseline: 254 files, 4567 passed, 10 skipped.
+Commit: `feat: review the web between two drilling rows`.
