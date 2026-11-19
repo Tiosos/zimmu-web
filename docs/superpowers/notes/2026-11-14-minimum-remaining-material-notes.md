@@ -62,3 +62,16 @@ missing margin, per-hole instead of per-pair skip, full enumeration) were caught
 mutation needed both the window and the cap removed to be observable, confirming each guard is
 necessary. Baseline: 254 files, 4567 passed, 10 skipped.
 Commit: `feat: review the web between two drilling rows`.
+
+### Task 5 — Wiring into readiness, review and PDF
+
+`manufacturingChecks` now runs `cutWebs` for every board and includes `CutWebCode` in
+`ManufacturingCheckCode`; the previously unassessed "Minimum remaining material between cuts" gap
+is replaced by "Minimum remaining material on round stock" (list stays at seven). `productionReview`
+classifies `cut-web-review` as advisory and its policy sentence now reads "...redundant or leave a
+thin web are advisory". The readiness PDF inherits the narrowed unassessed wording. An integration
+test pins the full finding (M1 reference, operation provenance, board target, narrowed list); the
+advisory test now includes a `cut-web-review` finding. Generated cabinet fixtures were confirmed
+finding-free — the 3 mm threshold does not trip on real projects. Baseline: 254 files, 4568 passed,
+10 skipped.
+Commit: `feat: report thin webs in manufacturing readiness`.
