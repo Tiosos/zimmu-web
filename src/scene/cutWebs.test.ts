@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { cutWebs } from './cutWebs'
 import { manufacturingParts, type ManufacturingBoard } from './manufacturingPart'
 import { manufacturingProject } from './__fixtures__/manufacturingProject'
-import type { BoxCut, MitreCut } from './types'
+import type { BoxCut, HoleArrayCut, MitreCut } from './types'
 
 const boardOf = (): ManufacturingBoard => {
   const scene = manufacturingProject()
@@ -26,6 +26,20 @@ const box = (overrides: Partial<BoxCut> = {}): BoxCut => ({
 })
 const other = (overrides: Partial<BoxCut> = {}): BoxCut => ({
   ...box({ id: 'bottom', label: 'Bottom dado', position: { x: 162, y: 100, z: 12 } }),
+  ...overrides,
+})
+
+const hole = (overrides: Partial<HoleArrayCut> = {}): HoleArrayCut => ({
+  kind: 'hole-array',
+  id: 'row',
+  label: 'Shelf pins',
+  face: '+Z',
+  axis: 'U',
+  start: { x: 200, y: 380, z: 18 },
+  pitch: 32,
+  count: 5,
+  diameter: 5,
+  depth: 12,
   ...overrides,
 })
 
@@ -121,5 +135,80 @@ describe('cut webs', () => {
       sourceComponentId: 'component-a',
       sourceJointId: 'joint-a',
     })
+  })
+
+  it('reports a hole that leaves a 2 mm web beside a dado', () => {
+    const board = boardOf()
+    // The dado ends at x = 195.5; the first hole is centred at x = 200 with radius 2.5, so its wall
+    // is 2 mm from the dado's.
+    board.cuts = [box({ position: { x: 175.5, y: 350, z: 12 }, size: { x: 20, y: 60, z: 6 } }), hole()]
+    expect(messages(board)).toEqual([
+      'Cut "Shelf dado" [dado]: leaves a web of 2.00 mm with drilling "Shelf pins" [row], thinner than the 3.00 mm minimum; verify this is intended.',
+    ])
+  })
+
+  it('measures a blind hole against a shallow groove in depth', () => {
+    const board = boardOf()
+    // The hole is drilled 3 mm from the +Z face, so it occupies z [15, 18]; the groove stops at
+    // z = 12.5, leaving 2.5 mm of solid material between them.
+    board.cuts = [
+      box({ position: { x: 190, y: 350, z: 6.5 }, size: { x: 20, y: 60, z: 6 } }),
+      hole({ depth: 3 }),
+    ]
+    expect(messages(board)).toEqual([
+      'Cut "Shelf dado" [dado]: leaves a web of 2.50 mm with drilling "Shelf pins" [row], thinner than the 3.00 mm minimum; verify this is intended.',
+    ])
+  })
+
+  it('measures a through hole from the stock face, not from its nominal depth', () => {
+    const board = boardOf()
+    // 30 mm of travel on an 18 mm board stops at the back face. A box recorded beyond that face
+    // therefore leaves 1 mm, not the 12 mm an unclipped depth would claim (which would report a
+    // meeting and silence the pair entirely).
+    board.cuts = [
+      box({ position: { x: 190, y: 350, z: -5 }, size: { x: 20, y: 60, z: 4 } }),
+      hole({ depth: 30 }),
+    ]
+    expect(messages(board)).toEqual([
+      'Cut "Shelf dado" [dado]: leaves a web of 1.00 mm with drilling "Shelf pins" [row], thinner than the 3.00 mm minimum; verify this is intended.',
+    ])
+  })
+
+  it('names the drilling first when the row comes first', () => {
+    const board = boardOf()
+    board.cuts = [hole(), box({ position: { x: 175.5, y: 350, z: 12 }, size: { x: 20, y: 60, z: 6 } })]
+    expect(messages(board)).toEqual([
+      'Drilling "Shelf pins" [row]: leaves a web of 2.00 mm with cut "Shelf dado" [dado], thinner than the 3.00 mm minimum; verify this is intended.',
+    ])
+  })
+
+  it('is silent when the hole breaks into the dado, which the drilling pass owns', () => {
+    const board = boardOf()
+    board.cuts = [box({ position: { x: 190, y: 350, z: 12 }, size: { x: 20, y: 60, z: 6 } }), hole()]
+    expect(cutWebs(board)).toEqual([])
+  })
+
+  it('is silent for a row that cannot describe holes', () => {
+    const board = boardOf()
+    board.cuts = [
+      box({ position: { x: 175.5, y: 350, z: 12 }, size: { x: 20, y: 60, z: 6 } }),
+      hole({ diameter: 0 }),
+    ]
+    expect(cutWebs(board)).toEqual([])
+  })
+
+  it('still measures the hole beyond a hole that meets the box', () => {
+    const board = boardOf()
+    // The box occupies x [190, 210]. Hole 0 sits at x = 200, inside it; hole 1 sits at x = 214.5,
+    // so its wall is 214.5 - 210 - 2.5 = 2 mm from the box's. The pair must be reported even
+    // though its neighbour meets the box — the touching hole belongs to the drilling pass, but
+    // the far hole's web is this pass's, and yielding the whole pair would hide it.
+    board.cuts = [
+      box({ position: { x: 190, y: 350, z: 12 }, size: { x: 20, y: 60, z: 6 } }),
+      hole({ start: { x: 200, y: 380, z: 18 }, pitch: 14.5, count: 2 }),
+    ]
+    expect(messages(board)).toEqual([
+      'Cut "Shelf dado" [dado]: leaves a web of 2.00 mm with drilling "Shelf pins" [row], thinner than the 3.00 mm minimum; verify this is intended.',
+    ])
   })
 })

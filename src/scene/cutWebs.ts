@@ -7,11 +7,19 @@
 // this module reports only what is left between two volumes that do not meet.
 import { MIN_REMAINING_WEB_MM } from '../geom/cutLimits'
 import type {
+  ManufacturingBoard,
   ManufacturingOperationReference,
   ManufacturingPart,
 } from './manufacturingPart'
 import { boxVolumeOf, type BoxVolume } from './cutVolumes'
-import { tolerance } from './drillGeometry'
+import {
+  holeCentreAt,
+  intervalGap,
+  planeAxesOf,
+  rowDrillOf,
+  tolerance,
+  type RowDrill,
+} from './drillGeometry'
 import type { CutDef } from './types'
 
 export type CutWebCode = 'cut-web-review'
@@ -52,15 +60,70 @@ function boxBoxWeb(a: BoxVolume, b: BoxVolume): number {
   return Math.sqrt(total)
 }
 
+// The web one hole leaves with a box. The axial gap and the in-plane gap between the hole's disc
+// and the box's rectangle are independent — the cylinder and the box are both prisms on the same
+// axis — so they compose as a Euclidean distance. Both terms are zero where the volumes overlap,
+// which is the overlap passes' case, not this one.
+function holeBoxWeb(drill: RowDrill, k: number, box: BoxVolume): number {
+  const [u, v] = planeAxesOf(drill)
+  // The hole's axial interval is `[axialLo, axialHi]`, clipped to the stock by `rowDrillOf`. The
+  // box is either wholly below it or wholly above it, never both, so the larger of the two
+  // one-sided gaps is the interval-to-interval distance.
+  const axialGap = Math.max(
+    0,
+    drill.axialLo - box.max[drill.depth],
+    box.min[drill.depth] - drill.axialHi,
+  )
+  const gapU = intervalGap(holeCentreAt(drill, k, u), box.min[u], box.max[u])
+  const gapV = intervalGap(holeCentreAt(drill, k, v), box.min[v], box.max[v])
+  const planeGap = Math.max(0, Math.hypot(gapU, gapV) - drill.radius)
+  return Math.hypot(axialGap, planeGap)
+}
+
+// The two holes flanking a box along the row's run axis, clamped into the row. Web thickness is
+// monotone in the distance from the box — the axial and across terms do not move with the hole
+// index — so the nearest hole on each side is the thinnest web that side can leave, and two
+// evaluations answer the pair whatever the row's count. A row of a billion holes costs the same
+// as a row of five.
+function flankingHoles(drill: RowDrill, box: BoxVolume): number[] {
+  if (drill.count === 1) return [0]
+  const last = drill.count - 1
+  const clamp = (k: number) => Math.min(last, Math.max(0, k))
+  const lo = box.min[drill.run]
+  const hi = box.max[drill.run]
+  const left = clamp(Math.ceil((lo - drill.origin) / drill.pitch) - 1)
+  const right = clamp(Math.floor((hi - drill.origin) / drill.pitch) + 1)
+  return left === right ? [left] : [left, right]
+}
+
+// The thinnest web the row leaves with the box, over the holes that do not touch it, or null when
+// every candidate touches. A pair that touches is a meeting the drilling pass has already named.
+function rowBoxWeb(drill: RowDrill, box: BoxVolume): number | null {
+  let best: number | null = null
+  for (const k of flankingHoles(drill, box)) {
+    const web = holeBoxWeb(drill, k, box)
+    if (!(web > tolerance)) continue
+    best = best === null ? web : Math.min(best, web)
+  }
+  return best
+}
+
 // The web a pair leaves, or null when the pair is not this module's to report: a bevelled edge is
 // unassessed, a cut whose volume cannot be built is the geometry review's, and a box at or below
 // the exporter's minimum is absent from the solid.
-function pairWeb(first: CutDef, second: CutDef): number | null {
+function pairWeb(part: ManufacturingBoard, first: CutDef, second: CutDef): number | null {
   if (first.kind === 'mitre' || second.kind === 'mitre') return null
-  if (first.kind !== 'box' || second.kind !== 'box') return null
-  const a = boxVolumeOf(first)
-  const b = boxVolumeOf(second)
-  return a === null || b === null ? null : boxBoxWeb(a, b)
+  if (first.kind === 'box' && second.kind === 'box') {
+    const a = boxVolumeOf(first)
+    const b = boxVolumeOf(second)
+    return a === null || b === null ? null : boxBoxWeb(a, b)
+  }
+  const boxCut = first.kind === 'box' ? first : second.kind === 'box' ? second : null
+  const row = first.kind === 'hole-array' ? first : second.kind === 'hole-array' ? second : null
+  if (boxCut === null || row === null) return null
+  const volume = boxVolumeOf(boxCut)
+  const drill = rowDrillOf(part, row)
+  return volume === null || drill === null ? null : rowBoxWeb(drill, volume)
 }
 
 // Pairs are walked in (i, j) order and appended as they come, so the output is already ordered by
@@ -73,7 +136,7 @@ export function cutWebs(part: ManufacturingPart): CutWebIssue[] {
     for (let j = i + 1; j < cuts.length; j++) {
       const first = cuts[i]
       const second = cuts[j]
-      const web = pairWeb(first, second)
+      const web = pairWeb(part, first, second)
       // The lower gate is the tolerance, not zero: a pair closer than that is a meeting, and the
       // overlap passes have already reported it with a better message.
       if (web === null || !(web > tolerance && web < MIN_REMAINING_WEB_MM)) continue
