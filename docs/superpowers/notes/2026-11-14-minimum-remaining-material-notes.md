@@ -33,3 +33,16 @@ geometry review. Eleven tests cover the gates, truncation, ordering and provenan
 planned mutations (rounding, both gates, single-axis distance, later-cut anchor) were caught.
 Baseline after merge: 254 files, 4553 passed, 10 skipped.
 Commit: `feat: review the web between two box cuts`.
+
+### Task 3 — Box × drilling webs
+
+`pairWeb` now takes the board and pairs a box with a hole row. `holeBoxWeb` composes the axial gap
+(clipped interval from `rowDrillOf`, never rebuilt from nominal depth) and the in-plane gap
+(centre-to-rectangle distance minus the radius) as a Euclidean distance. `flankingHoles` evaluates
+only the two holes bracketing the box on the run axis, clamped into the row, so a billion-hole row
+costs the same as five; `rowBoxWeb` takes the thinnest web over holes that do not touch, and a
+touching neighbour no longer suppresses a farther hole's web. The shared bisection and interval
+helpers come from `drillGeometry` — `intervalGap` is imported, not copied. Seven tests bring the
+suite to 18; all five planned mutations (nominal-depth rebuild, one flank, no radius, no axial term,
+per-pair instead of per-hole skip) were caught. Baseline: 254 files, 4560 passed, 10 skipped.
+Commit: `feat: review the web between a box cut and a drilling row`.
