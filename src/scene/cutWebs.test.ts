@@ -211,4 +211,109 @@ describe('cut webs', () => {
       'Cut "Shelf dado" [dado]: leaves a web of 2.00 mm with drilling "Shelf pins" [row], thinner than the 3.00 mm minimum; verify this is intended.',
     ])
   })
+
+  it('reports two parallel rows that leave a 2 mm wall', () => {
+    const board = boardOf()
+    // Both rows run along x with radius 2.5 and their centres 7 mm apart across y, so the walls
+    // are 7 - 5 = 2 mm apart.
+    board.cuts = [hole(), hole({ id: 'row-b', label: 'Shelf pins B', start: { x: 200, y: 387, z: 18 } })]
+    expect(messages(board)).toEqual([
+      'Drilling "Shelf pins" [row]: leaves a web of 2.00 mm with drilling "Shelf pins B" [row-b], thinner than the 3.00 mm minimum; verify this is intended.',
+    ])
+  })
+
+  it('reports two perpendicular rows whose nearest holes are outside the summed radii', () => {
+    const board = boardOf()
+    // Row A's holes advance along x at y = 380 and are bored along z, so hole 4's centreline runs
+    // from (328, 380, 6) to (328, 380, 18). Row B is bored along y with 340 mm of travel from
+    // y = 720, so its axial interval is y [380, 720]; its single hole sits at x = 334, z = 10. The
+    // nearest points are (328, 380, 10) and (334, 380, 10) — 6 mm apart — so the walls are 1 mm
+    // apart.
+    //
+    // The pair is deliberately just outside the summed radii (5 mm) and just inside the web
+    // threshold (3 mm beyond it), which is the only place the `margin` argument to `candidateRange`
+    // decides the answer: with margin 0 the window around x = 334 is [329, 339] and hole 4 at
+    // x = 328 is not in it, so the pair is never examined and nothing is reported.
+    board.cuts = [
+      hole(),
+      hole({
+        id: 'fixing',
+        label: 'Fixing dowel',
+        face: '+Y',
+        axis: 'U',
+        start: { x: 334, y: 720, z: 10 },
+        pitch: 0,
+        count: 1,
+        depth: 340,
+      }),
+    ]
+    expect(messages(board)).toEqual([
+      'Drilling "Shelf pins" [row]: leaves a web of 1.00 mm with drilling "Fixing dowel" [fixing], thinner than the 3.00 mm minimum; verify this is intended.',
+    ])
+  })
+
+  it('is silent for two rows that meet, which the drilling pass owns', () => {
+    const board = boardOf()
+    board.cuts = [hole(), hole({ id: 'row-b', label: 'Shelf pins B', start: { x: 200, y: 385, z: 18 } })]
+    expect(cutWebs(board)).toEqual([])
+  })
+
+  it('yields the whole pair when one hole meets the other row', () => {
+    const board = boardOf()
+    // Row B is bored along y from y = 720 down to y = 380, so its centrelines reach row A's plane.
+    // Its hole 0 sits at x = 329, one millimetre from row A's hole 4 at x = 328: the two meet, and
+    // the drilling pass names that meeting. Its hole 1 sits at x = 334, six millimetres away, which
+    // leaves a 1 mm web. A per-*hole* rule would skip the touching pair and report the 1 mm; the
+    // per-pair rule collapses the whole pair to a meeting and reports nothing, because the 1 mm is
+    // a pitch artefact of the crossing rather than a design decision.
+    board.cuts = [
+      hole(),
+      hole({
+        id: 'fixing',
+        label: 'Fixing dowel',
+        face: '+Y',
+        axis: 'U',
+        start: { x: 329, y: 720, z: 10 },
+        pitch: 5,
+        count: 2,
+        depth: 340,
+      }),
+    ]
+    expect(cutWebs(board)).toEqual([])
+  })
+
+  it('is silent for rows that are further apart than the minimum', () => {
+    const board = boardOf()
+    board.cuts = [hole(), hole({ id: 'row-b', label: 'Shelf pins B', start: { x: 200, y: 400, z: 18 } })]
+    expect(cutWebs(board)).toEqual([])
+  })
+
+  it('never pairs a hole with the rest of its own row', () => {
+    const board = boardOf()
+    // Pitch 7 with diameter 5 leaves a 2 mm wall between adjacent holes — inside the threshold, so
+    // an implementation that expanded a row into one cut per hole would report it. A row is one
+    // cut and is paired only against other cuts; the walls between its own holes are
+    // `drilling-intersection`'s business (pitch against diameter), never a web.
+    board.cuts = [hole({ pitch: 7, count: 5 })]
+    expect(cutWebs(board)).toEqual([])
+  })
+
+  it('answers a huge row by arithmetic, not by enumerating it', () => {
+    const board = boardOf()
+    // Two parallel rows of a billion holes each, 7 mm apart across y. Every hole pair leaves a
+    // 2 mm web, and both candidate windows are a billion holes wide, so the cap is reached: the
+    // window's first pair is reported instead. Without the cap this test would enumerate 10^18
+    // pairs and never finish — which is what the mutation table's last row checks.
+    board.cuts = [
+      hole({ count: 1_000_000_000, pitch: 32, start: { x: 0, y: 380, z: 18 } }),
+      hole({
+        id: 'row-b',
+        label: 'Shelf pins B',
+        count: 1_000_000_000,
+        pitch: 32,
+        start: { x: 0, y: 387, z: 18 },
+      }),
+    ]
+    expect(cutWebs(board).map((i) => i.operation.id)).toEqual(['row'])
+  })
 })

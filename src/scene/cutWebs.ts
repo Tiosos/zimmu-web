@@ -13,10 +13,14 @@ import type {
 } from './manufacturingPart'
 import { boxVolumeOf, type BoxVolume } from './cutVolumes'
 import {
+  candidateRange,
   holeCentreAt,
+  holeSegment,
   intervalGap,
+  maxExactCandidates,
   planeAxesOf,
   rowDrillOf,
+  segmentDistance,
   tolerance,
   type RowDrill,
 } from './drillGeometry'
@@ -108,6 +112,40 @@ function rowBoxWeb(drill: RowDrill, box: BoxVolume): number | null {
   return best
 }
 
+// Two holes: the shortest distance between their centreline segments, less both radii. A cylinder
+// is not a capsule — its ends are flat discs — so the capsule distance is the smaller of the two.
+// The report may therefore be a fraction thicker than reality and never misses a web, which is the
+// right direction for an advisory verdict.
+function holeHoleWeb(a: RowDrill, ka: number, b: RowDrill, kb: number): number {
+  const [a0, a1] = holeSegment(a, ka)
+  const [b0, b1] = holeSegment(b, kb)
+  return Math.max(0, segmentDistance(a0, a1, b0, b1) - (a.radius + b.radius))
+}
+
+// The thinnest web two rows leave. The candidate windows are bounded by geometry on both sides —
+// never by `count` — and expanded by MIN_REMAINING_WEB_MM so a pair that is close but not touching
+// enters them. Past the cap the window's first pair is reported instead: conservative, and
+// unreachable by real cabinet drilling, where a window is hundreds of holes at millimetre spacing.
+//
+// Every candidate pair is measured, touching ones included. A pair that touches drives the minimum
+// to 0 and yields the whole row pair to the drilling pass, which has already named the meeting —
+// the webs beside a crossing are a pitch artefact, not a design decision. The 0 is returned as-is;
+// `cutWebs`'s single tolerance gate is what silences it, so there is no second gate here to drift
+// out of step with that one.
+function rowRowWeb(a: RowDrill, b: RowDrill): number | null {
+  const windowA = candidateRange(a, b, MIN_REMAINING_WEB_MM)
+  const windowB = candidateRange(b, a, MIN_REMAINING_WEB_MM)
+  if (windowA === null || windowB === null) return null
+  const [firstA, lastA] = windowA
+  const [firstB, lastB] = windowB
+  if (lastA - firstA + 1 > maxExactCandidates || lastB - firstB + 1 > maxExactCandidates)
+    return holeHoleWeb(a, firstA, b, firstB)
+  let best = Number.POSITIVE_INFINITY
+  for (let ka = firstA; ka <= lastA; ka++)
+    for (let kb = firstB; kb <= lastB; kb++) best = Math.min(best, holeHoleWeb(a, ka, b, kb))
+  return best
+}
+
 // The web a pair leaves, or null when the pair is not this module's to report: a bevelled edge is
 // unassessed, a cut whose volume cannot be built is the geometry review's, and a box at or below
 // the exporter's minimum is absent from the solid.
@@ -117,6 +155,11 @@ function pairWeb(part: ManufacturingBoard, first: CutDef, second: CutDef): numbe
     const a = boxVolumeOf(first)
     const b = boxVolumeOf(second)
     return a === null || b === null ? null : boxBoxWeb(a, b)
+  }
+  if (first.kind === 'hole-array' && second.kind === 'hole-array') {
+    const a = rowDrillOf(part, first)
+    const b = rowDrillOf(part, second)
+    return a === null || b === null ? null : rowRowWeb(a, b)
   }
   const boxCut = first.kind === 'box' ? first : second.kind === 'box' ? second : null
   const row = first.kind === 'hole-array' ? first : second.kind === 'hole-array' ? second : null
