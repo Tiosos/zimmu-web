@@ -24,7 +24,7 @@ describe('PerspectiveSwitcher (S1 shell)', () => {
     // S2: Cabinet Editor is implemented, so it is no longer labelled as planned.
     expect(screen.queryByRole('button', { name: /Cabinet Editor \(planned/ })).toBeNull()
     expect(screen.getByRole('button', { name: /Cabinet Editor/ })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Manufacturing \(planned/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Manufacturing \(coming in a later stage/ })).toBeTruthy()
   })
 })
 

@@ -86,8 +86,11 @@ export function ModelingToolbar({
           variant="outline"
           size="sm"
           className="h-6 text-[11px] px-2"
-          title="Add cabinet component"
-          aria-label="Add cabinet from toolbar"
+          // E2E helpers select the sidebar combobox with getByLabel('Add cabinet') and the File
+          // menu with name: /^New/. A toolbar label must avoid both patterns, so this is neither
+          // "Add cabinet" (substring match) nor a name starting with "New".
+          title="Insert carcase component"
+          aria-label="Insert carcase component"
           onClick={onAddCabinet}
         >
           + Cabinet
