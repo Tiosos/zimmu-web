@@ -21,7 +21,7 @@ describe('PerspectiveSwitcher (S1 shell)', () => {
     render(<PerspectiveSwitcher active="workbench" onChange={onChange} />)
     fireEvent.click(screen.getByRole('button', { name: /Manufacturing/ }))
     expect(onChange).toHaveBeenCalledWith('manufacture' as Perspective)
-    expect(screen.getByRole('button', { name: /Cabinet Editor \(planned/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Cabinet Editor \(coming in a later stage/ })).toBeTruthy()
   })
 })
 
