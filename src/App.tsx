@@ -12,6 +12,11 @@ import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { CabinetEditor, type CabinetTab } from './ui/CabinetEditor'
 import { FileMenu } from './ui/FileMenu'
+import { PerspectiveSwitcher, type Perspective } from './ui/PerspectiveSwitcher'
+import { ModelingToolbar } from './ui/ModelingToolbar'
+import { WorkbenchStatusBar } from './ui/WorkbenchStatusBar'
+import { PlannedPerspective } from './ui/PlannedPerspective'
+import { CabinetEditorWorkspace } from './ui/CabinetEditorWorkspace'
 import { ReleaseStatus } from './ui/ReleaseStatus'
 import { isReadable, type ProductionRelease } from './scene/releases'
 import { PlanView } from './ui/PlanView'
@@ -208,6 +213,11 @@ function App() {
 
   const [cabinetTab, setCabinetTab] = useState<CabinetTab>('section')
   const [mainView, setMainView] = useState<'model' | 'plan'>('model')
+  // Workbench shell (S1): top-level perspective. Only Workbench carries content in this stage;
+  // the other four render a clearly-labelled placeholder. Scoped state — no scene data involved.
+  const [perspective, setPerspective] = useState<Perspective>('workbench')
+  const [showGrid, setShowGrid] = useState(true)
+  const isWorkbench = perspective === 'workbench'
 
   // Only a cabinet gets a gizmo: an anchor lives on a carcase and nothing else has a placement to
   // edit. `selectedCarcase` is already the open-cabinet rule, so reusing it keeps one answer to
@@ -704,6 +714,47 @@ function App() {
 
   if (!fileReady) return null
 
+  // S2: one CabinetEditor element, reused by both the Workbench body and the dedicated Cabinet
+  // Editor perspective. Only one parent is visible at a time; the same element object in two
+  // positions becomes two independent React instances, so no state leaks between perspectives.
+  const cabinetEditorNode = selectedCarcase === null ? null : (
+    <CabinetEditor
+      onApplyMotionPreview={onApplyMotionPreview}
+      onApplyPullPreview={onApplyPullPreview}
+      onApplyFrontsPreview={onApplyFrontsPreview}
+      onApplyFinishingPreview={onApplyFinishingPreview}
+      onApplyCornerPreview={onApplyCornerPreview}
+      onApplyRunWorktopPreview={onApplyRunWorktopPreview}
+      onApplyWorktopMachiningPreview={onApplyWorktopMachiningPreview}
+      onApplyLayoutPreview={onApplyLayoutPreview}
+      onApplyAppliancePreview={onApplyAppliancePreview}
+      onApplyServicePreview={onApplyServicePreview}
+      onApplyMaterialsPreview={onApplyMaterialsPreview}
+      onApplyInteriorsPreview={onApplyInteriorsPreview}
+      onApplyRunFitPreview={onApplyRunFitPreview}
+      onApplyPlacementPreview={onApplyPlacementPreview}
+      library={library}
+      hardwareLibrary={hardwareLibrary}
+      scene={scene}
+      onApplyRulePreview={onApplyRulePreview}
+      key={selectedCarcase.id}
+      component={selectedCarcase}
+      materials={scene.materials}
+      tab={cabinetTab}
+      onTabChange={setCabinetTab}
+      selectedSectionId={selectedSectionId}
+      onSelectSection={onSelectSection}
+      onUpdate={(updater, historyLabel) =>
+        onUpdateComponent(selectedCarcase.id, updater, historyLabel)
+      }
+      parts={cabinetParts}
+      byId={componentMap}
+      selectedPartId={selection?.kind === 'part' ? selection.id : null}
+      onSelectPart={onSelectPart}
+      projectName={projectName}
+    />
+  )
+
   return (
     <div
       style={{
@@ -875,6 +926,33 @@ function App() {
         mainView={mainView}
         onMainViewChange={setMainView}
       />
+      <PerspectiveSwitcher
+        active={perspective}
+        onChange={setPerspective}
+        hintRight={
+          <span className="zim-hint">
+            <span className="zim-sdot green" aria-hidden="true" />
+            <span>
+              {perspective === 'workbench'
+                ? 'Model workspace'
+                : perspective === 'cabinet'
+                  ? '16-tab cabinet parameters'
+                  : `${perspective} — planned stage`}
+            </span>
+          </span>
+        }
+      />
+      {isWorkbench && (
+        <ModelingToolbar
+          activeMode={mode.activeMode}
+          onSetMode={mode.setMode}
+          onAddPart={() => onAdd('board')}
+          onAddCabinet={() => onAddComponent(null)}
+          onFrameAll={() => setFitRequest((n) => n + 1)}
+          showGrid={showGrid}
+          onToggleGrid={() => setShowGrid((v) => !v)}
+        />
+      )}
       <ReleaseStatus
         input={packetInputs}
         releases={releases}
@@ -906,6 +984,50 @@ function App() {
         />
       )}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {perspective === 'cabinet' ? (
+        selectedCarcase === null ? (
+          <section className="zim-cep-empty" aria-label="Cabinet editor — no cabinet selected">
+            <div>
+              <span aria-hidden="true">▦</span>
+              <h2>No cabinet selected</h2>
+              <p>
+                Select a cabinet in the Workbench, or add one, to open the sixteen-tab parametric
+                editor. The scene tree and 3D view remain in the Workbench perspective.
+              </p>
+              <button type="button" className="btn-accent" onClick={() => setPerspective('workbench')}>
+                Back to Workbench
+              </button>
+            </div>
+          </section>
+        ) : (
+          <CabinetEditorWorkspace
+            tab={cabinetTab}
+            onTabChange={setCabinetTab}
+            preview={{
+              cabinet: selectedCarcase,
+              parts: cabinetParts,
+              byId: componentMap,
+              materials: scene.materials,
+              selectedPartId: selection?.kind === 'part' ? selection.id : null,
+              onSelectPart,
+              selectedSectionId,
+              onSelectSection,
+            }}
+          >
+            {cabinetEditorNode}
+          </CabinetEditorWorkspace>
+        )
+      ) : !isWorkbench ? (
+        <PlannedPerspective perspective={perspective} />
+      ) : null}
+      <div
+        style={{
+          display: isWorkbench ? 'flex' : 'none',
+          flex: 1,
+          minWidth: 0,
+          minHeight: 0,
+        }}
+      >
         {/* Hidden, never unmounted. `viewport.tsx` builds its renderer, camera, controls and every
             mesh in a mount-once effect, so rendering the editor *instead of* it would tear all of
             that down on every selection and rebuild it on every trip to the 3D tab. A hidden canvas
@@ -1010,43 +1132,7 @@ function App() {
             warnings={cornerWarnings(scene.components, scene.materials)}
           />
         )}
-        {selectedCarcase !== null && mainView === 'model' && (
-          <CabinetEditor
-            onApplyMotionPreview={onApplyMotionPreview}
-            onApplyPullPreview={onApplyPullPreview}
-            onApplyFrontsPreview={onApplyFrontsPreview}
-            onApplyFinishingPreview={onApplyFinishingPreview}
-            onApplyCornerPreview={onApplyCornerPreview}
-            onApplyRunWorktopPreview={onApplyRunWorktopPreview}
-            onApplyWorktopMachiningPreview={onApplyWorktopMachiningPreview}
-            onApplyLayoutPreview={onApplyLayoutPreview}
-            onApplyAppliancePreview={onApplyAppliancePreview}
-            onApplyServicePreview={onApplyServicePreview}
-            onApplyMaterialsPreview={onApplyMaterialsPreview}
-            onApplyInteriorsPreview={onApplyInteriorsPreview}
-            onApplyRunFitPreview={onApplyRunFitPreview}
-            onApplyPlacementPreview={onApplyPlacementPreview}
-            library={library}
-            hardwareLibrary={hardwareLibrary}
-            scene={scene}
-            onApplyRulePreview={onApplyRulePreview}
-            key={selectedCarcase.id}
-            component={selectedCarcase}
-            materials={scene.materials}
-            tab={cabinetTab}
-            onTabChange={setCabinetTab}
-            selectedSectionId={selectedSectionId}
-            onSelectSection={onSelectSection}
-            onUpdate={(updater, historyLabel) =>
-              onUpdateComponent(selectedCarcase.id, updater, historyLabel)
-            }
-            parts={cabinetParts}
-            byId={componentMap}
-            selectedPartId={selection?.kind === 'part' ? selection.id : null}
-            onSelectPart={onSelectPart}
-            projectName={projectName}
-          />
-        )}
+        {mainView === 'model' && cabinetEditorNode}
         <Sidebar
           scene={scene}
           occtReady={occtReady}
@@ -1090,6 +1176,7 @@ function App() {
           onHoverSuggestion={setHoveredSuggestion}
           onHoverPair={setHoveredPair}
         />
+      </div>
       </div>
       <Suspense
         fallback={
@@ -1195,6 +1282,15 @@ function App() {
           />
         )}
       </Suspense>
+      {isWorkbench && (
+        <WorkbenchStatusBar
+          occtReady={occtReady}
+          partCount={scene.parts.length}
+          jointCount={scene.joints.length}
+          activeMode={mode.activeMode}
+          dirty={isDirty}
+        />
+      )}
     </div>
   )
 }
