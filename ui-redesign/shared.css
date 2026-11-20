@@ -1,0 +1,294 @@
+/* ============================================================================
+   Zimmu UI Redesign — Shared Design System
+   Dark professional tool aesthetic. Three layout paradigms share this system.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ---- Surfaces (cool neutral graphite with faint warm undertone) ---- */
+  --bg-0: hsl(222 10% 7%);    /* app background / deepest chrome */
+  --bg-1: hsl(222 9% 10%);    /* panel base */
+  --bg-2: hsl(222 8% 13%);    /* raised panel */
+  --bg-3: hsl(222 7% 17%);    /* hover / input */
+  --bg-4: hsl(222 6% 21%);    /* active / selected */
+  --bg-glass: hsl(222 10% 10% / 0.82);
+
+  /* ---- Lines ---- */
+  --line: hsl(222 6% 20%);
+  --line-soft: hsl(222 6% 16%);
+  --line-strong: hsl(222 6% 28%);
+
+  /* ---- Text ---- */
+  --fg-0: hsl(220 14% 95%);
+  --fg-1: hsl(220 10% 78%);
+  --fg-2: hsl(220 7% 58%);
+  --fg-3: hsl(220 6% 42%);
+
+  /* ---- Accents (overridden per concept) ---- */
+  --accent: hsl(28 88% 57%);        /* craft amber */
+  --accent-soft: hsl(28 88% 57% / 0.14);
+  --accent-line: hsl(28 88% 57% / 0.42);
+  --accent-ink: hsl(28 40% 10%);
+  --cyan: hsl(189 90% 56%);         /* precision / selection */
+  --cyan-soft: hsl(189 90% 56% / 0.13);
+  --green: hsl(152 62% 48%);
+  --amber: hsl(38 92% 56%);
+  --red: hsl(3 78% 60%);
+  --violet: hsl(258 80% 68%);
+
+  /* ---- Geometry ---- */
+  --r-sm: 4px;
+  --r: 7px;
+  --r-lg: 11px;
+  --shadow-1: 0 1px 2px hsl(0 0% 0% / 0.4);
+  --shadow-2: 0 8px 28px hsl(0 0% 0% / 0.45);
+  --shadow-3: 0 18px 60px hsl(0 0% 0% / 0.55);
+
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --fs-xs: 10px;
+  --fs-sm: 11px;
+  --fs-md: 12px;
+  --fs-lg: 14px;
+  --fs-xl: 17px;
+}
+
+/* Concept-specific accent shifts — same dark system, different character */
+.concept-a { --accent: hsl(28 88% 57%); --accent-soft: hsl(28 88% 57% / .14); --accent-line: hsl(28 88% 57% / .42); }
+.concept-b { --accent: hsl(189 90% 56%); --accent-soft: hsl(189 90% 56% / .13); --accent-line: hsl(189 90% 56% / .40); --cyan: hsl(28 88% 57%); }
+.concept-c { --accent: hsl(258 82% 68%); --accent-soft: hsl(258 82% 68% / .15); --accent-line: hsl(258 82% 68% / .42); }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg-0);
+  color: var(--fg-1);
+  font-family: var(--font);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: none; background: none; }
+button:disabled { opacity: .4; cursor: default; }
+::selection { background: var(--accent-soft); color: var(--fg-0); }
+
+/* Scrollbars */
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: hsl(222 6% 26%); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: hsl(222 6% 34%); background-clip: padding-box; }
+
+/* ---------------------------------------------------------------------------
+   Typography helpers
+   ------------------------------------------------------------------------- */
+.t-strong { color: var(--fg-0); font-weight: 600; }
+.t-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.t-muted { color: var(--fg-2); }
+.t-dim { color: var(--fg-3); }
+.t-xs { font-size: var(--fs-xs); }
+.t-sm { font-size: var(--fs-sm); }
+.uppercase { text-transform: uppercase; letter-spacing: .09em; }
+.tracking { letter-spacing: .04em; }
+
+/* ---------------------------------------------------------------------------
+   Buttons
+   ------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 28px; padding: 0 10px; border-radius: var(--r-sm);
+  background: var(--bg-3); color: var(--fg-1); font-size: var(--fs-md);
+  border: 1px solid var(--line); white-space: nowrap;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.btn:hover { background: var(--bg-4); color: var(--fg-0); }
+.btn.sm { height: 24px; padding: 0 8px; font-size: var(--fs-sm); }
+.btn.xs { height: 21px; padding: 0 7px; font-size: var(--fs-xs); }
+.btn.icon { width: 28px; padding: 0; }
+.btn.icon.sm { width: 24px; }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--bg-3); }
+.btn.accent { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.btn.accent:hover { filter: brightness(1.08); }
+.btn.outline { background: transparent; }
+.btn.outline:hover { border-color: var(--line-strong); }
+.btn.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.btn.danger:hover { background: hsl(3 78% 60% / .14); color: var(--red); border-color: hsl(3 78% 60% / .4); }
+.btn .ic { width: 14px; height: 14px; flex: none; }
+
+/* Segmented control */
+.segment { display: inline-flex; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 2px; gap: 2px; }
+.segment button { height: 24px; padding: 0 10px; border-radius: 3px; font-size: var(--fs-sm); color: var(--fg-2); }
+.segment button:hover { color: var(--fg-0); }
+.segment button.on { background: var(--bg-4); color: var(--fg-0); box-shadow: var(--shadow-1); }
+
+/* ---------------------------------------------------------------------------
+   Icons (inline svg stroke)
+   ------------------------------------------------------------------------- */
+.ic { display: inline-block; width: 16px; height: 16px; stroke: currentColor; stroke-width: 1.7; fill: none; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ic.fill { fill: currentColor; stroke: none; }
+
+/* ---------------------------------------------------------------------------
+   Inputs
+   ------------------------------------------------------------------------- */
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field > label { font-size: var(--fs-sm); color: var(--fg-2); font-weight: 500; }
+.input, .select {
+  height: 28px; width: 100%; background: var(--bg-1); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 0 8px; color: var(--fg-0); font-size: var(--fs-md);
+  outline: none; transition: border-color .12s, box-shadow .12s;
+}
+.input:focus, .select:focus { border-color: var(--accent-line); box-shadow: 0 0 0 2px var(--accent-soft); }
+.input.mono { font-family: var(--mono); font-size: var(--fs-sm); }
+.select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat: no-repeat; background-position: right 7px center; padding-right: 22px; }
+.checkbox { width: 14px; height: 14px; accent-color: var(--accent); }
+
+/* Dimension compound input (label + value + unit) */
+.dim { display: flex; align-items: center; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; height: 28px; }
+.dim:focus-within { border-color: var(--accent-line); box-shadow: 0 0 0 2px var(--accent-soft); }
+.dim .k { font-size: var(--fs-xs); color: var(--fg-3); padding: 0 6px; text-transform: uppercase; letter-spacing: .06em; border-right: 1px solid var(--line); align-self: stretch; display: flex; align-items: center; }
+.dim input { width: 100%; min-width: 0; background: none; border: none; outline: none; color: var(--fg-0); font-family: var(--mono); font-size: var(--fs-sm); padding: 0 7px; }
+.dim .u { font-size: var(--fs-xs); color: var(--fg-3); padding: 0 6px 0 2px; }
+
+/* ---------------------------------------------------------------------------
+   Badges / chips / kbd
+   ------------------------------------------------------------------------- */
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 7px; border-radius: 9px; font-size: var(--fs-xs); font-weight: 600; background: var(--bg-3); color: var(--fg-2); }
+.badge.green { background: hsl(152 62% 48% / .14); color: var(--green); }
+.badge.amber { background: hsl(38 92% 56% / .14); color: var(--amber); }
+.badge.red { background: hsl(3 78% 60% / .14); color: var(--red); }
+.badge.cyan { background: var(--cyan-soft); color: var(--cyan); }
+.badge.violet { background: hsl(258 82% 68% / .15); color: var(--violet); }
+.badge.dot::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+kbd { font-family: var(--mono); font-size: 10px; color: var(--fg-2); background: var(--bg-3); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; }
+
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--bg-2); border: 1px solid var(--line); font-size: var(--fs-sm); color: var(--fg-1); }
+.chip .swatch { width: 9px; height: 9px; border-radius: 2px; }
+
+/* ---------------------------------------------------------------------------
+   Panel primitives
+   ------------------------------------------------------------------------- */
+.panel { background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r); }
+.panel-head { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+.panel-head .ttl { font-size: var(--fs-md); font-weight: 600; color: var(--fg-0); }
+.panel-body { padding: 12px; }
+
+.section-title { display: flex; align-items: center; gap: 7px; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .1em; color: var(--fg-3); font-weight: 700; margin: 14px 0 8px; }
+.section-title::after { content: ''; flex: 1; height: 1px; background: var(--line-soft); }
+
+.divider { height: 1px; background: var(--line); margin: 10px 0; }
+
+/* ---------------------------------------------------------------------------
+   Tabs
+   ------------------------------------------------------------------------- */
+.tabs { display: flex; align-items: stretch; gap: 1px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { position: relative; padding: 0 12px; height: 34px; font-size: var(--fs-sm); color: var(--fg-2); white-space: nowrap; }
+.tabs button:hover { color: var(--fg-0); }
+.tabs button.on { color: var(--fg-0); font-weight: 600; }
+.tabs button.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; background: var(--accent); border-radius: 2px 2px 0 0; }
+.tabs.pill { border: none; gap: 3px; }
+.tabs.pill button { height: 26px; border-radius: var(--r-sm); }
+.tabs.pill button.on { background: var(--bg-3); }
+.tabs.pill button.on::after { display: none; }
+
+/* ---------------------------------------------------------------------------
+   Tree
+   ------------------------------------------------------------------------- */
+.tree-row { display: flex; align-items: center; gap: 6px; height: 27px; padding: 0 8px; border-radius: var(--r-sm); font-size: var(--fs-sm); color: var(--fg-1); user-select: none; cursor: default; }
+.tree-row:hover { background: var(--bg-2); }
+.tree-row.on { background: var(--accent-soft); color: var(--fg-0); }
+.tree-row.on .ic { color: var(--accent); }
+.tree-row .chev { width: 13px; height: 13px; color: var(--fg-3); flex: none; }
+.tree-row .ic { width: 14px; height: 14px; color: var(--fg-2); flex: none; }
+.tree-row .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-row .meta { font-size: var(--fs-xs); color: var(--fg-3); font-family: var(--mono); }
+.indent-1 { padding-left: 20px; }
+.indent-2 { padding-left: 34px; }
+.indent-3 { padding-left: 48px; }
+
+/* ---------------------------------------------------------------------------
+   Table / list rows
+   ------------------------------------------------------------------------- */
+.tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.tbl th { text-align: left; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .06em; color: var(--fg-3); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); color: var(--fg-1); }
+.tbl tr:hover td { background: var(--bg-2); }
+.tbl td.num, .tbl th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------------------
+   Tooltip
+   ------------------------------------------------------------------------- */
+[data-tip] { position: relative; }
+[data-tip]:hover::after { content: attr(data-tip); position: absolute; z-index: 999; pointer-events: none; background: hsl(222 12% 4%); color: var(--fg-0); border: 1px solid var(--line-strong); font-size: var(--fs-sm); padding: 5px 8px; border-radius: var(--r-sm); white-space: nowrap; box-shadow: var(--shadow-2); }
+[data-tip=""]:hover::after { display: none; }
+[data-tip].tip-b:hover::after { top: calc(100% + 6px); left: 50%; transform: translateX(-50%); }
+[data-tip].tip-r:hover::after { left: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
+
+/* ---------------------------------------------------------------------------
+   Viewport CAD chrome (shared by all concepts)
+   ------------------------------------------------------------------------- */
+.viewport { position: relative; width: 100%; height: 100%; overflow: hidden; background:
+  radial-gradient(120% 90% at 50% 8%, hsl(222 12% 15%) 0%, hsl(222 12% 9%) 55%, hsl(222 14% 6%) 100%); }
+.viewport canvas { display: block; }
+.vp-grid-label { position: absolute; color: var(--fg-3); font-family: var(--mono); font-size: 10px; }
+
+/* View cube */
+.viewcube { position: absolute; width: 74px; height: 74px; right: 18px; top: 16px; }
+.vp-controls { position: absolute; right: 18px; top: 100px; display: flex; flex-direction: column; gap: 6px; }
+.vp-compass { position: absolute; left: 18px; bottom: 18px; }
+.vp-scale { position: absolute; right: 18px; bottom: 16px; display: flex; align-items: center; gap: 8px; color: var(--fg-3); font-family: var(--mono); font-size: 10px; }
+.vp-scale .bar { width: 84px; height: 6px; border: 1px solid var(--fg-3); border-top: none; }
+
+/* Floating mode/status hint in viewport */
+.vp-hint { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; background: var(--bg-glass); backdrop-filter: blur(12px); border: 1px solid var(--line-strong); border-radius: 20px; padding: 6px 12px 6px 8px; font-size: var(--fs-sm); color: var(--fg-1); box-shadow: var(--shadow-2); }
+.vp-hint .pill { background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 10px; padding: 2px 8px; border-radius: 10px; letter-spacing: .04em; }
+
+/* ---------------------------------------------------------------------------
+   Modal
+   ------------------------------------------------------------------------- */
+.modal-scrim { position: fixed; inset: 0; background: hsl(222 20% 3% / .66); backdrop-filter: blur(3px); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.modal { width: min(940px, 96vw); max-height: 88vh; display: flex; flex-direction: column; background: var(--bg-1); border: 1px solid var(--line-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-3); overflow: hidden; }
+.modal-head { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 16px; border-bottom: 1px solid var(--line); flex: none; }
+.modal-head .ttl { font-size: var(--fs-lg); font-weight: 600; color: var(--fg-0); }
+.modal-head .sub { color: var(--fg-3); font-size: var(--fs-sm); }
+.modal-body { padding: 16px; overflow: auto; }
+.modal-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 52px; padding: 0 16px; border-top: 1px solid var(--line); flex: none; }
+
+/* ---------------------------------------------------------------------------
+   Progress / stepper / bars
+   ------------------------------------------------------------------------- */
+.progress { height: 5px; background: var(--bg-3); border-radius: 3px; overflow: hidden; }
+.progress > i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.meter-row { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); }
+
+/* Status dot */
+.sdot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.sdot.green { background: var(--green); box-shadow: 0 0 0 3px hsl(152 62% 48% / .15); }
+.sdot.amber { background: var(--amber); box-shadow: 0 0 0 3px hsl(38 92% 56% / .15); }
+.sdot.red { background: var(--red); box-shadow: 0 0 0 3px hsl(3 78% 60% / .15); }
+.sdot.cyan { background: var(--cyan); box-shadow: 0 0 0 3px var(--cyan-soft); }
+
+/* Color swatch palette */
+.swatch-row { display: flex; gap: 6px; }
+.swatch { width: 22px; height: 22px; border-radius: var(--r-sm); border: 2px solid transparent; cursor: pointer; }
+.swatch.on { border-color: var(--fg-0); box-shadow: 0 0 0 2px var(--bg-0); }
+
+/* Utility */
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.gap-4 { gap: 4px; } .gap-6 { gap: 6px; } .gap-8 { gap: 8px; } .gap-12 { gap: 12px; }
+.grow { flex: 1; } .between { justify-content: space-between; } .center { justify-content: center; }
+.wrap { flex-wrap: wrap; }
+.hidden { display: none !important; }
+.pointer { cursor: pointer; }
+.h-full { height: 100%; } .w-full { width: 100%; }
+.pad-12 { padding: 12px; } .pad-16 { padding: 16px; }
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* faint noise/grid texture used behind some canvases */
+.tech-bg { background-image: linear-gradient(var(--line-soft) 1px, transparent 1px), linear-gradient(90deg, var(--line-soft) 1px, transparent 1px); background-size: 22px 22px; }

@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zimmu · Concept A — Three-Column Workbench</title>
+<link rel="stylesheet" href="shared.css"><style>
+/* ============ CONCEPT A — REFINED DENSE WORKBENCH ============ */
+:root{ --a-hi:hsl(28 95% 64%); --a-lo:hsl(28 70% 42%); }
+.app{height:100vh;display:flex;flex-direction:column;background:var(--bg-0)}
+
+/* ---- top bar ---- */
+.topbar{height:42px;display:flex;align-items:center;gap:3px;padding:0 12px;background:linear-gradient(180deg,hsl(222 9% 12%),var(--bg-1));border-bottom:1px solid var(--line-strong);flex:none;box-shadow:0 1px 0 hsl(0 0% 0%/.3)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.16em;font-size:12px;color:var(--fg-0);padding-right:12px;margin-right:6px;border-right:1px solid var(--line)}
+.brand .logo{width:23px;height:23px;border-radius:6px;background:linear-gradient(140deg,var(--a-hi),var(--a-lo));display:grid;place-items:center;color:#1a1206;font-weight:800;font-size:12px;letter-spacing:0;box-shadow:0 0 0 1px hsl(28 90% 70%/.3),0 2px 6px hsl(0 0% 0%/.4)}
+.menubar{display:flex;gap:1px}
+.menubar>button{height:27px;padding:0 10px;font-size:var(--fs-md);color:var(--fg-1);border-radius:var(--r-sm)}
+.menubar>button:hover,.menubar>button.on{background:var(--bg-3);color:var(--fg-0)}
+.proj-title{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;min-width:0;color:var(--fg-1);font-size:var(--fs-md)}
+.proj-title .dot{color:var(--accent);font-size:9px}
+.proj-title .fn{color:var(--fg-3);font-size:var(--fs-sm)}
+.top-actions{display:flex;align-items:center;gap:5px}
+
+/* ---- VIEW SWITCHER (perspectives) ---- */
+.perspectives{height:36px;display:flex;align-items:center;gap:2px;padding:0 12px;background:var(--bg-0);border-bottom:1px solid var(--line);flex:none}
+.perspectives .lbl{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.1em;color:var(--fg-3);font-weight:700;margin-right:8px}
+.persp{height:27px;padding:0 12px;display:inline-flex;align-items:center;gap:7px;border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--fg-2);border:1px solid transparent;position:relative}
+.persp:hover{background:var(--bg-2);color:var(--fg-0)}
+.persp.on{background:linear-gradient(180deg,var(--accent-soft),hsl(28 88% 57%/.07));color:var(--accent);border-color:var(--accent-line);font-weight:600}
+.persp .ic{width:14px;height:14px}
+.persp .num{font-family:var(--mono);font-size:9px;opacity:.7}
+.perspectives .spacer{flex:1}
+.perspectives .hint{font-size:var(--fs-xs);color:var(--fg-3);display:flex;align-items:center;gap:6px}
+
+/* ---- toolbar ---- */
+.toolbar{height:38px;display:flex;align-items:center;gap:3px;padding:0 12px;background:var(--bg-1);border-bottom:1px solid var(--line);flex:none;overflow-x:auto;scrollbar-width:none}
+.toolbar::-webkit-scrollbar{display:none}
+.tool-group{display:flex;align-items:center;gap:2px;padding-right:9px;margin-right:7px;border-right:1px solid var(--line)}
+.tool-group:last-child{border:none}
+.tb{display:inline-flex;align-items:center;gap:5px;height:27px;padding:0 8px;border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--fg-1);border:1px solid transparent;white-space:nowrap;flex:none;transition:background .12s,color .12s}
+.tb span{white-space:nowrap}
+.tb:hover{background:var(--bg-3);color:var(--fg-0)}
+.tb.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+.tb-label{font-size:var(--fs-xs);color:var(--fg-3);text-transform:uppercase;letter-spacing:.08em;padding:0 6px;font-weight:600}
+
+/* ---- body / panels ---- */
+.body{display:flex;flex:1;min-height:0}
+.view{display:none;flex:1;min-height:0;min-width:0;flex-direction:column}
+.view.on{display:flex}
+.left{width:262px;flex:none;background:var(--bg-1);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.right{width:312px;flex:none;background:var(--bg-1);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.left-tabs{height:35px;display:flex;border-bottom:1px solid var(--line);flex:none}
+.left-tabs button{flex:1;font-size:var(--fs-sm);color:var(--fg-2);position:relative}
+.left-tabs button:hover{color:var(--fg-0)}
+.left-tabs button.on{color:var(--fg-0);font-weight:600}
+.left-tabs button.on::after{content:'';position:absolute;bottom:-1px;left:12%;right:12%;height:2px;background:var(--a-hi);border-radius:2px}
+.left-search{padding:8px 9px;position:relative;flex:none}
+.left-search .ic{position:absolute;left:17px;top:15px;width:13px;height:13px;color:var(--fg-3)}
+.left-search input{width:100%;height:28px;background:var(--bg-0);border:1px solid var(--line);border-radius:var(--r-sm);padding:0 8px 0 28px;font-size:var(--fs-sm);color:var(--fg-0);outline:none}
+.left-search input:focus{border-color:var(--accent-line);box-shadow:0 0 0 2px var(--accent-soft)}
+.tree{flex:1;overflow:auto;padding:4px 6px 14px}
+.tree-head{display:flex;align-items:center;gap:6px;height:25px;padding:0 6px;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.08em;color:var(--fg-3);font-weight:700;margin-top:9px}
+.tree-head .cnt{margin-left:auto;font-family:var(--mono);font-weight:500}
+.left-foot{flex:none;padding:8px;border-top:1px solid var(--line)}
+.add-cab{width:100%;height:28px;border:1px dashed var(--line-strong);border-radius:var(--r-sm);color:var(--fg-2);font-size:var(--fs-sm);display:flex;align-items:center;justify-content:center;gap:6px}
+.add-cab:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* center */
+.center{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;background:var(--bg-0)}
+.vp{flex:1;position:relative;min-height:0;overflow:hidden}
+.vp-overlay{position:absolute;inset:0;pointer-events:none}
+.vp-overlay>*{pointer-events:auto}
+.vp-toolbar{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:3px;background:var(--bg-glass);backdrop-filter:blur(14px);border:1px solid var(--line-strong);border-radius:9px;padding:4px;box-shadow:var(--shadow-2)}
+.vp-toolbar .tb{height:26px;padding:0 7px}
+.tabstrip{height:33px;display:flex;align-items:center;gap:3px;background:var(--bg-1);border-top:1px solid var(--line);padding:0 8px;flex:none}
+.tabstrip button{height:25px;padding:0 11px;font-size:var(--fs-sm);color:var(--fg-2);border-radius:var(--r-sm);display:inline-flex;align-items:center;gap:6px}
+.tabstrip button:hover{color:var(--fg-0);background:var(--bg-2)}
+.tabstrip button.on{background:var(--bg-3);color:var(--fg-0);box-shadow:inset 0 -2px 0 var(--a-hi)}
+.tabstrip .fill{flex:1}
+
+/* inspector */
+.insp-head{padding:11px 13px 9px;border-bottom:1px solid var(--line);flex:none;background:linear-gradient(180deg,var(--bg-2),var(--bg-1))}
+.insp-head .crumb{font-size:var(--fs-xs);color:var(--fg-3);margin-bottom:4px;display:flex;align-items:center;gap:5px}
+.insp-head .name{font-size:15px;font-weight:600;color:var(--fg-0);display:flex;align-items:center;gap:8px}
+.insp-tabs{flex:none;background:var(--bg-1)}
+.insp-body{flex:1;overflow:auto;padding:12px 13px}
+.insp-foot{flex:none;min-height:34px;border-top:1px solid var(--line);display:flex;align-items:center;gap:6px;padding:0 11px;font-size:var(--fs-xs);color:var(--fg-3)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.prop-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;font-size:var(--fs-sm);border-bottom:1px solid var(--line-soft)}
+.prop-row .k{color:var(--fg-2)} .prop-row .v{font-family:var(--mono);color:var(--fg-0)}
+.section-title{display:flex;align-items:center;gap:7px;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.1em;color:var(--fg-3);font-weight:700;margin:14px 0 8px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--line-soft)}
+.section-title:first-child{margin-top:0}
+.subcard{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 10px}
+
+/* status */
+.statusbar{height:26px;flex:none;display:flex;align-items:center;gap:15px;padding:0 11px;background:var(--bg-0);border-top:1px solid var(--line);font-size:var(--fs-xs);color:var(--fg-3);font-family:var(--mono)}
+.statusbar .s{display:flex;align-items:center;gap:5px}
+.statusbar .sp{flex:1}
+.statusbar kbd{font-size:9px;padding:0 4px}
+
+/* menu */
+.menufile{position:absolute;top:42px;left:62px;width:292px;background:var(--bg-2);border:1px solid var(--line-strong);border-radius:var(--r);box-shadow:var(--shadow-3);padding:5px;z-index:400}
+.menufile .mi{display:flex;align-items:center;gap:10px;height:28px;padding:0 9px;border-radius:var(--r-sm);font-size:var(--fs-md);color:var(--fg-1)}
+.menufile .mi:hover{background:var(--accent-soft);color:var(--fg-0)}
+.menufile .mi .k{margin-left:auto;color:var(--fg-3);font-family:var(--mono);font-size:10px}
+.menufile .sep{height:1px;background:var(--line);margin:4px 6px}
+
+/* plan / section / unfold canvases */
+.plan-wrap{position:absolute;inset:0;background:radial-gradient(100% 100% at 50% 0%,hsl(222 14% 12%),hsl(222 16% 7%))}
+.plan-tools{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:4px;z-index:3}
+.canvas-note{position:absolute;left:14px;bottom:14px;font-size:var(--fs-xs);color:var(--fg-3);font-family:var(--mono)}
+
+/* ============ VIEW 2: CABINET EDITOR ============ */
+.ce-head{height:40px;display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--bg-1);border-bottom:1px solid var(--line);flex:none}
+.ce-head .ttl{font-size:var(--fs-lg);font-weight:600;color:var(--fg-0)}
+.ce-head .badge{margin-left:4px}
+.ce-body{display:flex;flex:1;min-height:0}
+.ce-nav{width:206px;flex:none;background:var(--bg-1);border-right:1px solid var(--line);overflow:auto;padding:8px 6px}
+.ce-nav .grp{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.1em;color:var(--fg-3);font-weight:700;padding:12px 8px 6px}
+.ce-nav button{display:flex;align-items:center;gap:8px;width:100%;height:29px;padding:0 9px;border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--fg-2);text-align:left}
+.ce-nav button:hover{background:var(--bg-2);color:var(--fg-0)}
+.ce-nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.ce-nav button .ic{width:14px;height:14px}
+.ce-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.ce-tabs{height:38px;display:flex;align-items:stretch;gap:1px;border-bottom:1px solid var(--line);background:var(--bg-1);overflow-x:auto;flex:none;scrollbar-width:none;padding:0 6px}
+.ce-tabs::-webkit-scrollbar{display:none}
+.ce-tabs button{padding:0 12px;font-size:var(--fs-sm);color:var(--fg-2);white-space:nowrap;position:relative}
+.ce-tabs button:hover{color:var(--fg-0)}
+.ce-tabs button.on{color:var(--fg-0);font-weight:600}
+.ce-tabs button.on::after{content:'';position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--a-hi)}
+.ce-content{display:flex;flex:1;min-height:0}
+.ce-controls{width:378px;flex:none;overflow:auto;padding:14px;border-right:1px solid var(--line);background:var(--bg-1)}
+.ce-preview{flex:1;min-width:0;position:relative;background:radial-gradient(120% 90% at 50% 8%,hsl(222 13% 14%),hsl(222 14% 7%))}
+.ce-preview .pv-label{position:absolute;left:14px;top:12px;font-size:var(--fs-xs);color:var(--fg-3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em}
+.ce-preview .pv-foot{position:absolute;left:14px;bottom:12px;display:flex;gap:6px}
+.ce-foot{height:34px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--line);background:var(--bg-1);font-size:var(--fs-xs);color:var(--fg-3)}
+
+/* dimension builder */
+.dim-row{display:flex;align-items:center;gap:6px;margin-bottom:7px}
+.dim-row label{width:78px;flex:none;font-size:var(--fs-sm);color:var(--fg-2)}
+.seg-mini{display:inline-flex;background:var(--bg-0);border:1px solid var(--line);border-radius:4px;padding:2px}
+.seg-mini button{height:21px;padding:0 8px;font-size:var(--fs-xs);color:var(--fg-2);border-radius:3px}
+.seg-mini button.on{background:var(--bg-4);color:var(--fg-0)}
+.switch{position:relative;width:30px;height:17px;border-radius:9px;background:var(--bg-4);cursor:pointer;transition:background .15s;flex:none}
+.switch::after{content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--fg-2);transition:transform .15s,background .15s}
+.switch.on{background:var(--accent)}
+.switch.on::after{transform:translateX(13px);background:var(--accent-ink)}
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.opt{display:flex;align-items:center;gap:8px;padding:8px 9px;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);cursor:pointer;font-size:var(--fs-sm);color:var(--fg-1)}
+.opt:hover{border-color:var(--line-strong)}
+.opt.on{border-color:var(--accent-line);background:var(--accent-soft);color:var(--fg-0)}
+.opt .ic{width:15px;height:15px;color:var(--fg-3)}
+.opt.on .ic{color:var(--accent)}
+.opt .t{display:flex;flex-direction:column;line-height:1.3}
+.opt .t small{font-size:9px;color:var(--fg-3)}
+.parts-mini{display:flex;flex-direction:column;gap:3px}
+.part-mini{display:flex;align-items:center;gap:7px;padding:6px 8px;background:var(--bg-2);border:1px solid var(--line-soft);border-radius:4px;font-size:var(--fs-sm)}
+.part-mini .ic{width:13px;height:13px;color:var(--fg-3)}
+.part-mini .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg-1)}
+.part-mini .dm{font-family:var(--mono);font-size:10px;color:var(--fg-3)}
+
+/* ============ VIEW 3: VIEWPORT MODES ============ */
+.vm-body{display:flex;flex:1;min-height:0}
+.vm-nav{width:238px;flex:none;background:var(--bg-1);border-right:1px solid var(--line);overflow:auto;padding:8px 6px}
+.vm-nav .grp{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.1em;color:var(--fg-3);font-weight:700;padding:12px 8px 6px}
+.vm-nav button{display:flex;align-items:center;gap:9px;width:100%;height:32px;padding:0 9px;border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--fg-2)}
+.vm-nav button:hover{background:var(--bg-2);color:var(--fg-0)}
+.vm-nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.vm-nav button kbd{margin-left:auto;font-size:9px}
+.vm-nav button .ic{width:15px;height:15px}
+.vm-stage{flex:1;min-width:0;position:relative;background:radial-gradient(120% 90% at 50% 8%,hsl(222 13% 14%),hsl(222 14% 7%))}
+.vm-steps{position:absolute;left:14px;top:14px;background:var(--bg-glass);backdrop-filter:blur(12px);border:1px solid var(--line-strong);border-radius:var(--r);padding:11px 13px;min-width:250px;box-shadow:var(--shadow-2)}
+.vm-steps .h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.vm-steps .h .pill{background:var(--accent);color:var(--accent-ink);font-size:10px;font-weight:800;padding:3px 9px;border-radius:10px;letter-spacing:.05em}
+.vm-steps .h b{font-size:var(--fs-md);color:var(--fg-0)}
+.vm-steps ol{margin:0;padding-left:18px;font-size:var(--fs-sm);color:var(--fg-2);line-height:1.8}
+.vm-steps ol li.done{color:var(--fg-3);text-decoration:line-through}
+.vm-steps ol li.cur{color:var(--fg-0);font-weight:600}
+.vm-gizmo{position:absolute;right:16px;bottom:16px;background:var(--bg-glass);border:1px solid var(--line-strong);border-radius:var(--r);padding:9px 11px;font-family:var(--mono);font-size:10px;color:var(--fg-2);line-height:1.7}
+.vm-gizmo b{color:var(--fg-0)}
+.vm-sel{position:absolute;left:14px;bottom:16px;background:var(--bg-glass);border:1px solid var(--line-strong);border-radius:var(--r);padding:9px 12px;font-size:var(--fs-sm);display:flex;align-items:center;gap:9px;box-shadow:var(--shadow-2)}
+.vm-sel .sdot{flex:none}
+.vm-props{width:288px;flex:none;background:var(--bg-1);border-left:1px solid var(--line);overflow:auto;padding:13px}
+
+/* ============ VIEW 4: MANUFACTURING ============ */
+.mfg-body{flex:1;overflow:auto;padding:16px 18px;background:var(--bg-0)}
+.mfg-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.mcard{background:linear-gradient(180deg,var(--bg-2),var(--bg-1));border:1px solid var(--line);border-radius:var(--r);padding:14px;cursor:pointer;transition:transform .14s,border-color .14s}
+.mcard:hover{transform:translateY(-2px);border-color:var(--accent-line)}
+.mcard .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.mcard .top .ic{width:18px;height:18px;color:var(--accent)}
+.mcard h4{font-size:var(--fs-md);color:var(--fg-0);margin:0 0 5px}
+.mcard p{font-size:var(--fs-xs);color:var(--fg-2);margin:0;line-height:1.5;min-height:30px}
+.mcard .meta{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:var(--fs-xs);color:var(--fg-3)}
+.mfg-list{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mpanel{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.mpanel .ph{display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-bottom:1px solid var(--line)}
+.mpanel .ph b{font-size:var(--fs-md);color:var(--fg-0)}
+.mpanel .pb{padding:12px}
+
+/* ============ VIEW 5: PROJECT & ROOM ============ */
+.pr-body{display:flex;flex:1;min-height:0}
+.pr-stage{flex:1;min-width:0;position:relative;background:radial-gradient(100% 100% at 50% 0%,hsl(222 13% 13%),hsl(222 15% 7%))}
+.pr-side{width:330px;flex:none;background:var(--bg-1);border-left:1px solid var(--line);overflow:auto;padding:13px}
+.pr-tabs{display:flex;gap:2px;padding:8px 10px 0;background:var(--bg-1);border-bottom:1px solid var(--line);flex:none}
+.pr-tabs button{height:28px;padding:0 11px;font-size:var(--fs-sm);color:var(--fg-2);border-radius:4px 4px 0 0;position:relative}
+.pr-tabs button.on{color:var(--fg-0);background:var(--bg-2);font-weight:600}
+.pr-tabs button.on::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--a-hi)}
+
+/* ============ MODALS ============ */
+.modal-scrim2{position:fixed;inset:0;background:hsl(222 20% 3%/.7);backdrop-filter:blur(4px);z-index:500;display:flex;align-items:center;justify-content:center;padding:22px}
+.modal2{width:min(1080px,96vw);max-height:90vh;display:flex;flex-direction:column;background:var(--bg-1);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow-3);overflow:hidden}
+.modal2 .mh{display:flex;align-items:center;gap:10px;height:48px;padding:0 16px;border-bottom:1px solid var(--line);flex:none;background:linear-gradient(180deg,var(--bg-2),var(--bg-1))}
+.modal2 .mh b{font-size:var(--fs-lg);color:var(--fg-0)}
+.modal2 .mh .sub{font-size:var(--fs-sm);color:var(--fg-3)}
+.modal2 .mb{padding:16px;overflow:auto;flex:1}
+.modal2 .mf{display:flex;align-items:center;gap:8px;height:52px;padding:0 16px;border-top:1px solid var(--line);flex:none}
+.tbl{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.tbl th{text-align:left;font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.06em;color:var(--fg-3);font-weight:700;padding:8px 9px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--bg-1)}
+.tbl td{padding:7px 9px;border-bottom:1px solid var(--line-soft);color:var(--fg-1)}
+.tbl tr:hover td{background:var(--bg-2)}
+.tbl td.num,.tbl th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.tbl td.mono{font-family:var(--mono);font-size:var(--fs-xs)}
+.filterbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.filterbar .input{width:190px;height:27px;font-size:var(--fs-sm)}
+.chip{display:inline-flex;align-items:center;gap:5px;height:23px;padding:0 9px;border-radius:12px;background:var(--bg-2);border:1px solid var(--line);font-size:var(--fs-sm);color:var(--fg-1)}
+.chip.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 12px}
+.kpi .n{font-size:20px;font-weight:700;font-family:var(--mono);color:var(--fg-0)}
+.kpi .l{font-size:var(--fs-xs);color:var(--fg-2);margin-top:2px}
+.issue{display:flex;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg-2);font-size:var(--fs-sm);margin-bottom:6px;align-items:flex-start}
+.issue .body{flex:1;min-width:0}
+.issue .body b{color:var(--fg-0);font-weight:600}
+.issue .body span{color:var(--fg-3);font-size:var(--fs-xs)}
+.drawing-wrap{display:grid;grid-template-columns:190px 1fr;gap:14px}
+.drawing-paper{background:#eceef0;color:#16191d;border-radius:3px;min-height:440px;padding:24px;box-shadow:inset 0 0 0 1px #c8ccd1,0 3px 10px hsl(0 0% 0%/.3)}
+.dw-title{font-family:var(--mono);font-size:11px;border-bottom:2px solid #16191d;padding-bottom:7px;margin-bottom:12px;font-weight:700;display:flex;justify-content:space-between}
+.dlist button{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 9px;font-size:var(--fs-sm);color:var(--fg-2);border-radius:4px;text-align:left}
+.dlist button.on{background:var(--accent-soft);color:var(--accent)}
+.bar-track{height:6px;background:var(--bg-3);border-radius:3px;overflow:hidden}
+.bar-track i{display:block;height:100%;background:var(--accent)}
+
+@media(max-width:1240px){.ce-controls{width:320px}.right{width:280px}.left{width:228px}.mfg-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:980px){.left,.right,.ce-nav,.vm-nav,.pr-side{display:none}.mfg-grid,.mfg-list{grid-template-columns:1fr}.ce-controls{width:100%}.drawing-wrap{grid-template-columns:1fr}}
+</style></head>
+<body class="concept-a">
+<div class="app" id="app">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="brand"><span class="logo">Z</span> ZIMMU</div>
+    <div class="menubar">
+      <button id="fileBtn">File ▾</button>
+      <button>Edit</button><button>View</button><button>Design</button><button>Manufacture</button><button>Help</button>
+    </div>
+    <div class="proj-title"><span class="dot" id="dirtyDot">●</span><span class="t-strong">Kitchenette — Alpine Walnut</span><span class="fn">· kitchenette_v43.zimmu</span></div>
+    <div class="top-actions">
+      <button class="btn ghost sm icon" title="Undo" id="undoBtn"></button>
+      <button class="btn ghost sm icon" title="Redo" id="redoBtn"></button>
+      <button class="btn sm" onclick="openModal('bom')"><span id="listIc"></span> Cutting List</button>
+      <button class="btn accent sm" onclick="openModal('readiness')"><span id="boltIc"></span> Readiness</button>
+    </div>
+  </div>
+  <div id="fileMenuHost"></div>
+
+  <!-- PERSPECTIVE SWITCHER -->
+  <div class="perspectives">
+    <span class="lbl">Workspace</span>
+    <button class="persp on" data-view="workspace"><span class="ic" data-ic="home"></span> Workbench <span class="num">01</span></button>
+    <button class="persp" data-view="cabinet"><span class="ic" data-ic="cube"></span> Cabinet Editor <span class="num">02</span></button>
+    <button class="persp" data-view="modes"><span class="ic" data-ic="cursor"></span> Viewport Modes <span class="num">03</span></button>
+    <button class="persp" data-view="manufacture"><span class="ic" data-ic="bolt"></span> Manufacturing <span class="num">04</span></button>
+    <button class="persp" data-view="project"><span class="ic" data-ic="folder"></span> Project & Room <span class="num">05</span></button>
+    <div class="spacer"></div>
+    <div class="hint"><span class="sdot green"></span><span id="perspHint">Model workspace · 42 parts · 8 joints</span></div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar" id="toolbar"></div>
+
+  <!-- ============ VIEW 1: WORKSPACE ============ -->
+  <section class="view on" data-view="workspace">
+    <div class="body">
+      <aside class="left">
+        <div class="left-tabs"><button class="on" data-lt="scene">Scene Tree</button><button data-lt="project">Project</button><button data-lt="lib">Library</button></div>
+        <div class="left-search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder="Search parts, joints, materials…"></div>
+        <div class="tree" id="tree"></div>
+        <div class="left-foot"><button class="add-cab" onclick="openModal('cab')">＋ Add Cabinet Component</button></div>
+      </aside>
+      <main class="center">
+        <div class="vp" id="vp">
+          <div class="viewport" id="viewportHost"></div>
+          <div class="vp-overlay">
+            <div class="vp-hint" id="vpHint"><span class="pill">SELECT</span><span>Click a part to select · <kbd>F</kbd> snap · <kbd>C</kbd> cut</span></div>
+            <div class="viewcube" data-tip="Switch View" data-tip-b></div>
+            <div class="vp-controls">
+              <button class="btn icon sm" title="Fit to Window" data-tip="Fit" data-tip-r>⤢</button>
+              <button class="btn icon sm" title="Zoom In" data-tip="Zoom In" data-tip-r>＋</button>
+              <button class="btn icon sm" title="Zoom Out" data-tip="Zoom Out" data-tip-r>−</button>
+              <button class="btn icon sm" title="Ortho / Perspective" data-tip="Ortho / Perspective" data-tip-r>◈</button>
+            </div>
+            <div class="vp-compass" id="compassHost"></div>
+            <div class="vp-scale"><span>0</span><div class="bar"></div><span>500 mm</span></div>
+            <div class="vp-toolbar" id="vpToolbar"></div>
+          </div>
+          <div class="plan-wrap hidden" id="planView"></div>
+        </div>
+        <div class="tabstrip" id="bottomTabs">
+          <button class="on" data-vt="model">◈ 3D Model</button><button data-vt="plan">▦ Plan Layout</button><button data-vt="section">▤ Section</button><button data-vt="unfold">▥ Part Unfold</button>
+          <div class="fill"></div>
+          <button onclick="openModal('bom')">Cutting List</button>
+          <button onclick="openModal('drawing')">2D Drawings</button>
+        </div>
+      </main>
+      <aside class="right" id="inspector"></aside>
+    </div>
+  </section>
+
+  <!-- ============ VIEW 2: CABINET EDITOR ============ -->
+  <section class="view" data-view="cabinet">
+    <div class="ce-head">
+      <span class="ic" id="ceHeadIc"></span>
+      <span class="ttl">Cabinet Editor — Base Cabinet 02</span>
+      <span class="badge">Carcase</span><span class="badge violet">600 × 560 × 720</span>
+      <div class="grow"></div>
+      <button class="btn sm" onclick="openModal('cab')">Switch Cabinet</button>
+      <button class="btn accent sm" onclick="openModal('release')">Commit Changes</button>
+    </div>
+    <div class="ce-body">
+      <nav class="ce-nav" id="ceNav"></nav>
+      <div class="ce-main">
+        <div class="ce-tabs" id="ceTabs"></div>
+        <div class="ce-content">
+          <div class="ce-controls" id="ceControls"></div>
+          <div class="ce-preview" id="cePreview">
+            <div class="pv-label">Live preview · Base Cabinet 02</div>
+            <div id="ceCanvas" style="position:absolute;inset:0"></div>
+            <div class="pv-foot">
+              <button class="btn xs" onclick="toggleExplode(this)">Exploded View</button>
+              <button class="btn xs" onclick="toggleSection(this)">Section Cut</button>
+              <button class="btn xs">Fit</button>
+            </div>
+          </div>
+        </div>
+        <div class="ce-foot"><span class="sdot green"></span><span>Geometry in sync · last rebuild 12 ms</span><span class="grow"></span><span id="ceFootTab">Section</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VIEW 3: VIEWPORT MODES ============ -->
+  <section class="view" data-view="modes">
+    <div class="vm-body">
+      <nav class="vm-nav" id="vmNav"></nav>
+      <div class="vm-stage" id="vmStage">
+        <div class="vm-steps" id="vmSteps"></div>
+        <div class="vm-gizmo" id="vmGizmo"></div>
+        <div class="vm-sel" id="vmSel"></div>
+      </div>
+      <aside class="vm-props" id="vmProps"></aside>
+    </div>
+  </section>
+
+  <!-- ============ VIEW 4: MANUFACTURING ============ -->
+  <section class="view" data-view="manufacture">
+    <div class="mfg-body">
+      <div class="section-title">Production workflow</div>
+      <div class="mfg-grid" id="mfgGrid"></div>
+      <div class="section-title">Review summary</div>
+      <div class="mfg-list" id="mfgList"></div>
+    </div>
+  </section>
+
+  <!-- ============ VIEW 5: PROJECT & ROOM ============ -->
+  <section class="view" data-view="project">
+    <div class="pr-tabs" id="prTabs"></div>
+    <div class="pr-body">
+      <div class="left" style="width:244px">
+        <div class="tree" id="prTree" style="padding-top:10px"></div>
+        <div class="left-foot"><button class="add-cab" onclick="openModal('cab')">＋ Add Component</button></div>
+      </div>
+      <div class="pr-stage" id="prStage"></div>
+      <aside class="pr-side" id="prSide"></aside>
+    </div>
+  </section>
+
+  <!-- STATUS BAR -->
+  <div class="statusbar">
+    <span class="s"><span class="sdot green"></span> OCCT Ready</span>
+    <span class="s">42 parts · 8 joints</span>
+    <span class="s" id="modeStatus">Mode: Select (V)</span>
+    <span class="sp"></span>
+    <span class="s">X 1240.0 &nbsp; Y 380.0 &nbsp; Z 720.0</span>
+    <span class="s">Scale 1:20</span>
+    <span class="s">● Auto-saved</span>
+  </div>
+</div>
+
+<div id="modalHost"></div>
+<script src="shared.js"></script>
+<script>
+/* =========================================================
+   Zimmu Concept A — full detail prototype
+   All content English. Five perspectives, one file.
+   ========================================================= */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+function flash(el){el&&el.animate([{filter:'brightness(1.6)'},{filter:'brightness(1)'}],{duration:250})}
+function el(tag,cls,html){return `<${tag} class="${cls||''}">${html||''}</${tag}>`}
+function field(label,inner){return `<div class="field"><label>${label}</label>${inner}</div>`}
+function dim(k,label,val){return `<div class="field"><label>${label}</label><div class="dim"><span class="k">${k}</span><input value="${val}"><span class="u">mm</span></div></div>`}
+function toggleRow(label,on){return `<div class="dim-row"><label>${label}</label><div class="switch ${on?'on':''}" onclick="this.classList.toggle('on')"></div></div>`}
+function segRow(label,opts,cur){return `<div class="dim-row"><label>${label}</label><div class="seg-mini">${opts.map(o=>`<button class="${o===cur?'on':''}" onclick="segPick(this)">${o}</button>`).join('')}</div></div>`}
+function segPick(b){b.parentNode.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');flash(b)}
+function optCard(icon,title,sub,on){return `<div class="opt ${on?'on':''}" onclick="this.classList.toggle('on')">${ic(icon)}<div class="t">${title}<small>${sub}</small></div></div>`}
+
+/* ---------- perspective switcher ---------- */
+$$('.persp').forEach(b=>b.onclick=()=>setPerspective(b.dataset.view));
+function setPerspective(v){
+  $$('.persp').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
+  $$('.view').forEach(s=>s.classList.toggle('on',s.dataset.view===v));
+  const hints={workspace:'Model workspace · 42 parts · 8 joints',cabinet:'Cabinet editor · 16 parameter tabs',modes:'Viewport interaction modes · 12 tools',manufacture:'Manufacturing & export · 8 workflows',project:'Project & room · 5 areas'};
+  $('#perspHint').textContent=hints[v];
+  document.querySelectorAll('.persp .ic').forEach(e=>e.innerHTML=ic(e.parentNode.dataset.ic==='cursor'?'move':e.parentNode.dataset.ic));
+}
+$$('.persp .ic').forEach(e=>{
+  const m={home:'home',cube:'cube',cursor:'move',bolt:'bolt',folder:'folder'};
+  e.innerHTML=ic(m[e.parentNode.dataset.ic]||'layers');
+});
+$('#ceHeadIc').innerHTML=ic('cube');
+$('#undoBtn').innerHTML=ic('undo'); $('#redoBtn').innerHTML=ic('redo');
+$('#listIc').innerHTML=ic('list'); $('#boltIc').innerHTML=ic('bolt');
+
+/* =========================================================
+   VIEW 1 — WORKSPACE: menu, toolbar, tree, viewport, inspector
+   ========================================================= */
+const menuItems=[
+  ['New','⌘N'],['Open…','⌘O'],['Save','⌘S'],['Save As…','⌘⇧S'],null,
+  ['Import company catalogue…',''],['Project structure…',''],null,
+  ['Cutting List…','⌘⇧E'],['Manufacturing readiness…',''],['2D Drawings…',''],null,
+  ['Export STL…',''],['Export STEP…',''],['Production packet…','']
+];
+const modalForMenu=m=>{
+  if(!m)return '';
+  if(m.includes('Cutting'))return "openModal('bom')";
+  if(m.includes('readiness'))return "openModal('readiness')";
+  if(m.includes('Drawings'))return "openModal('drawing')";
+  if(m.includes('structure'))return "openModal('project')";
+  if(m.includes('packet'))return "openModal('packet')";
+  return '';
+};
+$('#fileBtn').onclick=e=>{e.stopPropagation();
+  const host=$('#fileMenuHost');
+  if(host.innerHTML){host.innerHTML='';return}
+  host.innerHTML=`<div class="menufile" onclick="event.stopPropagation()">`+
+    `<div class="mi">${ic('undo','sm')} Undo <span class="k">⌘Z</span></div>`+
+    `<div class="mi">${ic('redo','sm')} Redo <span class="k">⌘⇧Z</span></div><div class="sep"></div>`+
+    menuItems.map(m=>m?`<div class="mi" onclick="hostClear();${modalForMenu(m[0])}">${ic(m[0].includes('Save')?'save':m[0].includes('Open')?'folder':m[0].includes('Export')?'download':'file','sm')} ${m[0]} <span class="k">${m[1]}</span></div>`:'<div class="sep"></div>').join('')+
+  `</div>`;
+};
+function hostClear(){$('#fileMenuHost').innerHTML=''}
+document.addEventListener('click',()=>hostClear());
+
+const toolDefs=[
+  {g:'Select',items:[['cursor','Select','V'],['move','Move','G'],['measure','Measure','M']]},
+  {g:'Modeling',items:[['box','Add Part','A'],['snap','Face Snap','F'],['cut','Cut','C']]},
+  {g:'Joinery',items:[['joint','Dado','J'],['joint','Half-lap','L'],['joint','Mortise & Tenon','M'],['dowel','Dowel','D'],['joint','Finger','B'],['joint','Tongue & Groove','T']]},
+  {g:'View',items:[['grid','Grid',''],['eye','Visibility','H'],['layers3','Exploded','']]}
+];
+function renderToolbar(){
+  $('#toolbar').innerHTML=toolDefs.map(g=>`<div class="tool-group"><span class="tb-label">${g.g}</span>`+
+    g.items.map((it,i)=>`<button class="tb ${it[1]==='Select'?'on':''}" data-tip="${it[1]}${it[2]?' · '+it[2]:''}" data-tip-b onclick="setTool('${it[1]}',this)">${ic(it[0])}<span>${it[1]}</span></button>`).join('')+`</div>`).join('');
+}
+renderToolbar();
+function setTool(name,el){
+  $$('.toolbar .tb').forEach(b=>b.classList.remove('on'));el.classList.add('on');
+  $('#modeStatus').textContent='Mode: '+name;
+  const pill=$('#vpHint .pill'); if(pill)pill.textContent=name.toUpperCase();
+  flash(el);
+}
+
+/* viewport content */
+$('#viewportHost').innerHTML=cabinetScene({selected:true,selColor:'#e08b3c'});
+$('.viewcube').innerHTML=viewCube('#e08b3c');
+$('#compassHost').innerHTML=compass();
+const vpTools=[['cursor','Select'],['snap','Snap'],['cut','Cut'],['joint','Joints'],['drill','Drill'],['ruler','Dimension'],['move','Move']];
+$('#vpToolbar').innerHTML=vpTools.map((t,i)=>`<button class="tb ${i===0?'on':''}" data-tip="${t[1]}" data-tip-b onclick="setVpTool(this,'${t[1]}')">${ic(t[0])}</button>`).join('');
+function setVpTool(el,n){
+  $('#vpToolbar').querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));el.classList.add('on');
+  $('#modeStatus').textContent='Mode: '+n;$('#vpHint .pill').textContent=n.toUpperCase();flash(el);
+}
+$$('.vp-controls .btn').forEach(b=>b.onclick=()=>flash(b));
+
+/* plan / section / unfold canvases */
+function planSVG(){return `<svg viewBox="0 0 900 560" width="100%" height="100%"><g opacity=".5">${(()=>{let s='';for(let x=0;x<900;x+=40)s+=`<line x1="${x}" y1="0" x2="${x}" y2="560" stroke="#242a32"/>`;for(let y=0;y<560;y+=40)s+=`<line x1="0" y1="${y}" x2="900" y2="${y}" stroke="#242a32"/>`;return s})()}</g>
+<rect x="60" y="60" width="780" height="440" fill="none" stroke="#4a525d" stroke-width="2" stroke-dasharray="6 4"/>
+<text x="70" y="84" fill="#6f7884" font-size="11" font-family="JetBrains Mono">WALL 3600 × 2800</text>
+<g fill="#2b323b" stroke="#5b6470">${[0,1,2,3].map(i=>`<rect x="${90+i*140}" y="90" width="130" height="60" rx="2"/>`).join('')}${[0,1].map(i=>`<rect x="${90+i*180}" y="400" width="170" height="70" rx="2"/>`).join('')}</g>
+<g fill="none" stroke="#e08b3c" stroke-width="2"><rect x="230" y="90" width="130" height="60" rx="2"/></g>
+<text x="235" y="176" fill="#e08b3c" font-size="11" font-family="JetBrains Mono">BC-02</text>
+<g stroke="#6f7884" stroke-width="1"><line x1="90" y1="210" x2="650" y2="210"/><text x="370" y="204" fill="#6f7884" font-size="10" text-anchor="middle" font-family="JetBrains Mono">2400</text></g>
+</svg><div class="canvas-note">PLAN VIEW · 1:50 · click a cabinet to select · drag to reposition</div>`}
+function sectionSVG(){return `<svg viewBox="0 0 900 560" width="100%" height="100%">
+<rect x="260" y="90" width="380" height="380" fill="#1b2027" stroke="#59616c" stroke-width="2"/>
+<g fill="#313840" stroke="#6a737f">${[0,1,2].map(i=>`<rect x="${290+i*115}" y="120" width="100" height="320"/>`).join('')}</g>
+<g fill="none" stroke="#e08b3c" stroke-width="2"><rect x="405" y="120" width="100" height="320"/></g>
+<g stroke="#e08b3c" stroke-width="1" stroke-dasharray="4 3"><line x1="405" y1="80" x2="405" y2="470"/><line x1="505" y1="80" x2="505" y2="470"/></g>
+<g font-family="JetBrains Mono" font-size="10" fill="#8b94a0"><text x="450" y="70" text-anchor="middle">600</text><text x="240" y="290" transform="rotate(-90 240 290)" text-anchor="middle">720</text></g>
+<g fill="#9aa3ae" font-family="Inter" font-size="11"><text x="300" y="150">SIDE 18mm</text><text x="420" y="150">BACK 12mm</text><text x="530" y="150">SIDE 18mm</text></g>
+</svg><div class="canvas-note">SECTION A–A · through Base Cabinet 02 · scale 1:10</div>`}
+function unfoldSVG(){return `<svg viewBox="0 0 900 560" width="100%" height="100%">
+<g stroke="#6a737f" fill="#2b323b">${[['120','90','260','150'],['400','90','180','150'],['600','90','140','150'],['120','260','260','120'],['400','260','340','120'],['120','400','620','90']].map(r=>`<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="2"/>`).join('')}</g>
+<g font-family="JetBrains Mono" font-size="10" fill="#aab2bd"><text x="130" y="115">PB-101 · SIDE L</text><text x="410" y="115">PB-102 · SIDE R</text><text x="610" y="115">PB-103 · BACK</text><text x="130" y="285">PB-104 · TOP</text><text x="410" y="285">PB-105 · SHELF ×3</text><text x="130" y="425">PB-106 · BOTTOM</text></g>
+<g stroke="#e08b3c" stroke-width="1.5" fill="none"><rect x="398" y="88" width="184" height="154"/></g>
+</svg><div class="canvas-note">PART UNFOLD · 6 unique parts · nesting 84% utilization</div>`}
+$('#planView').innerHTML=planSVG();
+$$('#bottomTabs button[data-vt]').forEach(b=>b.onclick=()=>{
+  $$('#bottomTabs button[data-vt]').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  const v=b.dataset.vt;
+  const is3d=v==='model';
+  $('#viewportHost').style.display=is3d?'block':'none';
+  $('.vp-overlay').style.display=is3d?'block':'none';
+  $('#planView').classList.toggle('hidden',is3d);
+  if(!is3d)$('#planView').innerHTML=v==='plan'?planSVG():v==='section'?sectionSVG():unfoldSVG();
+});
+
+/* scene tree */
+const treeData=[
+  {head:'Project · Kitchenette'},
+  {t:'room',name:'Main Room · 3.6 × 2.8 m',meta:'plan'},
+  {t:'folder',name:'Base Run',indent:1,open:true},
+  {t:'cube',name:'Base Cabinet 01',indent:2,meta:'600',sel:true},
+  {t:'cube',name:'Base Cabinet 02',indent:2,meta:'600'},
+  {t:'cube',name:'Base Cabinet 03',indent:2,meta:'600'},
+  {t:'folder',name:'Wall Units',indent:1,open:false},
+  {t:'cube',name:'Tall Unit — Pantry',indent:1,meta:'900'},
+  {head:'Parts · 42'},
+  {t:'box',name:'Side Panel — L',indent:1,meta:'16mm'},
+  {t:'box',name:'Side Panel — R',indent:1,meta:'16mm'},
+  {t:'box',name:'Back Panel',indent:1,meta:'12mm'},
+  {t:'box',name:'Shelf · 3×',indent:1,meta:'18mm'},
+  {head:'Joints · 8'},
+  {t:'joint',name:'Dado #1 → BC-02',indent:1,meta:'ok'},
+  {t:'joint',name:'Mortise & Tenon #2 → Tall',indent:1,meta:'ok'},
+  {head:'Materials · 4'},
+  {t:'chip',name:'Alpine Walnut',indent:1,meta:'18mm'},
+];
+function renderTree(){
+  $('#tree').innerHTML=treeData.map(d=>{
+    if(d.head)return `<div class="tree-head">${d.head}<span class="cnt">${d.head.includes('Parts')?'42':d.head.includes('Joints')?'8':''}</span></div>`;
+    const sw=d.t==='chip'?`<span class="swatch" style="width:9px;height:9px;border-radius:2px;background:#6b4f3a"></span>`:'';
+    const chev=(d.t==='folder')?ic('chevronD','chev'):'';
+    const eye=(d.t==='cube'||d.t==='box')?`<span class="ic" data-eye style="width:12px;height:12px;margin-left:auto;opacity:.5">${ic('eye')}</span>`:'';
+    return `<div class="tree-row ${d.sel?'on':''} ${d.indent?'indent-'+d.indent:''}" onclick="selectTree(this,'${d.name}')">${chev}${sw}${ic(d.t==='folder'?'folder':d.t)}${d.t==='chip'?'':`<span class="name">${d.name}</span>`}${d.t==='chip'?`<span class="name">${d.name}</span>`:''}${eye}${d.meta?`<span class="meta">${d.meta}</span>`:''}</div>`;
+  }).join('');
+  $$('#tree [data-eye]').forEach(e=>e.onclick=ev=>{
+    ev.stopPropagation();
+    e.innerHTML=e.dataset.hidden?ic('eye'):ic('eyeOff');
+    e.dataset.hidden=e.dataset.hidden?'':'1';flash(e);
+  });
+}
+renderTree();
+function selectTree(el,name){
+  $$('.tree-row').forEach(r=>r.classList.remove('on'));el.classList.add('on');
+  const n=$('.insp-head .name span'); if(n)n.textContent=name;
+  flash(el);
+}
+$$('.left-tabs button').forEach(b=>b.onclick=()=>{
+  $$('.left-tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  if(b.dataset.lt==='lib'){renderLibTree()}
+  else if(b.dataset.lt==='project'){renderProjTree()}
+  else renderTree();
+});
+function renderLibTree(){
+  $('#tree').innerHTML=`<div class="tree-head">Materials<span class="cnt">4</span></div>`+
+    [['Alpine Walnut','18mm · ¥82/m²','#6b4f3a'],['Birch Ply','12mm · ¥48/m²','#b79a6d'],['MDF Core','18mm · ¥32/m²','#9a9a96'],['Natural Oak','20mm · ¥96/m²','#c2a071']].map(m=>`<div class="tree-row" onclick="flash(this)"><span class="swatch" style="width:11px;height:11px;border-radius:2px;background:${m[2]}"></span><span class="name">${m[0]}</span><span class="meta">${m[1]}</span></div>`).join('')+
+    `<div class="tree-head">Hardware<span class="cnt">6</span></div>`+
+    [['Blum Tandem 4832','Full extension'],['Blum Clip Top 110°','Hinge'],['Häfelee Pull','Concealed'],['Leveling Foot','Ø30'],['Screw Pack','4×30'],['Magnetic Catch','Standard']].map(m=>`<div class="tree-row" onclick="flash(this)">${ic('bolt')}<span class="name">${m[0]}</span><span class="meta">${m[1]}</span></div>`).join('');
+}
+function renderProjTree(){
+  $('#tree').innerHTML=`<div class="tree-head">Project structure</div>`+
+    [['room','Kitchenette','1 room'],['folder','Ground Floor','5 cabinets'],['folder','Utilities','3 items'],['file','Reference drawings','2 files'],['file','Production packets','3 packets']].map(m=>`<div class="tree-row" onclick="flash(this)">${ic(m[0])}<span class="name">${m[1]}</span><span class="meta">${m[2]}</span></div>`).join('');
+}
+
+/* inspector */
+const inspTabs=['Properties','Joints','Cut','Material','Hardware'];
+const cabTabs=['Section','Construction','Placement','Layout','Finishing','Fronts & Drawers','Shelves & Interiors','Materials','Edgebanding','Appliance Bays','Service Openings','Hardware','Front','Top','End','3D'];
+let inspectorMode='Properties';
+function renderInspector(){
+  const el=$('#inspector');
+  const head=`<div class="insp-head"><div class="crumb">${ic('arrowR','sm')} Base Run / Base Cabinet 01</div><div class="name">${ic('cube')}<span>Base Cabinet 01</span><span class="badge cyan">Carcase</span></div></div>`;
+  const tabs=`<div class="insp-tabs tabs">${inspTabs.map(t=>`<button class="${t===inspectorMode?'on':''}" onclick="setInsp('${t}')">${t}</button>`).join('')}</div>`;
+  let body='';
+  if(inspectorMode==='Properties'){
+    body=`
+      <div class="section-title">Dimensions</div>
+      <div class="grid2">${dim('W','Width',600)}${dim('D','Depth',560)}${dim('H','Height',720)}${dim('T','Thickness',18)}</div>
+      <div class="section-title">Transform</div>
+      <div class="grid3"><div class="field"><label>X</label><input class="input mono" value="0"></div><div class="field"><label>Y</label><input class="input mono" value="0"></div><div class="field"><label>Z</label><input class="input mono" value="0"></div></div>
+      <div class="section-title">Component structure</div>
+      <div class="panel"><div class="panel-body" style="padding:6px 10px">${[['Parts','7'],['Joints','2'],['Hardware','4'],['Volume','0.042 m³']].map(r=>`<div class="prop-row"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join('')}</div></div>
+      <div class="section-title">Cabinet editor</div>
+      <div class="subcard" style="font-size:var(--fs-sm);color:var(--fg-2)">Full 16-tab parametric editor is available in the <b class="t-strong">Cabinet Editor</b> perspective.</div>
+      <button class="btn accent w-full" style="margin-top:8px" onclick="setPerspective('cabinet')">Open Cabinet Editor →</button>`;
+  } else if(inspectorMode==='Joints'){
+    body=`<div class="section-title">Joint list · 2</div>
+      ${[['Dado #1','Base Cabinet 02','green'],['Mortise & Tenon #2','Tall Unit','green']].map(j=>`<div class="panel" style="margin-bottom:8px"><div class="panel-body row gap-8"><span class="sdot ${j[2]}"></span><div class="grow"><div class="t-strong">${j[0]}</div><div class="t-xs t-muted">${j[1]}</div></div><button class="btn ghost sm icon" onclick="openModal('joint')">${ic('settings')}</button></div></div>`).join('')}
+      <button class="btn outline w-full" onclick="setPerspective('modes')">＋ New Joint (J)</button>`;
+  } else if(inspectorMode==='Cut'){
+    body=`<div class="section-title">Cuts</div>
+      <div class="field" style="margin-bottom:8px"><label>Cut type</label><select class="select"><option>Box cut</option><option>Drilling</option><option>Mitre</option><option>Dowel</option></select></div>
+      <div class="grid2">${dim('W','Width',40)}${dim('D','Depth',18)}</div>
+      <div class="divider"></div><div class="t-sm t-muted">3 existing cuts · 2 linked</div>
+      <div class="badge amber" style="margin-top:8px">⚠ 1 thin-web advisory (3mm)</div>
+      <button class="btn outline w-full" style="margin-top:10px" onclick="setPerspective('modes')">Open Cut Mode</button>`;
+  } else if(inspectorMode==='Material'){
+    body=`<div class="section-title">Material assignment</div>
+      <div class="row gap-8" style="margin-bottom:10px"><span class="swatch" style="width:30px;height:30px;background:linear-gradient(135deg,#6b4f3a,#4a3627);border-radius:5px"></span><div><div class="t-strong">Alpine Walnut</div><div class="t-xs t-muted">18 mm · ¥82/m²</div></div></div>
+      ${[['Volume','0.042 m³'],['Grain direction','Longitudinal'],['Edge banding','4 sides · 1mm'],['Unit price','¥ 82 / m²']].map(r=>`<div class="prop-row"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join('')}
+      <button class="btn outline w-full" style="margin-top:10px" onclick="setPerspective('project')">Open material library</button>`;
+  } else {
+    body=`<div class="section-title">Linked hardware · 4</div>
+      ${[['Blum clip-top hinge ×2',1],['Drawer runner ×1',1],['Leveling foot ×4',1],['Screw pack',0]].map(h=>`<div class="prop-row"><span class="k">${h[0]}</span><input type="checkbox" class="checkbox" ${h[1]?'checked':''}></div>`).join('')}
+      <button class="btn outline w-full" style="margin-top:10px" onclick="openModal('bom')">Manage in BOM</button>`;
+  }
+  const foot=`<div class="insp-foot"><span class="sdot green"></span><span>Geometry in sync</span><span class="grow"></span><span>ID: bc-01-a4f2</span></div>`;
+  el.innerHTML=head+tabs+`<div class="insp-body">${body}</div>`+foot;
+}
+function setInsp(t){inspectorMode=t;renderInspector()}
+renderInspector();
+
+/* =========================================================
+   VIEW 2 — CABINET EDITOR (16 tabs, grouped navigation)
+   ========================================================= */
+const CE_GROUPS=[
+  {g:'Structure',tabs:['Section','Construction','Placement','Layout']},
+  {g:'Appearance',tabs:['Finishing','Fronts & Drawers','Shelves & Interiors','Materials','Edgebanding']},
+  {g:'Services',tabs:['Appliance Bays','Service Openings','Hardware']},
+  {g:'Views',tabs:['Front','Top','End','3D']}
+];
+const CE_ICONS={Section:'grid',Construction:'layers3',Placement:'move',Layout:'plan',Finishing:'sparkle','Fronts & Drawers':'roster','Shelves & Interiors':'layers3',Materials:'palette',Edgebanding:'ruler','Appliance Bays':'box','Service Openings':'drill',Hardware:'bolt',Front:'panelL',Top:'panelR',End:'panelR','3D':'cube'};
+let ceTab='Section';
+function renderCeNav(){
+  $('#ceNav').innerHTML=CE_GROUPS.map(grp=>`<div class="grp">${grp.g}</div>`+grp.tabs.map(t=>`<button class="${t===ceTab?'on':''}" onclick="setCeTab('${t}')">${ic(CE_ICONS[t]||'cube')}<span>${t}</span></button>`).join('')).join('');
+}
+function renderCeTabs(){
+  $('#ceTabs').innerHTML=cabTabs.map(t=>`<button class="${t===ceTab?'on':''}" onclick="setCeTab('${t}')">${t}</button>`).join('');
+}
+function setCeTab(t){ceTab=t;$('#ceFootTab').textContent=t;renderCeNav();renderCeTabs();renderCeControls();renderCePreview();flash($('#ceTabs .on'))}
+
+/* per-tab control definitions */
+function ceControls(t){
+  const H={
+  'Section':`
+    <div class="section-title">Carcase section</div>
+    ${segRow('Section type',['Single','Double','Corner'],'Single')}
+    ${segRow('Panel mode',['Full overlay','Half overlay','Inset'],'Full overlay')}
+    <div class="section-title">Panels</div>
+    <div class="grid2">${dim('T','Side panel',18)}${dim('B','Back panel',12)}</div>
+    ${toggleRow('Scribe side panel',true)}${toggleRow('Notch for services',false)}
+    <div class="section-title">Panel list</div>
+    <div class="parts-mini">${[['Side Panel — L','496 × 720'],['Side Panel — R','496 × 720'],['Back Panel','564 × 700'],['Top Rail','560 × 60']].map(p=>`<div class="part-mini">${ic('box')}<span class="nm">${p[0]}</span><span class="dm">${p[1]}</span></div>`).join('')}</div>`,
+  'Construction':`
+    <div class="section-title">Construction preset</div>
+    ${segRow('Carcase type',['Panel','Frame','Mixed'],'Panel')}
+    <div class="field"><label>Joinery preset</label><select class="select"><option>Dado + back cleat</option><option>Mortise & tenon</option><option>Finger joint</option><option>Confirmat screw</option></select></div>
+    <div class="section-title">Assembly</div>
+    ${toggleRow('Factory assembled',true)}${toggleRow('Flat-pack',false)}${toggleRow('Edge-banded before assembly',true)}
+    <div class="section-title">Fixings</div>
+    <div class="grid2">${dim('Ø','Dowel Ø',8)}${dim('P','Pitch',32)}</div>
+    <div class="opt-grid">${optCard('joint','Dado housing','Rear panel seated',true)}${optCard('dowel','Dowels','Aligned joints',false)}</div>`,
+  'Placement':`
+    <div class="section-title">Mounting</div>
+    ${segRow('Anchor',['Floor','Wall','Freestanding'],'Floor')}
+    <div class="grid3"><div class="field"><label>X</label><input class="input mono" value="0"></div><div class="field"><label>Y</label><input class="input mono" value="0"></div><div class="field"><label>Z</label><input class="input mono" value="0"></div></div>
+    <div class="grid2">${dim('R','Rotation',0)}${dim('C','Clearance',10)}</div>
+    <div class="section-title">Leveling</div>
+    ${toggleRow('Auto-level to floor',true)}${toggleRow('Wall scribe',false)}
+    <div class="section-title">Neighbours</div>
+    <div class="subcard t-sm t-muted">Anchored to <b class="t-strong">Base Cabinet 01</b> on the left. Drag in Plan view to re-anchor.</div>`,
+  'Layout':`
+    <div class="section-title">Bay layout</div>
+    <div class="grid3">${dim('W','Width',600)}${dim('D','Depth',560)}${dim('H','Height',720)}</div>
+    ${segRow('Columns',['1','2','3'],'2')}${segRow('Rows',['1','2','3'],'2')}
+    <div class="section-title">Divisions</div>
+    <div class="opt-grid">${optCard('grid','Symmetrical','Mirror divisions',true)}${optCard('roster','Custom','Manual sizing',false)}</div>
+    ${toggleRow('Soft-close integrated',true)}
+    <div class="section-title">Opening sequence</div>
+    <div class="subcard t-sm t-muted">Top row: 2 drawers · Bottom row: 1 door · Reveal 3mm uniform.</div>`,
+  'Finishing':`
+    <div class="section-title">Surface finish</div>
+    ${segRow('Finish',['Natural oil','Lacquer','Veneer','Paint'],'Natural oil')}
+    ${segRow('Sheen',['Matte','Satin','Gloss'],'Satin')}
+    <div class="grid2">${dim('C','Coats',2)}${dim('G','Grain',0)}</div>
+    <div class="section-title">Color & texture</div>
+    <div class="swatch-row">${['#6b4f3a','#8a6b4e','#4a3627','#b79a6d','#2f2a24'].map((c,i)=>`<span class="swatch ${i===0?'on':''}" style="background:${c}" onclick="pickSwatch(this)"></span>`).join('')}</div>
+    ${toggleRow('Grain matched across fronts',true)}${toggleRow('UV protection',false)}`,
+  'Fronts & Drawers':`
+    <div class="section-title">Front style</div>
+    ${segRow('Style',['Slab','Shaker','Slim','Inset'],'Shaker')}
+    <div class="grid2">${dim('T','Thickness',18)}${dim('R','Reveal',3)}</div>
+    <div class="section-title">Drawer box</div>
+    ${segRow('Type',['Solid wood','MDF','Metal'],'Solid wood')}
+    ${toggleRow('Soft-close runners',true)}${toggleRow('Under-mount',true)}
+    <div class="section-title">Front list</div>
+    <div class="parts-mini">${[['Door — upper L','292 × 348'],['Door — upper R','292 × 348'],['Drawer front','592 × 144'],['Plinth','592 × 100']].map(p=>`<div class="part-mini">${ic('roster')}<span class="nm">${p[0]}</span><span class="dm">${p[1]}</span></div>`).join('')}</div>`,
+  'Shelves & Interiors':`
+    <div class="section-title">Shelves</div>
+    <div class="grid3">${dim('N','Count',3)}${dim('T','Thickness',18)}${dim('D','Depth',520)}</div>
+    ${segRow('Adjustable',['Yes','Fixed'],'Yes')}
+    <div class="section-title">Interior fittings</div>
+    <div class="opt-grid">${optCard('layers3','Drawer insert','Cutlery tray',true)}${optCard('grid','Divider','Vertical panel',false)}${optCard('bolt','LED strip','Interior light',false)}${optCard('box','Waste bin','Pull-out',false)}</div>
+    <div class="section-title">Shelf holes</div>
+    ${toggleRow('System holes 32mm',true)}`,
+  'Materials':`
+    <div class="section-title">Material by part</div>
+    <table class="tbl"><thead><tr><th>Part</th><th>Material</th><th class="num">Qty</th></tr></thead><tbody>
+      ${[['Side panels','Alpine Walnut 18mm','2'],['Back panel','Birch Ply 12mm','1'],['Shelves','Alpine Walnut 18mm','3'],['Top rail','Alpine Walnut 18mm','2']].map(r=>`<tr><td>${r[0]}</td><td class="t-muted">${r[1]}</td><td class="num">${r[2]}</td></tr>`).join('')}
+    </tbody></table>
+    <div class="section-title">Stock</div>
+    <div class="subcard"><div class="prop-row"><span class="k">Sheet size</span><span class="v">2440 × 1220</span></div><div class="prop-row"><span class="k">Utilization</span><span class="v">84%</span></div></div>
+    <button class="btn outline w-full" style="margin-top:8px" onclick="setPerspective('project')">Open material library</button>`,
+  'Edgebanding':`
+    <div class="section-title">Edge band</div>
+    ${segRow('Material',['ABS 1mm','ABS 2mm','Wood 0.6mm','None'],'ABS 1mm')}
+    ${segRow('Corners',['Rounded','Square','Chamfer'],'Rounded')}
+    <div class="section-title">Edges</div>
+    <div class="grid4">${['Front','Back','Left','Right'].map((e,i)=>`<div class="opt ${i<3?'on':''}" onclick="this.classList.toggle('on')">${e}</div>`).join('')}</div>
+    ${toggleRow('Band before machining',true)}`,
+  'Appliance Bays':`
+    <div class="section-title">Appliances</div>
+    <div class="subcard"><div class="row gap-8"><span class="sdot cyan"></span><div class="grow"><b class="t-strong">Integrated fridge</b><div class="t-xs t-muted">600 × 560 × 820</div></div>${ic('settings','sm')}</div></div>
+    <div class="subcard" style="margin-top:6px"><div class="row gap-8"><span class="sdot amber"></span><div class="grow"><b class="t-strong">Oven cavity</b><div class="t-xs t-muted">600 × 560 × 590</div></div>${ic('settings','sm')}</div></div>
+    <div class="section-title">Service clearance</div>
+    <div class="grid2">${dim('R','Rear',50)}${dim('S','Side',20)}</div>
+    <button class="btn outline w-full" style="margin-top:8px">＋ Add appliance</button>`,
+  'Service Openings':`
+    <div class="section-title">Openings</div>
+    ${[['Electrical socket','Ø 45','amber'],['Water inlet','Ø 32','cyan'],['Drain','Ø 50','cyan'],['Gas','pending','red']].map(o=>`<div class="prop-row"><span class="k"><span class="sdot ${o[2]}"></span> ${o[0]}</span><span class="v">${o[1]}</span></div>`).join('')}
+    <div class="section-title">Position</div>
+    <div class="grid2">${dim('X','Offset X',120)}${dim('Y','Offset Y',60)}</div>
+    ${toggleRow('Cut in back panel',true)}`,
+  'Hardware':`
+    <div class="section-title">Hardware schedule</div>
+    <table class="tbl"><thead><tr><th>Item</th><th class="num">Qty</th><th>Status</th></tr></thead><tbody>
+      ${[['Blum Clip Top 110°','2','green'],['Tandem runner 4832','1','green'],['Leveling foot Ø30','4','green'],['Magnetic catch','1','amber']].map(r=>`<tr><td>${r[0]}</td><td class="num">${r[1]}</td><td><span class="sdot ${r[2]}"></span></td></tr>`).join('')}
+    </tbody></table>
+    <button class="btn outline w-full" style="margin-top:10px" onclick="openModal('bom')">Manage in BOM</button>`,
+  'Front':`
+    <div class="section-title">Front elevation</div>
+    <div class="grid2">${dim('W','Overall width',600)}${dim('H','Overall height',720)}</div>
+    ${segRow('Reveal',['2mm','3mm','4mm'],'3mm')}
+    ${toggleRow('Show handles',true)}${toggleRow('Show grain direction',true)}
+    <div class="section-title">View options</div>
+    <div class="opt-grid">${optCard('eye','Dimensions','Show all',true)}${optCard('grid','Cut labels','Overlay',false)}</div>`,
+  'Top':`
+    <div class="section-title">Top panel</div>
+    ${segRow('Type',['Carcase top','Worktop','Open'],'Worktop')}
+    <div class="grid2">${dim('T','Thickness',40)}${dim('O','Overhang',30)}</div>
+    ${segRow('Material',['Quartz','Solid wood','Laminate'],'Quartz')}
+    ${toggleRow('Mitred front edge',true)}`,
+  'End':`
+    <div class="section-title">End panel</div>
+    ${segRow('Type',['Full','Scribed','Return'],'Full')}
+    <div class="grid2">${dim('T','Thickness',18)}${dim('S','Scribe',10)}</div>
+    ${toggleRow('Decorative end',false)}
+    <div class="section-title">Adjacent</div>
+    <div class="subcard t-sm t-muted">Left neighbour: Base Cabinet 01 · gap 3mm · aligned front.</div>`,
+  '3D':`
+    <div class="section-title">3D preview</div>
+    <div class="opt-grid">${optCard('cube','Shaded','Standard render',true)}${optCard('grid','Wireframe','Edges only',false)}${optCard('eye','X-ray','Transparent',false)}${optCard('layers3','Exploded','Separated parts',false)}</div>
+    <div class="section-title">Display</div>
+    ${toggleRow('Show dimensions',true)}${toggleRow('Show joint markers',true)}${toggleRow('Show hardware',false)}
+    <div class="section-title">Camera</div>
+    ${segRow('Projection',['Perspective','Orthographic'],'Perspective')}`
+  };
+  return H[t]||`<div class="t-sm t-muted">No parameters for ${t}.</div>`;
+}
+function renderCeControls(){$('#ceControls').innerHTML=ceControls(ceTab);
+  $$('#ceControls .swatch').forEach(s=>s.onclick=()=>pickSwatch(s));
+}
+function pickSwatch(el){el.parentNode.querySelectorAll('.swatch').forEach(s=>s.classList.remove('on'));el.classList.add('on');flash(el)}
+function cePreviewSVG(){
+  const base=cabinetScene({selected:true,selColor:'#e08b3c'});
+  if(ceTab==='3D')return base;
+  // simple parametric elevation for other tabs
+  const w=600,h=720;
+  return `<svg viewBox="0 0 640 520" width="100%" height="100%"><g transform="translate(120,40)">
+    <rect x="0" y="0" width="${w*0.7}" height="${h*0.62}" fill="#2b323b" stroke="#6a737f" stroke-width="2"/>
+    <rect x="8" y="8" width="${w*0.7-16}" height="${h*0.31}" fill="#363e48" stroke="#4d5661"/>
+    <rect x="8" y="${h*0.31+12}" width="${w*0.7-16}" height="${h*0.31-12}" fill="#363e48" stroke="#4d5661"/>
+    <line x1="${w*0.35}" y1="8" x2="${w*0.35}" y2="${h*0.31}" stroke="#59616c"/>
+    <g stroke="#e08b3c" stroke-width="1" fill="none"><rect x="-14" y="-14" width="${w*0.7+28}" height="${h*0.62+28}"/></g>
+    <g font-family="JetBrains Mono" font-size="11" fill="#8f99a5"><text x="${w*0.35}" y="-24" text-anchor="middle">600</text><text x="-30" y="${h*0.31}" transform="rotate(-90 -30 ${h*0.31})" text-anchor="middle">720</text></g>
+    <g font-family="Inter" font-size="12" fill="#c2c8d1"><text x="16" y="34">FRONT ELEVATION</text><text x="16" y="${h*0.31+36}">DRAWER</text></g>
+  </g></svg>`;
+}
+function renderCePreview(){$('#ceCanvas').innerHTML=cePreviewSVG()}
+let exploded=false,sectionCut=false;
+function toggleExplode(b){exploded=!exploded;b.classList.toggle('active',exploded);$('#ceCanvas').innerHTML=cabinetScene({selected:true,selColor:'#e08b3c',exploded});flash(b)}
+function toggleSection(b){sectionCut=!sectionCut;b.classList.toggle('active',sectionCut);renderCePreview();flash(b)}
+renderCeNav();renderCeTabs();renderCeControls();renderCePreview();
+
+/* =========================================================
+   VIEW 3 — VIEWPORT MODES (interaction states)
+   ========================================================= */
+const VM_GROUPS=[
+  {g:'Navigation',items:[['Select','cursor','V'],['Move','move','G'],['Measure','measure','M']]},
+  {g:'Editing',items:[['Add Part','box','A'],['Face Snap','snap','F'],['Cut','cut','C'],['Drilling','drill','D']]},
+  {g:'Joinery',items:[['Dado','joint','J'],['Half-lap','joint','L'],['Mortise & Tenon','joint','M'],['Finger Joint','joint','B'],['Tongue & Groove','joint','T'],['Dowel','dowel','D']]},
+  {g:'Display',items:[['Dimensions','ruler','⌀'],['Visibility','eye','H']]}
+];
+const VM_DATA={
+  'Select':{pill:'SELECT',title:'Select parts & faces',steps:['Click a part in the viewport','Shift-click to add to selection','Press H to hide the selected part'],params:`<div class="section-title">Selection</div><div class="prop-row"><span class="k">Mode</span><span class="v">Single / Multi</span></div><div class="prop-row"><span class="k">Filter</span><span class="v">Visible parts</span></div>${toggleRow('Select through hidden',false)}${toggleRow('Highlight joints',true)}`,sel:'Base Cabinet 02 · Carcase',gizmo:'<b>Selected ID</b> bc-02-a4f2<br>Parts 1 · Joints 2<br>Face +Z (front)'},
+  'Move':{pill:'MOVE',title:'Move with drag gizmo',steps:['Drag the axis handle to translate','Hold Shift to snap to 10mm','Release to commit to undo history'],params:`<div class="section-title">Transform</div><div class="grid3"><div class="field"><label>X</label><input class="input mono" value="1240"></div><div class="field"><label>Y</label><input class="input mono" value="380"></div><div class="field"><label>Z</label><input class="input mono" value="0"></div></div>${toggleRow('Snap to grid',true)}${toggleRow('Constrain to axis',false)}`,sel:'Base Cabinet 02 · moving on X',gizmo:'<b>Δ X</b> +120.0 mm<br><b>Δ Y</b> 0.0 mm<br><b>Δ Z</b> 0.0 mm'},
+  'Measure':{pill:'MEASURE',title:'Measure between faces',steps:['Click the first reference face','Click the second reference face','Read the distance in the overlay'],params:`<div class="section-title">Measurement</div><div class="prop-row"><span class="k">Distance</span><span class="v">1240.0 mm</span></div><div class="prop-row"><span class="k">Axis</span><span class="v">X (horizontal)</span></div>${toggleRow('Project to axis',true)}`,sel:'Face A → Face B',gizmo:'<b>Distance</b> 1240.0 mm<br><b>ΔX</b> 1240.0<br><b>ΔY</b> 0.0'},
+  'Add Part':{pill:'ADD PART',title:'Add a board part',steps:['Choose the material and thickness','Click a face to place the board','Adjust dimensions in the inspector'],params:`<div class="section-title">New part</div><div class="grid2">${dim('L','Length',600)}${dim('W','Width',480)}</div>${dim('T','Thickness',18)}<div class="field"><label>Material</label><select class="select"><option>Alpine Walnut 18mm</option><option>Birch Ply 12mm</option></select></div>`,sel:'Placing new board part',gizmo:'<b>Part</b> PB-107<br><b>Size</b> 600 × 480 × 18<br><b>Material</b> Alpine Walnut'},
+  'Face Snap':{pill:'SNAP',title:'Face-to-face alignment',steps:['Click the source face on the moving part','Click the target face on the stationary part','The part aligns and seats automatically'],params:`<div class="section-title">Snap settings</div>${segRow('Alignment',['Center','Edge','Flush'],'Flush')}${toggleRow('Keep Z-up',true)}${toggleRow('Auto-seat joint',true)}<div class="subcard t-xs t-muted">Source: <b>BC-02 right end face</b><br>Target: <b>BC-03 left end face</b></div>`,sel:'Source → Target faces selected',gizmo:'<b>Phase</b> target-pick<br><b>Source</b> +X face<br><b>Gap</b> 0.0 mm'},
+  'Cut':{pill:'CUT',title:'Boolean subtract a cut',steps:['Click the face to cut into','Drag the cut rectangle handles','Confirm to rebuild geometry'],params:`<div class="section-title">Cut</div><div class="field"><label>Type</label><select class="select"><option>Box cut</option><option>Drilling</option><option>Mitre</option></select></div><div class="grid2">${dim('W','Width',40)}${dim('D','Depth',18)}</div>${toggleRow('Link to mating part',true)}`,sel:'BC-02 · front face · cut preview',gizmo:'<b>Cut</b> 40 × 18 mm<br><b>Depth</b> 18.0 mm<br><b>Linked</b> yes'},
+  'Drilling':{pill:'DRILL',title:'Place a drilling row',steps:['Click the drilling face','Set diameter, pitch and count','Confirm to cut and schedule the row'],params:`<div class="section-title">Drilling</div><div class="grid3">${dim('Ø','Diameter',8)}${dim('P','Pitch',32)}${dim('N','Count',8)}</div>${segRow('Depth',['Blind','Through'],'Blind')}${dim('D','Depth',12)}`,sel:'Back Panel · drilling row preview',gizmo:'<b>Row</b> 8 × Ø8<br><b>Pitch</b> 32 mm<br><b>Depth</b> 12 mm'},
+  'Dado':{pill:'DADO',title:'Parametric dado joint',steps:['Click the housing face','Click the housed board end','Adjust profile and stops in the inspector'],params:`<div class="section-title">Dado</div>${segRow('Profile',['Standard','Rabbeted'],'Standard')}<div class="grid2">${dim('D','Depth',12)}${dim('C','Clear',0.2)}</div><div class="grid2">${dim('A','Stop A',0)}${dim('B','Stop B',0)}</div>`,sel:'Housing → housed board seats into groove',gizmo:'<b>Type</b> Dado<br><b>Groove</b> 18 × 12<br><b>Stops</b> through'},
+  'Half-lap':{pill:'HALF-LAP',title:'Parametric half-lap joint',steps:['Click the first overlapping board','Click the second board','Adjust split plane and clearance'],params:`<div class="section-title">Half-lap</div><div class="grid2">${dim('S','Split',0)}${dim('C','Clear',0.2)}</div>${toggleRow('Keep shoulder',true)}`,sel:'Board A ↔ Board B · notch preview',gizmo:'<b>Split</b> 50%<br><b>Clear</b> 0.2 mm<br><b>Notches</b> 2'},
+  'Mortise & Tenon':{pill:'MORTISE',title:'Mortise & tenon joint',steps:['Click the mortise face','Click the perpendicular tenon end','Size the tenon and pocket'],params:`<div class="section-title">Mortise & tenon</div><div class="grid2">${dim('L','Length',30)}${dim('T','Thickness',8)}</div>${dim('W','Width',40)}${toggleRow('Through mortise',false)}`,sel:'Mortise board → tenon board',gizmo:'<b>Tenon</b> 40 × 8 × 30<br><b>Pocket</b> blind<br><b>Shoulders</b> 2'},
+  'Finger Joint':{pill:'FINGER',title:'Box / finger joint',steps:['Click one board end','Click the perpendicular equal-width end','Set finger count and clearance'],params:`<div class="section-title">Finger joint</div><div class="grid2">${dim('N','Fingers',6)}${dim('C','Clear',0.2)}</div>${toggleRow('Auto-seat corner',true)}`,sel:'End A ↔ End B · interlocking fingers',gizmo:'<b>Fingers</b> 6<br><b>Clear</b> 0.2 mm<br><b>Corner</b> seated'},
+  'Tongue & Groove':{pill:'T & G',title:'Edge-to-edge tongue & groove',steps:['Click the first board long edge','Click the facing edge of the second board','Set tongue thickness and depth'],params:`<div class="section-title">Tongue & groove</div><div class="grid2">${dim('T','Thickness',6)}${dim('D','Depth',8)}</div>${dim('C','Clear',0.2)}`,sel:'Edge A ↔ Edge B · coplanar boards',gizmo:'<b>Tongue</b> 6 × 8<br><b>Fit</b> 0.2 mm<br><b>Length</b> full'},
+  'Dowel':{pill:'DOWEL',title:'Dowel alignment joint',steps:['Click the first board face','Click the mating face','Dowels place at system pitch'],params:`<div class="section-title">Dowels</div><div class="grid2">${dim('Ø','Diameter',8)}${dim('P','Pitch',32)}</div>${dim('N','Count',4)}`,sel:'Face A ↔ Face B · dowel positions',gizmo:'<b>Dowels</b> 4 × Ø8<br><b>Pitch</b> 32 mm<br><b>Depth</b> 16 mm'},
+  'Dimensions':{pill:'DIM',title:'Dimension overlay',steps:['Select a part or joint','Dimensions render automatically','Toggle individual labels in the inspector'],params:`<div class="section-title">Dimensions</div>${toggleRow('Overall sizes',true)}${toggleRow('Cut labels',true)}${toggleRow('Joint callouts',true)}${toggleRow('Manual notes',false)}`,sel:'BC-02 · 3 dimension callouts visible',gizmo:'<b>W</b> 600 mm<br><b>D</b> 560 mm<br><b>H</b> 720 mm'},
+  'Visibility':{pill:'VISIBILITY',title:'Part visibility',steps:['Press H to hide the selection','Use the eye icons in the scene tree','Hidden parts stay in the BOM'],params:`<div class="section-title">Visibility</div>${toggleRow('Show hidden parts ghosted',true)}${toggleRow('Hide hardware',false)}${toggleRow('Isolate selection',false)}<div class="subcard t-xs t-muted">2 parts hidden · 40 visible</div>`,sel:'Base Cabinet 03 · hidden',gizmo:'<b>Visible</b> 40 parts<br><b>Hidden</b> 2 parts<br><b>Ghost</b> on'}
+};
+let vmMode='Select';
+function renderVmNav(){
+  $('#vmNav').innerHTML=VM_GROUPS.map(g=>`<div class="grp">${g.g}</div>`+g.items.map(it=>`<button class="${it[0]===vmMode?'on':''}" onclick="setVmMode('${it[0]}')">${ic(it[1])}<span>${it[0]}</span><kbd>${it[2]}</kbd></button>`).join('')).join('');
+}
+function setVmMode(m){
+  vmMode=m;const d=VM_DATA[m];
+  $('#vmSteps').innerHTML=`<div class="h"><span class="pill">${d.pill}</span><b>${d.title}</b></div><ol>${d.steps.map((s,i)=>`<li class="${i===0?'cur':''}">${s}</li>`).join('')}</ol>`;
+  $('#vmProps').innerHTML=`<div class="section-title" style="margin-top:0">${d.title}</div>${d.params}<div class="section-title">Live state</div><div class="subcard t-xs t-muted">${d.sel}</div><button class="btn accent w-full" style="margin-top:10px" onclick="vmApply()">Apply to Model</button>`;
+  $('#vmSel').innerHTML=`<span class="sdot cyan"></span><span>${d.sel}</span>`;
+  $('#vmGizmo').innerHTML=d.gizmo;
+  $('#vmStage').querySelectorAll('.viewport').forEach(e=>e.remove());
+  const vp=document.createElement('div');vp.className='viewport';vp.style.cssText='position:absolute;inset:0;z-index:0';
+  vp.innerHTML=cabinetScene({selected:true,selColor:'#e08b3c'});
+  $('#vmStage').insertBefore(vp,$('#vmStage').firstChild);
+  $('#modeStatus').textContent='Mode: '+m;
+  renderVmNav();flash($('#vmSteps'));
+}
+function vmApply(){flash($('#vmProps'));const t=$('#modeStatus');t.textContent='Mode: '+vmMode+' · applied';setTimeout(()=>t.textContent='Mode: '+vmMode,1200)}
+
+/* =========================================================
+   VIEW 4 — MANUFACTURING dashboard
+   ========================================================= */
+const MFG_CARDS=[
+  ['list','Cutting List','Boards, hardware and material grouped BOM with CSV export.','42 parts','bom'],
+  ['bolt','Readiness Review','Production gate: corrections, advisories, unassessed checks.','2 issues','readiness'],
+  ['ruler','Shop Drawings','Front, edge, end projections with dimensions and cut IDs.','12 sheets','drawing'],
+  ['package','Production Packet',' machining CSV/JSON, drawings, manifest and integrity check.','Ready','packet'],
+  ['compare','Release Comparison','Compare a verified baseline against the working design.','3 changes','compare'],
+  ['check','Local Change Review','Acknowledge changes and record reviewer notes.','1 draft','review'],
+  ['search','Verify Packet','Check downloaded ZIP inventories, hashes and drawing IDs.','Verified','verify'],
+  ['download','Exports','STL, STEP, SVG, DXF and PDF outputs.','6 formats','exports']
+];
+function renderMfg(){
+  $('#mfgGrid').innerHTML=MFG_CARDS.map(c=>`<div class="mcard" onclick="openModal('${c[4]}')">
+    <div class="top"><span class="ic">${ic(c[0])}</span><span class="badge ${c[3].includes('issue')?'red':c[3]==='Ready'||c[3]==='Verified'?'green':'cyan'}">${c[3]}</span></div>
+    <h4>${c[1]}</h4><p>${c[2]}</p><div class="meta">Open workflow ${ic('arrowR','sm')}</div></div>`).join('');
+  $('#mfgList').innerHTML=`
+    <div class="mpanel"><div class="ph">${ic('bolt','sm')}<b>Readiness summary</b><span class="grow"></span><span class="badge red">2 corrections</span></div><div class="pb">
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:10px">${[['red','2','To fix'],['amber','5','Advisory'],['','38','Passed'],['','3','Unassessed']].map(k=>`<div class="kpi"><div class="n" style="color:${k[0]==='red'?'var(--red)':k[0]==='amber'?'var(--amber)':'var(--fg-0)'}">${k[1]}</div><div class="l">${k[2]}</div></div>`).join('')}</div>
+      ${[['red','Drill Ø8 exceeds nominal board boundary','PB-103 · Back Panel'],['red','Thin web remaining < 3mm','Cut #12 · BC-02'],['amber','Duplicate part labels','Shelf ×3']].map(i=>`<div class="issue"><span class="sdot ${i[0]}"></span><div class="body"><b>${i[1]}</b><br><span>${i[2]}</span></div></div>`).join('')}
+      <button class="btn accent w-full" style="margin-top:6px" onclick="openModal('readiness')">Open full review</button>
+    </div></div>
+    <div class="mpanel"><div class="ph">${ic('clock','sm')}<b>Release status</b><span class="grow"></span><span class="badge green dot">Verified baseline</span></div><div class="pb">
+      <div class="prop-row"><span class="k">Latest verified revision</span><span class="v">REV-12</span></div>
+      <div class="prop-row"><span class="k">Working design changes</span><span class="v" style="color:var(--amber)">3 parts</span></div>
+      <div class="prop-row"><span class="k">Packet integrity</span><span class="v">All hashes match</span></div>
+      <div class="prop-row"><span class="k">Last reviewed</span><span class="v">2 days ago</span></div>
+      <div class="section-title">Revision history</div>
+      ${[['REV-12','Verified · 2 days ago','green'],['REV-11','Superseded',''],['REV-10','Superseded','']].map(r=>`<div class="prop-row"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join('')}
+      <button class="btn outline w-full" style="margin-top:8px" onclick="openModal('compare')">Compare with working design</button>
+    </div></div>`;
+}
+renderMfg();
+
+/* =========================================================
+   VIEW 5 — PROJECT & ROOM
+   ========================================================= */
+const PR_TABS=['Room Geometry','Installation','Services','Project Info','Clearance'];
+let prTab='Room Geometry';
+function renderPrTabs(){$('#prTabs').innerHTML=PR_TABS.map(t=>`<button class="${t===prTab?'on':''}" onclick="setPrTab('${t}')">${t}</button>`).join('')}
+function setPrTab(t){prTab=t;renderPrTabs();renderPrSide();flash($('#prSide'))}
+function renderPrTree(){
+  $('#prTree').innerHTML=`<div class="tree-head">Project<span class="cnt">5 items</span></div>`+
+    [['room','Kitchenette','3.6 × 2.8'],['folder','Areas','2'],['cube','Base Run','4'],['cube','Wall Units','2'],['cube','Tall Unit','1'],['folder','Services','4']].map((m,i)=>`<div class="tree-row ${i===0?'on':''}" onclick="flash(this)">${ic(m[0])}<span class="name">${m[1]}</span><span class="meta">${m[2]}</span></div>`).join('');
+}
+function prStageSVG(){
+  return `<svg viewBox="0 0 900 560" width="100%" height="100%"><g opacity=".5">${(()=>{let s='';for(let x=0;x<900;x+=36)s+=`<line x1="${x}" y1="0" x2="${x}" y2="560" stroke="#242a32"/>`;for(let y=0;y<560;y+=36)s+=`<line x1="0" y1="${y}" x2="900" y2="${y}" stroke="#242a32"/>`;return s})()}</g>
+  <rect x="70" y="60" width="760" height="440" fill="none" stroke="#59616c" stroke-width="2"/>
+  <g fill="#2b323b" stroke="#5b6470">${[0,1,2].map(i=>`<rect x="${100+i*140}" y="90" width="130" height="60" rx="2"/>`).join('')}${[0,1].map(i=>`<rect x="${100+i*170}" y="400" width="160" height="70" rx="2"/>`).join('')}</g>
+  <g fill="none" stroke="#e08b3c" stroke-width="2"><rect x="240" y="90" width="130" height="60" rx="2"/></g>
+  <text x="245" y="175" fill="#e08b3c" font-size="11" font-family="JetBrains Mono">BC-02</text>
+  <g stroke="#6f7884" stroke-width="1"><line x1="100" y1="210" x2="520" y2="210"/><text x="310" y="204" fill="#6f7884" font-size="10" text-anchor="middle" font-family="JetBrains Mono">2400</text><line x1="80" y1="60" x2="80" y2="500"/><text x="68" y="280" fill="#6f7884" font-size="10" text-anchor="middle" transform="rotate(-90 68 280)" font-family="JetBrains Mono">2800</text></g>
+  <g fill="#4ec9a0" opacity=".6"><circle cx="640" cy="200" r="5"/><circle cx="640" cy="230" r="5"/></g>
+  </svg><div class="canvas-note">${prTab.toUpperCase()} · click a cabinet to select · drag to reposition</div>`;
+}
+function renderPrSide(){
+  const C={
+  'Room Geometry':`<div class="section-title" style="margin-top:0">Dimensions</div><div class="grid2">${dim('W','Width',3600)}${dim('D','Depth',2800)}${dim('H','Height',2400)}${dim('T','Wall',120)}</div><div class="section-title">Shape</div>${segRow('Plan',['Rectangle','L-shape','U-shape'],'Rectangle')}${toggleRow('Square to walls',true)}`,
+  'Installation':`<div class="section-title" style="margin-top:0">Assessment</div>${[['green','Wall fit · all cabinets within tolerance'],['green','Corner access · no interference'],['amber','Outlet position · review recommended']].map(i=>`<div class="issue"><span class="sdot ${i[0]}"></span><div class="body">${i[1]}</div></div>`).join('')}<div class="section-title">Tolerances</div><div class="grid2">${dim('W','Wall',3)}${dim('F','Floor',5)}</div>`,
+  'Services':`<div class="section-title" style="margin-top:0">Service points</div>${[['amber','Electrical socket','220V · 1'],['cyan','Water inlet','Ø32 · 1'],['cyan','Drain','Ø50 · 1'],['red','Gas','pending']].map(s=>`<div class="prop-row"><span class="k"><span class="sdot ${s[0]}"></span> ${s[1]}</span><span class="v">${s[2]}</span></div>`).join('')}<button class="btn outline w-full" style="margin-top:10px">＋ Add service point</button>`,
+  'Project Info':`<div class="section-title" style="margin-top:0">Project</div><div class="field"><label>Name</label><input class="input" value="Kitchenette — Alpine Walnut"></div><div class="field" style="margin-top:8px"><label>Client</label><input class="input" value="Private residence"></div><div class="field" style="margin-top:8px"><label>File</label><input class="input mono" value="kitchenette_v43.zimmu"></div><div class="section-title">Stats</div>${[['Cabinets','5'],['Parts','42'],['Joints','8'],['Revisions','12']].map(r=>`<div class="prop-row"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join('')}`,
+  'Clearance':`<div class="section-title" style="margin-top:0">Walkways</div><div class="grid2">${dim('A','Aisle',950)}${dim('C','Corner',700)}</div>${toggleRow('Check door swing',true)}${toggleRow('Check drawer extension',true)}<div class="section-title">Result</div><div class="issue"><span class="sdot green"></span><div class="body">All clearances within recommended limits</div></div>`
+  };
+  $('#prSide').innerHTML=C[prTab];
+}
+renderPrTabs();renderPrTree();renderPrSide();
+function refreshPrStage(){$('#prStage').innerHTML=prStageSVG()}
+refreshPrStage();
+
+/* =========================================================
+   MODALS — full manufacturing + project workflows
+   ========================================================= */
+function modalShell(title,sub,body,foot,wide){
+  return `<div class="modal-scrim2" onclick="if(event.target===this)closeModal()"><div class="modal2" style="${wide?'width:min(1220px,97vw)':''}">
+    <div class="mh">${ic('sparkle')}<b>${title}</b><span class="sub">${sub}</span><span class="grow"></span><button class="btn ghost sm icon" onclick="closeModal()">${ic('close')}</button></div>
+    <div class="mb">${body}</div><div class="mf"><span class="grow"></span>${foot||'<button class="btn" onclick="closeModal()">Close</button>'}</div></div></div>`;
+}
+function closeModal(){$('#modalHost').innerHTML=''}
+
+/* --- BOM (4 tabs) --- */
+const BOM_ROWS=[
+  ['PB-101','Side Panel L','Alpine Walnut 18mm',2,'496 × 720','¥ 168'],
+  ['PB-102','Side Panel R','Alpine Walnut 18mm',2,'496 × 720','¥ 168'],
+  ['PB-103','Back Panel','Birch Ply 12mm',1,'564 × 700','¥ 92'],
+  ['PB-104','Shelf','Alpine Walnut 18mm',3,'560 × 480','¥ 214'],
+  ['PB-105','Top Rail','Alpine Walnut 18mm',2,'560 × 60','¥ 48'],
+  ['PB-106','Bottom Panel','Alpine Walnut 18mm',1,'560 × 480','¥ 76'],
+  ['HW-014','Blum Clip Top 110°','Hardware',2,'—','¥ 54'],
+  ['HW-021','Tandem Runner 4832','Hardware',1,'—','¥ 88']
+];
+let bomTab='Boards';
+function bomBody(){
+  const tabs=['Boards','Hardware','Library','Nesting'];
+  let inner='';
+  if(bomTab==='Boards'||bomTab==='Hardware'){
+    const rows=bomTab==='Boards'?BOM_ROWS.filter(r=>r[0].startsWith('PB')):BOM_ROWS.filter(r=>r[0].startsWith('HW'));
+    inner=`<div class="filterbar"><input class="input" placeholder="Search parts…"><span class="chip on">All materials</span><span class="chip">Alpine Walnut</span><span class="chip">Birch Ply</span><span class="grow"></span><button class="btn sm" onclick="downloadBom()">${ic('download','sm')} Export CSV</button></div>
+      <table class="tbl"><thead><tr><th>ID</th><th>Name</th><th>Material</th><th class="num">Qty</th><th class="num">Size (mm)</th><th class="num">Cost</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr><td class="mono">${r[0]}</td><td class="t-strong">${r[1]}</td><td class="t-muted">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}</td><td class="num">${r[5]}</td></tr>`).join('')}</tbody></table>
+      <div class="row gap-12" style="margin-top:12px"><div class="kpi" style="flex:1"><div class="n">¥ 690</div><div class="l">Total cost estimate</div></div><div class="kpi" style="flex:1"><div class="n">3.24 m²</div><div class="l">Board area</div></div><div class="kpi" style="flex:1"><div class="n">84%</div><div class="l">Utilization</div></div></div>`;
+  } else if(bomTab==='Library'){
+    inner=`<div class="section-title" style="margin-top:0">Material cost rates · persistent across files</div>
+      <table class="tbl"><thead><tr><th>Material</th><th>Thickness</th><th class="num">Rate / m²</th><th class="num">Stock</th><th>Status</th></tr></thead><tbody>
+      ${[['Alpine Walnut','18mm','¥ 82','12 sheets','green'],['Birch Ply','12mm','¥ 48','8 sheets','green'],['MDF Core','18mm','¥ 32','4 sheets','amber'],['Natural Oak','20mm','¥ 96','0','red']].map(r=>`<tr><td class="t-strong">${r[0]}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td><span class="sdot ${r[4]}"></span></td></tr>`).join('')}</tbody></table>
+      <button class="btn outline" style="margin-top:10px">＋ Add material rate</button>`;
+  } else {
+    inner=`<div class="section-title" style="margin-top:0">Sheet nesting · 2440 × 1220</div>
+      <div class="row gap-12"><div style="flex:1;background:var(--bg-0);border:1px solid var(--line);border-radius:6px;padding:10px">
+        <svg viewBox="0 0 480 240" width="100%"><rect x="0" y="0" width="480" height="240" fill="none" stroke="#6a737f" stroke-width="2"/>
+        <g fill="#2f3943" stroke="#59616c">${[['10','10','150','100'],['170','10','130','100'],['310','10','160','100'],['10','120','180','110'],['200','120','120','110'],['330','120','140','110']].map(r=>`<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}"/>`).join('')}</g>
+        <g font-family="JetBrains Mono" font-size="9" fill="#9aa3ae"><text x="16" y="28">PB-101</text><text x="176" y="28">PB-104</text><text x="316" y="28">PB-105</text><text x="16" y="138">PB-102</text><text x="206" y="138">PB-103</text><text x="336" y="138">PB-106</text></g></svg>
+      </div><div style="width:220px"><div class="kpi"><div class="n">84%</div><div class="l">Utilization</div></div><div class="kpi" style="margin-top:8px"><div class="n">0.52 m²</div><div class="l">Waste</div></div><div class="kpi" style="margin-top:8px"><div class="n">2</div><div class="l">Sheets required</div></div></div></div>`;
+  }
+  return `<div class="tabs" style="margin-bottom:12px">${tabs.map(t=>`<button class="${t===bomTab?'on':''}" onclick="setBomTab('${t}')">${t}</button>`).join('')}</div>${inner}`;
+}
+function setBomTab(t){bomTab=t;$('.modal2 .mb').innerHTML=bomBody()}
+function downloadBom(){flash($('.modal2 .mf .btn.accent')||$('.modal2'))}
+
+/* --- Readiness --- */
+function readinessBody(){
+  return `<div class="kpi-row">${[['red','2','To fix'],['amber','5','Advisory'],['green','38','Passed'],['','3','Unassessed']].map(k=>`<div class="kpi"><div class="n" style="color:${k[0]==='red'?'var(--red)':k[0]==='amber'?'var(--amber)':k[0]==='green'?'var(--green)':'var(--fg-0)'}">${k[1]}</div><div class="l">${k[2]}</div></div>`).join('')}</div>
+    <div class="section-title" style="margin-top:0">Issues requiring correction</div>
+    ${[['red','Drill Ø8 exceeds nominal board boundary','PB-103 · Back Panel'],['red','Thin web remaining < 3 mm between two cuts','Cut #12 · BC-02']].map(i=>`<div class="issue"><span class="sdot ${i[0]}"></span><div class="body"><b>${i[1]}</b><br><span>${i[2]}</span></div><button class="btn xs">Locate</button></div>`).join('')}
+    <div class="section-title">Advisory findings</div>
+    ${[['amber','Duplicate part labels','Shelf ×3'],['amber','Missing material price','Birch Ply 12mm'],['amber','Unresolved stock reference','Alpine Walnut 18mm']].map(i=>`<div class="issue"><span class="sdot ${i[0]}"></span><div class="body"><b>${i[1]}</b><br><span>${i[2]}</span></div></div>`).join('')}
+    <div class="section-title">Unassessed checks</div>
+    <div class="subcard t-sm t-muted">Cut interactions with bevelled edges, minimum material on round stock, manual machining geometry and machine compatibility remain unassessed.</div>
+    <div class="section-title">Review notes</div><textarea class="input" style="height:56px" placeholder="Add reviewer notes…"></textarea>`;
+}
+
+/* --- Drawings --- */
+let dwSheet='Front View';
+const DWS=['Front View','Edge View','End View','Section A–A','Back Panel','Shelf Detail','Drawer Box','Plinth','Worktop','Tall Unit','Door Detail','Assembly'];
+function drawingBody(){
+  const paper=`<div class="drawing-paper"><div class="dw-title"><span>BC-02 · ${dwSheet.toUpperCase()}</span><span>SCALE 1:5 · 600 × 720 mm</span></div>
+    <svg viewBox="0 0 620 360" width="100%" height="330"><g fill="none" stroke="#16191d" stroke-width="1.6">
+    <rect x="150" y="30" width="320" height="270"/>
+    <line x1="150" y1="110" x2="470" y2="110"/><line x1="150" y1="205" x2="470" y2="205"/>
+    <line x1="310" y1="30" x2="310" y2="110"/><line x1="310" y1="205" x2="310" y2="300"/>
+    </g><g stroke="#16191d" stroke-width="1" font-family="JetBrains Mono" font-size="10" fill="#16191d">
+    <line x1="150" y1="16" x2="470" y2="16"/><text x="310" y="13" text-anchor="middle">600</text>
+    <line x1="136" y1="30" x2="136" y2="300"/><text x="130" y="165" text-anchor="middle" transform="rotate(-90 130 165)">720</text>
+    </g><g font-family="JetBrains Mono" font-size="9" fill="#16191d"><text x="330" y="75">DADO #1</text><text x="330" y="165">M&amp;T #2</text><text x="160" y="290">BC-02</text></g></svg></div>`;
+  return `<div class="drawing-wrap"><div class="dlist"><div class="t-xs uppercase t-dim" style="padding:0 9px 6px">Drawing sheets · 12</div>
+    ${DWS.map(d=>`<button class="${d===dwSheet?'on':''}" onclick="setDwSheet('${d}')">${ic('file','sm')}${d}</button>`).join('')}
+    <div class="section-title">Export</div><button class="btn outline w-full" style="margin-bottom:5px">SVG</button><button class="btn outline w-full">DXF</button></div>
+    <div>${paper}</div></div>`;
+}
+function setDwSheet(d){dwSheet=d;$('.modal2 .mb').innerHTML=drawingBody()}
+
+/* --- Packet / comparison / review / verify / exports --- */
+function packetBody(){
+  return `<div class="kpi-row">${[['green','✓','Integrity'],['green','12','Drawing pages'],['green','2','CSV/JSON indexes'],['green','✓','Manifest hashed']].map(k=>`<div class="kpi"><div class="n" style="color:var(--green)">${k[1]}</div><div class="l">${k[2]}</div></div>`).join('')}</div>
+    <div class="section-title" style="margin-top:0">Packet contents</div>
+    <table class="tbl"><thead><tr><th>File</th><th>Type</th><th class="num">Size</th><th>Hash</th></tr></thead><tbody>
+    ${[['drawings/index.html','index','12 KB','a4f2…'],['machining/schedule.csv','schedule','8 KB','b7c1…'],['machining/schedule.json','schedule','21 KB','d0e9…'],['cutting-list.csv','bom','4 KB','f312…'],['manifest.json','manifest','2 KB','9ab4…']].map(r=>`<tr><td class="mono">${r[0]}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="mono">${r[3]}</td></tr>`).join('')}</tbody></table>
+    <div class="section-title">Review classification</div><div class="subcard t-sm t-muted">Issues needing correction are listed separately from advisory findings and unassessed checks. Exports remain available regardless of readiness status.</div>`;
+}
+function compareBody(){
+  return `<div class="section-title" style="margin-top:0">Working design vs REV-12</div>
+    <div class="kpi-row">${[['amber','3','Changed parts'],['green','0','Removed'],['green','1','Added'],['','12','Unchanged']].map(k=>`<div class="kpi"><div class="n" style="color:${k[0]==='amber'?'var(--amber)':k[0]==='green'?'var(--green)':'var(--fg-0)'}">${k[1]}</div><div class="l">${k[2]}</div></div>`).join('')}</div>
+    <table class="tbl"><thead><tr><th>Part</th><th>Field</th><th>Baseline</th><th>Working</th><th>Select</th></tr></thead><tbody>
+    ${[['PB-103','Thickness','18 mm','12 mm',1],['PB-104','Label','Shelf','Shelf A',1],['PB-106','Qty','1','2',1],['PB-101','Width','496','496',0]].map(r=>`<tr><td class="mono">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="t-strong">${r[3]}</td><td><input type="checkbox" class="checkbox" ${r[4]?'checked':''}></td></tr>`).join('')}</tbody></table>
+    <div class="section-title">Reviewer checklist</div>
+    ${['Source hash verified','Comparison coverage complete','Notes attached'].map(c=>`<div class="prop-row"><span class="k">${c}</span>${ic('check','sm')}</div>`).join('')}
+    <textarea class="input" style="height:54px;margin-top:10px" placeholder="Reviewer notes…"></textarea>`;
+}
+function reviewBody(){
+  return `<div class="section-title" style="margin-top:0">Local change review</div>
+    <div class="subcard t-sm t-muted">This review is bound to both packet hashes. Acknowledge detected changes, note other changed outputs, and record a reviewer before downloading the summary.</div>
+    <div class="section-title">Acknowledgements</div>
+    ${['I reviewed the detected part changes','I checked other changed outputs','I understand the comparison scope limits'].map(c=>`<div class="prop-row"><span class="k">${c}</span><input type="checkbox" class="checkbox"></div>`).join('')}
+    <div class="section-title">Reviewer</div><div class="grid2"><div class="field"><label>Name</label><input class="input" value="Bill Ma"></div><div class="field"><label>Date</label><input class="input" value="2026-11-20"></div></div>
+    <textarea class="input" style="height:60px;margin-top:10px" placeholder="Notes…"></textarea>`;
+}
+function verifyBody(){
+  return `<div class="kpi-row">${[['green','✓','ZIP inventory'],['green','✓','Hashes'],['green','12','Drawing page IDs'],['green','✓','CSV / JSON']].map(k=>`<div class="kpi"><div class="n" style="color:var(--green)">${k[1]}</div><div class="l">${k[2]}</div></div>`).join('')}</div>
+    <div class="section-title" style="margin-top:0">Verification findings</div>
+    <table class="tbl"><thead><tr><th>Check</th><th>Scope</th><th>Result</th></tr></thead><tbody>
+    ${[['Inventory','All packet files','Passed'],['SHA-256','Every hashed output','Passed'],['Drawing IDs','12 pages indexed','Passed'],['Schedule rows','CSV / JSON parity','Passed'],['Manifest','Source hash','Passed']].map(r=>`<tr><td>${r[0]}</td><td class="t-muted">${r[1]}</td><td><span class="sdot green"></span> ${r[2]}</td></tr>`).join('')}</tbody></table>
+    <div class="subcard t-sm t-muted" style="margin-top:10px">Integrity verification is separate from production approval. It confirms the packet matches its own manifest only.</div>`;
+}
+function exportsBody(){
+  return `<div class="section-title" style="margin-top:0">Export formats</div>
+    <div class="opt-grid">${[['download','STL','Binary, world space, visible parts'],['download','STEP','XCAF named solids via OCCT'],['ruler','2D Drawings','SVG + DXF per part'],['file','Shop PDF','Printable drawing deck'],['list','Cutting CSV','Board + hardware lists'],['package','Production ZIP','Full manufacturing packet']].map(o=>optCard(o[0],o[1],o[2],false)).join('')}</div>
+    <div class="section-title">Options</div>${toggleRow('Visible parts only',true)}${toggleRow('Include hidden hardware',false)}${toggleRow('Embed manifest',true)}`;
+}
+function projectBody(){
+  return `<div class="grid2"><div class="panel"><div class="panel-head"><span class="ttl">Room geometry</span></div><div class="panel-body">
+    <div class="grid2"><div class="field"><label>Width</label><input class="input mono" value="3600"></div><div class="field"><label>Depth</label><input class="input mono" value="2800"></div><div class="field"><label>Height</label><input class="input mono" value="2400"></div><div class="field"><label>Wall</label><input class="input mono" value="120"></div></div>
+    </div></div><div class="panel"><div class="panel-head"><span class="ttl">Installation assessment</span><span class="badge green">Passed</span></div><div class="panel-body" style="font-size:var(--fs-sm);color:var(--fg-2)">
+    ${[['green','Wall fit within tolerance'],['green','Corner access clear'],['amber','Outlet position to review']].map(i=>`<div class="issue-row" style="margin-bottom:6px"><span class="sdot ${i[0]}"></span>${i[1]}</div>`).join('')}</div></div></div>
+    <div class="section-title">Areas & items</div>
+    <table class="tbl"><thead><tr><th>Item</th><th>Type</th><th class="num">Qty</th><th>Status</th></tr></thead><tbody>
+    ${[['AR-01','Kitchen base run','4','green'],['AR-02','Wall units','2','green'],['AR-03','Tall pantry','1','green'],['SR-01','Electrical','1','amber']].map(r=>`<tr><td class="mono">${r[0]}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td><span class="sdot ${r[3]}"></span></td></tr>`).join('')}</tbody></table>`;
+}
+function cabBody(){
+  return `<div class="section-title" style="margin-top:0">Cabinet presets</div><div class="grid3">${[['cube','Base Cabinet','600mm base'],['cube','Tall Unit','900mm pantry'],['cube','Wall Cabinet','Wall mounted'],['cube','Drawer Base','3 drawers'],['cube','Corner Unit','Blind corner'],['cube','Sink Base','Sink ready']].map(c=>`<div class="panel" style="padding:15px;text-align:center;cursor:pointer" onclick="closeModal()"><div style="color:var(--accent);margin-bottom:8px">${ic(c[0])}</div><div class="t-strong">${c[1]}</div><div class="t-xs t-muted">${c[2]}</div></div>`).join('')}</div>`;
+}
+function jointBody(){
+  return `<div class="section-title" style="margin-top:0">Joint parameters · Dado #1</div>
+    <div class="grid2">${dim('D','Groove depth',12)}${dim('C','Clearance',0.2)}</div>${segRow('Profile',['Standard','Rabbeted'],'Standard')}${toggleRow('Stopped dado',false)}
+    <div class="section-title">Ownership</div><div class="prop-row"><span class="k">Housing part</span><span class="v">BC-02</span></div><div class="prop-row"><span class="k">Housed part</span><span class="v">Shelf A</span></div>`;
+}
+function releaseBody(){
+  return `<div class="grid2"><div class="panel"><div class="panel-head"><span class="ttl">Version status</span><span class="badge green dot">Verified</span></div><div class="panel-body">
+    <div class="prop-row"><span class="k">Released revision</span><span class="v">REV-12</span></div><div class="prop-row"><span class="k">Working changes</span><span class="v" style="color:var(--amber)">3 parts</span></div><div class="prop-row"><span class="k">Integrity</span><span class="v">All hashes match</span></div></div></div>
+    <div class="panel"><div class="panel-head"><span class="ttl">Packet contents</span></div><div class="panel-body" style="font-size:var(--fs-sm);line-height:1.9;color:var(--fg-2)">✓ Shop drawings · 12 pages<br>✓ Machining schedule CSV/JSON<br>✓ Cutting list<br>✓ Hardware list<br>✓ Manifest</div></div></div>
+    <div class="section-title">Review notes</div><textarea class="input" style="height:58px" placeholder="Record review notes…"></textarea>`;
+}
+
+function openModal(kind){
+  let h='',title='',sub='',foot='';
+  switch(kind){
+    case 'bom': title='Bill of Materials';sub='42 parts · 8 joints · 12 hardware items';h=bomBody();foot='<button class="btn" onclick="closeModal()">Close</button><button class="btn accent" onclick="downloadBom()">Download CSV</button>';break;
+    case 'readiness': title='Production Readiness Review';sub='Completeness checks before manufacturing release';h=readinessBody();foot='<button class="btn" onclick="closeModal()">Later</button><button class="btn accent">Download Report</button>';break;
+    case 'drawing': title='2D Shop Drawings';sub='BC-02 · orthographic projections with dimensions';h=drawingBody();foot='<button class="btn" onclick="closeModal()">Close</button><button class="btn accent">Export Drawings</button>';break;
+    case 'packet': title='Production Packet';sub='Verified contents · hashed manifest';h=packetBody();foot='<button class="btn" onclick="closeModal()">Close</button><button class="btn accent">Download Packet</button>';break;
+    case 'compare': title='Release Comparison';sub='Working design vs verified REV-12';h=compareBody();foot='<button class="btn" onclick="closeModal()">Cancel</button><button class="btn accent">Save Review</button>';break;
+    case 'review': title='Local Change Review';sub='Review bound to both packet hashes';h=reviewBody();foot='<button class="btn" onclick="closeModal()">Cancel</button><button class="btn accent">Download Summary</button>';break;
+    case 'verify': title='Verify Production Packet';sub='Local integrity check';h=verifyBody();foot='<button class="btn" onclick="closeModal()">Close</button><button class="btn accent">Download Findings</button>';break;
+    case 'exports': title='Exports';sub='STL · STEP · SVG · DXF · PDF · ZIP';h=exportsBody();foot='<button class="btn" onclick="closeModal()">Close</button><button class="btn accent">Export</button>';break;
+    case 'project': title='Project Structure';sub='Kitchenette · rooms, cabinets, installation';h=projectBody();foot='<button class="btn" onclick="closeModal()">Close</button>';break;
+    case 'cab': title='Add Cabinet Component';sub='Select a preset from the library';h=cabBody();foot='<button class="btn" onclick="closeModal()">Cancel</button>';break;
+    case 'joint': title='Joint Editor';sub='Dado #1 · BC-02 → Shelf A';h=jointBody();foot='<button class="btn" onclick="closeModal()">Cancel</button><button class="btn accent">Apply</button>';break;
+    case 'release': title='Release to Production';sub='Version · verification · packet';h=releaseBody();foot='<button class="btn" onclick="closeModal()">Cancel</button><button class="btn accent">Generate Packet</button>';break;
+  }
+  $('#modalHost').innerHTML=modalShell(title,sub,h,foot,kind==='drawing'||kind==='bom'||kind==='readiness');
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();hostClear()}});
+
+/* init first mode state */
+setVmMode('Select');
+
+/* =========================================================
+   Deep-link support: ?view=... or #view to open a perspective
+   ========================================================= */
+(function(){
+  const m=location.hash.match(/view=(workspace|cabinet|modes|manufacture|project)/)||location.search.match(/view=(workspace|cabinet|modes|manufacture|project)/);
+  if(m&&m[1]!=='workspace')setPerspective(m[1]);
+})();
+</script>
+</body></html>
