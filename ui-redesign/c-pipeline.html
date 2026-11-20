@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zimmu · Concept C — Guided Pipeline</title>
+<link rel="stylesheet" href="shared.css"><style>
+/* ============ CONCEPT C — GUIDED PIPELINE ============ */
+.app{height:100vh;display:flex;flex-direction:column;background:var(--bg-0)}
+.topbar{height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--bg-1);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.16em;font-size:12px;color:var(--fg-0)}
+.brand .logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(140deg,var(--accent),hsl(258 60% 40%));display:grid;place-items:center;color:#f0ebff;font-weight:800;font-size:11px}
+.proj{flex:1;text-align:center;font-size:var(--fs-md);color:var(--fg-1)}
+.proj b{color:var(--fg-0);font-weight:600}
+.proj .f{color:var(--fg-3);font-size:var(--fs-sm)}
+
+/* STEP FLOW header */
+.flow{height:64px;flex:none;display:flex;align-items:center;padding:0 26px;background:var(--bg-1);border-bottom:1px solid var(--line);gap:0}
+.step{display:flex;align-items:center;gap:9px;position:relative;flex:1;cursor:pointer;min-width:0}
+.step .num{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:700;border:2px solid var(--line-strong);color:var(--fg-3);background:var(--bg-2);flex:none;z-index:2}
+.step .lbl{display:flex;flex-direction:column;min-width:0}
+.step .lbl b{font-size:var(--fs-md);color:var(--fg-2);font-weight:600;white-space:nowrap}
+.step .lbl span{font-size:var(--fs-xs);color:var(--fg-3);white-space:nowrap}
+.step .conn{position:absolute;left:35px;right:8px;top:13px;height:2px;background:var(--line);z-index:1}
+.step.done .num{background:var(--green);border-color:var(--green);color:#04150d}
+.step.done .conn{background:var(--green)}
+.step.done .lbl b{color:var(--fg-1)}
+.step.active .num{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 5px var(--accent-soft)}
+.step.active .lbl b{color:var(--fg-0)}
+.step.active .lbl span{color:var(--accent)}
+.step:not(.done):not(.active) .num{opacity:.7}
+.step:last-child{flex:0}
+
+.body{flex:1;display:flex;min-height:0}
+/* LEFT: stage tasks */
+.stagebar{width:262px;flex:none;background:var(--bg-1);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.stage-head{padding:14px 14px 10px;border-bottom:1px solid var(--line);flex:none}
+.stage-head .k{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.12em;color:var(--accent);font-weight:700}
+.stage-head h2{margin:4px 0 3px;font-size:var(--fs-xl);color:var(--fg-0);font-weight:700}
+.stage-head p{margin:0;font-size:var(--fs-sm);color:var(--fg-2);line-height:1.5}
+.stage-progress{padding:10px 14px;border-bottom:1px solid var(--line);flex:none}
+.stage-progress .row{justify-content:space-between;font-size:var(--fs-sm);margin-bottom:6px}
+.tasklist{flex:1;overflow:auto;padding:8px}
+.task{display:flex;align-items:flex-start;gap:9px;padding:9px;border-radius:var(--r-sm);cursor:pointer;margin-bottom:2px}
+.task:hover{background:var(--bg-2)}
+.task.on{background:var(--accent-soft)}
+.task .tick{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--line-strong);flex:none;display:grid;place-items:center;margin-top:1px;color:transparent}
+.task.done .tick{background:var(--green);border-color:var(--green);color:#04150d}
+.task.on .tick{border-color:var(--accent)}
+.task .tx{flex:1;min-width:0}
+.task .tx b{display:block;font-size:var(--fs-md);color:var(--fg-1);font-weight:500}
+.task.done .tx b{color:var(--fg-2);text-decoration:line-through;opacity:.7}
+.task.on .tx b{color:var(--fg-0);font-weight:600}
+.task .tx span{font-size:var(--fs-xs);color:var(--fg-3)}
+.task .badge{margin-top:1px}
+.stage-foot{flex:none;padding:10px;border-top:1px solid var(--line)}
+.btn-next{width:100%;height:34px;border-radius:var(--r-sm);background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:var(--fs-md);display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-next:hover{filter:brightness(1.08)}
+
+/* CENTER: stage workspace */
+.work{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;background:var(--bg-0)}
+.work-head{height:38px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--bg-1)}
+.work-head .ttl{font-size:var(--fs-md);font-weight:600;color:var(--fg-0)}
+.work-head .crumb{font-size:var(--fs-sm);color:var(--fg-3)}
+.work-canvas{flex:1;position:relative;min-height:0}
+/* stage-specific panels */
+.stagepane{position:absolute;inset:0;overflow:auto;padding:20px;display:none}
+.stagepane.on{display:block}
+/* concept stage: inspiration board */
+.mood-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.mood{aspect-ratio:4/3;border-radius:10px;border:1px solid var(--line);overflow:hidden;position:relative;cursor:pointer;background-size:cover;background-position:center}
+.mood:hover{border-color:var(--accent)}
+.mood.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.mood .cap{position:absolute;inset:auto 0 0 0;padding:8px;background:linear-gradient(transparent,hsl(222 20% 4%/.9));font-size:var(--fs-sm);color:#fff;font-weight:600}
+/* design stage: viewport */
+.design-canvas{position:absolute;inset:0}
+/* detail stage: split editor */
+.split{display:grid;grid-template-columns:1fr 320px;gap:14px;height:100%}
+.leftcol,.rightcol{display:flex;flex-direction:column;gap:12px;min-height:0}
+/* manufacturing stage: checks dashboard */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.check-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* RIGHT: context assistant */
+.asst{width:300px;flex:none;background:var(--bg-1);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.asst-head{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--line)}
+.asst-head .ttl{font-size:var(--fs-md);font-weight:600;color:var(--fg-0)}
+.asst-body{flex:1;overflow:auto;padding:12px}
+.asst-foot{flex:none;padding:10px;border-top:1px solid var(--line)}
+.tip-card{background:var(--bg-2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-sm);padding:10px;margin-bottom:10px;font-size:var(--fs-sm);color:var(--fg-1);line-height:1.55}
+.tip-card b{color:var(--fg-0)}
+.tip-card.warn{border-left-color:var(--amber)}
+.tip-card .mini-h{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:700;margin-bottom:5px}
+.insight{display:flex;gap:8px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:var(--fs-sm)}
+.insight .ic{color:var(--accent);width:15px;height:15px}
+
+@media(max-width:1100px){.stagebar{width:220px}.asst{width:250px}.flow{padding:0 12px}.step .lbl span{display:none}}
+@media(max-width:820px){.stagebar,.asst{display:none}.mood-grid{grid-template-columns:repeat(2,1fr)}.kpi-row,.check-grid{grid-template-columns:1fr 1fr}}
+</style></head>
+<body class="concept-c">
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><span class="logo">Z</span> ZIMMU</div>
+    <div class="proj"><b>Kitchenette — Alpine Walnut</b> <span class="f">· kitchenette_v43.zimmu</span></div>
+    <button class="btn sm" onclick="openModal('bom')"><span id="bomIc"></span> List</button>
+    <button class="btn accent sm" onclick="goStage(3)">Go to Manufacturing <span class="arrowic"></span></button>
+  </div>
+
+  <!-- STEP FLOW -->
+  <div class="flow" id="flow"></div>
+
+  <div class="body">
+    <!-- LEFT: stage tasks -->
+    <aside class="stagebar">
+      <div class="stage-head">
+        <div class="k" id="stageK">STAGE 3 / 5 · Cabinet Detailing</div>
+        <h2 id="stageTitle">Cabinet Detailing</h2>
+        <p id="stageDesc">Refine cabinet structure, joints and hardware so the design is buildable.</p>
+      </div>
+      <div class="stage-progress">
+        <div class="row"><span class="t-muted">Stage Progress</span><span class="t-strong" id="stagePct">3 / 6</span></div>
+        <div class="progress"><i id="stageBar" style="width:50%"></i></div>
+      </div>
+      <div class="tasklist" id="tasklist"></div>
+      <div class="stage-foot"><button class="btn-next" onclick="nextTask()">Next: Confirm Structure <span class="arrowic"></span></button></div>
+    </aside>
+
+    <!-- CENTER: stage workspace -->
+    <main class="work">
+      <div class="work-head"><span class="ttl" id="workTitle">Cabinet 3D View</span><span class="crumb" id="workCrumb">/ Base CabinetGroup / Base Cabinet 02</span><span class="grow"></span><button class="btn ghost sm icon" title="Fit" id="fitBtn"></button></div>
+      <div class="work-canvas">
+        <!-- stage 0: concept -->
+        <div class="stagepane" data-stage="0">
+          <div class="row between" style="margin-bottom:14px"><div><div class="t-strong" style="font-size:var(--fs-lg)">Inspiration & Style Direction</div><div class="t-sm t-muted">Pick the visual tone closest to the client's expectation to guide later materials and forms</div></div><span class="badge violet">3 / 8 Selected</span></div>
+          <div class="mood-grid" id="moodGrid"></div>
+        </div>
+        <!-- stage 1: room/plan -->
+        <div class="stagepane" data-stage="1">
+          <div class="split">
+            <div class="panel" style="padding:0;overflow:hidden"><div class="viewport" style="height:100%" id="planCanvas"></div></div>
+            <div class="rightcol">
+              <div class="panel">
+                <div class="panel-head"><span class="ttl">Room Geometry</span></div>
+                <div class="panel-body">
+                  <div class="grid2"><div class="field"><label>Width</label><input class="input mono" value="3600"></div><div class="field"><label>Depth</label><input class="input mono" value="2800"></div></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><span class="ttl">Installation Assessment</span><span class="badge green dot">Passed</span></div>
+                <div class="panel-body" style="font-size:var(--fs-sm);color:var(--fg-2)">
+                  <div class="issue-row" style="margin-bottom:6px"><span class="sdot green"></span>Wall fit OK</div>
+                  <div class="issue-row"><span class="sdot amber"></span>Outlet position to review</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- stage 2: layout -->
+        <div class="stagepane" data-stage="2">
+          <div class="split">
+            <div class="panel" style="padding:0;overflow:hidden"><div class="viewport" style="height:100%" id="layoutCanvas"></div></div>
+            <div class="rightcol">
+              <div class="panel">
+                <div class="panel-head"><span class="ttl">Layout Options</span></div>
+                <div class="panel-body">
+                  <div class="prop-row"><span class="k">Total Cabinets</span><span class="v">5</span></div>
+                  <div class="prop-row"><span class="k">L-shaped corner</span><span class="v">Yes</span></div>
+                  <div class="prop-row"><span class="k">Aisle Width</span><span class="v">950mm</span></div>
+                  <div class="section-title">Presets</div>
+                  <div class="grid2"><button class="btn sm">Single Run</button><button class="btn sm">L-Shape</button><button class="btn sm">U-Shape</button><button class="btn sm">Island</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- stage 3: detail (design viewport) -->
+        <div class="stagepane on" data-stage="3">
+          <div class="design-canvas"><div class="viewport" id="detailViewport" style="height:100%"></div></div>
+        </div>
+        <!-- stage 4: manufacturing -->
+        <div class="stagepane" data-stage="4">
+          <div class="kpi-row">
+            <div class="card-kpi"><div class="l">To Fix</div><div class="n" style="color:var(--red)">2</div></div>
+            <div class="card-kpi"><div class="l">Advisory</div><div class="n" style="color:var(--amber)">5</div></div>
+            <div class="card-kpi"><div class="l">Passed</div><div class="n" style="color:var(--green)">38</div></div>
+            <div class="card-kpi"><div class="l">Unassessed</div><div class="n">3</div></div>
+          </div>
+          <div class="check-grid">
+            <div class="panel">
+              <div class="panel-head"><span id="mfgHeadIc"></span><span class="ttl">Issues to Fix · 2</span></div>
+              <div class="panel-body" style="font-size:var(--fs-sm);color:var(--fg-2)">
+                <div class="issue-row" style="margin-bottom:6px"><span class="sdot red"></span><div><div class="t-strong">Drill exceeds board boundary</div><div class="t-xs t-muted">PB-103</div></div></div>
+                <div class="issue-row"><span class="sdot red"></span><div><div class="t-strong">Thin web remaining < 3mm</div><div class="t-xs t-muted">Cut #12</div></div></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><span class="ttl">Production Packet Contents</span><span class="badge green dot">Ready</span></div>
+              <div class="panel-body" style="font-size:var(--fs-sm);line-height:1.9;color:var(--fg-2)">✓ Shop drawings · 12 pages<br>✓ Machining schedule CSV / JSON<br>✓ Cutting List · BOM<br>✓ Hardware List<br>✓ Integrity manifest</div>
+            </div>
+          </div>
+          <div class="row gap-8" style="margin-top:14px"><button class="btn" onclick="openModal('bom')">View Cutting List</button><button class="btn" onclick="openModal('drawing')">Preview Shop Drawings</button><button class="btn accent" onclick="openModal('release')">Generate Packet & Release</button></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT: context assistant -->
+    <aside class="asst">
+      <div class="asst-head"><span id="asstHeadIc"></span><span class="ttl">Design Assistant</span><span class="grow"></span><span class="badge violet">AI</span></div>
+      <div class="asst-body">
+        <div class="tip-card"><div class="mini-h">Current Stage Tip</div><span id="asstTip">Cabinet <b>Base Cabinet 02</b> uses 18mm board. Consider 12mm for the back panel to reduce weight while keeping structural strength.</span></div>
+        <div class="section-title">Smart Insights</div>
+        <div class="insight"><span class="ii"></span><div>Detected <b>2 thin webs</b> with less than 3mm of remaining material; adjust before cutting.</div></div>
+        <div class="insight"><span class="ii"></span><div>Part <b>Shelf ×3</b> has duplicate labels; make them unique before export.</div></div>
+        <div class="insight"><span class="ii"></span><div>Material <b>Alpine Walnut</b> is at 84% utilization; nesting can still be optimized.</div></div>
+        <div class="section-title">Quick Actions</div>
+        <button class="btn outline w-full" style="margin-bottom:6px" onclick="openModal('readiness')">Run Production Readiness Review</button>
+        <button class="btn outline w-full" onclick="openModal('bom')">Open Bill of Materials</button>
+      </div>
+      <div class="asst-foot"><div class="input" style="height:32px;display:flex;align-items:center;gap:6px;padding:0 10px"><span id="asstInputIc"></span><input style="background:none;border:none;outline:none;width:100%;font-size:var(--fs-sm);color:var(--fg-0)" placeholder="Ask the design assistant…"></div></div>
+    </aside>
+  </div>
+</div>
+
+<div id="modalHost"></div>
+<script src="shared.js"></script>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+function flash(el){el&&el.animate([{filter:'brightness(1.6)'},{filter:'brightness(1)'}],{duration:240})}
+
+/* static icons */
+$('#bomIc').innerHTML=ic('list','sm');
+$$('.arrowic').forEach(e=>{e.innerHTML=ic('arrowR','sm');e.style.display='inline-flex'});
+$('#fitBtn').innerHTML=ic('maximize','sm');
+$('#asstHeadIc').innerHTML=ic('sparkle');
+$('#mfgHeadIc').innerHTML=ic('warn');$('#mfgHeadIc').style.color='var(--red)';
+$$('.insight .ii').forEach((e,i)=>{e.innerHTML=ic(['warn','info','bolt'][i]);e.style.color='var(--accent)'});
+$('#asstInputIc').innerHTML=ic('sparkle','sm');$('#asstInputIc').style.color='var(--accent)';
+
+/* step flow */
+const stages=[
+  ['Concept','Style & Inspiration'],
+  ['Room & Placement','Space Planning'],
+  ['Layout Design','Cabinet Arrangement'],
+  ['Cabinet Detailing','Structure & Joints'],
+  ['Manufacturing & Delivery','Review & Production Packet']
+];
+let curStage=3;
+function renderFlow(){
+  $('#flow').innerHTML=stages.map((s,i)=>`<div class="step ${i<curStage?'done':i===curStage?'active':''}" onclick="goStage(${i})">
+    ${i<stages.length-1?'<div class="conn"></div>':''}
+    <div class="num">${i<curStage?'✓':i+1}</div>
+    <div class="lbl"><b>${s[0]}</b><span>${s[1]}</span></div></div>`).join('');
+}
+renderFlow();
+
+/* tasks per stage */
+const tasksByStage={
+  0:[['Define overall style','Modern / Classic / Transitional',1],['Select primary material tone','Alpine Walnut',1],['Collect reference images','8 inspiration images',1],['Define hardware style','Concealed pulls',0],['Confirm budget range','¥ 28k – 35k',0],['Client style sign-off','Awaiting client signature',0]],
+  1:[['Enter room dimensions','3600 × 2800 mm',1],['Mark door & window positions','Done',1],['Mark utility points','1 to review',0],['Check clear aisle width','950 mm',1],['Assess wall squareness','Within tolerance',1]],
+  2:[['Select cabinet layout','L-shaped corner',1],['Place cabinet components','5 cabinets',1],['Confirm corner solution','Blind corner',0],['Countertop option','Quartz 40mm',0],['Appliance bay positions','Fridge + oven',0],['Layout review','Awaiting review',0]],
+  3:[['Cabinet structure & thickness','18mm / 12mm back panel',1],['Configure joinery','8 joints',1],['Hardware & hinges','Blum full-extension',1],['Door & drawer divisions','Done',0],['Edge banding & finishes','4 sides · 1mm',0],['Final structure sign-off','Awaiting confirmation',0]],
+  4:[['Run readiness review','2 items to fix',0],['Fix thin-web issues','Cut #12',0],['Make part labels unique','Shelf ×3',0],['Generate cutting list','42 parts',0],['Export shop drawings','12 pages',0],['Generate production packet','Not generated',0]]
+};
+let doneOverrides={};
+function renderTasks(){
+  const ts=tasksByStage[curStage]||[];
+  $('#tasklist').innerHTML=ts.map((t,i)=>`<div class="task ${t[2]||doneOverrides[curStage+'-'+i]?'done':''} ${i===0?'on':''}" onclick="toggleTask(${i})">
+    <div class="tick">✓</div><div class="tx"><b>${t[0]}</b><span>${t[1]}</span></div></div>`).join('');
+  const done=ts.filter((t,i)=>t[2]||doneOverrides[curStage+'-'+i]).length;
+  $('#stagePct').textContent=done+' / '+ts.length;
+  $('#stageBar').style.width=(done/ts.length*100)+'%';
+}
+function toggleTask(i){doneOverrides[curStage+'-'+i]=!doneOverrides[curStage+'-'+i];renderTasks();flash($('#tasklist'))}
+function nextTask(){const ts=tasksByStage[curStage]||[];const idx=ts.findIndex((t,i)=>!(t[2]||doneOverrides[curStage+'-'+i]));if(idx>=0){doneOverrides[curStage+'-'+idx]=true;renderTasks()}else if(curStage<4){goStage(curStage+1)}}
+
+function goStage(i){
+  curStage=i;renderFlow();
+  const info=[['Inspiration & Style Direction','/ Concept Board'],['Room Plan View','/ Main Room'],['Cabinet Layout Design','/ Plan Layout'],['Cabinet 3D View','/ Base Run / Base Cabinet 02'],['Production Readiness & Delivery','/ Review & Production Packet']];
+  $('#stageK').textContent=`STAGE ${i+1} / 5 · ${stages[i][0]}`;
+  $('#stageTitle').textContent=stages[i][0];
+  $('#stageDesc').textContent='All work for the '+stages[i][1].toLowerCase()+' stage is gathered here, with contextual hints from the assistant on the right.';
+  $('#workTitle').textContent=info[i][0];$('#workCrumb').textContent=info[i][1];
+  const tips=['Your style direction determines later material and form choices.','Room dimensions are the basis for all cabinet placement — calibrate first.','The L-shaped layout is ready; mind the clear aisle at the corner.','Cabinet <b>Base Cabinet 02</b> uses 18mm board; consider 12mm for the back panel.','There are <b>2 items to fix</b>; resolve them before generating the production packet.'];
+  $('#asstTip').innerHTML=tips[i];
+  $$('.stagepane').forEach(p=>p.classList.toggle('on',+p.dataset.stage===i));
+  renderTasks();
+  if(i===3)renderDetailViewport();
+}
+goStage(3);
+
+/* mood board */
+const moods=[
+  ['#3a2f26','Modern · Dark Walnut'],['#4a4640','Transitional · Warm Grey Oak'],['#2b3038','Minimal · Graphite Black'],
+  ['#5c4a38','Classic · Cherry'],['#c9c2b6','Scandinavian · Ash'],['#3f3a34','Industrial · Smoked Oak'],
+  ['#6b5c48','Rustic · Honey'],['#d8d3c8','Bright · Light Tones']
+];
+$('#moodGrid').innerHTML=moods.map((m,i)=>`<div class="mood ${i<3?'on':''}" style="background:linear-gradient(150deg,${m[0]},hsl(30 10% 12%))" onclick="this.classList.toggle('on')"><div class="cap">${m[1]}</div></div>`).join('');
+
+/* plan / layout canvases */
+function planSVG(){return `<svg viewBox="0 0 760 540" width="100%" height="100%"><g opacity=".5">${(()=>{let s='';for(let x=0;x<760;x+=36)s+=`<line x1="${x}" y1="0" x2="${x}" y2="540" stroke="#242a32"/>`;for(let y=0;y<540;y+=36)s+=`<line x1="0" y1="${y}" x2="760" y2="${y}" stroke="#242a32"/>`;return s})()}</g>
+<rect x="50" y="50" width="660" height="440" fill="none" stroke="#4a525d" stroke-width="2"/>
+<g fill="#2b323b" stroke="#5b6470">${[0,1,2].map(i=>`<rect x="${70+i*120}" y="70" width="110" height="55"/>`).join('')}${[0,1].map(i=>`<rect x="${70+i*140}" y="410" width="130" height="60"/>`).join('')}</g>
+<text x="60" y="500" fill="#6f7884" font-size="11" font-family="JetBrains Mono">3600 × 2800 mm</text></svg>`}
+$('#planCanvas').innerHTML=planSVG();
+$('#layoutCanvas').innerHTML=planSVG();
+
+/* detail viewport uses shared isometric scene with violet selection */
+function renderDetailViewport(){$('#detailViewport').innerHTML=cabinetScene({selected:true,selColor:'#a98cf0'})}
+
+/* ---------------- MODALS ---------------- */
+function modalShell(t,s,b,f){return `<div class="modal-scrim" onclick="if(event.target===this)closeModal()"><div class="modal">
+ <div class="modal-head">${ic('sparkle')}<span class="ttl">${t}</span><span class="sub">${s}</span><span class="grow"></span><button class="btn ghost sm icon" onclick="closeModal()">${ic('close')}</button></div>
+ <div class="modal-body">${b}</div><div class="modal-foot">${f||'<button class="btn" onclick="closeModal()">Close</button>'}</div></div></div>`}
+function closeModal(){$('#modalHost').innerHTML=''}
+function openModal(k){let h='';
+  if(k==='bom'){h=modalShell('Bill of Materials','Grouped by material · CSV export available',
+   `<div class="tabs" style="margin-bottom:10px"><button class="on">Boards</button><button>Hardware</button><button>Material Library</button></div>
+    <table class="tbl"><thead><tr><th>ID</th><th>Name</th><th>Material</th><th class="num">Qty</th><th class="num">Size</th></tr></thead><tbody>
+    ${[['PB-101','Side Panel L','Walnut 18mm',2,'496×720'],['PB-102','Side Panel R','Walnut 18mm',2,'496×720'],['PB-103','Back Panel','Birch 12mm',1,'564×700'],['PB-104','Shelf','Walnut 18mm',3,'560×480']].map(r=>`<tr><td class="t-mono">${r[0]}</td><td>${r[1]}</td><td class="t-muted">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}</td></tr>`).join('')}</tbody></table>`,
+   `<button class="btn" onclick="closeModal()">Close</button><button class="btn accent">Export CSV</button>`);}
+  else if(k==='readiness'){h=modalShell('Production Readiness Review','Checks before manufacturing release',
+   `<div class="readiness-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px"><div class="card-kpi"><div class="l">To Fix</div><div class="n" style="color:var(--red)">2</div></div><div class="card-kpi"><div class="l">Advisory</div><div class="n" style="color:var(--amber)">5</div></div><div class="card-kpi"><div class="l">Unassessed</div><div class="n">3</div></div></div>
+   ${[['red','Drill exceeds board boundary','PB-103'],['red','Thin web remaining < 3mm','Cut #12'],['amber','Duplicate labels','Shelf ×3'],['amber','Missing price','Birch Ply']].map(i=>`<div class="issue-row" style="margin-bottom:6px"><span class="sdot ${i[0]}"></span><div><div class="t-strong">${i[1]}</div><div class="t-xs t-muted">${i[2]}</div></div></div>`).join('')}`,
+   `<button class="btn" onclick="closeModal()">Later</button><button class="btn accent">Download Report</button>`);}
+  else if(k==='drawing'){h=modalShell('2D Shop Drawings','BC-02 · Front View',
+   `<div class="drawing-paper"><div class="dw-title">BC-02 · FRONT · 1:5 · 600 × 720 mm</div><svg viewBox="0 0 560 300" width="100%" height="270"><g fill="none" stroke="#1a1d21" stroke-width="1.5"><rect x="130" y="30" width="300" height="240"/><line x1="130" y1="110" x2="430" y2="110"/><line x1="130" y1="190" x2="430" y2="190"/><line x1="280" y1="30" x2="280" y2="110"/></g><g font-family="JetBrains Mono" font-size="10" fill="#1a1d21"><text x="280" y="20" text-anchor="middle">600</text><text x="300" y="70">DADO #1</text></g></svg></div>`,null);}
+  else if(k==='release'){h=modalShell('Release to Production','Version verification · packet generation',
+   `<div class="grid2"><div class="panel"><div class="panel-head"><span class="ttl">Version Status</span><span class="badge green dot">Verified</span></div><div class="panel-body"><div class="prop-row"><span class="k">Released</span><span class="v">REV-12</span></div><div class="prop-row"><span class="k">Workspace Changes</span><span class="v" style="color:var(--amber)">3 changes</span></div></div></div><div class="panel"><div class="panel-head"><span class="ttl">Data Packet</span></div><div class="panel-body" style="font-size:var(--fs-sm);line-height:1.9;color:var(--fg-2)">✓ Shop drawings · 12 pages<br>✓ Machining schedule CSV/JSON<br>✓ Cutting List<br>✓ Hardware List<br>✓ manifest</div></div></div>
+   <div class="section-title">Review Notes</div><textarea class="input" style="height:58px" placeholder="Record review notes…"></textarea>`,
+   `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn accent">Generate Production Packet</button>`);}
+  $('#modalHost').innerHTML=h;
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+</script></body></html>

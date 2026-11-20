@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zimmu · Concept B — Immersive Canvas</title>
+<link rel="stylesheet" href="shared.css"><style>
+/* ============ CONCEPT B — IMMERSIVE CANVAS ============ */
+.app{position:fixed;inset:0;overflow:hidden;background:var(--bg-0)}
+.stage{position:absolute;inset:0}
+.stage .viewport{background:radial-gradient(120% 90% at 46% 6%,hsl(200 16% 15%) 0%,hsl(214 16% 9%) 52%,hsl(220 16% 5%) 100%)}
+
+/* floating top pill */
+.topfloat{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;background:var(--bg-glass);backdrop-filter:blur(18px) saturate(1.3);border:1px solid var(--line-strong);border-radius:12px;padding:5px 7px;box-shadow:var(--shadow-2);z-index:30;max-width:calc(100vw - 28px)}
+.topfloat .logo{width:26px;height:26px;border-radius:7px;background:linear-gradient(140deg,var(--accent),hsl(189 70% 34%));display:grid;place-items:center;color:#04161a;font-weight:800;font-size:12px;margin-right:2px}
+.topfloat .proj{padding:0 10px;font-size:var(--fs-md);color:var(--fg-0);font-weight:600;border-left:1px solid var(--line);border-right:1px solid var(--line);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topfloat .save{color:var(--accent);font-size:9px;margin-right:3px}
+.tf-btn{height:26px;padding:0 9px;border-radius:7px;font-size:var(--fs-sm);color:var(--fg-2);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.tf-btn:hover{background:var(--bg-3);color:var(--fg-0)}
+.tf-btn.on{background:var(--accent-soft);color:var(--accent)}
+.tf-btn.accent{background:var(--accent);color:var(--accent-ink);font-weight:700}
+
+/* left icon rail */
+.rail{position:absolute;left:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;background:var(--bg-glass);backdrop-filter:blur(18px);border:1px solid var(--line-strong);border-radius:12px;padding:6px;z-index:30;box-shadow:var(--shadow-2)}
+.rail button{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:var(--fg-2);position:relative}
+.rail button:hover{background:var(--bg-3);color:var(--fg-0)}
+.rail button.on{background:var(--accent-soft);color:var(--accent)}
+.rail button .ic{width:18px;height:18px}
+.rail .sep{height:1px;background:var(--line);margin:3px 5px}
+.rail button[data-badge]::after{content:attr(data-badge);position:absolute;top:3px;right:3px;background:var(--accent);color:var(--accent-ink);font-size:8px;font-weight:800;min-width:13px;height:13px;border-radius:7px;display:grid;place-items:center;padding:0 3px}
+
+/* floating dockable panels */
+.fpanel{position:absolute;background:var(--bg-glass);backdrop-filter:blur(20px) saturate(1.2);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow-3);z-index:20;display:flex;flex-direction:column;overflow:hidden}
+.fpanel .fhead{display:flex;align-items:center;gap:7px;height:34px;padding:0 10px;border-bottom:1px solid var(--line);flex:none;cursor:grab}
+.fpanel .fhead:active{cursor:grabbing}
+.fpanel .fhead .ttl{font-size:var(--fs-sm);font-weight:600;color:var(--fg-0)}
+.fpanel .fhead .grow{flex:1}
+.fpanel .fhead button{width:20px;height:20px;color:var(--fg-3);display:grid;place-items:center;border-radius:4px}
+.fpanel .fhead button:hover{background:var(--bg-3);color:var(--fg-0)}
+.fpanel .fbody{overflow:auto;padding:10px}
+#panelLeft{left:64px;top:74px;width:236px;max-height:calc(100vh - 150px)}
+#panelRight{right:16px;top:74px;width:272px;max-height:calc(100vh - 150px)}
+#panelBottom{left:50%;transform:translateX(-50%);bottom:60px;width:min(680px,calc(100vw - 120px));height:200px}
+.fpanel.min .fbody{display:none}
+.fpanel.min{height:34px!important}
+
+/* contextual toolbar near selection */
+.ctxbar{position:absolute;left:50%;top:74px;transform:translateX(-50%);display:flex;gap:3px;background:var(--bg-glass);backdrop-filter:blur(16px);border:1px solid var(--accent-line);border-radius:10px;padding:4px;box-shadow:var(--shadow-2);z-index:28}
+.ctxbar button{height:26px;padding:0 8px;border-radius:6px;font-size:var(--fs-sm);color:var(--fg-1);display:inline-flex;align-items:center;gap:5px}
+.ctxbar button:hover{background:var(--accent-soft);color:var(--fg-0)}
+.ctxbar .sep{width:1px;background:var(--line);margin:3px 2px}
+
+/* viewport overlays */
+.vp-hint{top:auto;bottom:16px}
+.breadcrumb-float{position:absolute;left:64px;bottom:18px;display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--fg-3);z-index:25}
+.breadcrumb-float b{color:var(--fg-1);font-weight:500}
+.viewcube{right:16px;top:74px}
+.vp-controls{right:16px;top:158px}
+.vp-scale{right:100px;bottom:18px}
+
+/* command palette */
+.cmd-scrim{position:fixed;inset:0;background:hsl(220 20% 3%/.5);backdrop-filter:blur(4px);z-index:600;display:flex;justify-content:center;align-items:flex-start;padding-top:12vh}
+.cmd{width:min(600px,94vw);background:var(--bg-2);border:1px solid var(--line-strong);border-radius:14px;box-shadow:var(--shadow-3);overflow:hidden}
+.cmd-in{display:flex;align-items:center;gap:10px;height:54px;padding:0 16px;border-bottom:1px solid var(--line)}
+.cmd-in .ic{color:var(--accent);width:18px;height:18px}
+.cmd-in input{flex:1;background:none;border:none;outline:none;color:var(--fg-0);font-size:15px}
+.cmd-list{padding:8px;max-height:340px;overflow:auto}
+.cmd-group{font-size:var(--fs-xs);color:var(--fg-3);text-transform:uppercase;letter-spacing:.1em;padding:8px 10px 4px}
+.cmd-item{display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;border-radius:7px;color:var(--fg-1);font-size:var(--fs-md);cursor:pointer}
+.cmd-item:hover,.cmd-item.on{background:var(--accent-soft);color:var(--fg-0)}
+.cmd-item .ic{color:var(--fg-2)}
+.cmd-item .k{margin-left:auto;color:var(--fg-3);font-family:var(--mono);font-size:10px}
+
+/* quick property grid in right floating panel */
+.qfield{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:7px;font-size:var(--fs-sm)}
+.qfield label{color:var(--fg-2)}
+.qfield .dim{height:26px;width:118px}
+.mini-tabs{display:flex;gap:3px;margin-bottom:10px}
+.mini-tabs button{flex:1;height:24px;border-radius:6px;font-size:var(--fs-xs);color:var(--fg-2);background:var(--bg-3)}
+.mini-tabs button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.tree-row{height:25px}
+
+/* manufacturing strip at bottom when manufacturing mode */
+.mfg-strip{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;display:flex;gap:6px;background:var(--bg-glass);backdrop-filter:blur(16px);border:1px solid var(--line-strong);border-radius:12px;padding:6px;z-index:28;box-shadow:var(--shadow-2)}
+.mfg-strip button{height:30px;padding:0 12px;border-radius:8px;font-size:var(--fs-sm);color:var(--fg-1);display:inline-flex;align-items:center;gap:6px}
+.mfg-strip button:hover{background:var(--bg-3);color:var(--fg-0)}
+.mfg-strip button.accent{background:var(--accent);color:var(--accent-ink);font-weight:700}
+
+@media(max-width:900px){#panelLeft{display:none}#panelRight{width:220px}.topfloat .proj,.topfloat .tf-btn.opt{display:none}}
+</style></head>
+<body class="concept-b">
+<div class="app" id="app">
+  <div class="stage" id="stage">
+    <div class="viewport" id="viewportHost"></div>
+
+    <!-- floating top -->
+    <div class="topfloat">
+      <div class="logo">Z</div>
+      <span class="save">●</span>
+      <span class="proj">Kitchenette — Alpine Walnut</span>
+      <button class="tf-btn" onclick="togglePanel('panelLeft')" data-tip="Scene Tree" data-tip-b>Scene</button>
+      <button class="tf-btn" onclick="togglePanel('panelRight')" data-tip="Properties" data-tip-b>Properties</button>
+      <button class="tf-btn" onclick="openCmd()"><span id="cmdIc"></span> Commands <kbd>⌘K</kbd></button>
+      <button class="tf-btn" data-tip="Undo"><span id="undoIc"></span></button>
+      <button class="tf-btn accent" onclick="openModal('release')">Release to Production</button>
+    </div>
+
+    <!-- left rail -->
+    <nav class="rail" id="rail">
+      <button class="on" data-tip="Select" data-tip-r><span class="ric"></span></button>
+      <button data-tip="Move" data-tip-r><span class="ric"></span></button>
+      <button data-tip="Add Part" data-tip-r><span class="ric"></span></button>
+      <button data-tip="Snap Align" data-tip-r><span class="ric"></span></button>
+      <button data-tip="Cut" data-tip-r><span class="ric"></span></button>
+      <button data-tip="Joinery" data-tip-r data-badge="8"><span class="ric"></span></button>
+      <button data-tip="Drill" data-tip-r><span class="ric"></span></button>
+      <div class="sep"></div>
+      <button data-tip="Plan View" data-tip-r><span class="ric"></span></button>
+      <button data-tip="Section" data-tip-r><span class="ric"></span></button>
+      <button data-tip="Drawings" data-tip-r onclick="openModal('drawing')"><span class="ric"></span></button>
+      <div class="sep"></div>
+      <button data-tip="Settings" data-tip-r><span class="ric"></span></button>
+    </nav>
+
+    <!-- contextual toolbar -->
+    <div class="ctxbar" id="ctxbar">
+      <button><span class="ci"></span> Base Cabinet 02</button>
+      <div class="sep"></div>
+      <button data-tip="Copy"><span class="ci"></span></button>
+      <button data-tip="Hide"><span class="ci"></span></button>
+      <button data-tip="Snap"><span class="ci"></span></button>
+      <button data-tip="Duplicate Joint"><span class="ci"></span></button>
+      <button data-tip="More"><span class="ci"></span></button>
+    </div>
+
+    <!-- viewport chrome -->
+    <div class="viewcube" data-tip="View Cube" data-tip-b></div>
+    <div class="vp-controls">
+      <button class="btn icon sm" title="Fit">⤢</button><button class="btn icon sm" title="Zoom In">＋</button><button class="btn icon sm" title="Zoom Out">−</button>
+    </div>
+    <div class="vp-scale"><span>0</span><div class="bar"></div><span>500mm</span></div>
+    <div class="breadcrumb-float">Room / Base Run / <b>Base Cabinet 02</b> &nbsp;·&nbsp; <span class="t-mono">600 × 560 × 720</span></div>
+
+    <!-- LEFT floating panel: scene -->
+    <section class="fpanel" id="panelLeft">
+      <div class="fhead"><span class="fh-ic" data-ic="layers"></span><span class="ttl">Scene</span><span class="grow"></span><button onclick="minPanel('panelLeft')">−</button><button class="fh-close" data-close="panelLeft"></button></div>
+      <div class="fbody" id="leftBody"></div>
+    </section>
+
+    <!-- RIGHT floating panel: contextual properties -->
+    <section class="fpanel" id="panelRight">
+      <div class="fhead"><span class="fh-ic" data-ic="sliders"></span><span class="ttl">Properties · Base Cabinet 02</span><span class="grow"></span><button onclick="minPanel('panelRight')">−</button><button class="fh-close" data-close="panelRight"></button></div>
+      <div class="fbody" id="rightBody"></div>
+    </section>
+
+    <!-- BOTTOM floating panel: timeline / BOM peek -->
+    <section class="fpanel hidden" id="panelBottom">
+      <div class="fhead"><span class="fh-ic" data-ic="list"></span><span class="ttl">Cutting List · Boards</span><span class="grow"></span><button class="fh-close" data-close="panelBottom"></button></div>
+      <div class="fbody" id="bottomBody"></div>
+    </section>
+
+    <!-- manufacturing strip (hidden until mfg mode) -->
+    <div class="mfg-strip hidden" id="mfgStrip">
+      <button onclick="openModal('readiness')"><span class="msi"></span> Readiness Review <span class="badge red">2</span></button>
+      <button onclick="togglePanel('panelBottom')"><span class="msi"></span> Cutting List</button>
+      <button onclick="openModal('drawing')"><span class="msi"></span> Shop Drawings</button>
+      <button class="accent" onclick="openModal('release')"><span class="msi"></span> Generate Production Packet</button>
+    </div>
+  </div>
+</div>
+
+<div id="cmdHost"></div>
+<div id="modalHost"></div>
+<script src="shared.js"></script>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+function flash(el){el&&el.animate([{filter:'brightness(1.7)'},{filter:'brightness(1)'}],{duration:240})}
+
+/* viewport */
+$('#viewportHost').innerHTML=cabinetScene({selected:true,selColor:'#4ec3d4',exploded:true});
+$('.viewcube').innerHTML=viewCube('#4ec3d4');
+
+/* fill rail icons */
+const railIcons=['cursor','move','box','snap','cut','joint','drill','plan','layers3','ruler','settings'];
+$$('#rail .ric').forEach((s,i)=>s.innerHTML=ic(railIcons[i]));
+$$('#rail button').forEach(b=>b.onclick=()=>{$$('#rail button').forEach(x=>x.classList.remove('on'));b.classList.add('on');flash(b)});
+$('#undoIc').innerHTML=ic('undo');$('#cmdIc').innerHTML=ic('command');
+
+/* contextual toolbar icons */
+const ctxIcons=['cube','copy','eyeOff','snap','layers3','more'];
+$$('#ctxbar .ci').forEach((s,i)=>s.innerHTML=ic(ctxIcons[i]));
+
+/* left scene panel */
+$('#leftBody').innerHTML=`
+  <div class="input" style="height:26px;display:flex;align-items:center;gap:6px;padding:0 8px;margin-bottom:8px">${ic('search','sm')}<input style="background:none;border:none;outline:none;width:100%;font-size:var(--fs-sm);color:var(--fg-0)" placeholder="Search scene…"></div>
+  <div class="tree-head">Base Run</div>
+  ${[['cube','Base Cabinet 01',''],['cube','Base Cabinet 02','on'],['cube','Base Cabinet 03',''],['cube','Sink Base','']].map(r=>`<div class="tree-row ${r[2]}" onclick="pickRow(this)">${ic(r[0])}<span class="name">${r[1]}</span></div>`).join('')}
+  <div class="tree-head">Wall Units</div>
+  ${[['cube','Wall Cabinet 01',''],['cube','Wall Cabinet 02','']].map(r=>`<div class="tree-row ${r[2]}">${ic(r[0])}<span class="name">${r[1]}</span></div>`).join('')}
+  <div class="tree-head">Joints · 8</div>
+  ${[['joint','Dado #1 → BC-02'],['joint','M&T #2 → Tall']].map(r=>`<div class="tree-row">${ic(r[0])}<span class="name">${r[1]}</span><span class="badge green dot" style="height:16px">ok</span></div>`).join('')}`;
+function pickRow(el){$$('#leftBody .tree-row').forEach(r=>r.classList.remove('on'));el.classList.add('on');flash(el)}
+
+/* right property panel */
+function renderRight(){
+  $('#rightBody').innerHTML=`
+    <div class="mini-tabs"><button class="on">Geometry</button><button>Joints</button><button>Material</button><button>Hardware</button></div>
+    <div class="section-title" style="margin-top:2px">Dimensions (mm)</div>
+    <div class="qfield"><label>Width W</label><div class="dim"><span class="k">W</span><input value="600"><span class="u">mm</span></div></div>
+    <div class="qfield"><label>Depth D</label><div class="dim"><span class="k">D</span><input value="560"><span class="u">mm</span></div></div>
+    <div class="qfield"><label>Height H</label><div class="dim"><span class="k">H</span><input value="720"><span class="u">mm</span></div></div>
+    <div class="qfield"><label>Thickness T</label><div class="dim"><span class="k">T</span><input value="18"><span class="u">mm</span></div></div>
+    <div class="section-title">Material</div>
+    <div class="row gap-8"><span class="swatch" style="width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,#6b4f3a,#4a3627)"></span><div class="grow"><div class="t-strong t-sm">Alpine Walnut</div><div class="t-xs t-muted">18mm · ¥82/m²</div></div></div>
+    <div class="section-title">Links</div>
+    <div class="prop-row"><span class="k">Joints</span><span class="v">2</span></div>
+    <div class="prop-row"><span class="k">Parts</span><span class="v">7</span></div>
+    <div class="prop-row"><span class="k">Hardware</span><span class="v">4</span></div>
+    <div class="row gap-6" style="margin-top:10px"><button class="btn sm grow" onclick="openModal('bom')">List</button><button class="btn sm grow" onclick="openModal('drawing')">Drawings</button></div>`;
+}
+renderRight();
+$$('#rightBody .mini-tabs button').forEach(b=>b.onclick=()=>{$$('#rightBody .mini-tabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');flash(b)});
+
+/* bottom BOM peek */
+$('#bottomBody').innerHTML=`<table class="tbl"><thead><tr><th>ID</th><th>Name</th><th>Material</th><th class="num">Qty</th><th class="num">Size</th></tr></thead><tbody>
+${[['PB-101','Side Panel L','Walnut 18mm',2,'496×720'],['PB-102','Side Panel R','Walnut 18mm',2,'496×720'],['PB-103','Back Panel','Birch 12mm',1,'564×700'],['PB-104','Shelf','Walnut 18mm',3,'560×480']].map(r=>`<tr><td class="t-mono">${r[0]}</td><td>${r[1]}</td><td class="t-muted">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}</td></tr>`).join('')}</tbody></table>`;
+
+/* fill floating-panel head icons */
+$$('.fh-ic').forEach(e=>e.innerHTML=ic(e.dataset.ic,'sm'));
+$$('.fh-close').forEach(e=>{e.innerHTML=ic('close','sm');e.onclick=()=>togglePanel(e.dataset.close)});
+
+/* panel controls */
+function togglePanel(id){const el=document.getElementById(id);el.classList.toggle('hidden')}
+function minPanel(id){document.getElementById(id).classList.toggle('min')}
+/* make floating panels draggable by header */
+function makeDraggable(panel){
+  const h=panel.querySelector('.fhead');if(!h)return;let sx,sy,ox,oy,drag=false;
+  h.addEventListener('mousedown',e=>{if(e.target.closest('button'))return;drag=true;sx=e.clientX;sy=e.clientY;const r=panel.getBoundingClientRect();ox=r.left;oy=r.top;panel.style.left=ox+'px';panel.style.top=oy+'px';panel.style.transform='none'});
+  window.addEventListener('mousemove',e=>{if(!drag)return;panel.style.left=(ox+e.clientX-sx)+'px';panel.style.top=(oy+e.clientY-sy)+'px'});
+  window.addEventListener('mouseup',()=>drag=false);
+}
+['panelLeft','panelRight'].forEach(id=>makeDraggable(document.getElementById(id)));
+
+/* manufacturing mode toggle via rail last-but-one? use command */
+function setMfgMode(on){$('#mfgStrip').classList.toggle('hidden',!on)}
+
+/* ---------------- COMMAND PALETTE ---------------- */
+const commands=[
+  ['Design','Add Part','box','A'],['Design','Face Snap Align','snap','F'],['Design','Add Cut','cut','C'],['Design','Create Joint','joint','J'],
+  ['View','Switch to Plan View','plan','⌘1'],['View','Switch to Section View','layers3','⌘2'],['View','Fit to Window','maximize','F2'],
+  ['Manufacture','Cutting List / BOM','list','⌘⇧E'],['Manufacture','Production Readiness Review','bolt',''],['Manufacture','2D Shop Drawings','ruler',''],['Manufacture','Generate Production Packet','package',''],
+  ['File','Save','save','⌘S'],['File','Release to Production','upload','']
+];
+function openCmd(){
+  $('#cmdHost').innerHTML=`<div class="cmd-scrim" onclick="if(event.target===this)closeCmd()"><div class="cmd">
+    <div class="cmd-in">${ic('search')}<input id="cmdInput" placeholder="Type a command or search…" autofocus><kbd>ESC</kbd></div>
+    <div class="cmd-list" id="cmdList"></div></div></div>`;
+  const render=(q='')=>{
+    const f=commands.filter(c=>c[1].toLowerCase().includes(q.toLowerCase()));
+    let last='';$('#cmdList').innerHTML=f.map(c=>{let g='';if(c[0]!==last){g=`<div class="cmd-group">${c[0]}</div>`;last=c[0]}return g+`<div class="cmd-item" onclick="runCmd('${c[1]}')">${ic(c[2])}<span>${c[1]}</span><span class="k">${c[3]}</span></div>`}).join('');
+  };
+  render();$('#cmdInput').oninput=e=>render(e.target.value);
+  setTimeout(()=>$('#cmdInput').focus(),30);
+}
+function closeCmd(){$('#cmdHost').innerHTML=''}
+function runCmd(name){
+  closeCmd();flash($('.topfloat'));
+  if(name.includes('Ready'))openModal('readiness');
+  else if(name.includes('BOM')||name.includes('List'))togglePanel('panelBottom');
+  else if(name.includes('Drawings'))openModal('drawing');
+  else if(name.includes('Production Packet')||name.includes('Release'))openModal('release');
+  else if(name.includes('Plan'))flash($('#rail'));
+}
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCmd()}if(e.key==='Escape'){closeCmd();closeModal()}});
+
+/* ---------------- MODALS ---------------- */
+function modalShell(t,s,b,f){return `<div class="modal-scrim" onclick="if(event.target===this)closeModal()"><div class="modal">
+ <div class="modal-head">${ic('sparkle')}<span class="ttl">${t}</span><span class="sub">${s}</span><span class="grow"></span><button class="btn ghost sm icon" onclick="closeModal()">${ic('close')}</button></div>
+ <div class="modal-body">${b}</div><div class="modal-foot">${f||'<button class="btn" onclick="closeModal()">Close</button>'}</div></div></div>`}
+function closeModal(){$('#modalHost').innerHTML=''}
+function openModal(k){
+  let h='';
+  if(k==='bom'){h=modalShell('Bill of Materials','All parts · grouped by material',
+    `<div class="tabs" style="margin-bottom:10px"><button class="on">Boards</button><button>Hardware</button><button>Material Library</button></div>
+     <table class="tbl"><thead><tr><th>ID</th><th>Name</th><th>Material</th><th class="num">Qty</th><th class="num">Size</th><th class="num">Cost</th></tr></thead><tbody>
+     ${[['PB-101','Side Panel L','Walnut 18mm',2,'496×720','¥168'],['PB-102','Side Panel R','Walnut 18mm',2,'496×720','¥168'],['PB-103','Back Panel','Birch 12mm',1,'564×700','¥92'],['PB-104','Shelf','Walnut 18mm',3,'560×480','¥214']].map(r=>`<tr><td class="t-mono">${r[0]}</td><td class="t-strong">${r[1]}</td><td class="t-muted">${r[2]}</td><td class="num">${r[3]}</td><td class="num">${r[4]}</td><td class="num">${r[5]}</td></tr>`).join('')}</tbody></table>`,
+    `<button class="btn" onclick="closeModal()">Close</button><button class="btn accent">Export CSV</button>`);}
+  else if(k==='readiness'){h=modalShell('Production Readiness Review','Checks before manufacturing release',
+    `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+      <div class="card-kpi"><div class="l">To Fix</div><div class="n" style="color:var(--red)">2</div></div>
+      <div class="card-kpi"><div class="l">Advisory</div><div class="n" style="color:var(--amber)">5</div></div>
+      <div class="card-kpi"><div class="l">Unassessed</div><div class="n">3</div></div></div>
+    ${[['red','Drill Ø8 exceeds board boundary','PB-103'],['red','Thin web remaining < 3mm','Cut #12'],['amber','Duplicate labels','Shelf ×3'],['amber','Missing material price','Birch Ply']].map(i=>`<div class="issue-row" style="margin-bottom:6px"><span class="sdot ${i[0]}"></span><div><div class="t-strong">${i[1]}</div><div class="t-xs t-muted">${i[2]}</div></div></div>`).join('')}`,
+    `<button class="btn" onclick="closeModal()">Later</button><button class="btn accent">Download Report</button>`);}
+  else if(k==='drawing'){h=modalShell('2D Shop Drawings','BC-02 · Front / Edge / End',
+    `<div class="row gap-12" style="align-items:flex-start"><div style="width:180px;flex:none">
+     ${['Front View','Edge View','End View','Section'].map((d,i)=>`<div class="tree-row ${i===0?'on':''}">${ic('file')}<span class="name">${d}</span></div>`).join('')}
+     </div><div class="grow"><div class="drawing-paper"><div class="dw-title">BC-02 · FRONT · 1:5 · 600×720</div>
+     <svg viewBox="0 0 560 300" width="100%" height="260"><g fill="none" stroke="#1a1d21" stroke-width="1.5"><rect x="130" y="30" width="300" height="240"/><line x1="130" y1="105" x2="430" y2="105"/><line x1="130" y1="185" x2="430" y2="185"/><line x1="280" y1="30" x2="280" y2="105"/></g><g font-family="JetBrains Mono" font-size="10" fill="#1a1d21"><text x="280" y="20" text-anchor="middle">600 mm</text><text x="300" y="70">DADO #1</text></g></svg>
+     </div></div></div>`,null);}
+  else if(k==='release'){h=modalShell('Release to Production','Version · Verification · Packet',
+    `<div class="grid2"><div class="panel"><div class="panel-head"><span class="ttl">Current Version Status</span><span class="badge green dot">Verified</span></div><div class="panel-body">
+      <div class="prop-row"><span class="k">Released Revision</span><span class="v">REV-12</span></div><div class="prop-row"><span class="k">Workspace Changes</span><span class="v" style="color:var(--amber)">3 changes</span></div><div class="prop-row"><span class="k">Verification</span><span class="v">Passed</span></div>
+     </div></div><div class="panel"><div class="panel-head"><span class="ttl">Production Packet Contents</span></div><div class="panel-body" style="font-size:var(--fs-sm);color:var(--fg-2)">
+      ✓ Shop drawings (12 pages)<br>✓ Machining schedule CSV/JSON<br>✓ Cutting List<br>✓ Hardware List<br>✓ Integrity manifest</div></div></div>
+     <div class="section-title">Review Notes</div><textarea class="input" style="height:60px" placeholder="Record review notes for this release…"></textarea>`,
+    `<button class="btn" onclick="closeModal()">Cancel</button><button class="btn accent">${ic('download','sm')} Generate Production Packet</button>`);}
+  $('#modalHost').innerHTML=h;
+}
+</script></body></html>
