@@ -316,4 +316,20 @@ describe('cut webs', () => {
     ]
     expect(cutWebs(board).map((i) => i.operation.id)).toEqual(['row'])
   })
+
+  it('finds a thin web beyond a flanking hole that touches the box on a narrow pitch', () => {
+    const board = boardOf()
+    // Box x [190, 210]. Holes advance along x at pitch 3, diameter 5 (radius 2.5), from x = 180:
+    // 180, 183, 186, 189 — all left of the box. The nearest (189) has its wall reaching 191.5, so
+    // it overlaps the box's left wall at 190: web 0, a meeting owned by the overlap pass. The next
+    // hole out at 186 leaves 190 - 186 - 2.5 = 1.5 mm, a genuine thin web. Flanking alone would
+    // silence the pair; walking outward past the touching hole reports the 1.5 mm.
+    board.cuts = [
+      box({ position: { x: 190, y: 350, z: 12 }, size: { x: 20, y: 60, z: 6 } }),
+      hole({ start: { x: 180, y: 380, z: 18 }, pitch: 3, count: 4 }),
+    ]
+    expect(messages(board)).toEqual([
+      'Cut "Shelf dado" [dado]: leaves a web of 1.50 mm with drilling "Shelf pins" [row], thinner than the 3.00 mm minimum; verify this is intended.',
+    ])
+  })
 })

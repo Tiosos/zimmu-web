@@ -102,12 +102,24 @@ function flankingHoles(drill: RowDrill, box: BoxVolume): number[] {
 
 // The thinnest web the row leaves with the box, over the holes that do not touch it, or null when
 // every candidate touches. A pair that touches is a meeting the drilling pass has already named.
+// A flanking hole can itself touch the box while the next hole out leaves a genuine thin web —
+// a narrow pitch hides that web if only the two flanking holes are measured. So each flank is
+// walked outward until the first hole that clears the box; web grows with distance from the box,
+// making that first clear hole the thinnest the flank can yield. The walk stops there, so its cost
+// depends on how many holes the box's reach swallows, never on the row's total count.
 function rowBoxWeb(drill: RowDrill, box: BoxVolume): number | null {
   let best: number | null = null
-  for (const k of flankingHoles(drill, box)) {
-    const web = holeBoxWeb(drill, k, box)
-    if (!(web > tolerance)) continue
-    best = best === null ? web : Math.min(best, web)
+  const boxCentre = (box.min[drill.run] + box.max[drill.run]) / 2
+  for (const flank of flankingHoles(drill, box)) {
+    // Walk away from the box: a hole centred before its middle goes toward lower indices, one
+    // after it toward higher. On a degenerate single-hole row the direction is immaterial.
+    const step = holeCentreAt(drill, flank, drill.run) < boxCentre ? -1 : 1
+    for (let k = flank; k >= 0 && k < drill.count; k += step) {
+      const web = holeBoxWeb(drill, k, box)
+      if (!(web > tolerance)) continue // still touching the box; keep walking outward
+      best = best === null ? web : Math.min(best, web)
+      break // the first hole clear of the box is this flank's thinnest web
+    }
   }
   return best
 }
