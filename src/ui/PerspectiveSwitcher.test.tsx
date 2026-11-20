@@ -21,7 +21,10 @@ describe('PerspectiveSwitcher (S1 shell)', () => {
     render(<PerspectiveSwitcher active="workbench" onChange={onChange} />)
     fireEvent.click(screen.getByRole('button', { name: /Manufacturing/ }))
     expect(onChange).toHaveBeenCalledWith('manufacture' as Perspective)
-    expect(screen.getByRole('button', { name: /Cabinet Editor \(coming in a later stage/ })).toBeTruthy()
+    // S2: Cabinet Editor is implemented, so it is no longer labelled as coming later.
+    expect(screen.queryByRole('button', { name: /Cabinet Editor \(coming in a later stage/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /Cabinet Editor/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Manufacturing \(coming in a later stage/ })).toBeTruthy()
   })
 })
 
