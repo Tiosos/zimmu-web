@@ -38,10 +38,11 @@ to `needs-correction` is a one-line change if thin webs reach packets.
   cylinder, so the distance between two capsules is no greater than the distance between the two
   solids, and the printed web is no thicker than the real one. The error is a fraction of a
   millimetre and always in the conservative direction.
-- Box × drilling evaluates the two holes flanking the box, relying on web thickness being monotone
-  in the distance from it. A flanking hole that touches the box silences that side; its outward
-  neighbour would have to be within the same 3 mm for a web to be missed, which needs a pitch
-  smaller than about 6 mm.
+- Box × drilling walks outward from each flanking hole until one clears the box, relying on web
+  thickness being monotone in the distance from it. This used to stop at the two flanking holes, so
+  a flanking hole that touched the box silenced that side and hid a thin web on its outward
+  neighbour at pitches below about 6 mm. The walk now steps past touching holes and stops at the
+  first clear one — still bounded by how far the box's reach swallows holes, never by row count.
 - Drilling × drilling is capped at `maxExactCandidates` per window; past the cap the window's first
   pair is reported instead. Real cabinet drilling never reaches it.
 
@@ -52,7 +53,8 @@ to `needs-correction` is a one-line change if thin webs reach packets.
   degenerate branches.
 - `cutWebs.test.ts` — box × box (thin, threshold boundary, touching, diagonal, truncation,
   sub-minimum, non-finite), box × drilling (plane, axial, stock clamp, either order, meeting,
-  unbuildable row, a touching hole that must not silence its neighbour), drilling × drilling
+  unbuildable row, a touching hole that must not silence its neighbour, and a narrow pitch whose
+  touching flank hides a web on the next hole out), drilling × drilling
   (parallel, perpendicular, meeting, a meeting that must silence the whole pair, too far, own row,
   huge row), ordering and operation provenance.
 - `manufacturingChecks.test.ts` — `cut-web-review` carries `M1`, the cut operation with joint
@@ -62,8 +64,8 @@ to `needs-correction` is a one-line change if thin webs reach packets.
 
 ## Verification
 
-Full suite on this Windows host, 2026-11-20: **253 files, 4559 passed, 10 skipped.**
-`pnpm typecheck`, `pnpm lint` and `pnpm check:file-casing` all exit 0.
+Full suite on this Windows host, 2026-11-20: **254 files, 4569 passed, 10 skipped** (includes the
+narrow-pitch follow-up). `pnpm typecheck`, `pnpm lint` and `pnpm check:file-casing` all exit 0.
 
 Mutation testing:
 
@@ -82,6 +84,9 @@ Mutation testing:
 | skip touching pairs instead of yielding the pair | the meeting-drives-the-minimum test |
 | forget the web margin in the window | the perpendicular-rows test |
 | enumerate the whole row | the huge-row test (times out) |
+| measure flanking holes only, no outward walk | the narrow-pitch touching-flank test |
+| reverse the walking direction | the narrow-pitch touching-flank test |
+| drop the touching-hole skip | the narrow-pitch and far-hole-beyond-a-touching-hole tests |
 
 ## Progress log
 
@@ -124,3 +129,11 @@ classification and policy sentence. Commit: `feat: report thin webs in manufactu
 
 README, `docs/production-review.md`, `CLAUDE.md`, these notes, the structure HTML, the full suite
 and the mutation table. Commit: `docs: record the minimum remaining material`.
+
+### Follow-up — narrow-pitch box × drilling web
+
+`rowBoxWeb` now walks outward from each flanking hole until one clears the box, so a flanking hole
+that touches the box no longer hides a thin web on its next hole out at pitches below about 6 mm.
+One test pins the 1.5 mm web that was previously missed; three mutations (flanking-only, reversed
+walk direction, no touching-hole skip) were each caught. Full suite: 254 files, 4569 passed,
+10 skipped. Commit: `fix: find thin webs beyond a touching flank`.
