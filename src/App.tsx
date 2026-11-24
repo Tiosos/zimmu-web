@@ -12,6 +12,10 @@ import { Viewport } from './render/viewport'
 import { Sidebar } from './ui/sidebar'
 import { CabinetEditor, type CabinetTab } from './ui/CabinetEditor'
 import { FileMenu } from './ui/FileMenu'
+import { PerspectiveSwitcher, type Perspective } from './ui/PerspectiveSwitcher'
+import { ModelingToolbar } from './ui/ModelingToolbar'
+import { WorkbenchStatusBar } from './ui/WorkbenchStatusBar'
+import { PlannedPerspective } from './ui/PlannedPerspective'
 import { ReleaseStatus } from './ui/ReleaseStatus'
 import { isReadable, type ProductionRelease } from './scene/releases'
 import { PlanView } from './ui/PlanView'
@@ -208,6 +212,11 @@ function App() {
 
   const [cabinetTab, setCabinetTab] = useState<CabinetTab>('section')
   const [mainView, setMainView] = useState<'model' | 'plan'>('model')
+  // Workbench shell (S1): top-level perspective. Only Workbench carries content in this stage;
+  // the other four render a clearly-labelled placeholder. Scoped state — no scene data involved.
+  const [perspective, setPerspective] = useState<Perspective>('workbench')
+  const [showGrid, setShowGrid] = useState(true)
+  const isWorkbench = perspective === 'workbench'
 
   // Only a cabinet gets a gizmo: an anchor lives on a carcase and nothing else has a placement to
   // edit. `selectedCarcase` is already the open-cabinet rule, so reusing it keeps one answer to
@@ -875,6 +884,27 @@ function App() {
         mainView={mainView}
         onMainViewChange={setMainView}
       />
+      <PerspectiveSwitcher
+        active={perspective}
+        onChange={setPerspective}
+        hintRight={
+          <span className="zim-hint">
+            <span className="zim-sdot green" aria-hidden="true" />
+            <span>{perspective === 'workbench' ? 'Model workspace' : `${perspective} — planned stage`}</span>
+          </span>
+        }
+      />
+      {isWorkbench && (
+        <ModelingToolbar
+          activeMode={mode.activeMode}
+          onSetMode={mode.setMode}
+          onAddPart={() => onAdd('board')}
+          onAddCabinet={() => onAddComponent(null)}
+          onFrameAll={() => setFitRequest((n) => n + 1)}
+          showGrid={showGrid}
+          onToggleGrid={() => setShowGrid((v) => !v)}
+        />
+      )}
       <ReleaseStatus
         input={packetInputs}
         releases={releases}
@@ -906,6 +936,15 @@ function App() {
         />
       )}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {!isWorkbench && <PlannedPerspective perspective={perspective} />}
+      <div
+        style={{
+          display: isWorkbench ? 'flex' : 'none',
+          flex: 1,
+          minWidth: 0,
+          minHeight: 0,
+        }}
+      >
         {/* Hidden, never unmounted. `viewport.tsx` builds its renderer, camera, controls and every
             mesh in a mount-once effect, so rendering the editor *instead of* it would tear all of
             that down on every selection and rebuild it on every trip to the 3D tab. A hidden canvas
@@ -1091,6 +1130,7 @@ function App() {
           onHoverPair={setHoveredPair}
         />
       </div>
+      </div>
       <Suspense
         fallback={
           <div
@@ -1195,6 +1235,15 @@ function App() {
           />
         )}
       </Suspense>
+      {isWorkbench && (
+        <WorkbenchStatusBar
+          occtReady={occtReady}
+          partCount={scene.parts.length}
+          jointCount={scene.joints.length}
+          activeMode={mode.activeMode}
+          dirty={isDirty}
+        />
+      )}
     </div>
   )
 }
