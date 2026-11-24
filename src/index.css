@@ -246,3 +246,97 @@ body,
   .zim-toolbar .zim-tool span:not(.zim-only) { display: none; }
   .zim-perspectives .zim-hint { display: none; }
 }
+
+/* ===========================================================================
+   Zimmu Cabinet Editor workspace (S2). Shell only — the real CabinetEditor
+   and projection components keep all of their behavior.
+   =========================================================================== */
+.zim-cep { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; background: hsl(var(--background)); }
+.zim-cep-head {
+  display: flex; align-items: center; gap: 12px; height: 38px; flex: none;
+  padding: 0 12px; border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--card));
+}
+.zim-cep-cab { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: hsl(var(--foreground)); }
+.zim-cep-cab > span:first-child { color: hsl(var(--primary)); }
+.zim-cep-idx { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: hsl(var(--muted-foreground)); }
+.zim-cep-sp { flex: 1; }
+.zim-cep-views { display: flex; align-items: center; gap: 2px; }
+.zim-cep-view {
+  height: 24px; padding: 0 9px; border-radius: 4px; font-size: 11px;
+  color: hsl(var(--muted-foreground)); border: 1px solid transparent; white-space: nowrap;
+}
+.zim-cep-view:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.zim-cep-view.on { background: hsl(var(--primary) / 0.14); color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.42); }
+.zim-cep-readonly {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 6px;
+  border-radius: 3px; color: hsl(var(--muted-foreground)); border: 1px solid hsl(var(--border));
+}
+
+.zim-cep-body { display: flex; flex: 1; min-height: 0; }
+.zim-cep-nav {
+  width: 196px; flex: none; overflow-y: auto; padding: 10px 8px;
+  border-right: 1px solid hsl(var(--border)); background: hsl(var(--background));
+}
+.zim-cep-group { margin-bottom: 12px; }
+.zim-cep-glabel {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
+  color: hsl(var(--muted-foreground)); padding: 0 8px 5px;
+}
+.zim-cep-tab {
+  display: flex; align-items: center; gap: 8px; width: 100%; height: 28px; padding: 0 8px;
+  border-radius: 4px; font-size: 11px; text-align: left; color: hsl(var(--muted-foreground));
+}
+.zim-cep-tab:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.zim-cep-tab.on { background: hsl(var(--primary) / 0.14); color: hsl(var(--primary)); font-weight: 600; }
+.zim-cep-ticon { width: 14px; text-align: center; opacity: 0.85; }
+.zim-cep-tlabel { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zim-cep-tnum { font-family: 'JetBrains Mono', monospace; font-size: 9px; opacity: 0.55; }
+
+.zim-cep-editor { flex: 1; min-width: 0; min-height: 0; border-right: 1px solid hsl(var(--border)); overflow: hidden; }
+.zim-cep-preview { width: 360px; flex: none; display: flex; flex-direction: column; min-height: 0; background: hsl(var(--background)); }
+.zim-cep-ptitle {
+  display: flex; align-items: center; gap: 8px; height: 32px; flex: none; padding: 0 12px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
+  color: hsl(var(--muted-foreground)); border-bottom: 1px solid hsl(var(--border));
+}
+.zim-cep-pmode {
+  margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 9px; text-transform: none;
+  letter-spacing: 0; padding: 2px 6px; border-radius: 3px;
+  background: hsl(var(--primary) / 0.12); color: hsl(var(--primary));
+}
+.zim-cep-pstage { flex: 1; min-height: 0; padding: 10px; transition: transform 180ms ease; }
+.zim-cep-pstage.exploded { transform: scale(0.94); }
+.zim-cep-pnote {
+  margin: 0 10px 8px; padding: 6px 8px; border-radius: 4px; font-size: 10px; line-height: 1.5;
+  color: hsl(var(--zim-warning)); background: hsl(var(--zim-warning) / 0.1);
+  border: 1px solid hsl(var(--zim-warning) / 0.3);
+}
+.zim-cep-pdims {
+  flex: none; padding: 8px 12px; border-top: 1px solid hsl(var(--border));
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: hsl(var(--muted-foreground));
+}
+.zim-cep-foot {
+  display: flex; align-items: center; gap: 8px; height: 26px; flex: none; padding: 0 12px;
+  border-top: 1px solid hsl(var(--border)); background: hsl(var(--card));
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: hsl(var(--muted-foreground));
+}
+.zim-cep-sep { opacity: 0.5; }
+
+@media (max-width: 1180px) {
+  .zim-cep-preview { width: 280px; }
+  .zim-cep-nav { width: 168px; }
+}
+@media (max-width: 900px) {
+  .zim-cep-preview { display: none; }
+}
+
+/* S2 cabinet editor empty state */
+.zim-cep-empty { display: flex; flex: 1; align-items: center; justify-content: center; min-height: 0; padding: 32px; }
+.zim-cep-empty > div { max-width: 420px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.zim-cep-empty > div > span { font-size: 34px; color: hsl(var(--primary)); }
+.zim-cep-empty h2 { font-size: 17px; font-weight: 600; color: hsl(var(--foreground)); }
+.zim-cep-empty p { font-size: 12px; line-height: 1.6; color: hsl(var(--muted-foreground)); }
+.zim-cep-empty .btn-accent {
+  margin-top: 6px; height: 30px; padding: 0 14px; border-radius: 4px; font-size: 12px;
+  background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-weight: 600;
+}
