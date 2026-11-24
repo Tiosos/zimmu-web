@@ -17,6 +17,8 @@ import { ModelingToolbar } from './ui/ModelingToolbar'
 import { WorkbenchStatusBar } from './ui/WorkbenchStatusBar'
 import { PlannedPerspective } from './ui/PlannedPerspective'
 import { CabinetEditorWorkspace } from './ui/CabinetEditorWorkspace'
+import { ViewportModesNav, ViewportModesOverlay, ViewportModesPanel } from './ui/ViewportModes'
+import { MODES } from './ui/viewportModeData'
 import { ReleaseStatus } from './ui/ReleaseStatus'
 import { isReadable, type ProductionRelease } from './scene/releases'
 import { PlanView } from './ui/PlanView'
@@ -217,7 +219,11 @@ function App() {
   // the other four render a clearly-labelled placeholder. Scoped state — no scene data involved.
   const [perspective, setPerspective] = useState<Perspective>('workbench')
   const [showGrid, setShowGrid] = useState(true)
+  // S3: selected mode in the Viewport Modes perspective. Scoped UI state — the real interaction
+  // mode still lives in `mode` (useInteractionMode); this only selects which spec is displayed.
+  const [vmModeId, setVmModeId] = useState<string>('select')
   const isWorkbench = perspective === 'workbench'
+  const isModes = perspective === 'modes'
 
   // Only a cabinet gets a gizmo: an anchor lives on a carcase and nothing else has a placement to
   // edit. `selectedCarcase` is already the open-cabinet rule, so reusing it keeps one answer to
@@ -937,7 +943,9 @@ function App() {
                 ? 'Model workspace'
                 : perspective === 'cabinet'
                   ? '16-tab cabinet parameters'
-                  : `${perspective} — planned stage`}
+                  : perspective === 'modes'
+                    ? '15 interaction & tool modes'
+                    : `${perspective} — planned stage`}
             </span>
           </span>
         }
@@ -1022,28 +1030,46 @@ function App() {
       ) : null}
       <div
         style={{
-          display: isWorkbench ? 'flex' : 'none',
+          // S3: the viewport host stays mounted across Workbench and Viewport Modes; the renderer
+          // is built once in viewport.tsx and must never be torn down on a perspective switch.
+          display: isWorkbench || isModes ? 'flex' : 'none',
           flex: 1,
           minWidth: 0,
           minHeight: 0,
         }}
       >
+        {isModes && (
+          <ViewportModesNav
+            activeId={vmModeId}
+            onSelectMode={(id) => {
+              setVmModeId(id)
+              const target = MODES[id]
+              if (target?.modeClass === 'A' && target.interactionMode) setMode(target.interactionMode)
+            }}
+            activeInteraction={mode.activeMode}
+          />
+        )}
         {/* Hidden, never unmounted. `viewport.tsx` builds its renderer, camera, controls and every
             mesh in a mount-once effect, so rendering the editor *instead of* it would tear all of
             that down on every selection and rebuild it on every trip to the 3D tab. A hidden canvas
             keeps rendering, which is what the app already does behind the BOM modal. */}
         <div
+          key="viewport-host"
           style={{
             // The plan view replaces the viewport VISUALLY only — see the mount-once effect in
-            // viewport.tsx, and the cabinet-tab rule this extends.
+            // viewport.tsx, and the cabinet-tab rule this extends. In the Viewport Modes
+            // perspective the host is always visible; the perspective owns its own layout.
             display:
-              mainView === 'plan'
-                ? 'none'
-                : selectedCarcase === null || cabinetTab === '3d'
-                  ? 'flex'
-                  : 'none',
+              isModes
+                ? 'flex'
+                : mainView === 'plan'
+                  ? 'none'
+                  : selectedCarcase === null || cabinetTab === '3d'
+                    ? 'flex'
+                    : 'none',
             flex: 1,
             minWidth: 0,
+            position: 'relative',
           }}
         >
           <Viewport
@@ -1092,8 +1118,9 @@ function App() {
               )
             }}
           />
+          {isModes && <ViewportModesOverlay activeId={vmModeId} />}
         </div>
-        {mainView === 'plan' && (
+        {!isModes && mainView === 'plan' && (
           <PlanView
             scene={scene}
             room={activeRoom?.geometry}
@@ -1132,7 +1159,8 @@ function App() {
             warnings={cornerWarnings(scene.components, scene.materials)}
           />
         )}
-        {mainView === 'model' && cabinetEditorNode}
+        {!isModes && mainView === 'model' && cabinetEditorNode}
+        {!isModes && (
         <Sidebar
           scene={scene}
           occtReady={occtReady}
@@ -1176,6 +1204,35 @@ function App() {
           onHoverSuggestion={setHoveredSuggestion}
           onHoverPair={setHoveredPair}
         />
+        )}
+        {isModes && (
+          <ViewportModesPanel
+            activeId={vmModeId}
+            onActivateInteraction={setMode}
+            interactionStatus={(() => {
+              const spec = MODES[vmModeId]
+              if (spec?.modeClass === 'A' && spec.interactionMode) {
+                const active = mode.activeMode === spec.interactionMode
+                return active ? (mode.snapPhase === 'source-picked' ? 'Source picked — choose the target face' : 'Mode active — click the first face') : null
+              }
+              return null
+            })()}
+            onToolAction={(id) => {
+              // Class B modes with a real backend, wired to existing App actions.
+              if (id === 'addPart') onAdd('board')
+              else if (id === 'move') setFitRequest((n) => n + 1)
+              else if (id === 'dowel') {
+                // Arm the axial bore dowel tool; the user then clicks faces in the viewport.
+                mode.armDowelTool('bore-axial')
+                setPerspective('workbench')
+              } else if (id === 'visibility' && selection) {
+                handleToggleVisible(selection)
+              } else if (id === 'select') {
+                setPerspective('workbench')
+              }
+            }}
+          />
+        )}
       </div>
       </div>
       <Suspense
