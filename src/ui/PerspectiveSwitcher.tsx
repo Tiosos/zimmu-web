@@ -12,7 +12,7 @@ export type Perspective = 'workbench' | 'cabinet' | 'modes' | 'manufacture' | 'p
 const PERSPECTIVES: { id: Perspective; label: string; num: string; icon: string; hint: string; planned?: boolean }[] = [
   { id: 'workbench', label: 'Workbench', num: '01', icon: '◈', hint: 'Model workspace' },
   { id: 'cabinet', label: 'Cabinet Editor', num: '02', icon: '▦', hint: '16-tab cabinet parameters' },
-  { id: 'modes', label: 'Viewport Modes', num: '03', icon: '✥', hint: 'Interaction modes', planned: true },
+  { id: 'modes', label: 'Viewport Modes', num: '03', icon: '✥', hint: '15 interaction & tool modes' },
   { id: 'manufacture', label: 'Manufacturing', num: '04', icon: '⚡', hint: 'Production & exports', planned: true },
   { id: 'project', label: 'Project & Room', num: '05', icon: '▤', hint: 'Project structure', planned: true },
 ]

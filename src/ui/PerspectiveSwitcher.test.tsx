@@ -25,6 +25,9 @@ describe('PerspectiveSwitcher (S1 shell)', () => {
     expect(screen.queryByRole('button', { name: /Cabinet Editor \(coming in a later stage/ })).toBeNull()
     expect(screen.getByRole('button', { name: /Cabinet Editor/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Manufacturing \(coming in a later stage/ })).toBeTruthy()
+    // S3: Viewport Modes is implemented, so it is no longer labelled as coming later.
+    expect(screen.queryByRole('button', { name: /Viewport Modes \(coming in a later stage/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /Viewport Modes/ })).toBeTruthy()
   })
 })
 
