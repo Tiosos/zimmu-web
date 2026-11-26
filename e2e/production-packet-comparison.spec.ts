@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
+import { changedFraction } from './canvas'
 
 test('compares downloaded revisions locally, reports geometry changes and blocks altered content', async ({
   page,
@@ -23,8 +24,30 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
   }
   const earlier = await exportPacket()
   // The added board has no machining operations, so this exercises the complete part inventory.
+  // DimInput commits behind a 150 ms debounce and blur does not force it, so wait for the real
+  // geometry rebuild before exporting the later packet. A fixed timeout races the debounce and
+  // produced two identical packets (0 changes) in local repeats.
+  // Several small canvases live in the inspector; the viewport is the largest one.
+  const canvases = page.locator('canvas')
+  let viewportIndex = 0
+  let largestArea = 0
+  for (let i = 0; i < (await canvases.count()); i++) {
+    const box = await canvases.nth(i).boundingBox()
+    const area = box ? box.width * box.height : 0
+    if (area > largestArea) {
+      largestArea = area
+      viewportIndex = i
+    }
+  }
+  const canvas = canvases.nth(viewportIndex)
+  const beforeLengthFrame = await canvas.screenshot()
   const length = page.getByLabel('L', { exact: true })
   await length.fill('720')
+  await expect
+    .poll(async () => changedFraction(beforeLengthFrame, await canvas.screenshot()), {
+      timeout: 30_000,
+    })
+    .toBeGreaterThan(0.002)
   await length.blur()
   const later = await exportPacket()
   await page.getByRole('button', { name: 'File ▾' }).click()
