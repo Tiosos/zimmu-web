@@ -15,6 +15,13 @@ export function activateOnKey(activate: () => void) {
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+// Global shortcuts must not fire while a dialog owns the keyboard. Native <dialog> uses [open];
+// product workspaces use role="dialog" on their panel while mounted.
+export function hasOpenDialog(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.querySelector('dialog[open], [role="dialog"]') !== null
+}
+
 // A tab panel hides its inactive content with `hidden` or `display: none` on an ancestor, which the
 // control's own computed style does not report, so every ancestor up to the dialog is checked.
 function reachable(el: HTMLElement, within: HTMLElement): boolean {
@@ -76,6 +83,21 @@ export function useModalFocus(panel: RefObject<HTMLElement | null>, active = tru
       const wasTop = openDialogs.at(-1) === token
       openDialogs.splice(openDialogs.indexOf(token), 1)
       if (wasTop && opener?.isConnected) opener.focus()
+    }
+  }, [panel, active])
+}
+
+// Nonmodal workspaces keep the viewport usable, so they must not trap Tab or claim aria-modal.
+// They still move focus into the panel on open and hand it back to the opener on close.
+export function usePanelFocus(panel: RefObject<HTMLElement | null>, active = true) {
+  useEffect(() => {
+    const element = panel.current
+    if (!active || !element) return
+    const at = document.activeElement
+    const opener: Focusable | null = at instanceof HTMLElement || at instanceof SVGElement ? at : null
+    if (!element.contains(at)) element.focus()
+    return () => {
+      if (opener?.isConnected) opener.focus()
     }
   }, [panel, active])
 }

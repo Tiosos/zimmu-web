@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useRef, useState, type KeyboardEvent } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { activateOnKey, navigateTree, useModalFocus } from './a11y'
+import { activateOnKey, hasOpenDialog, navigateTree, useModalFocus, usePanelFocus } from './a11y'
 
 const press = (key: string, own = true) => {
   const el = {}
@@ -231,6 +231,41 @@ describe('useModalFocus with several dialogs', () => {
     expect(document.activeElement).toBe(screen.getByText('x'))
     fireEvent.click(cell)
     expect(document.activeElement).toBe(cell)
+  })
+})
+
+describe('usePanelFocus', () => {
+  it('focuses a nonmodal panel on open and restores the opener without trapping Tab', () => {
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+    const Panel = () => {
+      const ref = useRef<HTMLDivElement>(null)
+      usePanelFocus(ref)
+      return <div ref={ref} data-testid="panel" tabIndex={-1} />
+    }
+    render(<Panel />)
+    expect(screen.getByTestId('panel')).toBe(document.activeElement)
+    expect(hasOpenDialog()).toBe(false)
+    cleanup()
+    expect(opener).toBe(document.activeElement)
+    opener.remove()
+  })
+})
+
+describe('hasOpenDialog', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('reports native and ARIA dialogs only while they are open', () => {
+    expect(hasOpenDialog()).toBe(false)
+    document.body.innerHTML = '<dialog id="native"></dialog>'
+    expect(hasOpenDialog()).toBe(false)
+    document.querySelector('#native')!.setAttribute('open', '')
+    expect(hasOpenDialog()).toBe(true)
+    document.body.innerHTML = '<aside role="dialog" aria-modal="true"></aside>'
+    expect(hasOpenDialog()).toBe(true)
   })
 })
 

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { navigateTree } from '../lib/a11y'
 import { isReadable, type ProductionRelease, type ReleaseEntry } from '../scene/releases'
 import type { ComponentId, Scene } from '../scene/types'
 import type {
@@ -85,6 +86,8 @@ export function ProjectRoomWorkspace({
 }: ProjectRoomWorkspaceProps) {
   const [sideTab, setSideTab] = useState<SideTab>('overview')
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
+  const [treeFocusId, setTreeFocusId] = useState<string | null>(null)
+  const treeRef = useRef<HTMLElement>(null)
   const [serviceDraft, setServiceDraft] = useState({
     kind: 'electrical' as ServiceKind,
     name: '',
@@ -102,6 +105,33 @@ export function ProjectRoomWorkspace({
     rooms[0]
   const selectedRoom = selected?.room
   const geometry = selectedRoom?.geometry
+  // The hierarchy is one tab stop: rows are treeitems, their inline editors are only reachable
+  // with Enter. Arrow keys come from the shared navigateTree helper used by the scene tree.
+  const treeRows = project.areas.flatMap((area) => [
+    area.id,
+    ...area.rooms.flatMap((room) => [room.id, ...room.items.map((item) => item.id)]),
+  ])
+  const tabStopId = treeRows.includes(treeFocusId ?? '') ? treeFocusId! : treeRows[0]
+  const roving = (id: string, level: number) => ({
+    role: 'treeitem' as const,
+    'aria-level': level,
+    tabIndex: tabStopId === id ? 0 : -1,
+    onFocus: () => setTreeFocusId(id),
+    onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+      if (navigateTree(e)) return
+      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault()
+        e.currentTarget.querySelector<HTMLElement>('input, button, select')?.focus()
+      }
+    },
+  })
+  useEffect(() => {
+    treeRef.current
+      ?.querySelectorAll<HTMLElement>('[role="treeitem"] input, [role="treeitem"] button')
+      .forEach((el) => {
+        el.tabIndex = -1
+      })
+  }, [project.areas])
   const services = useMemo(() => project.services ?? [], [project.services])
   const roomServices = services.filter((service) => service.roomId === selectedRoom?.id)
   const cabinetIds = useMemo(
@@ -285,7 +315,7 @@ export function ProjectRoomWorkspace({
       </header>
 
       <div className="zim-pr-body">
-        <nav className="zim-pr-tree" aria-label="Project structure tree">
+        <nav className="zim-pr-tree" aria-label="Project structure tree" ref={treeRef}>
           <div className="zim-pr-tree-head">
             <b>Project structure</b>
             <button type="button" className="zim-pr-link" onClick={onUndoProject} disabled={!canUndoProject}>
@@ -295,8 +325,9 @@ export function ProjectRoomWorkspace({
               Redo
             </button>
           </div>
+          <div role="tree" aria-label="Project rooms">
           {project.areas.map((area) => (
-            <div className="zim-pr-area" key={area.id}>
+            <div className="zim-pr-area" key={area.id} {...roving(area.id, 1)}>
               <div className="zim-pr-row">
                 <span className="zim-pr-kind">AREA</span>
                 <input
@@ -323,7 +354,7 @@ export function ProjectRoomWorkspace({
                 </button>
               </div>
               {area.rooms.map((room) => (
-                <div className="zim-pr-room" key={room.id}>
+                <div className="zim-pr-room" key={room.id} {...roving(room.id, 2)}>
                   <div className="zim-pr-row">
                     <span className="zim-pr-kind">ROOM</span>
                     <input
@@ -346,7 +377,7 @@ export function ProjectRoomWorkspace({
                     </button>
                   </div>
                   {room.items.map((item) => (
-                    <div className="zim-pr-item" key={item.id}>
+                    <div className="zim-pr-item" key={item.id} {...roving(item.id, 3)}>
                       <span className="zim-pr-kind">ITEM</span>
                       <input
                         aria-label={`Item name ${item.name}`}
@@ -390,6 +421,7 @@ export function ProjectRoomWorkspace({
               ))}
             </div>
           ))}
+          </div>
           <button type="button" className="zim-pr-add" aria-label="Add project area" onClick={addArea}>
             + Area
           </button>

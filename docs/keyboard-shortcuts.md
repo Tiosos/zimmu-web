@@ -44,9 +44,17 @@ The scene tree is one tab stop (the selected row, or the row you last focused). 
 
 Moving focus does not select. `Delete`, `Backspace`, `H` and `Ctrl+D` act on the **selected** part, so they are ignored while a different row has focus — press `Enter` on the row first. Selecting a part with the mouse moves focus to its name field in the edit panel so it can be renamed at once; selecting with the keyboard leaves focus on the row, so the arrow keys and these shortcuts keep working.
 
-## Dialogs
+## Dialogs and nonmodal workspaces
 
-The cutting list, 2D drawings and project structure dialogs move focus inside when they open, keep `Tab` / `Shift+Tab` within them (wrapping at either end), and return focus to the control that opened them when they close. With several open, only the newest traps `Tab`. `Escape` closes the dialog.
+The cutting list, 2D drawings and project structure dialogs move focus inside when they open, keep `Tab` / `Shift+Tab` within them (wrapping at either end), and return focus to the control that opened them when they close. With several open, only the newest traps `Tab`. `Escape` closes the dialog. While a dialog owns focus, the workbench mode, delete, visibility and file shortcuts are suppressed. The four nonmodal workspaces (Door & Drawer Motion, Front Grain Matching, Stock Optimisation, Sloped-Top Cabinets) also focus their panel on open and restore the opener on close, but they intentionally leave `Tab` free so the viewport stays reachable.
+
+## Cabinet editor tabs
+
+The sixteen cabinet tabs are one tab stop (`ArrowLeft` / `ArrowRight` or `ArrowUp` / `ArrowDown` move between tabs, `Home` / `End` jump to the ends). Press `Enter` or `Space` on a focused tab to open it.
+
+## Project & Room structure tree
+
+The project hierarchy is one tab stop. `ArrowDown` / `ArrowUp` move between areas, rooms and joinery items in document order; `Home` / `End` jump to the first / last row. Press `Enter` or `Space` on a focused row to reach its inline name field and action button.
 
 ## Source change review dialog
 

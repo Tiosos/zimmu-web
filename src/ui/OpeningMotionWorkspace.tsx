@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePanelFocus } from '../lib/a11y'
 import { Button } from '@/components/ui/button'
 import type { Scene } from '../scene/types'
 import type { ProjectStructure } from '../scene/projectStructure'
@@ -43,6 +44,8 @@ export function OpeningMotionWorkspace({
   canUndo: boolean
   canRedo: boolean
 }) {
+  const panel = useRef<HTMLElement>(null)
+  usePanelFocus(panel)
   const signature = openingSignature(scene, project)
   const [base, setBase] = useState(signature),
     [settings, setSettings] = useState<OpeningMotion>(() =>
@@ -198,6 +201,8 @@ export function OpeningMotionWorkspace({
   }
   return (
     <aside
+      ref={panel}
+      tabIndex={-1}
       aria-label="Door and drawer motion workspace"
       className="absolute right-3 top-14 z-40 w-[430px] max-w-[95vw] max-h-[85vh] overflow-y-auto bg-card text-foreground border rounded p-4 shadow-xl space-y-3"
     >
