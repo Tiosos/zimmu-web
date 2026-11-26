@@ -1,7 +1,5 @@
-import { buildProductionReview } from '../scene/productionReview'
 import { ProductionReviewSection } from './ProductionReviewSection'
-import { reconcileMachiningScene } from './machiningReconciliation'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import type {
@@ -11,18 +9,14 @@ import type {
   Scene,
   Selection,
 } from '../scene/types'
-import { manufacturingParts } from '../scene/manufacturingPart'
-import { manufacturingChecks } from '../scene/manufacturingChecks'
-import { effectiveMaterialsOf } from '../scene/effectiveMaterials'
-import { buildShelfReadiness, type ShelfReadinessRow } from '../scene/shelfReadiness'
-import { buildProductionReadiness } from '../scene/productionReadiness'
+import type { ShelfReadinessRow } from '../scene/shelfReadiness'
 import { ShelfInsertionPreview } from './ShelfInsertionPreview'
 import { createReadinessSnapshot } from '../scene/readinessSnapshot'
 import { buildReadinessPdf, readinessPdfFilename } from './buildReadinessPdf'
 import { downloadBlob } from './download'
 import { ReconciliationSection } from './ReconciliationSection'
-import { reconcileScene } from './outputReconciliation'
 import { buildProductionPacket, productionPacketFilename } from './buildProductionPacket'
+import { useProductionReview } from './useProductionReview'
 
 const statusText: Record<ShelfReadinessRow['status'], string> = {
   straight: 'Straight insertion',
@@ -90,41 +84,8 @@ export function ManufacturingReadiness({
       setPacketExporting(false)
     }
   }
-  const report = useMemo(() => buildShelfReadiness(scene), [scene])
-  const production = useMemo(() => buildProductionReadiness(scene), [scene])
-  const manufacturing = useMemo(
-    () =>
-      manufacturingChecks(
-        manufacturingParts(
-          scene.parts,
-          effectiveMaterialsOf(materialLibrary, scene.materials),
-          scene.components,
-        ),
-      ),
-    [scene, materialLibrary],
-  )
-  const reconciliation = useMemo(
-    () => reconcileScene(scene, materialLibrary),
-    [scene, materialLibrary],
-  )
-  const machining = useMemo(
-    () => reconcileMachiningScene(scene, materialLibrary),
-    [scene, materialLibrary],
-  )
-  const review = useMemo(
-    () =>
-      buildProductionReview({
-        manufacturing,
-        production,
-        machiningReconciliation: machining,
-        cabinets: report.map((entry) => ({
-          id: entry.cabinet.id,
-          issues: entry.issues,
-          shelves: entry.shelves,
-        })),
-      }),
-    [manufacturing, production, machining, report],
-  )
+  const { shelves: report, production, manufacturing, machining, reconciliation, review } =
+    useProductionReview(scene, materialLibrary)
   const sum = (field: 'requested' | 'generated' | 'missing' | 'angled' | 'unverified') => {
     let total = 0
     for (const entry of report) {

@@ -19,6 +19,7 @@ import { PlannedPerspective } from './ui/PlannedPerspective'
 import { CabinetEditorWorkspace } from './ui/CabinetEditorWorkspace'
 import { ViewportModesNav, ViewportModesOverlay, ViewportModesPanel } from './ui/ViewportModes'
 import { MODES } from './ui/viewportModeData'
+import { ManufacturingWorkspace } from './ui/ManufacturingWorkspace'
 import { ReleaseStatus } from './ui/ReleaseStatus'
 import { isReadable, type ProductionRelease } from './scene/releases'
 import { PlanView } from './ui/PlanView'
@@ -34,6 +35,7 @@ import { buildBinaryStl } from './geom/stl'
 import { downloadBlob } from './ui/download'
 import { buildDrawingSheets } from './geom/drawing'
 import type { DrawingSheet } from './geom/drawing'
+import { buildProductionPacket, productionPacketFilename } from './ui/buildProductionPacket'
 import { captureProductionSource, type ProductionPacketInput } from './ui/captureProductionSource'
 import { ProjectPanel } from './ui/ProjectPanel'
 import { wallPlacementPose } from './scene/roomGeometry'
@@ -80,6 +82,21 @@ const ProductionPacketComparison = lazyNamed(
 const DrawingViewer = lazyNamed(() => import('./ui/DrawingViewer'), 'DrawingViewer')
 
 const supported = 'showOpenFilePicker' in window
+
+// Concept A deep links (ui-redesign/a-workbench.html): #view=workspace|cabinet|modes|manufacture|project.
+const HASH_PERSPECTIVES: Record<string, Perspective> = {
+  workspace: 'workbench',
+  cabinet: 'cabinet',
+  modes: 'modes',
+  manufacture: 'manufacture',
+  project: 'project',
+}
+function perspectiveFromLocation(): Perspective | null {
+  const query = window.location.hash.replace(/^#/, '')
+  const params = new URLSearchParams(query)
+  const view = params.get('view') ?? new URLSearchParams(window.location.search).get('view')
+  return view === null ? null : (HASH_PERSPECTIVES[view] ?? null)
+}
 
 function App() {
   const [comparisonRelease, setComparisonRelease] = useState<ProductionRelease | null>(null)
@@ -215,15 +232,31 @@ function App() {
 
   const [cabinetTab, setCabinetTab] = useState<CabinetTab>('section')
   const [mainView, setMainView] = useState<'model' | 'plan'>('model')
-  // Workbench shell (S1): top-level perspective. Only Workbench carries content in this stage;
-  // the other four render a clearly-labelled placeholder. Scoped state — no scene data involved.
-  const [perspective, setPerspective] = useState<Perspective>('workbench')
+  // Top-level perspective. The initial value and hash changes use the same parser as the static
+  // prototype's #view links; switching views writes the hash so the URL stays shareable.
+  const [perspective, setPerspectiveValue] = useState<Perspective>(
+    () => perspectiveFromLocation() ?? 'workbench',
+  )
+  const setPerspective = useCallback((next: Perspective) => {
+    setPerspectiveValue(next)
+    const view = next === 'workbench' ? 'workspace' : next
+    window.history.replaceState(null, '', `#view=${view}`)
+  }, [])
+  useEffect(() => {
+    const onHashChange = () => {
+      const next = perspectiveFromLocation()
+      if (next !== null) setPerspectiveValue(next)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
   const [showGrid, setShowGrid] = useState(true)
   // S3: selected mode in the Viewport Modes perspective. Scoped UI state — the real interaction
   // mode still lives in `mode` (useInteractionMode); this only selects which spec is displayed.
   const [vmModeId, setVmModeId] = useState<string>('select')
   const isWorkbench = perspective === 'workbench'
   const isModes = perspective === 'modes'
+  const isManufacture = perspective === 'manufacture'
 
   // Only a cabinet gets a gizmo: an anchor lives on a carcase and nothing else has a placement to
   // edit. `selectedCarcase` is already the open-cabinet rule, so reusing it keeps one answer to
@@ -376,6 +409,7 @@ function App() {
   const [readinessOpen, setReadinessOpen] = useState(false)
   const [packetVerificationOpen, setPacketVerificationOpen] = useState(false)
   const [packetComparisonOpen, setPacketComparisonOpen] = useState(false)
+  const [packetExportError, setPacketExportError] = useState<string | null>(null)
   const [projectPanelOpen, setProjectPanelOpen] = useState(false)
   const [slopedTopOpen, setSlopedTopOpen] = useState(false)
   const [stockOptimisationOpen, setStockOptimisationOpen] = useState(false)
@@ -695,12 +729,47 @@ function App() {
 
   // The exporter and the release recorder must hash identical state, or every real packet reads as
   // changed since export and recording is silently refused, so both read this one object.
-  const packetInputs: ProductionPacketInput = {
-    scene,
-    projectName,
-    hardwareLibrary,
-    materialLibrary: library,
-  }
+  const packetInputs: ProductionPacketInput = useMemo(
+    () => ({
+      scene,
+      projectName,
+      hardwareLibrary,
+      materialLibrary: library,
+    }),
+    [scene, projectName, hardwareLibrary, library],
+  )
+
+  const handleExportPacket = useCallback(() => {
+    setPacketExportError(null)
+    void buildProductionPacket(packetInputs)
+      .then((bytes) =>
+        downloadBlob(bytes as BlobPart, productionPacketFilename(projectName), 'application/zip'),
+      )
+      .catch((error: unknown) => {
+        setPacketExportError(
+          `Packet export failed: ${error instanceof Error ? error.message : 'Unknown error'}.`,
+        )
+      })
+  }, [packetInputs, projectName])
+
+  const handleOpenChangeReview = useCallback(() => {
+    const index = releases.findIndex(
+      (entry, i) => isReadable(entry) && releaseIntegrity?.[i] === 'ok',
+    )
+    const release = index >= 0 ? releases[index] : null
+    if (release !== null && isReadable(release)) setComparisonRelease(release)
+    else setPacketVerificationOpen(true)
+  }, [releases, releaseIntegrity])
+
+  const handleInspectFromManufacture = useCallback(
+    (target: NonNullable<Selection>) => {
+      onSelect(target)
+      setMainView('model')
+      setCabinetTab('3d')
+      setPerspective('workbench')
+    },
+    [onSelect, setPerspective],
+  )
 
   // Matched by id rather than identity: recording a release or reopening the file replaces the
   // array and re-verifies it, and unmounting the dialog then would cut its review short.
@@ -945,11 +1014,27 @@ function App() {
                   ? '16-tab cabinet parameters'
                   : perspective === 'modes'
                     ? '15 interaction & tool modes'
-                    : `${perspective} — planned stage`}
+                    : perspective === 'manufacture'
+                      ? '8 production workflows'
+                      : `${perspective} — planned stage`}
             </span>
           </span>
         }
       />
+      {packetExportError && (
+        <div
+          role="alert"
+          style={{
+            flex: 'none',
+            padding: '5px 12px',
+            fontSize: 11,
+            background: 'hsl(var(--destructive) / 0.12)',
+            color: 'hsl(var(--destructive))',
+          }}
+        >
+          {packetExportError}
+        </div>
+      )}
       {isWorkbench && (
         <ModelingToolbar
           activeMode={mode.activeMode}
@@ -992,7 +1077,27 @@ function App() {
         />
       )}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-      {perspective === 'cabinet' ? (
+      {isManufacture ? (
+        <ManufacturingWorkspace
+          scene={scene}
+          project={project}
+          projectName={projectName}
+          materialLibrary={library}
+          hardwareLibrary={hardwareLibrary}
+          releases={releases}
+          integrity={releaseIntegrity}
+          onOpenBom={() => setCuttingListOpen(true)}
+          onOpenReadiness={() => setReadinessOpen(true)}
+          onOpenDrawings={handleOpenDrawings}
+          onExportPacket={handleExportPacket}
+          onOpenComparison={() => setPacketComparisonOpen(true)}
+          onOpenChangeReview={handleOpenChangeReview}
+          onVerifyPacket={() => setPacketVerificationOpen(true)}
+          onExportStl={handleExportStl}
+          onExportStep={handleExportStep}
+          onInspect={handleInspectFromManufacture}
+        />
+      ) : perspective === 'cabinet' ? (
         selectedCarcase === null ? (
           <section className="zim-cep-empty" aria-label="Cabinet editor — no cabinet selected">
             <div>
@@ -1025,13 +1130,13 @@ function App() {
             {cabinetEditorNode}
           </CabinetEditorWorkspace>
         )
-      ) : !isWorkbench ? (
-        <PlannedPerspective perspective={perspective} />
+      ) : perspective === 'project' ? (
+        <PlannedPerspective perspective="project" />
       ) : null}
       <div
         style={{
-          // S3: the viewport host stays mounted across Workbench and Viewport Modes; the renderer
-          // is built once in viewport.tsx and must never be torn down on a perspective switch.
+          // S3/S4: the viewport host stays mounted across every perspective. The renderer is
+          // built once in viewport.tsx; a Manufacturing or Project switch only hides it.
           display: isWorkbench || isModes ? 'flex' : 'none',
           flex: 1,
           minWidth: 0,
@@ -1160,7 +1265,7 @@ function App() {
           />
         )}
         {!isModes && mainView === 'model' && cabinetEditorNode}
-        {!isModes && (
+        {!isModes && !isManufacture && (
         <Sidebar
           scene={scene}
           occtReady={occtReady}
