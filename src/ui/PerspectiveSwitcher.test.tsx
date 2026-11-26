@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { PerspectiveSwitcher, type Perspective } from './PerspectiveSwitcher'
 import { WorkbenchStatusBar } from './WorkbenchStatusBar'
-import { PlannedPerspective } from './PlannedPerspective'
 
 afterEach(() => cleanup())
 
@@ -16,7 +15,7 @@ describe('PerspectiveSwitcher (S1 shell)', () => {
     expect(screen.getByRole('button', { name: /Workbench/ }).getAttribute('aria-current')).toBe('page')
   })
 
-  it('reports a chosen perspective and labels planned stages', () => {
+  it('reports a chosen perspective once every stage is implemented', () => {
     const onChange = vi.fn()
     render(<PerspectiveSwitcher active="workbench" onChange={onChange} />)
     fireEvent.click(screen.getByRole('button', { name: /Manufacturing/ }))
@@ -30,18 +29,11 @@ describe('PerspectiveSwitcher (S1 shell)', () => {
     // S3: Viewport Modes is implemented, so it is no longer labelled as coming later.
     expect(screen.queryByRole('button', { name: /Viewport Modes \(coming in a later stage/ })).toBeNull()
     expect(screen.getByRole('button', { name: /Viewport Modes/ })).toBeTruthy()
+    // S5: Project & Room is implemented, so no perspective is marked as upcoming.
+    expect(screen.queryByRole('button', { name: /coming in a later stage/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Project & Room/ }))
+    expect(onChange).toHaveBeenLastCalledWith('project' as Perspective)
   })
-})
-
-describe('PlannedPerspective (S1 shell)', () => {
-  it.each(['project'] as const)(
-    'shows a labelled placeholder for %s',
-    (p) => {
-      render(<PlannedPerspective perspective={p} />)
-      expect(screen.getByText(/Planned for a later stage|S2|S3|S4|S5|Stage S/)).toBeTruthy()
-      expect(screen.getByText(/DESIGN-SIGNOFF\.md/)).toBeTruthy()
-    },
-  )
 })
 
 describe('WorkbenchStatusBar (S1 shell)', () => {

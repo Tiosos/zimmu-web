@@ -34,7 +34,7 @@ export function RoomGeometryPanel({ geometry: supplied, onChange, cabinets, scen
       [id]: { ...(drafts[id] ?? { hinge: '', side: '', radius: '' }), [field]: value },
     }))
   const number = (label: string, value: number, update: (value: number) => void) => (
-    <label className="inline-flex items-center gap-1 text-xs">
+    <label key={label} className="inline-flex items-center gap-1 text-xs">
       {label}
       <input
         aria-label={label}
@@ -507,6 +507,7 @@ export function RoomGeometryPanel({ geometry: supplied, onChange, cabinets, scen
                                 offset: 0,
                                 setback: 0,
                                 manualOffset: { x: 0, y: 0 },
+                                squareToWall: true,
                               },
                             ]
                           : []),
@@ -524,6 +525,24 @@ export function RoomGeometryPanel({ geometry: supplied, onChange, cabinets, scen
                 </select>
                 {placement && (
                   <>
+                    <label className="inline-flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        aria-label={`Square ${cabinet.label} to wall`}
+                        checked={placement.squareToWall !== false}
+                        onChange={(e) =>
+                          onChange({
+                            ...geometry,
+                            placements: geometry.placements.map((p) =>
+                              p.cabinetId === cabinet.id
+                                ? { ...p, squareToWall: e.target.checked }
+                                : p,
+                            ),
+                          })
+                        }
+                      />
+                      Square to wall
+                    </label>
                     {(['offset', 'setback'] as const).map((field) =>
                       number(field, placement[field], (value) =>
                         onChange({

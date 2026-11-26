@@ -18,6 +18,9 @@ export function wallPlacementPose(
   room: RoomGeometry,
   placement: WallPlacement,
 ): { position: RoomPoint; rotation: number } | null {
+  // An explicitly free placement is not snapped or rotated by the wall. Older files omit the
+  // option, so they continue to use the established square-to-wall pose.
+  if (placement.squareToWall === false) return null
   const wall = room.walls.find((w) => w.id === placement.wallId)
   if (!wall) return null
   const length = wallLength(wall)

@@ -1,6 +1,13 @@
 import type { CarcaseComponent, Scene } from './types'
-import type { RoomGeometry, RoomPoint, WallOpening, WallSegment } from './projectStructure'
-import { operableFronts } from './projectStructure'
+import type {
+  ClearanceTolerances,
+  RoomGeometry,
+  RoomPoint,
+  ServicePoint,
+  WallOpening,
+  WallSegment,
+} from './projectStructure'
+import { DEFAULT_CLEARANCE_TOLERANCES, operableFronts } from './projectStructure'
 import { roomPoint, wallLength } from './roomGeometry'
 import { resolveCarcase } from './carcaseOpenings'
 import { frontCells } from './frontCells'
@@ -9,6 +16,7 @@ import { carcaseBounds } from './carcaseBounds'
 import { roleThicknessFor } from './resolveThickness'
 import { applyMatrixToPoint, resolveWorldMatrix } from '../geom/transform'
 import { componentsById } from './componentTree'
+import { worldBoundsOf } from './carcaseWorldBounds'
 
 function footprint(cabinet: CarcaseComponent, scene: Scene): RoomPoint[] {
   const b = carcaseBounds(
@@ -231,6 +239,192 @@ export function clearanceIssues(
       if (overlaps(swing, shape))
         issues.push(`Room door ${door.id}: swing may be blocked by ${obstacle.name}`)
     }
+  }
+  return issues
+}
+
+interface Rect {
+  x0: number
+  x1: number
+  y0: number
+  y1: number
+}
+
+function rectGap(a: Rect, b: Rect): number {
+  const dx = Math.max(a.x0 - b.x1, b.x0 - a.x1, 0)
+  const dy = Math.max(a.y0 - b.y1, b.y0 - a.y1, 0)
+  return Math.hypot(dx, dy)
+}
+
+function rectOf(points: RoomPoint[]): Rect {
+  return {
+    x0: Math.min(...points.map((p) => p.x)),
+    x1: Math.max(...points.map((p) => p.x)),
+    y0: Math.min(...points.map((p) => p.y)),
+    y1: Math.max(...points.map((p) => p.y)),
+  }
+}
+
+function expanded(points: RoomPoint[], margin: number): RoomPoint[] {
+  const r = rectOf(points)
+  const cx = (r.x0 + r.x1) / 2
+  const cy = (r.y0 + r.y1) / 2
+  return corners(cx - (r.x1 - r.x0) / 2 - margin, cx + (r.x1 - r.x0) / 2 + margin, cy - (r.y1 - r.y0) / 2 - margin, cy + (r.y1 - r.y0) / 2 + margin)
+}
+
+function obstaclePolygon(room: RoomGeometry, obstacle: RoomGeometry['obstacles'][number]): RoomPoint[] {
+  return corners(
+    obstacle.position.x,
+    obstacle.position.x + obstacle.width,
+    obstacle.position.y,
+    obstacle.position.y + obstacle.depth,
+  ).map((point) => roomPoint(point, room))
+}
+
+function inside(point: RoomPoint, rect: Rect): boolean {
+  return point.x >= rect.x0 && point.x <= rect.x1 && point.y >= rect.y0 && point.y <= rect.y1
+}
+
+/** Walkway and cabinet gaps below the designer's configured tolerances. */
+export function walkwayIssues(
+  room: RoomGeometry,
+  scene: Scene,
+  cabinetIds: ReadonlySet<string>,
+  tolerances: ClearanceTolerances = DEFAULT_CLEARANCE_TOLERANCES,
+): string[] {
+  const issues: string[] = []
+  const cabinets = scene.components.filter(
+    (c): c is CarcaseComponent => c.kind === 'carcase' && cabinetIds.has(c.id),
+  )
+  const footprints = new Map(cabinets.map((c) => [c.id, worldBoundsOf(c, scene.materials)]))
+  for (const cabinet of cabinets) {
+    for (const obstacle of room.obstacles) {
+      const gap = rectGap(footprints.get(cabinet.id)!, rectOf(obstaclePolygon(room, obstacle)))
+      if (gap > 0 && gap < tolerances.walkway)
+        issues.push(
+          `${cabinet.label}: ${Math.round(gap)} mm to ${obstacle.name} is below the ${tolerances.walkway} mm walkway tolerance`,
+        )
+    }
+  }
+  for (let i = 0; i < cabinets.length; i++) {
+    for (let j = i + 1; j < cabinets.length; j++) {
+      const gap = rectGap(footprints.get(cabinets[i].id)!, footprints.get(cabinets[j].id)!)
+      if (gap > 0 && gap < tolerances.walkway)
+        issues.push(
+          `${cabinets[i].label} to ${cabinets[j].label}: ${Math.round(gap)} mm is below the ${tolerances.walkway} mm walkway tolerance`,
+        )
+    }
+  }
+  return issues
+}
+
+/** Front travel envelopes that come closer than the configured front tolerance. */
+export function frontToleranceIssues(
+  room: RoomGeometry,
+  scene: Scene,
+  cabinetIds: ReadonlySet<string>,
+  tolerances: ClearanceTolerances = DEFAULT_CLEARANCE_TOLERANCES,
+): string[] {
+  const issues: string[] = []
+  const cabinets = scene.components.filter(
+    (c): c is CarcaseComponent => c.kind === 'carcase' && cabinetIds.has(c.id),
+  )
+  for (const cabinet of cabinets) {
+    const resolved = resolveCarcase(cabinet, scene.parts, scene.materials)
+    if (!resolved) continue
+    const cells = frontCells(
+      cabinet.params.section,
+      resolved.tree,
+      frontGeometryOf(cabinet.params, resolved.tree),
+    )
+    const face = carcaseBounds(
+      cabinet.params,
+      roleThicknessFor(cabinet.params, scene.materials, new Map()),
+    ).y0
+    for (const front of operableFronts(cabinet.params.section, cabinet.params.frame)) {
+      const assumption = room.clearances?.find(
+        (c) => c.cabinetId === cabinet.id && c.sectionId === front.sectionId,
+      )
+      if (!assumption) continue
+      const matching = cells.filter((cell) => cell.openingId === front.sectionId)
+      if (!matching.length) continue
+      const rect = {
+        x0: Math.min(...matching.map((cell) => cell.rect.x0)),
+        x1: Math.max(...matching.map((cell) => cell.rect.x1)),
+        z0: Math.min(...matching.map((cell) => cell.rect.z0)),
+        z1: Math.max(...matching.map((cell) => cell.rect.z1)),
+      }
+      const envelope = corners(rect.x0, rect.x1, face - assumption.projection, face).map((point) =>
+        placed(point, cabinet, scene),
+      )
+      const { z0, z1 } = verticalExtent(
+        cabinet,
+        scene,
+        rect.x0,
+        rect.x1,
+        face - assumption.projection,
+        face,
+        rect.z0,
+        rect.z1,
+      )
+      for (const obstacle of room.obstacles) {
+        if (z0 >= obstacle.height || z1 <= 0) continue
+        if (overlaps(envelope, expanded(obstaclePolygon(room, obstacle), tolerances.front)))
+          issues.push(
+            `${cabinet.label}: ${front.kind} ${front.sectionId} is within ${tolerances.front} mm of ${obstacle.name}`,
+          )
+      }
+      for (const other of cabinets) {
+        if (other.id === cabinet.id) continue
+        const bounds = cabinetHeight(other, scene)
+        if (z0 >= bounds.z1 || z1 <= bounds.z0) continue
+        if (overlaps(envelope, expanded(footprint(other, scene), tolerances.front)))
+          issues.push(
+            `${cabinet.label}: ${front.kind} ${front.sectionId} is within ${tolerances.front} mm of ${other.label}`,
+          )
+      }
+    }
+  }
+  return issues
+}
+
+/** Configured corner tolerance applied to the resolved blind-corner geometry. */
+export function cornerToleranceIssues(
+  warnings: readonly { cabinetId: string; available: number }[],
+  tolerance: number,
+): string[] {
+  return warnings
+    .filter((warning) => warning.available < tolerance)
+    .map(
+      (warning) =>
+        `${warning.cabinetId}: ${Math.round(warning.available)} mm blind-corner width is below the ${tolerance} mm corner tolerance`,
+    )
+}
+
+/** Service point coordinates, sizes and positions checked against the drawn room. */
+export function servicePointIssues(
+  room: RoomGeometry,
+  roomId: string,
+  services: readonly ServicePoint[],
+): string[] {
+  const issues: string[] = []
+  const wallPoints = room.walls.flatMap((wall) => [
+    roomPoint(wall.start, room),
+    roomPoint(wall.end, room),
+  ])
+  const wallRect = wallPoints.length > 0 ? rectOf(wallPoints) : null
+  const obstacleRects = room.obstacles.map((obstacle) => rectOf(obstaclePolygon(room, obstacle)))
+  for (const service of services.filter((s) => s.roomId === roomId)) {
+    if (!Number.isFinite(service.offset.x) || !Number.isFinite(service.offset.y))
+      issues.push(`${service.name}: service offset is not a finite coordinate`)
+    if (!Number.isFinite(service.elevation))
+      issues.push(`${service.name}: service elevation is not finite`)
+    if (!service.size.trim()) issues.push(`${service.name}: service size is not recorded`)
+    const point = roomPoint(service.offset, room)
+    if (wallRect !== null && !inside(point, wallRect))
+      issues.push(`${service.name}: service point lies outside the drawn room bounds`)
+    if (obstacleRects.some((rect) => inside(point, rect)))
+      issues.push(`${service.name}: service point lies inside a room obstacle`)
   }
   return issues
 }

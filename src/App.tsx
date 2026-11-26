@@ -15,7 +15,7 @@ import { FileMenu } from './ui/FileMenu'
 import { PerspectiveSwitcher, type Perspective } from './ui/PerspectiveSwitcher'
 import { ModelingToolbar } from './ui/ModelingToolbar'
 import { WorkbenchStatusBar } from './ui/WorkbenchStatusBar'
-import { PlannedPerspective } from './ui/PlannedPerspective'
+import { ProjectRoomWorkspace } from './ui/ProjectRoomWorkspace'
 import { CabinetEditorWorkspace } from './ui/CabinetEditorWorkspace'
 import { ViewportModesNav, ViewportModesOverlay, ViewportModesPanel } from './ui/ViewportModes'
 import { MODES } from './ui/viewportModeData'
@@ -48,6 +48,7 @@ import type {
   PartId,
   SectionId,
   Selection,
+  Vec3,
 } from './scene/types'
 import { lazyNamed } from './lib/lazyNamed'
 
@@ -257,6 +258,7 @@ function App() {
   const isWorkbench = perspective === 'workbench'
   const isModes = perspective === 'modes'
   const isManufacture = perspective === 'manufacture'
+  const isProject = perspective === 'project'
 
   // Only a cabinet gets a gizmo: an anchor lives on a carcase and nothing else has a placement to
   // edit. `selectedCarcase` is already the open-cabinet rule, so reusing it keeps one answer to
@@ -539,6 +541,32 @@ function App() {
         ),
       })),
     })
+  }
+
+  // Shared by the Workbench plan and the S5 Project & Room plan, so a drag in either surface
+  // detaches a wall placement and commits through the same undo/redo-aware scene updater.
+  const selectComponentInPlan = (id: ComponentId) => onSelect({ kind: 'component', id })
+  const dropComponentInPlan = (id: ComponentId, position: Vec3) => {
+    const dragged = scene.components.find((c) => c.id === id)
+    if (dragged === undefined || dragged.kind !== 'carcase') return
+    const others = scene.components.filter(
+      (c): c is CarcaseComponent => c.kind === 'carcase' && c.id !== id,
+    )
+    const drop = anchorForDrop(dragged, position, others, scene.materials)
+    detachWallPlacement(id)
+    onUpdateComponent(id, (c) =>
+      c.kind !== 'carcase'
+        ? c
+        : drop.kind === 'anchor'
+          ? { ...c, anchor: drop.anchor, rotation: { ...c.rotation, z: drop.rotationZ } }
+          : { ...c, anchor: undefined, position: drop.position },
+    )
+  }
+  const turnComponentInPlan = (id: ComponentId) => {
+    detachWallPlacement(id)
+    onUpdateComponent(id, (c) =>
+      c.kind !== 'carcase' ? c : turnedInPlace(c, scene.materials, 90),
+    )
   }
 
   const visibleParts = scene.parts.filter((p) => isNodeVisible(p, componentMap))
@@ -1016,7 +1044,7 @@ function App() {
                     ? '15 interaction & tool modes'
                     : perspective === 'manufacture'
                       ? '8 production workflows'
-                      : `${perspective} — planned stage`}
+                      : 'Rooms, installation and services'}
             </span>
           </span>
         }
@@ -1130,8 +1158,25 @@ function App() {
             {cabinetEditorNode}
           </CabinetEditorWorkspace>
         )
-      ) : perspective === 'project' ? (
-        <PlannedPerspective perspective="project" />
+      ) : isProject ? (
+        <ProjectRoomWorkspace
+          project={project}
+          projectName={projectName}
+          scene={scene}
+          releases={releases}
+          activeItemId={activeItemId}
+          selectedComponentId={selection?.kind === 'component' ? selection.id : null}
+          canUndoProject={canUndoProject}
+          canRedoProject={canRedoProject}
+          onProjectChange={setProject}
+          onSelectItem={setActiveItemId}
+          onSelectComponent={selectComponentInPlan}
+          onDropComponent={dropComponentInPlan}
+          onTurnComponent={turnComponentInPlan}
+          onOpenProjectPanel={() => setProjectPanelOpen(true)}
+          onUndoProject={undoProject}
+          onRedoProject={redoProject}
+        />
       ) : null}
       <div
         style={{
@@ -1231,41 +1276,14 @@ function App() {
             room={activeRoom?.geometry}
             cabinetIds={roomCabinetIds}
             selectedId={selection?.kind === 'component' ? selection.id : null}
-            onSelect={(id) => onSelect({ kind: 'component', id })}
-            onDrop={(id, position) => {
-              const dragged = scene.components.find((c) => c.id === id)
-              if (dragged === undefined || dragged.kind !== 'carcase') return
-              const others = scene.components.filter(
-                (c): c is CarcaseComponent => c.kind === 'carcase' && c.id !== id,
-              )
-              const drop = anchorForDrop(dragged, position, others, scene.materials)
-              detachWallPlacement(id)
-              // Through onUpdateComponent like every other edit, so a drag lands in undo/redo and
-              // the four-stage pipeline re-resolves the dropped cabinet's neighbours in the same
-              // commit. The updater is handed the Component UNION, so it must narrow before
-              // touching `anchor` — only a carcase carries one.
-              onUpdateComponent(id, (c) =>
-                c.kind !== 'carcase'
-                  ? c
-                  : drop.kind === 'anchor'
-                    ? // The inherited rotation is decision 9's UI default: dropping onto a blind
-                      // unit's front face turns the cabinet to face along the return wall, which is
-                      // what makes the corner gesture work.
-                      { ...c, anchor: drop.anchor, rotation: { ...c.rotation, z: drop.rotationZ } }
-                    : { ...c, anchor: undefined, position: drop.position },
-              )
-            }}
-            onTurn={(id) => {
-              detachWallPlacement(id)
-              onUpdateComponent(id, (c) =>
-                c.kind !== 'carcase' ? c : turnedInPlace(c, scene.materials, 90),
-              )
-            }}
+            onSelect={selectComponentInPlan}
+            onDrop={dropComponentInPlan}
+            onTurn={turnComponentInPlan}
             warnings={cornerWarnings(scene.components, scene.materials)}
           />
         )}
         {!isModes && mainView === 'model' && cabinetEditorNode}
-        {!isModes && !isManufacture && (
+        {!isModes && !isManufacture && !isProject && (
         <Sidebar
           scene={scene}
           occtReady={occtReady}
