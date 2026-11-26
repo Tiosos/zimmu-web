@@ -2,6 +2,7 @@ import { activateOnKey } from '../lib/a11y'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { ThemeToggle } from './ThemeToggle'
 
 export interface FileMenuProps {
   fileName: string | null
@@ -139,7 +140,7 @@ export function FileMenu({
   )
 
   return (
-    <div className="h-10 flex items-center flex-shrink-0 bg-[#18181b] border-b border-border text-sm text-foreground select-none gap-1 px-2">
+    <div className="h-10 flex items-center flex-shrink-0 bg-card border-b border-border text-sm text-foreground select-none gap-1 px-2">
       {/* Wordmark */}
       <span className="font-semibold tracking-widest mr-1 opacity-90 text-xs">Zimmu</span>
 
@@ -241,7 +242,8 @@ export function FileMenu({
         ) : null}
       </div>
 
-      {/* Right: parts count */}
+      {/* Right: theme preference and parts count */}
+      <ThemeToggle />
       <span className="text-muted-foreground text-xs flex-shrink-0">
         {partsCount} {partsCount === 1 ? 'part' : 'parts'}
       </span>
