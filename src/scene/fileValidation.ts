@@ -677,6 +677,8 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
           positiveAt(placement.offset, `${pp}.offset`, true)
           positiveAt(placement.setback, `${pp}.setback`, true)
           vec2At(placement.manualOffset, `${pp}.manualOffset`)
+          if (placement.squareToWall !== undefined && typeof placement.squareToWall !== 'boolean')
+            throw new ZimmuFileValidationError(`${pp}.squareToWall`, 'must be a boolean')
         })
         if (geometry.clearances !== undefined) {
           const assessed = new Set<string>()
@@ -711,6 +713,13 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
             positiveAt(clearance.projection, `${cp}.projection`)
           })
         }
+        if (geometry.tolerances !== undefined) {
+          const tp = `${path}.tolerances`
+          const tolerances = recordAt(geometry.tolerances, tp)
+          positiveAt(tolerances.walkway, `${tp}.walkway`)
+          positiveAt(tolerances.front, `${tp}.front`)
+          positiveAt(tolerances.corner, `${tp}.corner`)
+        }
       }
       if (!items.length)
         throw new ZimmuFileValidationError(`${roomPath}.items`, 'must not be empty')
@@ -742,6 +751,25 @@ function validateProject(project: ProjectStructure, scene: Scene): void {
       })
     })
   })
+  if (root.services !== undefined) {
+    const roomIds = new Set<string>(
+      project.areas.flatMap((area) => area.rooms.map((room) => room.id)),
+    )
+    arrayAt(root.services, 'file.project.services').forEach((rawService, i) => {
+      const sp = `file.project.services[${i}]`
+      const service = recordAt(rawService, sp)
+      unique(service.id, `${sp}.id`)
+      if (!roomIds.has(stringAt(service.roomId, `${sp}.roomId`)))
+        throw new ZimmuFileValidationError(`${sp}.roomId`, 'must name a project room')
+      if (!['electrical', 'water', 'drain', 'gas'].includes(stringAt(service.kind, `${sp}.kind`)))
+        throw new ZimmuFileValidationError(`${sp}.kind`, 'must be electrical, water, drain, or gas')
+      stringAt(service.name, `${sp}.name`)
+      stringAt(service.size, `${sp}.size`)
+      vec2At(service.offset, `${sp}.offset`)
+      finiteNumberAt(service.elevation, `${sp}.elevation`)
+      stringAt(service.source, `${sp}.source`)
+    })
+  }
   if (owned.size !== roots.size || ownedParts.size !== partRoots.size)
     throw new ZimmuFileValidationError(
       'file.project',

@@ -78,6 +78,21 @@ export interface WallPlacement {
   offset: number
   setback: number
   manualOffset: RoomPoint
+  // Free placement keeps the cabinet where the designer dragged it. Omitted means true, so files
+  // saved before this option keep their established square-to-wall behaviour.
+  squareToWall?: boolean
+}
+
+export interface ClearanceTolerances {
+  walkway: number
+  front: number
+  corner: number
+}
+
+export const DEFAULT_CLEARANCE_TOLERANCES: ClearanceTolerances = {
+  walkway: 900,
+  front: 450,
+  corner: 600,
 }
 
 export interface RoomGeometry {
@@ -90,6 +105,7 @@ export interface RoomGeometry {
   datum?: string
   siteLevels?: SiteLevel[]
   clearances?: FrontClearance[]
+  tolerances?: ClearanceTolerances
 }
 
 export function emptyRoomGeometry(): RoomGeometry {
@@ -158,9 +174,23 @@ export interface ProjectArea {
   rooms: ProjectRoom[]
 }
 
+export type ServiceKind = 'electrical' | 'water' | 'drain' | 'gas'
+
+export interface ServicePoint {
+  id: string
+  roomId: string
+  kind: ServiceKind
+  name: string
+  size: string
+  offset: RoomPoint
+  elevation: number
+  source: string
+}
+
 export interface ProjectStructure {
   id: string
   areas: ProjectArea[]
+  services?: ServicePoint[]
 }
 
 // Stable on repeated reads of the same legacy file; the IDs become persistent on first save.
