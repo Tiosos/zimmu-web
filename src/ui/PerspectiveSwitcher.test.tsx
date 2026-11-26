@@ -24,7 +24,9 @@ describe('PerspectiveSwitcher (S1 shell)', () => {
     // S2: Cabinet Editor is implemented, so it is no longer labelled as coming later.
     expect(screen.queryByRole('button', { name: /Cabinet Editor \(coming in a later stage/ })).toBeNull()
     expect(screen.getByRole('button', { name: /Cabinet Editor/ })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Manufacturing \(coming in a later stage/ })).toBeTruthy()
+    // S4: Manufacturing is implemented, so it is no longer labelled as coming later.
+    expect(screen.queryByRole('button', { name: /Manufacturing \(coming in a later stage/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /Manufacturing/ })).toBeTruthy()
     // S3: Viewport Modes is implemented, so it is no longer labelled as coming later.
     expect(screen.queryByRole('button', { name: /Viewport Modes \(coming in a later stage/ })).toBeNull()
     expect(screen.getByRole('button', { name: /Viewport Modes/ })).toBeTruthy()
@@ -32,7 +34,7 @@ describe('PerspectiveSwitcher (S1 shell)', () => {
 })
 
 describe('PlannedPerspective (S1 shell)', () => {
-  it.each(['cabinet', 'modes', 'manufacture', 'project'] as const)(
+  it.each(['project'] as const)(
     'shows a labelled placeholder for %s',
     (p) => {
       render(<PlannedPerspective perspective={p} />)

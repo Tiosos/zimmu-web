@@ -473,3 +473,133 @@ body,
 
 @media (max-width: 1180px) { .zim-vm-side { width: 280px; } .zim-vm-nav { width: 190px; } }
 @media (max-width: 900px) { .zim-vm-side { display: none; } }
+
+/* ===========================================================================
+   Zimmu Manufacturing workspace (S4). Eight workflow cards plus a live review,
+   drawing and packet-verification summary. All outputs use the real product
+   engines; these styles only carry the fabrication dashboard layout.
+   =========================================================================== */
+.zim-mfg { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; background: hsl(var(--background)); }
+.zim-mfg-head {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex: none;
+  padding: 18px 24px 14px; border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--card));
+}
+.zim-mfg-eyebrow {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.14em;
+  color: hsl(var(--primary)); font-weight: 700;
+}
+.zim-mfg-head h1 { margin: 5px 0 3px; font-size: 20px; font-weight: 650; color: hsl(var(--foreground)); }
+.zim-mfg-head p { margin: 0; max-width: 620px; font-size: 11px; line-height: 1.6; color: hsl(var(--muted-foreground)); }
+.zim-mfg-headstats { display: flex; gap: 18px; flex: none; }
+.zim-mfg-headstats span { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 9px; color: hsl(var(--muted-foreground)); }
+.zim-mfg-headstats b { font-family: 'JetBrains Mono', monospace; font-size: 18px; color: hsl(var(--foreground)); }
+
+.zim-mfg-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 24px 28px; }
+.zim-mfg-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
+.zim-mfg-section-head h2 { margin: 0; font-size: 12px; font-weight: 650; color: hsl(var(--foreground)); }
+.zim-mfg-section-head > span { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: hsl(var(--muted-foreground)); }
+
+.zim-mfg-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.zim-mfg-card {
+  display: flex; flex-direction: column; align-items: stretch; gap: 7px; min-height: 124px;
+  padding: 12px 13px 10px; text-align: left; border-radius: 6px;
+  border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.zim-mfg-card:hover, .zim-mfg-card.on { border-color: hsl(var(--primary) / 0.5); background: hsl(var(--primary) / 0.06); }
+.zim-mfg-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.zim-mfg-card-icon {
+  width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 4px; font-size: 14px; background: hsl(var(--primary) / 0.12); color: hsl(var(--primary));
+}
+.zim-mfg-card strong { font-size: 12px; font-weight: 650; color: hsl(var(--foreground)); }
+.zim-mfg-card-desc { flex: 1; font-size: 10px; line-height: 1.55; color: hsl(var(--muted-foreground)); }
+.zim-mfg-card-foot {
+  display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: hsl(var(--primary));
+}
+.zim-mfg-badge {
+  padding: 2px 7px; border-radius: 10px; font-size: 9px; font-weight: 600; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.zim-mfg-badge.green { color: hsl(var(--zim-success)); background: hsl(var(--zim-success) / 0.12); border-color: hsl(var(--zim-success) / 0.3); }
+.zim-mfg-badge.amber { color: hsl(var(--zim-warning)); background: hsl(var(--zim-warning) / 0.12); border-color: hsl(var(--zim-warning) / 0.3); }
+.zim-mfg-badge.red { color: hsl(var(--destructive)); background: hsl(var(--destructive) / 0.1); border-color: hsl(var(--destructive) / 0.3); }
+.zim-mfg-badge.cyan { color: hsl(var(--zim-precision)); background: hsl(var(--zim-precision) / 0.12); border-color: hsl(var(--zim-precision) / 0.3); }
+
+.zim-mfg-exports { margin: 16px 0 0; padding: 12px; border: 1px solid hsl(var(--primary) / 0.3); border-radius: 6px; background: hsl(var(--primary) / 0.04); }
+.zim-mfg-export-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.zim-mfg-export {
+  display: flex; flex-direction: column; gap: 3px; padding: 9px 11px; text-align: left;
+  border-radius: 4px; border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+}
+.zim-mfg-export:hover { border-color: hsl(var(--primary) / 0.5); }
+.zim-mfg-export strong { font-size: 11px; color: hsl(var(--foreground)); }
+.zim-mfg-export span { font-size: 9px; color: hsl(var(--muted-foreground)); }
+
+.zim-mfg-panels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.zim-mfg-panel {
+  display: flex; flex-direction: column; gap: 9px; min-width: 0; padding: 13px;
+  border: 1px solid hsl(var(--border)); border-radius: 6px; background: hsl(var(--card));
+}
+.zim-mfg-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.zim-mfg-panel-head h2 { margin: 0; font-size: 12px; font-weight: 650; color: hsl(var(--foreground)); }
+.zim-mfg-kpis { display: flex; gap: 8px; }
+.zim-mfg-kpis span {
+  flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 7px 9px; border-radius: 4px;
+  background: hsl(var(--background)); border: 1px solid hsl(var(--border));
+  font-size: 9px; color: hsl(var(--muted-foreground));
+}
+.zim-mfg-kpis b { font-family: 'JetBrains Mono', monospace; font-size: 16px; color: hsl(var(--foreground)); }
+.zim-mfg-issues { display: flex; flex-direction: column; gap: 5px; min-height: 112px; }
+.zim-mfg-issue { display: flex; align-items: flex-start; gap: 7px; padding: 6px 7px; border-radius: 4px; background: hsl(var(--background)); border: 1px solid hsl(var(--border)); }
+.zim-mfg-issue-body { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.zim-mfg-issue-body strong { font-size: 10px; font-weight: 500; line-height: 1.4; color: hsl(var(--foreground)); }
+.zim-mfg-issue-body small { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: hsl(var(--muted-foreground)); }
+.zim-mfg-empty { margin: 0; padding: 12px 6px; font-size: 10px; color: hsl(var(--muted-foreground)); text-align: center; }
+.zim-mfg-note { margin: 0; font-size: 9px; line-height: 1.55; color: hsl(var(--muted-foreground)); }
+.zim-mfg-actions { display: flex; gap: 7px; margin-top: auto; }
+.zim-mfg-cta {
+  height: 29px; padding: 0 12px; border-radius: 4px; font-size: 10px; font-weight: 600;
+  background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+}
+.zim-mfg-cta:hover { filter: brightness(1.06); }
+.zim-mfg-cta.ghost { background: hsl(var(--background)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); }
+.zim-mfg-link { font-size: 9px; color: hsl(var(--primary)); text-decoration: underline; white-space: nowrap; }
+.zim-mfg-error { margin: 0; font-size: 10px; color: hsl(var(--destructive)); }
+
+.zim-mfg-drawings { display: flex; gap: 9px; min-height: 236px; }
+.zim-mfg-sheet-list { width: 146px; flex: none; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.zim-mfg-sheet-list button {
+  padding: 5px 7px; border-radius: 3px; font-size: 9px; text-align: left; line-height: 1.35;
+  color: hsl(var(--muted-foreground)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.zim-mfg-sheet-list button:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.zim-mfg-sheet-list button.on { background: hsl(var(--primary) / 0.13); color: hsl(var(--primary)); font-weight: 600; }
+.zim-mfg-sheet-preview { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.zim-mfg-svg {
+  flex: 1; min-height: 170px; overflow: hidden; border-radius: 4px; border: 1px solid hsl(var(--border));
+  background: #fff; display: flex; align-items: center; justify-content: center;
+}
+.zim-mfg-svg svg { width: 100%; height: 100%; }
+.zim-mfg-sheet-actions { display: flex; gap: 11px; justify-content: flex-end; }
+
+.zim-mfg-checks { display: flex; flex-direction: column; gap: 4px; min-height: 112px; }
+.zim-mfg-checks > div {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px;
+  border-radius: 4px; background: hsl(var(--background)); border: 1px solid hsl(var(--border));
+  font-size: 10px; color: hsl(var(--muted-foreground));
+}
+.zim-mfg-checks b { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: hsl(var(--foreground)); text-align: right; }
+.zim-mfg-hash { color: hsl(var(--zim-precision)) !important; }
+
+@media (max-width: 1320px) {
+  .zim-mfg-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .zim-mfg-panels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 980px) {
+  .zim-mfg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .zim-mfg-panels { grid-template-columns: 1fr; }
+  .zim-mfg-export-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .zim-mfg-headstats { display: none; }
+}

@@ -1,24 +1,6 @@
 import type { Perspective } from './PerspectiveSwitcher'
 
-const CONTENT: Record<Exclude<Perspective, 'workbench'>, { title: string; stage: string; body: string; items: string[] }> = {
-  cabinet: {
-    title: 'Cabinet Editor',
-    stage: 'Stage S2',
-    body: 'A dedicated surface for the sixteen parametric cabinet tabs, with grouped navigation and a live preview. The tab order already matches the existing CabinetEditor component.',
-    items: ['16 parameter tabs', 'Grouped navigation', 'Live front-elevation preview', 'Exploded and section views'],
-  },
-  modes: {
-    title: 'Viewport Modes',
-    stage: 'Stage S3',
-    body: 'A reference surface for all interaction modes. The seven real interaction modes keep the verified keyboard map; tool and display modes are promoted in a later stage.',
-    items: ['7 interaction modes with F/C/J/L/M/B/T', 'Step-by-step overlays', 'Live gizmo readouts', '8 tool / display modes'],
-  },
-  manufacture: {
-    title: 'Manufacturing',
-    stage: 'Stage S4',
-    body: 'A production dashboard grouping readiness, cutting lists, drawings, packets and release review into one workflow surface.',
-    items: ['Readiness triage', 'BOM & nesting', 'Shop drawings', 'Production packet & verification'],
-  },
+const CONTENT: Record<Extract<Perspective, 'project'>, { title: string; stage: string; body: string; items: string[] }> = {
   project: {
     title: 'Project & Room',
     stage: 'Stage S5',
@@ -28,7 +10,7 @@ const CONTENT: Record<Exclude<Perspective, 'workbench'>, { title: string; stage:
 }
 
 /** Placeholder for perspectives scheduled for later implementation stages. */
-export function PlannedPerspective({ perspective }: { perspective: Exclude<Perspective, 'workbench'> }) {
+export function PlannedPerspective({ perspective }: { perspective: Extract<Perspective, 'project'> }) {
   const c = CONTENT[perspective]
   return (
     <section
