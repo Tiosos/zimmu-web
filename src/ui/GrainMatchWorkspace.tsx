@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { usePanelFocus } from '../lib/a11y'
 import { Button } from '@/components/ui/button'
 import type { Scene, MaterialDef } from '../scene/types'
 import type { ProjectStructure } from '../scene/projectStructure'
@@ -41,6 +42,8 @@ export function GrainMatchWorkspace({
   canUndo: boolean
   canRedo: boolean
 }) {
+  const panel = useRef<HTMLElement>(null)
+  usePanelFocus(panel)
   const signature = grainMatchSignature(scene, project),
     [base, setBase] = useState(signature),
     [draft, setDraft] = useState(defaultGrainMatchDraft),
@@ -122,6 +125,8 @@ export function GrainMatchWorkspace({
   )
   return (
     <aside
+      ref={panel}
+      tabIndex={-1}
       aria-label="Front grain matching workspace"
       className="absolute right-3 top-14 z-40 w-[470px] max-w-[95vw] max-h-[85vh] overflow-y-auto bg-card text-foreground border rounded p-4 shadow-xl space-y-3"
     >

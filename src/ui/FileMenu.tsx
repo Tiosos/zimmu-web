@@ -134,7 +134,7 @@ export function FileMenu({
       className="w-full justify-between rounded-none px-3 text-xs font-normal h-8 gap-8"
     >
       <span>{label}</span>
-      <span className="opacity-50 text-[11px]">{shortcut}</span>
+      <span className="text-muted-foreground text-[11px]">{shortcut}</span>
     </Button>
   )
 
@@ -218,7 +218,7 @@ export function FileMenu({
               if (e.key === 'Enter') commitName()
               if (e.key === 'Escape') setIsEditing(false)
             }}
-            className="bg-secondary border border-border rounded text-foreground text-xs px-1.5 py-0.5 outline-none"
+            className="bg-secondary border border-border rounded text-foreground text-xs px-1.5 py-0.5"
           />
         ) : (
           <span
@@ -242,7 +242,7 @@ export function FileMenu({
       </div>
 
       {/* Right: parts count */}
-      <span className="opacity-50 text-xs flex-shrink-0">
+      <span className="text-muted-foreground text-xs flex-shrink-0">
         {partsCount} {partsCount === 1 ? 'part' : 'parts'}
       </span>
     </div>

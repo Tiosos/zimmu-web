@@ -51,6 +51,7 @@ import type {
   Vec3,
 } from './scene/types'
 import { lazyNamed } from './lib/lazyNamed'
+import { hasOpenDialog } from './lib/a11y'
 
 const SlopedTopWorkspace = lazyNamed(() => import('./ui/SlopedTopWorkspace'), 'SlopedTopWorkspace')
 const StockWorkspace = lazyNamed(() => import('./ui/StockWorkspace'), 'StockWorkspace')
@@ -620,6 +621,10 @@ function App() {
         }
         return
       }
+      // A dialog owns every key until it closes: F/C/J/L/M/B/T, H, Delete and Ctrl+Z/S/O/N
+      // belong to the dialog, not the workbench behind it. Escape stays with the dialog's own
+      // handler, which already closes it and restores focus.
+      if (hasOpenDialog()) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const mod = e.metaKey || e.ctrlKey
 

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { usePanelFocus } from '../lib/a11y'
 import { Button } from '@/components/ui/button'
 import type { CarcaseComponent, Scene } from '../scene/types'
 import type { ProjectStructure } from '../scene/projectStructure'
@@ -35,6 +36,8 @@ export function SlopedTopWorkspace({
   canUndo: boolean
   canRedo: boolean
 }) {
+  const panel = useRef<HTMLElement>(null)
+  usePanelFocus(panel)
   const signature = slopeSignature(scene, project),
     cabinets = scene.components.filter((c): c is CarcaseComponent => c.kind === 'carcase'),
     [base, setBase] = useState(signature),
@@ -80,6 +83,8 @@ export function SlopedTopWorkspace({
   )
   return (
     <aside
+      ref={panel}
+      tabIndex={-1}
       aria-label="Sloped top cabinet workspace"
       className="absolute right-3 top-14 z-40 w-[600px] max-w-[95vw] max-h-[85vh] overflow-y-auto bg-card text-foreground border rounded p-4 shadow-xl space-y-3"
     >
