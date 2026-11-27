@@ -8,13 +8,13 @@ test('header theme toggle persists across reload and stays keyboard operable', a
     timeout: OCCT_READY_TIMEOUT,
   })
 
-  const toggle = page.getByRole('button', { name: 'Switch to light theme' })
+  const toggle = page.getByRole('button', { name: 'Dark theme — switch to light' })
   await expect(toggle).toBeVisible()
   const darkBackground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
 
   await toggle.click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
-  await expect(page.getByRole('button', { name: 'Switch to dark theme' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Light theme — switch to dark' })).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem('zimmu:theme:v1'))).toBe('light')
   const lightBackground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
   expect(lightBackground).not.toBe(darkBackground)
@@ -24,10 +24,10 @@ test('header theme toggle persists across reload and stays keyboard operable', a
     timeout: OCCT_READY_TIMEOUT,
   })
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
-  const back = page.getByRole('button', { name: 'Switch to dark theme' })
+  const back = page.getByRole('button', { name: 'Light theme — switch to dark' })
   await back.focus()
   await expect(back).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light')
-  await expect(page.getByRole('button', { name: 'Switch to light theme' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Dark theme — switch to light' })).toBeVisible()
 })

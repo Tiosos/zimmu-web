@@ -23,12 +23,12 @@ test('manufacturing cards open the real readiness and packet verification workfl
   const nav = page.getByRole('navigation', { name: 'Workspace perspectives' })
   await nav.getByRole('button', { name: /Manufacturing/ }).click()
 
-  await page.getByRole('button', { name: 'Open Readiness Review workflow' }).click()
+  await page.getByRole('button', { name: /Readiness Review/ }).click()
   const readiness = page.getByRole('dialog', { name: 'Manufacturing readiness' })
   await expect(readiness).toBeVisible()
   await readiness.getByRole('button', { name: 'Close readiness report' }).click()
 
-  await page.getByRole('button', { name: 'Open Verify Packet workflow' }).click()
+  await page.getByRole('button', { name: /Verify Packet/ }).click()
   const verify = page.getByRole('dialog', { name: 'Verify production packet' })
   await expect(verify).toBeVisible()
   await expect(verify.getByLabel('Production packet ZIP')).toBeVisible()

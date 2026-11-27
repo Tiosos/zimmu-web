@@ -120,7 +120,12 @@ export function DrawingViewer({ open, onClose, sheets, projectName }: DrawingVie
       </div>
 
       {/* SVG preview */}
-      <div className="flex-1 overflow-auto flex items-center justify-center bg-muted p-6">
+      <div
+        className="flex-1 overflow-auto flex items-center justify-center bg-muted p-6"
+        tabIndex={0}
+        role="region"
+        aria-label="Drawing preview"
+      >
         <div
           className="bg-white shadow-lg"
           style={{ maxWidth: '100%', maxHeight: '100%', aspectRatio: '297 / 210' }}

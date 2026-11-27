@@ -353,6 +353,7 @@ export function ProjectRoomWorkspace({
                   + Room
                 </button>
               </div>
+              <div role="group">
               {area.rooms.map((room) => (
                 <div className="zim-pr-room" key={room.id} {...roving(room.id, 2)}>
                   <div className="zim-pr-row">
@@ -376,6 +377,7 @@ export function ProjectRoomWorkspace({
                       Select
                     </button>
                   </div>
+                  <div role="group">
                   {room.items.map((item) => (
                     <div className="zim-pr-item" key={item.id} {...roving(item.id, 3)}>
                       <span className="zim-pr-kind">ITEM</span>
@@ -396,7 +398,7 @@ export function ProjectRoomWorkspace({
                       <button
                         type="button"
                         className={activeItemId === item.id ? 'on' : ''}
-                        aria-label={`Work in ${item.name}`}
+                        aria-label={`${activeItemId === item.id ? 'Active' : 'Open'} — work in ${item.name}`}
                         onClick={() => {
                           setSelectedRoomId(room.id)
                           onSelectItem(item.id)
@@ -409,6 +411,7 @@ export function ProjectRoomWorkspace({
                       </span>
                     </div>
                   ))}
+                  </div>
                   <button
                     type="button"
                     className="zim-pr-add"
@@ -419,6 +422,7 @@ export function ProjectRoomWorkspace({
                   </button>
                 </div>
               ))}
+              </div>
             </div>
           ))}
           </div>

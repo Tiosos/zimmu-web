@@ -354,7 +354,6 @@ export function ManufacturingWorkspace({
                 key={card.id}
                 type="button"
                 className={`zim-mfg-card ${card.id === 'exports' && exportsOpen ? 'on' : ''}`}
-                aria-label={`Open ${card.title} workflow`}
                 aria-expanded={card.id === 'exports' ? exportsOpen : undefined}
                 onClick={() => openCard(card.id)}
               >
@@ -440,7 +439,6 @@ export function ManufacturingWorkspace({
                     key={`${entry.kind}/${index}`}
                     type="button"
                     className={index === Math.min(sheetIndex, sheets.length - 1) ? 'on' : ''}
-                    aria-label={`Show drawing sheet ${index + 1}`}
                     onClick={() => setSheetIndex(index)}
                   >
                     {sheetLabel(entry, sheets)}
@@ -460,6 +458,7 @@ export function ManufacturingWorkspace({
                   <>
                     <div
                       className="zim-mfg-svg"
+                      role="img"
                       aria-label={`Preview of ${sheetLabel(sheet, sheets)}`}
                       dangerouslySetInnerHTML={{ __html: sheetMarkup }}
                     />

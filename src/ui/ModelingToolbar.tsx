@@ -90,7 +90,6 @@ export function ModelingToolbar({
           // menu with name: /^New/. A toolbar label must avoid both patterns, so this is neither
           // "Add cabinet" (substring match) nor a name starting with "New".
           title="Insert carcase component"
-          aria-label="Insert carcase component"
           onClick={onAddCabinet}
         >
           + Cabinet

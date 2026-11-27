@@ -36,9 +36,8 @@ export function PerspectiveSwitcher({ active, onChange, hintRight }: Perspective
             type="button"
             className={`zim-persp ${isActive ? 'on' : ''}`}
             aria-current={isActive ? 'page' : undefined}
-            // E2E helpers click the Plan view with name: 'Plan' (substring). The word "planned"
-            // in an aria-label/title would match that too, so upcoming stages say "coming later".
-            aria-label={`${p.label}${isPlanned ? ' (coming in a later stage)' : ''}`}
+            // The visible label supplies the accessible name. An aria-label here duplicates it and
+            // breaks axe's label-content-name-mismatch check; keep planned-stage notes in title.
             title={isPlanned ? `${p.label} — ${p.hint}. Coming in a later stage.` : p.label}
             onClick={() => onChange(p.id)}
           >
