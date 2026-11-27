@@ -42,7 +42,8 @@
     --card-foreground: 222 24% 12%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 24% 12%;
-    --primary: 25 90% 40%;
+    /* 32% keeps primary text legible even on the 14–20% primary tints used by selected rows. */
+    --primary: 25 90% 32%;
     --primary-foreground: 0 0% 100%;
     --secondary: 220 14% 94%;
     --secondary-foreground: 222 18% 20%;
@@ -54,8 +55,8 @@
     --destructive-foreground: 0 0% 100%;
     --border: 220 12% 78%;
     --input: 220 12% 88%;
-    --ring: 25 90% 40%;
-    --zim-precision: 190 90% 30%;
+    --ring: 25 90% 32%;
+    --zim-precision: 190 90% 24%;
     --zim-success: 152 70% 26%;
     --zim-warning: 32 90% 30%;
   }
@@ -108,6 +109,15 @@
 [role='treeitem']:focus-visible {
   outline: 2px solid hsl(var(--primary));
   outline-offset: 1px;
+}
+
+/* A 50%-opacity primary button becomes pale orange with pale text on white. Disabled controls
+   are exempt from WCAG contrast rules, but a readable muted surface is clearer in light mode. */
+html[data-theme='light'] button:disabled {
+  opacity: 1;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  border-color: hsl(var(--border));
 }
 
 html,
