@@ -1,32 +1,15 @@
 import { test, expect, type Page } from '@playwright/test'
-import AxeBuilder from '@axe-core/playwright'
+import { axeViolations } from './axe-helpers'
 
 const READY = 120_000
 
-async function scan(page: Page, label: string) {
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    // The elevation/plan SVGs contain keyboard-operable <g role="button"> hotspots inside a
-    // labelled graphic. axe's generic nested-interactive rule cannot express that SVG pattern;
-    // the hotspots themselves pass keyboard-access.spec.ts and are intentional.
-    .disableRules(['nested-interactive'])
-    .analyze()
-  const rows = results.violations.map(
-    (v) =>
-      `${v.id} ${v.impact ?? 'n/a'} x${v.nodes.length}:\n` +
-      v.nodes
-        .slice(0, 20)
-        .map(
-          (n) =>
-            `  target=${n.target.join(' ')}\n  html=${n.html.slice(0, 260)}\n  why=${(n.failureSummary ?? '').replace(/\n/g, ' ').slice(0, 320)}`,
-        )
-        .join('\n'),
-  )
-  if (rows.length) console.log(`AXE ${label}: ${rows.length}\n${rows.join('\n')}`)
-  return rows.map((row) => `${label}: ${row}`)
+async function check(page: Page, label: string) {
+  expect(await axeViolations(page, label)).toEqual([])
 }
 
-test('axe WCAG AA scan passes across perspectives and dialogs in both themes', async ({ page }) => {
+test('axe WCAG AA scan covers perspectives, tabs, workspaces and dialogs in both themes', async ({
+  page,
+}) => {
   await page.goto('/')
   await expect(page.getByRole('button', { name: '+ Board' })).toBeEnabled({ timeout: READY })
   await page.getByLabel('Add cabinet').click()
@@ -41,12 +24,20 @@ test('axe WCAG AA scan passes across perspectives and dialogs in both themes', a
     ['manufacture', 'Manufacturing'],
     ['project', 'Project & Room'],
   ] as const
+  const workspaces = [
+    ['motion', 'Door & Drawer Motion…', 'Close motion', 'Door and drawer motion workspace'],
+    ['grain', 'Front Grain Matching…', 'Close grain matching', 'Front grain matching workspace'],
+    ['stock', 'Stock Optimisation…', 'Close stock optimisation', 'Stock optimisation workspace'],
+    ['sloped', 'Sloped-Top Cabinets…', 'Close sloped top', 'Sloped top cabinet workspace'],
+  ] as const
   const dialogs = [
     ['readiness', /Manufacturing readiness/],
     ['bom', /Cutting List/],
     ['drawings', /2D Drawings/],
     ['project-structure', /Project structure/],
     ['packet-compare', /Compare production packets/],
+    ['verify-packet', /Verify production packet/],
+    ['catalogue-import', /Import company catalogue/],
   ] as const
 
   for (const theme of ['dark', 'light'] as const) {
@@ -54,18 +45,42 @@ test('axe WCAG AA scan passes across perspectives and dialogs in both themes', a
       if (value === 'light') document.documentElement.dataset.theme = 'light'
       else delete document.documentElement.dataset.theme
     }, theme)
+
     for (const [id, label] of views) {
       await nav.getByRole('button', { name: new RegExp(label) }).click()
       await page.waitForTimeout(200)
-      expect(await scan(page, `${theme}-${id}`)).toEqual([])
+      await check(page, `${theme}-${id}`)
     }
-    await nav.getByRole('button', { name: /Workbench/ }).click()
+
+    await nav.getByRole('button', { name: /Cabinet Editor/ }).click()
+    const tabs = page.getByRole('navigation', { name: 'Cabinet editor tabs' }).getByRole('button')
+    await expect(tabs).toHaveCount(16)
+    for (let i = 0; i < 16; i++) {
+      await tabs.nth(i).click()
+      await check(page, `${theme}-cabinet-tab-${i + 1}`)
+    }
+
+    await nav.getByRole('button', { name: /Project & Room/ }).click()
+    for (const tab of ['Overview', 'Geometry', 'Assessment', 'Services']) {
+      await page.getByRole('tab', { name: tab, exact: true }).click()
+      await check(page, `${theme}-project-tab-${tab.toLowerCase()}`)
+    }
+
     const file = page.getByRole('button', { name: /^File/ })
+    for (const [id, menu, close, region] of workspaces) {
+      await file.click()
+      await page.getByRole('button', { name: menu, exact: true }).click()
+      await expect(page.getByRole('complementary', { name: region })).toBeVisible()
+      await check(page, `${theme}-workspace-${id}`)
+      await page.getByRole('button', { name: close, exact: true }).click()
+    }
+
+    await nav.getByRole('button', { name: /Workbench/ }).click()
     for (const [id, menu] of dialogs) {
       await file.click()
       await page.getByRole('button', { name: menu }).click()
       await page.waitForTimeout(200)
-      expect(await scan(page, `${theme}-dialog-${id}`)).toEqual([])
+      await check(page, `${theme}-dialog-${id}`)
       await page.keyboard.press('Escape')
       await page.waitForTimeout(200)
     }

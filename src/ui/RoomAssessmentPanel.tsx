@@ -143,7 +143,7 @@ export function RoomAssessmentPanel({
           </div>
         ))}
         {!room.siteLevels?.length && (
-          <p className="text-amber-600">No verified site level recorded.</p>
+          <p className="text-[hsl(var(--zim-warning))]">No verified site level recorded.</p>
         )}
       </div>
       <div className="space-y-1">
@@ -193,7 +193,7 @@ export function RoomAssessmentPanel({
           }),
         )}
         {warnings.length > 0 && (
-          <ul aria-label="Clearance warnings" className="list-disc pl-4 text-amber-600">
+          <ul aria-label="Clearance warnings" className="list-disc pl-4 text-[hsl(var(--zim-warning))]">
             {warnings.map((warning, index) => (
               <li key={index}>{warning}</li>
             ))}

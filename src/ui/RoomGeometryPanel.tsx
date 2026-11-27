@@ -573,7 +573,7 @@ export function RoomGeometryPanel({ geometry: supplied, onChange, cabinets, scen
         </div>
       )}
       {issues.length > 0 && (
-        <ul className="list-disc pl-4 text-amber-600" aria-label="Room geometry warnings">
+        <ul className="list-disc pl-4 text-[hsl(var(--zim-warning))]" aria-label="Room geometry warnings">
           {issues.map((issue, i) => (
             <li key={i}>{issue}</li>
           ))}

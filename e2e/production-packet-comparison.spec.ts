@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { changedFraction } from './canvas'
+import { axeViolations } from './axe-helpers'
 
 test('compares downloaded revisions locally, reports geometry changes and blocks altered content', async ({
   page,
@@ -61,6 +62,8 @@ test('compares downloaded revisions locally, reports geometry changes and blocks
     .setInputFiles({ name: 'later.zip', mimeType: 'application/zip', buffer: later })
   await dialog.getByRole('button', { name: 'Compare revisions' }).click()
   await expect(dialog.getByText('Revision comparison complete', { exact: true })).toBeVisible()
+  // The filled comparison also mounts the nested revision review controls.
+  expect(await axeViolations(page, 'production packet revision review')).toEqual([])
   await expect(
     dialog.getByText('modified part: Board 1 (manufacturing)', { exact: true }),
   ).toBeVisible()
