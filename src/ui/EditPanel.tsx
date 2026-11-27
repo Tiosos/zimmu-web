@@ -155,7 +155,7 @@ function CutRow({
       >
         <span>{open ? '▾' : '▸'}</span>
         <span className="flex-1">{cut.label}</span>
-        <span className="font-mono text-[10px] text-border">{cut.face}</span>
+        <span className="font-mono text-[10px] text-muted-foreground">{cut.face}</span>
         <Button
           variant="ghost"
           size="icon"
@@ -312,7 +312,7 @@ function MitreRow({
       >
         <span>{open ? '▾' : '▸'}</span>
         <span className="flex-1">{cut.label}</span>
-        <span className="font-mono text-[10px] text-border">{cut.end}</span>
+        <span className="font-mono text-[10px] text-muted-foreground">{cut.end}</span>
         <Button
           variant="ghost"
           size="icon"
@@ -986,7 +986,7 @@ export function EditPanel({
                   className="border-t border-border/30 py-1 flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted-foreground/70"
                 >
                   <span className="flex-1">{cut.label} (joint)</span>
-                  <span className="font-mono text-[10px] text-border">{cut.face}</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">{cut.face}</span>
                 </div>
               ) : cut.kind === 'hole-array' ? null : (
                 <CutRow

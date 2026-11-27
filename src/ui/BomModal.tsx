@@ -589,7 +589,7 @@ export function BomModal({
                   : `$${boardSubtotal.toFixed(2)}`}
               </span>
             </span>
-            <span className="text-border">|</span>
+            <span className="text-muted-foreground">|</span>
             <span>
               Dowels:{' '}
               <span className="text-foreground">
@@ -598,7 +598,7 @@ export function BomModal({
                   : `$${dowelSubtotal.toFixed(2)}`}
               </span>
             </span>
-            <span className="text-border">|</span>
+            <span className="text-muted-foreground">|</span>
             <span>
               Hardware:{' '}
               <span className="text-foreground">
@@ -609,7 +609,7 @@ export function BomModal({
                   : `$${hardwareSubtotal.toFixed(2)}`}
               </span>
             </span>
-            <span className="text-border">|</span>
+            <span className="text-muted-foreground">|</span>
             <span>
               Edge banding:{' '}
               <span className="text-foreground">
@@ -618,7 +618,7 @@ export function BomModal({
                   : `$${edgeSubtotal.toFixed(2)}`}
               </span>
             </span>
-            <span className="text-border">|</span>
+            <span className="text-muted-foreground">|</span>
             <span className="font-medium text-foreground">
               Grand total: ${grandTotal.toFixed(2)}
             </span>
