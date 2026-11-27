@@ -67,19 +67,19 @@ describe('ManufacturingWorkspace (S4 shell)', () => {
       expect(within(grid).getByText(card.title)).toBeTruthy()
     }
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Cutting List workflow' }))
+    fireEvent.click(screen.getByRole('button', { name: /Cutting List/ }))
     expect(callbacks.onOpenBom).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Open Readiness Review workflow' }))
+    fireEvent.click(screen.getByRole('button', { name: /Readiness Review/ }))
     expect(callbacks.onOpenReadiness).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Open Shop Drawings workflow' }))
+    fireEvent.click(screen.getByRole('button', { name: /Shop Drawings/ }))
     expect(callbacks.onOpenDrawings).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Open Production Packet workflow' }))
+    fireEvent.click(screen.getByRole('button', { name: /Production Packet/ }))
     expect(callbacks.onExportPacket).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Open Release Comparison workflow' }))
+    fireEvent.click(screen.getByRole('button', { name: /Release Comparison/ }))
     expect(callbacks.onOpenComparison).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Open Local Change Review workflow' }))
+    fireEvent.click(screen.getByRole('button', { name: /Local Change Review/ }))
     expect(callbacks.onOpenChangeReview).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Open Verify Packet workflow' }))
+    fireEvent.click(screen.getByRole('button', { name: /Verify Packet/ }))
     expect(callbacks.onVerifyPacket).toHaveBeenCalledTimes(1)
   })
 
@@ -113,7 +113,7 @@ describe('ManufacturingWorkspace (S4 shell)', () => {
 
   it('reveals six export actions and invokes their real callbacks', () => {
     const { callbacks } = renderWorkspace()
-    fireEvent.click(screen.getByRole('button', { name: 'Open Exports workflow' }))
+    fireEvent.click(screen.getByRole('button', { name: /Exports/ }))
     const exports = screen.getByLabelText('Export formats')
     expect(exports.querySelectorAll('button')).toHaveLength(6)
     fireEvent.click(screen.getByRole('button', { name: 'Export STL mesh' }))

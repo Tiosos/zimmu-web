@@ -30,9 +30,10 @@ export function ThemeToggle() {
       variant="ghost"
       size="sm"
       onClick={() => setLight((value) => !value)}
-      aria-label={light ? 'Switch to dark theme' : 'Switch to light theme'}
+      // The accessible name must contain the visible word for axe's label-content-name rule.
+      aria-label={light ? 'Light theme — switch to dark' : 'Dark theme — switch to light'}
       aria-pressed={light}
-      title={light ? 'Switch to dark theme' : 'Switch to light theme'}
+      title={light ? 'Light theme — switch to dark' : 'Dark theme — switch to light'}
       className="text-xs h-7 px-2 rounded flex-shrink-0"
     >
       {light ? 'Light' : 'Dark'}
