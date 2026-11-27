@@ -1,0 +1,41 @@
+import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+
+// Keep this key in sync with the pre-hydration snippet in index.html. The theme is a user
+// preference only: it never enters the scene file, manufacturing packet or release record.
+export const THEME_STORAGE_KEY = 'zimmu:theme:v1'
+
+export function ThemeToggle() {
+  const [light, setLight] = useState(() => {
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY) === 'light'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (light) root.dataset.theme = 'light'
+    else delete root.dataset.theme
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, light ? 'light' : 'dark')
+    } catch {
+      // Private browsing may block storage; the in-memory theme still applies for this session.
+    }
+  }, [light])
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => setLight((value) => !value)}
+      aria-label={light ? 'Switch to dark theme' : 'Switch to light theme'}
+      aria-pressed={light}
+      title={light ? 'Switch to dark theme' : 'Switch to light theme'}
+      className="text-xs h-7 px-2 rounded flex-shrink-0"
+    >
+      {light ? 'Light' : 'Dark'}
+    </Button>
+  )
+}
