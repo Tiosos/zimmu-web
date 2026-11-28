@@ -19,7 +19,15 @@ Scope: `ui-redesign/DESIGN-SIGNOFF.md` §12, evaluated on `main` at `8388f6e` (m
 
 - Live Keycloak/company-catalogue authentication remains an IT deployment prerequisite and is not claimed by local or GitHub checks (see `docs/company-catalogue-api.md`).
 - `production-packet-comparison` previously raced the 150 ms `DimInput` debounce and exported two identical packets. The browser test now waits for the viewport geometry to change before exporting the later packet; five consecutive repeats and the full suite pass.
-- No axe-core dependency was added; automated accessibility checks are deterministic Playwright assertions on focus, keyboard and computed contrast rather than a generic rule scan.
+- `@axe-core/playwright` is now a dev dependency and `e2e/axe-a11y.spec.ts` runs WCAG A/AA rules over all perspectives and five dialogs in both themes. The deterministic Playwright assertions on focus, keyboard and computed contrast remain and complement the rule scan. `nested-interactive` is disabled for the intentional keyboard-operable SVG hotspots.
+
+## Local re-verification (2026-11-28)
+
+After syncing `main` to `95adf28` (which adds #174–#178 after the baseline above), the full
+local check suite was rerun: `typecheck`, `lint` and `check:file-casing` passed. The unit suite
+reported 261 files / 4606 passed / 10 skipped with five 5-second timeouts under parallel load;
+all five tests passed when rerun in isolation with a 20-second timeout (139/139 across the four
+affected files). This is a local timing artifact, not a product regression.
 
 ## Conclusion
 

@@ -4,9 +4,11 @@
 > built woodwork. Produces buildable, dimensioned models with a parametric
 > joint library — without the engineering-CAD overhead.
 
-**Current state:** Browser prototype (Phase 0 / 0.5). The approved direction is a
-room-to-production design product, delivered in stages; desktop/native migration
-is assessed later against measured constraints.
+**Current state:** Browser prototype. The approved direction is a
+room-to-production design product, delivered in stages; the Concept A workbench
+redesign (S0–S7, PR #167–#173) is complete and documented in
+[`ui-redesign/ACCEPTANCE-EVIDENCE.md`](ui-redesign/ACCEPTANCE-EVIDENCE.md).
+Desktop/native migration is assessed later against measured constraints.
 Strategic plan (historical): [`joinery_3d_software_plan.md`](joinery_3d_software_plan.md)
 · Current direction: [`design-to-manufacturing architecture`](docs/superpowers/specs/2026-09-29-design-to-manufacturing-architecture-design.md)
 · Full architecture reference: [`project-structure.html`](project-structure.html)
@@ -76,6 +78,7 @@ remain unassessed.
 
 ```
 App.tsx
+  ├── PerspectiveSwitcher / ModelingToolbar / WorkbenchStatusBar  Concept A shell
   ├── useScene        scene state · geometry lifecycle · undo/redo · CRUD
   ├── useFile         FSAPI save/open · IDB auto-reopen · dirty tracking
   ├── useSnap         face-to-face snap-align state machine
@@ -85,7 +88,8 @@ App.tsx
   ├── Sidebar         parts list + EditPanel (dims, cuts, linked hardware)
   ├── FileMenu        top bar · file ops · undo/redo · exports
   ├── BomModal        three-tab BOM (boards/hardware/library)
-  └── DrawingViewer   2D shop drawing modal (SVG preview + DXF/SVG export)
+  ├── DrawingViewer   2D shop drawing modal (SVG preview + DXF/SVG export)
+  └── Workspaces      CabinetEditor · ViewportModes · Manufacturing · ProjectRoom
 ```
 
 `useScene` is the single source of truth. Geometry rebuilds are triggered only
@@ -180,7 +184,7 @@ designed in §14 of the strategic plan but not yet implemented.
 ## Testing
 
 ```bash
-pnpm test                                   # all 60 unit-test files
+pnpm test                                   # all 261 unit-test files (4611 passed, 10 skipped)
 pnpm vitest run src/ui/HardwareTab.test.tsx # single file
 pnpm coverage                               # lcov + console report
 ```
