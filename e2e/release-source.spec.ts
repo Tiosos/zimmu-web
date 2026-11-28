@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { readyAssessment } from '../src/scene/__fixtures__/release'
 import type { Scene } from '../src/scene/types'
+import { axeViolations } from './axe-helpers'
 
 // A real OPFS handle remains cloneable by the app's IndexedDB handle persistence.
 // Only the native picker is replaced; parsing, geometry, history and release hashing run normally.
@@ -102,6 +103,7 @@ test('a recorded shelf shows live changes, comparison selection and undo back to
   await expect(
     comparison.getByText('Release shelf · part · modified', { exact: true }),
   ).toBeVisible()
+  expect(await axeViolations(page, 'release source comparison')).toEqual([])
   await expect(
     comparison.getByRole('region', { name: 'manufacturing changes' }).getByRole('status'),
   ).toHaveText('1 pending · 0 reviewed · 1 total')

@@ -492,7 +492,7 @@ export function CarcasePanel({
             </Select>
           </div>
           {edgeMissing && (
-            <p className="text-xs text-amber-600 mb-1">
+            <p className="text-xs text-[hsl(var(--zim-warning))] mb-1">
               Edge material “{edgeMaterial}” is not in this project; no automatic banding.
             </p>
           )}
@@ -526,7 +526,7 @@ export function CarcasePanel({
             </Button>
           </div>
           {edgeNameReserved && (
-            <p className="text-xs text-amber-600 mb-1">
+            <p className="text-xs text-[hsl(var(--zim-warning))] mb-1">
               “none” and “follow” are reserved; choose another name.
             </p>
           )}
